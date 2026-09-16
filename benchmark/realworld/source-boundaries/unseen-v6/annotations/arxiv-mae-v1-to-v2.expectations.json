@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-mae-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "b432aa6788bc617727fa49cb203300a2d134a3e21e51058fda62c3362a1c06be",
+  "body_eligible": true,
+  "reason": "Complete training-time paragraph below Figure 9 in the right column. The earlier abstract is unchanged and introductory citation renumbering is not selected."
+}

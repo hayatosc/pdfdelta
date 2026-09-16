@@ -1,0 +1,623 @@
+{
+  "version": 1,
+  "recorded_at": "2026-09-15 03:57:56 UTC",
+  "status": "implemented_verified",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/pdfdelta",
+    "sha256": "3739ca0a1a19afb8bde5915cc8de4c127fffb5bd77dd44ac86ef0eb640b93d9c"
+  },
+  "changed_files": [
+    {
+      "current": {
+        "path": "crates/pdfdelta-core/src/document/text_scopes.rs",
+        "sha256": "b5993a1150517960da60eb4303209aed5641fa6c34f8e06164dbdaa98cf6d94b"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/scopes.rs",
+        "sha256": "b5993a1150517960da60eb4303209aed5641fa6c34f8e06164dbdaa98cf6d94b"
+      }
+    },
+    {
+      "current": {
+        "path": "crates/pdfdelta-core/tests/document_text_scopes_fixture.rs",
+        "sha256": "7f15dd998842d66364db41b810b5568d847cc554535a7538e58439e8a2bfca70"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/scope_fixture.rs",
+        "sha256": "7f15dd998842d66364db41b810b5568d847cc554535a7538e58439e8a2bfca70"
+      }
+    },
+    {
+      "current": {
+        "path": "benchmark/realworld/remaining/verify.py",
+        "sha256": "619cb6bb3df913ac2d03746df541073bba85d9431551ef16c3032cb7d694b6b7"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/verify.py",
+        "sha256": "619cb6bb3df913ac2d03746df541073bba85d9431551ef16c3032cb7d694b6b7"
+      }
+    },
+    {
+      "current": {
+        "path": "benchmark/realworld/remaining/test_verify.py",
+        "sha256": "694796933980827058d277dba064b94b3cf11106340ce67be78a4009fbaffe5a"
+      },
+      "snapshot": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/test_verify.py",
+        "sha256": "694796933980827058d277dba064b94b3cf11106340ce67be78a4009fbaffe5a"
+      }
+    }
+  ],
+  "limits": "Unchanged text route, scale 1; parser/extraction, matching, ownership and review-output caps are unchanged. No new PDFs were selected.",
+  "behavior": "Source-only mandatory, unchanged exact group correspondences may bound a whole native or retained-order interval when every member is contiguous in one run. The complete endpoint groups remain outside the interior and inside closure. Singleton extents keep priority; covered group subranges are not repeated. New ordered masks run before budgeted deferred count fallbacks.",
+  "comparisons": [
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-after/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "eca99c7ec897e567ed4380b7664119aee8cbb58270dde55eda7315f622d6eaa9"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-panel/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "8be5eaf4c4a1e34e66e06a1d83e8dd05f9dc8af9b1cc43af95960361fa9a0e53"
+        }
+      ],
+      "B_counts": [
+        0,
+        0
+      ],
+      "B_source_union": [
+        0,
+        0
+      ],
+      "lost_sources": 0,
+      "added_sources": 0,
+      "every_prior_event_and_review_payload_retained_except_pointer": true,
+      "strict_comparison_payloads_equal": true,
+      "strict_coverage_equal": true,
+      "input_revisions_equal": true,
+      "comparison_complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-after/arxiv-mask-rcnn-v1-to-v3-text.json",
+          "sha256": "cc8f91d81a1933e258b3248769c1ebb080dcb75a320bd6849b4e21fdcb5c3843"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-panel/arxiv-mask-rcnn-v1-to-v3-text.json",
+          "sha256": "3aa5633753b05fc27dde7fff0390ef8668dc273494df81e0af808b19e7433be8"
+        }
+      ],
+      "B_counts": [
+        18,
+        18
+      ],
+      "B_source_union": [
+        5571,
+        5571
+      ],
+      "lost_sources": 0,
+      "added_sources": 0,
+      "every_prior_event_and_review_payload_retained_except_pointer": true,
+      "strict_comparison_payloads_equal": true,
+      "strict_coverage_equal": true,
+      "input_revisions_equal": true,
+      "comparison_complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-nist/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "08b205905818e21cba62078ab551c287501c635bd28c37ce04974a78818c568b"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-panel/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "46ec9a1b8c569d9638e4e065d283c2fbdd04f346ebc4b0460f64e2216fcbcaa4"
+        }
+      ],
+      "B_counts": [
+        7,
+        7
+      ],
+      "B_source_union": [
+        2940,
+        2940
+      ],
+      "lost_sources": 0,
+      "added_sources": 0,
+      "every_prior_event_and_review_payload_retained_except_pointer": true,
+      "strict_comparison_payloads_equal": true,
+      "strict_coverage_equal": true,
+      "input_revisions_equal": true,
+      "comparison_complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-nist/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "9792b0607003fa38ab749a97a1fb5b6681c1d97838d283ad4d6b549bdab88fca"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-panel/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "a3ef06654d503b197b5af37cbd86f22faae9880d8bca42c18aaaa8356b18eea0"
+        }
+      ],
+      "B_counts": [
+        14,
+        14
+      ],
+      "B_source_union": [
+        6753,
+        6753
+      ],
+      "lost_sources": 0,
+      "added_sources": 0,
+      "every_prior_event_and_review_payload_retained_except_pointer": true,
+      "strict_comparison_payloads_equal": true,
+      "strict_coverage_equal": true,
+      "input_revisions_equal": true,
+      "comparison_complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-controls/nist-126-r2-to-r3-text.json",
+          "sha256": "a7bcb87e4daedb634829bc6ecf14c4899b3eab9fb7841fe43c8bf68af4656bd6"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-controls/nist-126-r2-to-r3-text.json",
+          "sha256": "9648915150d0cd11412b4608bf0902baa56c875224724abab37bbf0c7a73b2f9"
+        }
+      ],
+      "B_counts": [
+        32,
+        33
+      ],
+      "B_source_union": [
+        22070,
+        23080
+      ],
+      "lost_sources": 0,
+      "added_sources": 1010,
+      "every_prior_event_and_review_payload_retained_except_pointer": true,
+      "strict_comparison_payloads_equal": true,
+      "strict_coverage_equal": true,
+      "input_revisions_equal": true,
+      "comparison_complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-controls/faa-weight-27e-to-27f-text.json",
+          "sha256": "9d894f340f20415857d40f5ea7c2ea502b63279c224cd5e18bfcdd7b0ee9c45a"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-controls/faa-weight-27e-to-27f-text.json",
+          "sha256": "c0a58f734111dc4348fdeda4f43b3442aeae043a37fd5a57887bc0d5d1b9faae"
+        }
+      ],
+      "B_counts": [
+        0,
+        0
+      ],
+      "B_source_union": [
+        0,
+        0
+      ],
+      "lost_sources": 0,
+      "added_sources": 0,
+      "every_prior_event_and_review_payload_retained_except_pointer": true,
+      "strict_comparison_payloads_equal": true,
+      "strict_coverage_equal": true,
+      "input_revisions_equal": true,
+      "comparison_complete": [
+        false,
+        false
+      ]
+    }
+  ],
+  "adjudication": {
+    "pair": "nist-126-r2-to-r3",
+    "pointer": "/comparison/scopes/0/result/text_scope_reviews/32",
+    "event_sha256": "0dbce3d4f6d925fa2ecc3b23c0c96cd72c2564dd02a2e9fccbbc846f0c44fd7e",
+    "verdict": "source_supported",
+    "source_content_rationale": "Four MUST requirements become SHALL in countersignature items 4 and 5. The original pages and independent all-optimal mask check support the 503-old/507-new-source range, with exactly 28 changed source tokens. It is one conditional range, not four new correspondence certificates.",
+    "correspondence_rationale": "The entry is an accepted unchanged singleton. The exit is an accepted unchanged two-old-node/one-new-node group. Complete boundary membership, literal token equality, mandatory/non-inferred status, raw glyph census, descending node bands, inventories, source conflicts and disjoint paint pass independent checks.",
+    "source_checks": {
+      "event_sha256": "0dbce3d4f6d925fa2ecc3b23c0c96cd72c2564dd02a2e9fccbbc846f0c44fd7e",
+      "source_checks": {
+        "old": {
+          "page": 46,
+          "glyphs": 503,
+          "raw": "4. The second <dsig:Reference> element MUST be to the <dsig:SignatureProperties> element captured in a <dsig:Object> element with the <dsig:Signature> element. The <dsig:SignatureProperties> element MUST be referenced in the @URI attribute using \u201c#\u201d + @Id of the <dsig:SignatureProperties> element. 5. A <dsig:SignatureProperties> element MUST be included in the <dsig:Signature> element. At least one <dsig:SignatureProperty> element MUST be populated with <dt:signature-info> as specified in [TMSAD]. ",
+          "display": "4. The second <dsig:Reference> element MUST be to the <dsig:SignatureProperties> element captured in a <dsig:Object> element with the <dsig:Signature> element. The <dsig:SignatureProperties> element MUST be referenced in the @URI attribute using \u201c#\u201d + @Id of the <dsig:SignatureProperties> element. 5. A <dsig:SignatureProperties> element MUST be included in the <dsig:Signature> element. At least one <dsig:SignatureProperty> element MUST be populated with <dt:signature-info> as specified in [TMSAD]. ",
+          "population_nodes": [
+            1313,
+            1314,
+            1315,
+            1316,
+            1317,
+            1318,
+            1319,
+            1320,
+            1321,
+            1322
+          ],
+          "population_glyphs": 625,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": true,
+          "disjoint_non_text_paint": []
+        },
+        "new": {
+          "page": 52,
+          "glyphs": 507,
+          "raw": "4. The second <dsig:Reference> element SHALL be to the <dsig:SignatureProperties> element captured in a <dsig:Object> element with the <dsig:Signature> element. The <dsig:SignatureProperties> element SHALL be referenced in the @URI attribute using \u201c#\u201d + @Id of the <dsig:SignatureProperties> element. 5. A <dsig:SignatureProperties> element SHALL be included in the <dsig:Signature> element. At least one <dsig:SignatureProperty> element SHALL be populated with <dt:signature-info> as specified in [TMSAD]. ",
+          "display": "4. The second <dsig:Reference> element SHALL be to the <dsig:SignatureProperties> element captured in a <dsig:Object> element with the <dsig:Signature> element. The <dsig:SignatureProperties> element SHALL be referenced in the @URI attribute using \u201c#\u201d + @Id of the <dsig:SignatureProperties> element. 5. A <dsig:SignatureProperties> element SHALL be included in the <dsig:Signature> element. At least one <dsig:SignatureProperty> element SHALL be populated with <dt:signature-info> as specified in [TMSAD]. ",
+          "population_nodes": [
+            1603,
+            1604,
+            1605,
+            1606,
+            1607,
+            1608,
+            1609,
+            1610,
+            1611
+          ],
+          "population_glyphs": 629,
+          "source_census_exact": true,
+          "strictly_descending_node_bands": true,
+          "original_cut_projection_checked": false,
+          "page_text_inventory_complete": false,
+          "disjoint_non_text_paint": [
+            {
+              "page": 52,
+              "render_order": 151849,
+              "bounds": {
+                "min": {
+                  "x": 4.4999999999999964,
+                  "y": 164.59999999999988
+                },
+                "max": {
+                  "x": 38.30000000000004,
+                  "y": 592.2500000000006
+                }
+              },
+              "content_stream": {
+                "object_number": 152,
+                "generation": 0
+              },
+              "operator_index": 109
+            },
+            {
+              "page": 52,
+              "render_order": 151943,
+              "bounds": {
+                "min": {
+                  "x": 40.10009999999994,
+                  "y": 71.8998999999985
+                },
+                "max": {
+                  "x": 41.600100000000054,
+                  "y": 721.3999000000009
+                }
+              },
+              "content_stream": {
+                "object_number": 152,
+                "generation": 0
+              },
+              "operator_index": 225
+            }
+          ]
+        }
+      },
+      "boundaries": [
+        {
+          "proposal": 239,
+          "members": {
+            "old": [
+              1313
+            ],
+            "new": [
+              1603
+            ],
+            "basis": "literal_content",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "text": "<dsig:Object> element. "
+        },
+        {
+          "proposal": 2468,
+          "members": {
+            "old": [
+              1321,
+              1322
+            ],
+            "new": [
+              1611
+            ],
+            "basis": "literal_content",
+            "supplier": "retained-order-exact-group-v1",
+            "weight": 1
+          },
+          "text": "6. Key information SHOULD be provided on the <dsig:Signature> element in accordance with [TMSAD]. "
+        }
+      ],
+      "proof": null,
+      "independent_mask": {
+        "normalization_pairs": 1,
+        "source_lower": 28,
+        "source_upper": 28,
+        "mandatory_positions": {
+          "old": [
+            39,
+            40,
+            42,
+            199,
+            200,
+            202,
+            339,
+            340,
+            342,
+            435,
+            436,
+            438
+          ],
+          "new": [
+            40,
+            41,
+            42,
+            43,
+            201,
+            202,
+            203,
+            204,
+            342,
+            343,
+            344,
+            345,
+            439,
+            440,
+            441,
+            442
+          ]
+        }
+      }
+    },
+    "source_export": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-sp126-review/review/sources.json",
+      "sha256": "6bb71808385e198062576dbc029b0b21b68dbdece6e1ef98aa17a1ed55095c9e"
+    },
+    "source_check_program": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/source-check.py",
+      "sha256": "90ee102f518cf189eaa30535d787cafc91d24825d557242789e281b31fd6ad93"
+    },
+    "source_check_log": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/source-check.log",
+      "sha256": "880eb3c5aaab8b411828ff5c22591c17b135beaf79b64a6eaabe367f087476ff"
+    },
+    "reviewed_images": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-sp126-review/review/old-region-46.png",
+        "sha256": "a90cca7cbcae59a7b4cb81ac39fc45acc243a9b6b1e7fb73ae09256874e9e25d"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-sp126-review/review/new-region-52.png",
+        "sha256": "ff5e651ff0e583b11d4126131f94f2cdecb94e8f3d5d0f78a89627568b975fb5"
+      }
+    ],
+    "repeat_report": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-sp126-review/report.json",
+      "sha256": "b68f55efde71024095d08e59a60b6b1caf77372141b4e8b32e05668870eada45"
+    },
+    "repeat_equal_except_wall_time": true,
+    "validator_dependencies": [
+      {
+        "path": "benchmark/realworld/source-boundaries/review-v75.py",
+        "sha256": "21468bf91d5f234f4adbdbab9a4ed977ed89a035f4aa85e176cd59c39beae745"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/review-v67.py",
+        "sha256": "ab7183b942ba9c26a301d326fc40331b4c199460b72a6f4996c11338a995f3be"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/review-v51.py",
+        "sha256": "f60269c2ff26ca3d6192390b889fc390aba000c298b9da1a51360abce2ea9e9e"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/review-v31.py",
+        "sha256": "26b722a0fb3f6f9bbc85c25d7f1369c6853efcdd4bc10554a654cf373c4115f1"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/review-v33.py",
+        "sha256": "76597c965103b140630c93991682edb28719f2d2470d71c8e65e2189c049afd6"
+      },
+      {
+        "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+        "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+      }
+    ]
+  },
+  "trial_evidence": [
+    {
+      "stage": "group-boundary-only-controls",
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-boundary-only-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "ac5a43f70c1d454675caaec12819108cb0e6c7cda262d8eadb1253232764b425"
+      },
+      "B_count": 33,
+      "B_source_union": 22456,
+      "lost_sources": 624,
+      "added_sources": 1010
+    },
+    {
+      "stage": "group-retained-controls",
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-retained-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "e49d362fed0661b45d0a33577dd2a9abb86c1367f1a2fcfa1e8132f7c92a3652"
+      },
+      "B_count": 34,
+      "B_source_union": 22070,
+      "lost_sources": 0,
+      "added_sources": 0
+    },
+    {
+      "stage": "group-uncovered-controls",
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-uncovered-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "d5c0254270bde046c0e5be24fc1a81ed7094138526726ef80b6868a6a5f38246"
+      },
+      "B_count": 32,
+      "B_source_union": 22070,
+      "lost_sources": 0,
+      "added_sources": 0
+    },
+    {
+      "stage": "group-order-preflight-controls",
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-order-preflight-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "7dffa7a0d746d8256478f49cca6db84e4acfc6f0462a512f965df37a5c4b6825"
+      },
+      "B_count": 32,
+      "B_source_union": 22070,
+      "lost_sources": 0,
+      "added_sources": 0
+    },
+    {
+      "stage": "group-centered-controls",
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-centered-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "d6dd20465e305aa5c242238f6fd6b689a184eeeb1df6e462f23013c5c66dff5c"
+      },
+      "B_count": 33,
+      "B_source_union": 24167,
+      "lost_sources": 787,
+      "added_sources": 2884
+    }
+  ],
+  "diagnosis": {
+    "work_trace": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/work.log",
+      "sha256": "e4489af2c1d013c6984a530b378368d8d5452ff945e917c9036e54442b7ec2d9"
+    },
+    "stages_trace": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/stages.log",
+      "sha256": "026ee13c890c76601b250c7c0411c056eaa11d78f1449d7fd5eba033890b9a9e"
+    },
+    "instrumented_reports": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/report.json",
+        "sha256": "ef2a31c03eeefac3486f0ba1c99b6e516b5b10cc76f4dad0d9258c37163be130"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/stages-report.json",
+        "sha256": "5bc45082fe7521d79b8a58761e7082942d3b223e29132b51bb36612e57bf391f"
+      }
+    ],
+    "instrumentation": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/pdfdelta",
+        "sha256": "96d603ea60c5e7e368e04a8daf2c3db76b87264a64a8dc89eedb487b54a97719"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/scopes.rs",
+        "sha256": "f3693db20ed48b0289ca789e81672b9d3c7805aea91061692c9311a09f357f2d"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/stages-pdfdelta",
+        "sha256": "390d2a46be75448595b8f0fb4c463ea5de263634bb97870501feb655acf936df"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-work-diagnostic/stages-scopes.rs",
+        "sha256": "724595868b9172f33e5a4cc80218ae329c13dd3fa712771061741125161a45c5"
+      }
+    ],
+    "reports_equal_to_uninstrumented_except_wall_time": true,
+    "finding": "Two XML-layout candidates consume shared work before failing the order/count check. Their non-space scalar multisets are equal; garbled layout order does not establish change. Deferring their count fallbacks lets the later ordered signature range retain its turn.",
+    "counterfactual_note": "The meaningful order-preflight counterfactual was rebuilt after refreshing the source timestamp and fails at 4000 visits. An earlier cached execution is discarded."
+  },
+  "quality": {
+    "workspace_passed": 2451,
+    "workspace_ignored": 2,
+    "generated_passed": "48/48",
+    "strict_generated": "42/48",
+    "all_five_core_cases_pass": true,
+    "verifier_tests": 14,
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/clippy.log",
+        "sha256": "0c1157cac195c81c5c8ca20bff98de4eb85e61f9e0a57f439a32d2c2d773118b"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/workspace.log",
+        "sha256": "bb86e80203851e5b392ca88f8105746a73e79070aa76438e388cdd353be46da2"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/acceptance.log",
+        "sha256": "c8b3646d24e70910045fd4b24c7e52444af2abaefcb887bea12a7755c2f813f9"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/build.log",
+        "sha256": "b1faebc5c0ee75f9e89a3442ec8f3865748bafd1042028289c4d4dae8bc65b60"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/scope-tests.log",
+        "sha256": "c72718c08adf21ca389157f1358fbb917bccf6c536b23c25e371682a7272d6b4"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/bounded-test.log",
+        "sha256": "234a968b0ff81e15d823fd529f3b725411c7c289c29b4499690cc5c07263e08e"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/counterfactual.log",
+        "sha256": "19713f3d8dde0850bdeb8d7a75fbd1e7216b74f0aac9571a4ab56596c8995f00"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/order-counterfactual-rebuilt.log",
+        "sha256": "5e1df24878d946e566420ca381d31adde62285cd3206dc38f684ed445cef1de3"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/verifier-tests.log",
+        "sha256": "f199b8e0e3957c3087ec7fff5c07009b08b6c2a03a06f10215625b7ec1e5c29b"
+      }
+    ]
+  },
+  "centered_layout_trial_adopted": false,
+  "temporary_instrumentation_removed": true,
+  "goal_complete": false,
+  "gate_scope": "This is one out-of-target finite-range improvement on an already exposed control pair. Strict coverage and document completeness are unchanged; no fixed development, new blind or whole-document completion gate is incremented. Faster introduction recovery remains open.",
+  "next": "Continue source-backed boundary and disconnected-path diagnosis for Faster without changing its frozen extent or losing existing coverage.",
+  "result_builder": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/result-builder.py",
+    "sha256": "6efe2f8dcc0d7cb6cc4026cda52e7885c2118b074d1d59b1c8c9274854f4a6e8"
+  }
+}

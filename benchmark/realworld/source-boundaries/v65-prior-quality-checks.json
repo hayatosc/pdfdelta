@@ -1,0 +1,66 @@
+{
+  "source_sha256": "daf83cfd26ade93033b14f2d8e98673aa9108ac91da69c8c0a8fc75521cddc97",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v60-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v60-locked-clippy.log",
+        "sha256": "71e9fce9776a40e493ef1bffe1d229eb5a1631f920ad1724583f9cff457eb89f"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v60-locked-tests.log",
+        "sha256": "c9ad39507c03ff483bdc77fc7ce6800917176143d5b9223f8459782184e8d846"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v60-generated.log",
+        "sha256": "eb3d5a1a19fad1e00bba9f77d33c7a35fe3f3bc5a6ab8f59f44400e373856edb"
+      }
+    }
+  ],
+  "reuse_note": "All four canonical commands completed successfully against the frozen V60 Rust and Cargo sources."
+}

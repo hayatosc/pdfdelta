@@ -1,0 +1,214 @@
+{
+  "status": "diagnostic_boundary_accepted_without_fixed_target_recovery",
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "finding": "Accepting the following paragraph as a diagnostic text-only boundary does not recover the fixed 225-atom GPT-3 target, either alone or with the exact-program plus mapping oracle.",
+  "experiment_contract": "Same frozen GPT-3 inputs, default text scale 1, timeout 180 seconds and unchanged budgets. The existing padding basis is a diagnostic stand-in only; it does not certify unresolved layout normalization.",
+  "records": [
+    {
+      "label": "boundary-only",
+      "status": "diagnostic_only_not_admitted",
+      "hypothesized_boundary": [
+        {
+          "index": 7634,
+          "proposal": {
+            "old": [
+              502
+            ],
+            "new": [
+              503
+            ],
+            "basis": "literal_content_with_padding",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "text_boundary_accepted": true,
+          "whole_accepted": false,
+          "source_only_mandatory": true
+        }
+      ],
+      "changed_native_glyphs": {},
+      "native_geometry_raw_codes_provenance_and_paint_unchanged": true,
+      "B_views": 8,
+      "B_union_atoms": 1487,
+      "fixed_core_atoms": 225,
+      "target_overlaps": [],
+      "comparison_complete": false,
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 4,
+        "work": 478213,
+        "budget_at_entry": 669276
+      },
+      "references": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/boundary-only/run.json",
+          "sha256": "c3ed9f502dc87e23f262caff177b983e1d0f81b44e4cd8b3e33744e03d89a30a"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/boundary-only/report.json",
+          "sha256": "c2ea2bd584bc472adeaba1dbc69d156d9a103afcf3a406c271d304940a6ba253"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/boundary-only/review/sources.json",
+          "sha256": "cc68070ee34bab18a17626700b1a636f0a2b2314ade3a093a17e92f9ab5da371"
+        }
+      ]
+    },
+    {
+      "label": "boundary-plus",
+      "status": "diagnostic_only_not_admitted",
+      "hypothesized_boundary": [
+        {
+          "index": 7552,
+          "proposal": {
+            "old": [
+              442
+            ],
+            "new": [
+              445
+            ],
+            "basis": "literal_content_with_padding",
+            "supplier": "typed-scope-v1",
+            "weight": 1
+          },
+          "text_boundary_accepted": true,
+          "whole_accepted": false,
+          "source_only_mandatory": true
+        }
+      ],
+      "changed_native_glyphs": {
+        "old": 179,
+        "new": 194
+      },
+      "native_geometry_raw_codes_provenance_and_paint_unchanged": true,
+      "B_views": 14,
+      "B_union_atoms": 2647,
+      "fixed_core_atoms": 225,
+      "target_overlaps": [],
+      "comparison_complete": false,
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 481033,
+        "budget_at_entry": 748155
+      },
+      "references": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/boundary-plus/run.json",
+          "sha256": "a72b2a60d68cd951d616ddba9bde9f8a389e9e19d9303837985715921636481c"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/boundary-plus/report.json",
+          "sha256": "34e8fd3adeaee35aaeca57fd20389ad5c882180ccf38c9cfb5335bc801328c9b"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/boundary-plus/review/sources.json",
+          "sha256": "d3541453d658c46f4e53507bf949c85a276c025890350cbbf81e9c3303e244e0"
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "diagnostic_release_build": "passed",
+    "captures": "both completed with expected exit code 3",
+    "source_evidence": "native geometry, raw codes, provenance and paint unchanged; only the plus scenario changes 179 old and 194 new unmapped code-43 glyphs to plus",
+    "restored_sources": [
+      {
+        "source": {
+          "path": "crates/pdfdelta-core/src/document/matching.rs",
+          "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+        },
+        "snapshot": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/matching-before.rs",
+          "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+        },
+        "byte_identical": true
+      },
+      {
+        "source": {
+          "path": "crates/pdfdelta-core/src/document/matching/candidates.rs",
+          "sha256": "0c2214c3bb66efbfecaeb234bfa86b3739c57d2709430c4c7d593a77efc73c98"
+        },
+        "snapshot": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/candidates-before.rs",
+          "sha256": "0c2214c3bb66efbfecaeb234bfa86b3739c57d2709430c4c7d593a77efc73c98"
+        },
+        "byte_identical": true
+      },
+      {
+        "source": {
+          "path": "crates/pdfdelta-core/src/pdf/font/simple.rs",
+          "sha256": "964159eadbd9e5f619db466e15578dfdf6e8189bef6a4b5d77e1a73177402a20"
+        },
+        "snapshot": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/simple-before.rs",
+          "sha256": "964159eadbd9e5f619db466e15578dfdf6e8189bef6a4b5d77e1a73177402a20"
+        },
+        "byte_identical": true
+      }
+    ],
+    "default_binary_restored": {
+      "current": {
+        "path": "target/release/pdfdelta",
+        "sha256": "a7312606207e5784ad80d452e1671360652b56c15a29742d2618cb1ffc5bda73"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/borrowed-cut-members/pdfdelta",
+        "sha256": "a7312606207e5784ad80d452e1671360652b56c15a29742d2618cb1ffc5bda73"
+      },
+      "byte_identical": true
+    },
+    "workspace_checks": "not rerun: no production changes retained; diagnostic release build and report/source checks passed"
+  },
+  "limitations": [
+    "The hypothetical boundary and all oracle recoveries are excluded from admitted coverage.",
+    "Aggregate cut-search counters do not identify the first rejected target interval. Zero examined fragments must not be interpreted as proof of a particular closure failure.",
+    "Source inspection identifies run membership, paired-anchor ordering, source/paint census and projection as distinct preconditions before fragment comparison. No specific one is claimed as the measured root cause.",
+    "The fixed target is unrecovered and comparison remains incomplete in both captures."
+  ],
+  "next_action": "Instrument the diagnostic target path to locate the first failed run/anchor/census/projection condition, reproduce the same reports, and restore instrumentation before considering a production change. Do not implement a new boundary premise solely from candidate acceptance.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/summary.json",
+      "sha256": "29e9816597da7bfb1b3a8f4384bbedb992d0cba57161f801a989d642880105e0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/check.py",
+      "sha256": "fd6db0ea80b22068a27ee4b9f7c53a4bec376d44c87f8409d2cbdae6cc3ea047"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/check.log",
+      "sha256": "b0340f19855ccb248a41d73d59d2b8489457fa7b500f5df0db1f98a6bc12067f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/run.py",
+      "sha256": "92801b211d0ffe98d2ae83e9e4c2d2e85f1148e30905fa2e785b3d6c45f352de"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/build.log",
+      "sha256": "8482ef273ed491f0df31e82201703e2896411cd1c3e23a5ac07f0fb369ab5b02"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/pdfdelta",
+      "sha256": "0c7bdec2f04445fcbe86e7fb2b6c7329774d414e97899bbc01289ae51b4d4692"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/matching-oracle.rs",
+      "sha256": "f4ff1afe1ef30b413c55b634210d3897f94b8d87a1cf675f12a231f22d0cf9c3"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/candidates-oracle.rs",
+      "sha256": "b79ac61374e1532a46aad9a6199e2bd6dafb4319c9132ec1bb3b0e71842c61a0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-oracle/simple-oracle.rs",
+      "sha256": "7ef48ad967492a291bd5a75448abafa31e60d624f8699708cad46ecdb6509ef8"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-56a-r2-to-r3",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "23332c45375ef817ecf4feebb2b20810e0e7d4d6660cacf98da53e7efdb632b3",
+  "body_eligible": true,
+  "reason": "The first complete Introduction paragraph removes Triple DES and expands HMAC. Both new inline footnote markers remain included. The abstract has no substantive prose change."
+}

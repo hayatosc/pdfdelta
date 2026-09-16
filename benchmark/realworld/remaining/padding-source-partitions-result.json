@@ -1,0 +1,402 @@
+{
+  "version": 1,
+  "outcome": "Literal-space refinement validates padding source partitions without copying the body. SP 800-37 reaches 16 paired-boundary examinations instead of 12, but no additional source range is recovered; all four fixed reports retain their prior comparison payloads and strict coverage.",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/pdfdelta",
+    "sha256": "3ea54a08c5d69abbec13848a00ebdbd87281a269b5b627e188127e99e3db2c35"
+  },
+  "changed_build_files": [
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes/cuts.rs",
+      "sha256": "3567e7d75c9ee4ca9c84e3de4a0cf5e77d1611bfbb37c6f44b6e4d563d58a510"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes/cuts/edges.rs",
+      "sha256": "1dda9f0f4a1e941cd0c18ae7bcc3a5f54176b44f167ad836910e3ef846332050"
+    }
+  ],
+  "mechanism": {
+    "outer_edge_rejection": "Without a source-backed outer ASCII space on either side, optional normalization cannot produce mandatory removable padding. Reject before copying or projecting the body.",
+    "source_partition_reuse": "Padding fragments need source IDs only. They use the same selected-versus-outside source intersection check as ordinary slices, preserving rejection of a multi-scalar glyph shared by padding and body.",
+    "redundant_body_removed": "The original interval is already source-validated. Every moved cut is validated from its padding side against all other backed tokens; the caller projects the retained body before emitting its refinement. The discarded intermediate body copy adds no separate validity condition.",
+    "budget_accounting": "Normalization/token scans and padding source-partition visits are charged separately. Actual removed materializations are no longer charged. Preset limits, candidate conventions, optional certificates and original-cut mappings remain unchanged."
+  },
+  "checks": {
+    "fmt": "passed",
+    "diff_whitespace": "passed",
+    "clippy": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/clippy.log",
+      "sha256": "729a82627d87d42aba28a71dae1c265040f0816144725d3ec965de7de5b42487"
+    },
+    "workspace": {
+      "passed": 2437,
+      "ignored": 2,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/workspace.log",
+        "sha256": "2b6d717732f38ed950c1f450eba80eacf017bcad0bccc5213673476caa2a3848"
+      }
+    },
+    "edge_regressions": {
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/regression.log",
+        "sha256": "490fc8726b6af033774821bd7f890c633d037c5e27a11135c2a9015abbef370d"
+      },
+      "already_trimmed_4003_scalar_body": "At most eight work units, without traversing interior spaces.",
+      "literal_padding_4004_scalar_body": "Both source partitions fit within 64,000 work units; original per-side precharge alone was 64,064.",
+      "shared_glyph": "Both prefix and suffix padding reject a source shared with the body.",
+      "whole_padding_nodes": "Existing exact cut-coordinate and full-source tests pass."
+    },
+    "generated": {
+      "passed": 48,
+      "strict_passed": 42,
+      "total": 48,
+      "five_core_cells": 10,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/acceptance.log",
+        "sha256": "5fdb01e134447c0ada6319f68c0c2f6ae5b906cd74c19ca57d91a3091a4b76b5"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "before": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/validated-index-after/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "2d8c51fc04b2d94ad20e7545a12a70ab6042feb77a6833227fe45f873f5740d7"
+        },
+        "run": {
+          "pair": "nist-risk-management-37-r1-to-r2",
+          "route": "text",
+          "old_sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198",
+          "new_sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d",
+          "reference_sha256": "7471ab9d6c42919f3f6ee24c48e8f7e217356693db3c607a3ef773b1391648aa",
+          "exit_code": 3,
+          "wall_seconds": 39.02,
+          "peak_rss_kib": 1112292,
+          "status": "captured",
+          "report_bytes": 12619070,
+          "report_sha256": "2d8c51fc04b2d94ad20e7545a12a70ab6042feb77a6833227fe45f873f5740d7",
+          "stderr": ""
+        }
+      },
+      "after": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "03e7a64f614228236508ecab4a48c9d134f1efbaa48914a751b685389b8611fe"
+        },
+        "run": {
+          "pair": "nist-risk-management-37-r1-to-r2",
+          "route": "text",
+          "old_sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198",
+          "new_sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d",
+          "reference_sha256": "7471ab9d6c42919f3f6ee24c48e8f7e217356693db3c607a3ef773b1391648aa",
+          "exit_code": 3,
+          "wall_seconds": 30.94,
+          "peak_rss_kib": 1111548,
+          "status": "captured",
+          "report_bytes": 12619070,
+          "report_sha256": "03e7a64f614228236508ecab4a48c9d134f1efbaa48914a751b685389b8611fe",
+          "stderr": ""
+        }
+      },
+      "strict_and_conditional_comparisons_boundaries_and_coverage_identical": true,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 379765,
+          "new_discovered_sources": 643987,
+          "old_compared_sources": 4243,
+          "new_compared_sources": 4246,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 375522,
+          "new_uncompared_sources": 639741,
+          "complete": false
+        }
+      ],
+      "scope_content_changes": 10,
+      "inferred_scope_changes": 0,
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 12,
+        "work": 300881,
+        "budget_at_entry": 366220
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 16,
+        "work": 300883,
+        "budget_at_entry": 366220
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "before": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/validated-index-after/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "0a2925525740c42e32fd6ab737b88ad03306296c512e0069d527179474d46daa"
+        },
+        "run": {
+          "pair": "nist-controls-53-r4-to-r5",
+          "route": "text",
+          "old_sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e",
+          "new_sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6",
+          "reference_sha256": "099cbef04b322fc9fe5f61bbdfe45c17717512ecf140a3dbfaf18d5cd19f2d6e",
+          "exit_code": 3,
+          "wall_seconds": 58.09,
+          "peak_rss_kib": 2593560,
+          "status": "captured",
+          "report_bytes": 15664374,
+          "report_sha256": "0a2925525740c42e32fd6ab737b88ad03306296c512e0069d527179474d46daa",
+          "stderr": ""
+        }
+      },
+      "after": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "b2b2fbf2fe01c5dc34c251324d8fd352412277c733459cb5ecec8d3151eaa3d0"
+        },
+        "run": {
+          "pair": "nist-controls-53-r4-to-r5",
+          "route": "text",
+          "old_sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e",
+          "new_sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6",
+          "reference_sha256": "099cbef04b322fc9fe5f61bbdfe45c17717512ecf140a3dbfaf18d5cd19f2d6e",
+          "exit_code": 3,
+          "wall_seconds": 57.89,
+          "peak_rss_kib": 2592592,
+          "status": "captured",
+          "report_bytes": 15664374,
+          "report_sha256": "b2b2fbf2fe01c5dc34c251324d8fd352412277c733459cb5ecec8d3151eaa3d0",
+          "stderr": ""
+        }
+      },
+      "strict_and_conditional_comparisons_boundaries_and_coverage_identical": true,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 1577608,
+          "new_discovered_sources": 1629511,
+          "old_compared_sources": 6557,
+          "new_compared_sources": 6557,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1571051,
+          "new_uncompared_sources": 1622954,
+          "complete": false
+        }
+      ],
+      "scope_content_changes": 0,
+      "inferred_scope_changes": 0,
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 2224
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 2224
+      }
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "before": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/validated-index-controls/faa-weight-27e-to-27f-text.json",
+          "sha256": "4eaa53de510816a3ad9d0fb677e1c2f7eb58ee3593b01967b461c9b240e49715"
+        },
+        "run": {
+          "pair": "faa-weight-27e-to-27f",
+          "route": "text",
+          "old_sha256": "66f26c5ffd13300aca69621ef6963ec9a3cfbc6dc5a1d0bec22d9c6d9a7f7237",
+          "new_sha256": "726adba4c7050d366e430f17d117e25baf80308b564ffaaaacd4e7f337131f78",
+          "reference_sha256": "5a0c7d2f4c13b26b28830181cf587d89eb5357a5f1504849e6bcb025803f8862",
+          "exit_code": 3,
+          "wall_seconds": 5.51,
+          "peak_rss_kib": 386468,
+          "status": "captured",
+          "report_bytes": 6606257,
+          "report_sha256": "4eaa53de510816a3ad9d0fb677e1c2f7eb58ee3593b01967b461c9b240e49715",
+          "stderr": ""
+        }
+      },
+      "after": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-controls/faa-weight-27e-to-27f-text.json",
+          "sha256": "a41aa85548393e4fd8eed51cf93263743a10665406a204bdd1350e859b7ac45f"
+        },
+        "run": {
+          "pair": "faa-weight-27e-to-27f",
+          "route": "text",
+          "old_sha256": "66f26c5ffd13300aca69621ef6963ec9a3cfbc6dc5a1d0bec22d9c6d9a7f7237",
+          "new_sha256": "726adba4c7050d366e430f17d117e25baf80308b564ffaaaacd4e7f337131f78",
+          "reference_sha256": "5a0c7d2f4c13b26b28830181cf587d89eb5357a5f1504849e6bcb025803f8862",
+          "exit_code": 3,
+          "wall_seconds": 14.66,
+          "peak_rss_kib": 388744,
+          "status": "captured",
+          "report_bytes": 6606257,
+          "report_sha256": "a41aa85548393e4fd8eed51cf93263743a10665406a204bdd1350e859b7ac45f",
+          "stderr": ""
+        }
+      },
+      "strict_and_conditional_comparisons_boundaries_and_coverage_identical": true,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 132650,
+          "new_discovered_sources": 125072,
+          "old_compared_sources": 3212,
+          "new_compared_sources": 3188,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 129438,
+          "new_uncompared_sources": 121884,
+          "complete": false
+        }
+      ],
+      "scope_content_changes": 0,
+      "inferred_scope_changes": 15,
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 829121,
+        "budget_at_entry": 881950
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 829121,
+        "budget_at_entry": 881950
+      }
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "before": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/validated-index-controls/nist-126-r2-to-r3-text.json",
+          "sha256": "681ebbe008b1c3dce569ce1e91ff01d90358a9d2fe344b9f88fbc42cefd4b26c"
+        },
+        "run": {
+          "pair": "nist-126-r2-to-r3",
+          "route": "text",
+          "old_sha256": "5216c1ee5f70ebb96b134081e7d81ecfc39c44d9dea39da289971ecb15e0a8b1",
+          "new_sha256": "413361b946c70dbe117c5491ebc6fb18598cb099bd5510986f737f15c5d211bc",
+          "reference_sha256": "d05a325e8b1df4acd2e70b94a00b91e906501bd565816aeac52dc6d09fd92bfc",
+          "exit_code": 3,
+          "wall_seconds": 8.01,
+          "peak_rss_kib": 425028,
+          "status": "captured",
+          "report_bytes": 7763600,
+          "report_sha256": "681ebbe008b1c3dce569ce1e91ff01d90358a9d2fe344b9f88fbc42cefd4b26c",
+          "stderr": ""
+        }
+      },
+      "after": {
+        "report": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-controls/nist-126-r2-to-r3-text.json",
+          "sha256": "51a2853607ff1bb5cbc5f94fcefa5bdb1a589fec81b648f1997655691f4b1c15"
+        },
+        "run": {
+          "pair": "nist-126-r2-to-r3",
+          "route": "text",
+          "old_sha256": "5216c1ee5f70ebb96b134081e7d81ecfc39c44d9dea39da289971ecb15e0a8b1",
+          "new_sha256": "413361b946c70dbe117c5491ebc6fb18598cb099bd5510986f737f15c5d211bc",
+          "reference_sha256": "d05a325e8b1df4acd2e70b94a00b91e906501bd565816aeac52dc6d09fd92bfc",
+          "exit_code": 3,
+          "wall_seconds": 8.54,
+          "peak_rss_kib": 428072,
+          "status": "captured",
+          "report_bytes": 7763600,
+          "report_sha256": "51a2853607ff1bb5cbc5f94fcefa5bdb1a589fec81b648f1997655691f4b1c15",
+          "stderr": ""
+        }
+      },
+      "strict_and_conditional_comparisons_boundaries_and_coverage_identical": true,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 155598,
+          "new_discovered_sources": 176651,
+          "old_compared_sources": 28690,
+          "new_compared_sources": 28658,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 126908,
+          "new_uncompared_sources": 147993,
+          "complete": false
+        }
+      ],
+      "scope_content_changes": 22,
+      "inferred_scope_changes": 1,
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 0
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 0
+      }
+    }
+  ],
+  "diagnosis": {
+    "prior": {
+      "path": "benchmark/realworld/remaining/group-boundary-diagnosis.json",
+      "sha256": "2c39929ba6f8e3c9f63149402d54cf1d5f5f55d547e9c67cefaaaa23a9588cbf"
+    },
+    "trace": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-diagnostic/nist-risk-management-37-r1-to-r2-text.stderr",
+      "sha256": "92002498937a150441233c925bcfab6ddfdb24c1ac28635e34b07b74ecac1582"
+    },
+    "report": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-diagnostic/nist-risk-management-37-r1-to-r2-text.json",
+      "sha256": "ba7d4e1c07787054668b6685128b35adf82276fc5be2ac670864130ff40c1a90"
+    },
+    "binary": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-diagnostic/pdfdelta",
+      "sha256": "99d02541780a90cdb0fc8a97f07a1158629a59b1105b569f5cd444c71a131f24"
+    },
+    "refinement_budget_at_entry": 209341,
+    "general_page_search_budget_at_entry": 1,
+    "diagnostic_report_equals_production_except_timing": true,
+    "temporary_instrumentation_removed": true,
+    "production_executable_restored_from_verified_archive": true
+  },
+  "limitations": [
+    "No new A/B range, fixed-target hit, strict source coverage or document-wide completion is claimed.",
+    "RefineExisting still exhausts the work available before general page candidate construction. Extra completed boundary examinations do not substitute for recovery.",
+    "No new PDF collection, campaign, gate denominator, correspondence premise or preset budget was introduced."
+  ]
+}

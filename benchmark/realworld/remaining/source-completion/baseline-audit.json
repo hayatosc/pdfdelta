@@ -1,0 +1,3405 @@
+{
+  "version": 1,
+  "status": "current_baseline_capture_finished",
+  "fixed_panel_denominator": 36,
+  "expected_attempts": 72,
+  "production_improvement_claimed": false,
+  "goal_complete": false,
+  "registration": {
+    "path": "benchmark/realworld/remaining/source-completion/baseline-registration.json",
+    "sha256": "0789523e79a0082d77b8d21d45e5b526208e15e1aa748411a2643a6593eb6ba7"
+  },
+  "audit_implementation": {
+    "path": "benchmark/realworld/remaining/audit_reports.py",
+    "sha256": "880eacb4ab5c75d69ac519a7bfe4295019413bcb70d8220aca4e817f3dc3f6bb"
+  },
+  "rows": [
+    {
+      "repetition": 1,
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/runs.json",
+        "sha256": "588307f2f3e860df122d97aedb97fe2a1d97cb02d7884ea4c45708bf11dc0b6d"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 6.48,
+        "peak_rss_kib": 358268,
+        "report_bytes": 7422332
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f5e4fb0dc0b3007e0f86b855b3e116f5b7fd2c1422b2330f374741b8176ad54f"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.audit.json",
+        "sha256": "c6b09b65206a1357d7ba30a9523201503982e2932a93ac81d2dcc4a291799c63"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 1406,
+          "new_compared_sources": 1432,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 134382,
+          "new_uncompared_sources": 175560,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 13
+    },
+    {
+      "repetition": 1,
+      "pair": "edpb-restrictions-v1-to-final",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/runs.json",
+        "sha256": "569e4ed8c7e271b116b3c3c0f5f915bfc12c8dfe43db3661ea2d97b2abbf284a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.92,
+        "peak_rss_kib": 139116,
+        "report_bytes": 7318799
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "fe87f1cb6e123cf4c11644e4b7dba7406a6944ef70bb14194666dd01108c74a6"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.audit.json",
+        "sha256": "79e0ea28a63445062afc84a38b2ac7da0986faab0547c5ba75ea08e8453c89ce"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 52431,
+          "new_discovered_sources": 57738,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 52431,
+          "new_uncompared_sources": 57738,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 8
+    },
+    {
+      "repetition": 1,
+      "pair": "edpb-design-default-v1-to-v2",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2/runs.json",
+        "sha256": "105e7425c3c677a9ad73f19a13454d82af2b2197ffec919f00b794d72bd1d357"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 8.34,
+        "peak_rss_kib": 211668,
+        "report_bytes": 593992
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "9819e3a57ae30dae69d15704d9a87f8b6ebec4d54cf086ed21718fbec54305b9"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2/edpb-design-default-v1-to-v2-text.audit.json",
+        "sha256": "7108045cbca665064b5d35424045835453075cc3ba12735e804489f1dee692c0"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 81687,
+          "new_discovered_sources": 91083,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 81687,
+          "new_uncompared_sources": 91083,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 2
+    },
+    {
+      "repetition": 1,
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2/runs.json",
+        "sha256": "d57f9d50fdea7b3fba227634a3e6fa183700082590e16bf19aa133cc01237a9a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 4.69,
+        "peak_rss_kib": 287280,
+        "report_bytes": 2045954
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "03a55d26d580617d6efe45c52fe68325ec0f3053d034f7f7204d65d41793deec"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2/edpb-social-targeting-v1-to-v2-text.audit.json",
+        "sha256": "2562abf09f68e0578d5159a1f7db01ba7e0113577c6506beea00a791fc486c42"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 137655,
+          "new_discovered_sources": 144179,
+          "old_compared_sources": 9690,
+          "new_compared_sources": 9707,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 127965,
+          "new_uncompared_sources": 134472,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 11
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-incident-handling-r2-to-r3",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3/runs.json",
+        "sha256": "3d9684a3a84cef66882de0fef8499e29a6e47a50abeebde17aecd294728aa1ef"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 6.12,
+        "peak_rss_kib": 443936,
+        "report_bytes": 2320107
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "67bb064ce53a326ee8627aacdb7fc157fc5395118f2d2ac1404e1be4212af012"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3/nist-incident-handling-r2-to-r3-text.audit.json",
+        "sha256": "7f21c64b5a638a7ff522188f24ed6562e3e35f6e70ebe8a61af2182f419927b8"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 228231,
+          "new_discovered_sources": 104993,
+          "old_compared_sources": 717,
+          "new_compared_sources": 710,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 227514,
+          "new_uncompared_sources": 104283,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 6
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-ssdf-draft-to-final",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final/runs.json",
+        "sha256": "0971a5c54a9d64e6ca75d1dc1671df707f4784c1bbba0cdd3bb8f4ecbdf18fdc"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.53,
+        "peak_rss_kib": 299100,
+        "report_bytes": 8061997
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.json",
+        "sha256": "b35cbfcdbb1d735284ccf42f68da683c0cf5412579edb59bcf544d35ad258a4c"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.audit.json",
+        "sha256": "0712426dc89c2ef2aa562e133e3c664832497cf09e9a0f15f0acb6638acd690e"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 92494,
+          "new_discovered_sources": 105512,
+          "old_compared_sources": 21928,
+          "new_compared_sources": 21915,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 70566,
+          "new_uncompared_sources": 83597,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 71
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1/runs.json",
+        "sha256": "c04839b4e3010a8c67bc07724f82e507ed9cf9be92486809e5592ff2f576cc2f"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.57,
+        "peak_rss_kib": 252284,
+        "report_bytes": 416385
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "90066d53275a0d96bc943dae92805f00905352e235f749f22bf559170e22ebe6"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1/nist-ai-rmf-draft2-to-v1-text.audit.json",
+        "sha256": "acda476431b26c7ad0dfda04828ec9843c1fbb79af6c5c28cb41bbeab1c042b7"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 86136,
+          "new_discovered_sources": 90392,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 86136,
+          "new_uncompared_sources": 90392,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 16
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-authentication-63b-to-63b4",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4/runs.json",
+        "sha256": "e3e4fb4e78fa8a69f61f1fbc77011d8f649c28ec78f2187a4e91184bd0c6b849"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 8.9,
+        "peak_rss_kib": 650000,
+        "report_bytes": 5520631
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "50ff060e1dccaf7cb06dc94db4d242bee8fe169a270b0b1c76d86005aef3ecfc"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4/nist-authentication-63b-to-63b4-text.audit.json",
+        "sha256": "54c6664c17849b3eed6e519a2463e84084b51abd389f48563ef35cbc5653d5b6"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 198793,
+          "new_discovered_sources": 280783,
+          "old_compared_sources": 536,
+          "new_compared_sources": 534,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 198257,
+          "new_uncompared_sources": 280249,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 90
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-w9-2018-to-2024",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024/runs.json",
+        "sha256": "80b6ff24ccc4777e4827f47af4257f3248b275220aa79c1835d02f1cb972b086"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.95,
+        "peak_rss_kib": 84896,
+        "report_bytes": 4994113
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024/irs-w9-2018-to-2024-text.json",
+        "sha256": "01ddab5ba4c49cb6a3c91306e792f4d034e1547911baf9c7c25c54594ce74910"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024/irs-w9-2018-to-2024-text.audit.json",
+        "sha256": "50339a8840663979b9535fdb57dc42f84c62468a5f6f821bf7ac9f0c596e44f3"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 34858,
+          "new_discovered_sources": 37452,
+          "old_compared_sources": 8569,
+          "new_compared_sources": 8573,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26289,
+          "new_uncompared_sources": 28879,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 5
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-w4-english-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025/runs.json",
+        "sha256": "e676b4b6510c20381bbec7d560999aa866aef05b0e75ea8a3564426345435a1f"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.74,
+        "peak_rss_kib": 62248,
+        "report_bytes": 1791214
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "30068c180ed6325aba73cd6a8e445648f53c0497168b83b3f75ae1b8025f35a0"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025/irs-w4-english-2024-to-2025-text.audit.json",
+        "sha256": "25e060d095164dac87be597eedddd1925a8ff9b0c3acb72b3acd3d3be5e8caa5"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 19817,
+          "new_discovered_sources": 20974,
+          "old_compared_sources": 8389,
+          "new_compared_sources": 8389,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 11428,
+          "new_uncompared_sources": 12585,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 69
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-schedule-c-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/runs.json",
+        "sha256": "fe36cfbc9bb76a4bba9576ac38acf1e2f30c5659e17834661f821f1f62c9f96f"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.3,
+        "peak_rss_kib": 34312,
+        "report_bytes": 924186
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "c055d1fad55f02420ea69ea69054d5f5d9850d6a580afe0a238799e388f71f52"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.audit.json",
+        "sha256": "223aac515e7ea32a3bf6d2540e6324996ce692fa5b4c85c87ff631e96c74d99f"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5012,
+          "new_compared_sources": 5012,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1298,
+          "new_uncompared_sources": 1304,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 32
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-schedule-se-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/runs.json",
+        "sha256": "e48cb22ccf1b49eaf2db315011b5f10b7d53c4d894813b273b107d5196b4ca05"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.22,
+        "peak_rss_kib": 30644,
+        "report_bytes": 564899
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "6df67bc05d527760796d5efdf2443b0b7f30b0114403d0d539bcd2ec63c3136b"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.audit.json",
+        "sha256": "0e99ee0612bfc9b55e7bab6c715c8e909777ae1705c903d8b31a88e4e0f5f1c8"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-bert-v1-to-v2",
+      "producer": "Google",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2/runs.json",
+        "sha256": "17dc90b575af645b1ebdd30949099ec76ddec390a0aa0347a76b2a660795ec70"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.66,
+        "peak_rss_kib": 125748,
+        "report_bytes": 4251338
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "1508868355d1f3c5effab9123d1e6029c87ac748420ec866d60ae809880de212"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.audit.json",
+        "sha256": "25ba0572c289688d399a70206884dd344cc6862f401fdfec66be0ca84f748a65"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 7064,
+          "new_compared_sources": 7064,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 39062,
+          "new_uncompared_sources": 46939,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 62
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "producer": "OpenAI",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4/runs.json",
+        "sha256": "64185f07442457c9d2dba5821bd59b3a8828ab8b0897142d1a11c0a35329a993"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 9.59,
+        "peak_rss_kib": 467084,
+        "report_bytes": 15293116
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "77d257b16ec09eb9532e6c8e19eb8aa49298542822548f646e772ef45474255f"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4/arxiv-gpt3-v1-to-v4-text.audit.json",
+        "sha256": "1458c8bb56fbfec44609b015c87f61aaa64b9e8fa65d2c7d226c61f216e7925d"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 119031,
+          "new_compared_sources": 119031,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 64082,
+          "new_uncompared_sources": 69295,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 274
+    },
+    {
+      "repetition": 1,
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "producer": "MEXT",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017/runs.json",
+        "sha256": "58e0bbab86932bca06a53b6a3f5b1efdb154874b7020528da89308174f94d373"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 22.51,
+        "peak_rss_kib": 1144900,
+        "report_bytes": 3319647
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "f986dedb74670bcf0705d180cad70047b34dc490a17ff1aa375c8e58ebc565f8"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.audit.json",
+        "sha256": "8b2251af9d9a1b31c2592677435017cd619cadcd6ac87e262d621850a2707b92"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102328,
+          "new_discovered_sources": 249104,
+          "old_compared_sources": 201,
+          "new_compared_sources": 201,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102127,
+          "new_uncompared_sources": 248903,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 65
+    },
+    {
+      "repetition": 1,
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "producer": "MEXT",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017/runs.json",
+        "sha256": "e4341fecf5dab4406db66b639b67497f95f0a6611f2868fb690e202c2d567c81"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 13.4,
+        "peak_rss_kib": 645620,
+        "report_bytes": 5144565
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "2763338cf61d2ef3d3cfc4cb4d4964e09bb5332afdf2c14b895b82293bccb2e6"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.audit.json",
+        "sha256": "5bfef9f73649a4b49e91aaa9b58bcfad383a8e801438f24787a45a9100dd46fe"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 80303,
+          "new_discovered_sources": 199442,
+          "old_compared_sources": 153,
+          "new_compared_sources": 154,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 80150,
+          "new_uncompared_sources": 199288,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 40
+    },
+    {
+      "repetition": 1,
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "producer": "MEXT",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018/runs.json",
+        "sha256": "c503875a029ff18a38630a7fdc3010bd087e9ee3d7ab34b8054cf07418a3419a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 14.93,
+        "peak_rss_kib": 669304,
+        "report_bytes": 1545753
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "eec3fa8d4d5e5746e97a58624e9a340c53956a1b1105be82fafea6d1c38befb1"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.audit.json",
+        "sha256": "5922534897e4d65c8d0366dd29926a6bb7620f90b4e3ad4203de41473250e79c"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 111053,
+          "new_discovered_sources": 297348,
+          "old_compared_sources": 115,
+          "new_compared_sources": 116,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 110938,
+          "new_uncompared_sources": 297232,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 42
+    },
+    {
+      "repetition": 1,
+      "pair": "mhlw-care-skills-original-to-revised",
+      "producer": "MHLW / Japan Association of Certified Care Workers",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "964b92b689e2164ea445736c5f848efcb7aabbf27138b953199f30924b51685b"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 43.29,
+        "peak_rss_kib": 674296,
+        "report_bytes": 7765134
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "bd2c69581a7f8185a6c1f60ecbd38dbf705fb254b62621cf70df502d8fb9e941"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.audit.json",
+        "sha256": "113be650698bdc8d9020d5d1eed86dca90ac3e30ab620a7d1017154c84c9b730"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 82640,
+          "new_discovered_sources": 104935,
+          "old_compared_sources": 9018,
+          "new_compared_sources": 9018,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 73622,
+          "new_uncompared_sources": 95917,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 215
+    },
+    {
+      "repetition": 1,
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "producer": "NASA",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020/runs.json",
+        "sha256": "bf01934a001be36f5eed9aaaeca7f130e2b6a1c1b24a0d0cb2e2712d8f003fda"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 8.05,
+        "peak_rss_kib": 530000,
+        "report_bytes": 3057553
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "f0c1c1e3410cc15ff7aa154321d5cdcc3735d013a5380a10edd09f98da3afc4f"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020/nasa-buckling-8007-1968-to-2020-text.audit.json",
+        "sha256": "e0ac81539aa260cd758d86b97d4ac0e18a8aca4784705dfc7d02a2064d5bfc31"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 62811,
+          "new_discovered_sources": 280452,
+          "old_compared_sources": 18,
+          "new_compared_sources": 18,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 62793,
+          "new_uncompared_sources": 280434,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 81
+    },
+    {
+      "repetition": 1,
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "producer": "IPCC",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6/runs.json",
+        "sha256": "5342de075ae210d0291264daa4b759f35542156365c8eda42e7aae6d99acdf67"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 30.84,
+        "peak_rss_kib": 1313012,
+        "report_bytes": 8397812
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "7ed25dc016637ac339f3303a79b53d427ec656e2dbc133399eef57fa23a28df5"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6/ipcc-synthesis-ar5-to-ar6-text.audit.json",
+        "sha256": "f93f653df573bdbeb9d0087dda6e6d105ccbab5ddbd19a4692a3bc7983302597"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 611699,
+          "new_discovered_sources": 637662,
+          "old_compared_sources": 4400,
+          "new_compared_sources": 4395,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 607299,
+          "new_uncompared_sources": 633267,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 215
+    },
+    {
+      "repetition": 1,
+      "pair": "ecb-annual-2023-to-2024",
+      "producer": "ECB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ecb-annual-2023-to-2024/runs.json",
+        "sha256": "63233ffec83add1a83cf7fb0a3117cf08dc129c0b4b8573311c58aceaab3adb5"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 16.39,
+        "peak_rss_kib": 895456,
+        "report_bytes": 692717
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.json",
+        "sha256": "38c9e34ea1f32a5750608c044c01506f4e8dd486e1b294269d1be8d44e8baa58"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.audit.json",
+        "sha256": "8e385d3e5164927970a2b558587fdf401b86078a348364a7131bfabb4b907bff"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 473275,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 473275,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-sha-1803-to-1804",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804/runs.json",
+        "sha256": "57375f205c4ca23b662a6b4cf85fd88765a173c729bf749dd96c5aee273e61bd"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 2.01,
+        "peak_rss_kib": 179844,
+        "report_bytes": 7110539
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.json",
+        "sha256": "444ddc37f1485f0f57f907c10090f47e6ff8c1c6434adb604aa4227eea18bd28"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.audit.json",
+        "sha256": "b3d8116fa3a270d81e1eb8f5674e7d0571a9809d90740f9508826fa8ab8fa4b7"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 43539,
+          "new_discovered_sources": 47831,
+          "old_compared_sources": 8275,
+          "new_compared_sources": 8274,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 35264,
+          "new_uncompared_sources": 39557,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 60
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "producer": "UC Berkeley",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2/runs.json",
+        "sha256": "bd933c0f26bc40f76360d7ba88e7e2fe0945a7a2dd5baf7484388fa50a7b5a28"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.48,
+        "peak_rss_kib": 138716,
+        "report_bytes": 6182536
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "ed5be62d76ed5ada7626e58bdc45c8aa75527c7c9137f59c913d7ffe24c79098"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2/arxiv-ddpm-v1-to-v2-text.audit.json",
+        "sha256": "f8bccb665038efa7d75e4e04316ee185dfdfc26cac5fe008b8351ccacbb882b4"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 41561,
+          "new_discovered_sources": 45486,
+          "old_compared_sources": 15206,
+          "new_compared_sources": 15206,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26355,
+          "new_uncompared_sources": 30280,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 46
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-llama2-v1-to-v2",
+      "producer": "Meta",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2/runs.json",
+        "sha256": "a624bcb5c2966b5229001f136010485680badb7706612eac37043f5d0bdea58c"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 14.44,
+        "peak_rss_kib": 532000,
+        "report_bytes": 13477059
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "14bcfc2f50fc3179625b8ea3268c3e23222111f83d8fb9c5a140a624b645f8f7"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2/arxiv-llama2-v1-to-v2-text.audit.json",
+        "sha256": "e0f3739aa942e7ae1dd4baaad1ab677264882c08ec3ae02ed5eb0719d790f54e"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 220758,
+          "new_discovered_sources": 221261,
+          "old_compared_sources": 102218,
+          "new_compared_sources": 102218,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 118540,
+          "new_uncompared_sources": 119043,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 272
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2/runs.json",
+        "sha256": "fcdfc4e2fa8924222e06a36934f404f58130cbcc60076d2be278a9f3c82a407a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 21.3,
+        "peak_rss_kib": 1120316,
+        "report_bytes": 12729219
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "5fe026e99a8030b2844afd45cbc5224f2593eda5237d84820b045f13e7a97c70"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2/nist-risk-management-37-r1-to-r2-text.audit.json",
+        "sha256": "6069a9905c4d79381ddf00d213171855b4c73fab4ff0a7171f01ce9fb5ba2371"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 382481,
+          "new_discovered_sources": 646585,
+          "old_compared_sources": 4463,
+          "new_compared_sources": 4466,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 378018,
+          "new_uncompared_sources": 642119,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 50
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-1099-misc-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025/runs.json",
+        "sha256": "fc9220e7b2b38c42e7cc8cf40363790be202e4897c1c5d864d865410b94b0bef"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.73,
+        "peak_rss_kib": 60528,
+        "report_bytes": 3378051
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "9c2a62d028ec74bf87304dbaeb699823a85622216562c08b8aa6739a7f24327e"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025/irs-1099-misc-2024-to-2025-text.audit.json",
+        "sha256": "c084b720f4aa50a35e2e29b992bc3e0650cd14f9d17c9bc35bc690132818ac65"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 11030,
+          "new_discovered_sources": 10779,
+          "old_compared_sources": 1048,
+          "new_compared_sources": 1048,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 9982,
+          "new_uncompared_sources": 9731,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 42
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-w2-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025/runs.json",
+        "sha256": "8af715fcfb203390122c1b8f2c04d1ab2ee4a44b756fa97e5a80597d2a3f2f9a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.28,
+        "peak_rss_kib": 83916,
+        "report_bytes": 4138493
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025/irs-w2-2024-to-2025-text.json",
+        "sha256": "7e232f6dc9c63ec10d76fb7fa2e51bb57e0edfa853689280194639e1d01431c0"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025/irs-w2-2024-to-2025-text.audit.json",
+        "sha256": "e7e5130a8926806d239188d334b0af42e0e08f41fd85a31b7f0cf1703c01ed2c"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 20660,
+          "new_discovered_sources": 20753,
+          "old_compared_sources": 3256,
+          "new_compared_sources": 3256,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 17404,
+          "new_uncompared_sources": 17497,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 43
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "producer": "Meta",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3/runs.json",
+        "sha256": "58f2e3d3a130a5c3c81b1acf5a67ac7e0b03ebb0f054b3c0ffe4eca784f3c52d"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.86,
+        "peak_rss_kib": 137972,
+        "report_bytes": 8439690
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "6331decae79dbfd3db1f6a74ebe9e8ce3659ae34317fe3f27bd8ebaccdd1f22d"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3/arxiv-mask-rcnn-v1-to-v3-text.audit.json",
+        "sha256": "9ef0ed615f6f472d22e6ab5735deba4c75d9bed406dc194158a7666eac0a2c70"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 39946,
+          "new_discovered_sources": 52222,
+          "old_compared_sources": 15023,
+          "new_compared_sources": 15023,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 24923,
+          "new_uncompared_sources": 37199,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 112
+    },
+    {
+      "repetition": 1,
+      "pair": "bunka-official-writing-1952-to-2022",
+      "producer": "Agency for Cultural Affairs",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022/runs.json",
+        "sha256": "7f0f58c2d8d5d10fdbe9866d47ef1ced9abf775fd0e8fafdd34713a3bfc3ea7b"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 5.1,
+        "peak_rss_kib": 203264,
+        "report_bytes": 3025247
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "55cf08676aca68af9a77b4a188dcee31547c6e2c1ad32aa67eae18508e23c49c"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022/bunka-official-writing-1952-to-2022-text.audit.json",
+        "sha256": "c637682da5a03e8a017c7e7f27319d545ac0de7fd2e2ef00702300aece46a6f3"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5584,
+          "new_discovered_sources": 68870,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 5584,
+          "new_uncompared_sources": 68870,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 5
+    },
+    {
+      "repetition": 1,
+      "pair": "faa-thunderstorms-b-to-c",
+      "producer": "FAA",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c/runs.json",
+        "sha256": "cb15989da924fe6b4dd3ce5742013fd5bc74dfc621f984c52184daecdd6a0b0d"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.11,
+        "peak_rss_kib": 75244,
+        "report_bytes": 221181
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "17a58fd7580a52080acefdca811cc649069f1b5835d3a12020ebc33891348d56"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.audit.json",
+        "sha256": "126790957b1d7fdfc6044a967673596b614f9ed8670bb75a0859e07e3de82395"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 15715,
+          "new_discovered_sources": 27732,
+          "old_compared_sources": 6,
+          "new_compared_sources": 6,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 15709,
+          "new_uncompared_sources": 27726,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 1,
+      "pair": "faa-maintenance-records-c-to-d",
+      "producer": "FAA",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d/runs.json",
+        "sha256": "044cf4fc15928bbcf5ddba69058f1fcf6d4d9221ccb023d69284fbdc6c72e198"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.54,
+        "peak_rss_kib": 125356,
+        "report_bytes": 188633
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "47b3cc5c8caddd8602097281a9d73f6f681214fb7f784eaef41290b63011d23a"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d/faa-maintenance-records-c-to-d-text.audit.json",
+        "sha256": "2d26bb2745f145d8e4570adae30d084d3c1b297e68a4cd882e1bda5da1d37c79"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 28756,
+          "new_discovered_sources": 63192,
+          "old_compared_sources": 92,
+          "new_compared_sources": 92,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 28664,
+          "new_uncompared_sources": 63100,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "producer": "Microsoft",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3/runs.json",
+        "sha256": "72eb4fa7fabc3ceeeb3c093ca7182ea021461cf4d290829c71b848a2eebd426e"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.6,
+        "peak_rss_kib": 100328,
+        "report_bytes": 792957
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "3193327266734bae0b4d0bf05be12d521070af5c7a14e4be7209c54d08712eb9"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3/arxiv-faster-rcnn-v1-to-v3-text.audit.json",
+        "sha256": "64567577d80b18427d5bb6d0d83f480e1d09977b498e16cd9a9823371624c3f6"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 31824,
+          "new_discovered_sources": 50289,
+          "old_compared_sources": 965,
+          "new_compared_sources": 965,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 30859,
+          "new_uncompared_sources": 49324,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 36
+    },
+    {
+      "repetition": 1,
+      "pair": "bunka-kana-1946-to-1986",
+      "producer": "Agency for Cultural Affairs",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986/runs.json",
+        "sha256": "c6b2ee6470a974e7a41b2f202ac975e8438dbd9cd7fff2f51a0048077bd72c34"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.95,
+        "peak_rss_kib": 52740,
+        "report_bytes": 26169
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.json",
+        "sha256": "edc13241f158a251c103f9d9fe5c2ff36efcd53d4e841b678178a15f7ddd49ba"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.audit.json",
+        "sha256": "2fab778009c458db5fd0cee778bf397418592017fff87773aebaac8d9b517af5"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 5677,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 5677,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-controls-53-r4-to-r5",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5/runs.json",
+        "sha256": "73832769d657f7552b33bd38c8383b79e5113ff607f72b779c5cdfd48dfd992a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 48.82,
+        "peak_rss_kib": 2628156,
+        "report_bytes": 17980714
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "89381c35d3ffc965682c4c6af3fbf6b9ac2970da7dfd95910e16066894a212b9"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5/nist-controls-53-r4-to-r5-text.audit.json",
+        "sha256": "c47b59fad46cb9a424baf1af4b7e9a636b8f1b548e7cb4b4f072b4cfdd028dcc"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 1580232,
+          "new_discovered_sources": 1629511,
+          "old_compared_sources": 26509,
+          "new_compared_sources": 26456,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1553723,
+          "new_uncompared_sources": 1603055,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 509
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-risk-assessment-30-to-r1",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1/runs.json",
+        "sha256": "c2f5a9c515d856be92d00180d2be2d4fdb4de223b4340b2cd565d7a199f45ca9"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 19.76,
+        "peak_rss_kib": 578420,
+        "report_bytes": 1372731
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "fc94afbd84a3aceabfd7d98deb2e89a3226adf1d2e5418d8a428599b1eb447c5"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1/nist-risk-assessment-30-to-r1-text.audit.json",
+        "sha256": "feae53ef2595f6f969670e8d3a8f71210e743d4a50918ed7925c9172c464bc2b"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102460,
+          "new_discovered_sources": 326639,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102460,
+          "new_uncompared_sources": 326639,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 22
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-contingency-34-to-r1",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/runs.json",
+        "sha256": "735a4a5c9945b6ce08865cd79d3bdc68923896684b84569e13bb8c399909e5ee"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 32.86,
+        "peak_rss_kib": 790552,
+        "report_bytes": 4564841
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "94012536d01430f4b0a9574ab229f5f4fe50537a34c702ace66937d36d087405"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.audit.json",
+        "sha256": "98aae79390e31ec0a69a0be793e07ec5e6c1e2ae11a09d709d65af4e0b6d3406"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 216916,
+          "new_discovered_sources": 391537,
+          "old_compared_sources": 26,
+          "new_compared_sources": 27,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 216890,
+          "new_uncompared_sources": 391510,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 128
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-controller-processor-v1-to-v2-1/runs.json",
+        "sha256": "7e4ed8c2bb9236fa3156ab0d55c6c19761e51cd89169eacaf29b75633d75e144"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 6.72,
+        "peak_rss_kib": 360112,
+        "report_bytes": 7422332
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "ea454637a7a9a756606d301c3f545ffe15fb9d9954bac731be975b5df2235bad"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.audit.json",
+        "sha256": "c6b09b65206a1357d7ba30a9523201503982e2932a93ac81d2dcc4a291799c63"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 1406,
+          "new_compared_sources": 1432,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 134382,
+          "new_uncompared_sources": 175560,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 13
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-restrictions-v1-to-final",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-restrictions-v1-to-final/runs.json",
+        "sha256": "e0573d49a4ff99823e0f5f38eef713a5a8349318aadbbf5673b9aea4c5d6b4cc"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 2.04,
+        "peak_rss_kib": 138728,
+        "report_bytes": 7318799
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "963d0bf73e4f48a0f1d2df1d400acc38e451ca37e46b5d19c0703c343587bdd5"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.audit.json",
+        "sha256": "79e0ea28a63445062afc84a38b2ac7da0986faab0547c5ba75ea08e8453c89ce"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 52431,
+          "new_discovered_sources": 57738,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 52431,
+          "new_uncompared_sources": 57738,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 8
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-design-default-v1-to-v2",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-design-default-v1-to-v2/runs.json",
+        "sha256": "5189137772d6190238afd26786902bce640e60071ef08098263af692d174e1db"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 8.39,
+        "peak_rss_kib": 211704,
+        "report_bytes": 593992
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-design-default-v1-to-v2/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "2649787505a9bfabd1f715448d6f4753b872e60463d74d1fa0a14b13e2cafd44"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-design-default-v1-to-v2/edpb-design-default-v1-to-v2-text.audit.json",
+        "sha256": "7108045cbca665064b5d35424045835453075cc3ba12735e804489f1dee692c0"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 81687,
+          "new_discovered_sources": 91083,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 81687,
+          "new_uncompared_sources": 91083,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 2
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "producer": "EDPB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-social-targeting-v1-to-v2/runs.json",
+        "sha256": "ea735a088abaf9a7f04e085696ef027c5c9c837df34a2c7babeda8de8c0a86e9"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 4.67,
+        "peak_rss_kib": 287632,
+        "report_bytes": 2045954
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-social-targeting-v1-to-v2/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "c45d953be8b2d9efc9f1892fedc4918304c2495068a783d78ede21ac620babb7"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-social-targeting-v1-to-v2/edpb-social-targeting-v1-to-v2-text.audit.json",
+        "sha256": "2562abf09f68e0578d5159a1f7db01ba7e0113577c6506beea00a791fc486c42"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 137655,
+          "new_discovered_sources": 144179,
+          "old_compared_sources": 9690,
+          "new_compared_sources": 9707,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 127965,
+          "new_uncompared_sources": 134472,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 11
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-incident-handling-r2-to-r3",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-incident-handling-r2-to-r3/runs.json",
+        "sha256": "da802721691e8822742b89793790d537b1c10531e1999c1b95da37df9801dae9"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 6.33,
+        "peak_rss_kib": 443816,
+        "report_bytes": 2320107
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-incident-handling-r2-to-r3/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "27fa8305c985748a544a3b891c9d2052e5133b9f5a7d58f72e4af427d7a3abc1"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-incident-handling-r2-to-r3/nist-incident-handling-r2-to-r3-text.audit.json",
+        "sha256": "7f21c64b5a638a7ff522188f24ed6562e3e35f6e70ebe8a61af2182f419927b8"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 228231,
+          "new_discovered_sources": 104993,
+          "old_compared_sources": 717,
+          "new_compared_sources": 710,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 227514,
+          "new_uncompared_sources": 104283,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 6
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-ssdf-draft-to-final",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ssdf-draft-to-final/runs.json",
+        "sha256": "87a4281e209a179355e782e4c3edf92f3581a632b5a4a1fb99e7072291ee437a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.75,
+        "peak_rss_kib": 297936,
+        "report_bytes": 8061997
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.json",
+        "sha256": "b5ed55733f2562320496a72379d2dd3668144866c9aa56963de21bf717ca8e1a"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.audit.json",
+        "sha256": "0712426dc89c2ef2aa562e133e3c664832497cf09e9a0f15f0acb6638acd690e"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 92494,
+          "new_discovered_sources": 105512,
+          "old_compared_sources": 21928,
+          "new_compared_sources": 21915,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 70566,
+          "new_uncompared_sources": 83597,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 71
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ai-rmf-draft2-to-v1/runs.json",
+        "sha256": "3103b1431e29ad34474d534b4646d39f66a15974a7ce1d17525135beaa4a35db"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.8,
+        "peak_rss_kib": 251932,
+        "report_bytes": 416385
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ai-rmf-draft2-to-v1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "ae3d98424b792774fd15358c910d184066d3cce3716443404802a8fc582959e9"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ai-rmf-draft2-to-v1/nist-ai-rmf-draft2-to-v1-text.audit.json",
+        "sha256": "acda476431b26c7ad0dfda04828ec9843c1fbb79af6c5c28cb41bbeab1c042b7"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 86136,
+          "new_discovered_sources": 90392,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 86136,
+          "new_uncompared_sources": 90392,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 16
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-authentication-63b-to-63b4",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-authentication-63b-to-63b4/runs.json",
+        "sha256": "4f661c94ab5cb155982ebf777d128fda0c466e6eb01632cee5644898ed7e568b"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 9.0,
+        "peak_rss_kib": 648516,
+        "report_bytes": 5520631
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-authentication-63b-to-63b4/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "b2787a062a71ded94f2702bcfabd6390f9750117ea8d10ac5e5267c093fa8160"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-authentication-63b-to-63b4/nist-authentication-63b-to-63b4-text.audit.json",
+        "sha256": "54c6664c17849b3eed6e519a2463e84084b51abd389f48563ef35cbc5653d5b6"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 198793,
+          "new_discovered_sources": 280783,
+          "old_compared_sources": 536,
+          "new_compared_sources": 534,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 198257,
+          "new_uncompared_sources": 280249,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 90
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-w9-2018-to-2024",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w9-2018-to-2024/runs.json",
+        "sha256": "b2177c4400d51c0558421de7a78e6bc9eec42ada6d78bf5a328f865c6881a2d3"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.95,
+        "peak_rss_kib": 85812,
+        "report_bytes": 4994113
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w9-2018-to-2024/irs-w9-2018-to-2024-text.json",
+        "sha256": "4779a1ee01a0b483ec11f7d4f450748dc26401b4a27a7bcbd3b78c84d232a784"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w9-2018-to-2024/irs-w9-2018-to-2024-text.audit.json",
+        "sha256": "50339a8840663979b9535fdb57dc42f84c62468a5f6f821bf7ac9f0c596e44f3"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 34858,
+          "new_discovered_sources": 37452,
+          "old_compared_sources": 8569,
+          "new_compared_sources": 8573,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26289,
+          "new_uncompared_sources": 28879,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 5
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-w4-english-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w4-english-2024-to-2025/runs.json",
+        "sha256": "501f3a0922b878e10f85deba660d5b3842d0004688a7666ad2cec76ed909443a"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.81,
+        "peak_rss_kib": 63552,
+        "report_bytes": 1791214
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w4-english-2024-to-2025/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "2af998f5f0e66330442172a2aa7bd554e393f24904122803c8c3c198482f9b4f"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w4-english-2024-to-2025/irs-w4-english-2024-to-2025-text.audit.json",
+        "sha256": "25e060d095164dac87be597eedddd1925a8ff9b0c3acb72b3acd3d3be5e8caa5"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 19817,
+          "new_discovered_sources": 20974,
+          "old_compared_sources": 8389,
+          "new_compared_sources": 8389,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 11428,
+          "new_uncompared_sources": 12585,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 69
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-schedule-c-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-c-2024-to-2025/runs.json",
+        "sha256": "a891f45d11be9f86371b5b1346d022370f3ad74d3e86e8cab367bfed1ea0e5d0"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.3,
+        "peak_rss_kib": 33912,
+        "report_bytes": 924186
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "f714c5ec191e6c4e1f6e69ca063ba9539f9379309ac60013a64d76369d6f779a"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.audit.json",
+        "sha256": "223aac515e7ea32a3bf6d2540e6324996ce692fa5b4c85c87ff631e96c74d99f"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5012,
+          "new_compared_sources": 5012,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1298,
+          "new_uncompared_sources": 1304,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 32
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-schedule-se-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-se-2024-to-2025/runs.json",
+        "sha256": "cad77eb055d3ba37b596ce3d64fb27cf278829723a0fcf343669d64dc0be9c59"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.22,
+        "peak_rss_kib": 30512,
+        "report_bytes": 564899
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "4936836770e4f934e21bc63d55c027f9740e975a1b0dfea1a09629b6b96478dd"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.audit.json",
+        "sha256": "0e99ee0612bfc9b55e7bab6c715c8e909777ae1705c903d8b31a88e4e0f5f1c8"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-bert-v1-to-v2",
+      "producer": "Google",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-bert-v1-to-v2/runs.json",
+        "sha256": "614b035c6538aef323cf7b5c1c72e5826fa4dd596e1673b317e50f1c5c1e41d7"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.79,
+        "peak_rss_kib": 125388,
+        "report_bytes": 4251338
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "c179c6977b45c75e5792eb9d757ca9b00aff126bc08d91a86362b8901ba8c993"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.audit.json",
+        "sha256": "25ba0572c289688d399a70206884dd344cc6862f401fdfec66be0ca84f748a65"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 7064,
+          "new_compared_sources": 7064,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 39062,
+          "new_uncompared_sources": 46939,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 62
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "producer": "OpenAI",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-gpt3-v1-to-v4/runs.json",
+        "sha256": "f05b7eb05a1580cf912b2e16c77fe1797879923e5baf85578982fd4000e73293"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 10.69,
+        "peak_rss_kib": 471052,
+        "report_bytes": 15293117
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-gpt3-v1-to-v4/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "f3b87d87dff14b98a94e5bf1ac836bebc27a3ac4e66267f6f8b6dd102edf4110"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-gpt3-v1-to-v4/arxiv-gpt3-v1-to-v4-text.audit.json",
+        "sha256": "1458c8bb56fbfec44609b015c87f61aaa64b9e8fa65d2c7d226c61f216e7925d"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 119031,
+          "new_compared_sources": 119031,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 64082,
+          "new_uncompared_sources": 69295,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 274
+    },
+    {
+      "repetition": 2,
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "producer": "MEXT",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-primary-japanese-2008-to-2017/runs.json",
+        "sha256": "74b7660e0779cb2c784a63d9a146cd4e37890d5aa5e50c6abc28b4c7490423e8"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 22.54,
+        "peak_rss_kib": 1144900,
+        "report_bytes": 3319647
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "96989bfb504e1cb4a2f34f81dda69ead54d91ede728e90722c355fc37faecb76"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.audit.json",
+        "sha256": "8b2251af9d9a1b31c2592677435017cd619cadcd6ac87e262d621850a2707b92"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102328,
+          "new_discovered_sources": 249104,
+          "old_compared_sources": 201,
+          "new_compared_sources": 201,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102127,
+          "new_uncompared_sources": 248903,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 65
+    },
+    {
+      "repetition": 2,
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "producer": "MEXT",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-lower-secondary-japanese-2008-to-2017/runs.json",
+        "sha256": "159e60b0ef113099304c7ac59b4bd16a8d1a556609c863c024543ca27e8f19e3"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 13.21,
+        "peak_rss_kib": 646088,
+        "report_bytes": 5144565
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "327fb8df0b01b706d3fbc4d491bea68dcaefc3152dd44e8a290e1eb5d55b74d7"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.audit.json",
+        "sha256": "5bfef9f73649a4b49e91aaa9b58bcfad383a8e801438f24787a45a9100dd46fe"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 80303,
+          "new_discovered_sources": 199442,
+          "old_compared_sources": 153,
+          "new_compared_sources": 154,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 80150,
+          "new_uncompared_sources": 199288,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 40
+    },
+    {
+      "repetition": 2,
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "producer": "MEXT",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-upper-secondary-japanese-2009-to-2018/runs.json",
+        "sha256": "d0c271d66769fa9e2db03626675081e3256d9919442e77c52dd67a8c2c903b42"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 16.28,
+        "peak_rss_kib": 669704,
+        "report_bytes": 1545753
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "26f86246e6f4d751d45a1cc9f490c3c32dc1a67da3abd7cec8f321eeb37d8bb8"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.audit.json",
+        "sha256": "5922534897e4d65c8d0366dd29926a6bb7620f90b4e3ad4203de41473250e79c"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 111053,
+          "new_discovered_sources": 297348,
+          "old_compared_sources": 115,
+          "new_compared_sources": 116,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 110938,
+          "new_uncompared_sources": 297232,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 42
+    },
+    {
+      "repetition": 2,
+      "pair": "mhlw-care-skills-original-to-revised",
+      "producer": "MHLW / Japan Association of Certified Care Workers",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "2703def8de918e6c0d82dd7735b221ad7e7548f98b4dec9f4af027c62befc1bb"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 43.01,
+        "peak_rss_kib": 674368,
+        "report_bytes": 7765134
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "c4e6e76ebc908b86e6fd558b3d290efae73951d1ae0018cfcd8cbae20828cd36"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.audit.json",
+        "sha256": "113be650698bdc8d9020d5d1eed86dca90ac3e30ab620a7d1017154c84c9b730"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 82640,
+          "new_discovered_sources": 104935,
+          "old_compared_sources": 9018,
+          "new_compared_sources": 9018,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 73622,
+          "new_uncompared_sources": 95917,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 215
+    },
+    {
+      "repetition": 2,
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "producer": "NASA",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nasa-buckling-8007-1968-to-2020/runs.json",
+        "sha256": "996c0ebca7adc813eb49c1bef995046dc52482fccd6f4f6910921dcad3b48995"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 8.12,
+        "peak_rss_kib": 526024,
+        "report_bytes": 3057553
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nasa-buckling-8007-1968-to-2020/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "929cd1aada120ce75fdc46bfe07c060eec1fbda200dd1980845e5862755c5da3"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nasa-buckling-8007-1968-to-2020/nasa-buckling-8007-1968-to-2020-text.audit.json",
+        "sha256": "e0ac81539aa260cd758d86b97d4ac0e18a8aca4784705dfc7d02a2064d5bfc31"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 62811,
+          "new_discovered_sources": 280452,
+          "old_compared_sources": 18,
+          "new_compared_sources": 18,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 62793,
+          "new_uncompared_sources": 280434,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 81
+    },
+    {
+      "repetition": 2,
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "producer": "IPCC",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ipcc-synthesis-ar5-to-ar6/runs.json",
+        "sha256": "e22dda51ef475ec4bf944c10cb9369a6849cbd648b493c1de67d2b3e17a02e94"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 29.83,
+        "peak_rss_kib": 1310108,
+        "report_bytes": 8397812
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ipcc-synthesis-ar5-to-ar6/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "e6c83e16a29d1764251268edfa4506957d3179d4a978827709296be66e3e99d3"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ipcc-synthesis-ar5-to-ar6/ipcc-synthesis-ar5-to-ar6-text.audit.json",
+        "sha256": "f93f653df573bdbeb9d0087dda6e6d105ccbab5ddbd19a4692a3bc7983302597"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 611699,
+          "new_discovered_sources": 637662,
+          "old_compared_sources": 4400,
+          "new_compared_sources": 4395,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 607299,
+          "new_uncompared_sources": 633267,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 215
+    },
+    {
+      "repetition": 2,
+      "pair": "ecb-annual-2023-to-2024",
+      "producer": "ECB",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ecb-annual-2023-to-2024/runs.json",
+        "sha256": "3b7816ef058ec3e800d958054a7d1a4ae050b6272076474828f98d9abff58dc4"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 16.56,
+        "peak_rss_kib": 895664,
+        "report_bytes": 692717
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.json",
+        "sha256": "5b00a26d5042ee60d29fda081ff43c323ee49cc400f5db208c49410662623af0"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.audit.json",
+        "sha256": "8e385d3e5164927970a2b558587fdf401b86078a348364a7131bfabb4b907bff"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 473275,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 473275,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-sha-1803-to-1804",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-sha-1803-to-1804/runs.json",
+        "sha256": "78473f1e4c28d6c2e1367e97722846a06320b253458d227efc2bbf621e1a1361"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 2.26,
+        "peak_rss_kib": 179172,
+        "report_bytes": 7110539
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.json",
+        "sha256": "4507067cf2f5831cd56ec0a76e47f642b4900fc2686f633db43d0e235590d441"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.audit.json",
+        "sha256": "b3d8116fa3a270d81e1eb8f5674e7d0571a9809d90740f9508826fa8ab8fa4b7"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 43539,
+          "new_discovered_sources": 47831,
+          "old_compared_sources": 8275,
+          "new_compared_sources": 8274,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 35264,
+          "new_uncompared_sources": 39557,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 60
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "producer": "UC Berkeley",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-ddpm-v1-to-v2/runs.json",
+        "sha256": "88dedf1cbb1547ab688bc72ac6235afdb51d959ec17342a83ecad73276cb5c89"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 3.53,
+        "peak_rss_kib": 138404,
+        "report_bytes": 6182536
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-ddpm-v1-to-v2/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "f2d0ad61b50454fcadd7af26a083b09f2dc5b7acc4731a57aa7255ddbcbd64b7"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-ddpm-v1-to-v2/arxiv-ddpm-v1-to-v2-text.audit.json",
+        "sha256": "f8bccb665038efa7d75e4e04316ee185dfdfc26cac5fe008b8351ccacbb882b4"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 41561,
+          "new_discovered_sources": 45486,
+          "old_compared_sources": 15206,
+          "new_compared_sources": 15206,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26355,
+          "new_uncompared_sources": 30280,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 46
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-llama2-v1-to-v2",
+      "producer": "Meta",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-llama2-v1-to-v2/runs.json",
+        "sha256": "1c40977654940505591e2d583c31130370f24820c1d85a0aac840d5ac7c9ff54"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 15.03,
+        "peak_rss_kib": 529276,
+        "report_bytes": 13477059
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-llama2-v1-to-v2/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "112d0180eb8c293cfc980b1a5a1f3b75412fff56a69cb5d0054d8864d8803d18"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-llama2-v1-to-v2/arxiv-llama2-v1-to-v2-text.audit.json",
+        "sha256": "e0f3739aa942e7ae1dd4baaad1ab677264882c08ec3ae02ed5eb0719d790f54e"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 220758,
+          "new_discovered_sources": 221261,
+          "old_compared_sources": 102218,
+          "new_compared_sources": 102218,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 118540,
+          "new_uncompared_sources": 119043,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 272
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-management-37-r1-to-r2/runs.json",
+        "sha256": "ea50dcde29d3367407de8da0c8b74d91493f58036412d55afd7b056cd7c664c9"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 18.5,
+        "peak_rss_kib": 1117000,
+        "report_bytes": 12729219
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-management-37-r1-to-r2/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "549e4df59bf04a4b41b31b2808042b1e572bed2a440ba1183613dc0d43c38d21"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-management-37-r1-to-r2/nist-risk-management-37-r1-to-r2-text.audit.json",
+        "sha256": "6069a9905c4d79381ddf00d213171855b4c73fab4ff0a7171f01ce9fb5ba2371"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 382481,
+          "new_discovered_sources": 646585,
+          "old_compared_sources": 4463,
+          "new_compared_sources": 4466,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 378018,
+          "new_uncompared_sources": 642119,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 50
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-1099-misc-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-1099-misc-2024-to-2025/runs.json",
+        "sha256": "fac4750d851c80188e98c1373a09c16d50ead6298f921b54e133fb972fda09bd"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.64,
+        "peak_rss_kib": 59844,
+        "report_bytes": 3378051
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-1099-misc-2024-to-2025/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "31a397669920e6e21405cce911dcd7e376ea313d9b555771b678d841a4a3f220"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-1099-misc-2024-to-2025/irs-1099-misc-2024-to-2025-text.audit.json",
+        "sha256": "c084b720f4aa50a35e2e29b992bc3e0650cd14f9d17c9bc35bc690132818ac65"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 11030,
+          "new_discovered_sources": 10779,
+          "old_compared_sources": 1048,
+          "new_compared_sources": 1048,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 9982,
+          "new_uncompared_sources": 9731,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 42
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-w2-2024-to-2025",
+      "producer": "IRS",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w2-2024-to-2025/runs.json",
+        "sha256": "8d6ab2edf3e138d4cccb2cbd773021484e3f1b68bfe8accd10ad6d1156554784"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.25,
+        "peak_rss_kib": 84252,
+        "report_bytes": 4138493
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w2-2024-to-2025/irs-w2-2024-to-2025-text.json",
+        "sha256": "23577f544e53e2191e616c5488df7b985ac3cdb2071ce411fcbfbef0cf8a94ea"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w2-2024-to-2025/irs-w2-2024-to-2025-text.audit.json",
+        "sha256": "e7e5130a8926806d239188d334b0af42e0e08f41fd85a31b7f0cf1703c01ed2c"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 20660,
+          "new_discovered_sources": 20753,
+          "old_compared_sources": 3256,
+          "new_compared_sources": 3256,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 17404,
+          "new_uncompared_sources": 17497,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 43
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "producer": "Meta",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-mask-rcnn-v1-to-v3/runs.json",
+        "sha256": "8ab3539ac5e1fc2b3cdc70302e112f7de63175552baddb1ce40072a8245e5bc6"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 2.89,
+        "peak_rss_kib": 136892,
+        "report_bytes": 8439690
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-mask-rcnn-v1-to-v3/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "dbb3c5ba232dc21c0625c57fe4371411147f7584a35952fd3f1f325cba386214"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-mask-rcnn-v1-to-v3/arxiv-mask-rcnn-v1-to-v3-text.audit.json",
+        "sha256": "9ef0ed615f6f472d22e6ab5735deba4c75d9bed406dc194158a7666eac0a2c70"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 39946,
+          "new_discovered_sources": 52222,
+          "old_compared_sources": 15023,
+          "new_compared_sources": 15023,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 24923,
+          "new_uncompared_sources": 37199,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 112
+    },
+    {
+      "repetition": 2,
+      "pair": "bunka-official-writing-1952-to-2022",
+      "producer": "Agency for Cultural Affairs",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-official-writing-1952-to-2022/runs.json",
+        "sha256": "a60b48848f5654c47b5d9cb1a95d07ff6976bc3728cbfddb0e71a87a48701aea"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 5.42,
+        "peak_rss_kib": 203048,
+        "report_bytes": 3025247
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-official-writing-1952-to-2022/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "1ad4224091078f7dcb48449bbfe44597bf3acc19c3ae3bd877623656f8fe48e4"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-official-writing-1952-to-2022/bunka-official-writing-1952-to-2022-text.audit.json",
+        "sha256": "c637682da5a03e8a017c7e7f27319d545ac0de7fd2e2ef00702300aece46a6f3"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5584,
+          "new_discovered_sources": 68870,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 5584,
+          "new_uncompared_sources": 68870,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 5
+    },
+    {
+      "repetition": 2,
+      "pair": "faa-thunderstorms-b-to-c",
+      "producer": "FAA",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-thunderstorms-b-to-c/runs.json",
+        "sha256": "ba1813277816cbf99c1db1cb616cc07b4e9fe627cf0b81256dfa895878b16587"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.18,
+        "peak_rss_kib": 76016,
+        "report_bytes": 221181
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "c21b527484ed5fe90cf5fd21272a16c050bd00cb28cd70924bb2421ce8102aab"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.audit.json",
+        "sha256": "126790957b1d7fdfc6044a967673596b614f9ed8670bb75a0859e07e3de82395"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 15715,
+          "new_discovered_sources": 27732,
+          "old_compared_sources": 6,
+          "new_compared_sources": 6,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 15709,
+          "new_uncompared_sources": 27726,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 2,
+      "pair": "faa-maintenance-records-c-to-d",
+      "producer": "FAA",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-maintenance-records-c-to-d/runs.json",
+        "sha256": "b4eb206b0a5b7eba673c3de0a47ee1b89cd50701e10d42f9dc2e2fa7cdcf5f77"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.64,
+        "peak_rss_kib": 124836,
+        "report_bytes": 188633
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-maintenance-records-c-to-d/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "b58d4c32838bfb63ffffce238ba4c136108e7b2f0bab40255d9046f868c51337"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-maintenance-records-c-to-d/faa-maintenance-records-c-to-d-text.audit.json",
+        "sha256": "2d26bb2745f145d8e4570adae30d084d3c1b297e68a4cd882e1bda5da1d37c79"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 28756,
+          "new_discovered_sources": 63192,
+          "old_compared_sources": 92,
+          "new_compared_sources": 92,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 28664,
+          "new_uncompared_sources": 63100,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "producer": "Microsoft",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-faster-rcnn-v1-to-v3/runs.json",
+        "sha256": "be8ac5e8d23ff214e46628277d19abe989739e2461c3142782b764d46184acb3"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 1.63,
+        "peak_rss_kib": 100076,
+        "report_bytes": 792957
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-faster-rcnn-v1-to-v3/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "7c1ac7f883b99aa5aed1343f3ccff93696b0e95dbe6ec65c47b6982398a4179a"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-faster-rcnn-v1-to-v3/arxiv-faster-rcnn-v1-to-v3-text.audit.json",
+        "sha256": "64567577d80b18427d5bb6d0d83f480e1d09977b498e16cd9a9823371624c3f6"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 31824,
+          "new_discovered_sources": 50289,
+          "old_compared_sources": 965,
+          "new_compared_sources": 965,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 30859,
+          "new_uncompared_sources": 49324,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 36
+    },
+    {
+      "repetition": 2,
+      "pair": "bunka-kana-1946-to-1986",
+      "producer": "Agency for Cultural Affairs",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-kana-1946-to-1986/runs.json",
+        "sha256": "9654d13da5f69fe8028e723d8d611c37a7b491c4b8cf5001398dfe2b9049ae1c"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 0.99,
+        "peak_rss_kib": 52260,
+        "report_bytes": 26169
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.json",
+        "sha256": "216b3074a24fd459fe6ff699291997099e665ac0ce03a8e930d862bb17e3e2fd"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.audit.json",
+        "sha256": "2fab778009c458db5fd0cee778bf397418592017fff87773aebaac8d9b517af5"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 5677,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 5677,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 0
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-controls-53-r4-to-r5",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-controls-53-r4-to-r5/runs.json",
+        "sha256": "660471e530e0a44099ef52d04d6539c51b36432b709e2d2da7a5d0b5741fb889"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 55.49,
+        "peak_rss_kib": 2631988,
+        "report_bytes": 17980714
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-controls-53-r4-to-r5/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "44e2e4f699da7eef26a233e085e2489d4cd748555a97adadbcf6ae0ff31fa1fe"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-controls-53-r4-to-r5/nist-controls-53-r4-to-r5-text.audit.json",
+        "sha256": "c47b59fad46cb9a424baf1af4b7e9a636b8f1b548e7cb4b4f072b4cfdd028dcc"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 1580232,
+          "new_discovered_sources": 1629511,
+          "old_compared_sources": 26509,
+          "new_compared_sources": 26456,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1553723,
+          "new_uncompared_sources": 1603055,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 509
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-risk-assessment-30-to-r1",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-assessment-30-to-r1/runs.json",
+        "sha256": "52588def1034cc8db2590792d3b40eb0c2bfddbbd394e6ebf01ede936820e98c"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 18.3,
+        "peak_rss_kib": 577584,
+        "report_bytes": 1372731
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-assessment-30-to-r1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "6eedfbeaf1e006858672bcafcaa5c91d40837ae30683c9ecdc126065a8bf1826"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-assessment-30-to-r1/nist-risk-assessment-30-to-r1-text.audit.json",
+        "sha256": "feae53ef2595f6f969670e8d3a8f71210e743d4a50918ed7925c9172c464bc2b"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102460,
+          "new_discovered_sources": 326639,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102460,
+          "new_uncompared_sources": 326639,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 22
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-contingency-34-to-r1",
+      "producer": "NIST",
+      "status": "audited",
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-contingency-34-to-r1/runs.json",
+        "sha256": "9c1bc521825cb615b4250d61ba745882e7137e3ded186296475551a23203dcd3"
+      },
+      "exit_code": 3,
+      "costs": {
+        "wall_seconds": 34.2,
+        "peak_rss_kib": 790268,
+        "report_bytes": 4564841
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "7b046874585297124bedde3c392510cb2f15acf9f3f3717c765a8438d27aa269"
+      },
+      "audit": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.audit.json",
+        "sha256": "98aae79390e31ec0a69a0be793e07ec5e6c1e2ae11a09d709d65af4e0b6d3406"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 216916,
+          "new_discovered_sources": 391537,
+          "old_compared_sources": 26,
+          "new_compared_sources": 27,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 216890,
+          "new_uncompared_sources": 391510,
+          "complete": false
+        }
+      ],
+      "complete": false,
+      "ambiguous_components": 128
+    }
+  ],
+  "attempt_status_counts": {
+    "audited": 72
+  }
+}

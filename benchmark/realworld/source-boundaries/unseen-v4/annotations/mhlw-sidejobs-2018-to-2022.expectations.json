@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "mhlw-sidejobs-2018-to-2022",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "3d38a33d1604147a8ad51aad1901deb952f5dc9e88f4406f3620d886fdadd785",
+  "body_eligible": true,
+  "reason": "The complete first current-state paragraph changes the listed reasons for side jobs. Both original paragraph markers remain."
+}

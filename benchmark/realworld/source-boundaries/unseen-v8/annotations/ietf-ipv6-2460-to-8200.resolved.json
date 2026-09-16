@@ -1,0 +1,2739 @@
+{
+  "annotation": {
+    "new_sha256": "59acf5865072899579dedca59f0beb32915336387c89027851b6eb4ccaead78f",
+    "normalization": "none",
+    "old_sha256": "eec5b4a6d2b2ef095ecf8330212e877ae063e828e8dc451f4062199b17ad1d68",
+    "pair": "ietf-ipv6-2460-to-8200",
+    "selectors": [
+      {
+        "id": "body-old-1",
+        "literal_quote": "This document specifies version 6 of the Internet Protocol (IPv6),   also sometimes referred to as IP Next Generation or IPng.",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 1042,
+            "start": 916
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "old"
+      },
+      {
+        "id": "control-old",
+        "literal_quote": "Abstract",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 913,
+            "start": 905
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "old"
+      },
+      {
+        "id": "body-new-1",
+        "literal_quote": "This document specifies version 6 of the Internet Protocol (IPv6).   It obsoletes RFC 2460.",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 537,
+            "start": 446
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "new"
+      },
+      {
+        "id": "control-new",
+        "literal_quote": "Abstract",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 443,
+            "start": 435
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "new"
+      }
+    ],
+    "source_view": "paint_order_raw",
+    "version": 2
+  },
+  "new": {
+    "block_count": 42,
+    "extraction_complete": true,
+    "extraction_issues": [],
+    "glyph_count": 90765,
+    "sha256": "59acf5865072899579dedca59f0beb32915336387c89027851b6eb4ccaead78f",
+    "source_view": "native_page_paint_order_scalars_v1"
+  },
+  "old": {
+    "block_count": 39,
+    "extraction_complete": true,
+    "extraction_issues": [],
+    "glyph_count": 83664,
+    "sha256": "eec5b4a6d2b2ef095ecf8330212e877ae063e828e8dc451f4062199b17ad1d68",
+    "source_view": "native_page_paint_order_scalars_v1"
+  },
+  "schema_version": 2,
+  "selector_resolution_complete": true,
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 1042,
+            "start": 916
+          },
+          "utf8_byte": {
+            "end": 1042,
+            "start": 916
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 916,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 916,
+          "utf8_byte": 916,
+          "value": "T"
+        },
+        {
+          "atoms": [
+            {
+              "id": 917,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 917,
+          "utf8_byte": 917,
+          "value": "h"
+        },
+        {
+          "atoms": [
+            {
+              "id": 918,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 918,
+          "utf8_byte": 918,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 919,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 919,
+          "utf8_byte": 919,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 920,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 920,
+          "utf8_byte": 920,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 921,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 921,
+          "utf8_byte": 921,
+          "value": "d"
+        },
+        {
+          "atoms": [
+            {
+              "id": 922,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 922,
+          "utf8_byte": 922,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 923,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 923,
+          "utf8_byte": 923,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 924,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 924,
+          "utf8_byte": 924,
+          "value": "u"
+        },
+        {
+          "atoms": [
+            {
+              "id": 925,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 925,
+          "utf8_byte": 925,
+          "value": "m"
+        },
+        {
+          "atoms": [
+            {
+              "id": 926,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 926,
+          "utf8_byte": 926,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 927,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 927,
+          "utf8_byte": 927,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 928,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 928,
+          "utf8_byte": 928,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 929,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 929,
+          "utf8_byte": 929,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 930,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 930,
+          "utf8_byte": 930,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 931,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 931,
+          "utf8_byte": 931,
+          "value": "p"
+        },
+        {
+          "atoms": [
+            {
+              "id": 932,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 932,
+          "utf8_byte": 932,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 933,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 933,
+          "utf8_byte": 933,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 934,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 934,
+          "utf8_byte": 934,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 935,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 935,
+          "utf8_byte": 935,
+          "value": "f"
+        },
+        {
+          "atoms": [
+            {
+              "id": 936,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 936,
+          "utf8_byte": 936,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 937,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 937,
+          "utf8_byte": 937,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 938,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 938,
+          "utf8_byte": 938,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 939,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 939,
+          "utf8_byte": 939,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 940,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 940,
+          "utf8_byte": 940,
+          "value": "v"
+        },
+        {
+          "atoms": [
+            {
+              "id": 941,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 941,
+          "utf8_byte": 941,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 942,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 942,
+          "utf8_byte": 942,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 943,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 943,
+          "utf8_byte": 943,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 944,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 944,
+          "utf8_byte": 944,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 945,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 945,
+          "utf8_byte": 945,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 946,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 946,
+          "utf8_byte": 946,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 947,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 947,
+          "utf8_byte": 947,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 948,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 948,
+          "utf8_byte": 948,
+          "value": "6"
+        },
+        {
+          "atoms": [
+            {
+              "id": 949,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 949,
+          "utf8_byte": 949,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 950,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 950,
+          "utf8_byte": 950,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 951,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 951,
+          "utf8_byte": 951,
+          "value": "f"
+        },
+        {
+          "atoms": [
+            {
+              "id": 952,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 952,
+          "utf8_byte": 952,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 953,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 953,
+          "utf8_byte": 953,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 954,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 954,
+          "utf8_byte": 954,
+          "value": "h"
+        },
+        {
+          "atoms": [
+            {
+              "id": 955,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 955,
+          "utf8_byte": 955,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 956,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 956,
+          "utf8_byte": 956,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 957,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 957,
+          "utf8_byte": 957,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 958,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 958,
+          "utf8_byte": 958,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 959,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 959,
+          "utf8_byte": 959,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 960,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 960,
+          "utf8_byte": 960,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 961,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 961,
+          "utf8_byte": 961,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 962,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 962,
+          "utf8_byte": 962,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 963,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 963,
+          "utf8_byte": 963,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 964,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 964,
+          "utf8_byte": 964,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 965,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 965,
+          "utf8_byte": 965,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 966,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 966,
+          "utf8_byte": 966,
+          "value": "P"
+        },
+        {
+          "atoms": [
+            {
+              "id": 967,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 967,
+          "utf8_byte": 967,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 968,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 968,
+          "utf8_byte": 968,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 969,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 969,
+          "utf8_byte": 969,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 970,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 970,
+          "utf8_byte": 970,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 971,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 971,
+          "utf8_byte": 971,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 972,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 972,
+          "utf8_byte": 972,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 973,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 973,
+          "utf8_byte": 973,
+          "value": "l"
+        },
+        {
+          "atoms": [
+            {
+              "id": 974,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 974,
+          "utf8_byte": 974,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 975,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 975,
+          "utf8_byte": 975,
+          "value": "("
+        },
+        {
+          "atoms": [
+            {
+              "id": 976,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 976,
+          "utf8_byte": 976,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 977,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 977,
+          "utf8_byte": 977,
+          "value": "P"
+        },
+        {
+          "atoms": [
+            {
+              "id": 978,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 978,
+          "utf8_byte": 978,
+          "value": "v"
+        },
+        {
+          "atoms": [
+            {
+              "id": 979,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 979,
+          "utf8_byte": 979,
+          "value": "6"
+        },
+        {
+          "atoms": [
+            {
+              "id": 980,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 980,
+          "utf8_byte": 980,
+          "value": ")"
+        },
+        {
+          "atoms": [
+            {
+              "id": 981,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 981,
+          "utf8_byte": 981,
+          "value": ","
+        },
+        {
+          "atoms": [
+            {
+              "id": 982,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 982,
+          "utf8_byte": 982,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 983,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 983,
+          "utf8_byte": 983,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 984,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 984,
+          "utf8_byte": 984,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 985,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 985,
+          "utf8_byte": 985,
+          "value": "a"
+        },
+        {
+          "atoms": [
+            {
+              "id": 986,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 986,
+          "utf8_byte": 986,
+          "value": "l"
+        },
+        {
+          "atoms": [
+            {
+              "id": 987,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 987,
+          "utf8_byte": 987,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 988,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 988,
+          "utf8_byte": 988,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 989,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 989,
+          "utf8_byte": 989,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 990,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 990,
+          "utf8_byte": 990,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 991,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 991,
+          "utf8_byte": 991,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 992,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 992,
+          "utf8_byte": 992,
+          "value": "m"
+        },
+        {
+          "atoms": [
+            {
+              "id": 993,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 993,
+          "utf8_byte": 993,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 994,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 994,
+          "utf8_byte": 994,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 995,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 995,
+          "utf8_byte": 995,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 996,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 996,
+          "utf8_byte": 996,
+          "value": "m"
+        },
+        {
+          "atoms": [
+            {
+              "id": 997,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 997,
+          "utf8_byte": 997,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 998,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 998,
+          "utf8_byte": 998,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 999,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 999,
+          "utf8_byte": 999,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1000,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1000,
+          "utf8_byte": 1000,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1001,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1001,
+          "utf8_byte": 1001,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1002,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1002,
+          "utf8_byte": 1002,
+          "value": "f"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1003,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1003,
+          "utf8_byte": 1003,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1004,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1004,
+          "utf8_byte": 1004,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1005,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1005,
+          "utf8_byte": 1005,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1006,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1006,
+          "utf8_byte": 1006,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1007,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1007,
+          "utf8_byte": 1007,
+          "value": "d"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1008,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1008,
+          "utf8_byte": 1008,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1009,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1009,
+          "utf8_byte": 1009,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1010,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1010,
+          "utf8_byte": 1010,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1011,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1011,
+          "utf8_byte": 1011,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1012,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1012,
+          "utf8_byte": 1012,
+          "value": "a"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1013,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1013,
+          "utf8_byte": 1013,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1014,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1014,
+          "utf8_byte": 1014,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1015,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1015,
+          "utf8_byte": 1015,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1016,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1016,
+          "utf8_byte": 1016,
+          "value": "P"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1017,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1017,
+          "utf8_byte": 1017,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1018,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1018,
+          "utf8_byte": 1018,
+          "value": "N"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1019,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1019,
+          "utf8_byte": 1019,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1020,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1020,
+          "utf8_byte": 1020,
+          "value": "x"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1021,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1021,
+          "utf8_byte": 1021,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1022,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1022,
+          "utf8_byte": 1022,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1023,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1023,
+          "utf8_byte": 1023,
+          "value": "G"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1024,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1024,
+          "utf8_byte": 1024,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1025,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1025,
+          "utf8_byte": 1025,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1026,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1026,
+          "utf8_byte": 1026,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1027,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1027,
+          "utf8_byte": 1027,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1028,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1028,
+          "utf8_byte": 1028,
+          "value": "a"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1029,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1029,
+          "utf8_byte": 1029,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1030,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1030,
+          "utf8_byte": 1030,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1031,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1031,
+          "utf8_byte": 1031,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1032,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1032,
+          "utf8_byte": 1032,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1033,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1033,
+          "utf8_byte": 1033,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1034,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1034,
+          "utf8_byte": 1034,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1035,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1035,
+          "utf8_byte": 1035,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1036,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1036,
+          "utf8_byte": 1036,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 1037,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1037,
+          "utf8_byte": 1037,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1038,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1038,
+          "utf8_byte": 1038,
+          "value": "P"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1039,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1039,
+          "utf8_byte": 1039,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1040,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1040,
+          "utf8_byte": 1040,
+          "value": "g"
+        },
+        {
+          "atoms": [
+            {
+              "id": 1041,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 1041,
+          "utf8_byte": 1041,
+          "value": "."
+        }
+      ],
+      "status": "unique"
+    },
+    {
+      "id": "control-old",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 913,
+            "start": 905
+          },
+          "utf8_byte": {
+            "end": 913,
+            "start": 905
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 905,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 905,
+          "utf8_byte": 905,
+          "value": "A"
+        },
+        {
+          "atoms": [
+            {
+              "id": 906,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 906,
+          "utf8_byte": 906,
+          "value": "b"
+        },
+        {
+          "atoms": [
+            {
+              "id": 907,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 907,
+          "utf8_byte": 907,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 908,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 908,
+          "utf8_byte": 908,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 909,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 909,
+          "utf8_byte": 909,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 910,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 910,
+          "utf8_byte": 910,
+          "value": "a"
+        },
+        {
+          "atoms": [
+            {
+              "id": 911,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 911,
+          "utf8_byte": 911,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 912,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 912,
+          "utf8_byte": 912,
+          "value": "t"
+        }
+      ],
+      "status": "unique"
+    },
+    {
+      "id": "body-new-1",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 537,
+            "start": 446
+          },
+          "utf8_byte": {
+            "end": 537,
+            "start": 446
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 446,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 446,
+          "utf8_byte": 446,
+          "value": "T"
+        },
+        {
+          "atoms": [
+            {
+              "id": 447,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 447,
+          "utf8_byte": 447,
+          "value": "h"
+        },
+        {
+          "atoms": [
+            {
+              "id": 448,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 448,
+          "utf8_byte": 448,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 449,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 449,
+          "utf8_byte": 449,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 450,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 450,
+          "utf8_byte": 450,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 451,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 451,
+          "utf8_byte": 451,
+          "value": "d"
+        },
+        {
+          "atoms": [
+            {
+              "id": 452,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 452,
+          "utf8_byte": 452,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 453,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 453,
+          "utf8_byte": 453,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 454,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 454,
+          "utf8_byte": 454,
+          "value": "u"
+        },
+        {
+          "atoms": [
+            {
+              "id": 455,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 455,
+          "utf8_byte": 455,
+          "value": "m"
+        },
+        {
+          "atoms": [
+            {
+              "id": 456,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 456,
+          "utf8_byte": 456,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 457,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 457,
+          "utf8_byte": 457,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 458,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 458,
+          "utf8_byte": 458,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 459,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 459,
+          "utf8_byte": 459,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 460,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 460,
+          "utf8_byte": 460,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 461,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 461,
+          "utf8_byte": 461,
+          "value": "p"
+        },
+        {
+          "atoms": [
+            {
+              "id": 462,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 462,
+          "utf8_byte": 462,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 463,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 463,
+          "utf8_byte": 463,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 464,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 464,
+          "utf8_byte": 464,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 465,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 465,
+          "utf8_byte": 465,
+          "value": "f"
+        },
+        {
+          "atoms": [
+            {
+              "id": 466,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 466,
+          "utf8_byte": 466,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 467,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 467,
+          "utf8_byte": 467,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 468,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 468,
+          "utf8_byte": 468,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 469,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 469,
+          "utf8_byte": 469,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 470,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 470,
+          "utf8_byte": 470,
+          "value": "v"
+        },
+        {
+          "atoms": [
+            {
+              "id": 471,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 471,
+          "utf8_byte": 471,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 472,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 472,
+          "utf8_byte": 472,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 473,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 473,
+          "utf8_byte": 473,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 474,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 474,
+          "utf8_byte": 474,
+          "value": "i"
+        },
+        {
+          "atoms": [
+            {
+              "id": 475,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 475,
+          "utf8_byte": 475,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 476,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 476,
+          "utf8_byte": 476,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 477,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 477,
+          "utf8_byte": 477,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 478,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 478,
+          "utf8_byte": 478,
+          "value": "6"
+        },
+        {
+          "atoms": [
+            {
+              "id": 479,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 479,
+          "utf8_byte": 479,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 480,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 480,
+          "utf8_byte": 480,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 481,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 481,
+          "utf8_byte": 481,
+          "value": "f"
+        },
+        {
+          "atoms": [
+            {
+              "id": 482,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 482,
+          "utf8_byte": 482,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 483,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 483,
+          "utf8_byte": 483,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 484,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 484,
+          "utf8_byte": 484,
+          "value": "h"
+        },
+        {
+          "atoms": [
+            {
+              "id": 485,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 485,
+          "utf8_byte": 485,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 486,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 486,
+          "utf8_byte": 486,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 487,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 487,
+          "utf8_byte": 487,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 488,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 488,
+          "utf8_byte": 488,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 489,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 489,
+          "utf8_byte": 489,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 490,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 490,
+          "utf8_byte": 490,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 491,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 491,
+          "utf8_byte": 491,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 492,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 492,
+          "utf8_byte": 492,
+          "value": "n"
+        },
+        {
+          "atoms": [
+            {
+              "id": 493,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 493,
+          "utf8_byte": 493,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 494,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 494,
+          "utf8_byte": 494,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 495,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 495,
+          "utf8_byte": 495,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 496,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 496,
+          "utf8_byte": 496,
+          "value": "P"
+        },
+        {
+          "atoms": [
+            {
+              "id": 497,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 497,
+          "utf8_byte": 497,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 498,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 498,
+          "utf8_byte": 498,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 499,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 499,
+          "utf8_byte": 499,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 500,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 500,
+          "utf8_byte": 500,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 501,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 501,
+          "utf8_byte": 501,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 502,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 502,
+          "utf8_byte": 502,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 503,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 503,
+          "utf8_byte": 503,
+          "value": "l"
+        },
+        {
+          "atoms": [
+            {
+              "id": 504,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 504,
+          "utf8_byte": 504,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 505,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 505,
+          "utf8_byte": 505,
+          "value": "("
+        },
+        {
+          "atoms": [
+            {
+              "id": 506,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 506,
+          "utf8_byte": 506,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 507,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 507,
+          "utf8_byte": 507,
+          "value": "P"
+        },
+        {
+          "atoms": [
+            {
+              "id": 508,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 508,
+          "utf8_byte": 508,
+          "value": "v"
+        },
+        {
+          "atoms": [
+            {
+              "id": 509,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 509,
+          "utf8_byte": 509,
+          "value": "6"
+        },
+        {
+          "atoms": [
+            {
+              "id": 510,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 510,
+          "utf8_byte": 510,
+          "value": ")"
+        },
+        {
+          "atoms": [
+            {
+              "id": 511,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 511,
+          "utf8_byte": 511,
+          "value": "."
+        },
+        {
+          "atoms": [
+            {
+              "id": 512,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 512,
+          "utf8_byte": 512,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 513,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 513,
+          "utf8_byte": 513,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 514,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 514,
+          "utf8_byte": 514,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 515,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 515,
+          "utf8_byte": 515,
+          "value": "I"
+        },
+        {
+          "atoms": [
+            {
+              "id": 516,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 516,
+          "utf8_byte": 516,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 517,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 517,
+          "utf8_byte": 517,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 518,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 518,
+          "utf8_byte": 518,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 519,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 519,
+          "utf8_byte": 519,
+          "value": "b"
+        },
+        {
+          "atoms": [
+            {
+              "id": 520,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 520,
+          "utf8_byte": 520,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 521,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 521,
+          "utf8_byte": 521,
+          "value": "o"
+        },
+        {
+          "atoms": [
+            {
+              "id": 522,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 522,
+          "utf8_byte": 522,
+          "value": "l"
+        },
+        {
+          "atoms": [
+            {
+              "id": 523,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 523,
+          "utf8_byte": 523,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 524,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 524,
+          "utf8_byte": 524,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 525,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 525,
+          "utf8_byte": 525,
+          "value": "e"
+        },
+        {
+          "atoms": [
+            {
+              "id": 526,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 526,
+          "utf8_byte": 526,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 527,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 527,
+          "utf8_byte": 527,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 528,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 528,
+          "utf8_byte": 528,
+          "value": "R"
+        },
+        {
+          "atoms": [
+            {
+              "id": 529,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 529,
+          "utf8_byte": 529,
+          "value": "F"
+        },
+        {
+          "atoms": [
+            {
+              "id": 530,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 530,
+          "utf8_byte": 530,
+          "value": "C"
+        },
+        {
+          "atoms": [
+            {
+              "id": 531,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 531,
+          "utf8_byte": 531,
+          "value": " "
+        },
+        {
+          "atoms": [
+            {
+              "id": 532,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 532,
+          "utf8_byte": 532,
+          "value": "2"
+        },
+        {
+          "atoms": [
+            {
+              "id": 533,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 533,
+          "utf8_byte": 533,
+          "value": "4"
+        },
+        {
+          "atoms": [
+            {
+              "id": 534,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 534,
+          "utf8_byte": 534,
+          "value": "6"
+        },
+        {
+          "atoms": [
+            {
+              "id": 535,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 535,
+          "utf8_byte": 535,
+          "value": "0"
+        },
+        {
+          "atoms": [
+            {
+              "id": 536,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 536,
+          "utf8_byte": 536,
+          "value": "."
+        }
+      ],
+      "status": "unique"
+    },
+    {
+      "id": "control-new",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 443,
+            "start": 435
+          },
+          "utf8_byte": {
+            "end": 443,
+            "start": 435
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 435,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 435,
+          "utf8_byte": 435,
+          "value": "A"
+        },
+        {
+          "atoms": [
+            {
+              "id": 436,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 436,
+          "utf8_byte": 436,
+          "value": "b"
+        },
+        {
+          "atoms": [
+            {
+              "id": 437,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 437,
+          "utf8_byte": 437,
+          "value": "s"
+        },
+        {
+          "atoms": [
+            {
+              "id": 438,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 438,
+          "utf8_byte": 438,
+          "value": "t"
+        },
+        {
+          "atoms": [
+            {
+              "id": 439,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 439,
+          "utf8_byte": 439,
+          "value": "r"
+        },
+        {
+          "atoms": [
+            {
+              "id": 440,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 440,
+          "utf8_byte": 440,
+          "value": "a"
+        },
+        {
+          "atoms": [
+            {
+              "id": 441,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 441,
+          "utf8_byte": 441,
+          "value": "c"
+        },
+        {
+          "atoms": [
+            {
+              "id": 442,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 442,
+          "utf8_byte": 442,
+          "value": "t"
+        }
+      ],
+      "status": "unique"
+    }
+  ]
+}

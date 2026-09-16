@@ -1,0 +1,831 @@
+{
+  "version": 1,
+  "pair": "nist-incident-handling-r2-to-r3",
+  "sources": {
+    "path": "benchmark/realworld/cache/source-boundaries-incident-v15-review/sources.json",
+    "sha256": "e05caa8eb73d1a21554a7ddb9b4f7de9373e77ce0f67018ed6fe2cb3c622d53e"
+  },
+  "page_images": [
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-incident-v15-review/old-region-5.png",
+      "sha256": "5ebf9e6f38c1ef215e9704f9a0d81b566ac1105801770fadf4b7f446f350dbb7"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-incident-v15-review/new-region-4.png",
+      "sha256": "9793d5510605e1468038f8611e75549f95bc64652d2a64f7760188d3a03b2807"
+    }
+  ],
+  "diagnostic_runs": [
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-incident-v15-diagnostic/diagnostic.json",
+      "sha256": "bcfdf532b750f2a63abcec179d100bd10e4cc453dc7433640395d0323abe476c"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-incident-v15-diagnostic2/diagnostic.json",
+      "sha256": "aaa8684b96da3dae8e09ce617133a3992d7d325fd18c6c64c88bfadba9777876"
+    }
+  ],
+  "source_context": {
+    "predecessor": {
+      "id": 200,
+      "kind": "header",
+      "pages": [
+        5
+      ],
+      "sources": [
+        {
+          "origin": "native",
+          "glyph": 6492
+        },
+        {
+          "origin": "native",
+          "glyph": 6493
+        },
+        {
+          "origin": "native",
+          "glyph": 6494
+        },
+        {
+          "origin": "native",
+          "glyph": 6495
+        },
+        {
+          "origin": "native",
+          "glyph": 6496
+        },
+        {
+          "origin": "native",
+          "glyph": 6497
+        },
+        {
+          "origin": "native",
+          "glyph": 6498
+        },
+        {
+          "origin": "native",
+          "glyph": 6499
+        },
+        {
+          "origin": "native",
+          "glyph": 6500
+        },
+        {
+          "origin": "native",
+          "glyph": 6501
+        },
+        {
+          "origin": "native",
+          "glyph": 6502
+        },
+        {
+          "origin": "native",
+          "glyph": 6503
+        },
+        {
+          "origin": "native",
+          "glyph": 6504
+        },
+        {
+          "origin": "native",
+          "glyph": 6505
+        },
+        {
+          "origin": "native",
+          "glyph": 6506
+        },
+        {
+          "origin": "native",
+          "glyph": 6507
+        },
+        {
+          "origin": "native",
+          "glyph": 6508
+        },
+        {
+          "origin": "native",
+          "glyph": 6509
+        },
+        {
+          "origin": "native",
+          "glyph": 6510
+        },
+        {
+          "origin": "native",
+          "glyph": 6511
+        },
+        {
+          "origin": "native",
+          "glyph": 6512
+        },
+        {
+          "origin": "native",
+          "glyph": 6513
+        },
+        {
+          "origin": "native",
+          "glyph": 6514
+        },
+        {
+          "origin": "native",
+          "glyph": 6515
+        },
+        {
+          "origin": "native",
+          "glyph": 6516
+        },
+        {
+          "origin": "native",
+          "glyph": 6517
+        },
+        {
+          "origin": "native",
+          "glyph": 6518
+        },
+        {
+          "origin": "native",
+          "glyph": 6519
+        },
+        {
+          "origin": "native",
+          "glyph": 6520
+        },
+        {
+          "origin": "native",
+          "glyph": 6521
+        },
+        {
+          "origin": "native",
+          "glyph": 6522
+        },
+        {
+          "origin": "native",
+          "glyph": 6523
+        },
+        {
+          "origin": "native",
+          "glyph": 6524
+        },
+        {
+          "origin": "native",
+          "glyph": 6525
+        },
+        {
+          "origin": "native",
+          "glyph": 6526
+        },
+        {
+          "origin": "native",
+          "glyph": 6527
+        },
+        {
+          "origin": "native",
+          "glyph": 6528
+        },
+        {
+          "origin": "native",
+          "glyph": 6529
+        },
+        {
+          "origin": "native",
+          "glyph": 6530
+        },
+        {
+          "origin": "native",
+          "glyph": 6531
+        },
+        {
+          "origin": "native",
+          "glyph": 6532
+        },
+        {
+          "origin": "native",
+          "glyph": 6533
+        }
+      ],
+      "identity": null,
+      "basis": {
+        "kind": "native_layout"
+      },
+      "content": {
+        "kind": "text",
+        "view": {
+          "tokens": [
+            {
+              "Scalar": "C"
+            },
+            {
+              "Scalar": "O"
+            },
+            {
+              "Scalar": "M"
+            },
+            {
+              "Scalar": "P"
+            },
+            {
+              "Scalar": "U"
+            },
+            {
+              "Scalar": "T"
+            },
+            {
+              "Scalar": "E"
+            },
+            {
+              "Scalar": "R"
+            },
+            {
+              "Scalar": " "
+            },
+            {
+              "Scalar": "S"
+            },
+            {
+              "Scalar": "E"
+            },
+            {
+              "Scalar": "C"
+            },
+            {
+              "Scalar": "U"
+            },
+            {
+              "Scalar": "R"
+            },
+            {
+              "Scalar": "I"
+            },
+            {
+              "Scalar": "T"
+            },
+            {
+              "Scalar": "Y"
+            },
+            {
+              "Scalar": " "
+            },
+            {
+              "Scalar": "I"
+            },
+            {
+              "Scalar": "N"
+            },
+            {
+              "Scalar": "C"
+            },
+            {
+              "Scalar": "I"
+            },
+            {
+              "Scalar": "D"
+            },
+            {
+              "Scalar": "E"
+            },
+            {
+              "Scalar": "N"
+            },
+            {
+              "Scalar": "T"
+            },
+            {
+              "Scalar": " "
+            },
+            {
+              "Scalar": "H"
+            },
+            {
+              "Scalar": "A"
+            },
+            {
+              "Scalar": "N"
+            },
+            {
+              "Scalar": "D"
+            },
+            {
+              "Scalar": "L"
+            },
+            {
+              "Scalar": "I"
+            },
+            {
+              "Scalar": "N"
+            },
+            {
+              "Scalar": "G"
+            },
+            {
+              "Scalar": " "
+            },
+            {
+              "Scalar": "G"
+            },
+            {
+              "Scalar": "U"
+            },
+            {
+              "Scalar": "I"
+            },
+            {
+              "Scalar": "D"
+            },
+            {
+              "Scalar": "E"
+            },
+            {
+              "Scalar": " "
+            }
+          ],
+          "origins": [
+            [
+              {
+                "origin": "native",
+                "glyph": 6492
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6493
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6494
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6495
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6496
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6497
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6498
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6499
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6500
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6501
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6502
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6503
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6504
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6505
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6506
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6507
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6508
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6509
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6510
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6511
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6512
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6513
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6514
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6515
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6516
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6517
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6518
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6519
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6520
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6521
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6522
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6523
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6524
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6525
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6526
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6527
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6528
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6529
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6530
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6531
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6532
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6533
+              }
+            ]
+          ],
+          "source_backed": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "normalization": {
+            "kind": "exact"
+          }
+        }
+      }
+    },
+    "boundary": {
+      "id": 201,
+      "kind": "paragraph",
+      "pages": [
+        5
+      ],
+      "sources": [
+        {
+          "origin": "native",
+          "glyph": 6537
+        },
+        {
+          "origin": "native",
+          "glyph": 6538
+        },
+        {
+          "origin": "native",
+          "glyph": 6539
+        },
+        {
+          "origin": "native",
+          "glyph": 6540
+        },
+        {
+          "origin": "native",
+          "glyph": 6541
+        },
+        {
+          "origin": "native",
+          "glyph": 6542
+        },
+        {
+          "origin": "native",
+          "glyph": 6543
+        },
+        {
+          "origin": "native",
+          "glyph": 6544
+        },
+        {
+          "origin": "native",
+          "glyph": 6545
+        }
+      ],
+      "identity": null,
+      "basis": {
+        "kind": "native_layout"
+      },
+      "content": {
+        "kind": "text",
+        "view": {
+          "tokens": [
+            {
+              "Scalar": "A"
+            },
+            {
+              "Scalar": "b"
+            },
+            {
+              "Scalar": "s"
+            },
+            {
+              "Scalar": "t"
+            },
+            {
+              "Scalar": "r"
+            },
+            {
+              "Scalar": "a"
+            },
+            {
+              "Scalar": "c"
+            },
+            {
+              "Scalar": "t"
+            },
+            {
+              "Scalar": " "
+            }
+          ],
+          "origins": [
+            [
+              {
+                "origin": "native",
+                "glyph": 6537
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6538
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6539
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6540
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6541
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6542
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6543
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6544
+              }
+            ],
+            [
+              {
+                "origin": "native",
+                "glyph": 6545
+              }
+            ]
+          ],
+          "source_backed": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "normalization": {
+            "kind": "exact"
+          }
+        }
+      }
+    },
+    "edge": {
+      "from": 200,
+      "to": 201,
+      "kind": "precedes",
+      "sources": [],
+      "basis": {
+        "kind": "native_layout"
+      }
+    }
+  },
+  "accepted_boundaries": [
+    {
+      "proposal": 5434,
+      "old": 201,
+      "new": 128
+    },
+    {
+      "proposal": 5591,
+      "old": 204,
+      "new": 130
+    }
+  ],
+  "observed_missing_premise": "The committed v15 run excludes old Abstract node 201 from discovery because its native predecessor 200 has kind header. Both Abstract and Keywords are accepted, mandatory, non-inferred, unchanged boundary comparisons. Logging confirms old Abstract has no discovery position while Keywords does. No proposed Abstract-to-Keywords population reaches source closure.",
+  "repair": "A native edge to context excluded from paragraph discovery ends the candidate run without discarding its adjacent paragraph. Non-native order competitors remain blocked. Independent glyph and paint closure still validates the interval.",
+  "v16_result": {
+    "path": "benchmark/realworld/source-boundaries/v16-pilot-summary.json",
+    "sha256": "33e92b3c6c88fdb526ed3e3addbedf1bd2dfcdef337eadb4ad35b9e3fe46576c"
+  },
+  "remaining_v16_premise": "The new whole-node B contains 1391 atoms versus the unchanged 1388-atom extent: old body trailing space, old separate blank-line space, and new body trailing space. This is not counted as target recovery.",
+  "v17_result": {
+    "path": "benchmark/realworld/source-boundaries/v17-pilot-summary.json",
+    "sha256": "151dc129b01e83b0ae262777e7403948f132a825f494e2c44219731e2c3dde91"
+  },
+  "remaining_v17_premise": "Additional anchored raw parents can support content-edge cuts without altering the prior whole-node result. The initial deferred implementation cannot finish the real child under the shared budget. Already validated full-node projections can be borrowed instead of sliced and cloned again."
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-41-original-to-r1",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "761eff0eb300d31c98c56a7198d44b315b77c96b5f45282784fecee950ca0d01",
+  "body_eligible": true,
+  "reason": "The complete first Executive Summary paragraph changes the firewall scope and deployment rationale. The old publisher PDF is a scan with a pre-existing text layer; extraction and image inventory limitations remain explicit."
+}

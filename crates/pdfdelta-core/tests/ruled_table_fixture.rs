@@ -124,6 +124,8 @@ fn table(
         rendered: Vec::new(),
         structured: Vec::new(),
         inventories: Vec::new(),
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         issues: Vec::new(),
     }
 }
@@ -460,6 +462,7 @@ fn counterpart_axes_repartition_missing_borders_without_matching_values() {
             object: None,
             backend: 0,
             value: StructuredValue::StructureElement {
+                content: None,
                 role: "TD".into(),
                 identifier: None,
                 text: None,
@@ -574,6 +577,7 @@ fn installed_counterpart_views_preserve_native_evidence_and_original_graph() {
                     identifier: None,
                     text: None,
                     glyphs: vec![GlyphId(3)],
+                    content: None,
                     parent: None,
                     order: None,
                 },

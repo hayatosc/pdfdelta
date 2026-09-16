@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-order-v33-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-order-v33-clippy.log",
+        "sha256": "582fca97dbeb9c375d6d6c8654da7ca6143f83f3a2c22c069bf6a5235efb6204"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-order-v33-workspace.log",
+        "sha256": "a21fb5ef4aa5a4fc3268f1983354d6a7e664e8784302628ce624cb60cadf56d6"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-order-v33-generated.log",
+        "sha256": "3d0c310d8f54974056b574fa2f86b969b95a6da80defe1fe08ca22f6d306b3fd"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "benchmark/realworld/remaining",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-order-v33-checker-all.log",
+        "sha256": "99d18f7e6f537b2760749727c3634f0741f363bac93b674b059e76a2518221b7"
+      },
+      "log_normalization": "Removed extra terminal blank lines only.",
+      "environment": {
+        "PYTHON_UV": "0"
+      }
+    }
+  ],
+  "workspace_tests": {
+    "passed": 2384,
+    "failed": 0,
+    "ignored": 2
+  },
+  "generated_passed": 48,
+  "generated_total": 48,
+  "strict_author_intent_accepted": 42,
+  "strict_author_intent_total": 48,
+  "evaluator_methods": 11,
+  "scope": "Native parent-bound local order and existing workspace regression checks. This is not the formal development or unseen gate."
+}

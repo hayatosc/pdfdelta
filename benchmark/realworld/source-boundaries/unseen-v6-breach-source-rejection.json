@@ -1,0 +1,28 @@
+{
+  "version": 6,
+  "pair": "edpb-breach-notification-v1-to-v2",
+  "comparison_performed": false,
+  "reason": "The official old PDF repeatedly terminates before a complete HTTP response under urllib and curl, including the download query. A byte-range probe returns an unknown total length and no strong entity validator, so its partial bytes cannot establish a complete immutable source.",
+  "evidence": [
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-download-attempts.json",
+      "sha256": "a8993eae9878f0ec49fdcd27a07a477fb0e856125b53d148f78567075bd276dd"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-download-retry-attempts.json",
+      "sha256": "ad56303dd20b2be42109843b459d704d89ae0221aa120ee247e38245af8b4481"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-download-final-attempts.json",
+      "sha256": "909f5b404e0f0d94d30e63f44098bac6edac59b11fa539bf3ea1f8b8d886f185"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-download-remaining-attempts.json",
+      "sha256": "5976de808d216e9f3fd311b2b58544763439e66e23bd646452a34cbae6c5f9e7"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v6-edpb-range-attempt.json",
+      "sha256": "a8f9a81f7fff53f6a14ef065664fb05b003aac2d1a5e42e9401aba4816857a16"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "faa-fsb-53b-to-53c",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "bd0a21b059810fced08c0c9d317ea13ae68271840a0b2e49a1c0d4ed1036f411",
+  "body_eligible": true,
+  "reason": "Complete body of the first corresponding manufactured/modified-aircraft purpose subparagraph: old Purpose a and new 1.1.1.1. Excludes each bold subheading and retains new inline footnote markers 1 and 2. The new cover is general introductory prose; the corresponding specific use appears on page 4."
+}

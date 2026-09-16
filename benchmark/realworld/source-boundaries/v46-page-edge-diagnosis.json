@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "development_only": true,
+  "unseen_claim": false,
+  "adjudication_complete": false,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-page-edges-v46/build.json",
+    "sha256": "5f6de341372f2702b10a8a85a2b8efbde0b4cc36311fa92e8abb010a8672abfc"
+  },
+  "finding": "Moving the indexed-census outer-page work before interval discovery reproduces the V44 URI gain and JSON regression. Do not adopt this schedule.",
+  "rows": [
+    {
+      "pair": "ietf-uri-2396-to-3986",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/diagnosis-v46/ietf-uri-2396-to-3986/report.json",
+        "sha256": "55627196c64c9c72136071e52dceddd3006673342b9d2b9ee8d9bfb4c97a9040"
+      },
+      "categories": {
+        "B": 11
+      },
+      "target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/5"
+      ],
+      "lost_v40_identities": 14,
+      "same_ordered_events_as_v44": true,
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "pair": "ietf-json-4627-to-8259",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/diagnosis-v46/ietf-json-4627-to-8259/report.json",
+        "sha256": "be85c6e6dfb3aab354ed83dd48fb2da4aa982b72943f1ff40ba9c0040f92de1e"
+      },
+      "categories": {
+        "B": 7
+      },
+      "target_hits": [],
+      "lost_v40_identities": 19,
+      "same_ordered_events_as_v44": true,
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "pair": "arxiv-albert-v1-to-v6",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/diagnosis-v46/arxiv-albert-v1-to-v6/report.json",
+        "sha256": "b1d7ff9307e297af2552c7d544072f5d10bdfb851e2ef3fe93f7ec1fd222b88e"
+      },
+      "categories": {
+        "B": 7
+      },
+      "target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "lost_v40_identities": 0,
+      "same_ordered_events_as_v44": true,
+      "strict_control_atoms": 0,
+      "complete": false
+    }
+  ]
+}

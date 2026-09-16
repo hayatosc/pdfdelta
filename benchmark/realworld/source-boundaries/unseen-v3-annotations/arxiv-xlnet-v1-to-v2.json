@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-xlnet-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Withthecapabilityofmodelingbidirectionalcontexts,denoisingautoencodingbasedpretraininglikeBERTachievesbetterperformancethanpretrainingap-proachesbasedonautoregressivelanguagemodeling.However,relyingoncorrupt-ingtheinputwithmasks,BERTneglectsdependencybetweenthemaskedpositionsandsuffersfromapretrain-ﬁnetunediscrepancy.Inlightoftheseprosandcons,weproposeXLNet,ageneralizedautoregressivepretrainingmethodthat(1)enableslearningbidirectionalcontextsbymaximizingtheexpectedlikelihoodoverallpermutationsofthefactorizationorderand(2)overcomesthelimitationsofBERTthankstoitsautoregressiveformulation.Furthermore,XLNetintegratesideasfromTransformer-XL,thestate-of-the-artautoregressivemodel,intopretraining.Empirically,XLNetoutperformsBERTon20tasks,oftenbyalargemargin,andachievesstate-of-the-artresultson18tasksincludingquestionanswering,naturallanguageinference,sentimentanalysis,anddocumentranking.1.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Withthecapabilityofmodelingbidirectionalcontexts,denoisingautoencodingbasedpretraininglikeBERTachievesbetterperformancethanpretrainingap-proachesbasedonautoregressivelanguagemodeling.However,relyingoncorrupt-ingtheinputwithmasks,BERTneglectsdependencybetweenthemaskedpositionsandsuffersfromapretrain-ﬁnetunediscrepancy.Inlightoftheseprosandcons,weproposeXLNet,ageneralizedautoregressivepretrainingmethodthat(1)enableslearningbidirectionalcontextsbymaximizingtheexpectedlikelihoodoverallpermutationsofthefactorizationorderand(2)overcomesthelimitationsofBERTthankstoitsautoregressiveformulation.Furthermore,XLNetintegratesideasfromTransformer-XL,thestate-of-the-artautoregressivemodel,intopretraining.Empirically,undercomparableexperimentsettings,XLNetoutperformsBERTon20tasks,oftenbyalargemargin,includingquestionanswering,naturallanguageinference,sentimentanalysis,anddocumentranking.1.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "dc7f53ab0acafd8836ca23d5a024df0df9a46fd09fd0cc7d8075fadca787c685",
+  "new_sha256": "51ebaf21e4cd586761016a64b2b753ee5ca05dd52a0de6bf8058a7eb8e932d91"
+}

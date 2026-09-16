@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "scope": "Acquisition proof only; no new recovery or transition acceptance.",
+  "observation": {
+    "path": "benchmark/realworld/source-boundaries/v32-acquisition-observation.json",
+    "sha256": "91c84d95bb89a32e619b28564bf9c126d3bec1e567bbfbbbc3c38eba764b19c6"
+  },
+  "previous_diagnosis": {
+    "path": "benchmark/realworld/source-boundaries/segment-target-diagnosis.json",
+    "sha256": "8f5a01f017e449b940ffe1db8f73045eb695eef1f0ab562819710ed902ff55ad"
+  },
+  "previous_panel": {
+    "path": "benchmark/realworld/source-boundaries/v31-panel-observations.json",
+    "sha256": "4e6db4705dfdaf7487cdc0ec30b728207e1dd3619dca72f7d69dc865153923f7"
+  },
+  "reproducer": {
+    "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/review-native-content-v32.py",
+    "sha256": "5c0b1cfc1a9117c8a8dfc257c8f12d0053c7e82275237b33b33d1f402293e154"
+  },
+  "source_checks": {
+    "old": {
+      "glyphs": 52431,
+      "raw_source_identity_equal": true,
+      "legacy_structure_equal": true,
+      "geometry_difference_counts": {
+        "bbox": 5243,
+        "font_size": 5881
+      }
+    },
+    "new": {
+      "glyphs": 57738,
+      "raw_source_identity_equal": true,
+      "legacy_structure_equal": true,
+      "geometry_difference_counts": {
+        "baseline": 4338,
+        "bbox": 8763
+      }
+    }
+  },
+  "structure": 170,
+  "object": {
+    "object_number": 484,
+    "generation": 0
+  },
+  "ordered_slots": [
+    {
+      "path": [
+        [
+          170,
+          0
+        ]
+      ],
+      "sequence": 153,
+      "page": 4,
+      "mcid": 30,
+      "glyphs": 3
+    },
+    {
+      "path": [
+        [
+          170,
+          1
+        ],
+        [
+          171,
+          0
+        ]
+      ],
+      "sequence": 154,
+      "page": 4,
+      "mcid": 31,
+      "glyphs": 504
+    },
+    {
+      "path": [
+        [
+          170,
+          2
+        ]
+      ],
+      "sequence": 155,
+      "page": 4,
+      "mcid": 32,
+      "glyphs": 1
+    },
+    {
+      "path": [
+        [
+          170,
+          3
+        ],
+        [
+          173,
+          0
+        ]
+      ],
+      "sequence": 156,
+      "page": 4,
+      "mcid": 33,
+      "glyphs": 5
+    },
+    {
+      "path": [
+        [
+          170,
+          4
+        ]
+      ],
+      "sequence": 161,
+      "page": 5,
+      "mcid": 2,
+      "glyphs": 149
+    },
+    {
+      "path": [
+        [
+          170,
+          5
+        ]
+      ],
+      "sequence": 162,
+      "page": 5,
+      "mcid": 6,
+      "glyphs": 3
+    },
+    {
+      "path": [
+        [
+          170,
+          6
+        ]
+      ],
+      "sequence": 162,
+      "page": 5,
+      "mcid": 6,
+      "glyphs": 3
+    }
+  ],
+  "unresolved_slots_in_selected_subtree": [],
+  "target_coverage": [
+    {
+      "selector": "body-new-1",
+      "glyphs": 509,
+      "all_present_once_in_declared_order": true
+    },
+    {
+      "selector": "body-new-2",
+      "glyphs": 147,
+      "all_present_once_in_declared_order": true
+    }
+  ],
+  "repeated_non_target_glyphs": 3,
+  "unchanged_comparison_event_count": 32,
+  "remaining": "This subtree also declares a repeated off-target MCID. A whole-tree unique-membership requirement would still reject it. Local source-set and order closure must exclude omitted or competing declarations and prove each page region before admitting a finite target comparison."
+}

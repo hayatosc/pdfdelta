@@ -1,0 +1,26 @@
+--- crates/pdfdelta-core/src/document/text_scopes/cuts.rs
++++ crates/pdfdelta-core/src/document/text_scopes/cuts.rs
+@@ -663,6 +663,7 @@
+                 continue;
+             }
+         }
++        eprintln!("DIAG cut frame {} {} remaining {}", entry, exit, remaining);
+         match same_raw_text(&left[0], &right[0], remaining) {
+             Some(true) => continue,
+             None => {
+@@ -696,6 +697,7 @@
+             aggregate.exhaustive = false;
+             continue;
+         };
++        eprintln!("DIAG census passed {} {} remaining {}", entry, exit, remaining);
+         if old_rows.is_some() && new_rows.is_some() && old_rows != new_rows {
+             // Mixed conventions require a separate certificate on each side.
+             aggregate.exhaustive = false;
+@@ -770,6 +772,7 @@
+             aggregate.exhaustive = false;
+             continue;
+         };
++        eprintln!("DIAG projection passed {} {} remaining {}", entry, exit, remaining);
+         let mut maps = CutMaps::default();
+         let old_nodes: Vec<_> = old_projected
+             .into_iter()

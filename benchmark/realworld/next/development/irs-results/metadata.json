@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "implementation_commit": "9093cab",
+  "binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+  "baseline_binary_sha256": "518ac2030975f8cd8c36530371d3bc6c888e80343a52e60ca5d9a1296b95578d",
+  "inputs_sha256": "ccfc3fab3fe4659f90259c1a05f29e05a1f20ee48b677db63de25958a84d2f60",
+  "references": {
+    "irs-schedule-c-2024-to-2025.expectations.json": "76e158790efbd8b334691d7b880508aca5a23e91401a56692f5a6769e30252a1",
+    "irs-schedule-c-2024-to-2025.json": "c5a192a0e7198164c200a67d5208b3e2bbfccf54d7f567ff74c67f94ab84fe7a",
+    "irs-schedule-c-2024-to-2025.resolved.json": "b5e995098d1ecf24f091f4a56ca52fe720925e0d645a407255dec8fbb03fbecd",
+    "irs-schedule-se-2024-to-2025.expectations.json": "695bc767dfc789ad66e4e2da40f4595699256671b049356000cbf0e137ee920b",
+    "irs-schedule-se-2024-to-2025.json": "a15c3f69d3b09249efb80d0e8ab8ca55b94c4e7d9d37b1213ecb2e53973560e4",
+    "irs-schedule-se-2024-to-2025.resolved.json": "e6cfdcfeacb98683d33c8b124374a0a48dd5e7cb7a2a69bbfa873b0704ece752",
+    "irs-w4-english-2024-to-2025.expectations.json": "d3f4bf1676f568443c3b8843f4f120ea5d32068a0672d09431b0ec1476983f14",
+    "irs-w4-english-2024-to-2025.json": "a3eb9e9a530abcd32d515524eea2d9dab0cb7b1942e654c4d077d474268e4e88",
+    "irs-w4-english-2024-to-2025.resolved.json": "fbc61be825bb4b12c7acc0ea81aa7553e41b26bc087343da58bc7a4e7d4d55f5",
+    "irs-w9-2018-to-2024.expectations.json": "1b2feb47d1410729427f112fc97cd2835908e2ac3630b7f975eff44918de80e3",
+    "irs-w9-2018-to-2024.json": "48745d407657eb1173615cfd905fec2c7ba35d804ed9c36a78029595837b6fc0",
+    "irs-w9-2018-to-2024.resolved.json": "32adb2bc4c771bfb73c183a249c71a1871010d394f7148e579c24fba53b6f00f"
+  },
+  "references_frozen_before_comparison": true,
+  "source_inspection_complete_inputs": 8,
+  "source_inspection_input_denominator": 8,
+  "unique_literal_selectors": 16,
+  "literal_selectors_attempted": 16,
+  "captured_comparison_processes": 20,
+  "comparison_processes_attempted": 24,
+  "complete_comparison_processes": 0,
+  "artifacts": {
+    "3f318d7-runs.json": "6ca97294a87f67a3b6b57ab44973d32342d2c1fd309a95ee8abacf4de04c7760",
+    "9093cab-runs.json": "2a9298c7dd178758090f33c983496b9004361efaa6d1c06802aa351d7cb808e1",
+    "contracts.json": "15d7e821bc1fcc32418f8ae982c81431e8a73eb5e94df0eba46a103cd864f36f",
+    "inferred-adjudication.json": "5d4dda270e6339b132af0ec7c52e9823f6fc99d8acb4438fa63f3471744e47f7",
+    "native-selected-fields.json": "478e081c7f9a6c4ab2bd5119814612fdf7010909cae1a58b34c4143096fb58b6",
+    "scores.json": "659c2c4baba0bb29acd94a90c275d3efeb9ab7c366cb99cd35a6e46a1ebfda52"
+  }
+}

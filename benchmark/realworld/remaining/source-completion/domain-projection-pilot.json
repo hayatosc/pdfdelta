@@ -1,0 +1,3831 @@
+{
+  "status": "domain_projection_pilot_finished",
+  "goal_complete": false,
+  "complete_gain_claimed": false,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/pdfdelta",
+    "sha256": "6a0e1ac3a7512052504dc848f57fce9ddf5d971850b8bd54415787029aab4c28"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/source.tar.gz",
+    "sha256": "6d77f8f3e9ef64cbb9a5333f3d8f426014e0392509266ad1d8ceceb93be7ff87"
+  },
+  "build_command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "-p",
+    "pdfdelta-cli"
+  ],
+  "checks": {
+    "build": {
+      "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/build.log",
+      "sha256": "d3100592fc90f851391d09ea70865d8972290203559cc01553a765a90c42ffc5"
+    },
+    "workspace-final": {
+      "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/workspace-final.log",
+      "sha256": "7b3686e45b08e97b326f6e98838af77e2a746f3c4750bd9f743183ef4c6f3883"
+    },
+    "clippy": {
+      "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/clippy.log",
+      "sha256": "e0b4bc58823cfe85d2af72ad6c5eacb1576f668731bf39e5bff666003fa1a3e1"
+    },
+    "fixtures": {
+      "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/fixtures.log",
+      "sha256": "ee18bb89b217e8ecf0a60afc68462d99940e5a2741a84de0e8fc10a57c1b6434"
+    }
+  },
+  "rows": [
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/irs-schedule-c-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        0
+      ],
+      "source_gain": {
+        "old": 0,
+        "new": 0
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "c055d1fad55f02420ea69ea69054d5f5d9850d6a580afe0a238799e388f71f52"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "af9f269836fd1262a9397c3786fa2e508ea9cf5e4567b7aaac9b164da86ea299"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/irs-schedule-c-2024-to-2025/runs.json",
+        "sha256": "d0528d2f110c6a856db0e90b4e0c6a07e0aab22b38bfcc154b5dc5101e623264"
+      },
+      "coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        0,
+        0
+      ],
+      "complete": [
+        false,
+        false
+      ],
+      "prior_implementation": {
+        "path": "benchmark/realworld/cache/source-completion/domain-work-v2/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "c846a1cd2c7255e27807cc3874bfbefa8e556702c0bea7601dfbe71ee4022732"
+      },
+      "delta_over_prior": {
+        "old": 0,
+        "new": 0
+      },
+      "existing_candidates_comparisons_reviews_and_unresolved_unchanged": true,
+      "current_domains_are_previously_audited_subset": true,
+      "domains_returned_to_unresolved": []
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/irs-schedule-se-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        0
+      ],
+      "source_gain": {
+        "old": 0,
+        "new": 0
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "6df67bc05d527760796d5efdf2443b0b7f30b0114403d0d539bcd2ec63c3136b"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "9085bfc4e36e58c736048871f1c0e3f54c95bb4cbce973c1d36b3fdb006135fb"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/irs-schedule-se-2024-to-2025/runs.json",
+        "sha256": "f001002c2de203c65a64b61c038b209c75b521573fd99a3b4cdf27208150f295"
+      },
+      "coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        0,
+        0
+      ],
+      "complete": [
+        false,
+        false
+      ],
+      "prior_implementation": {
+        "path": "benchmark/realworld/cache/source-completion/domain-work-v2/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "4ff6a5fd19a8832dfe5b71a233bb91aeba180beb36e43a91c48e5acd77670bd2"
+      },
+      "delta_over_prior": {
+        "old": 0,
+        "new": 0
+      },
+      "existing_candidates_comparisons_reviews_and_unresolved_unchanged": true,
+      "current_domains_are_previously_audited_subset": true,
+      "domains_returned_to_unresolved": []
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/edpb-controller-processor-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        32
+      ],
+      "source_gain": {
+        "old": 714,
+        "new": 714
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f5e4fb0dc0b3007e0f86b855b3e116f5b7fd2c1422b2330f374741b8176ad54f"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "e7d670541ce2d18a77d77534d7cf74f0672c034a9fa22b199ca76de54f3a435e"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/edpb-controller-processor-v1-to-v2-1/runs.json",
+        "sha256": "1c03dc101fc46e9d0c8f89dc59c3dc6e7db41cdc40863d25e94a7b600d18a72b"
+      },
+      "coverage_equal": false,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        45,
+        45
+      ],
+      "complete": [
+        false,
+        false
+      ],
+      "prior_implementation": {
+        "path": "benchmark/realworld/cache/source-completion/domain-work-v2/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "fceb3cf253099ce73be534a7f297348a038ef4a6295bf8ee884439265c6a86e7"
+      },
+      "delta_over_prior": {
+        "old": -34,
+        "new": -34
+      },
+      "existing_candidates_comparisons_reviews_and_unresolved_unchanged": true,
+      "current_domains_are_previously_audited_subset": true,
+      "domains_returned_to_unresolved": [
+        {
+          "proposal": 290,
+          "old": {
+            "node": 377,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 53774
+              },
+              {
+                "origin": "native",
+                "glyph": 53775
+              }
+            ]
+          },
+          "new": {
+            "node": 498,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 66126
+              },
+              {
+                "origin": "native",
+                "glyph": 66127
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 66128
+            }
+          ]
+        },
+        {
+          "proposal": 295,
+          "old": {
+            "node": 362,
+            "tokens": [
+              0,
+              22
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 52995
+              },
+              {
+                "origin": "native",
+                "glyph": 52996
+              },
+              {
+                "origin": "native",
+                "glyph": 52997
+              },
+              {
+                "origin": "native",
+                "glyph": 52998
+              },
+              {
+                "origin": "native",
+                "glyph": 52999
+              },
+              {
+                "origin": "native",
+                "glyph": 53000
+              },
+              {
+                "origin": "native",
+                "glyph": 53001
+              },
+              {
+                "origin": "native",
+                "glyph": 53002
+              },
+              {
+                "origin": "native",
+                "glyph": 53003
+              },
+              {
+                "origin": "native",
+                "glyph": 53004
+              },
+              {
+                "origin": "native",
+                "glyph": 53005
+              },
+              {
+                "origin": "native",
+                "glyph": 53006
+              },
+              {
+                "origin": "native",
+                "glyph": 53007
+              },
+              {
+                "origin": "native",
+                "glyph": 53008
+              },
+              {
+                "origin": "native",
+                "glyph": 53009
+              },
+              {
+                "origin": "native",
+                "glyph": 53010
+              },
+              {
+                "origin": "native",
+                "glyph": 53011
+              },
+              {
+                "origin": "native",
+                "glyph": 53012
+              },
+              {
+                "origin": "native",
+                "glyph": 53013
+              },
+              {
+                "origin": "native",
+                "glyph": 53014
+              },
+              {
+                "origin": "native",
+                "glyph": 53015
+              },
+              {
+                "origin": "native",
+                "glyph": 53016
+              }
+            ]
+          },
+          "new": {
+            "node": 504,
+            "tokens": [
+              0,
+              22
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 71026
+              },
+              {
+                "origin": "native",
+                "glyph": 71027
+              },
+              {
+                "origin": "native",
+                "glyph": 71028
+              },
+              {
+                "origin": "native",
+                "glyph": 71029
+              },
+              {
+                "origin": "native",
+                "glyph": 71030
+              },
+              {
+                "origin": "native",
+                "glyph": 71031
+              },
+              {
+                "origin": "native",
+                "glyph": 71032
+              },
+              {
+                "origin": "native",
+                "glyph": 71033
+              },
+              {
+                "origin": "native",
+                "glyph": 71034
+              },
+              {
+                "origin": "native",
+                "glyph": 71035
+              },
+              {
+                "origin": "native",
+                "glyph": 71036
+              },
+              {
+                "origin": "native",
+                "glyph": 71037
+              },
+              {
+                "origin": "native",
+                "glyph": 71038
+              },
+              {
+                "origin": "native",
+                "glyph": 71039
+              },
+              {
+                "origin": "native",
+                "glyph": 71040
+              },
+              {
+                "origin": "native",
+                "glyph": 71041
+              },
+              {
+                "origin": "native",
+                "glyph": 71042
+              },
+              {
+                "origin": "native",
+                "glyph": 71043
+              },
+              {
+                "origin": "native",
+                "glyph": 71044
+              },
+              {
+                "origin": "native",
+                "glyph": 71045
+              },
+              {
+                "origin": "native",
+                "glyph": 71046
+              },
+              {
+                "origin": "native",
+                "glyph": 71047
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 71048
+            },
+            {
+              "origin": "native",
+              "glyph": 71049
+            }
+          ]
+        },
+        {
+          "proposal": 297,
+          "old": {
+            "node": 368,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 50793
+              },
+              {
+                "origin": "native",
+                "glyph": 50794
+              }
+            ]
+          },
+          "new": {
+            "node": 477,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 62037
+              },
+              {
+                "origin": "native",
+                "glyph": 62038
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 62039
+            }
+          ]
+        },
+        {
+          "proposal": 304,
+          "old": {
+            "node": 349,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 47470
+              },
+              {
+                "origin": "native",
+                "glyph": 47471
+              }
+            ]
+          },
+          "new": {
+            "node": 459,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 57990
+              },
+              {
+                "origin": "native",
+                "glyph": 57991
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 57992
+            }
+          ]
+        },
+        {
+          "proposal": 307,
+          "old": {
+            "node": 327,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 44561
+              },
+              {
+                "origin": "native",
+                "glyph": 44562
+              }
+            ]
+          },
+          "new": {
+            "node": 436,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 54801
+              },
+              {
+                "origin": "native",
+                "glyph": 54802
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 54803
+            }
+          ]
+        },
+        {
+          "proposal": 311,
+          "old": {
+            "node": 309,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 41079
+              },
+              {
+                "origin": "native",
+                "glyph": 41080
+              }
+            ]
+          },
+          "new": {
+            "node": 416,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 50588
+              },
+              {
+                "origin": "native",
+                "glyph": 50589
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 50590
+            }
+          ]
+        },
+        {
+          "proposal": 315,
+          "old": {
+            "node": 291,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 38649
+              },
+              {
+                "origin": "native",
+                "glyph": 38650
+              }
+            ]
+          },
+          "new": {
+            "node": 394,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 46485
+              },
+              {
+                "origin": "native",
+                "glyph": 46486
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 46487
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/edpb-restrictions-v1-to-final",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-restrictions-v1-to-final",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        24
+      ],
+      "source_gain": {
+        "old": 571,
+        "new": 571
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "fe87f1cb6e123cf4c11644e4b7dba7406a6944ef70bb14194666dd01108c74a6"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "62875b743e9ebf4c0928f63c907c06a6763b6de2f63b18b6f97db42696e2ddba"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/edpb-restrictions-v1-to-final/runs.json",
+        "sha256": "07b08af5f1a5d28aa8f333b1622d3e0021ea07bcbe2c09d5c16df6de6389061b"
+      },
+      "coverage_equal": false,
+      "strict_comparisons_equal": true,
+      "reviews_equal": false,
+      "review_counts": [
+        56,
+        59
+      ],
+      "complete": [
+        false,
+        false
+      ],
+      "prior_implementation": {
+        "path": "benchmark/realworld/cache/source-completion/domain-work-v2/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "cf5b830c036eff1049974d15bcbdeafb9f43f3a295a40c7a1b300e6f5768393d"
+      },
+      "delta_over_prior": {
+        "old": -322,
+        "new": -322
+      },
+      "existing_candidates_comparisons_reviews_and_unresolved_unchanged": true,
+      "current_domains_are_previously_audited_subset": true,
+      "domains_returned_to_unresolved": [
+        {
+          "proposal": 125,
+          "old": {
+            "node": 100,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 9401
+              },
+              {
+                "origin": "native",
+                "glyph": 9402
+              }
+            ]
+          },
+          "new": {
+            "node": 105,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 10087
+              },
+              {
+                "origin": "native",
+                "glyph": 10088
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 10089
+            }
+          ]
+        },
+        {
+          "proposal": 126,
+          "old": {
+            "node": 102,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 10062
+              },
+              {
+                "origin": "native",
+                "glyph": 10063
+              }
+            ]
+          },
+          "new": {
+            "node": 106,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 10763
+              },
+              {
+                "origin": "native",
+                "glyph": 10764
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 10765
+            }
+          ]
+        },
+        {
+          "proposal": 134,
+          "old": {
+            "node": 118,
+            "tokens": [
+              0,
+              1
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 8097
+              }
+            ]
+          },
+          "new": {
+            "node": 100,
+            "tokens": [
+              0,
+              1
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 5107
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 5108
+            }
+          ]
+        },
+        {
+          "proposal": 136,
+          "old": {
+            "node": 79,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 5667
+              },
+              {
+                "origin": "native",
+                "glyph": 5668
+              }
+            ]
+          },
+          "new": {
+            "node": 87,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 5749
+              },
+              {
+                "origin": "native",
+                "glyph": 5750
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 5751
+            }
+          ]
+        },
+        {
+          "proposal": 137,
+          "old": {
+            "node": 80,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 6006
+              },
+              {
+                "origin": "native",
+                "glyph": 6007
+              }
+            ]
+          },
+          "new": {
+            "node": 88,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 6094
+              },
+              {
+                "origin": "native",
+                "glyph": 6095
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 6096
+            }
+          ]
+        },
+        {
+          "proposal": 138,
+          "old": {
+            "node": 81,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 6986
+              },
+              {
+                "origin": "native",
+                "glyph": 6987
+              }
+            ]
+          },
+          "new": {
+            "node": 89,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 7145
+              },
+              {
+                "origin": "native",
+                "glyph": 7146
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 7147
+            }
+          ]
+        },
+        {
+          "proposal": 139,
+          "old": {
+            "node": 82,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 7644
+              },
+              {
+                "origin": "native",
+                "glyph": 7645
+              }
+            ]
+          },
+          "new": {
+            "node": 101,
+            "tokens": [
+              0,
+              2
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 8522
+              },
+              {
+                "origin": "native",
+                "glyph": 8523
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 8524
+            }
+          ]
+        },
+        {
+          "proposal": 140,
+          "old": {
+            "node": 83,
+            "tokens": [
+              0,
+              36
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 5618
+              },
+              {
+                "origin": "native",
+                "glyph": 5619
+              },
+              {
+                "origin": "native",
+                "glyph": 5620
+              },
+              {
+                "origin": "native",
+                "glyph": 5621
+              },
+              {
+                "origin": "native",
+                "glyph": 5622
+              },
+              {
+                "origin": "native",
+                "glyph": 5623
+              },
+              {
+                "origin": "native",
+                "glyph": 5624
+              },
+              {
+                "origin": "native",
+                "glyph": 5625
+              },
+              {
+                "origin": "native",
+                "glyph": 5626
+              },
+              {
+                "origin": "native",
+                "glyph": 5627
+              },
+              {
+                "origin": "native",
+                "glyph": 5628
+              },
+              {
+                "origin": "native",
+                "glyph": 5629
+              },
+              {
+                "origin": "native",
+                "glyph": 5630
+              },
+              {
+                "origin": "native",
+                "glyph": 5631
+              },
+              {
+                "origin": "native",
+                "glyph": 5632
+              },
+              {
+                "origin": "native",
+                "glyph": 5633
+              },
+              {
+                "origin": "native",
+                "glyph": 5634
+              },
+              {
+                "origin": "native",
+                "glyph": 5635
+              },
+              {
+                "origin": "native",
+                "glyph": 5636
+              },
+              {
+                "origin": "native",
+                "glyph": 5637
+              },
+              {
+                "origin": "native",
+                "glyph": 5638
+              },
+              {
+                "origin": "native",
+                "glyph": 5639
+              },
+              {
+                "origin": "native",
+                "glyph": 5640
+              },
+              {
+                "origin": "native",
+                "glyph": 5641
+              },
+              {
+                "origin": "native",
+                "glyph": 5642
+              },
+              {
+                "origin": "native",
+                "glyph": 5643
+              },
+              {
+                "origin": "native",
+                "glyph": 5644
+              },
+              {
+                "origin": "native",
+                "glyph": 5645
+              },
+              {
+                "origin": "native",
+                "glyph": 5646
+              },
+              {
+                "origin": "native",
+                "glyph": 5647
+              },
+              {
+                "origin": "native",
+                "glyph": 5648
+              },
+              {
+                "origin": "native",
+                "glyph": 5649
+              },
+              {
+                "origin": "native",
+                "glyph": 5650
+              },
+              {
+                "origin": "native",
+                "glyph": 5651
+              },
+              {
+                "origin": "native",
+                "glyph": 5652
+              },
+              {
+                "origin": "native",
+                "glyph": 5653
+              }
+            ]
+          },
+          "new": {
+            "node": 92,
+            "tokens": [
+              0,
+              36
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 5696
+              },
+              {
+                "origin": "native",
+                "glyph": 5697
+              },
+              {
+                "origin": "native",
+                "glyph": 5698
+              },
+              {
+                "origin": "native",
+                "glyph": 5699
+              },
+              {
+                "origin": "native",
+                "glyph": 5700
+              },
+              {
+                "origin": "native",
+                "glyph": 5701
+              },
+              {
+                "origin": "native",
+                "glyph": 5702
+              },
+              {
+                "origin": "native",
+                "glyph": 5703
+              },
+              {
+                "origin": "native",
+                "glyph": 5704
+              },
+              {
+                "origin": "native",
+                "glyph": 5705
+              },
+              {
+                "origin": "native",
+                "glyph": 5706
+              },
+              {
+                "origin": "native",
+                "glyph": 5707
+              },
+              {
+                "origin": "native",
+                "glyph": 5708
+              },
+              {
+                "origin": "native",
+                "glyph": 5709
+              },
+              {
+                "origin": "native",
+                "glyph": 5710
+              },
+              {
+                "origin": "native",
+                "glyph": 5711
+              },
+              {
+                "origin": "native",
+                "glyph": 5712
+              },
+              {
+                "origin": "native",
+                "glyph": 5713
+              },
+              {
+                "origin": "native",
+                "glyph": 5714
+              },
+              {
+                "origin": "native",
+                "glyph": 5715
+              },
+              {
+                "origin": "native",
+                "glyph": 5716
+              },
+              {
+                "origin": "native",
+                "glyph": 5717
+              },
+              {
+                "origin": "native",
+                "glyph": 5718
+              },
+              {
+                "origin": "native",
+                "glyph": 5719
+              },
+              {
+                "origin": "native",
+                "glyph": 5720
+              },
+              {
+                "origin": "native",
+                "glyph": 5721
+              },
+              {
+                "origin": "native",
+                "glyph": 5722
+              },
+              {
+                "origin": "native",
+                "glyph": 5723
+              },
+              {
+                "origin": "native",
+                "glyph": 5724
+              },
+              {
+                "origin": "native",
+                "glyph": 5725
+              },
+              {
+                "origin": "native",
+                "glyph": 5726
+              },
+              {
+                "origin": "native",
+                "glyph": 5727
+              },
+              {
+                "origin": "native",
+                "glyph": 5728
+              },
+              {
+                "origin": "native",
+                "glyph": 5729
+              },
+              {
+                "origin": "native",
+                "glyph": 5730
+              },
+              {
+                "origin": "native",
+                "glyph": 5731
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 5732
+            }
+          ]
+        },
+        {
+          "proposal": 145,
+          "old": {
+            "node": 24,
+            "tokens": [
+              0,
+              17
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 170
+              },
+              {
+                "origin": "native",
+                "glyph": 171
+              },
+              {
+                "origin": "native",
+                "glyph": 172
+              },
+              {
+                "origin": "native",
+                "glyph": 173
+              },
+              {
+                "origin": "native",
+                "glyph": 174
+              },
+              {
+                "origin": "native",
+                "glyph": 175
+              },
+              {
+                "origin": "native",
+                "glyph": 176
+              },
+              {
+                "origin": "native",
+                "glyph": 177
+              },
+              {
+                "origin": "native",
+                "glyph": 178
+              },
+              {
+                "origin": "native",
+                "glyph": 179
+              },
+              {
+                "origin": "native",
+                "glyph": 180
+              },
+              {
+                "origin": "native",
+                "glyph": 181
+              },
+              {
+                "origin": "native",
+                "glyph": 182
+              },
+              {
+                "origin": "native",
+                "glyph": 183
+              },
+              {
+                "origin": "native",
+                "glyph": 184
+              },
+              {
+                "origin": "native",
+                "glyph": 185
+              },
+              {
+                "origin": "native",
+                "glyph": 186
+              }
+            ]
+          },
+          "new": {
+            "node": 56,
+            "tokens": [
+              0,
+              17
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 468
+              },
+              {
+                "origin": "native",
+                "glyph": 469
+              },
+              {
+                "origin": "native",
+                "glyph": 470
+              },
+              {
+                "origin": "native",
+                "glyph": 471
+              },
+              {
+                "origin": "native",
+                "glyph": 472
+              },
+              {
+                "origin": "native",
+                "glyph": 473
+              },
+              {
+                "origin": "native",
+                "glyph": 474
+              },
+              {
+                "origin": "native",
+                "glyph": 475
+              },
+              {
+                "origin": "native",
+                "glyph": 476
+              },
+              {
+                "origin": "native",
+                "glyph": 477
+              },
+              {
+                "origin": "native",
+                "glyph": 478
+              },
+              {
+                "origin": "native",
+                "glyph": 479
+              },
+              {
+                "origin": "native",
+                "glyph": 480
+              },
+              {
+                "origin": "native",
+                "glyph": 481
+              },
+              {
+                "origin": "native",
+                "glyph": 482
+              },
+              {
+                "origin": "native",
+                "glyph": 483
+              },
+              {
+                "origin": "native",
+                "glyph": 484
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 485
+            }
+          ]
+        },
+        {
+          "proposal": 146,
+          "old": {
+            "node": 33,
+            "tokens": [
+              0,
+              5
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1196
+              },
+              {
+                "origin": "native",
+                "glyph": 1197
+              },
+              {
+                "origin": "native",
+                "glyph": 1198
+              },
+              {
+                "origin": "native",
+                "glyph": 1199
+              },
+              {
+                "origin": "native",
+                "glyph": 1200
+              }
+            ]
+          },
+          "new": {
+            "node": 60,
+            "tokens": [
+              0,
+              5
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1425
+              },
+              {
+                "origin": "native",
+                "glyph": 1426
+              },
+              {
+                "origin": "native",
+                "glyph": 1427
+              },
+              {
+                "origin": "native",
+                "glyph": 1428
+              },
+              {
+                "origin": "native",
+                "glyph": 1429
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 1430
+            }
+          ]
+        },
+        {
+          "proposal": 147,
+          "old": {
+            "node": 34,
+            "tokens": [
+              0,
+              80
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1201
+              },
+              {
+                "origin": "native",
+                "glyph": 1202
+              },
+              {
+                "origin": "native",
+                "glyph": 1203
+              },
+              {
+                "origin": "native",
+                "glyph": 1204
+              },
+              {
+                "origin": "native",
+                "glyph": 1205
+              },
+              {
+                "origin": "native",
+                "glyph": 1206
+              },
+              {
+                "origin": "native",
+                "glyph": 1207
+              },
+              {
+                "origin": "native",
+                "glyph": 1208
+              },
+              {
+                "origin": "native",
+                "glyph": 1209
+              },
+              {
+                "origin": "native",
+                "glyph": 1210
+              },
+              {
+                "origin": "native",
+                "glyph": 1211
+              },
+              {
+                "origin": "native",
+                "glyph": 1212
+              },
+              {
+                "origin": "native",
+                "glyph": 1213
+              },
+              {
+                "origin": "native",
+                "glyph": 1214
+              },
+              {
+                "origin": "native",
+                "glyph": 1215
+              },
+              {
+                "origin": "native",
+                "glyph": 1216
+              },
+              {
+                "origin": "native",
+                "glyph": 1217
+              },
+              {
+                "origin": "native",
+                "glyph": 1218
+              },
+              {
+                "origin": "native",
+                "glyph": 1219
+              },
+              {
+                "origin": "native",
+                "glyph": 1220
+              },
+              {
+                "origin": "native",
+                "glyph": 1221
+              },
+              {
+                "origin": "native",
+                "glyph": 1222
+              },
+              {
+                "origin": "native",
+                "glyph": 1223
+              },
+              {
+                "origin": "native",
+                "glyph": 1224
+              },
+              {
+                "origin": "native",
+                "glyph": 1225
+              },
+              {
+                "origin": "native",
+                "glyph": 1226
+              },
+              {
+                "origin": "native",
+                "glyph": 1227
+              },
+              {
+                "origin": "native",
+                "glyph": 1228
+              },
+              {
+                "origin": "native",
+                "glyph": 1229
+              },
+              {
+                "origin": "native",
+                "glyph": 1230
+              },
+              {
+                "origin": "native",
+                "glyph": 1231
+              },
+              {
+                "origin": "native",
+                "glyph": 1232
+              },
+              {
+                "origin": "native",
+                "glyph": 1233
+              },
+              {
+                "origin": "native",
+                "glyph": 1234
+              },
+              {
+                "origin": "native",
+                "glyph": 1235
+              },
+              {
+                "origin": "native",
+                "glyph": 1236
+              },
+              {
+                "origin": "native",
+                "glyph": 1237
+              },
+              {
+                "origin": "native",
+                "glyph": 1238
+              },
+              {
+                "origin": "native",
+                "glyph": 1239
+              },
+              {
+                "origin": "native",
+                "glyph": 1240
+              },
+              {
+                "origin": "native",
+                "glyph": 1241
+              },
+              {
+                "origin": "native",
+                "glyph": 1242
+              },
+              {
+                "origin": "native",
+                "glyph": 1243
+              },
+              {
+                "origin": "native",
+                "glyph": 1244
+              },
+              {
+                "origin": "native",
+                "glyph": 1245
+              },
+              {
+                "origin": "native",
+                "glyph": 1246
+              },
+              {
+                "origin": "native",
+                "glyph": 1247
+              },
+              {
+                "origin": "native",
+                "glyph": 1248
+              },
+              {
+                "origin": "native",
+                "glyph": 1249
+              },
+              {
+                "origin": "native",
+                "glyph": 1250
+              },
+              {
+                "origin": "native",
+                "glyph": 1251
+              },
+              {
+                "origin": "native",
+                "glyph": 1252
+              },
+              {
+                "origin": "native",
+                "glyph": 1253
+              },
+              {
+                "origin": "native",
+                "glyph": 1254
+              },
+              {
+                "origin": "native",
+                "glyph": 1255
+              },
+              {
+                "origin": "native",
+                "glyph": 1256
+              },
+              {
+                "origin": "native",
+                "glyph": 1257
+              },
+              {
+                "origin": "native",
+                "glyph": 1258
+              },
+              {
+                "origin": "native",
+                "glyph": 1259
+              },
+              {
+                "origin": "native",
+                "glyph": 1260
+              },
+              {
+                "origin": "native",
+                "glyph": 1261
+              },
+              {
+                "origin": "native",
+                "glyph": 1262
+              },
+              {
+                "origin": "native",
+                "glyph": 1263
+              },
+              {
+                "origin": "native",
+                "glyph": 1264
+              },
+              {
+                "origin": "native",
+                "glyph": 1265
+              },
+              {
+                "origin": "native",
+                "glyph": 1266
+              },
+              {
+                "origin": "native",
+                "glyph": 1267
+              },
+              {
+                "origin": "native",
+                "glyph": 1268
+              },
+              {
+                "origin": "native",
+                "glyph": 1269
+              },
+              {
+                "origin": "native",
+                "glyph": 1270
+              },
+              {
+                "origin": "native",
+                "glyph": 1271
+              },
+              {
+                "origin": "native",
+                "glyph": 1272
+              },
+              {
+                "origin": "native",
+                "glyph": 1273
+              },
+              {
+                "origin": "native",
+                "glyph": 1274
+              },
+              {
+                "origin": "native",
+                "glyph": 1275
+              },
+              {
+                "origin": "native",
+                "glyph": 1276
+              },
+              {
+                "origin": "native",
+                "glyph": 1277
+              },
+              {
+                "origin": "native",
+                "glyph": 1278
+              },
+              {
+                "origin": "native",
+                "glyph": 1279
+              },
+              {
+                "origin": "native",
+                "glyph": 1280
+              }
+            ]
+          },
+          "new": {
+            "node": 61,
+            "tokens": [
+              0,
+              80
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1431
+              },
+              {
+                "origin": "native",
+                "glyph": 1432
+              },
+              {
+                "origin": "native",
+                "glyph": 1433
+              },
+              {
+                "origin": "native",
+                "glyph": 1434
+              },
+              {
+                "origin": "native",
+                "glyph": 1435
+              },
+              {
+                "origin": "native",
+                "glyph": 1436
+              },
+              {
+                "origin": "native",
+                "glyph": 1437
+              },
+              {
+                "origin": "native",
+                "glyph": 1438
+              },
+              {
+                "origin": "native",
+                "glyph": 1439
+              },
+              {
+                "origin": "native",
+                "glyph": 1440
+              },
+              {
+                "origin": "native",
+                "glyph": 1441
+              },
+              {
+                "origin": "native",
+                "glyph": 1442
+              },
+              {
+                "origin": "native",
+                "glyph": 1443
+              },
+              {
+                "origin": "native",
+                "glyph": 1444
+              },
+              {
+                "origin": "native",
+                "glyph": 1445
+              },
+              {
+                "origin": "native",
+                "glyph": 1446
+              },
+              {
+                "origin": "native",
+                "glyph": 1447
+              },
+              {
+                "origin": "native",
+                "glyph": 1448
+              },
+              {
+                "origin": "native",
+                "glyph": 1449
+              },
+              {
+                "origin": "native",
+                "glyph": 1450
+              },
+              {
+                "origin": "native",
+                "glyph": 1451
+              },
+              {
+                "origin": "native",
+                "glyph": 1452
+              },
+              {
+                "origin": "native",
+                "glyph": 1453
+              },
+              {
+                "origin": "native",
+                "glyph": 1454
+              },
+              {
+                "origin": "native",
+                "glyph": 1455
+              },
+              {
+                "origin": "native",
+                "glyph": 1456
+              },
+              {
+                "origin": "native",
+                "glyph": 1457
+              },
+              {
+                "origin": "native",
+                "glyph": 1458
+              },
+              {
+                "origin": "native",
+                "glyph": 1459
+              },
+              {
+                "origin": "native",
+                "glyph": 1460
+              },
+              {
+                "origin": "native",
+                "glyph": 1461
+              },
+              {
+                "origin": "native",
+                "glyph": 1462
+              },
+              {
+                "origin": "native",
+                "glyph": 1463
+              },
+              {
+                "origin": "native",
+                "glyph": 1464
+              },
+              {
+                "origin": "native",
+                "glyph": 1465
+              },
+              {
+                "origin": "native",
+                "glyph": 1466
+              },
+              {
+                "origin": "native",
+                "glyph": 1467
+              },
+              {
+                "origin": "native",
+                "glyph": 1468
+              },
+              {
+                "origin": "native",
+                "glyph": 1469
+              },
+              {
+                "origin": "native",
+                "glyph": 1470
+              },
+              {
+                "origin": "native",
+                "glyph": 1471
+              },
+              {
+                "origin": "native",
+                "glyph": 1472
+              },
+              {
+                "origin": "native",
+                "glyph": 1473
+              },
+              {
+                "origin": "native",
+                "glyph": 1474
+              },
+              {
+                "origin": "native",
+                "glyph": 1475
+              },
+              {
+                "origin": "native",
+                "glyph": 1476
+              },
+              {
+                "origin": "native",
+                "glyph": 1477
+              },
+              {
+                "origin": "native",
+                "glyph": 1478
+              },
+              {
+                "origin": "native",
+                "glyph": 1479
+              },
+              {
+                "origin": "native",
+                "glyph": 1480
+              },
+              {
+                "origin": "native",
+                "glyph": 1481
+              },
+              {
+                "origin": "native",
+                "glyph": 1482
+              },
+              {
+                "origin": "native",
+                "glyph": 1483
+              },
+              {
+                "origin": "native",
+                "glyph": 1484
+              },
+              {
+                "origin": "native",
+                "glyph": 1485
+              },
+              {
+                "origin": "native",
+                "glyph": 1486
+              },
+              {
+                "origin": "native",
+                "glyph": 1487
+              },
+              {
+                "origin": "native",
+                "glyph": 1488
+              },
+              {
+                "origin": "native",
+                "glyph": 1489
+              },
+              {
+                "origin": "native",
+                "glyph": 1490
+              },
+              {
+                "origin": "native",
+                "glyph": 1491
+              },
+              {
+                "origin": "native",
+                "glyph": 1492
+              },
+              {
+                "origin": "native",
+                "glyph": 1493
+              },
+              {
+                "origin": "native",
+                "glyph": 1494
+              },
+              {
+                "origin": "native",
+                "glyph": 1495
+              },
+              {
+                "origin": "native",
+                "glyph": 1496
+              },
+              {
+                "origin": "native",
+                "glyph": 1497
+              },
+              {
+                "origin": "native",
+                "glyph": 1498
+              },
+              {
+                "origin": "native",
+                "glyph": 1499
+              },
+              {
+                "origin": "native",
+                "glyph": 1500
+              },
+              {
+                "origin": "native",
+                "glyph": 1501
+              },
+              {
+                "origin": "native",
+                "glyph": 1502
+              },
+              {
+                "origin": "native",
+                "glyph": 1503
+              },
+              {
+                "origin": "native",
+                "glyph": 1504
+              },
+              {
+                "origin": "native",
+                "glyph": 1505
+              },
+              {
+                "origin": "native",
+                "glyph": 1506
+              },
+              {
+                "origin": "native",
+                "glyph": 1507
+              },
+              {
+                "origin": "native",
+                "glyph": 1508
+              },
+              {
+                "origin": "native",
+                "glyph": 1509
+              },
+              {
+                "origin": "native",
+                "glyph": 1510
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 1511
+            }
+          ]
+        },
+        {
+          "proposal": 148,
+          "old": {
+            "node": 37,
+            "tokens": [
+              0,
+              5
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1631
+              },
+              {
+                "origin": "native",
+                "glyph": 1632
+              },
+              {
+                "origin": "native",
+                "glyph": 1633
+              },
+              {
+                "origin": "native",
+                "glyph": 1634
+              },
+              {
+                "origin": "native",
+                "glyph": 1635
+              }
+            ]
+          },
+          "new": {
+            "node": 64,
+            "tokens": [
+              0,
+              5
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1845
+              },
+              {
+                "origin": "native",
+                "glyph": 1846
+              },
+              {
+                "origin": "native",
+                "glyph": 1847
+              },
+              {
+                "origin": "native",
+                "glyph": 1848
+              },
+              {
+                "origin": "native",
+                "glyph": 1849
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 1850
+            }
+          ]
+        },
+        {
+          "proposal": 149,
+          "old": {
+            "node": 39,
+            "tokens": [
+              0,
+              5
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1736
+              },
+              {
+                "origin": "native",
+                "glyph": 1737
+              },
+              {
+                "origin": "native",
+                "glyph": 1738
+              },
+              {
+                "origin": "native",
+                "glyph": 1739
+              },
+              {
+                "origin": "native",
+                "glyph": 1740
+              }
+            ]
+          },
+          "new": {
+            "node": 66,
+            "tokens": [
+              0,
+              5
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1948
+              },
+              {
+                "origin": "native",
+                "glyph": 1949
+              },
+              {
+                "origin": "native",
+                "glyph": 1950
+              },
+              {
+                "origin": "native",
+                "glyph": 1951
+              },
+              {
+                "origin": "native",
+                "glyph": 1952
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 1953
+            }
+          ]
+        },
+        {
+          "proposal": 150,
+          "old": {
+            "node": 40,
+            "tokens": [
+              0,
+              78
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1741
+              },
+              {
+                "origin": "native",
+                "glyph": 1742
+              },
+              {
+                "origin": "native",
+                "glyph": 1743
+              },
+              {
+                "origin": "native",
+                "glyph": 1744
+              },
+              {
+                "origin": "native",
+                "glyph": 1745
+              },
+              {
+                "origin": "native",
+                "glyph": 1746
+              },
+              {
+                "origin": "native",
+                "glyph": 1747
+              },
+              {
+                "origin": "native",
+                "glyph": 1748
+              },
+              {
+                "origin": "native",
+                "glyph": 1749
+              },
+              {
+                "origin": "native",
+                "glyph": 1750
+              },
+              {
+                "origin": "native",
+                "glyph": 1751
+              },
+              {
+                "origin": "native",
+                "glyph": 1752
+              },
+              {
+                "origin": "native",
+                "glyph": 1753
+              },
+              {
+                "origin": "native",
+                "glyph": 1754
+              },
+              {
+                "origin": "native",
+                "glyph": 1755
+              },
+              {
+                "origin": "native",
+                "glyph": 1756
+              },
+              {
+                "origin": "native",
+                "glyph": 1757
+              },
+              {
+                "origin": "native",
+                "glyph": 1758
+              },
+              {
+                "origin": "native",
+                "glyph": 1759
+              },
+              {
+                "origin": "native",
+                "glyph": 1760
+              },
+              {
+                "origin": "native",
+                "glyph": 1761
+              },
+              {
+                "origin": "native",
+                "glyph": 1762
+              },
+              {
+                "origin": "native",
+                "glyph": 1763
+              },
+              {
+                "origin": "native",
+                "glyph": 1764
+              },
+              {
+                "origin": "native",
+                "glyph": 1765
+              },
+              {
+                "origin": "native",
+                "glyph": 1766
+              },
+              {
+                "origin": "native",
+                "glyph": 1767
+              },
+              {
+                "origin": "native",
+                "glyph": 1768
+              },
+              {
+                "origin": "native",
+                "glyph": 1769
+              },
+              {
+                "origin": "native",
+                "glyph": 1770
+              },
+              {
+                "origin": "native",
+                "glyph": 1771
+              },
+              {
+                "origin": "native",
+                "glyph": 1772
+              },
+              {
+                "origin": "native",
+                "glyph": 1773
+              },
+              {
+                "origin": "native",
+                "glyph": 1774
+              },
+              {
+                "origin": "native",
+                "glyph": 1775
+              },
+              {
+                "origin": "native",
+                "glyph": 1776
+              },
+              {
+                "origin": "native",
+                "glyph": 1777
+              },
+              {
+                "origin": "native",
+                "glyph": 1778
+              },
+              {
+                "origin": "native",
+                "glyph": 1779
+              },
+              {
+                "origin": "native",
+                "glyph": 1780
+              },
+              {
+                "origin": "native",
+                "glyph": 1781
+              },
+              {
+                "origin": "native",
+                "glyph": 1782
+              },
+              {
+                "origin": "native",
+                "glyph": 1783
+              },
+              {
+                "origin": "native",
+                "glyph": 1784
+              },
+              {
+                "origin": "native",
+                "glyph": 1785
+              },
+              {
+                "origin": "native",
+                "glyph": 1786
+              },
+              {
+                "origin": "native",
+                "glyph": 1787
+              },
+              {
+                "origin": "native",
+                "glyph": 1788
+              },
+              {
+                "origin": "native",
+                "glyph": 1789
+              },
+              {
+                "origin": "native",
+                "glyph": 1790
+              },
+              {
+                "origin": "native",
+                "glyph": 1791
+              },
+              {
+                "origin": "native",
+                "glyph": 1792
+              },
+              {
+                "origin": "native",
+                "glyph": 1793
+              },
+              {
+                "origin": "native",
+                "glyph": 1794
+              },
+              {
+                "origin": "native",
+                "glyph": 1795
+              },
+              {
+                "origin": "native",
+                "glyph": 1796
+              },
+              {
+                "origin": "native",
+                "glyph": 1797
+              },
+              {
+                "origin": "native",
+                "glyph": 1798
+              },
+              {
+                "origin": "native",
+                "glyph": 1799
+              },
+              {
+                "origin": "native",
+                "glyph": 1800
+              },
+              {
+                "origin": "native",
+                "glyph": 1801
+              },
+              {
+                "origin": "native",
+                "glyph": 1802
+              },
+              {
+                "origin": "native",
+                "glyph": 1803
+              },
+              {
+                "origin": "native",
+                "glyph": 1804
+              },
+              {
+                "origin": "native",
+                "glyph": 1805
+              },
+              {
+                "origin": "native",
+                "glyph": 1806
+              },
+              {
+                "origin": "native",
+                "glyph": 1807
+              },
+              {
+                "origin": "native",
+                "glyph": 1808
+              },
+              {
+                "origin": "native",
+                "glyph": 1809
+              },
+              {
+                "origin": "native",
+                "glyph": 1810
+              },
+              {
+                "origin": "native",
+                "glyph": 1811
+              },
+              {
+                "origin": "native",
+                "glyph": 1812
+              },
+              {
+                "origin": "native",
+                "glyph": 1813
+              },
+              {
+                "origin": "native",
+                "glyph": 1814
+              },
+              {
+                "origin": "native",
+                "glyph": 1815
+              },
+              {
+                "origin": "native",
+                "glyph": 1816
+              },
+              {
+                "origin": "native",
+                "glyph": 1817
+              },
+              {
+                "origin": "native",
+                "glyph": 1818
+              }
+            ]
+          },
+          "new": {
+            "node": 67,
+            "tokens": [
+              0,
+              78
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1954
+              },
+              {
+                "origin": "native",
+                "glyph": 1955
+              },
+              {
+                "origin": "native",
+                "glyph": 1956
+              },
+              {
+                "origin": "native",
+                "glyph": 1957
+              },
+              {
+                "origin": "native",
+                "glyph": 1958
+              },
+              {
+                "origin": "native",
+                "glyph": 1959
+              },
+              {
+                "origin": "native",
+                "glyph": 1960
+              },
+              {
+                "origin": "native",
+                "glyph": 1961
+              },
+              {
+                "origin": "native",
+                "glyph": 1962
+              },
+              {
+                "origin": "native",
+                "glyph": 1963
+              },
+              {
+                "origin": "native",
+                "glyph": 1964
+              },
+              {
+                "origin": "native",
+                "glyph": 1965
+              },
+              {
+                "origin": "native",
+                "glyph": 1966
+              },
+              {
+                "origin": "native",
+                "glyph": 1967
+              },
+              {
+                "origin": "native",
+                "glyph": 1968
+              },
+              {
+                "origin": "native",
+                "glyph": 1969
+              },
+              {
+                "origin": "native",
+                "glyph": 1970
+              },
+              {
+                "origin": "native",
+                "glyph": 1971
+              },
+              {
+                "origin": "native",
+                "glyph": 1972
+              },
+              {
+                "origin": "native",
+                "glyph": 1973
+              },
+              {
+                "origin": "native",
+                "glyph": 1974
+              },
+              {
+                "origin": "native",
+                "glyph": 1975
+              },
+              {
+                "origin": "native",
+                "glyph": 1976
+              },
+              {
+                "origin": "native",
+                "glyph": 1977
+              },
+              {
+                "origin": "native",
+                "glyph": 1978
+              },
+              {
+                "origin": "native",
+                "glyph": 1979
+              },
+              {
+                "origin": "native",
+                "glyph": 1980
+              },
+              {
+                "origin": "native",
+                "glyph": 1981
+              },
+              {
+                "origin": "native",
+                "glyph": 1982
+              },
+              {
+                "origin": "native",
+                "glyph": 1983
+              },
+              {
+                "origin": "native",
+                "glyph": 1984
+              },
+              {
+                "origin": "native",
+                "glyph": 1985
+              },
+              {
+                "origin": "native",
+                "glyph": 1986
+              },
+              {
+                "origin": "native",
+                "glyph": 1987
+              },
+              {
+                "origin": "native",
+                "glyph": 1988
+              },
+              {
+                "origin": "native",
+                "glyph": 1989
+              },
+              {
+                "origin": "native",
+                "glyph": 1990
+              },
+              {
+                "origin": "native",
+                "glyph": 1991
+              },
+              {
+                "origin": "native",
+                "glyph": 1992
+              },
+              {
+                "origin": "native",
+                "glyph": 1993
+              },
+              {
+                "origin": "native",
+                "glyph": 1994
+              },
+              {
+                "origin": "native",
+                "glyph": 1995
+              },
+              {
+                "origin": "native",
+                "glyph": 1996
+              },
+              {
+                "origin": "native",
+                "glyph": 1997
+              },
+              {
+                "origin": "native",
+                "glyph": 1998
+              },
+              {
+                "origin": "native",
+                "glyph": 1999
+              },
+              {
+                "origin": "native",
+                "glyph": 2000
+              },
+              {
+                "origin": "native",
+                "glyph": 2001
+              },
+              {
+                "origin": "native",
+                "glyph": 2002
+              },
+              {
+                "origin": "native",
+                "glyph": 2003
+              },
+              {
+                "origin": "native",
+                "glyph": 2004
+              },
+              {
+                "origin": "native",
+                "glyph": 2005
+              },
+              {
+                "origin": "native",
+                "glyph": 2006
+              },
+              {
+                "origin": "native",
+                "glyph": 2007
+              },
+              {
+                "origin": "native",
+                "glyph": 2008
+              },
+              {
+                "origin": "native",
+                "glyph": 2009
+              },
+              {
+                "origin": "native",
+                "glyph": 2010
+              },
+              {
+                "origin": "native",
+                "glyph": 2011
+              },
+              {
+                "origin": "native",
+                "glyph": 2012
+              },
+              {
+                "origin": "native",
+                "glyph": 2013
+              },
+              {
+                "origin": "native",
+                "glyph": 2014
+              },
+              {
+                "origin": "native",
+                "glyph": 2015
+              },
+              {
+                "origin": "native",
+                "glyph": 2016
+              },
+              {
+                "origin": "native",
+                "glyph": 2017
+              },
+              {
+                "origin": "native",
+                "glyph": 2018
+              },
+              {
+                "origin": "native",
+                "glyph": 2019
+              },
+              {
+                "origin": "native",
+                "glyph": 2020
+              },
+              {
+                "origin": "native",
+                "glyph": 2021
+              },
+              {
+                "origin": "native",
+                "glyph": 2022
+              },
+              {
+                "origin": "native",
+                "glyph": 2023
+              },
+              {
+                "origin": "native",
+                "glyph": 2024
+              },
+              {
+                "origin": "native",
+                "glyph": 2025
+              },
+              {
+                "origin": "native",
+                "glyph": 2026
+              },
+              {
+                "origin": "native",
+                "glyph": 2027
+              },
+              {
+                "origin": "native",
+                "glyph": 2028
+              },
+              {
+                "origin": "native",
+                "glyph": 2029
+              },
+              {
+                "origin": "native",
+                "glyph": 2030
+              },
+              {
+                "origin": "native",
+                "glyph": 2031
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 2032
+            }
+          ]
+        },
+        {
+          "proposal": 151,
+          "old": {
+            "node": 42,
+            "tokens": [
+              0,
+              83
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 1964
+              },
+              {
+                "origin": "native",
+                "glyph": 1965
+              },
+              {
+                "origin": "native",
+                "glyph": 1966
+              },
+              {
+                "origin": "native",
+                "glyph": 1967
+              },
+              {
+                "origin": "native",
+                "glyph": 1968
+              },
+              {
+                "origin": "native",
+                "glyph": 1969
+              },
+              {
+                "origin": "native",
+                "glyph": 1970
+              },
+              {
+                "origin": "native",
+                "glyph": 1971
+              },
+              {
+                "origin": "native",
+                "glyph": 1972
+              },
+              {
+                "origin": "native",
+                "glyph": 1973
+              },
+              {
+                "origin": "native",
+                "glyph": 1974
+              },
+              {
+                "origin": "native",
+                "glyph": 1975
+              },
+              {
+                "origin": "native",
+                "glyph": 1976
+              },
+              {
+                "origin": "native",
+                "glyph": 1977
+              },
+              {
+                "origin": "native",
+                "glyph": 1978
+              },
+              {
+                "origin": "native",
+                "glyph": 1979
+              },
+              {
+                "origin": "native",
+                "glyph": 1980
+              },
+              {
+                "origin": "native",
+                "glyph": 1981
+              },
+              {
+                "origin": "native",
+                "glyph": 1982
+              },
+              {
+                "origin": "native",
+                "glyph": 1983
+              },
+              {
+                "origin": "native",
+                "glyph": 1984
+              },
+              {
+                "origin": "native",
+                "glyph": 1985
+              },
+              {
+                "origin": "native",
+                "glyph": 1986
+              },
+              {
+                "origin": "native",
+                "glyph": 1987
+              },
+              {
+                "origin": "native",
+                "glyph": 1988
+              },
+              {
+                "origin": "native",
+                "glyph": 1989
+              },
+              {
+                "origin": "native",
+                "glyph": 1990
+              },
+              {
+                "origin": "native",
+                "glyph": 1991
+              },
+              {
+                "origin": "native",
+                "glyph": 1992
+              },
+              {
+                "origin": "native",
+                "glyph": 1993
+              },
+              {
+                "origin": "native",
+                "glyph": 1994
+              },
+              {
+                "origin": "native",
+                "glyph": 1995
+              },
+              {
+                "origin": "native",
+                "glyph": 1996
+              },
+              {
+                "origin": "native",
+                "glyph": 1997
+              },
+              {
+                "origin": "native",
+                "glyph": 1998
+              },
+              {
+                "origin": "native",
+                "glyph": 1999
+              },
+              {
+                "origin": "native",
+                "glyph": 2000
+              },
+              {
+                "origin": "native",
+                "glyph": 2001
+              },
+              {
+                "origin": "native",
+                "glyph": 2002
+              },
+              {
+                "origin": "native",
+                "glyph": 2003
+              },
+              {
+                "origin": "native",
+                "glyph": 2004
+              },
+              {
+                "origin": "native",
+                "glyph": 2005
+              },
+              {
+                "origin": "native",
+                "glyph": 2006
+              },
+              {
+                "origin": "native",
+                "glyph": 2007
+              },
+              {
+                "origin": "native",
+                "glyph": 2008
+              },
+              {
+                "origin": "native",
+                "glyph": 2009
+              },
+              {
+                "origin": "native",
+                "glyph": 2010
+              },
+              {
+                "origin": "native",
+                "glyph": 2011
+              },
+              {
+                "origin": "native",
+                "glyph": 2012
+              },
+              {
+                "origin": "native",
+                "glyph": 2013
+              },
+              {
+                "origin": "native",
+                "glyph": 2014
+              },
+              {
+                "origin": "native",
+                "glyph": 2015
+              },
+              {
+                "origin": "native",
+                "glyph": 2016
+              },
+              {
+                "origin": "native",
+                "glyph": 2017
+              },
+              {
+                "origin": "native",
+                "glyph": 2018
+              },
+              {
+                "origin": "native",
+                "glyph": 2019
+              },
+              {
+                "origin": "native",
+                "glyph": 2020
+              },
+              {
+                "origin": "native",
+                "glyph": 2021
+              },
+              {
+                "origin": "native",
+                "glyph": 2022
+              },
+              {
+                "origin": "native",
+                "glyph": 2023
+              },
+              {
+                "origin": "native",
+                "glyph": 2024
+              },
+              {
+                "origin": "native",
+                "glyph": 2025
+              },
+              {
+                "origin": "native",
+                "glyph": 2026
+              },
+              {
+                "origin": "native",
+                "glyph": 2027
+              },
+              {
+                "origin": "native",
+                "glyph": 2028
+              },
+              {
+                "origin": "native",
+                "glyph": 2029
+              },
+              {
+                "origin": "native",
+                "glyph": 2030
+              },
+              {
+                "origin": "native",
+                "glyph": 2031
+              },
+              {
+                "origin": "native",
+                "glyph": 2032
+              },
+              {
+                "origin": "native",
+                "glyph": 2033
+              },
+              {
+                "origin": "native",
+                "glyph": 2034
+              },
+              {
+                "origin": "native",
+                "glyph": 2035
+              },
+              {
+                "origin": "native",
+                "glyph": 2036
+              },
+              {
+                "origin": "native",
+                "glyph": 2037
+              },
+              {
+                "origin": "native",
+                "glyph": 2038
+              },
+              {
+                "origin": "native",
+                "glyph": 2039
+              },
+              {
+                "origin": "native",
+                "glyph": 2040
+              },
+              {
+                "origin": "native",
+                "glyph": 2041
+              },
+              {
+                "origin": "native",
+                "glyph": 2042
+              },
+              {
+                "origin": "native",
+                "glyph": 2043
+              },
+              {
+                "origin": "native",
+                "glyph": 2044
+              },
+              {
+                "origin": "native",
+                "glyph": 2045
+              },
+              {
+                "origin": "native",
+                "glyph": 2046
+              }
+            ]
+          },
+          "new": {
+            "node": 69,
+            "tokens": [
+              0,
+              83
+            ],
+            "sources": [
+              {
+                "origin": "native",
+                "glyph": 2165
+              },
+              {
+                "origin": "native",
+                "glyph": 2166
+              },
+              {
+                "origin": "native",
+                "glyph": 2167
+              },
+              {
+                "origin": "native",
+                "glyph": 2168
+              },
+              {
+                "origin": "native",
+                "glyph": 2169
+              },
+              {
+                "origin": "native",
+                "glyph": 2170
+              },
+              {
+                "origin": "native",
+                "glyph": 2171
+              },
+              {
+                "origin": "native",
+                "glyph": 2172
+              },
+              {
+                "origin": "native",
+                "glyph": 2173
+              },
+              {
+                "origin": "native",
+                "glyph": 2174
+              },
+              {
+                "origin": "native",
+                "glyph": 2175
+              },
+              {
+                "origin": "native",
+                "glyph": 2176
+              },
+              {
+                "origin": "native",
+                "glyph": 2177
+              },
+              {
+                "origin": "native",
+                "glyph": 2178
+              },
+              {
+                "origin": "native",
+                "glyph": 2179
+              },
+              {
+                "origin": "native",
+                "glyph": 2180
+              },
+              {
+                "origin": "native",
+                "glyph": 2181
+              },
+              {
+                "origin": "native",
+                "glyph": 2182
+              },
+              {
+                "origin": "native",
+                "glyph": 2183
+              },
+              {
+                "origin": "native",
+                "glyph": 2184
+              },
+              {
+                "origin": "native",
+                "glyph": 2185
+              },
+              {
+                "origin": "native",
+                "glyph": 2186
+              },
+              {
+                "origin": "native",
+                "glyph": 2187
+              },
+              {
+                "origin": "native",
+                "glyph": 2188
+              },
+              {
+                "origin": "native",
+                "glyph": 2189
+              },
+              {
+                "origin": "native",
+                "glyph": 2190
+              },
+              {
+                "origin": "native",
+                "glyph": 2191
+              },
+              {
+                "origin": "native",
+                "glyph": 2192
+              },
+              {
+                "origin": "native",
+                "glyph": 2193
+              },
+              {
+                "origin": "native",
+                "glyph": 2194
+              },
+              {
+                "origin": "native",
+                "glyph": 2195
+              },
+              {
+                "origin": "native",
+                "glyph": 2196
+              },
+              {
+                "origin": "native",
+                "glyph": 2197
+              },
+              {
+                "origin": "native",
+                "glyph": 2198
+              },
+              {
+                "origin": "native",
+                "glyph": 2199
+              },
+              {
+                "origin": "native",
+                "glyph": 2200
+              },
+              {
+                "origin": "native",
+                "glyph": 2201
+              },
+              {
+                "origin": "native",
+                "glyph": 2202
+              },
+              {
+                "origin": "native",
+                "glyph": 2203
+              },
+              {
+                "origin": "native",
+                "glyph": 2204
+              },
+              {
+                "origin": "native",
+                "glyph": 2205
+              },
+              {
+                "origin": "native",
+                "glyph": 2206
+              },
+              {
+                "origin": "native",
+                "glyph": 2207
+              },
+              {
+                "origin": "native",
+                "glyph": 2208
+              },
+              {
+                "origin": "native",
+                "glyph": 2209
+              },
+              {
+                "origin": "native",
+                "glyph": 2210
+              },
+              {
+                "origin": "native",
+                "glyph": 2211
+              },
+              {
+                "origin": "native",
+                "glyph": 2212
+              },
+              {
+                "origin": "native",
+                "glyph": 2213
+              },
+              {
+                "origin": "native",
+                "glyph": 2214
+              },
+              {
+                "origin": "native",
+                "glyph": 2215
+              },
+              {
+                "origin": "native",
+                "glyph": 2216
+              },
+              {
+                "origin": "native",
+                "glyph": 2217
+              },
+              {
+                "origin": "native",
+                "glyph": 2218
+              },
+              {
+                "origin": "native",
+                "glyph": 2219
+              },
+              {
+                "origin": "native",
+                "glyph": 2220
+              },
+              {
+                "origin": "native",
+                "glyph": 2221
+              },
+              {
+                "origin": "native",
+                "glyph": 2222
+              },
+              {
+                "origin": "native",
+                "glyph": 2223
+              },
+              {
+                "origin": "native",
+                "glyph": 2224
+              },
+              {
+                "origin": "native",
+                "glyph": 2225
+              },
+              {
+                "origin": "native",
+                "glyph": 2226
+              },
+              {
+                "origin": "native",
+                "glyph": 2227
+              },
+              {
+                "origin": "native",
+                "glyph": 2228
+              },
+              {
+                "origin": "native",
+                "glyph": 2229
+              },
+              {
+                "origin": "native",
+                "glyph": 2230
+              },
+              {
+                "origin": "native",
+                "glyph": 2231
+              },
+              {
+                "origin": "native",
+                "glyph": 2232
+              },
+              {
+                "origin": "native",
+                "glyph": 2233
+              },
+              {
+                "origin": "native",
+                "glyph": 2234
+              },
+              {
+                "origin": "native",
+                "glyph": 2235
+              },
+              {
+                "origin": "native",
+                "glyph": 2236
+              },
+              {
+                "origin": "native",
+                "glyph": 2237
+              },
+              {
+                "origin": "native",
+                "glyph": 2238
+              },
+              {
+                "origin": "native",
+                "glyph": 2239
+              },
+              {
+                "origin": "native",
+                "glyph": 2240
+              },
+              {
+                "origin": "native",
+                "glyph": 2241
+              },
+              {
+                "origin": "native",
+                "glyph": 2242
+              },
+              {
+                "origin": "native",
+                "glyph": 2243
+              },
+              {
+                "origin": "native",
+                "glyph": 2244
+              },
+              {
+                "origin": "native",
+                "glyph": 2245
+              },
+              {
+                "origin": "native",
+                "glyph": 2246
+              },
+              {
+                "origin": "native",
+                "glyph": 2247
+              }
+            ]
+          },
+          "old_complement": [],
+          "new_complement": [
+            {
+              "origin": "native",
+              "glyph": 2248
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/domain-projection-v4/nist-contingency-34-to-r1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-contingency-34-to-r1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        0
+      ],
+      "source_gain": {
+        "old": 0,
+        "new": 0
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "94012536d01430f4b0a9574ab229f5f4fe50537a34c702ace66937d36d087405"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "98bf0c2a3b007a6352110790f7c700f99efd32442b9211a309553df2211c453a"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/nist-contingency-34-to-r1/runs.json",
+        "sha256": "46056e9554e1507d3fbc30cd092b283dfe448bb3bad9fda9f0fb4837c2f7d5d5"
+      },
+      "coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        0,
+        0
+      ],
+      "complete": [
+        false,
+        false
+      ],
+      "prior_implementation": {
+        "path": "benchmark/realworld/cache/source-completion/domain-work-v2/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "9f5966d100c2e898895df6cd2f899a9a763c33bd6d5c6ab943977164a065c1d7"
+      },
+      "delta_over_prior": {
+        "old": 0,
+        "new": 0
+      },
+      "existing_candidates_comparisons_reviews_and_unresolved_unchanged": true,
+      "current_domains_are_previously_audited_subset": true,
+      "domains_returned_to_unresolved": []
+    }
+  ],
+  "regression_before": {
+    "path": "benchmark/realworld/cache/source-completion/domain-projection-v4/regression-before.log",
+    "sha256": "e97c6d06208440efe25125d763ef399e1e2c586043f1493f4b1781731854edc4"
+  },
+  "test_counts": {
+    "passed": 2496,
+    "failed": 0,
+    "ignored": 2
+  },
+  "scope": "Five fixed pairs, one capture each. Additional native projection checks run within the unchanged shared budget. Declined domains are not asserted incorrect; they remain unproved by this path. No completion gain.",
+  "source_reviews_reused": [
+    {
+      "path": "benchmark/realworld/remaining/source-completion/domain-work-controller-review.json",
+      "sha256": "fcc9b43d641de4f846b6af52331cd468a3da5711a9ec2c4476de07e828902ff6"
+    },
+    {
+      "path": "benchmark/realworld/remaining/source-completion/domain-work-restrictions-review.json",
+      "sha256": "b115575d7a63e50c8aa177843c7a3abd63e35bc31e4918624b4625f5136e1291"
+    }
+  ]
+}

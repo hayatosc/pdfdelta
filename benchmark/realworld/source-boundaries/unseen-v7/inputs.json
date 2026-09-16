@@ -1,0 +1,548 @@
+{
+  "version": 7,
+  "frozen": true,
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "nist-107-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-107 applications using approved hash algorithms",
+      "old_revision": "2009",
+      "new_revision": "Revision 1",
+      "language": "en",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-107.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/nist-107-original-to-r1-old.pdf",
+        "sha256": "5527be01584b23febf4d476284220ca82e7f89c5594fd2d4a341064dcd067608",
+        "bytes": 272036
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-107r1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/nist-107-original-to-r1-new.pdf",
+        "sha256": "2b691bd8895cbc6793e442b1e5a45398f5ca777edc2a79072469ad05405b093b",
+        "bytes": 232710
+      },
+      "publisher": "NIST",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "nist-108-original-to-r1",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-108 key derivation using pseudorandom functions",
+      "old_revision": "2009 revised edition",
+      "new_revision": "Revision 1 Update 1",
+      "language": "en",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-108.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/nist-108-original-to-r1-old.pdf",
+        "sha256": "e3df72c6026cf585e81b21e8843273daad789f5c30d0d6fe829b66131a8fc232",
+        "bytes": 402864
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-108r1-upd1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/nist-108-original-to-r1-new.pdf",
+        "sha256": "7f7603e92a69590acd4330a5c6193b6b3093b87a5387b124a1050f4d25a10e07",
+        "bytes": 745462
+      },
+      "publisher": "NIST",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "nist-133-r1-to-r2",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-133 cryptographic key generation",
+      "old_revision": "Revision 1",
+      "new_revision": "Revision 2",
+      "language": "en",
+      "old": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-133r1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/nist-133-r1-to-r2-old.pdf",
+        "sha256": "5c756b43f139c91808f8aabbd1aefa7fa1a4b044bd613cfec9e0b9be596fa679",
+        "bytes": 767091
+      },
+      "new": {
+        "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-133r2.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/nist-133-r1-to-r2-new.pdf",
+        "sha256": "11384a58e3036382b7d7bd45d6e9e8dec5c8c3de43c73ed18edcb59cea3f8bbb",
+        "bytes": 543589
+      },
+      "publisher": "NIST",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "edpb-eprivacy-scope-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 2/2023 technical scope of Article 5(3) ePrivacy Directive",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": {
+        "url": "https://www.edpb.europa.eu/system/files/2023-11/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_en.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/edpb-eprivacy-scope-v1-to-v2-old.pdf",
+        "sha256": "3ed136e340596b022366c47fba4aa179c3050667057f319a6443167c1fcb1e0b",
+        "bytes": 370466
+      },
+      "new": {
+        "url": "https://www.edpb.europa.eu/system/files/documents/2024-10/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_v2_en_0.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/edpb-eprivacy-scope-v1-to-v2-new.pdf",
+        "sha256": "dbc1d37783e35ae8668925f92a590ae282eec24c98381a5a8f91b5c2048b5b03",
+        "bytes": 409348
+      },
+      "publisher": "EDPB",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "edpb-facial-recognition-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 05/2022 facial recognition in law enforcement",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "language": "en",
+      "old": {
+        "url": "https://www.edpb.europa.eu/system/files/2022-05/edpb-guidelines_202205_frtlawenforcement_en_1.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/edpb-facial-recognition-v1-to-v2-old.pdf",
+        "sha256": "9178b666bd2f7b5b8964772fc13e8b2ab2ad005450a93e113354704169118e0b",
+        "bytes": 1866296
+      },
+      "new": {
+        "url": "https://www.edpb.europa.eu/system/files/documents/2023-05/edpb_guidelines_202304_frtlawenforcement_v2_en.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/edpb-facial-recognition-v1-to-v2-new.pdf",
+        "sha256": "ff64ebd61e11d5c23398d9ddde2c0eb117e532cf74e9cde11e8a13c5a09b6c37",
+        "bytes": 756756
+      },
+      "publisher": "EDPB",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "arxiv-efficientnet-v1-to-v5",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 1905.11946 EfficientNet",
+      "old_revision": "v1",
+      "new_revision": "v5",
+      "language": "en",
+      "old": {
+        "url": "https://arxiv.org/pdf/1905.11946v1",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/arxiv-efficientnet-v1-to-v5-old.pdf",
+        "sha256": "c74eb39a6142d448dc61c7ccb9afb1170f5a0509c0a02566f523ce56893bf80f",
+        "bytes": 921834
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/1905.11946v5",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/arxiv-efficientnet-v1-to-v5-new.pdf",
+        "sha256": "af6b1bd620f81bfaea81edf8227484588e1fcc2427d6b5020fa17454d7566c70",
+        "bytes": 933600
+      },
+      "publisher": "Google",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "arxiv-convnext-v1-to-v2",
+      "family": "arxiv-paper",
+      "independent_producer": "Meta",
+      "series": "arXiv 2201.03545 A ConvNet for the 2020s",
+      "old_revision": "v1",
+      "new_revision": "v2",
+      "language": "en",
+      "old": {
+        "url": "https://arxiv.org/pdf/2201.03545v1",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/arxiv-convnext-v1-to-v2-old.pdf",
+        "sha256": "d1d7a3bc34e584255fcf1407621d7de35d168e2c95cf69ace8b8cf5ba61499dc",
+        "bytes": 742649
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/2201.03545v2",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/arxiv-convnext-v1-to-v2-new.pdf",
+        "sha256": "1fde2340370d0eb8045bda97fc94da7adb2a7abe8e6ded1a473d22475b945e1a",
+        "bytes": 751927
+      },
+      "publisher": "Meta",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "arxiv-mlp-mixer-v1-to-v4",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 2105.01601 MLP-Mixer",
+      "old_revision": "v1",
+      "new_revision": "v4",
+      "language": "en",
+      "old": {
+        "url": "https://arxiv.org/pdf/2105.01601v1",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/arxiv-mlp-mixer-v1-to-v4-old.pdf",
+        "sha256": "01aece8087b1b1102cd948b0ef8b9094ee1502c500f142798c317d0628fa7677",
+        "bytes": 4496085
+      },
+      "new": {
+        "url": "https://arxiv.org/pdf/2105.01601v4",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/arxiv-mlp-mixer-v1-to-v4-new.pdf",
+        "sha256": "e35cd320326cc4d59318edf2f70b23964aca94696693a5ca8bd028d277cb6e47",
+        "bytes": 4430766
+      },
+      "publisher": "Google",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "faa-fsb-53b-to-53c",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "series": "AC 120-53 Flight Standardization Board evaluations",
+      "old_revision": "Revision B",
+      "new_revision": "Revision C",
+      "language": "en",
+      "old": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-53B.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/faa-fsb-53b-to-53c-old.pdf",
+        "sha256": "cf7d76de0e9586c41de2957e94ab0c81ed8a749d03b8480203fc19905692ca6c",
+        "bytes": 365750
+      },
+      "new": {
+        "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-53C.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/faa-fsb-53b-to-53c-new.pdf",
+        "sha256": "5b2fa26c9e5c618d36be3072685019840b0426b06f7fbaf089877fc639eae3b7",
+        "bytes": 943843
+      },
+      "publisher": "FAA",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "mhlw-working-time-2001-to-2017",
+      "family": "japanese-guidance",
+      "independent_producer": "MHLW",
+      "series": "Employer measures for accurate working time records",
+      "old_revision": "2001 standard as reproduced in the official 2010 release",
+      "new_revision": "2017 guideline",
+      "language": "ja",
+      "old": {
+        "url": "https://www.mhlw.go.jp/content/11201000/6.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/mhlw-working-time-2001-to-2017-old.pdf",
+        "sha256": "962b9b37f14aa1f6dfa7b3debe1467a7cbc6f65c03a38ae749ae4c9b33457567",
+        "bytes": 174550,
+        "release_page_url": "https://www.mhlw.go.jp/stf/houdou/2r9852000000ufxb.html"
+      },
+      "new": {
+        "url": "https://www.mhlw.go.jp/file/06-Seisakujouhou-11200000-Roudoukijunkyoku/0000149439.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/mhlw-working-time-2001-to-2017-new.pdf",
+        "sha256": "032cf3313470154cba2d5e7ab30112b83d7288ed65d0a0bd0c8b454c22ec3f1c",
+        "bytes": 160261
+      },
+      "publisher": "MHLW",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "ietf-message-format-2822-to-5322",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Internet Message Format",
+      "old_revision": "RFC 2822",
+      "new_revision": "RFC 5322",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2822.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-message-format-2822-to-5322-old.pdf",
+        "sha256": "6ccf5ff890bacf32c84aeac0478f875f727968cca46f9878950aa11c4f90306b",
+        "bytes": 67879
+      },
+      "new": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc5322.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-message-format-2822-to-5322-new.pdf",
+        "sha256": "a6a766b763b5357cf4258203409802c028bb6469fa53c669b9490c8d623049cb",
+        "bytes": 76795
+      },
+      "publisher": "IETF",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    },
+    {
+      "id": "ietf-dhcp-1541-to-2131",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Dynamic Host Configuration Protocol",
+      "old_revision": "RFC 1541",
+      "new_revision": "RFC 2131",
+      "language": "en",
+      "old": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc1541.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-dhcp-1541-to-2131-old.pdf",
+        "sha256": "a59766f280cf373a93873bc35b743a9e9a3a5f1da7908fcc2b1ca8cc1b6feb9c",
+        "bytes": 52305
+      },
+      "new": {
+        "url": "https://www.ietf.org/ietf-ftp/rfc/rfc2131.txt.pdf",
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v7/ietf-dhcp-1541-to-2131-new.pdf",
+        "sha256": "2e0aa93deca92fc13d8d712ec2d1f332a79fc49e00a514de32c51aab75379758",
+        "bytes": 62073
+      },
+      "publisher": "IETF",
+      "novelty_review": "Series and edition aliases checked against the development panel, historical blind exclusions and all six retired campaigns plus pre-freeze considerations. No comparison has run. Source-only considered and rejected series remain exposed.",
+      "primary_source_evidence": [
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection.json",
+          "sha256": "01c25a6bb62faa219959eff352093e3dba298a07d88403bfe9488415bfffd695"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-selection-resolved.json",
+          "sha256": "3bd83dfef9f64b6bd1ec420f1cdb2eac3772d4e1c91ffca974e5ed16126942d3"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-download-attempts.json",
+          "sha256": "fdd043b2cb47589ba353d38ee0e17cb7ed014404732b6da5e74ee2f8d7072ee7"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-network-download-attempts.json",
+          "sha256": "6df74e0e36cca595ee0969449a160da1fb2d74fcabef3eb603ef28f6490578ea"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/unseen-v7-ietf-download-attempts.json",
+          "sha256": "7a14aa7775a06a73d77d8c78503aa1b7eb7cb11119f8232f5a8bd530394f8a69"
+        }
+      ]
+    }
+  ]
+}

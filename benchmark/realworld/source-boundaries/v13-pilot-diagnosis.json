@@ -1,0 +1,441 @@
+{
+  "version": 1,
+  "scope": "Rejected development pilot; not a recovery gate. V13 loses the established BERT target.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v13-pilot-observations.json",
+    "sha256": "2cecdeca25db6277a55ee8956f579b5b0d985dea73e4fb5e9620b42d918dea31"
+  },
+  "baseline_observations": {
+    "path": "benchmark/realworld/source-boundaries/v12-panel-observations.json",
+    "sha256": "d6ad11efb4f7989a28e290bb3440a69dce4bd03f8c73a4357cb5a721615f3dfa"
+  },
+  "pairs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "categories": {
+        "B": 9
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 60,
+        "budget_at_entry": 67
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "categories": {
+        "B": 1
+      },
+      "candidate_fixed_target_hits": [],
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 17,
+        "paired_boundaries": 4,
+        "work": 372229,
+        "budget_at_entry": 550611
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "categories": {
+        "B": 10
+      },
+      "candidate_fixed_target_hits": [],
+      "added_event_digests": [],
+      "lost_event_digests": [
+        "3aea33e8c602f0084d08394c9991edb9de6e6f1dcb6bbb917bd3ea5934ea5044"
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 13,
+        "paired_boundaries": 6,
+        "work": 115189,
+        "budget_at_entry": 115189
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "categories": {
+        "B": 19
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/12"
+      ],
+      "added_event_digests": [
+        "7123cb09c642916016dcd66ca7a6b5cf9b146926c3add4c31320017645b98807",
+        "e4c64b32e7b5df141fe585670f021a72a444a88cfd9f04e3c164e16af9e72586"
+      ],
+      "lost_event_digests": [
+        "6af3fc697ca8757ff0f9b08a2d36d1ebe49960564f90d166a2a88d2e6bf9f877",
+        "8712cc3100440d1a82ba4952db68089141e35c34a637fa893882159b6bd1aa27",
+        "9ebaabe6a05bbf23cdf2be942f2eeb2ede3ac1c5ebb623632d79289424eb7cae"
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 78,
+        "paired_boundaries": 43,
+        "work": 672065,
+        "budget_at_entry": 672065
+      }
+    }
+  ],
+  "design_watermark_diagnosis": {
+    "sources": {
+      "path": "benchmark/realworld/cache/source-boundaries-design-v12-review/sources.json",
+      "sha256": "9a4ffbb319000f4fee130706ab0f319694ba7c6dfe1aabeca2f840e7ec0b3011"
+    },
+    "glyphs": [
+      {
+        "id": 9160,
+        "text": {
+          "Mapped": "o"
+        },
+        "raw_code": [
+          0,
+          80
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 33.0811408973472,
+            "y": 213.6598880038
+          },
+          "max": {
+            "x": 242.24118482939997,
+            "y": 422.8199319358528
+          }
+        },
+        "baseline": {
+          "x": 123.5077125436,
+          "y": 237.40636165040002
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9160,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9161,
+        "text": {
+          "Mapped": "b"
+        },
+        "raw_code": [
+          0,
+          67
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 85.229003150268,
+            "y": 265.8077502567208
+          },
+          "max": {
+            "x": 294.38904708232076,
+            "y": 474.9677941887736
+          }
+        },
+        "baseline": {
+          "x": 175.6555747965208,
+          "y": 289.5542239033208
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9161,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9162,
+        "text": {
+          "Mapped": "s"
+        },
+        "raw_code": [
+          0,
+          84
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 139.2766053759728,
+            "y": 319.85535248242564
+          },
+          "max": {
+            "x": 348.4366493080256,
+            "y": 529.0153964144785
+          }
+        },
+        "baseline": {
+          "x": 229.7031770222256,
+          "y": 343.60182612902565
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9162,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9163,
+        "text": {
+          "Mapped": "o"
+        },
+        "raw_code": [
+          0,
+          80
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 176.89145683709603,
+            "y": 357.4702039435488
+          },
+          "max": {
+            "x": 386.0515007691488,
+            "y": 566.6302478756016
+          }
+        },
+        "baseline": {
+          "x": 267.3180284833488,
+          "y": 381.21667759014883
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9163,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9164,
+        "text": {
+          "Mapped": "l"
+        },
+        "raw_code": [
+          0,
+          77
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 229.0393190900168,
+            "y": 409.61806619646967
+          },
+          "max": {
+            "x": 438.1993630220696,
+            "y": 618.7781101285225
+          }
+        },
+        "baseline": {
+          "x": 319.4658907362696,
+          "y": 433.3645398430697
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9164,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9165,
+        "text": {
+          "Mapped": "e"
+        },
+        "raw_code": [
+          0,
+          70
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 251.456250768868,
+            "y": 432.03499787532087
+          },
+          "max": {
+            "x": 460.6162947009208,
+            "y": 641.1950418073736
+          }
+        },
+        "baseline": {
+          "x": 341.8828224151208,
+          "y": 455.7814715219209
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9165,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9166,
+        "text": {
+          "Mapped": "t"
+        },
+        "raw_code": [
+          0,
+          85
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 299.0447370871073,
+            "y": 479.6234841935601
+          },
+          "max": {
+            "x": 508.2047810191601,
+            "y": 688.783528125613
+          }
+        },
+        "baseline": {
+          "x": 389.4713087333601,
+          "y": 503.3699578401601
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9166,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      },
+      {
+        "id": 9167,
+        "text": {
+          "Mapped": "e"
+        },
+        "raw_code": [
+          0,
+          70
+        ],
+        "page": 4,
+        "bbox": {
+          "min": {
+            "x": 329.9155116448473,
+            "y": 510.49425875130004
+          },
+          "max": {
+            "x": 539.0755555769001,
+            "y": 719.6543026833529
+          }
+        },
+        "baseline": {
+          "x": 420.3420832911001,
+          "y": 534.2407323979
+        },
+        "direction": {
+          "x": 0.7071067811865476,
+          "y": 0.7071067811865476
+        },
+        "font_id": 4,
+        "font_size": 134.33034035822803,
+        "render_order": 9167,
+        "render_mode": "Clip",
+        "crop_status": "Inside",
+        "path_clip_status": "Unclipped",
+        "provenance": {
+          "content_stream": {
+            "object_number": 55,
+            "generation": 0
+          },
+          "operator_index": 13
+        }
+      }
+    ],
+    "acquired_marked_content_memberships": [],
+    "finding": "Old page 4 contains rotated Clip glyphs spelling obsolete. Two baselines enter the paragraph-4 to paragraph-5 source band; their glyphs do not belong to the proposed horizontal body population. No acquired marked-content membership binds them. They remain closure blockers; no exclusion or target recovery is claimed."
+  }
+}

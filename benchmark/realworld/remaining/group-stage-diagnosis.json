@@ -1,0 +1,146 @@
+{
+  "status": "diagnosed_no_production_change",
+  "fixed_panel_denominator": 36,
+  "pairs_with_both_text_inventories_incomplete": 36,
+  "pairs_with_group_token_checks_at_least_990000": 22,
+  "document_complete": 0,
+  "stages": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "exact_group_token_checks_before": 0,
+      "exact_group_token_checks_after": 10234,
+      "proposals_after_exact": 157,
+      "exact_exhaustive": true,
+      "nonexact_entered": true,
+      "final_group_token_checks": 999828,
+      "nonexact_group_token_work": 989594
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "exact_group_token_checks_before": 0,
+      "exact_group_token_checks_after": 9246,
+      "proposals_after_exact": 175,
+      "exact_exhaustive": true,
+      "nonexact_entered": true,
+      "final_group_token_checks": 998879,
+      "nonexact_group_token_work": 989633
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "exact_group_token_checks_before": 0,
+      "exact_group_token_checks_after": 163979,
+      "proposals_after_exact": 10000,
+      "exact_exhaustive": false,
+      "nonexact_entered": false,
+      "final_group_token_checks": 221203
+    }
+  ],
+  "findings": [
+    "Native inventory completeness excludes pages with retained non-text paint and unresolved extraction issues. Faster candidate work alone cannot establish document-wide completion; the existing uncertainty contract is preserved.",
+    "IRS W-9 and EDPB restrictions complete exact group enumeration before entering the all-whole-by-group inferred stage. That stage uses almost all remaining token work, then text_candidates truncates the added proposals when candidate enumeration is incomplete.",
+    "NIST SP 800-37 reaches 10000 proposals during exact group enumeration and does not enter nonexact groups. Its candidate-count ceiling is a different failure from inferred trigram feature recomputation."
+  ],
+  "implementation_decision": "Do not adopt a generic token-cache optimization as a claimed G1/G3 fix based on the aggregate counters alone. First establish whether preserving the same inferred candidate universe can fit the proposal and pair limits, and whether its recovery can affect a frozen target. Separately diagnose the NIST exact proposal multiplicity.",
+  "next_action": "Measure candidate-universe cardinality and repeated trigram construction for the small IRS/EDPB scopes before choosing a bounded algorithm; keep candidate meanings, source conflicts and all limits unchanged.",
+  "production_and_default_binary_restored": true,
+  "new_A_or_B_recovery": 0,
+  "gate_advancement_claimed": false,
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/panel-counters.json",
+      "sha256": "b1fa0e56d06d48a289cd4e103a27f4e5da3a73a7bd02800098d9d2efd180d93f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/runs.json",
+      "sha256": "43c9d50d71f7df0d9eb74fc602825d9d01a0ba8b42dfa6d37b28192e4bf9f76a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/capture.py",
+      "sha256": "7fa5bed5ed7dc04f89b46c0008279c55b7d6ee157401b1bec5cd7b6cb31ab329"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/retain.py",
+      "sha256": "1ebdd6766e9426154d54f8f032d0aa1bab25754e808e7312657f47fffd861686"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/build.log",
+      "sha256": "49b57541d3b62dc493b57b5316a51a18e769e91d49c15245fd9bd2a127b6f817"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/capture.log",
+      "sha256": "19378f54caa6a045636bb69a8b9f8afbb85934d4cc64462383d478a4db326728"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/pdfdelta",
+      "sha256": "800c005056ef600e34749a532efd1a6262e25cb7e3674ff6f76488883b0801eb"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/groups-before.rs",
+      "sha256": "9ca1713ddd4d4d7ef370fba58b9165a24265ea72211587ef2659c294422188a2"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/groups-trace.rs",
+      "sha256": "98e0077e4e8425580e526f5603cb5f97f433ca879d8359117d21e2c289a3e2ae"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/nonexact-before.rs",
+      "sha256": "4f52b67522db022e76bd72f87bf34effc11dfbaea0642a00d5e828d593d18f36"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/nonexact-trace.rs",
+      "sha256": "ab005f842701e34470006955f404028429d2bbfdfafa76ec1996b73904eafae6"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/native.rs",
+      "sha256": "35f1851ee063cb8122b356fe1567c768bb8975b0bfe64c6bee4d9dcdea69a938"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/coverage.rs",
+      "sha256": "d16003c5d52b9edfbab1802d9588f1299e920bce1d623d42217a37745483cfe0"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/evidence.rs",
+      "sha256": "6e2a1430405c9ecc1f4e99c7bc98eab8e2f51b1b3a904b3392283aa59e77efe9"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/groups.rs",
+      "sha256": "9ca1713ddd4d4d7ef370fba58b9165a24265ea72211587ef2659c294422188a2"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/groups/nonexact.rs",
+      "sha256": "4f52b67522db022e76bd72f87bf34effc11dfbaea0642a00d5e828d593d18f36"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_candidates.rs",
+      "sha256": "a7436d1e0afa742b9067897221abc66c917dcd9460f9e6c6f0040dfab7c25663"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching.rs",
+      "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/edpb-restrictions-v1-to-final-text.json",
+      "sha256": "a37a748c6edf42b6dc6edd6167ee259e16d178ebb6478f8a1b756121e50f3759"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/edpb-restrictions-v1-to-final.stderr",
+      "sha256": "5c6d7a0f01624b501cc593de001931d6f3b65f2473344b3ee7407b523a914a60"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/irs-w9-2018-to-2024-text.json",
+      "sha256": "7e7b12a82b895a8ae2a228903ffd096dc5660c4ae272c0c0ddb252b6ef0dd79e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/irs-w9-2018-to-2024.stderr",
+      "sha256": "f59c9871a199eeff3aa9bb7a7388ee66494cec78fb53fecc3c6d88ae9e712ed8"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/nist-risk-management-37-r1-to-r2-text.json",
+      "sha256": "9b18cf01903c9c38c747fb1d9968862a125a004e352eea44f38e44a30b0eae24"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-stage-diagnosis/nist-risk-management-37-r1-to-r2.stderr",
+      "sha256": "bed9c960494eca2a7785d25610fbba1f49017ab5fb40df83ccc0138361b4d301"
+    }
+  ]
+}

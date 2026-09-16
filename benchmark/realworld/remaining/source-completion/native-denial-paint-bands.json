@@ -1,0 +1,1469 @@
+{
+  "source_bundle": {
+    "path": "benchmark/realworld/cache/source-completion/native-domains-v1/controller-review/sources.json",
+    "sha256": "29043038da9790f8a61b4fbad16f704c08360e8020d3a6c89c8a1e5c59bd1351"
+  },
+  "claim": "Read-only reconstruction of the six diagnosed old-side path bands from retained glyph geometry; bounding intersection only, not a visibility or inventory certificate.",
+  "rows": [
+    {
+      "path": [
+        783,
+        785,
+        789
+      ],
+      "page": 45,
+      "band": [
+        341.779663,
+        584.998936424,
+        480.31181936,
+        677.326409464
+      ],
+      "intersecting_paint": [
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 250,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 410,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 570,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 669,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1031,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1090,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1241,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1320,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1359,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1399,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            307.4400019999996,
+            644.6400149999992,
+            493.23219700000055,
+            694.3200150000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1436,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            311.6399929999998,
+            652.2000039999996,
+            486.83998900000046,
+            691.6800030000009
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1448,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1458,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1519,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            307.4400019999996,
+            561.1199949999992,
+            493.23219700000055,
+            604.3585640000009
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1589,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            311.6399929999998,
+            568.5600059999996,
+            486.83998900000046,
+            601.4400050000007
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1602,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1611,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1659,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1751,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1799,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1891,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1965,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2057,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2092,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2165,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2196,
+          "kind": "S"
+        }
+      ]
+    },
+    {
+      "path": [
+        784,
+        786,
+        787
+      ],
+      "page": 45,
+      "band": [
+        78.865036,
+        596.038304424,
+        195.42232301500007,
+        666.286736464
+      ],
+      "intersecting_paint": [
+        {
+          "bounds": [
+            70.5599979999999,
+            639.5999759999992,
+            205.2323500000003,
+            700.1164290000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 227,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            74.99999799999995,
+            647.1600039999995,
+            198.7199950000002,
+            696.6000030000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 239,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 250,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            135.95999699999985,
+            614.4000049999994,
+            137.87999700000017,
+            648.0000040000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 301,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            133.67999699999987,
+            609.7200049999996,
+            140.15999700000015,
+            616.2000050000006
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 310,
+          "kind": "f*"
+        },
+        {
+          "bounds": [
+            130.4399969999999,
+            623.0400049999995,
+            143.27999700000018,
+            633.9600050000006
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 313,
+          "kind": "f"
+        },
+        {
+          "bounds": [
+            70.5599979999999,
+            552.4799799999992,
+            205.2323500000003,
+            612.9964330000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 388,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            74.99999799999995,
+            560.2800059999995,
+            198.7199950000002,
+            609.7200050000006
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 400,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 410,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 570,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 669,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            -0.9600000000000009,
+            480.1200079999997,
+            283.6799940000003,
+            842.8800000000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 942,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1031,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1090,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1241,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1320,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1359,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1399,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1458,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1519,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1611,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1659,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1751,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1799,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1891,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1965,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2057,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2092,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2165,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2196,
+          "kind": "S"
+        }
+      ]
+    },
+    {
+      "path": [
+        793,
+        794,
+        795
+      ],
+      "page": 45,
+      "band": [
+        82.692299,
+        486.664128424,
+        191.2139326100001,
+        573.862602464
+      ],
+      "intersecting_paint": [
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 250,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            135.95999699999985,
+            515.7600069999994,
+            137.87999700000017,
+            561.1200060000007
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 338,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            133.67999699999987,
+            511.08000699999974,
+            140.15999700000015,
+            517.5600070000006
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 347,
+          "kind": "f*"
+        },
+        {
+          "bounds": [
+            130.91999699999988,
+            535.3200069999996,
+            142.67999700000016,
+            546.2400070000007
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 350,
+          "kind": "f"
+        },
+        {
+          "bounds": [
+            70.5599979999999,
+            552.4799799999992,
+            205.2323500000003,
+            612.9964330000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 388,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            74.99999799999995,
+            560.2800059999995,
+            198.7199950000002,
+            609.7200050000006
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 400,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 410,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            70.5599979999999,
+            443.7599789999996,
+            205.2323500000003,
+            513.5999790000005
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 548,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            74.99999799999995,
+            451.20000899999974,
+            198.7199950000002,
+            511.0800080000005
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 560,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 570,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 669,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            -0.9600000000000009,
+            480.1200079999997,
+            283.6799940000003,
+            842.8800000000008
+          ],
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 942,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1031,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1090,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1241,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1320,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1359,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1399,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1458,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1519,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1611,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1659,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1751,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1799,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1891,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 1965,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2057,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2092,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2165,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            121,
+            0
+          ],
+          "operator": 2196,
+          "kind": "S"
+        }
+      ]
+    },
+    {
+      "path": [
+        870,
+        871,
+        872
+      ],
+      "page": 47,
+      "band": [
+        50.099613,
+        435.933886212,
+        287.263470515,
+        551.9171452319999
+      ],
+      "intersecting_paint": [
+        {
+          "bounds": [
+            43.20000099999995,
+            525.1199949999992,
+            296.6721400000003,
+            695.791855000001
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 227,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            47.15999899999997,
+            533.1600069999995,
+            289.9199940000003,
+            692.7600030000008
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 239,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 250,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            -0.9600000000000009,
+            474.9600079999997,
+            169.5599960000002,
+            842.8800000000008
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 537,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            164.9999959999999,
+            469.6800079999997,
+            172.19999600000017,
+            476.7600080000004
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 546,
+          "kind": "f*"
+        },
+        {
+          "bounds": [
+            161.39999599999987,
+            495.3600079999997,
+            175.6799960000002,
+            507.36000800000045
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 549,
+          "kind": "f"
+        },
+        {
+          "bounds": [
+            43.20000099999995,
+            418.5599979999996,
+            296.6721400000003,
+            471.83999800000043
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 624,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            47.15999899999997,
+            426.6000089999997,
+            289.9199940000003,
+            469.68000800000044
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 636,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 646,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 775,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 857,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 978,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1070,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1118,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1210,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1323,
+          "kind": "S"
+        }
+      ]
+    },
+    {
+      "path": [
+        872,
+        873,
+        880
+      ],
+      "page": 47,
+      "band": [
+        50.099613,
+        289.956377212,
+        287.263470515,
+        460.206727232
+      ],
+      "intersecting_paint": [
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 250,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            167.63999599999985,
+            326.2800119999997,
+            169.5599960000002,
+            427.4400090000004
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 574,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            164.9999959999999,
+            321.0000119999998,
+            172.19999600000017,
+            328.08001100000035
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 583,
+          "kind": "f*"
+        },
+        {
+          "bounds": [
+            161.8799959999999,
+            378.7200099999998,
+            174.95999600000022,
+            390.8400100000004
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 586,
+          "kind": "f"
+        },
+        {
+          "bounds": [
+            43.20000099999995,
+            418.5599979999996,
+            296.6721400000003,
+            471.83999800000043
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 624,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            47.15999899999997,
+            426.6000089999997,
+            289.9199940000003,
+            469.68000800000044
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 636,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 646,
+          "kind": "s"
+        },
+        {
+          "bounds": [
+            47.15999899999997,
+            258.8400129999998,
+            290.03999400000026,
+            321.00001200000037
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 761,
+          "kind": "f*"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 775,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 857,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 978,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1070,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1118,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1210,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1323,
+          "kind": "S"
+        }
+      ]
+    },
+    {
+      "path": [
+        878,
+        879,
+        882
+      ],
+      "page": 47,
+      "band": [
+        399.862732,
+        259.48149321200003,
+        555.1153330879997,
+        460.206727232
+      ],
+      "intersecting_paint": [
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 250,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 646,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 775,
+          "kind": "S"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 857,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 978,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            367.1999819999996,
+            418.5599979999996,
+            563.7599800000006,
+            471.83999800000043
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1048,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            371.6399919999998,
+            426.6000089999997,
+            557.3999880000007,
+            469.68000800000044
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1061,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1070,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1118,
+          "kind": "S"
+        },
+        {
+          "bounds": [
+            367.1999819999996,
+            233.5199889999998,
+            563.7599800000006,
+            342.27523000000036
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1188,
+          "kind": "Do"
+        },
+        {
+          "bounds": [
+            371.6399919999998,
+            240.24001299999986,
+            557.3999880000007,
+            339.6000110000004
+          ],
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1201,
+          "kind": "f"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1210,
+          "kind": "s"
+        },
+        {
+          "bounds": null,
+          "stream": [
+            148,
+            0
+          ],
+          "operator": 1323,
+          "kind": "S"
+        }
+      ]
+    }
+  ],
+  "paint_projection": {
+    "path": "benchmark/realworld/cache/source-completion/paint-extent-v1/edpb-controller-processor-v1-to-v2-1-old.json",
+    "sha256": "a03daa33119683e50f3aac0443aba8b92f0b00a94e2a3445fcf1c43fbcac3d8e"
+  },
+  "operator_log": {
+    "path": "benchmark/realworld/cache/source-completion/clip-probe-v1/edpb-controller-processor-v1-to-v2-1-old.log",
+    "sha256": "264892b320584a1835cfcd1241992e3d493e5e1c4523c92fd2e98cdbecde08ed"
+  },
+  "limitations": "Older source bundle with the same input revision; diagnosis of conservative intersections, not current runtime closure certification. An s operator does not distinguish straight from curved paths."
+}

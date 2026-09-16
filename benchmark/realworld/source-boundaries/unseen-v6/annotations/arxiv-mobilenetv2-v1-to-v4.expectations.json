@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-mobilenetv2-v1-to-v4",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "0e0411b26dfcfa510b618ff6e0a868c75aa09b8e655d7e4b1cd53f66c6d7d0b1",
+  "body_eligible": true,
+  "reason": "Complete second old abstract paragraph and both corresponding new paragraphs. New source visibly begins with is based; no missing glyphs are invented. All glyphs in the full left-column body bands are mapped."
+}

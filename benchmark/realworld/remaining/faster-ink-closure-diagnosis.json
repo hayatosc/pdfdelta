@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "status": "isolated_ink_closure_and_normalization_diagnosis_not_adopted",
+  "pair": "arxiv-faster-rcnn-v1-to-v3",
+  "prerequisite": {
+    "path": "benchmark/realworld/remaining/faster-source-binding-prototype.json",
+    "sha256": "1193a91dfcec87845584396ed834b4e42b7395487d4176e0cde37d5ab6240bde"
+  },
+  "input_pdf": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-before/review/new.pdf",
+    "sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1"
+  },
+  "native_review": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-before/review/sources.json",
+    "sha256": "f750f0b5fddb421a921114d475320f5a1324bdd0c97edb9de37613771cd8025f"
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/check_bindings.py",
+      "sha256": "0ed5b33a2873412ac82e25da6c8828ea56e676cda2ac25601f44b5ff1d0be191"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/closure.json",
+      "sha256": "b2f1fb2174d8d090363bd1cce4134a7da0f91d65a4cb5b0eaa4560488c54a106"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/closure.log",
+      "sha256": "2c72e0332c4501feb676d51bc38cc33262efeb4b23ca22fe23e81eb545678475"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/collect_ink.py",
+      "sha256": "0aa2611ac08700f1bc58710d97b1e71539d38d47085f645e9ddb6f25132109a9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/hyphen-ambiguous-closure.json",
+      "sha256": "fbd56060f42b9edce7faedb07e82ab890cfc69bc86ead34afea9d16e42977264"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/hyphen-ambiguous-closure.log",
+      "sha256": "c8cd2237b0a5c4fa2356e14b94a4278e2bc84260a2479eea53917bf8f2e41245"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/ink-evidence.json",
+      "sha256": "7bd0c4b825d5dda7016e359c8b8598295f25483655be346990c04a0e22603c7f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/native-before.rs",
+      "sha256": "9d8871c93d3785e6c2245430d6b27587da7576f8257577ec9192dcffafa4bd9e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/observation.json",
+      "sha256": "7f213a7d926cc2bfa0ee4bb8bdc8b540169c2527750ae167f32215d698b1d0e7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/observation.log",
+      "sha256": "d981d05f48cc577c030b78081a8a37533cc2083a610d13014a1bafff4b5a7b2d"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/observer-main.rs",
+      "sha256": "6249fcf1035127980a0eec4b2b7d4906cd2e2e904f94175cf428de5ad72806a2"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/probe.rs",
+      "sha256": "007dcce050263f633ccc139073bda03840d88b406d5cef1b5c3e0745795d5ac4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/projection-before.rs",
+      "sha256": "8c9d14da406cbcc4b46acf3f298a36ba9945160e0262934e79c774045ecc8b57"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/serialized-certificate-loss.json",
+      "sha256": "3939c07565858080e933e98b5844663381106a2b50e2e2ecdd64e34b1d28a24b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/serialized-certificate-loss.log",
+      "sha256": "9805213c2399f1a650c3138cdd6938e11840efc41c39113c48d235935429cf86"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/trial-native.rs",
+      "sha256": "d1bff3dd92a4120af0e5f81208e4667d39d2b73689f1f36bf3c9d1f3dc297661"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-ink-closure-trial/trial-projection.rs",
+      "sha256": "fd93a78955e85035b545e395be9ff748cdd9d551f201780a95bf7eab2c320468"
+    }
+  ],
+  "ink_profile": {
+    "production_certificate": false,
+    "profile": "diagnostic-direct-stream-fill-outlines-v1",
+    "page_to_device": [
+      1,
+      0,
+      0,
+      -1,
+      0,
+      774
+    ],
+    "glyph_records": 4194,
+    "known_outlines": 4182,
+    "unknown": 12,
+    "native_boxes_modified": 0,
+    "excluded_band_intrusions": [
+      4158,
+      4159,
+      4160,
+      4161,
+      4162,
+      4163,
+      4164,
+      4165,
+      4166,
+      4167,
+      4168,
+      4169,
+      4170,
+      4171
+    ],
+    "limitations": [
+      "Only one direct source-bound Fill outline callback per mapped glyph.",
+      "Unknown, empty, degenerate, non-finite, multi-callback and other render profiles supply no bounds.",
+      "Only finite axis-preserving unit page transforms admitted.",
+      "Source binding is the retained prototype; this is not a trusted production API."
+    ]
+  },
+  "closure": {
+    "old_nodes": [
+      20
+    ],
+    "new_nodes": [
+      25,
+      27,
+      29,
+      31,
+      33,
+      35,
+      37,
+      39,
+      41,
+      43,
+      45,
+      47
+    ],
+    "old_remaining_work": 989373,
+    "new_remaining_work": 987789,
+    "budget": 1000000,
+    "profile": "bounded_paint with temporary explicit ink separation",
+    "checks": [
+      "Original source evidence validation passes.",
+      "Duplicate records, modified raw codes and non-finite bounds are rejected.",
+      "Removing glyph 4158 ink receipt prevents new-side closure.",
+      "Both sides have zero source projection failures."
+    ]
+  },
+  "normalization": {
+    "regression": "Source-checked fi-x split at a physical line boundary incorrectly proves one mandatory hyphen change against fix.",
+    "baseline_observation": "One targeted test fails with literal exact mask lower=upper=1.",
+    "temporary_change": "A terminal single-source hyphen in a source-checked node retains both literal and discretionary interpretations.",
+    "temporary_checks": "All six native projection tests pass; unchanged split fixture has compared=false, lower=0 and no mandatory changed source.",
+    "real_trial": "One retained PDF diagnostic test passes. Live certified projections produce scalar 1 multiplicity 2 versus 1, with no exact mask.",
+    "baseline_real_proof": {
+      "new_possible": 11,
+      "new_required": 11,
+      "old_possible": 8,
+      "old_required": 8,
+      "token": {
+        "Scalar": "-"
+      }
+    },
+    "ambiguous_terminal_real_proof": {
+      "new_possible": 1,
+      "new_required": 1,
+      "old_possible": 2,
+      "old_required": 2,
+      "token": {
+        "Scalar": "1"
+      }
+    },
+    "not_adopted_reason": "Whole-node native comparison and fallback also consume original views. A projection-only patch does not establish consistent normalization for every route.",
+    "serialized_probe_error": "Serialized GraphNode replay loses the private normalization certificate by design; compare live projected nodes instead."
+  },
+  "next": [
+    "Validate a consistent source-backed normalization family at native range/group boundaries, including whole-node and count-fallback paths.",
+    "Thread neutral ink observations and explicit closure receipts through validation, worker transport, caches, source cuts and report evidence before production admission.",
+    "Reevaluate fixed target correspondence anchors and finite extents after these premises are implemented."
+  ],
+  "production_sources_restored": true,
+  "production_executable_unchanged": true,
+  "coverage_gain": 0,
+  "strict_coverage_gain": 0,
+  "complete_document_gain": 0,
+  "gate_gain": false,
+  "checks_scope": "Diagnostic-only tests; no production patch retained, so previously passing workspace checks were not repeated."
+}

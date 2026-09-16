@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-88-r1-to-r2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "28c8e8e1b70251e74fea84ea9b6c62e4af139c67b43c74a1d90f1c15adbf0eec",
+  "body_eligible": true,
+  "reason": "The abstract changes from practical decisions based on confidentiality categories to establishing a sanitization program with techniques and controls."
+}

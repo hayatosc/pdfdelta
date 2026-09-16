@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-territorial-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "The territorial scope ofGeneral Data Protection Regulation1(the GDPR) is determined by Article 3 ofthe Regulationand represents a significant evolution of the EU data protection law compared to theframework defined byDirective 95/46/EC2. In part, the GDPR confirms choices made by the EUlegislator and the Court of Justice of the European Union (CJEU) in the context of Directive 95/46/EC.However, important new elements have been introduced. Most importantly, the main objective ofArticle 4 of the Directive was to define which Member State’s national law is applicable,whereasArticle 3 of the GDPR defines the territorial scope of a directly applicable text. Moreover,while Article4 of the Directive made reference to the ‘use of equipment’ in the Union’s territory as a basis forbringing controllers who were “not established on Community territory” within the scopeof EU dataprotection law, such a reference does not appear in Article 3 of the GDPR.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "The territorial scope of General Data Protection Regulation1 (the GDPR or the Regulation) is determined by Article 3 of the Regulation and represents a significant evolution of the EU data protection law compared to the framework defined by Directive 95/46/EC2. In part, the GDPR confirms choices made by the EU legislator and the Court of Justice of the European Union (CJEU) in the context of Directive 95/46/EC. However, important new elements have been introduced. Most importantly, the main objective of Article 4 of the Directive was to define which Member State’s national law is applicable, whereas Article 3 of the GDPR defines the territorial scope of a directly applicable text. Moreover, while Article 4 of the Directive made reference to the ‘use of equipment’ in the Union’s territory as a basis for bringing controllers who were “not established on Community territory” within the scope of EU data protection law, such a reference does not appear in Article 3 of the GDPR.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "2ac27fb8227cf5ffca7e15bcb0ab902d161f13cc8b45d45ca44a06b75c86f298",
+  "new_sha256": "84e142c5fc7ccd14687dac11083e5a1a78c887af9f6278020f571984297e66b4"
+}

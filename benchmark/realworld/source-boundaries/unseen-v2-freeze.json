@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "production_sha256": "97a96894b83921acad4dfdd12ea86ed782af547712fb4012c5f6339f393ed80e",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-enclosing-v35b/pdfdelta",
+    "sha256": "55bc54c0807f6f182f7fbf25ab0b78d6c8bf2f7b6c65b89f0a70cbe10bf00d92"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-enclosing-v35b/build.json",
+    "sha256": "c9c8b08196f860301d52a7285803b845de564480e6da6b4fffeab86913c6f58f"
+  },
+  "freeze_utc": "2026-09-13T10:47:25.266657+00:00",
+  "panel": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2/inputs.json",
+    "sha256": "23a3351a458fc9380a50945d0cf9a39fa82bbd20cf0c5c819aa9fde0a24ed41d"
+  },
+  "targets": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v2/targets.json",
+    "sha256": "9df014bc04c18a7eba75bddfe0e9e0c90a46cf2700998609dd1647800d6a22ce"
+  },
+  "registration_commit": "2d160df94a2ee102109bcf6c798bb5d012349e7c",
+  "selection_started_utc": "2026-09-13T10:48:32.680202+00:00",
+  "annotation_completed_utc": "2026-09-13T11:06:56.566345+00:00"
+}

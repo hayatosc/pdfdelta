@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-llama2-v1-to-v2",
+  "old_sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80",
+  "new_sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 6
+      },
+      "literal_quote": "canscalealmostaswellasexpensiveInfinibandupto2000GPUs,whichmakespretrainingevenmoredemocratizable.OnA100swithRoCEandGPUpowercappedat350W,ouroptimizedcodebasereachedupto90%oftheperformanceofRSCusingIBinterconnectand400WGPUpower.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-abstract-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Inthiswork,wedevelopandreleaseLlama2,acollectionofpretrainedandfine-tunedlargelanguagemodels(LLMs)ranginginscalefrom7billionto70billionparameters.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 6
+      },
+      "literal_quote": "canscalealmostaswellasexpensiveInfinibandupto2000GPUs,whichmakespretrainingevenmoredemocratizable.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-abstract-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Inthiswork,wedevelopandreleaseLlama2,acollectionofpretrainedandfine-tunedlargelanguagemodels(LLMs)ranginginscalefrom7billionto70billionparameters.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

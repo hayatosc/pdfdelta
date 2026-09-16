@@ -1,0 +1,53 @@
+{
+  "status": "ipcc_fixed_inputs_restored_with_exact_hashes",
+  "manifest_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "pair": "ipcc-synthesis-ar5-to-ar6",
+  "attempts": [
+    {
+      "side": "old",
+      "url": "https://www.ipcc.ch/site/assets/uploads/2018/05/SYR_AR5_FINAL_full_wcover.pdf",
+      "expected_sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c",
+      "actual_sha256": null,
+      "exit_code": 6,
+      "matched": false,
+      "bytes": 0,
+      "stderr": "curl: (6) Could not resolve host: www.ipcc.ch\n"
+    },
+    {
+      "side": "new",
+      "url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf",
+      "expected_sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6",
+      "actual_sha256": null,
+      "exit_code": 6,
+      "matched": false,
+      "bytes": 0,
+      "stderr": "curl: (6) Could not resolve host: www.ipcc.ch\n"
+    },
+    {
+      "side": "old",
+      "url": "https://www.ipcc.ch/site/assets/uploads/2018/05/SYR_AR5_FINAL_full_wcover.pdf",
+      "expected_sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c",
+      "actual_sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c",
+      "exit_code": 0,
+      "matched": true,
+      "bytes": 11723732,
+      "stderr": ""
+    },
+    {
+      "side": "new",
+      "url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf",
+      "expected_sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6",
+      "actual_sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6",
+      "exit_code": 0,
+      "matched": true,
+      "bytes": 4913496,
+      "stderr": ""
+    }
+  ],
+  "fixed_panel_denominator": 36,
+  "cache_disappearance": {
+    "cause": "unestablished",
+    "observed_cache_directory_empty": true,
+    "prior_full_panel_and_control_raw_results_unavailable": true
+  }
+}

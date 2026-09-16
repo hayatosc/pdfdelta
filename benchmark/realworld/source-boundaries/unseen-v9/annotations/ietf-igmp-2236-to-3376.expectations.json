@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-igmp-2236-to-3376",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "8098e89064d70b241278c18b6dab32bdc1839658ba5a093f252b6497f748c9f7",
+  "body_eligible": true,
+  "reason": "Complete first Abstract paragraph in each revision, describing version 2 and version 3 respectively. The following old termination paragraph and new obsoletes paragraph are outside these first-paragraph extents."
+}

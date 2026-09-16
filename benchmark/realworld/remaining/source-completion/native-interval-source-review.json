@@ -1,0 +1,216 @@
+{
+  "status": "literal_readings_and_masks_verified",
+  "scope": "Independently check literal interval masks against frozen native worker output.\n\nThis checks readings, source membership and all optimal literal edit masks. It\ndoes not certify boundary correspondence, paint closure or complete inventory.\nOnly worker format 8 and literal, unnormalized native readings are admitted.\n",
+  "oracle_self_test_cases": 225,
+  "report": {
+    "path": "benchmark/realworld/cache/source-completion/native-interval-v1/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+    "sha256": "b5a978d2a878f46d955bc6d7d99cc7b4131f8db60c5894d1967c653faea5afd9"
+  },
+  "native": {
+    "old": {
+      "path": "benchmark/realworld/cache/source-completion/native-interval-v1/old-native-response.json",
+      "sha256": "495552dca6cfc4faba07da63a55f6030834801ddfd15a67763897d75d92da91f"
+    },
+    "new": {
+      "path": "benchmark/realworld/cache/source-completion/native-interval-v1/new-native-response.json",
+      "sha256": "be0106c909a94e029bc5137798e3501c86f26bfa0e56feb993e5b7442ac5b74d"
+    }
+  },
+  "intervals": [
+    {
+      "boundaries": [
+        8845,
+        8846
+      ],
+      "sides": {
+        "old": {
+          "text": "Mechanism. Importantly, it also has the power to apply more stringent capital ",
+          "owned_sources": 78,
+          "changed_positions": [],
+          "changed_text": ""
+        },
+        "new": {
+          "text": "Mechanism (SSM). Importantly, it also has the power to apply more stringent capital ",
+          "owned_sources": 84,
+          "changed_positions": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "changed_text": " (SSM)"
+        }
+      }
+    },
+    {
+      "boundaries": [
+        8408,
+        8409
+      ],
+      "sides": {
+        "old": {
+          "text": "61  In accordance with Articles 122(2) and 132(1) of the Treaty on the Functioning of the European Union, ",
+          "owned_sources": 106,
+          "changed_positions": [
+            1
+          ],
+          "changed_text": "1"
+        },
+        "new": {
+          "text": "68  In accordance with Articles 122(2) and 132(1) of the Treaty on the Functioning of the European Union, ",
+          "owned_sources": 106,
+          "changed_positions": [
+            1
+          ],
+          "changed_text": "8"
+        }
+      }
+    },
+    {
+      "boundaries": [
+        8409,
+        8410
+      ],
+      "sides": {
+        "old": {
+          "text": "62  In accordance with Articles 17 and 21 of the Statute of the ESCB in conjunction with Article 10 of ",
+          "owned_sources": 103,
+          "changed_positions": [
+            1
+          ],
+          "changed_text": "2"
+        },
+        "new": {
+          "text": "69  In accordance with Articles 17 and 21 of the Statute of the ESCB in conjunction with Article 10 of ",
+          "owned_sources": 103,
+          "changed_positions": [
+            1
+          ],
+          "changed_text": "9"
+        }
+      }
+    },
+    {
+      "boundaries": [
+        8410,
+        8411
+      ],
+      "sides": {
+        "old": {
+          "text": "63  In accordance with Articles 17 and 21 of the Statute of the ESCB in conjunction with Regulation (EU) ",
+          "owned_sources": 105,
+          "changed_positions": [
+            0,
+            1
+          ],
+          "changed_text": "63"
+        },
+        "new": {
+          "text": "70  In accordance with Articles 17 and 21 of the Statute of the ESCB in conjunction with Regulation (EU) ",
+          "owned_sources": 105,
+          "changed_positions": [
+            0,
+            1
+          ],
+          "changed_text": "70"
+        }
+      }
+    },
+    {
+      "boundaries": [
+        8202,
+        8203
+      ],
+      "sides": {
+        "old": {
+          "text": "66  In accordance with Articles 17 and 21 of the Statute of the ESCB in conjunction with Article 5.12.1 of the ESM General Terms for Financial Assistance Facility Agreements. 67  In the context of the loan facility agreement between the Member States whose currency is the euro ",
+          "owned_sources": 278,
+          "changed_positions": [
+            0,
+            1,
+            111,
+            112,
+            113,
+            175
+          ],
+          "changed_text": "66ESM6"
+        },
+        "new": {
+          "text": "74  In accordance with Articles 17 and 21 of the Statute of the ESCB in conjunction with Article 5.12.1 of the General Terms for ESM Financial Assistance Facility Agreements. 75  In the context of the loan facility agreement between the Member States whose currency is the euro ",
+          "owned_sources": 278,
+          "changed_positions": [
+            0,
+            1,
+            129,
+            130,
+            131,
+            176
+          ],
+          "changed_text": "74ESM5"
+        }
+      }
+    },
+    {
+      "boundaries": [
+        7976,
+        7977
+      ],
+      "sides": {
+        "old": {
+          "text": "The ECB also monitors the EU central banks’ secondary market purchases of debt ",
+          "owned_sources": 79,
+          "changed_positions": [
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            37,
+            38,
+            39,
+            40
+          ],
+          "changed_text": "centralbank"
+        },
+        "new": {
+          "text": "The ECB also monitors the EU NCBs’ secondary market purchases of debt ",
+          "owned_sources": 70,
+          "changed_positions": [
+            29,
+            30,
+            31
+          ],
+          "changed_text": "NCB"
+        }
+      }
+    },
+    {
+      "boundaries": [
+        7977,
+        7978
+      ],
+      "sides": {
+        "old": {
+          "text": "The ECB’s monitoring exercise conducted for 2023 confirmed that Articles 123 and ",
+          "owned_sources": 81,
+          "changed_positions": [
+            47
+          ],
+          "changed_text": "3"
+        },
+        "new": {
+          "text": "The ECB’s monitoring exercise conducted for 2024 confirmed that Articles 123 and ",
+          "owned_sources": 81,
+          "changed_positions": [
+            47
+          ],
+          "changed_text": "4"
+        }
+      }
+    }
+  ]
+}

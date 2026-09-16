@@ -1,0 +1,1046 @@
+{
+  "version": 6,
+  "formal_adjudication_complete": false,
+  "targets": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v6/targets.json",
+    "sha256": "ce9728135506d3a3feac6b172e5326bc2bbf86c17cc6414a8fc5977a5bab4e80"
+  },
+  "rows": [
+    {
+      "implementation": "current",
+      "pair": "nist-73-3-to-4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/nist-73-3-to-4-text.json",
+        "sha256": "9e22fa83336777921c41184d4bd9264824b09975c270dbf8a60f87d3e66c3e0e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 16.05,
+        "peak_rss_kib": 801368,
+        "report_bytes": 6621676,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-78-3-to-4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/nist-78-3-to-4-text.json",
+        "sha256": "636a23a0086016a07a5803ac71d7a878c96c5863db213a20d229aa74c0beac04"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.96,
+        "peak_rss_kib": 143452,
+        "report_bytes": 4897145,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 15
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-90a-original-to-r1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/nist-90a-original-to-r1-text.json",
+        "sha256": "6bb44f6dcceedf8bba92e88bd725418026c0f5451cf4a38bf792bb895511a5ec"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 14.39,
+        "peak_rss_kib": 720824,
+        "report_bytes": 7350261,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/edpb-deceptive-patterns-v1-to-v2-text.json",
+        "sha256": "74a93883f81d18c7a2f39a7133eacc7b28e8bd8cb584c5ff6ebffdcb1afcd5c3"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 22.87,
+        "peak_rss_kib": 455076,
+        "report_bytes": 740958,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/edpb-lead-authority-v1-to-v2-text.json",
+        "sha256": "a5269d69fdd9e5a990777baa3cc50047c58941e1db40d9dbc4d9628e543ea6d7"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.75,
+        "peak_rss_kib": 99500,
+        "report_bytes": 175918,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-mae-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/arxiv-mae-v1-to-v2-text.json",
+        "sha256": "77fef64f154b8f2f3cf78cba2040c5444061d060ee61983be5cbf3707d79ba8a"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.8,
+        "peak_rss_kib": 117272,
+        "report_bytes": 3756518,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 17
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/arxiv-mobilenetv2-v1-to-v4-text.json",
+        "sha256": "728235c08e0093f10f1c22730615fe143689e2d077740d67f5981bbf5c01b24d"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.11,
+        "peak_rss_kib": 116780,
+        "report_bytes": 3331234,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 14
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-opt-v1-to-v4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/arxiv-opt-v1-to-v4-text.json",
+        "sha256": "af3ce3a10a6ace1c86e692061fde9b627387f846acc82681d45cb0bf65898ffb"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.8,
+        "peak_rss_kib": 217828,
+        "report_bytes": 10276960,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "faa-stall-109-to-109a",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/faa-stall-109-to-109a-text.json",
+        "sha256": "e715d086bfa485eda0b3947dc5eecafb21d23aa53138ba254eb548b6e056ff77"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.0,
+        "peak_rss_kib": 207692,
+        "report_bytes": 3599280,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "mext-generative-ai-2023-to-2024",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/mext-generative-ai-2023-to-2024-text.json",
+        "sha256": "4cc1539cfd16becef26e2147e51c3644ff3756d1bdf8338d7e1f8e1810850cdf"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.4,
+        "peak_rss_kib": 127304,
+        "report_bytes": 2438703,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/ietf-http-semantics-7231-to-9110-text.json",
+        "sha256": "bfe286397882d0f0072346425b61eb48db7a747d50b0d1847bb1bd622d9c0639"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 12.65,
+        "peak_rss_kib": 834760,
+        "report_bytes": 645988,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-ldap-2251-to-4511",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition1/ietf-ldap-2251-to-4511-text.json",
+        "sha256": "211c7eefeb921d4147d4bfccfb7fb50923b085fff30ac43bc5f98f7512c67679"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.62,
+        "peak_rss_kib": 340016,
+        "report_bytes": 3930355,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 12
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-73-3-to-4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/nist-73-3-to-4-text.json",
+        "sha256": "ea6e523307fa2f5980700c9f35c7ca0cb560c4e214b698636ee98b37dcfa602e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 16.37,
+        "peak_rss_kib": 794432,
+        "report_bytes": 6621676,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-78-3-to-4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/nist-78-3-to-4-text.json",
+        "sha256": "d511b2ee8156a32db439ed59726b44f3f06c0b4d07aa2e98331bf9e885163206"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.95,
+        "peak_rss_kib": 141644,
+        "report_bytes": 4897145,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 15
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-90a-original-to-r1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/nist-90a-original-to-r1-text.json",
+        "sha256": "3ac7c27a587ff3321b838d9fe0930326a67cc317bd22c06524346d6492ba42d7"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 14.45,
+        "peak_rss_kib": 721284,
+        "report_bytes": 7350261,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/edpb-deceptive-patterns-v1-to-v2-text.json",
+        "sha256": "3dd688230ecb2e282ae026407f183f419144a21826644ae935fdc240a9b42d82"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 22.38,
+        "peak_rss_kib": 454732,
+        "report_bytes": 740958,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/edpb-lead-authority-v1-to-v2-text.json",
+        "sha256": "8368e8a26e1ffe404872d30b89d0e5e0394cdb2f0c619fd7ab000f471677af88"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.84,
+        "peak_rss_kib": 99724,
+        "report_bytes": 175918,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-mae-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/arxiv-mae-v1-to-v2-text.json",
+        "sha256": "3851c7f98134b829e739903e3da45ac400d3b38e2628b7367801f43c79ba1d34"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.74,
+        "peak_rss_kib": 124524,
+        "report_bytes": 3756518,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 17
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/arxiv-mobilenetv2-v1-to-v4-text.json",
+        "sha256": "3f67bfe740d3537aeddae9566eab2c28fd373f9e73dc135d1ce5c53c1969e150"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.12,
+        "peak_rss_kib": 115236,
+        "report_bytes": 3331234,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 14
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-opt-v1-to-v4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/arxiv-opt-v1-to-v4-text.json",
+        "sha256": "fb8c87e3b37e82adf660a90064d7cf32861634af53740eebac9b05fd5ad419df"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.0,
+        "peak_rss_kib": 217328,
+        "report_bytes": 10276960,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "faa-stall-109-to-109a",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/faa-stall-109-to-109a-text.json",
+        "sha256": "f6996a50fa255c262725ada931177b58205a564628b7775ec250a79f36d30bbe"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.97,
+        "peak_rss_kib": 208504,
+        "report_bytes": 3599280,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "mext-generative-ai-2023-to-2024",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/mext-generative-ai-2023-to-2024-text.json",
+        "sha256": "e9bf31ddc6570d2cdd9685bb25a10bebde133b74a8d98cb2298d960014480e7e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.67,
+        "peak_rss_kib": 128400,
+        "report_bytes": 2438703,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/ietf-http-semantics-7231-to-9110-text.json",
+        "sha256": "84ede514a915dffb957a6dbda9e561df5a5a141b9a2abdbcec2e5913185ea8a1"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 12.61,
+        "peak_rss_kib": 828500,
+        "report_bytes": 645988,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-ldap-2251-to-4511",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/current-repetition2/ietf-ldap-2251-to-4511-text.json",
+        "sha256": "f255234deac60146dda7f53cd889d75d7972da2324218f81b6946a8d4c6fce24"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.44,
+        "peak_rss_kib": 339596,
+        "report_bytes": 3930355,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 12
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-73-3-to-4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/nist-73-3-to-4-text.json",
+        "sha256": "5de729c1d5d7f9b7aadc6ec6453b2f18f3510b8e73523e4e070d6dddbf5cd2c9"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 16.27,
+        "peak_rss_kib": 804280,
+        "report_bytes": 8661796,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-78-3-to-4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/nist-78-3-to-4-text.json",
+        "sha256": "2112e0dc14fb5bba1cc16a6a5ba36f96296cdc656ac6f059507cb00fcfcb1b87"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.98,
+        "peak_rss_kib": 141308,
+        "report_bytes": 3623075,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-90a-original-to-r1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/nist-90a-original-to-r1-text.json",
+        "sha256": "3a814e5c092b1fed0ea0e5903cf7b2086ab00a8dc4d1bfbbed3bda37bc9955a5"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 14.39,
+        "peak_rss_kib": 717768,
+        "report_bytes": 6698251,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/edpb-deceptive-patterns-v1-to-v2-text.json",
+        "sha256": "210b6ca8647f4a540eb8a0686b0723e66d8cad055d2c9c04c57f28a4efee9df1"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 23.11,
+        "peak_rss_kib": 451288,
+        "report_bytes": 415632,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/edpb-lead-authority-v1-to-v2-text.json",
+        "sha256": "a3d089513afa60feb3e6231841e906f78f1440cf7892537751b1650e53f87bfb"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.72,
+        "peak_rss_kib": 102200,
+        "report_bytes": 55814,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-mae-v1-to-v2",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/arxiv-mae-v1-to-v2-text.json",
+        "sha256": "54b19f827c3529be0fb5824274e1ea1e185c1b04d8db1e9a7845180acc391849"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.66,
+        "peak_rss_kib": 119880,
+        "report_bytes": 2913036,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/arxiv-mobilenetv2-v1-to-v4-text.json",
+        "sha256": "658c76a408ae69eefaab167a602f74299c47940302aab358eb48f73542d2275e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.03,
+        "peak_rss_kib": 117224,
+        "report_bytes": 1365016,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-opt-v1-to-v4",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/arxiv-opt-v1-to-v4-text.json",
+        "sha256": "200c024069eea0bacb659ba74b089ab709fc7479375ea913fa4bd6542090a522"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.64,
+        "peak_rss_kib": 196432,
+        "report_bytes": 5460919,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "faa-stall-109-to-109a",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/faa-stall-109-to-109a-text.json",
+        "sha256": "2fb44ec5b1fad2cc66ef7b5ea749b045534e458da1ecaf85588ccc528e6d76b4"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.03,
+        "peak_rss_kib": 211000,
+        "report_bytes": 3405371,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "mext-generative-ai-2023-to-2024",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/mext-generative-ai-2023-to-2024-text.json",
+        "sha256": "ca7eeb52cb8a5dd451940b2587e5706a47de78aeaba15433ef1e8982dfe3a55b"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.41,
+        "peak_rss_kib": 127956,
+        "report_bytes": 1705214,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/ietf-http-semantics-7231-to-9110-text.json",
+        "sha256": "bbf5e6b5e7da524b6d38c65b8df71113b1aaf426d16de9f05147bc476d6991d7"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 13.22,
+        "peak_rss_kib": 824240,
+        "report_bytes": 576389,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-ldap-2251-to-4511",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition1/ietf-ldap-2251-to-4511-text.json",
+        "sha256": "fc3c695bff94e7989eab783d819b3156e6cef3aa64f4cbff72fe1ca207527dd7"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.88,
+        "peak_rss_kib": 347696,
+        "report_bytes": 846774,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 2
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-73-3-to-4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/nist-73-3-to-4-text.json",
+        "sha256": "732f344a3e212a48361384b400ce2fb9978be6018243dd53c2cedc3bee57f6b9"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 16.71,
+        "peak_rss_kib": 793656,
+        "report_bytes": 8661796,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-78-3-to-4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/nist-78-3-to-4-text.json",
+        "sha256": "8c8ff4a24f86fcec14214f2ac6ed37edb5f6ec51b5c9460815f0db50b71b79da"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.07,
+        "peak_rss_kib": 141384,
+        "report_bytes": 3623075,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-90a-original-to-r1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/nist-90a-original-to-r1-text.json",
+        "sha256": "0d8a6dc751bd8ade57f53fe7b8a1b3ac7e0aa37ee5fbadee0032753894c4d79c"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 14.37,
+        "peak_rss_kib": 717932,
+        "report_bytes": 6698251,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/edpb-deceptive-patterns-v1-to-v2-text.json",
+        "sha256": "8b6f8cf488dc5ab1c513891f5df5ea9d13fbf128aca3605d3893da7c0fc40be5"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 22.63,
+        "peak_rss_kib": 450912,
+        "report_bytes": 415632,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/edpb-lead-authority-v1-to-v2-text.json",
+        "sha256": "a77bd1bfac362f672455d6d11fcb861494e5f9a7eb623f561643bc84ca9cca6e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.85,
+        "peak_rss_kib": 101604,
+        "report_bytes": 55814,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-mae-v1-to-v2",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/arxiv-mae-v1-to-v2-text.json",
+        "sha256": "d1fee4d2c7ccab69f2a00f3b2ac19fec154b56ca652be0fefa45383d1c88177e"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.72,
+        "peak_rss_kib": 126176,
+        "report_bytes": 2913036,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/arxiv-mobilenetv2-v1-to-v4-text.json",
+        "sha256": "5933f6ec7e98195bd20bee899e642f5e19d4c5f575bedd46acd47d123af910d1"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 1.99,
+        "peak_rss_kib": 117876,
+        "report_bytes": 1365016,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-opt-v1-to-v4",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/arxiv-opt-v1-to-v4-text.json",
+        "sha256": "874d7eaffd96158b0b358d61469b8861e4000543bab0ce0dc40c736cd7bc2511"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.75,
+        "peak_rss_kib": 195420,
+        "report_bytes": 5460919,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "faa-stall-109-to-109a",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/faa-stall-109-to-109a-text.json",
+        "sha256": "8e4394b14c48b75d3aa70633cb60545f5fd81f4864a54f15c259cd8c3b45a6a6"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 2.98,
+        "peak_rss_kib": 209724,
+        "report_bytes": 3405371,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "mext-generative-ai-2023-to-2024",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/mext-generative-ai-2023-to-2024-text.json",
+        "sha256": "65e757561cb834260a63527d256e543e70274223d3a1e7d3f1caa57349fe62b0"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 3.75,
+        "peak_rss_kib": 124932,
+        "report_bytes": 1705214,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/ietf-http-semantics-7231-to-9110-text.json",
+        "sha256": "f61529e88c8f3fc30e1b9302ca9db8d447a7465ce2eca4e48f856baac6fd002a"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 13.31,
+        "peak_rss_kib": 823244,
+        "report_bytes": 576389,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {},
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-ldap-2251-to-4511",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/historical-repetition2/ietf-ldap-2251-to-4511-text.json",
+        "sha256": "eb09f893fb2ac6e037ed031dae1dded145b4b1cbbe6dffee25c77134a2cd7119"
+      },
+      "status": "captured",
+      "costs": {
+        "wall_seconds": 4.47,
+        "peak_rss_kib": 347804,
+        "report_bytes": 846774,
+        "exit_code": 3
+      },
+      "certificate_error": null,
+      "categories": {
+        "B": 2
+      },
+      "exact_range_hits": [],
+      "strict_control_atoms": 0,
+      "complete": false
+    }
+  ]
+}

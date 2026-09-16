@@ -1,0 +1,170 @@
+{
+  "status": "finished",
+  "goal_complete": false,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/pdfdelta",
+    "sha256": "80b4ac7f5d5441bfb46b29ba447e8a51e07da54b9217bd30504409457ead211f"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/source.tar.gz",
+    "sha256": "17e1cc95b640ab753dc97be58966a55c1565ff6f45d9e7cd410c7fa3a15e7179"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/build.log",
+    "sha256": "2dc9fe85e42454705069dc80ee135b813126feffb3286a4d71d6ef741843672e"
+  },
+  "rows": [
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/arxiv-gpt3-v1-to-v4-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-gpt3-v1-to-v4",
+        "--implementation",
+        "7d24366cde0a7777c8ba94731848a4edf41c6e5f",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-gpt3-v1-to-v4-1/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "6ba7d05c235b2b74d0830b978bc3e63aa5ddf3bb9f14423a52b87a2e0430642b"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/arxiv-gpt3-v1-to-v4-1/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "48f281872475c9d6e28aa35ffa31240957f4b9f8ae0e60019dc97e277ad27d83"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/arxiv-gpt3-v1-to-v4-1/runs.json",
+        "sha256": "e88aab3fe1b5071992d60b8b3fe11e9ee350b322265fc2c6e66d8dbaf6945dcf"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 119031,
+          "new_compared_sources": 119031,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 64082,
+          "new_uncompared_sources": 69295,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 194640,
+          "new_discovered_sources": 198601,
+          "old_compared_sources": 128385,
+          "new_compared_sources": 128385,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 66255,
+          "new_uncompared_sources": 70216,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 183113,
+        "new": 188326
+      },
+      "native_glyphs_after": {
+        "old": 194640,
+        "new": 198601
+      },
+      "comparison_identical": false,
+      "native_intervals": []
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/irs-schedule-se-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "7d24366cde0a7777c8ba94731848a4edf41c6e5f",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "fb7bdb2563c00c614d098c27620593a426ffe18f1d09ffbada25280348eed7d4"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "9248649d72e97643482ce32d458f200b79604f90bb4fbecf8aeaeaabd5efb1b6"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/type3-code-gaps-v1/irs-schedule-se-2024-to-2025-1/runs.json",
+        "sha256": "3c04d8efd3cb77f1cc7e99c2aa983c7a76a89e4ddec9a92c694be5358ee2bf02"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 5158,
+        "new": 5175
+      },
+      "native_glyphs_after": {
+        "old": 5158,
+        "new": 5175
+      },
+      "comparison_identical": true,
+      "native_intervals": []
+    }
+  ]
+}

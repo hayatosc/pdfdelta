@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "binary_sha256": "7c8b3dafb6bbcfaa6da1aa564a65a1a1d67506f7002b1989b6917afc86f80275",
+  "inputs_sha256": "a56d8f2b5585c2701f642488be8e57faa440d5ca4fbf8fd2cb655039efd83561",
+  "command": [
+    "inspect",
+    "--glyphs"
+  ],
+  "timeout_seconds": 180,
+  "output_limit_bytes": 268435456,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "id": "ietf-message-format-2822-to-5322",
+      "side": "old",
+      "input_sha256": "6ccf5ff890bacf32c84aeac0478f875f727968cca46f9878950aa11c4f90306b",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 30472392,
+      "output_sha256": "3e482f240ced6e7a4106a7ecac95bcf500d6e3439655566a55de90af42c3c5dc",
+      "evidence_counts": {
+        "glyphs": 107785,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 51
+      },
+      "stderr": "",
+      "wall_seconds": 0.38,
+      "peak_rss_kib": 33408
+    },
+    {
+      "id": "ietf-message-format-2822-to-5322",
+      "side": "new",
+      "input_sha256": "a6a766b763b5357cf4258203409802c028bb6469fa53c669b9490c8d623049cb",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 33729649,
+      "output_sha256": "120caa3b71e6d85309ee9cd9eb938f76b4e064029f3012fcec9af2587b94e204",
+      "evidence_counts": {
+        "glyphs": 119070,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 57
+      },
+      "stderr": "",
+      "wall_seconds": 0.39,
+      "peak_rss_kib": 36352
+    },
+    {
+      "id": "ietf-dhcp-1541-to-2131",
+      "side": "old",
+      "input_sha256": "a59766f280cf373a93873bc35b743a9e9a3a5f1da7908fcc2b1ca8cc1b6feb9c",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 26748891,
+      "output_sha256": "502fa2bb7210068f3460ad32521d690ca460e6739e392f50d8a5a0f54fcb558f",
+      "evidence_counts": {
+        "glyphs": 94725,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 39
+      },
+      "stderr": "",
+      "wall_seconds": 0.31,
+      "peak_rss_kib": 30336
+    },
+    {
+      "id": "ietf-dhcp-1541-to-2131",
+      "side": "new",
+      "input_sha256": "2e0aa93deca92fc13d8d712ec2d1f332a79fc49e00a514de32c51aab75379758",
+      "status": "captured",
+      "exit_code": 0,
+      "output_bytes": 31435541,
+      "output_sha256": "70ece6d6592ba93ad186c04ed3d1210bbd8d02ac11d08f82502f70343c7302a3",
+      "evidence_counts": {
+        "glyphs": 111170,
+        "unmapped_glyphs": 0,
+        "nondefault_directions": 0,
+        "extraction_issues": 0,
+        "pages_with_glyphs": 45
+      },
+      "stderr": "",
+      "wall_seconds": 0.34,
+      "peak_rss_kib": 34432
+    }
+  ]
+}

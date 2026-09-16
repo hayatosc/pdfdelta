@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "nist-41-original-to-r1",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 11
+      },
+      "literal_quote": "Firewalltechnologyhasmaturedtotheextentthattoday'sfirewallscancoordinatesecuritywithotherfirewallsandintrusiondetectionsystems.Theycanscanforvirusesandmali-ciouscodeinelectronicmailandwebpages.FirewallsarenowstandardequipmentforInternetconnections.HomeuserswhoconnecttocommercialInternetserviceprovidersviadial-uporviacable/DSLarealsousingpersonalfirewallsandfirewallappliancestosecuretheirconnections.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "Gaithersburg",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 6
+      },
+      "literal_quote": "Firewalls are devices or programs that control the flow of network traffic between networks or hosts that employ differing security postures. At one time, most firewalls were deployed at network perimeters. This provided some measure of protection for internal hosts, but it could not recognize all instances and forms of attack, and attacks sent from one internal host to another often do not pass through network firewalls. Because of these and other factors, network designers now often include firewall functionality at places other than the network perimeter to provide an additional layer of security, as well as to protect mobile devices that are placed directly onto external networks.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "Gaithersburg",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "615bc4c1eeac93e1cd0131944f9ba0d36027d31f7e21329d17ac7de17a9397bd",
+  "new_sha256": "06642409a8f0dcc9de8725f2d76d6feedea2d4d1faa860c2ee18488863dd1f4f"
+}

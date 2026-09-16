@@ -11,6 +11,8 @@ use super::{
 
 #[derive(Clone, Copy, Debug)]
 pub struct VisualCandidateLimits {
+    /// Whether to propose whole-page raster comparisons in addition to object regions.
+    pub include_composited_pages: bool,
     /// Total sample positions inspected across candidate pairs in one scope.
     pub max_pixel_comparisons: usize,
 }
@@ -18,6 +20,7 @@ pub struct VisualCandidateLimits {
 impl Default for VisualCandidateLimits {
     fn default() -> Self {
         Self {
+            include_composited_pages: true,
             max_pixel_comparisons: 32_000_000,
         }
     }
@@ -61,6 +64,15 @@ pub(super) fn append_visual_candidates(
         compared_pixels: 0,
         exhaustive: true,
     };
+    if !left
+        .iter()
+        .any(|node| matches!(node.content, NodeContent::Visual { .. }))
+        || !right
+            .iter()
+            .any(|node| matches!(node.content, NodeContent::Visual { .. }))
+    {
+        return Ok(search);
+    }
     if !candidates.exhaustive {
         search.exhaustive = false;
         return Ok(search);
@@ -70,10 +82,18 @@ pub(super) fn append_visual_candidates(
         let NodeContent::Visual { region: a_region } = a.content else {
             continue;
         };
+        let a_region = old_regions[&a_region];
+        if !limits.include_composited_pages && a_region.composited_page {
+            continue;
+        }
         for b in &right {
             let NodeContent::Visual { region: b_region } = b.content else {
                 continue;
             };
+            let b_region = new_regions[&b_region];
+            if !limits.include_composited_pages && b_region.composited_page {
+                continue;
+            }
             if search.examined_pairs == matching.max_pair_checks {
                 search.exhaustive = false;
                 break 'pairs;
@@ -83,8 +103,6 @@ pub(super) fn append_visual_candidates(
             if a.kind != b.kind || a.identity.is_some() || b.identity.is_some() {
                 continue;
             }
-            let a_region = old_regions[&a_region];
-            let b_region = new_regions[&b_region];
             if old.evidence.backends[a_region.backend] != new.evidence.backends[b_region.backend]
                 || a_region.raster.width != b_region.raster.width
                 || a_region.raster.height != b_region.raster.height

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-content-v32-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-content-v32-clippy.log",
+        "sha256": "7e0b2e3a885bd9932d1dbdaf6b767956c9b4ddb9d8aa8b9edb12f5125656b497"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-content-v32-workspace.log",
+        "sha256": "4cdc534433e745274173366b523d629d414c06cb95a1b3392c5859c0d4f2f74c"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/native-content-v32-generated.log",
+        "sha256": "98a733feec51cb997d86ed2f7a73ab95dfc254bfe26b43ea890c9e86100f6e26"
+      },
+      "log_normalization": "Removed extra terminal blank lines only."
+    }
+  ],
+  "workspace_tests": {
+    "passed": 2382,
+    "failed": 0,
+    "ignored": 2
+  },
+  "generated_passed": 48,
+  "generated_total": 48,
+  "strict_author_intent_accepted": 42,
+  "strict_author_intent_total": 48,
+  "scope": "Mixed native structure acquisition and existing workspace regression checks. No claim of formal development, unseen, or transition recovery."
+}

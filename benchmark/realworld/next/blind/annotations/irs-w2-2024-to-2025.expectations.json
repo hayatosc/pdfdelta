@@ -1,0 +1,646 @@
+{
+  "version": 1,
+  "pair": "irs-w2-2024-to-2025",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "2614f96006f669cf736df4070bfe5f26e822df93ed70ddc66e717d05eb5c82d1",
+  "resolution_sha256": "820499ebf14b60d1a035f3b5a5edd749fd434c4886c23e0eaf95c9b82e610d35",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "annotation_status": "resolved",
+  "sampling": "One independently selected changed range per active pair, authored and visually inspected before comparison. Partial reference: all unannotated predictions require separate adjudication.",
+  "comparison_convention": "Compare the selected policy sentence, introductory paragraph, abstract, or named form field across publication revisions. Literal annotation preserves raw whitespace, glyph sharing and footnote digits. This reference does not assert a unique author edit history.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "old_new_regions": {
+      "old": {
+        "page": 1,
+        "selector": "body-old",
+        "bbox": [
+          36.0,
+          427.092,
+          358.5609999999999,
+          456.19199999999995
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "source_atoms": [
+          {
+            "kind": "glyph",
+            "id": 2368
+          },
+          {
+            "kind": "glyph",
+            "id": 2369
+          },
+          {
+            "kind": "glyph",
+            "id": 2370
+          },
+          {
+            "kind": "glyph",
+            "id": 2371
+          },
+          {
+            "kind": "glyph",
+            "id": 2372
+          },
+          {
+            "kind": "glyph",
+            "id": 2373
+          },
+          {
+            "kind": "glyph",
+            "id": 2374
+          },
+          {
+            "kind": "glyph",
+            "id": 2375
+          },
+          {
+            "kind": "glyph",
+            "id": 2376
+          },
+          {
+            "kind": "glyph",
+            "id": 2377
+          },
+          {
+            "kind": "glyph",
+            "id": 2378
+          },
+          {
+            "kind": "glyph",
+            "id": 2379
+          },
+          {
+            "kind": "glyph",
+            "id": 2380
+          },
+          {
+            "kind": "glyph",
+            "id": 2381
+          },
+          {
+            "kind": "glyph",
+            "id": 2382
+          },
+          {
+            "kind": "glyph",
+            "id": 2383
+          },
+          {
+            "kind": "glyph",
+            "id": 2384
+          },
+          {
+            "kind": "glyph",
+            "id": 2385
+          },
+          {
+            "kind": "glyph",
+            "id": 2386
+          },
+          {
+            "kind": "glyph",
+            "id": 2387
+          },
+          {
+            "kind": "glyph",
+            "id": 2388
+          },
+          {
+            "kind": "glyph",
+            "id": 2389
+          },
+          {
+            "kind": "glyph",
+            "id": 2390
+          },
+          {
+            "kind": "glyph",
+            "id": 2391
+          },
+          {
+            "kind": "glyph",
+            "id": 2392
+          },
+          {
+            "kind": "glyph",
+            "id": 2393
+          },
+          {
+            "kind": "glyph",
+            "id": 2394
+          },
+          {
+            "kind": "glyph",
+            "id": 2395
+          },
+          {
+            "kind": "glyph",
+            "id": 2396
+          },
+          {
+            "kind": "glyph",
+            "id": 2397
+          },
+          {
+            "kind": "glyph",
+            "id": 2398
+          },
+          {
+            "kind": "glyph",
+            "id": 2399
+          },
+          {
+            "kind": "glyph",
+            "id": 2400
+          }
+        ]
+      },
+      "new": {
+        "page": 1,
+        "selector": "body-new",
+        "bbox": [
+          36.0,
+          427.092,
+          358.5609999999999,
+          456.19199999999995
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "source_atoms": [
+          {
+            "kind": "glyph",
+            "id": 2368
+          },
+          {
+            "kind": "glyph",
+            "id": 2369
+          },
+          {
+            "kind": "glyph",
+            "id": 2370
+          },
+          {
+            "kind": "glyph",
+            "id": 2371
+          },
+          {
+            "kind": "glyph",
+            "id": 2372
+          },
+          {
+            "kind": "glyph",
+            "id": 2373
+          },
+          {
+            "kind": "glyph",
+            "id": 2374
+          },
+          {
+            "kind": "glyph",
+            "id": 2375
+          },
+          {
+            "kind": "glyph",
+            "id": 2376
+          },
+          {
+            "kind": "glyph",
+            "id": 2377
+          },
+          {
+            "kind": "glyph",
+            "id": 2378
+          },
+          {
+            "kind": "glyph",
+            "id": 2379
+          },
+          {
+            "kind": "glyph",
+            "id": 2380
+          },
+          {
+            "kind": "glyph",
+            "id": 2381
+          },
+          {
+            "kind": "glyph",
+            "id": 2382
+          },
+          {
+            "kind": "glyph",
+            "id": 2383
+          },
+          {
+            "kind": "glyph",
+            "id": 2384
+          },
+          {
+            "kind": "glyph",
+            "id": 2385
+          },
+          {
+            "kind": "glyph",
+            "id": 2386
+          },
+          {
+            "kind": "glyph",
+            "id": 2387
+          },
+          {
+            "kind": "glyph",
+            "id": 2388
+          },
+          {
+            "kind": "glyph",
+            "id": 2389
+          },
+          {
+            "kind": "glyph",
+            "id": 2390
+          },
+          {
+            "kind": "glyph",
+            "id": 2391
+          },
+          {
+            "kind": "glyph",
+            "id": 2392
+          },
+          {
+            "kind": "glyph",
+            "id": 2393
+          },
+          {
+            "kind": "glyph",
+            "id": 2394
+          },
+          {
+            "kind": "glyph",
+            "id": 2395
+          },
+          {
+            "kind": "glyph",
+            "id": 2396
+          },
+          {
+            "kind": "glyph",
+            "id": 2397
+          },
+          {
+            "kind": "glyph",
+            "id": 2398
+          },
+          {
+            "kind": "glyph",
+            "id": 2399
+          },
+          {
+            "kind": "glyph",
+            "id": 2400
+          }
+        ]
+      }
+    },
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null
+  },
+  "controls": [
+    "unchanged-control-old",
+    "unchanged-control-new"
+  ],
+  "visual_checks": [
+    {
+      "id": "irs-w2-2024-to-2025",
+      "side": "old",
+      "page": 1,
+      "input_sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526",
+      "object_evidence_sha256": "23ce509503814fd40a08b966f69f033c740cfe634c1f478b550e56779a5bf08b",
+      "width": 612,
+      "height": 792,
+      "object_number": 1,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "4e4e5f9210137ce70143e08b76b088262fdd18d6dd52dda6ca9462981e644e15",
+      "warning": false,
+      "png_sha256": "a3035a28db5327c2b92c32f1fdd8f79af7990cd72fbfb9b49d4cda44e0ca19d9",
+      "cache_directory": "next-blind-body-renders",
+      "visually_inspected": true
+    },
+    {
+      "id": "irs-w2-2024-to-2025",
+      "side": "new",
+      "page": 1,
+      "input_sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96",
+      "object_evidence_sha256": "b76cc8046554b57350941b6f16bf247a7ff0fa5016608ea1329f8c1e80b7579a",
+      "width": 612,
+      "height": 792,
+      "object_number": 1,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "3568fa94ce2cfd93deaf64c696471b12420c36f93ab455ae6a093ec2ac036ea7",
+      "warning": false,
+      "png_sha256": "304140a3e9f5f753abc0dceab1c643e01defa9b4981eefcd523ee8e22e74cf8a",
+      "cache_directory": "next-blind-body-renders",
+      "visually_inspected": true
+    }
+  ],
+  "source_capture_hashes": {
+    "old": "5b8c41cfd2526b90cb186119fe0604175a286b4dd2da39bdef66c06d145cb2db",
+    "new": "e67c0b67bb6a3686ff75008ae0abfc50023ce0dcab8178f4bcdfe64bf8862386"
+  },
+  "numeric_target": {
+    "event_denominator": 1,
+    "changed_scalar_denominator": 2,
+    "changed_source_atoms_denominator": 2,
+    "operation": "replacement",
+    "contract": "Within the selected Copy A year label, the unique cost-one edit replaces the final year digit 4 with 5. Other copies and the changed OMB number are outside this restricted gold.",
+    "sides": {
+      "old": {
+        "selector": "body-old",
+        "changed_scalar_in_quote": 32,
+        "changed_sources": [
+          {
+            "id": 2400,
+            "kind": "glyph"
+          }
+        ],
+        "unchanged_sources": [
+          {
+            "kind": "glyph",
+            "id": 2368
+          },
+          {
+            "kind": "glyph",
+            "id": 2369
+          },
+          {
+            "kind": "glyph",
+            "id": 2370
+          },
+          {
+            "kind": "glyph",
+            "id": 2371
+          },
+          {
+            "kind": "glyph",
+            "id": 2372
+          },
+          {
+            "kind": "glyph",
+            "id": 2373
+          },
+          {
+            "kind": "glyph",
+            "id": 2374
+          },
+          {
+            "kind": "glyph",
+            "id": 2375
+          },
+          {
+            "kind": "glyph",
+            "id": 2376
+          },
+          {
+            "kind": "glyph",
+            "id": 2377
+          },
+          {
+            "kind": "glyph",
+            "id": 2378
+          },
+          {
+            "kind": "glyph",
+            "id": 2379
+          },
+          {
+            "kind": "glyph",
+            "id": 2380
+          },
+          {
+            "kind": "glyph",
+            "id": 2381
+          },
+          {
+            "kind": "glyph",
+            "id": 2382
+          },
+          {
+            "kind": "glyph",
+            "id": 2383
+          },
+          {
+            "kind": "glyph",
+            "id": 2384
+          },
+          {
+            "kind": "glyph",
+            "id": 2385
+          },
+          {
+            "kind": "glyph",
+            "id": 2386
+          },
+          {
+            "kind": "glyph",
+            "id": 2387
+          },
+          {
+            "kind": "glyph",
+            "id": 2388
+          },
+          {
+            "kind": "glyph",
+            "id": 2389
+          },
+          {
+            "kind": "glyph",
+            "id": 2390
+          },
+          {
+            "kind": "glyph",
+            "id": 2391
+          },
+          {
+            "kind": "glyph",
+            "id": 2392
+          },
+          {
+            "kind": "glyph",
+            "id": 2393
+          },
+          {
+            "kind": "glyph",
+            "id": 2394
+          },
+          {
+            "kind": "glyph",
+            "id": 2395
+          },
+          {
+            "kind": "glyph",
+            "id": 2396
+          },
+          {
+            "kind": "glyph",
+            "id": 2397
+          },
+          {
+            "kind": "glyph",
+            "id": 2398
+          },
+          {
+            "kind": "glyph",
+            "id": 2399
+          }
+        ]
+      },
+      "new": {
+        "selector": "body-new",
+        "changed_scalar_in_quote": 32,
+        "changed_sources": [
+          {
+            "id": 2400,
+            "kind": "glyph"
+          }
+        ],
+        "unchanged_sources": [
+          {
+            "kind": "glyph",
+            "id": 2368
+          },
+          {
+            "kind": "glyph",
+            "id": 2369
+          },
+          {
+            "kind": "glyph",
+            "id": 2370
+          },
+          {
+            "kind": "glyph",
+            "id": 2371
+          },
+          {
+            "kind": "glyph",
+            "id": 2372
+          },
+          {
+            "kind": "glyph",
+            "id": 2373
+          },
+          {
+            "kind": "glyph",
+            "id": 2374
+          },
+          {
+            "kind": "glyph",
+            "id": 2375
+          },
+          {
+            "kind": "glyph",
+            "id": 2376
+          },
+          {
+            "kind": "glyph",
+            "id": 2377
+          },
+          {
+            "kind": "glyph",
+            "id": 2378
+          },
+          {
+            "kind": "glyph",
+            "id": 2379
+          },
+          {
+            "kind": "glyph",
+            "id": 2380
+          },
+          {
+            "kind": "glyph",
+            "id": 2381
+          },
+          {
+            "kind": "glyph",
+            "id": 2382
+          },
+          {
+            "kind": "glyph",
+            "id": 2383
+          },
+          {
+            "kind": "glyph",
+            "id": 2384
+          },
+          {
+            "kind": "glyph",
+            "id": 2385
+          },
+          {
+            "kind": "glyph",
+            "id": 2386
+          },
+          {
+            "kind": "glyph",
+            "id": 2387
+          },
+          {
+            "kind": "glyph",
+            "id": 2388
+          },
+          {
+            "kind": "glyph",
+            "id": 2389
+          },
+          {
+            "kind": "glyph",
+            "id": 2390
+          },
+          {
+            "kind": "glyph",
+            "id": 2391
+          },
+          {
+            "kind": "glyph",
+            "id": 2392
+          },
+          {
+            "kind": "glyph",
+            "id": 2393
+          },
+          {
+            "kind": "glyph",
+            "id": 2394
+          },
+          {
+            "kind": "glyph",
+            "id": 2395
+          },
+          {
+            "kind": "glyph",
+            "id": 2396
+          },
+          {
+            "kind": "glyph",
+            "id": 2397
+          },
+          {
+            "kind": "glyph",
+            "id": 2398
+          },
+          {
+            "kind": "glyph",
+            "id": 2399
+          }
+        ]
+      }
+    }
+  }
+}

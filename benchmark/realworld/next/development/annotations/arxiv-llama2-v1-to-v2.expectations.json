@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "pair": "arxiv-llama2-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "79587f896ee87d20ba0f8f9835dbfca22ae2e3a4fc8a4ba2f30c95f4073e7483",
+  "resolution_sha256": "c46ff6b99393e582cc914fc2188995f79308a1caf81a567b6250ce65d21a3e3d",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "sampling": "One finite changed source range and one unchanged content control, visually inspected before comparison; partial reference only.",
+  "positive_scope": {
+    "selectors": {
+      "old": [
+        "body-old"
+      ],
+      "new": [
+        "body-new"
+      ]
+    },
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "The finite end-of-paragraph range loses the sentence describing A100/RoCE power and relative performance. The earlier paragraph portion is outside this reference."
+  },
+  "negative_control": {
+    "selectors": {
+      "old": [
+        "unchanged-abstract-old"
+      ],
+      "new": [
+        "unchanged-abstract-new"
+      ]
+    },
+    "expected_content_change": false,
+    "unchanged_scope_denominator": 1,
+    "convention": "The selected visible wording is unchanged. Literal whitespace and glyph roles remain in the annotation; typography, page layout and unselected surrounding material are separate. The NASA phrase lies within the positive sentence and must not be painted as changed merely for context."
+  },
+  "comparison_convention": "Compare only the named source ranges. No unique author edit history or exact internal changed-position gold is asserted. Ruby base text and annotations are not interchangeable source positions.",
+  "regions": [
+    {
+      "selector": "body-old",
+      "side": "old",
+      "page": 6,
+      "bbox": [
+        72.0,
+        527.8096706,
+        540.3007302750001,
+        565.8766712
+      ],
+      "source_atoms": 226,
+      "unicode_scalars": 227,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    },
+    {
+      "selector": "unchanged-abstract-old",
+      "side": "old",
+      "page": 0,
+      "bbox": [
+        107.866,
+        374.2996706,
+        505.87525728399993,
+        401.4576712
+      ],
+      "source_atoms": 145,
+      "unicode_scalars": 146,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    },
+    {
+      "selector": "body-new",
+      "side": "new",
+      "page": 6,
+      "bbox": [
+        72.0,
+        540.3876706,
+        540.0040938600001,
+        567.5456712
+      ],
+      "source_atoms": 97,
+      "unicode_scalars": 98,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    },
+    {
+      "selector": "unchanged-abstract-new",
+      "side": "new",
+      "page": 0,
+      "bbox": [
+        107.866,
+        374.2996706,
+        505.87525728399993,
+        401.4576712
+      ],
+      "source_atoms": 145,
+      "unicode_scalars": 146,
+      "coordinate_system": "native PDF user-space evidence bounds"
+    }
+  ],
+  "presentation": {
+    "single_column_selected_body": true,
+    "cross_page_positive": false,
+    "cross_page_negative": false,
+    "observed_column_change": false,
+    "ruby_in_selected_positive": false,
+    "old_diagonal_watermark": false,
+    "rotated_sidebar_on_control_page": true,
+    "old_visible_line_numbers": false,
+    "target_is_cover_date": false,
+    "figures_on_selected_pages": true
+  },
+  "visual_checks": [
+    {
+      "side": "new",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        122,
+        0
+      ],
+      "pages": 77,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "82e0229368ef781c823bca877142fe37e155c4bc9e8882b64100f818ff426a5f",
+      "input_sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    },
+    {
+      "side": "new",
+      "page": 6,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        413,
+        0
+      ],
+      "pages": 77,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "4c8b18f38b97cd3e73ce77831cd3d67318471e12949821108e21f7d540966e55",
+      "input_sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    },
+    {
+      "side": "old",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        122,
+        0
+      ],
+      "pages": 76,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "e8998bf5c7548bc9d945d89bda7e3dccbf037cabcfee4e06b0ca6ecbcdd44e74",
+      "input_sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    },
+    {
+      "side": "old",
+      "page": 6,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        407,
+        0
+      ],
+      "pages": 76,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "8c2d6397f43a68bae23922aba44c92c93820dd51e58a35d532e32d9dee3b3dac",
+      "input_sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80",
+      "visually_inspected": true,
+      "profile": "page-rgb-white-72dpi-annotations-v1",
+      "renderer_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    }
+  ]
+}

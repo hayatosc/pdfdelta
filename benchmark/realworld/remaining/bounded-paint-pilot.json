@@ -1,0 +1,1264 @@
+{
+  "version": 1,
+  "interpretation": "Single-pass development diagnostic, not repeatability or correctness adjudication. Range overlap does not establish additional recovery.",
+  "build": {
+    "path": "benchmark/realworld/cache/remaining-bounded-paint/build.json",
+    "sha256": "f52bba27e6d6514b9bcfbfc67431460ca25e0939c2630b3e262d82e7fb1fd736"
+  },
+  "observations": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 0,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "da385b37e07b86ff4fc4c89b703ae1bccd83c03f8e163293433bf5ca1971ab3a"
+      },
+      "score": {
+        "pair": "edpb-controller-processor-v1-to-v2-1",
+        "core_atoms": 986,
+        "extent_atoms": 986,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 1,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "5c90ed16ca22d459e70c4a6877103d003ed6b3a7161d6bef77b0eb0ab072fb9b"
+      },
+      "score": {
+        "pair": "edpb-restrictions-v1-to-final",
+        "core_atoms": 1312,
+        "extent_atoms": 1312,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 2,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "c357ab78362cee5b317a5d67f7b8d0616aa06645ff1b80bbd97d4ea1473aae5f"
+      },
+      "score": {
+        "pair": "edpb-design-default-v1-to-v2",
+        "core_atoms": 847,
+        "extent_atoms": 847,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 3,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "34235bbbc9af5eedb65afb8ccd8a8bc84470d22a3a392aefc5f817cbe33f2752"
+      },
+      "score": {
+        "pair": "edpb-social-targeting-v1-to-v2",
+        "core_atoms": 1319,
+        "extent_atoms": 1319,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": [
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 640,
+            "core_intersection": 0,
+            "extra_context_atoms": 640,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/0"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 4,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "a605537f362dfaa21fcc1b21c31ad181ec751816775f5abde24883d8da5a763f"
+      },
+      "score": {
+        "pair": "nist-incident-handling-r2-to-r3",
+        "core_atoms": 1388,
+        "extent_atoms": 1388,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 5,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/nist-ssdf-draft-to-final-text.json",
+        "sha256": "c0ab53270774114662c9ea7261cd7495b876a9d6475201bc7da2a4bdfa731040"
+      },
+      "score": {
+        "pair": "nist-ssdf-draft-to-final",
+        "core_atoms": 1946,
+        "extent_atoms": 1946,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 6,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "97a6fe101f5adf0815e894a4d5e7a4843020b43287ad7e6cc2a12ab851ce3087"
+      },
+      "score": {
+        "pair": "nist-ai-rmf-draft2-to-v1",
+        "core_atoms": 949,
+        "extent_atoms": 949,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 7,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "69af8cd67b862dba9439b85617b253365370987c856e98c92077dd62dd18d931"
+      },
+      "score": {
+        "pair": "nist-authentication-63b-to-63b4",
+        "core_atoms": 1405,
+        "extent_atoms": 1405,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 8,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/irs-w9-2018-to-2024-text.json",
+        "sha256": "0ebde666c90ddfa8956ab0af66240031a5405c5813ce9d4affc1bf7ee2ced4e6"
+      },
+      "score": {
+        "pair": "irs-w9-2018-to-2024",
+        "core_atoms": 292,
+        "extent_atoms": 292,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 9,
+      "status": "failed",
+      "complete": false
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 10,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "8ed82bd04386a9171faed0ae5aede6e2cbea70a4fe4dba48b8ea5d248243891f"
+      },
+      "score": {
+        "pair": "irs-schedule-c-2024-to-2025",
+        "core_atoms": 256,
+        "extent_atoms": 256,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 11,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "4dbb3f042c45cbfd12b7763da1603959c0de66c896ccc616e7ac7cd67a20f2a6"
+      },
+      "score": {
+        "pair": "irs-schedule-se-2024-to-2025",
+        "core_atoms": 375,
+        "extent_atoms": 375,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 12,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "c182ba6455817a40b9fe0728d1671d5eb392e3cfa27e68fba17374a367b5a63d"
+      },
+      "score": {
+        "pair": "arxiv-bert-v1-to-v2",
+        "core_atoms": 703,
+        "extent_atoms": 703,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 13,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "5738748e4f26d5a182c94bb34be8df349959cc760f9f106f4736fdb2360d6f68"
+      },
+      "score": {
+        "pair": "arxiv-gpt3-v1-to-v4",
+        "core_atoms": 225,
+        "extent_atoms": 225,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": [
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 770,
+            "core_intersection": 0,
+            "extra_context_atoms": 770,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/0"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 14,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "ff8c58baed9730db5b05b2f69c30bbdc475292cc851de4af56502ee627a9eaaf"
+      },
+      "score": {
+        "pair": "mext-primary-japanese-2008-to-2017",
+        "core_atoms": 212,
+        "extent_atoms": 212,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 15,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "76b3905adb73c750d7153e845f330736905ea3cc1355f4543d7b515d7eed4101"
+      },
+      "score": {
+        "pair": "mext-lower-secondary-japanese-2008-to-2017",
+        "core_atoms": 212,
+        "extent_atoms": 212,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 16,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "2404443ff00dbcc5bc0a122a8ca5a2055f0883a5d3e4c6d125be1fbd410709ac"
+      },
+      "score": {
+        "pair": "mext-upper-secondary-japanese-2009-to-2018",
+        "core_atoms": 14,
+        "extent_atoms": 14,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 17,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "64997fb7e45c3f0b58f2b2f43559fe23b0fab225902e4a089626a73c2d2debc4"
+      },
+      "score": {
+        "pair": "mhlw-care-skills-original-to-revised",
+        "core_atoms": 130,
+        "extent_atoms": 130,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 18,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "58960ebf3eb0b5dfb439d2cb44e829168f17c72558a5103725b743d790a28b01"
+      },
+      "score": {
+        "pair": "nasa-buckling-8007-1968-to-2020",
+        "core_atoms": 413,
+        "extent_atoms": 413,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 19,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "fc619b50c9781136a781cf53e6953a27f7b0495f4d2d1f226b6c8a643c17ac35"
+      },
+      "score": {
+        "pair": "ipcc-synthesis-ar5-to-ar6",
+        "core_atoms": 717,
+        "extent_atoms": 717,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 20,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/ecb-annual-2023-to-2024-text.json",
+        "sha256": "b7954b5fbe7a50cff858518230eddf36bd11896940dc01c9b38682e7b00f614a"
+      },
+      "score": {
+        "pair": "ecb-annual-2023-to-2024",
+        "core_atoms": 0,
+        "extent_atoms": 0,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 21,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/nist-sha-1803-to-1804-text.json",
+        "sha256": "4b6f521a86ed483070f171e56b63c68a55e02db2bcba73498c220879487a9f54"
+      },
+      "score": {
+        "pair": "nist-sha-1803-to-1804",
+        "core_atoms": 383,
+        "extent_atoms": 383,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": [
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 43,
+            "core_intersection": 0,
+            "extra_context_atoms": 43,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/0"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 277,
+            "core_intersection": 0,
+            "extra_context_atoms": 277,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/1"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 378,
+            "core_intersection": 0,
+            "extra_context_atoms": 378,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/2"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 189,
+            "core_intersection": 0,
+            "extra_context_atoms": 189,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/3"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 435,
+            "core_intersection": 0,
+            "extra_context_atoms": 435,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/4"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 507,
+            "core_intersection": 0,
+            "extra_context_atoms": 507,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/5"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 1455,
+            "core_intersection": 0,
+            "extra_context_atoms": 1455,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/6"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 360,
+            "core_intersection": 0,
+            "extra_context_atoms": 360,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/7"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 263,
+            "core_intersection": 0,
+            "extra_context_atoms": 263,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/8"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 22,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "146136820bb93644ba68240c3d4a76a0db28711bb1a2de6021308e8388b86b26"
+      },
+      "score": {
+        "pair": "arxiv-ddpm-v1-to-v2",
+        "core_atoms": 804,
+        "extent_atoms": 804,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": [
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 291,
+            "core_intersection": 0,
+            "extra_context_atoms": 291,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/0"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 600,
+            "core_intersection": 0,
+            "extra_context_atoms": 600,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/1"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 174,
+            "core_intersection": 0,
+            "extra_context_atoms": 174,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/2"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 174,
+            "core_intersection": 0,
+            "extra_context_atoms": 174,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/3"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 172,
+            "core_intersection": 0,
+            "extra_context_atoms": 172,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/4"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 172,
+            "core_intersection": 0,
+            "extra_context_atoms": 172,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/5"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 176,
+            "core_intersection": 0,
+            "extra_context_atoms": 176,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/6"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 190,
+            "core_intersection": 0,
+            "extra_context_atoms": 190,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/7"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 174,
+            "core_intersection": 0,
+            "extra_context_atoms": 174,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/8"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 506,
+            "core_intersection": 0,
+            "extra_context_atoms": 506,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/9"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 172,
+            "core_intersection": 0,
+            "extra_context_atoms": 172,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/10"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 178,
+            "core_intersection": 0,
+            "extra_context_atoms": 178,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/11"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 192,
+            "core_intersection": 0,
+            "extra_context_atoms": 192,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/12"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 1099,
+            "core_intersection": 0,
+            "extra_context_atoms": 1099,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/13"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 184,
+            "core_intersection": 0,
+            "extra_context_atoms": 184,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/14"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 182,
+            "core_intersection": 0,
+            "extra_context_atoms": 182,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/15"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 166,
+            "core_intersection": 0,
+            "extra_context_atoms": 166,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/16"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 178,
+            "core_intersection": 0,
+            "extra_context_atoms": 178,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/17"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 176,
+            "core_intersection": 0,
+            "extra_context_atoms": 176,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/18"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 178,
+            "core_intersection": 0,
+            "extra_context_atoms": 178,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/19"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 170,
+            "core_intersection": 0,
+            "extra_context_atoms": 170,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/20"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 176,
+            "core_intersection": 0,
+            "extra_context_atoms": 176,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/21"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 178,
+            "core_intersection": 0,
+            "extra_context_atoms": 178,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/22"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 180,
+            "core_intersection": 0,
+            "extra_context_atoms": 180,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/23"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 178,
+            "core_intersection": 0,
+            "extra_context_atoms": 178,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/24"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 186,
+            "core_intersection": 0,
+            "extra_context_atoms": 186,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/25"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 174,
+            "core_intersection": 0,
+            "extra_context_atoms": 174,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/26"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 168,
+            "core_intersection": 0,
+            "extra_context_atoms": 168,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/27"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 182,
+            "core_intersection": 0,
+            "extra_context_atoms": 182,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/28"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 180,
+            "core_intersection": 0,
+            "extra_context_atoms": 180,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/29"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 170,
+            "core_intersection": 0,
+            "extra_context_atoms": 170,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/30"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 170,
+            "core_intersection": 0,
+            "extra_context_atoms": 170,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/31"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 164,
+            "core_intersection": 0,
+            "extra_context_atoms": 164,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/32"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 170,
+            "core_intersection": 0,
+            "extra_context_atoms": 170,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/33"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 184,
+            "core_intersection": 0,
+            "extra_context_atoms": 184,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/34"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 497,
+            "core_intersection": 0,
+            "extra_context_atoms": 497,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/35"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 176,
+            "core_intersection": 0,
+            "extra_context_atoms": 176,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/36"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 273,
+            "core_intersection": 0,
+            "extra_context_atoms": 273,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/37"
+          },
+          {
+            "source_range_hit": false,
+            "category": "B",
+            "predicted_atoms": 914,
+            "core_intersection": 0,
+            "extra_context_atoms": 914,
+            "pointer": "/comparison/scopes/0/result/text_scope_reviews/38"
+          }
+        ]
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/runs.json",
+        "sha256": "a2fe4767c02311e1155e7ff998f9d357bb3b077d6d63b54bfd63d4a8b0c2c84b"
+      },
+      "run_index": 23,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-0/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "efc1ccb497d0c811d4af5e11e84c6874817cb9fa5ca9ea138f3afc5776eaaba0"
+      },
+      "score": {
+        "pair": "arxiv-llama2-v1-to-v2",
+        "core_atoms": 323,
+        "extent_atoms": 323,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 0,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "ac11812ffc24825b8ea863898bae7fe91850e68ac72ac20c3d8dfde93f335d57"
+      },
+      "score": {
+        "pair": "nist-risk-management-37-r1-to-r2",
+        "core_atoms": 514,
+        "extent_atoms": 514,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 1,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "dc18577b7164b396f14564abbf5aafa4af1f283d11200fcb4a3893e9165acf37"
+      },
+      "score": {
+        "pair": "irs-1099-misc-2024-to-2025",
+        "core_atoms": 39,
+        "extent_atoms": 39,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 2,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/irs-w2-2024-to-2025-text.json",
+        "sha256": "06bdb45dee08ccac7c9bf4434b92873f51e63a7d0a9a4af4d79919a95b4d1bf9"
+      },
+      "score": {
+        "pair": "irs-w2-2024-to-2025",
+        "core_atoms": 66,
+        "extent_atoms": 66,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 3,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "b4bd18b0b9fb7d6a37cde9c35e22577e5a7348048377f59d03f464bc3fec2699"
+      },
+      "score": {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "core_atoms": 1907,
+        "extent_atoms": 1907,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 4,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "0d70cfa3e48824e192699fab02a8483ba5275e0dd151a2cf27b13f9a8ccd98ee"
+      },
+      "score": {
+        "pair": "bunka-official-writing-1952-to-2022",
+        "core_atoms": 90,
+        "extent_atoms": 90,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 5,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "7eff4024ff2779ee9d31923ebfe6fb157cda1335f6cd2223b1187965a243a506"
+      },
+      "score": {
+        "pair": "faa-thunderstorms-b-to-c",
+        "core_atoms": 1379,
+        "extent_atoms": 1379,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 6,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "71404f373721a10e2e23f8d21a5f18288cdcded6555164bc8d68ea3915d56c58"
+      },
+      "score": {
+        "pair": "faa-maintenance-records-c-to-d",
+        "core_atoms": 970,
+        "extent_atoms": 970,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 7,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "3a8a6710954c25937eddf382d6f75d283c29b85b50a6a0fcacd620282f295bc5"
+      },
+      "score": {
+        "pair": "arxiv-faster-rcnn-v1-to-v3",
+        "core_atoms": 1023,
+        "extent_atoms": 1023,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 8,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/bunka-kana-1946-to-1986-text.json",
+        "sha256": "f67dd62d85472dde81b73eb76137a1b7d5d6b428dbc4767967f81dc6e90ac5c9"
+      },
+      "score": {
+        "pair": "bunka-kana-1946-to-1986",
+        "core_atoms": 0,
+        "extent_atoms": 0,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 9,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "f32e8017c60dfcdba4b728819110375bfc24323a32cdee5254aff989fa875dfa"
+      },
+      "score": {
+        "pair": "nist-controls-53-r4-to-r5",
+        "core_atoms": 569,
+        "extent_atoms": 569,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 10,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "b796a960c802e9bc9d017016d960cd3387ba9ecee290332584b06da372270439"
+      },
+      "score": {
+        "pair": "nist-risk-assessment-30-to-r1",
+        "core_atoms": 740,
+        "extent_atoms": 740,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/runs.json",
+        "sha256": "fbcdbc80389910a5bc095f8211dfcba50a2f68bd26d9e1a83e92cc5ef132a82e"
+      },
+      "run_index": 11,
+      "status": "captured",
+      "complete": false,
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-bounded-paint/group-1/nist-contingency-34-to-r1-text.json",
+        "sha256": "0694b1a25a75efd4a22ae6f05b0f48a6516edaf62811d38d5f6ee550836210b4"
+      },
+      "score": {
+        "pair": "nist-contingency-34-to-r1",
+        "core_atoms": 1234,
+        "extent_atoms": 1234,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null,
+        "reviews": []
+      }
+    }
+  ]
+}

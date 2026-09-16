@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "pair": "arxiv-ddpm-v1-to-v2",
+  "binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+  "manifest_sha256": "f0bcf725be0da19323115b0d43f217b45714dcf9444622dbd9c75504e3bad8e3",
+  "file_count": 55,
+  "artifact_bytes": 95625616,
+  "png_count": 49,
+  "category_rows": {
+    "a": 0,
+    "b": 39,
+    "c": 0
+  },
+  "source_pdf_links": 78,
+  "comparison_equal_after_removing_only_comparison_wall_time_ms": true,
+  "existing_report": "/tmp/pdfdelta-dev-arxiv-page-gap/arxiv-ddpm-v1-to-v2-text.json",
+  "bundle_location": "/tmp/pdfdelta-ddpm-page-gap-review",
+  "browser_recheck": false,
+  "browser_note": "Static output generation and report parity checked; unchanged HTML interaction was already browser-checked for P5.",
+  "retained_preview_contract": "Retained glyphs, vectors, marked content, graph and source metadata. Composited page samples are losslessly exported as PNG; exported normalization certificates are not reusable source proofs."
+}

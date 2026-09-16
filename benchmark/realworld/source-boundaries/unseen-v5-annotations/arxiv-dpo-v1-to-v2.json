@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-dpo-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Whilelarge-scaleunsupervisedlanguagemodels(LMs)learnbroadworldknowl-edgeandsomereasoningskills,achievingprecisecontroloftheirbehaviorisdifficultduetothecompletelyunsupervisednatureoftheirtraining.Existingmethodsforgainingsuchsteerabilitycollecthumanlabelsoftherelativequalityofmodelgenerationsandfine-tunetheunsupervisedLMtoalignwiththeseprefer-ences,oftenwithreinforcementlearningfromhumanfeedback(RLHF).However,RLHFisacomplexandoftenunstableprocedure,firstfittingarewardmodelthatreflectsthehumanpreferences,andthenfine-tuningthelargeunsupervisedLMusingreinforcementlearningtomaximizethisestimatedrewardwithoutdriftingtoofarfromtheoriginalmodel.Inthispaper,weleverageamappingbetweenrewardfunctionsandoptimalpoliciestoshowthatthisconstrainedrewardmaxi-mizationproblemcanbeoptimizedexactlywithasinglestageofpolicytraining,essentiallysolvingaclassificationproblemonthehumanpreferencedata.Theresultingalgorithm,whichwecallDirectPreferenceOptimization(DPO),isstable,performant,andcomputationallylightweight,eliminatingtheneedforfittingarewardmodel,samplingfromtheLMduringfine-tuning,orperformingsignificanthyperparametertuning.OurexperimentsshowthatDPOcanfine-tuneLMstoalignwithhumanpreferencesaswellasorbetterthanexistingmethods.Notably,fine-tuningwithDPOexceedsRLHF’sabilitytocontrolsentimentofgenerationsandimprovesresponsequalityinsummarizationandsingle-turndialoguewhilebeingsubstantiallysimplertoimplementandtrain.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Whilelarge-scaleunsupervisedlanguagemodels(LMs)learnbroadworldknowl-edgeandsomereasoningskills,achievingprecisecontroloftheirbehaviorisdifficultduetothecompletelyunsupervisednatureoftheirtraining.Existingmethodsforgainingsuchsteerabilitycollecthumanlabelsoftherelativequalityofmodelgenerationsandfine-tunetheunsupervisedLMtoalignwiththeseprefer-ences,oftenwithreinforcementlearningfromhumanfeedback(RLHF).However,RLHFisacomplexandoftenunstableprocedure,firstfittingarewardmodelthatreflectsthehumanpreferences,andthenfine-tuningthelargeunsupervisedLMusingreinforcementlearningtomaximizethisestimatedrewardwithoutdriftingtoofarfromtheoriginalmodel.InthispaperweintroduceanewparameterizationoftherewardmodelinRLHFthatenablesextractionofthecorrespondingoptimalpolicyinclosedform,allowingustosolvethestandardRLHFproblemwithonlyasimpleclassificationloss.Theresultingalgorithm,whichwecallDirectPrefer-enceOptimization(DPO),isstable,performant,andcomputationallylightweight,eliminatingtheneedforsamplingfromtheLMduringfine-tuningorperformingsignificanthyperparametertuning.OurexperimentsshowthatDPOcanfine-tuneLMstoalignwithhumanpreferencesaswellasorbetterthanexistingmethods.Notably,fine-tuningwithDPOexceedsPPO-basedRLHFinabilitytocontrolsen-timentofgenerations,andmatchesorimprovesresponsequalityinsummarizationandsingle-turndialoguewhilebeingsubstantiallysimplertoimplementandtrain.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "304d57efe53317673ee5e93e1e1d990e3231fb4e24198aedd4829968e2c3cfbb",
+  "new_sha256": "a280dc33571ceb07c9ede5fc997f81162c5491080c9ef3f2abe13bfd0c713bfd"
+}

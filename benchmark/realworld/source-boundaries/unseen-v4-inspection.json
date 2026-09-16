@@ -1,0 +1,536 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "7836eff1f3430aaea7498517237329d9f472b08ff281dad6d813d2f415675b59",
+  "attempts": [
+    {
+      "pair": "nist-47-original-to-r1",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:28.722985+00:00",
+      "exit_code": 0,
+      "input_sha256": "69ba590a5e8182b919eb230a4be9578c35574d68d3770b1e52bbc59ec578f5c3",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-old.glyphs.txt",
+        "sha256": "b2857c5a862fdb941c779c9bd71164d84de1377fb1a83f83b82ca88a0f13d82a"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-47-original-to-r1",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:29.239278+00:00",
+      "exit_code": 0,
+      "input_sha256": "3ba5248bab614da212440a1bcfe814f0068ef95ebc2d73025742bc78a89c865a",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-new.glyphs.txt",
+        "sha256": "9646a11c21a821a968a9b8b0ca2c242e09f572f5c180bc99b696eafa9cf19f8d"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-47-original-to-r1-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-52-r1-to-r2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:29.878809+00:00",
+      "exit_code": 0,
+      "input_sha256": "33d5f334ea8a2fef837b990f4a2b046a26f1c3db5ef4fb636207f54fa8363af4",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-old.glyphs.txt",
+        "sha256": "f6619d73d40c6f849607e8b9a583d9fb9782afd62b6d7a6170beb35ca0602153"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-52-r1-to-r2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:30.729624+00:00",
+      "exit_code": 0,
+      "input_sha256": "f9a4dbb9cc6ac6778bb9f4e6be9272c2f14d113f3ad241a295684ac6bd71f257",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-new.glyphs.txt",
+        "sha256": "f95c432a4527d48bf84a43b62c7f48d94f624d22a02b14b4b6293efbf348e935"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-52-r1-to-r2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-41-original-to-r1",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:31.524429+00:00",
+      "exit_code": 0,
+      "input_sha256": "615bc4c1eeac93e1cd0131944f9ba0d36027d31f7e21329d17ac7de17a9397bd",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-old.glyphs.txt",
+        "sha256": "763fc7747c03edc4aa08568049c66b52c20fe7c1b2c05873c59709b7cfe2c112"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-41-original-to-r1",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:32.109037+00:00",
+      "exit_code": 0,
+      "input_sha256": "06642409a8f0dcc9de8725f2d76d6feedea2d4d1faa860c2ee18488863dd1f4f",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-new.glyphs.txt",
+        "sha256": "03c8c6da711dd9d5e09a96744a085ce88a07f7a618a2828f6317e5e9ec1f1fe3"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/nist-41-original-to-r1-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-connected-vehicles-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:32.636516+00:00",
+      "exit_code": 0,
+      "input_sha256": "2829979c288134adc67a67742125725446d08ddb1bb137597ac3ea2e6f56a765",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-connected-vehicles-v1-to-v2-old.glyphs.txt",
+        "sha256": "2775bc9cba0a464e1c2c23577c211795c1dbf9facb8d42ae2d932c3452516a49"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-connected-vehicles-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "edpb-interplay-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:33.044380+00:00",
+      "exit_code": 0,
+      "input_sha256": "b19ef19c3232663f8898de52c13c659d2237c81aa1870064bbf4565ec6d5ab38",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-old.glyphs.txt",
+        "sha256": "f2dad00a819f6979c0d63b0658da240ee4164be1117b248e66db17338b46b1f0"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "edpb-interplay-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:33.416796+00:00",
+      "exit_code": 0,
+      "input_sha256": "ad8f627202ea9c4f12ce33093754db304a7a6f1611a771bb872489daacbda562",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-new.glyphs.txt",
+        "sha256": "87bb2f8093167fb2218ea11981e951ef808cad15cd5540fff48df2bc284b89e0"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/edpb-interplay-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-rag-v1-to-v4",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:33.650607+00:00",
+      "exit_code": 0,
+      "input_sha256": "25b55fd0f7c6c91cbe2c88690a33923077103e8f563d154faa1ce11d3527e601",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-old.glyphs.txt",
+        "sha256": "64f81a09adc39d8bb6e4454aa3ca801b7cbf02b51910b90f3b6a71ddd7e13f66"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-rag-v1-to-v4",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:33.877851+00:00",
+      "exit_code": 0,
+      "input_sha256": "23e3249e9a1e75418d82efecab0ea8c4d033b89c93742f63208d47ce01f21233",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-new.glyphs.txt",
+        "sha256": "96ddab35b0ff58a7b30005a8dd7c98f8427c7da6cd07196bcba68efbd044de4f"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-rag-v1-to-v4-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-longformer-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:34.107028+00:00",
+      "exit_code": 0,
+      "input_sha256": "e91f2c916b1d807f7855a40f5fdef45c0c8a09cd840302b9ed406ff947bc61b9",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-old.glyphs.txt",
+        "sha256": "1bc73137aaa78f6623ee747a706a573c93b904b2824a00a77ddf48133ca153e5"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-longformer-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:34.333100+00:00",
+      "exit_code": 0,
+      "input_sha256": "053756b54e2d3462d4690b3aed489c962f17df7c3531865e47374c4a651f526c",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-new.glyphs.txt",
+        "sha256": "816714c8566e051b52cb1c767046840f6f19e3059350906f2211807042b15779"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-longformer-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-simclr-v1-to-v3",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:34.612315+00:00",
+      "exit_code": 0,
+      "input_sha256": "32029422ad7fc8ad472c9b53cbb9f9a81981c34da1862ebd6a693c5a72c04f39",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-old.glyphs.txt",
+        "sha256": "b8d0ea5b1af243657a0e79532976526bbb0c735ac40834c551b09db664938753"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-simclr-v1-to-v3",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:34.947708+00:00",
+      "exit_code": 0,
+      "input_sha256": "e1b10db76adeb0d21a014b9abcf42f6a6af928540c223f010fa1d8c293d9d105",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-new.glyphs.txt",
+        "sha256": "363e633c1c52ce5458bfe2765ba3c3c172d0924eb11a3632b2681927ee3a197a"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-simclr-v1-to-v3-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "faa-sop-71a-to-71b",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:35.282795+00:00",
+      "exit_code": 0,
+      "input_sha256": "42b99d94740a3f9e9c799f94d694d38c44b6097e970be3ee2f7e0399bfc01385",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-old.glyphs.txt",
+        "sha256": "ebc9763fde821bf44c2f2021599457e498be4be3c81d26b1dd3a76664a1b3f0c"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "faa-sop-71a-to-71b",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:35.560399+00:00",
+      "exit_code": 0,
+      "input_sha256": "5cec8425626e7f5bed41eb1e9ff24e8119585469a9b76d2361e6536be2264855",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-new.glyphs.txt",
+        "sha256": "1f9e965cf026abef8d156b8c6c8e57f64800e0aecd1db397ec914a0398596a5f"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/faa-sop-71a-to-71b-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:35.894817+00:00",
+      "exit_code": 0,
+      "input_sha256": "73b5609ac7d7103eb3dc7a97de7dcdbe3fc872262e5e69761c9e84c004942126",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-old.glyphs.txt",
+        "sha256": "3945063e76eed0cc598ccd3b945dbe15bc9cbf01c883539d44cc0d79633ae232"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:35.928531+00:00",
+      "exit_code": 0,
+      "input_sha256": "62f50195708a4017e1b02bd36781132f0c4297630d7c71bc2b98ea0bebda1e95",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-new.glyphs.txt",
+        "sha256": "aa59e42397a317775ede1f8bb9231b55bbe93d09160060b15b01b35f4c53812f"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/mhlw-sidejobs-2018-to-2022-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "ietf-smtp-2821-to-5321",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:36.046419+00:00",
+      "exit_code": 0,
+      "input_sha256": "c82323382012c8ac9768bd7c16e4a44a165bc541828faa78d3d6908000995897",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-old.glyphs.txt",
+        "sha256": "6450dd6952448b14c399bb5a0eb674380d31467adcba892a7f5c376cb0558c5d"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "ietf-smtp-2821-to-5321",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:36.732629+00:00",
+      "exit_code": 0,
+      "input_sha256": "1e389d2707041463a44ef0113b5b2b67d73c4a4144459d42e8a0f484e5db1b3b",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-new.glyphs.txt",
+        "sha256": "af1aeaa3f3ba3dc911926a126fc782bac2138ed40c44398653c9f197ae309ab8"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-smtp-2821-to-5321-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "ietf-imap-3501-to-9051",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:37.478070+00:00",
+      "exit_code": 0,
+      "input_sha256": "fa2fe6e73e0d7865a712dd8e3de389f741cec12949be0891819e76db215f07b9",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-old.glyphs.txt",
+        "sha256": "59dbb0b2aae61cd1f0f357635299580d144df5c0971780272cefaf8b090fcaf5"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "ietf-imap-3501-to-9051",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:50:38.228053+00:00",
+      "exit_code": 0,
+      "input_sha256": "125d4729caef8cefd980e7d513ffcd171e8d272acc88d4a6ce47f3071ab1eae1",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-new.glyphs.txt",
+        "sha256": "4ef03243d400b991e10f3922f5955356f1dca0cda59149b42d35451cce6759d7"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/ietf-imap-3501-to-9051-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

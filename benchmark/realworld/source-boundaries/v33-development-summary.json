@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "development": {
+    "path": "benchmark/realworld/source-boundaries/development.json",
+    "sha256": "6e7c0701d8d3a6d4e67437d921867edc7ec2b213943d4770e26c06d32de2341b"
+  },
+  "verification_log": {
+    "path": "benchmark/realworld/source-boundaries/checks/v33-development-verification.log",
+    "sha256": "65a18443a32aa848398557ad6be68dbf7c0ea795a5ca63e807e76db3d05ac21a"
+  },
+  "exit_code": 0,
+  "historical_statuses": {
+    "G1": true,
+    "G2": false,
+    "G3": false,
+    "G4": true,
+    "G5": false
+  },
+  "recovered_pairs": [
+    "edpb-controller-processor-v1-to-v2-1",
+    "nist-incident-handling-r2-to-r3",
+    "nist-ssdf-draft-to-final",
+    "nist-authentication-63b-to-63b4",
+    "arxiv-bert-v1-to-v2",
+    "nist-sha-1803-to-1804"
+  ],
+  "distinct_source_reviewed_events": 222,
+  "source_reviewed_observations": 72,
+  "control_attempts": 189,
+  "controls_correct": true,
+  "workspace_tests": {
+    "passed": 2384,
+    "ignored": 2,
+    "failed": 0
+  },
+  "generated_cases": {
+    "passed": 48,
+    "total": 48,
+    "strict_author_intent": 42
+  },
+  "checker_tests": 13,
+  "interrupted_captures": {
+    "path": "benchmark/realworld/source-boundaries/v33-interrupted-captures.json",
+    "sha256": "6f281a13d9411bc2f78d8ab13a75fc960aabbecdf7f49ad4664bb6f6de0ff4b2"
+  },
+  "historical_reacquisition": {
+    "path": "benchmark/realworld/source-boundaries/historical-reacquisition-summary.json",
+    "sha256": "6cc9ce9c72ecbbb871b65ac0c0cc2906efa4cff22965715e790d1e0fc5a130d2"
+  },
+  "scope": "Formal development recovery and correctness gates pass. This does not establish unseen recovery, natural segmented/column recovery, historical G3, phase completion or release completion."
+}

@@ -1,5 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+mod assignment;
+mod candidates;
+mod decisions;
+mod index;
+
+pub use decisions::*;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Result;
@@ -23,6 +30,10 @@ pub enum ProposalBasis {
     ScopedIdentity,
     TableCellIdentity,
     LiteralContent,
+    /// Exact native paragraph text after excluding only edge U+0020 tokens
+    /// from the boundary premise. This supplies only a non-owning boundary;
+    /// complete paragraph sources and edge spaces remain uncompared.
+    LiteralContentWithPadding,
     StructuralNeighbor,
     VisualSimilarity,
     TextSimilarity,
@@ -47,11 +58,17 @@ pub struct MatchingLimits {
     pub max_proposals: usize,
     pub max_group_nodes: usize,
     pub max_group_token_checks: usize,
+    /// Bounds key hashing and retrieved literal verification independently of
+    /// optional group enumeration.
+    pub max_index_work: usize,
     pub max_pair_checks: usize,
     /// Bounds ownership/partition indexing and, separately per component,
     /// partition-membership checks during correspondence search.
     pub max_ownership_visits: usize,
     pub max_states_per_component: usize,
+    /// Bounds assignment construction, augmentation, and all edge-exclusion
+    /// certificates, including the separate source-only solve.
+    pub max_assignment_work_per_component: usize,
     /// Maximum unresolved proposals per search after forced higher-priority
     /// correspondences eliminate incompatible lower-priority candidates.
     pub max_component_proposals: usize,
@@ -64,9 +81,11 @@ impl Default for MatchingLimits {
             max_proposals: 10_000,
             max_group_nodes: 32,
             max_group_token_checks: 1_000_000,
+            max_index_work: 1_000_000,
             max_pair_checks: 1_000_000,
             max_ownership_visits: 1_000_000,
             max_states_per_component: 100_000,
+            max_assignment_work_per_component: 32_000_000,
             max_component_proposals: 24,
         }
     }
@@ -153,13 +172,28 @@ pub fn selected_nodes(graph: &DocumentGraph, channels: MatchingChannels) -> BTre
     selected
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchingAlgorithm {
+    #[default]
+    SubsetSearch,
+    BipartiteAssignment,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MatchingComponent {
     pub proposals: Vec<usize>,
     /// Present in every optimum of the declared weighted ownership objective.
-    /// Empty on truncation; neither this nor uniqueness proves supplier premises.
+    /// Truncated searches retain only independently certified priority-prefix
+    /// choices. Neither this nor uniqueness proves supplier premises.
     pub mandatory: Vec<usize>,
     pub explored_states: usize,
+    #[serde(default)]
+    pub assignment_work: usize,
+    #[serde(default)]
+    pub algorithm: MatchingAlgorithm,
+    /// Whether the entire component search completed. Certified mandatory
+    /// prefix choices remain valid when the residual search is incomplete.
     pub exhaustive: bool,
 }
 
@@ -176,11 +210,14 @@ pub struct ScopeMatching {
     pub source_only_mandatory: BTreeSet<usize>,
     /// Proposals whose identity, membership, order, or supplier remains inferred.
     pub inferred_proposals: BTreeSet<usize>,
+    /// False when at least one indexed dependency component has unfinished
+    /// conflict checks. Other exhaustive components retain their certificates.
     pub conflict_search_complete: bool,
 }
 
 /// Source-backed scoped identities precede source-backed literal content, then
-/// inferred structural correspondence, inferred literal content, then other
+/// native text with edge padding, inferred structural correspondence, inferred
+/// literal content, then other
 /// inferred proposals. Weights are
 /// maximized lexicographically in that order.
 /// This preserves item membership when unchanged fragments compete with a
@@ -189,6 +226,14 @@ pub struct ScopeMatching {
 #[serde(rename_all = "snake_case")]
 pub enum MatchingObjective {
     ScopedIdentityThenLiteralThenInferredStructureV3,
+    ScopedIdentityThenLiteralThenPaddingThenInferredStructureV4,
+}
+
+/// Endpoint populations covering every omitted candidate in one source search.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncompleteCandidateNodes {
+    pub old: BTreeSet<NodeId>,
+    pub new: BTreeSet<NodeId>,
 }
 
 /// Candidate enumeration is tracked separately from solver search completeness.
@@ -196,10 +241,17 @@ pub enum MatchingObjective {
 pub struct ScopeProposals {
     pub proposals: Vec<CorrespondenceProposal>,
     pub examined_pairs: usize,
+    #[serde(default)]
+    pub index_work: usize,
     /// Conservative token-comparison work charged by exact group generation.
     pub group_token_checks: usize,
     pub group_constraint_checks: usize,
     pub exhaustive: bool,
+    /// When enumeration is incomplete, `Some` bounds every omitted candidate's
+    /// endpoints. `None` means no such localization was established. This is a
+    /// fresh-search result, not a certificate reusable with another graph.
+    #[serde(default)]
+    pub incomplete_nodes: Option<IncompleteCandidateNodes>,
 }
 
 /// Generates direct semantic-child candidates, traversing physical page wrappers.
@@ -220,9 +272,11 @@ pub fn propose_scope_correspondences(
     let mut result = ScopeProposals {
         proposals: Vec::new(),
         examined_pairs: 0,
+        index_work: 0,
         group_token_checks: 0,
         group_constraint_checks: 0,
         exhaustive: true,
+        incomplete_nodes: None,
     };
     let needs_cells = left
         .iter()
@@ -247,65 +301,129 @@ pub fn propose_scope_correspondences(
         None
     };
     result.group_constraint_checks = limits.max_ownership_visits - key_budget;
-    for a in &left {
-        for b in &right {
-            if result.examined_pairs == limits.max_pair_checks {
-                result.exhaustive = false;
+    let mut buckets = BTreeMap::<_, (Vec<&GraphNode>, Vec<&GraphNode>)>::new();
+    for (nodes, reverse) in [(&left, false), (&right, true)] {
+        for node in nodes {
+            let cells = cell_keys
+                .as_ref()
+                .map(|keys| if reverse { &keys.1 } else { &keys.0 });
+            let Some(keys) = candidates::keys(node, cells, &mut result, limits) else {
                 return Ok(result);
-            }
-            result.examined_pairs += 1;
-            if a.kind != b.kind {
-                continue;
-            }
-            let basis = if a.identity.is_some() && a.identity == b.identity {
-                ProposalBasis::ScopedIdentity
-            } else if a.kind == super::NodeKind::Cell {
-                let Some((old_keys, new_keys)) = &cell_keys else {
-                    continue;
-                };
-                let (Some(old_key), Some(new_key)) =
-                    (old_keys.keys.get(&a.id), new_keys.keys.get(&b.id))
-                else {
-                    continue;
-                };
-                let work = old_key.bytes().saturating_add(new_key.bytes());
-                if work
-                    > limits
-                        .max_group_token_checks
-                        .saturating_sub(result.group_token_checks)
-                {
-                    result.exhaustive = false;
-                    return Ok(result);
-                }
-                result.group_token_checks += work;
-                if old_key.identity != new_key.identity {
-                    continue;
-                }
-                ProposalBasis::TableCellIdentity
-            } else if a.identity.is_none() && b.identity.is_none() && literal_equal(a, b) {
-                ProposalBasis::LiteralContent
-            } else {
-                continue;
             };
-            if result.proposals.len() == limits.max_proposals {
-                result.exhaustive = false;
-                return Ok(result);
-            }
-            result.proposals.push(CorrespondenceProposal {
-                old: vec![a.id],
-                new: vec![b.id],
-                basis,
-                supplier: "typed-scope-v1".into(),
-                // Prefer a retained key over optional structural similarity,
-                // including when both interpretations remain inferred.
-                weight: if basis == ProposalBasis::LiteralContent {
-                    1
+            for key in keys {
+                let bucket = buckets.entry(key).or_default();
+                if reverse {
+                    bucket.1.push(node);
                 } else {
-                    2
-                },
-            });
+                    bucket.0.push(node);
+                }
+            }
         }
     }
+    let mut buckets: Vec<_> = buckets
+        .into_values()
+        .filter(|(a, b)| !a.is_empty() && !b.is_empty())
+        .collect();
+    // Scheduling small complete buckets first changes only which work fits the
+    // budget. Omitted buckets retain all endpoints, never top-k uniqueness.
+    buckets.sort_by_key(|(a, b)| a.len().saturating_mul(b.len()));
+    result.incomplete_nodes = Some(IncompleteCandidateNodes::default());
+    let mut emitted = BTreeSet::new();
+    'buckets: for (left, right) in buckets {
+        let pairs = left.len().saturating_mul(right.len());
+        if pairs > limits.max_proposals.saturating_sub(result.proposals.len())
+            || pairs > limits.max_pair_checks.saturating_sub(result.examined_pairs)
+        {
+            candidates::defer_bucket(&mut result, &left, &right);
+            continue;
+        }
+        for a in &left {
+            for b in &right {
+                if !emitted.insert((a.id, b.id)) {
+                    continue;
+                }
+                result.examined_pairs += 1;
+                if a.kind != b.kind {
+                    continue;
+                }
+                let basis = if a.identity.is_some() && a.identity == b.identity {
+                    ProposalBasis::ScopedIdentity
+                } else if a.kind == super::NodeKind::Cell {
+                    let Some((old_keys, new_keys)) = &cell_keys else {
+                        continue;
+                    };
+                    let (Some(old_key), Some(new_key)) =
+                        (old_keys.keys.get(&a.id), new_keys.keys.get(&b.id))
+                    else {
+                        continue;
+                    };
+                    let work = old_key.bytes().saturating_add(new_key.bytes());
+                    if work
+                        > limits
+                            .max_group_token_checks
+                            .saturating_sub(result.group_token_checks)
+                    {
+                        candidates::defer_bucket(&mut result, &left, &right);
+                        continue 'buckets;
+                    }
+                    result.group_token_checks += work;
+                    if old_key.identity != new_key.identity {
+                        continue;
+                    }
+                    ProposalBasis::TableCellIdentity
+                } else if a.identity.is_none() && b.identity.is_none() {
+                    let work = text_tokens(a).len().saturating_add(text_tokens(b).len());
+                    if work > limits.max_index_work.saturating_sub(result.index_work) {
+                        // The key population is complete. All omitted rivals
+                        // remain inside this bucket even when verification stops.
+                        candidates::defer_bucket(&mut result, &left, &right);
+                        continue 'buckets;
+                    }
+                    result.index_work += work;
+                    if literal_equal(a, b) {
+                        ProposalBasis::LiteralContent
+                    } else if let (Some(a), Some(b)) = (padding_body(a), padding_body(b))
+                        && a == b
+                    {
+                        ProposalBasis::LiteralContentWithPadding
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                };
+                result.proposals.push(CorrespondenceProposal {
+                    old: vec![a.id],
+                    new: vec![b.id],
+                    basis,
+                    supplier: "typed-scope-v1".into(),
+                    // Prefer a retained key over optional structural similarity,
+                    // including when both interpretations remain inferred.
+                    weight: if matches!(
+                        basis,
+                        ProposalBasis::LiteralContent | ProposalBasis::LiteralContentWithPadding
+                    ) {
+                        1
+                    } else {
+                        2
+                    },
+                });
+            }
+        }
+    }
+    let old_order: BTreeMap<_, _> = left
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node.id, index))
+        .collect();
+    let new_order: BTreeMap<_, _> = right
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node.id, index))
+        .collect();
+    result
+        .proposals
+        .sort_by_key(|proposal| (old_order[&proposal.old[0]], new_order[&proposal.new[0]]));
     super::groups::append_exact_groups(old, new, scope, &mut result, limits, None)?;
     Ok(result)
 }
@@ -479,6 +597,7 @@ pub fn solve_correspondence_scope(
     let mut signatures = BTreeSet::new();
     let mut ownership = Vec::with_capacity(proposals.len());
     let mut source_premises = Vec::with_capacity(proposals.len());
+    let mut assignment_eligible = Vec::with_capacity(proposals.len());
     let mut ownership_budget = limits.max_ownership_visits;
     let cell_keys = if proposals
         .iter()
@@ -583,6 +702,7 @@ pub fn solve_correspondence_scope(
                     ProposalBasis::ScopedIdentity
                         | ProposalBasis::TableCellIdentity
                         | ProposalBasis::LiteralContent
+                        | ProposalBasis::LiteralContentWithPadding
                 )
                 && proposal
                     .old
@@ -607,51 +727,37 @@ pub fn solve_correspondence_scope(
                 "duplicate correspondence must combine supplier evidence",
             ));
         }
+        assignment_eligible.push(
+            proposal.old.len() == 1
+                && proposal.new.len() == 1
+                && left.nodes.len() == 1
+                && right.nodes.len() == 1
+                && left.partitions.is_empty()
+                && right.partitions.is_empty()
+                && !old_containment.contains_key(&proposal.old[0])
+                && !new_containment.contains_key(&proposal.new[0])
+                && !matches!(
+                    old_nodes[&proposal.old[0]].content,
+                    super::NodeContent::Container
+                )
+                && !matches!(
+                    new_nodes[&proposal.new[0]].content,
+                    super::NodeContent::Container
+                ),
+        );
         ownership.push((left, right));
     }
     let mut conflicts = vec![BTreeSet::new(); proposals.len()];
-    let mut dependencies = vec![BTreeSet::new(); proposals.len()];
+    let dependencies = index::dependencies(
+        &ownership,
+        old,
+        new,
+        &mut assignment_eligible,
+        limits,
+        &mut ownership_budget,
+    )?;
     let mut conflict_checks = 0;
-    for a in 0..proposals.len() {
-        for b in a + 1..proposals.len() {
-            if conflict_checks == limits.max_pair_checks {
-                return Ok(ScopeMatching {
-                    channels: limits.channels,
-                    objective: MatchingObjective::ScopedIdentityThenLiteralThenInferredStructureV3,
-                    scope,
-                    components: vec![MatchingComponent {
-                        proposals: (0..proposals.len()).collect(),
-                        mandatory: Vec::new(),
-                        explored_states: 0,
-                        exhaustive: false,
-                    }],
-                    conflict_checks,
-                    ownership_visits: limits.max_ownership_visits - ownership_budget,
-                    source_only_mandatory: BTreeSet::new(),
-                    inferred_proposals: source_premises
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(index, backed)| (!backed).then_some(index))
-                        .collect(),
-                    conflict_search_complete: false,
-                });
-            }
-            conflict_checks += 1;
-            if overlaps(&ownership[a].0, &ownership[b].0, old)
-                || overlaps(&ownership[a].1, &ownership[b].1, new)
-            {
-                conflicts[a].insert(b);
-                conflicts[b].insert(a);
-            }
-            if conflicts[a].contains(&b)
-                || shares_partition_group(&ownership[a].0, &ownership[b].0)
-                || shares_partition_group(&ownership[a].1, &ownership[b].1)
-            {
-                dependencies[a].insert(b);
-                dependencies[b].insert(a);
-            }
-        }
-    }
+    let mut conflict_search_complete = true;
     let mut unseen: BTreeSet<_> = (0..proposals.len()).collect();
     let mut components = Vec::new();
     let mut source_only_mandatory = BTreeSet::new();
@@ -672,14 +778,61 @@ pub fn solve_correspondence_scope(
             }
         }
         let indices: Vec<_> = component.into_iter().collect();
-        let mut result = solve_component(
-            indices.clone(),
-            proposals,
-            &source_premises,
-            &conflicts,
-            &ownership,
-            limits,
-        );
+        let is_assignment = indices.iter().all(|index| assignment_eligible[*index]);
+        if !is_assignment {
+            let count = indices.len();
+            // Divide an even factor first so the triangular count cannot
+            // overflow merely because the undivided product is too large.
+            let required = (count / 2).checked_mul(count - 1 + count % 2);
+            if required.is_none_or(|checks| {
+                checks > limits.max_pair_checks.saturating_sub(conflict_checks)
+            }) {
+                conflict_search_complete = false;
+                // A partial conflict graph supplies no comparison. The complete
+                // ownership index separates this component from all others, so
+                // skip unusable work and preserve their remaining check budget.
+                components.push(MatchingComponent {
+                    proposals: indices,
+                    mandatory: Vec::new(),
+                    explored_states: 0,
+                    assignment_work: 0,
+                    algorithm: MatchingAlgorithm::SubsetSearch,
+                    exhaustive: false,
+                });
+                continue;
+            }
+            for (offset, a) in indices.iter().copied().enumerate() {
+                for b in indices.iter().copied().skip(offset + 1) {
+                    conflict_checks += 1;
+                    if overlaps(&ownership[a].0, &ownership[b].0, old)
+                        || overlaps(&ownership[a].1, &ownership[b].1, new)
+                    {
+                        conflicts[a].insert(b);
+                        conflicts[b].insert(a);
+                    }
+                }
+            }
+        }
+        let solve = |indices, limits: MatchingLimits| {
+            if is_assignment {
+                assignment::solve(
+                    indices,
+                    proposals,
+                    &source_premises,
+                    limits.max_assignment_work_per_component,
+                )
+            } else {
+                solve_component(
+                    indices,
+                    proposals,
+                    &source_premises,
+                    &conflicts,
+                    &ownership,
+                    limits,
+                )
+            }
+        };
+        let mut result = solve(indices.clone(), limits);
         if indices.iter().all(|index| source_premises[*index]) {
             source_only_mandatory.extend(result.mandatory.iter().copied());
         } else {
@@ -688,20 +841,20 @@ pub fn solve_correspondence_scope(
                 .filter(|index| source_premises[*index])
                 .collect();
             if !source_indices.is_empty() {
-                let source_result = solve_component(
+                let source_result = solve(
                     source_indices,
-                    proposals,
-                    &source_premises,
-                    &conflicts,
-                    &ownership,
                     MatchingLimits {
                         max_states_per_component: limits
                             .max_states_per_component
                             .saturating_sub(result.explored_states),
+                        max_assignment_work_per_component: limits
+                            .max_assignment_work_per_component
+                            .saturating_sub(result.assignment_work),
                         ..limits
                     },
                 );
                 result.explored_states += source_result.explored_states;
+                result.assignment_work += source_result.assignment_work;
                 source_only_mandatory.extend(source_result.mandatory);
             }
             inferred_proposals.extend(
@@ -716,14 +869,14 @@ pub fn solve_correspondence_scope(
     }
     Ok(ScopeMatching {
         channels: limits.channels,
-        objective: MatchingObjective::ScopedIdentityThenLiteralThenInferredStructureV3,
+        objective: MatchingObjective::ScopedIdentityThenLiteralThenPaddingThenInferredStructureV4,
         scope,
         components,
         conflict_checks,
         ownership_visits: limits.max_ownership_visits - ownership_budget,
         source_only_mandatory,
         inferred_proposals,
-        conflict_search_complete: true,
+        conflict_search_complete,
     })
 }
 
@@ -739,6 +892,7 @@ fn validate_premise(
         ProposalBasis::ScopedIdentity
             | ProposalBasis::TableCellIdentity
             | ProposalBasis::LiteralContent
+            | ProposalBasis::LiteralContentWithPadding
     ) && (proposal.old.iter().any(|id| !old_children.contains(id))
         || proposal.new.iter().any(|id| !new_children.contains(id)))
     {
@@ -754,6 +908,21 @@ fn validate_premise(
                 || old[&proposal.old[0]].identity != new[&proposal.new[0]].identity
             {
                 return Err(invalid("identity supplier premise does not hold"));
+            }
+        }
+        ProposalBasis::LiteralContentWithPadding => {
+            let ([a], [b]) = (proposal.old.as_slice(), proposal.new.as_slice()) else {
+                return Err(invalid(
+                    "padding premise requires individual native paragraphs",
+                ));
+            };
+            let (Some(a), Some(b)) = (padding_body(old[a]), padding_body(new[b])) else {
+                return Err(invalid(
+                    "padding premise requires exact nonempty native paragraph bodies",
+                ));
+            };
+            if a != b {
+                return Err(invalid("padding supplier changes interior source tokens"));
             }
         }
         ProposalBasis::LiteralContent => {
@@ -795,6 +964,36 @@ fn validate_premise(
         _ => {}
     }
     Ok(())
+}
+
+/// A matching feature only: edge spaces stay in the original view and diff.
+fn padding_body(node: &GraphNode) -> Option<&[crate::normalize::ComparableToken]> {
+    use crate::{
+        document::{NodeContent, NodeKind, TextNormalization, ViewBasis},
+        normalize::ComparableToken,
+    };
+    if node.kind != NodeKind::Paragraph
+        || node.identity.is_some()
+        || node.basis != ViewBasis::NativeLayout
+    {
+        return None;
+    }
+    let NodeContent::Text { view } = &node.content else {
+        return None;
+    };
+    if view.normalization != TextNormalization::Exact {
+        return None;
+    }
+    let start = view
+        .tokens
+        .iter()
+        .position(|token| *token != ComparableToken::Scalar(' '))?;
+    let end = view
+        .tokens
+        .iter()
+        .rposition(|token| *token != ComparableToken::Scalar(' '))?
+        + 1;
+    Some(&view.tokens[start..end])
 }
 
 fn text_tokens(node: &GraphNode) -> &[crate::normalize::ComparableToken] {
@@ -1017,12 +1216,6 @@ pub(super) fn leaf_partitions_compatible(
     result.ok()
 }
 
-fn shares_partition_group(a: &Ownership, b: &Ownership) -> bool {
-    a.partitions
-        .keys()
-        .any(|group| b.partitions.contains_key(group))
-}
-
 /// Pairwise intersections are insufficient when a view belongs to several
 /// partitions: all selected correspondences must share one possible partition.
 fn partitions_compatible(
@@ -1143,8 +1336,10 @@ fn solve_component(
                 None => {
                     return MatchingComponent {
                         proposals: indices,
-                        mandatory: Vec::new(),
+                        mandatory: forced.iter().copied().collect(),
                         explored_states,
+                        assignment_work: 0,
+                        algorithm: MatchingAlgorithm::SubsetSearch,
                         exhaustive: false,
                     };
                 }
@@ -1178,15 +1373,16 @@ fn objective_class(
 ) -> usize {
     match (source_premises[index], proposals[index].basis) {
         (true, ProposalBasis::ScopedIdentity | ProposalBasis::TableCellIdentity) => 0,
+        (true, ProposalBasis::LiteralContentWithPadding) => 2,
         (true, _) => 1,
         (
             false,
             ProposalBasis::ScopedIdentity
             | ProposalBasis::TableCellIdentity
             | ProposalBasis::StructuralNeighbor,
-        ) => 2,
-        (false, ProposalBasis::LiteralContent) => 3,
-        (false, _) => 4,
+        ) => 3,
+        (false, ProposalBasis::LiteralContent) => 4,
+        (false, _) => 5,
     }
 }
 
@@ -1202,14 +1398,16 @@ fn search_component(
     if indices.len() > limits.max_component_proposals {
         return MatchingComponent {
             proposals: indices,
-            mandatory: Vec::new(),
+            mandatory: forced.iter().copied().collect(),
             explored_states: 0,
+            assignment_work: 0,
+            algorithm: MatchingAlgorithm::SubsetSearch,
             exhaustive: false,
         };
     }
     // Iterative search avoids a stack overflow on adversarial conflict chains.
-    let mut pending = vec![(0, (0_u64, 0_u64, 0_u64, 0_u64, 0_u64), forced.clone())];
-    let mut best = (0, 0, 0, 0, 0);
+    let mut pending = vec![(0, [0_u64; 6], forced.clone())];
+    let mut best = [0; 6];
     let mut mandatory: Option<BTreeSet<usize>> = None;
     let mut explored_states = 0;
     let mut partition_budget = limits.max_ownership_visits;
@@ -1217,8 +1415,10 @@ fn search_component(
         if explored_states == limits.max_states_per_component {
             return MatchingComponent {
                 proposals: indices,
-                mandatory: Vec::new(),
+                mandatory: forced.iter().copied().collect(),
                 explored_states,
+                assignment_work: 0,
+                algorithm: MatchingAlgorithm::SubsetSearch,
                 exhaustive: false,
             };
         }
@@ -1243,8 +1443,10 @@ fn search_component(
                 None => {
                     return MatchingComponent {
                         proposals: indices,
-                        mandatory: Vec::new(),
+                        mandatory: forced.iter().copied().collect(),
                         explored_states,
+                        assignment_work: 0,
+                        algorithm: MatchingAlgorithm::SubsetSearch,
                         exhaustive: false,
                     };
                 }
@@ -1252,13 +1454,8 @@ fn search_component(
             let mut included = selected;
             included.insert(index);
             let weight = u64::from(proposals[index].weight);
-            let score = match objective_class(index, proposals, source_premises) {
-                0 => (score.0 + weight, score.1, score.2, score.3, score.4),
-                1 => (score.0, score.1 + weight, score.2, score.3, score.4),
-                2 => (score.0, score.1, score.2 + weight, score.3, score.4),
-                3 => (score.0, score.1, score.2, score.3 + weight, score.4),
-                _ => (score.0, score.1, score.2, score.3, score.4 + weight),
-            };
+            let mut score = score;
+            score[objective_class(index, proposals, source_premises)] += weight;
             pending.push((offset + 1, score, included));
         }
     }
@@ -1266,6 +1463,8 @@ fn search_component(
         proposals: indices,
         mandatory: mandatory.unwrap_or_default().into_iter().collect(),
         explored_states,
+        assignment_work: 0,
+        algorithm: MatchingAlgorithm::SubsetSearch,
         exhaustive: true,
     }
 }

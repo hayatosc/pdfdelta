@@ -1,0 +1,38 @@
+{
+  "version": 7,
+  "preliminary_results": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v7-preliminary-results.json",
+    "sha256": "f164bb156303b730ef05f70ca8de410ab52d8e977533eacd6c2825168cce257e"
+  },
+  "comparison_attempts": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v7-comparison-attempts.json",
+    "sha256": "0b22c62d367a98cdeb9f47eefec9a87419969b930b841508b29fc33b40c8b524"
+  },
+  "metrics": {
+    "current": {
+      "captured": 24,
+      "A": 0,
+      "B": 314,
+      "C": 0,
+      "complete": 0,
+      "wall_seconds": 83.25,
+      "peak_rss_kib_max": 385556,
+      "report_bytes": 110378568
+    },
+    "historical": {
+      "captured": 24,
+      "A": 0,
+      "B": 98,
+      "C": 0,
+      "complete": 0,
+      "wall_seconds": 83.87,
+      "peak_rss_kib_max": 384556,
+      "report_bytes": 60917440
+    }
+  },
+  "repeat_event_source_identity_equal": true,
+  "additional_target_pair_upper_bound": 0,
+  "G2_passed": false,
+  "formal_adjudication_complete": false,
+  "interpretation": "Both repetitions retain zero exact finite target hits on both implementations. No output adjudication can raise that upper bound. Outside-target outputs remain unadjudicated and are not recovery or correctness claims. The DHCP raw interval retains six original leading indentation glyphs outside the frozen extent, so its broad overlap is not an exact hit."
+}

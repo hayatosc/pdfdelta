@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "comparison_output_inspected": false,
+  "null_means": "Skip this side in this download batch.",
+  "pairs": [
+    {
+      "id": "ietf-tls-12-to-13",
+      "old": "https://www.ietf.org/rfc/rfc5246.txt.pdf",
+      "new": "https://www.ietf.org/rfc/rfc8446.txt.pdf"
+    },
+    {
+      "id": "ietf-http11-7230-to-9112",
+      "old": "https://www.ietf.org/rfc/rfc7230.txt.pdf",
+      "new": null
+    },
+    {
+      "id": "ietf-sip-2543-to-3261",
+      "old": "https://www.ietf.org/rfc/rfc2543.txt.pdf",
+      "new": "https://www.ietf.org/rfc/rfc3261.txt.pdf"
+    }
+  ]
+}

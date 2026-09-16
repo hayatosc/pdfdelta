@@ -1,0 +1,66 @@
+{
+  "source_sha256": "6537b24e0373f67fd55f4ba6828b3ad07a42f050e7a3d157148d78199de69ca7",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v51-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v51-locked-clippy.log",
+        "sha256": "2b34696728dc82b03cbf6311d7e3a6a41658bbde097834c3010a78bc82842c1a"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v51-locked-test.log",
+        "sha256": "0af9c26096e9138b5e51f91d3791c89823e6ebb08ef4bad2b40df997f8c7554a"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v51-generated.log",
+        "sha256": "7aeb22b425f1039951f6a6bcc214ed088211ea9aa0850f3b6bc331d45db06688"
+      }
+    }
+  ],
+  "reuse_note": "Format and generated verification reuse the successful final-code V51 runs. Locked Clippy and workspace tests were additionally run with the exact required formal-gate commands. No Rust or Cargo input changed after these checks."
+}

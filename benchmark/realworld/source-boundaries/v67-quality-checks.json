@@ -1,0 +1,66 @@
+{
+  "source_sha256": "c1d1fd43140a1912c2b9df1d7e18b65461848142e0af839538edb8fb1c91486c",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v67-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v67-canonical-clippy.log",
+        "sha256": "f4403412cb20dc7d8a0a94c08c9c8853e4bac9b3e8489158834f30512311ed97"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v67-canonical-tests.log",
+        "sha256": "331c5501ddf3bfa87f63f67db009a83880dad4af0c5e2b9c24a53a267adb8a54"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v67-generated.log",
+        "sha256": "a2ec8bd7b721bf492404cf59d318880c8cb03ccadf80c760cad4d3420a4031ee"
+      }
+    }
+  ],
+  "reuse_note": "All four canonical checks completed against the unchanged V67 Rust/Cargo snapshot. Formatting returned no output; its empty stdout is retained here. Earlier unlocked Clippy/test logs remain separate; the canonical locked commands were also executed."
+}

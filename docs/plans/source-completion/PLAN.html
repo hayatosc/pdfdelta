@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF comparison: from source proofs to completion</title>
+<style>
+/* Digital Agency Design System (DADS) v2.18.0 — inline this whole file into <style>.
+   Tokens: https://github.com/digital-go-jp/tailwind-theme-plugin
+   Full palette and rules: references/dads.md */
+
+:root {
+  /* Neutrals */
+  --white: #ffffff;
+  --black: #000000;
+  --gray-50: #f2f2f2;
+  --gray-100: #e6e6e6;
+  --gray-200: #cccccc;
+  --gray-300: #b3b3b3;
+  --gray-400: #999999;
+  --gray-420: #949494;
+  --gray-500: #7f7f7f;
+  --gray-536: #767676;
+  --gray-600: #666666;
+  --gray-700: #4d4d4d;
+  --gray-800: #333333;
+  --gray-900: #1a1a1a;
+
+  /* Key color (blue) */
+  --key-50: #e8f1fe;
+  --key-100: #d9e6ff;
+  --key-200: #c5d7fb;
+  --key-300: #9db7f9;
+  --key-400: #7096f8;
+  --key-500: #4979f5;
+  --key-600: #3460fb;
+  --key-700: #264af4;
+  --key-800: #0031d8;
+  --key-900: #0017c1;
+  --key-1000: #00118f;
+  --key-1100: #000071;
+  --key-1200: #000060;
+
+  /* Accent steps commonly used in callouts and diagrams */
+  --green-50: #e6f5ec;
+  --green-100: #c2e5d1;
+  --green-200: #9bd4b5;
+  --green-600: #259d63;
+  --green-800: #197a4b;
+  --green-900: #115a36;
+  --red-50: #fdeeee;
+  --red-100: #ffdada;
+  --red-200: #ffbbbb;
+  --red-700: #fa0000;
+  --red-800: #ec0000;
+  --red-900: #ce0000;
+  --yellow-50: #fbf5e0;
+  --yellow-100: #fff0b3;
+  --yellow-200: #ffe380;
+  --yellow-300: #ffd43d;
+  --yellow-700: #b78f00;
+  --yellow-900: #927200;
+  --orange-50: #ffeee2;
+  --orange-100: #ffdfca;
+  --orange-200: #ffc199;
+  --orange-600: #fb5b01;
+  --orange-800: #c74700;
+  --magenta-50: #f3e5f4;
+  --magenta-100: #ffd0ff;
+  --magenta-200: #ffaeff;
+  --magenta-800: #aa00aa;
+  --magenta-900: #8b008b;
+  --purple-50: #f1eafa;
+  --purple-100: #ecddff;
+  --purple-200: #ddc2ff;
+  --purple-800: #5c10be;
+  --purple-900: #5109ad;
+  --cyan-50: #e9f7f9;
+  --cyan-100: #c8f8ff;
+  --cyan-200: #99f2ff;
+  --cyan-800: #008299;
+  --cyan-900: #006f83;
+  --light-blue-50: #f0f9ff;
+  --light-blue-100: #dcf0ff;
+  --light-blue-200: #c0e4ff;
+  --light-blue-700: #0877d7;
+  --light-blue-800: #0066be;
+  --lime-50: #ebfad9;
+  --lime-100: #d0f5a2;
+  --lime-200: #c0f354;
+  --lime-800: #618e00;
+  --lime-900: #507500;
+
+  /* Semantic */
+  --success-1: var(--green-600);
+  --success-2: var(--green-800);
+  --error-1: var(--red-800);
+  --error-2: var(--red-900);
+  --warning-yellow-1: var(--yellow-700);
+  --warning-yellow-2: var(--yellow-900);
+  --warning-orange-1: var(--orange-600);
+  --warning-orange-2: var(--orange-800);
+  --focus-yellow: var(--yellow-300);
+
+  /* Roles */
+  --text: var(--black);
+  --text-secondary: var(--gray-700);
+  --text-muted: var(--gray-536);
+  --surface: var(--white);
+  --surface-subtle: var(--gray-50);
+  --border: var(--gray-420);
+  --border-strong: var(--gray-500);
+  --link: var(--key-1000);
+  --link-visited: var(--magenta-900);
+  --link-hover: var(--key-900);
+  --link-active: var(--orange-800);
+
+  /* Type */
+  --font-sans: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Noto Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --leading-100: 1;
+  --leading-140: 1.4;
+  --leading-150: 1.5;
+  --leading-170: 1.7;
+
+  /* Shape */
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-24: 24px;
+  --radius-full: 9999px;
+
+  /* Elevation */
+  --elevation-1: 0 2px 8px 1px rgba(0, 0, 0, 0.1), 0 1px 5px 0 rgba(0, 0, 0, 0.3);
+  --elevation-2: 0 2px 12px 2px rgba(0, 0, 0, 0.1), 0 1px 6px 0 rgba(0, 0, 0, 0.3);
+  --elevation-3: 0 4px 16px 3px rgba(0, 0, 0, 0.1), 0 1px 6px 0 rgba(0, 0, 0, 0.3);
+  --elevation-4: 0 6px 20px 4px rgba(0, 0, 0, 0.1), 0 2px 6px 0 rgba(0, 0, 0, 0.3);
+  --elevation-5: 0 8px 24px 5px rgba(0, 0, 0, 0.1), 0 2px 10px 0 rgba(0, 0, 0, 0.3);
+  --elevation-6: 0 10px 30px 6px rgba(0, 0, 0, 0.1), 0 3px 12px 0 rgba(0, 0, 0, 0.3);
+  --elevation-7: 0 12px 36px 7px rgba(0, 0, 0, 0.1), 0 3px 14px 0 rgba(0, 0, 0, 0.3);
+  --elevation-8: 0 14px 40px 7px rgba(0, 0, 0, 0.1), 0 3px 16px 0 rgba(0, 0, 0, 0.3);
+
+  /* Spacing (8px base) */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+
+  /* Layout */
+  --measure: 42em;
+  --container: 72rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: var(--space-3);
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  line-height: var(--leading-170);
+  letter-spacing: 0.02em;
+}
+
+/* Headings — DADS Standard scale */
+h1, h2, h3, h4, h5, h6 { font-weight: 700; color: var(--text); }
+h1 { font-size: 36px; line-height: var(--leading-140); letter-spacing: 0.01em; margin: 0 0 var(--space-3); }
+h2 { font-size: 28px; line-height: var(--leading-150); letter-spacing: 0.01em; margin: var(--space-6) 0 var(--space-2); }
+h3 { font-size: 22px; line-height: var(--leading-150); letter-spacing: 0.02em; margin: var(--space-4) 0 var(--space-1); }
+h4 { font-size: 18px; line-height: var(--leading-150); letter-spacing: 0.02em; margin: var(--space-3) 0 var(--space-1); }
+h5, h6 { font-size: 16px; line-height: var(--leading-170); letter-spacing: 0.02em; margin: var(--space-3) 0 var(--space-1); }
+
+p { margin: 0 0 1.5em; }
+ul, ol { margin: 0 0 1.5em; padding-left: 1.5em; }
+li + li { margin-top: 0.25em; }
+hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-6) 0; }
+small, .dads-meta { font-size: 14px; line-height: 1.3; letter-spacing: 0; color: var(--text-muted); }
+strong { font-weight: 700; }
+figure { margin: var(--space-4) 0; }
+figcaption, .dads-caption { font-size: 14px; line-height: 1.5; letter-spacing: 0; color: var(--text-secondary); margin-top: var(--space-1); }
+img, svg { max-width: 100%; height: auto; }
+
+/* Links */
+a:any-link {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+a:visited { color: var(--link-visited); }
+@media (hover: hover) {
+  a:hover { color: var(--link-hover); text-decoration-thickness: 3px; }
+}
+a:active { color: var(--link-active); text-decoration-thickness: 1px; }
+
+/* Focus ring — never remove */
+:focus-visible {
+  outline: 4px solid var(--black);
+  outline-offset: 2px;
+  border-radius: var(--radius-4);
+  box-shadow: 0 0 0 2px var(--focus-yellow);
+}
+
+/* Layout */
+.dads-skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -100px;
+  z-index: 100;
+  padding: var(--space-1) var(--space-2);
+  background: var(--white);
+  color: var(--text);
+  border: 2px solid var(--black);
+  border-radius: var(--radius-4);
+}
+.dads-skip-link:focus { top: var(--space-2); }
+
+.dads-header { border-bottom: 1px solid var(--border); background: var(--surface); }
+.dads-header__inner {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding: var(--space-2) 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+  justify-content: space-between;
+}
+.dads-header__title { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+.dads-header__meta { font-size: 14px; letter-spacing: 0; color: var(--text-muted); }
+
+.dads-layout {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding: var(--space-3) 16px var(--space-8);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+@media (min-width: 768px) {
+  .dads-layout { padding-inline: 32px; }
+}
+@media (min-width: 1024px) {
+  .dads-layout { grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-6); }
+}
+.dads-prose { max-width: var(--measure); }
+
+/* Table of contents */
+.dads-toc { font-size: 14px; line-height: 1.6; letter-spacing: 0; }
+@media (min-width: 1024px) {
+  .dads-toc { position: sticky; top: var(--space-3); align-self: start; max-height: calc(100vh - var(--space-6)); overflow: auto; }
+}
+.dads-toc__title { font-size: 14px; font-weight: 700; margin: 0 0 var(--space-1); }
+.dads-toc ol { list-style: none; margin: 0; padding: 0; }
+.dads-toc li { margin: 0 0 var(--space-1); }
+.dads-toc a { display: block; padding: 4px 0; }
+
+/* Lead paragraph */
+.dads-lead { font-size: 18px; line-height: 1.6; letter-spacing: 0.02em; margin: 0 0 var(--space-4); }
+
+/* Cards */
+.dads-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-16);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.dads-card > :last-child { margin-bottom: 0; }
+.dads-card__title { font-size: 18px; font-weight: 700; margin: 0 0 var(--space-1); }
+
+/* Callouts */
+.dads-callout {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--surface);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.dads-callout > :last-child { margin-bottom: 0; }
+.dads-callout__title { display: block; font-weight: 700; margin-bottom: var(--space-1); }
+.dads-callout--info { border-color: var(--key-700); background: var(--key-50); }
+.dads-callout--notice { border-color: var(--border); background: var(--gray-50); }
+.dads-callout--success { border-color: var(--success-2); background: var(--green-50); }
+.dads-callout--warning { border-color: var(--warning-yellow-2); background: var(--yellow-50); }
+.dads-callout--error { border-color: var(--error-2); background: var(--red-50); }
+.dads-callout--emphasis {
+  border: 0;
+  border-left: 4px solid var(--orange-600);
+  border-radius: 0;
+  background: var(--orange-50);
+}
+
+/* Badges */
+.dads-badge {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-4);
+  border: 1px solid currentColor;
+}
+.dads-badge--success { color: var(--success-2); background: var(--green-50); }
+.dads-badge--error { color: var(--error-2); background: var(--red-50); }
+.dads-badge--warning { color: var(--warning-yellow-2); background: var(--yellow-50); }
+.dads-badge--info { color: var(--key-1000); background: var(--key-50); }
+.dads-badge--neutral { color: var(--gray-700); background: var(--gray-50); }
+
+/* Buttons */
+.dads-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: var(--leading-100);
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-8);
+  text-decoration: none;
+  cursor: pointer;
+}
+.dads-button--solid {
+  border: 1px solid var(--key-900);
+  background: var(--key-900);
+  color: var(--white);
+}
+@media (hover: hover) {
+  .dads-button--solid:hover { background: var(--key-1000); border-color: var(--key-1000); color: var(--white); text-decoration: underline; }
+}
+.dads-button--solid:active { background: var(--key-1200); border-color: var(--key-1200); }
+.dads-button--outline {
+  border: 1px solid currentColor;
+  background: var(--white);
+  color: var(--key-900);
+}
+@media (hover: hover) {
+  .dads-button--outline:hover { background: var(--key-200); color: var(--key-1000); text-decoration: underline; }
+}
+.dads-button--outline:active { background: var(--key-300); }
+.dads-button[aria-disabled="true"], .dads-button:disabled {
+  border-color: var(--gray-300);
+  background: var(--gray-300);
+  color: var(--gray-50);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* Tables */
+.dads-table { width: 100%; overflow-x: auto; margin: 0 0 var(--space-4); }
+.dads-table table { border-collapse: collapse; width: 100%; color: var(--gray-800); }
+.dads-table caption { text-align: left; font-weight: 700; font-size: 17px; line-height: 1.7; margin-bottom: var(--space-1); }
+.dads-table th, .dads-table td {
+  border: 1px solid var(--border);
+  padding: 20px 16px;
+  text-align: left;
+  vertical-align: baseline;
+}
+.dads-table thead th { border-color: var(--border-strong); background: var(--gray-100); color: var(--gray-900); }
+.dads-table--dense th, .dads-table--dense td { padding: 12px 16px; line-height: 1.3; }
+
+/* Code */
+code, pre, kbd { font-family: var(--font-mono); letter-spacing: 0; }
+:not(pre) > code {
+  font-size: 0.9em;
+  background: var(--gray-100);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-4);
+}
+pre {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-8);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* Disclosure */
+.dads-details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  padding: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+.dads-details > summary { cursor: pointer; font-weight: 700; padding: var(--space-1) 0; }
+.dads-details[open] > summary { margin-bottom: var(--space-1); }
+
+/* Tabs */
+.dads-tabs { margin: 0 0 var(--space-4); }
+.dads-tabs__list { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); padding: 0; margin: 0 0 var(--space-2); list-style: none; }
+.dads-tabs__list [role="tab"] {
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--radius-4) var(--radius-4) 0 0;
+  background: none;
+  color: var(--link);
+  cursor: pointer;
+}
+.dads-tabs__list [role="tab"][aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  margin-bottom: -1px;
+}
+.dads-tabs__panel > :last-child { margin-bottom: 0; }
+
+/* Figures and diagrams */
+.dads-diagram { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius-8); background: var(--white); }
+
+/* Two-column content blocks */
+@media (min-width: 768px) {
+  .dads-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .dads-grid-2 > * { margin-bottom: 0; }
+}
+
+/* Footer and utilities */
+.dads-footer {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-8);
+  padding: var(--space-3) 0;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+.dads-footer a { color: inherit; }
+.dads-visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Print */
+@media print {
+  .dads-header, .dads-toc, .dads-skip-link { display: none; }
+  .dads-layout { display: block; padding: 0; }
+  .dads-prose { max-width: none; }
+  .dads-details { border: 0; padding: 0; }
+  /* closed disclosure content must still print */
+  .dads-details > *:not(summary) { display: block; }
+  .dads-details > summary { list-style: none; }
+  pre, table, .dads-diagram { break-inside: avoid; }
+  a:any-link { color: var(--text); }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.dads-prose pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dads-prose code { overflow-wrap: anywhere; }
+</style>
+</head>
+<body><a class="dads-skip-link" href="#main">Skip to plan</a><header class="dads-header"><div class="dads-header__inner"><p class="dads-header__title">PDF comparison: source proofs and completion</p><p class="dads-header__meta">Planning handoff · 2026-09-16 · Repository 4ef99ca · Source: <a href="PLAN.md">PLAN.md</a></p></div></header><div class="dads-layout"><nav class="dads-toc" aria-label="Plan contents"><p class="dads-toc__title">Contents</p><ol><li><a href="#section-0">Original problem and desired outcome</a></li><li><a href="#section-1">Definition of done</a></li><li><a href="#section-2">Evidence established during planning</a></li><li><a href="#section-3">Constraints and authorized boundaries</a></li><li><a href="#section-4">Checkpoints</a></li><li><a href="#section-5">Verification commands and evidence handling</a></li><li><a href="#section-6">Planning files owned by this run</a></li><li><a href="#section-7">Progress log</a></li><li><a href="#section-8">Original-purpose evaluation</a></li><li><a href="#section-9">Baseline-band index progress</a></li><li><a href="#section-10">Full-panel recheck progress</a></li><li><a href="#section-11">Type 3 code-local acquisition progress</a></li><li><a href="#section-12">Invocation-selected drawing dependencies</a></li><li><a href="#section-13">OCR detector connectivity prerequisite</a></li><li><a href="#section-14">Current Schedule SE residual incidence</a></li><li><a href="#section-15">Schedule SE discovery and mixed baselines</a></li><li><a href="#section-16">Raised inline source projection</a></li><li><a href="#closure-failures">Actual Schedule SE closure failures</a></li><li><a href="#tagged-source-intervals">Tagged page regions connected to strict intervals</a></li><li><a href="#paint-declarations">Paint declarations do not discharge inventory</a></li><li><a href="#section-17">Blockers and resumption</a></li><li><a href="#section-18">Completion report and cleanup</a></li><li><a href="#section-19">Runnable handoff contract</a></li></ol></nav><main id="main" tabindex="-1" class="dads-prose"><h1 id="heading-0">Connect source proofs to complete PDF comparison</h1>
+<p>Status: strict completion remains unmet; separately versioned observation completion approved for implementation. Created 2026-09-16.</p>
+<p>Equal-candidate diagnostics found six controller/processor candidates blocked by padded endpoint admission, and 50 Schedule C candidates blocked during native preparation. Equal padded ranges now invoke the existing full-population SourceCut validator, preserving explicit boundary remainders and all native/body checks. The final same-six-pair pilot remains identical, with no new source or completion. Workspace 2,509 passed (two ignored); final affected tests 89/89, generated 48/48, Clippy and formatting pass. Evidence: <code>benchmark/realworld/remaining/source-completion/padded-equal-domain.md</code>, <code>equal-candidate-denials.json</code> and <code>padded-equal-domain-v2-pilot.json</code>. Remaining native preparation/body failures require direct evidence; keep the goal active.</p>
+<p>Equal native intervals now reach source validation without requiring a changed review or selecting repeated occurrence edges. A repeated-paragraph fixture gains complete source coverage while search uncertainty remains; missing or inconsistent native evidence is rejected. Workspace: 2,508 passed, two ignored; focused 88/88, generated 48/48, Clippy and formatting pass. The six-pair natural pilot adds no certificate, source coverage or completion. Existing results are preserved apart from discovery work counters in two pairs. Evidence: <code>benchmark/realworld/remaining/source-completion/equal-domain.md</code>, <code>equal-domain-v1-pilot.json</code> and <code>equal-domain-checks.json</code>. Next inspect actual equal-candidate proof failures before expanding admission; keep the goal active.</p>
+<p>OCR integration preflight found a Linux-only worker limit implementation. macOS now uses the same fail-closed address-space/CPU/core limit calls; Windows remains unsupported. Linux CLI tests pass 134/134, including an actual excess-reservation child test; macOS ARM checks include test code, but runtime is unverified. No OCR provider or strict completion is added. Evidence: <code>benchmark/realworld/remaining/source-completion/worker-limits.md</code> and <code>worker-limits-checks.json</code>. At the user&#x27;s request, regenerable debug artifacts were cleaned while retaining frozen binaries, inputs and observations.</p>
+<p>Page-exterior paint preflight is complete on all 72 fixed inputs using the frozen current native worker. Of 446,318 retained records, 841 are strictly exterior, 403,130 touch/overlap the page and 42,347 have unknown bounds. Zero paint-bearing pages contain only exterior records. Excluding exterior paint alone cannot close an observed page inventory; deprioritize that exception as a completion strategy. All typed acquisitions succeeded but retain 18 issues. No production predicate or completion changed. Evidence: <code>benchmark/realworld/remaining/source-completion/paint-extent.md</code> and <code>paint-extent-results.json</code>. The goal remains active with zero new completions.</p>
+<p>Completed content proofs can now own validated intervals while retaining uncertain localization. Exact masks over the complete interpretation family are required; count-only witnesses and potentially equal families remain nonowning. The six-pair pilot adds one EDPB restrictions cut (103 old / 105 new references), independently checked against frozen native readings and both spacing interpretations. Five other comparison objects remain identical. All six remain incomplete; zero newly complete pairs. Workspace: 2,506 passed, two ignored; Clippy, formatting and generated fixtures 48/48 pass. Evidence: <code>benchmark/realworld/remaining/source-completion/domain-content.md</code>, <code>domain-content-v1-pilot.json</code> and <code>domain-content-source-review.json</code>. Inventory and search remain independent obstacles. Keep the goal and plans active.</p>
+<p>Internal SourceCut ownership is now implemented for plain matched native populations, with renewed occurrence/endpoint proofs and explicit per-parent remainders. Ordinary and padded boundaries, plus asymmetric retained paragraph splits, pass source-conservation controls. The final six-pair pilot remains identical to the preceding comparison objects and coverage; no new natural cut certificate or completed pair is claimed. Workspace: 2,505 passed, two ignored; Clippy, formatting and generated fixtures 48/48 pass. Evidence: <code>benchmark/realworld/remaining/source-completion/source-cut-domain.md</code> and <code>source-cut-domain-v3-pilot.json</code>. Other population conventions and unresolved content/localization obligations remain; keep the goal and both plans active.</p>
+<p>Follow-up correction: exhausting optional cut discovery no longer skips the separately bounded interval proof for a range already found. Five constrained discovery-budget regressions pass while cut searches remain incomplete. Workspace tests pass 2,503 with two ignored; Clippy, formatting and 48 generated fixtures pass. The same six natural comparison objects and coverage are unchanged, with no new completion. Evidence: <code>benchmark/realworld/remaining/source-completion/native-interval-budget.md</code> and <code>native-interval-budget-pilot.json</code>. Continue with internal SourceCut ownership and the independent inventory/search obligations; the goal remains active.</p>
+<p>Latest implementation result: independently revalidated whole-node native intervals now supply conditional source ownership under two admitted source-only endpoints. The six-pair pilot adds 830 old and 827 new compared references across seven ECB intervals; the other five controls retain coverage, and all original comparison objects are unchanged after excluding the new field. Workspace tests pass 2,502/2,502 with two ignored; Clippy, formatting and 48 generated fixtures pass. No newly complete pair. Independent source adjudication of these seven intervals, internal SourceCut ownership, and full partition invariance remain pending. The seven literal native readings and exact masks have subsequently passed an independent source audit and a separate all-optimal-edit-path oracle (225 exhaustive small controls). Boundary correspondence and paint closure remain outside that audit. Evidence: <code>benchmark/realworld/remaining/source-completion/native-interval.md</code> and <code>native-interval-pilot.json</code>. Keep the original completion gate and both plans. The execution source of truth is this Markdown file. <a href="PLAN.html">Read the HTML companion</a>.</p>
+<p>Current integration finding: the existing OCR route cannot discharge strict source coverage even when its provider declares complete inventory and confidence 100. Eight text-only integration cases now preserve this boundary for both equal and changed readings. Production OCR integration alone is therefore not a path to this goal&#x27;s completion gate; prioritize independently validated source proofs and acquisition closure. This does not establish that all possible future acquisition proofs are impossible. See the strict completion integration check in <code>benchmark/realworld/remaining/source-completion/ocr-probe/CPU.md</code>.</p>
+<h2 id="section-0">Original problem and desired outcome</h2>
+<p>The fixed 36 natural PDF revision pairs currently have zero complete comparisons on the common <code>--channels text</code> route. Useful local findings exist, but they do not discharge all document obligations. The user wants completed comparisons to increase through a general implementation that can support all PDFs, without rules for particular documents or publishers.</p>
+<p>The user explicitly chose a bounded first implementation increment: make several of the 36 pairs complete, then stop and report meaningful progress. Operationalize “several” as at least two newly complete natural pairs under the unchanged completion meaning, with no completion losses. General support for all PDFs and eventual 36/36 remain the long-term direction, not this increment’s acceptance gate. Source residual reduction alone with completion still at zero does not satisfy this increment. If a concrete access or scope constraint prevents that result, report the increment as unfinished and retain the plans.</p>
+<p>“All PDFs” is an architectural requirement: the same evidence contracts and extension paths apply independently of file identity, producer, language, page count, and layout. A finite panel cannot prove universal PDF support. Malformed, encrypted without credentials, unsupported, or resource-limited input must remain explicit failures or unresolved evidence; it must never be made to pass by weakening a claim. Record representation-specific gaps so future acquisition providers can fill them through the neutral facade.</p>
+<h2 id="section-1">Definition of done</h2>
+<ul>
+<li>At least two distinct pairs in the unchanged 36-pair panel newly reach document-wide <code>comparison_complete: true</code> relative to the captured current baseline, with no previously complete pair lost, in two captures of the same final build, inputs, arguments, and budgets, with valid process outcomes and source-bound evidence. Evaluate the actual baseline first; a historical reported 0/36 is not a newly reproduced baseline.</li>
+<li>No known false A/B, false complete result, or incorrect strict source mask remains in evaluated outputs and controls. Re-adjudicate current events against current sources and premises; old matching digests alone are insufficient.</li>
+<li>The production path has no panel IDs, publisher names, expected text, input hashes, gold annotations, or fixture coordinates driving comparison decisions. Evidence-derived rules pass independent producer and layout controls plus a small newly frozen holdout evaluation. At least two independent producer families must exercise the new proof path through source-verified natural examples; they need not both become document-wide complete if independent inventory obligations remain.</li>
+<li>All five core acceptance cases pass: line-wrap and page-break invariance with no content change, and replacement, paragraph insertion, and paragraph deletion with exactly one expected change each.</li>
+<li>Relevant Rust, fixture, and evaluator checks pass. Durable artifacts retain before/after results, unresolved inventory, strict source and search obligations, costs, build identity, and adjudication. A synthetic proof or a local visual-equivalence result does not count as a natural complete comparison.</li>
+<li>Evaluate these results against the original failure; preserve evidence; clean up only this run&#x27;s two planning files; then report completion.</li>
+</ul>
+<p>The user clarified during planning that immediate 36/36 is not required: implement enough to complete several pairs, then end this increment with a progress report. The minimum of two makes that outcome measurable without claiming that all PDFs are supported. Once this outcome and its validation are established, stop this increment; do not continue toward 36/36 without a further request. C1–C5 describe a prioritized path, not a requirement to implement every proposed subsystem before reporting. Defer unneeded checkpoints explicitly with remaining evidence and rationale.</p>
+<h2 id="section-2">Evidence established during planning</h2>
+<ul>
+<li>HEAD is <code>4ef99cac98fa0e45e7cb5ed820c14b0b8a485704</code>, matching the supplied investigation.</li>
+<li><code>crates/pdfdelta-core/src/document/coverage.rs</code> counts distinct source references, requires both inventories complete and zero uncompared references, and excludes inferred comparisons. Its set-based reporting must not be mistaken for a proof of multiplicity preservation.</li>
+<li><code>crates/pdfdelta-core/src/document/comparison.rs</code> compares mandatory edges, retains competing-optimum and incomplete-search obligations, and exposes <code>search_resolved()</code>. <code>crates/pdfdelta-cli/src/evidence_compare.rs</code> requires both coverage completion and resolved search.</li>
+<li><code>crates/pdfdelta-core/src/document/text_scopes.rs</code> explicitly makes <code>TextScopeReview</code> non-owning. Its source lists and cuts are range locators, not strict coverage or changed masks.</li>
+<li><code>benchmark/realworld/remaining/current-gate-evidence-audit.json</code> records seven current range-hit candidates, only one of which retains the historical reviewed event identity. <code>ideographic-indent-panel-result.json</code> records 0/36 and a 28-reference comparison increase. These are repository observations, not panel reruns performed while planning.</li>
+<li><code>benchmark/realworld/remaining/panel-obligations-result.json</code> already contains a metadata census. Extend existing evidence instead of introducing another general audit framework or rediscovering that census.</li>
+<li><code>benchmark/realworld/source-boundaries/opaque/ADOPTION.md</code> records a restricted page-program experiment, no W-2 certificates, unresolved observer binding, and no change to inventory or completion. <code>irs-all-paint-result.json</code> retains actual paint differences.</li>
+<li><code>registered-baseline-restoration-result.json</code> records unsuccessful byte-identical historical binary restoration. Historical missing raw reports and binaries remain evidence gaps; current diagnosis must not wait indefinitely for their recovery.</li>
+<li>Cargo is available here (<code>cargo 1.98.0</code>); the supplied external investigation&#x27;s missing-Rust environment is not this environment. Its ZIP and detailed external artifacts were not found locally. The pasted 23-PDF, 210-component and 14-condition experiments are user-reported independent PoCs, not reproduced Rust or natural-panel evidence.</li>
+</ul>
+<h2 id="section-3">Constraints and authorized boundaries</h2>
+<p>This handoff authorizes no execution by itself. A later invocation of the contract permits necessary local implementation in <code>crates/pdfdelta-core</code>, <code>crates/pdfdelta-cli</code>, <code>crates/pdfdelta-bench</code>, existing benchmark tooling, and directly related documentation. Use <code>benchmark/realworld/remaining/source-completion/</code> for new durable run evidence and ignored <code>benchmark/realworld/cache/source-completion/</code> for input copies, binaries and raw captures. Reuse capture/verify modules; add only a small versioned adapter where required. Do not overwrite historical manifests, results, plans, annotations, or gate meanings.</p>
+<p>Preserve existing work: <code>Cargo.toml</code> and <code>README.md</code> have user changes; root <code>PLAN.md</code> and <code>PLAN.html</code> are already deleted; unrelated Python cache directories exist. Existing plans under <code>docs/plans/remaining/</code> and <code>docs/plans/source-boundaries/</code> are not owned by this run. Snapshot worktree/build differences at execution start; do not reset them. Earlier deadline, delegation permissions, stop records, and historical gain gates are historical context, not this run&#x27;s execution policy.</p>
+<p>Preserve raw evidence -&gt; reversible imperfect structure -&gt; robust shared alignment -&gt; exact local diff. Keep parser-library types behind <code>PdfParser</code>/<code>ParsedPdf</code>; preserve glyph text/codes, geometry, render mode/order, and object/operator/Form provenance. Keep core free of CLI filesystem and process concerns. Use stable Rust, Edition 2024, relative geometry and explicit resource limits.</p>
+<p>Local OCR is authorized subject to a Rust implementation, multilingual support (including Japanese and English), and cross-platform operation. Preserve recognition uncertainty, model identity, resource limits, and native/rendered/stored distinctions. Prefer explicit local model provisioning and no external analysis service. No new custom PDF object parser, semantic models, table recognition, or speculative performance redesign in this contract. A concrete fixture or measurement can motivate a separate scope decision for those capabilities; until then keep missing interpretation unresolved. Necessary fixes to existing acquisition and supported source proofs are in scope. Do not replace the solver, add a whole-document flattened alternate diff, promote B/C, infer deletion from unmatched candidates, or count inferred partitions as strict ownership.</p>
+<p>Do not commit, push, publish, contact others, or start subagents under this contract. Public input reacquisition may use the registered source locations if necessary, retaining exact expected hashes and explicit failures. Changes to completion semantics or observation contracts require a separate user decision; a newly versioned appearance report cannot replace the original goal.</p>
+<h2 id="section-4">Checkpoints</h2>
+<h3 id="heading-44">C1 — Establish a reproducible baseline and all remaining obligations</h3>
+<ul>
+<li>[x] Bind all 36 pairs and 72 expected input hashes from <code>benchmark/realworld/followup/panel.json</code>, frozen targets and controls, actual source/worktree snapshot, Cargo.lock, toolchain, build flags and binary digest. Keep an executable copy and raw reports with a manifest of exact paths and hashes.</li>
+<li>[x] Reuse only captures with verifiable identical inputs, executable, flags, budgets and contract. Capture missing current observations twice; use a new versioned current baseline if historical artifacts are missing, without declaring the old baseline restored.</li>
+<li>Pending: Extend the existing audit with three independent obligation classes: inventory, strict source accounting, and search. Each obligation carries side, source/domain locator, evidence pointer, proof dependencies, and status: proved, unresolved, or not evaluated. Unknown inventory size is not zero.</li>
+<li>Pending: Attach all applicable causes to each residual: acquisition, normalization, missing candidates, correspondence ambiguity, competing partition, endpoints, order, non-owning B, and paint interpretation. Overlapping causes are not additive source counts. If evaluation stopped, preserve unevaluated dependencies instead of inventing their status.</li>
+<li>Pending: Select the first shared cause by measured affected source and pairs, including joint blockers. Record which proposed proof can actually reduce a current residual. This census is a decision checkpoint, not the final deliverable.</li>
+</ul>
+<h3 id="heading-52">C2 — Build source-preserving comparison domains from existing cuts</h3>
+<ul>
+<li>Pending: Introduce the smallest validated domain/proof representation near <code>document/text_scopes/cuts.rs</code> and its existing evidence/graph types. Keep discovery, validation and consumption separate; do not trust a serialized certificate without rebinding and validation.</li>
+<li>Pending: Partition each parent into equal anchors, interior comparison domains, literal boundary/space residuals, and unresolved fragments. Their union preserves the parent&#x27;s actual ownership and scalar-to-source multiplicities exactly. Track repeated references separately from unique owned evidence; preserve multi-character glyph sharing as indivisible ownership components. A set equality alone is insufficient.</li>
+<li>Pending: Reconstructed spacing carries contextual references without owning the adjacent literal glyphs. Never split a ligature, lose an unresolved fragment, duplicate ownership through overlapping cuts, or enlarge a change mask to include anchors or unchanged parent context.</li>
+<li>Pending: Validate parent correspondence, exact endpoints, meaningful order, local inventory, normalization alternatives and rival partitions. A boundary interval alone cannot certify an owning domain. Alternative-partition selection remains inferred unless a separate compatible source proof establishes what survives every rival.</li>
+<li>Pending: Feed validated domains to the existing shared solver and exact local comparison. Before strict accounting adoption, document which existing source obligation the new certificate discharges and why existing correspondence conditions remain true. Keep non-owning B unchanged.</li>
+<li>Pending: Verify segmentation metamorphisms using identical raw evidence with different paragraph/line/page boundaries: provable coverage and unresolved ownership remain invariant, while exact masks follow the changed evidence only. Replay affected natural pairs and measure strict residual changes.</li>
+</ul>
+<h3 id="heading-61">C3 — Prove content independently of correspondence uniqueness</h3>
+<ul>
+<li>Pending: Represent correspondence (unique/ambiguous/unknown), content (proved equal/proved changed/unknown), and localization (exact mask/range only/unknown) independently. Reuse existing local change-with-uncertain-position behavior; first implement only the additional equality proof.</li>
+<li>Pending: Require an independently validated, closed, ordered domain with complete local acquisition and source ownership. Do not infer scope or order from matching string bags. Retain keyed-value, membership, relation and move/copy obligations even if text is equal.</li>
+<li>Pending: Establish equality for every admissible alternative using exhaustive search, a proved conservative superset, or an independent domain theorem. Candidate truncation, source sharing, omitted rival partitions, uncertain normalization and resource exhaustion must not be treated as complete enumeration.</li>
+<li>Pending: Compare bounded exhaustive assignments with the new proof on repeated-content controls; include the eight-equal-items case and adversarial ordering/scope/key/value/count changes. Explicitly model whether arbitrary permutations are admissible under the actual order contract; do not transplant the PoC&#x27;s 40,320 assignments into an order-constrained solver by assumption.</li>
+<li>Pending: Connect the certificate to exactly the content obligations it proves. Keep correspondence ambiguity visible; do not globally clear competing-optimum reasons or bypass <code>search_resolved()</code>. Discharge a search obligation only when its entire effect on the selected-channel result is proved invariant and its remaining independent obligations are represented.</li>
+<li>Pending: Measure applicable components and actual residual reduction on the fixed panel. If applicability is negligible, document it and prioritize a demonstrated shared blocker instead of expanding this mechanism speculatively.</li>
+</ul>
+<h3 id="heading-70">C4 — Localize paint execution dependencies without claiming text acquisition</h3>
+<ul>
+<li>Pending: Extend the restricted experiment before production adoption. Distinguish invoked resources from unused resource entries, page/ownership back-references from real Form recursion, and effects from conservative influence footprints.</li>
+<li>Pending: Bind caller state, Form matrix and invocation, exact numeric provenance, clip/text clipping, mask, alpha, blend, backdrop, optional content, annotation appearance, output profile and nested resource contents. Same operator names with changed image bytes must invalidate equality. Unknown relevant state or possibly intersecting influence remains unresolved.</li>
+<li>Pending: Start with a demonstrably sufficient bounded primitive class; explicitly reject unsupported font, transparency and numeric cases. Distinguish failure of an equality proof from a proof of inequality. Raster matches are independent controls, never certificates.</li>
+<li>Pending: Verify disjoint body/widget/unused-resource changes; changed color, width, endpoint, caller/Form transform, active clip and image bytes; unknown overlapping Form/widget, missing resource, cycles, decimal collisions and limit exhaustion. Preserve actual Schedule C/SE paint differences and report W-2 applicability without promising success.</li>
+<li>Pending: Separately validate any native glyph/operator/Form invocation to renderer-observer binding before consuming it. Emit relative appearance evidence separately; do not set text inventory or existing <code>comparison_complete</code> from opaque equality.</li>
+</ul>
+<h3 id="heading-78">C5 — Close the actual inventory and integration gaps</h3>
+<ul>
+<li>Pending: Recompute joint residuals after C2–C4. For every incomplete pair, identify the next evidence acquisition or proof obligation that actually prevents whole-text completion. Localized paint equality alone is not a solution to undiscovered text.</li>
+<li>Pending: Fix supported acquisition and local closure through existing parser/provider boundaries, preserving visibility and stored/native/rendered distinctions. A drawn minus, changed image text, occluded native text, and visible native replacement must remain distinct controls.</li>
+<li>Pending: If supported evidence can close an inventory, provide positive and adversarial source-backed tests and consume only that certificate. Add an authorized Rust multilingual cross-platform OCR provider where acquisition requires it; OCR confidence alone cannot certify exhaustive acquisition or a unique interpretation. Retain exact missing representations and unresolved recognition alternatives. Do not claim impossibility merely because the current implementation lacks a feature.</li>
+<li>Pending: Continue shared fixes until at least two newly complete pairs and the validation criteria are established. Then report this increment, including all remaining pairs and their next shared blockers; further work toward 36/36 belongs to a later increment. Do not spend the remaining work solely reconstructing an old binary hash.</li>
+</ul>
+<h3 id="heading-85">C6 — Prove natural-PDF improvement and generality</h3>
+<ul>
+<li>Pending: Capture the fixed 36 pairs twice at the final frozen build. Retain identical input hashes, common <code>--channels text</code>, limit scale 1, 180-second capture timeout, and existing native defaults (35 seconds and 128 MiB response bound). Operational per-input limits are preserved, not a deadline for this goal.</li>
+<li>Pending: Count all 36 including failed acquisition, source-zero, timeout and unsupported results. Count completion only with valid exit 0/1, full selected inventories, zero strict source residual, and resolved selected comparison obligations. Report all-channel observations separately.</li>
+<li>Pending: Print per-pair and per-producer before/after completion, fixed target recovery, exact source residual, inventory residual, search residual, new/lost A/B, adjudication, runtime, peak RSS, report bytes and budget stops. Never label peak RSS as live allocated memory. Justify regressions and optimize only demonstrated costs.</li>
+<li>Pending: Re-review current source-bound events, including the six changed candidate digests. Preserve finite gold ranges, changed cores, multiplicity and unchanged controls; range containment alone cannot pass review.</li>
+<li>Pending: After implementation/build/configuration freeze, register a small fresh natural holdout of at least three pairs from at least two independent producers, including representation/layout variants the new proofs claim to support. Freeze source expectations before capture. Report every attempt and every claimed completion; a claimed-supported case left unresolved requires investigation. Do not tune on this holdout and still call it blind; promote exposed data to development and obtain a new frozen holdout if changes are needed.</li>
+<li>Pending: Run the five release acceptance cases and adversarial controls for repeats, move/copy, keyed value swaps, cross-page layout, literal/reconstructed spaces, glyph sharing, acquisition gaps, intersecting/disjoint paint, alternative normalization and exhausted budgets.</li>
+</ul>
+<h2 id="section-5">Verification commands and evidence handling</h2>
+<p>Run from <code>/home/hayato/ghq/github.com/hayatosc/pdfdelta</code>. At execution start load <code>coding-style</code> and relevant Rust skills for the changes; use focused code search when callers are unclear. Planning did not run the Rust suite or natural panel.</p>
+<pre><code>cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo run -p pdfdelta-bench --locked -- verify
+PYTHONDONTWRITEBYTECODE=1 PYTHON_UV=0 python -m unittest discover -s benchmark/realworld/remaining -v</code></pre>
+<p>Use affected fixtures first, such as <code>cargo test -p pdfdelta-core --test document_text_scopes_fixture</code> and <code>cargo test -p pdfdelta-core --test document_groups_fixture</code>. Run the opaque-effect example tests if that experiment changes. Run broad checks at integration, reuse passing checks when source/build inputs have not changed, and fix failures introduced by this work.</p>
+<p>Existing capture entrypoint: <code>benchmark/realworld/next/development/capture-comparisons.py</code>. Its positional arguments are executable, PDF cache, and a new output directory; flags are <code>--manifest</code>, repeated <code>--pair</code>, <code>--implementation</code>, and <code>--route text</code>. It requires frozen manifest-relative annotations. C1 must bind all fixed panel pairs to their original manifest/annotation locations rather than assuming <code>panel.json</code> has the capture script&#x27;s schema. Use separate output directories for repetitions and record the complete resolved argument arrays. A working-tree build needs its patch/source snapshot in addition to the commit label.</p>
+<p>Existing verifier entrypoint: <code>benchmark/realworld/remaining/verify.py</code> with <code>--stage</code>, <code>--contract</code>, and <code>--evidence-dir</code>. Existing contracts are <code>historical</code> and <code>source-boundaries-v1</code>; neither should be relabeled as this run&#x27;s implementation-increment contract. Add only the minimal versioned extension needed to validate the new proof records and acceptance criteria. Retain old verifier results as historical results. A new adapter&#x27;s final invocation is recorded when implemented, not presented here as an existing command.</p>
+<p>Durable summaries must include exact raw artifact locations and content hashes, captured binary, source snapshot, lockfile, build command/environment and expected contracts. Hashes identify artifacts; they do not replace source equality proofs. Report missing evidence as missing. Keep necessary raw evidence until an explicit retention decision; do not delete all replay artifacts to reclaim disk without preserving what validates the result.</p>
+<h2 id="section-6">Planning files owned by this run</h2>
+<ul>
+<li>Markdown: <code>/home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-completion/PLAN.md</code></li>
+<li>HTML: <code>/home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-completion/PLAN.html</code></li>
+</ul>
+<p>Neither existed before this run. Both are temporary and must agree on the objective, criteria and decisions. Record progress in Markdown and refresh the HTML after material plan changes. No remote preview server, tunnel or staged public copy is authorized or running. A local browser check does not publish the plan.</p>
+<h2 id="section-7">Progress log</h2>
+<ul>
+<li>2026-09-16 — User decision: end this increment after implementation produces several newly complete pairs and verified meaningful progress; retain universal design as the direction. Plan uses a minimum of two newly complete pairs, with the full 36 retained in evaluation.</li>
+<li>2026-09-16 — Planning: checked HEAD, existing work, completion/source/search paths, current audit, old gates, paint adoption limits and capture CLI. Confirmed Cargo availability. No implementation, natural-panel rerun, or new improvement claimed. Next: execute C1 only after a separate user request to run the goal.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Execution progress: preserved the current release binary and source archive; verified all 72 input hashes. Baseline driver is live as exec session 68807, capturing both repetitions; do not restart it while running. Added <code>remaining/audit_reports.py</code> and three regression tests, plus per-inventory and non-text paint page observations in CLI reports. CLI tests, CLI Clippy and 18 evaluator tests pass. Schedule SE proves that absent text issues do not imply complete inventory; paint and conflict-search obligations coexist. Durable evidence: <code>benchmark/realworld/remaining/source-completion/diagnostic-observability.json</code>. No new completed pair is claimed. Next: finish and audit both baseline repetitions, then bind individual residual sources to validated comparison domains.</li>
+</ul>
+<ul>
+<li>2026-09-16 — C1 evidence: repetition 1 is fully audited at 0/36; inventory and source obligations are unresolved in all 36 pairs, search is unresolved in 34. The second repetition remains live in session 68807. <code>smallest-residuals.json</code> binds complete source/review bundles for Schedule SE and C: neither contains a non-owning B review, SE has a 143-proposal component stopped before subset search, and C includes repeated labels plus real keyed-row swaps. This rules out simply feeding existing B reviews or equal text bags as a solution for the two smallest residual pairs. Next: finish baseline audit using <code>/tmp/pdfdelta-audit-source-baseline.py</code>, retain the final registration, then implement source-preserving domains with independent correspondence/ordering premises; keep inventory work separate.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Baseline complete: both 36-pair repetitions finished and were audited. Both are 0/36; coverage and the three obligation statuses agree pair-by-pair. Input, original target and control hashes remain registered. No baseline process remains live.</li>
+<li>2026-09-16 — Source partition progress: added <code>TextSourcePartition</code>, a borrowed, non-deserializable ownership partition with explicit complement sources/token ranges and unchanged origin multiplicities. SourceCut slices and literal-edge padding now use it with shared work accounting. Five new controls cover every cut of a shared-glyph view, synthetic-only intervals, malformed/resource-limited input, nested context references, and exact local masks excluding the complement. This is the accounting primitive, not yet a corresponding multi-node domain or a strict coverage certificate.</li>
+<li>2026-09-16 — Checks and natural pilot: 2492 workspace tests passed (two ignored), workspace Clippy and format passed, and generated fixtures passed 48/48. EDPB controller/processor, NIST incident handling and Mask R-CNN retain identical strict comparisons and coverage. Existing B reviews are preserved; Mask has one additional out-of-target B range. Its token-count witness was checked against retained native glyphs (digit 0: two old occurrences, one new), with the existing range-event validator. No fixed target or completion gain is claimed. Evidence: <code>partition-pilot.json</code> and <code>partition-added-range-review.json</code> in <code>benchmark/realworld/remaining/source-completion/</code>. Next: construct corresponding domains across parent partitions and validate order, inventory and rivals before any strict source discharge; the independent all-panel inventory deficit remains.</li>
+</ul>
+<ul>
+<li>2026-09-16 — User authorized local OCR provided it uses Rust, supports multiple languages and runs across platforms. Provider selection and integration must preserve model provenance, bounded execution, ambiguous recognition and source conflicts. This extends acquisition scope; it does not relax strict inventory/source/search completion or count OCR output as a new completed pair.</li>
+</ul>
+<ul>
+<li>2026-09-16 — OCR feasibility: an isolated Rust RTen 0.26.0 probe correctly recognized known Japanese and English crops using local PaddleOCR models; a detection-model smoke test produced finite probability output. Linux Clippy, Windows GNU target checking, and Apple ARM64 target checking passed. Other-OS runtime execution remains unverified. The probe and hash record are in <code>benchmark/realworld/remaining/source-completion/ocr-probe/</code>; no production dependency or completion predicate changed. The existing worker process limiter rejects non-Linux platforms, so production OCR must address platform-compatible bounded execution instead of inheriting that restriction silently. Next: implement and validate bounded region acquisition with model identity and uncertainty, then connect only independently proven obligations; strict completion remains 0/36.</li>
+</ul>
+<ul>
+<li>2026-09-16 — User additionally requested CPU practicality evaluation. Measure full-page detector plus recognition work on known Japanese/English pages and natural IRS/research pages, at one and four CPU threads with repeated identical runs; retain time, peak RSS, raw recognition output, failures and generated-text accuracy. Separate PDF rendering/native comparison costs and cross-platform compile checks from actual runtime observations. Do not infer full-corpus throughput or correctness from the isolated crop timing.</li>
+</ul>
+<ul>
+<li>2026-09-16 — CPU evaluation completed: 36 sequential prototype runs across six page cases, one/four threads and three repetitions. On a Ryzen 5 5600X, four-thread median time was 2.87–3.53 seconds for generated pages and 3.13–8.33 seconds for sampled natural pages, with at most 130.2 MiB RSS. Shared-host timing varied substantially. English matched all 30 generated lines; Japanese retained 24 character edits even after ignoring whitespace for diagnosis. Complete text inventory is not established. The panel has 5,684 old/new pages; region-focused acquisition is preferable to unconditional full-page OCR, subject to retained omission/overlap obligations. Durable evidence: <code>ocr-probe/CPU.md</code>, <code>cpu-analysis.json</code> and preserved raw/cache artifacts. Goal remains active at 0/36; production OCR and source/domain discharge are still outstanding.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Residual applicability preflight: Schedule C has 30 exhaustive ambiguous components consisting only of non-inferred literal leaf proposals. Their combined currently uncompared source opportunity is at most 160 references per side, before validating domain closure, inventory, order, rival partitions and dependency closure. Schedule SE has no such component. This is not an equality certificate or coverage gain; the retained C residual is 1,298/1,304, so repetition equality alone cannot close either smallest pair. Evidence: <code>content-invariance-preflight.json</code>, bound to source/report hashes. Prioritize corresponding SourceCut domains and independent inventory obligations over expanding the repeated-content fast path. No production state changed in this preflight; goal remains active.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Implemented the first strict ownership connection: admitted source-only padding boundaries can supply <code>NativeTextDomainEquality</code> after whole-parent local closure and source-preserving cuts. Owned native bodies enter text coverage; complements, paragraph identity, search and global inventory remain unresolved. Proof authority is not deserializable. All 2,493 workspace tests pass (two ignored), Clippy/format pass, generated fixtures pass 48/48, and eight new integration scenarios preserve unsafe exclusions.</li>
+<li>2026-09-16 — Natural pilot: controller/processor gained 694 strict references on each side (12 domains); restrictions gained 597 on each side (14 domains). Schedule C/SE and NIST contingency stayed unchanged. Independent native-source reconstruction verified all 26 domains and their complements. Existing strict comparisons and B reviews were preserved. The extra three restrictions B reviews also occur with the earlier preserved partition binary. Evidence: <code>native-domains.md</code>, <code>native-domains-pilot.json</code> and both source-review JSON records. All five pilot pairs remain incomplete; no full-panel completion gain is claimed. Next: expand corresponding domains and address inventory through execution-state proofs of genuinely absent paint effects, retaining provenance and every unresolved interpretation; local OCR remains a separate pending acquisition path.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Empty-clip applicability measured with a separately preserved diagnostic binary across all 72 fixed inputs. Three execution controls pass, including pending-clip timing and q/Q restoration. Logs contain 21 empty-clip paint-record attempts across four documents; every affected page has other paint attempts. One native acquisition returns the retained CID-width resource limit; successful native replies may still contain issues. Attempts can include subsequently rolled-back Form effects, so no inventory closure or source gain is inferred. Deprioritize an Empty-clip-only production exception; broader acquisition/domain work is still required. Production source and release executable restored. Evidence: <code>clip-probe.md</code>, <code>clip-probe-results.json</code>, diagnostic patch and driver. Goal remains active at 0/36.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Fixed native-domain proof work accounting: the shared exact comparator now charges actual work to the domain ledger instead of a quadratic grid reservation. The previous estimate overcharged long equal bodies and underfunded short ones (four versus ten units for one token per side). Shared-budget exhaustion and short-boundary regression tests pass. Workspace: 2,495 passed, two ignored; Clippy, formatting and generated fixtures 48/48 pass. Same five-pair pilot adds 54 strict references per side for controller/processor and 296 per side for restrictions over the previous implementation; the other three are unchanged. All prior candidates, comparisons, reviews, domains and unresolved reasons are retained. Independent reconstruction checks all 78 domains against preserved source bundles. No newly complete pair: inventory and search still remain. Evidence: <code>domain-work.md</code>, <code>domain-work-pilot.json</code> and both source-review records.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Corrected a missing native-projection check in new domain ownership. A pre-fix counterexample changed native text while retaining graph text and still owned the affected range. Domains now use the existing complete-glyph/order validator and source-checked expansion of contracted literal edge spaces; interior source changes and unresolved interpretation remain excluded. Workspace: 2,496 passed, two ignored; Clippy, format and generated fixtures 48/48 pass. Final same-five-pair pilot retains 32 controller/processor and 24 restrictions domains, with baseline gains of 714 and 571 references per side. These supersede the prior 748/893 gains; 34/322 references return to unresolved with the added requirements and unchanged budget. Other local comparisons, candidates, reviews and search reasons remain unchanged. The retained domains are a subset of the prior independently audited source witnesses. No newly complete pair. Evidence: <code>domain-projection.md</code> and <code>domain-projection-pilot.json</code>; intermediate contracted-padding rejection is separately archived. Goal remains active.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Restored ECB annual 2023 native acquisition through shared CID width resources. A read-only parser-facade probe found nine Type0 fonts referencing one descendant table; repeated expansion hit the 65,536 retained-entry ceiling. A PDF-bound cache now shares only identical descendant horizontal tables; per-font mappings, IDs, geometry, provenance, vertical costs and all numerical limits remain. Failed loads never publish tables; cache/backend versions were updated. ECB old acquisition now yields 462,245 glyph records. Two same-build/inputs/arguments/budget captures agree exactly on comparison, coverage and evidence summaries, with 45,097 old / 45,085 new strictly compared references. Inventory/source/search still prevent completion. The preceding five controls retain identical comparisons and coverage. Workspace 2,500 passed, two ignored; Clippy, formatting, fuzz-feature check and generated fixtures 48/48 pass. Evidence: <code>cid-width.md</code> and <code>cid-width-pilot.json</code>. No newly complete pair; full goal remains active.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Native denial trace: two diagnostic captures preserve comparison and coverage exactly. All six controller/processor equal candidates fail paint closure; Schedule C path [39,40,41,42] fails the descending-baseline check. Reused the existing spatial row census for whole-node interval ownership, retaining full population/paint checks and rejecting clipped padding. A side-by-side repeated-text regression fails before and passes after; omission and reversed-order controls reject. Affected tests 90/90, generated fixtures 48/48 and workspace Clippy pass. All six natural pilot comparisons and coverage remain identical; no new completion. Evidence: native-denials.md, row-domain.md and their JSON registrations. Removed 103,856,344 bytes of completed macOS cross-check build artifacts while retaining evidence. Next: isolate downstream local paint/acquisition obligations rather than infer success from admitting an earlier boundary/order condition. Goal remains active.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Inventory applicability audit reused hash-verified frozen paint projections and operator logs instead of rebuilding extraction. Of 446,318 retained paints, 440,078 are path fills/strokes, 5,442 are XObject invocations, 610 shading and two inline images; 186 old ECB records remain unmatched after the historical acquisition failure. No finite bound has zero width/height. Only W-9, Schedule C and Schedule SE have solely path paint in both revisions. Image-only OCR cannot resolve these inventory obligations, and paths cannot be discarded as decoration. Evidence: paint-operator-attribution.md/json. No production predicate or natural completion changed. Next work must distinguish actual path-symbol interpretation from raster acquisition and relative paint equality; further candidate additions do not address the inventory prerequisite. Goal remains active.</li>
+</ul>
+<ul>
+<li>2026-09-16 — Reconstructed six controller/processor old-side bands from retained glyph/paint data: unknown closed-stroke bounds contaminate figure-page ranges, and opcode alone does not distinguish curves from straight closed paths. Inspection found a prerequisite correctness bug: ExtGState LW was ignored, including cached resource reuse. The selection cache now applies optional width with optional font; invalid widths remain unresolved and hairlines keep unknown bounds. Cache format 15/backend v11 prevent stale width reuse. The generated regression reproduces widths [2,2,2,7,7] before and validates [2,30,2,30,30] after. Workspace 2,512 passed, two ignored; Clippy, formatting and 48 generated fixtures pass. All six pilot comparison/coverage records remain unchanged, no new completion. Evidence: gstate-width.md/checks/pilot and native-denial-paint-bands.json. Clarification: raster OCR can also receive path-drawn text; the operator census did not prove a separate path recognizer necessary. Next: bound positive-width joined/curved strokes using retained miter state, keeping unknown/intersecting paint and global inventory unresolved. Goal remains active.</li>
+</ul>
+<ul>
+<li>2026-09-16 — User authorized commits. Recorded the width defect reproduction as e1427a1 and committed accumulated core/CLI implementation as 5350325 after passing 2,513 workspace tests (two ignored), Clippy and formatting. Joined/curved stroke bounds now retain miter state; automatic stroke adjustment and hairlines stay unknown. Generated fixtures pass 48/48. Six-pair pilot: Schedule C +3 source refs/side (raw reading &quot;23 &quot; independently checked); controller/processor +6 early-domain refs but -67 from its last two prior domains, net -61/side. The budget explanation is not yet established. All six remain incomplete. Retained 33 controller domains independently pass reading/source-conservation checks. Evidence: joined-stroke.md, checks/pilot and source-review JSON. Next: isolate the late-domain losses without increasing budgets, then continue inventory/search work. One-time plans and unrelated root changes remain outside commits. Goal remains active.</li>
+</ul>
+<h2 id="section-8">Original-purpose evaluation</h2>
+<p>Pending. At closeout, compare the final repeated natural-panel results with the original 0/36 failure, explain why newly discharged obligations satisfy the unchanged completion meaning, and state how independent controls support generality. Checklist completion and smaller residuals do not establish resolution. If fewer than two newly complete pairs are established or the required correctness/generalization evidence is missing, continue within scope or report a concrete blocker; do not lower acceptance criteria. Otherwise end this increment and explicitly report the remaining incomplete pairs, evidence gaps and prioritized next work; do not imply that 36/36 or universal support has been achieved.</p>
+<h2 id="section-9">Baseline-band index progress</h2>
+<p>The domain-budget trace reproduces the controller/processor loss as local proof exhaustion. A validated page-local baseline index restores both lost certificates without increasing limits or changing closure predicates. The six-pair pilot adds 31, 181 and 329 compared references per side for ECB, controller/processor and restrictions respectively; the other three counts are unchanged. All remain incomplete. Independent audits verify 70 controller domains, 42 restrictions domains and the added ECB literal change mask. Workspace tests pass 2,514/0/2 ignored, generated fixtures 48/48, Clippy and formatting pass. Durable records are under <code>benchmark/realworld/remaining/source-completion/baseline-index*</code> and <code>domain-budget*</code>. Continue with inventory/source/search residuals; no new completion or final repeated panel has been established.</p>
+<h2 id="section-10">Full-panel recheck progress</h2>
+<p>The frozen d0e0fff implementation was captured once on all 36 pairs with all 72 input hashes verified and unchanged limits. Completion remains 0/36. Compared source counts increase for 16 pairs and decrease for none versus the first baseline; ECB includes restored acquisition. Inventory and source obligations remain for all 36, search for 35. Schedule SE&#x27;s unresolved 143-proposal component is entirely inferred and solving it alone cannot discharge strict source residuals. Durable evidence: <code>completion-recheck-v2.json</code>, <code>completion-recheck-v2-audit.json</code>, <code>completion-recheck-v2.md</code> and <code>se-search-recheck.json</code>. This is not final two-run acceptance; prioritize the remaining acquisition/interpretation proof gap alongside source obligations.</p>
+<h2 id="section-11">Type 3 code-local acquisition progress</h2>
+<p>Unused Encoding Differences names missing from CharProcs no longer reject defined codes in the same font. Used missing codes remain unresolved even with ToUnicode; identity cannot bind absent procedures. GPT-3 acquisition gains 11,527/10,275 glyphs and removes eight text issues; compared sources increase 9,354 per side. Newly discovered residuals remain explicit. Schedule SE comparison and coverage are unchanged. Both pilot pairs remain incomplete. Final checks: 2,515 workspace tests passed, two ignored, 12 Type 3 tests and 48 generated cases passed; Clippy and formatting pass. Reproduction commit <code>7d24366</code>; durable evidence <code>type3-code-gaps*</code>. Continue the acquisition/interpretation and strict source obligations; this does not establish a newly complete pair.</p>
+<h2 id="section-12">Invocation-selected drawing dependencies</h2>
+<p>The benchmark profile <code>opaque-invoked-resources-v2</code> limits explicit resource acquisition to invoked <code>Do</code>/<code>gs</code> names at each page/Form scope, while refusing implicit default colour-space overrides. Four unused-resource positives and two default-space negatives extend the 24 existing controls to 30 passing conditions. Actual recursion and image changes remain dependencies. W-2 retains 11/11 unresolved pages due to unsupported AcroForm/annotation context. Whole-page command and context equality remains required; no spatial isolation, native/renderer binding, text inventory or completion claim is added. Workspace tests 2,515 passed, two ignored; fmt/Clippy pass. Durable evidence <code>invoked-resources-v2.json</code> and <code>.md</code>. Continue the interpretation/inventory proof gap; this experiment is not production adoption.</p>
+<h2 id="section-13">OCR detector connectivity prerequisite</h2>
+<p>The isolated Rust CPU prototype now retains eight-connected foreground regions under unchanged limits. Two component tests and all checks pass. Six same-input/model four-thread observations preserve both generated transcriptions, consolidate seven SE regions at each resolution and one Mask R-CNN region at 72 dpi; natural recognition quality is unadjudicated. This remains an axis-box prototype, not full DB contour/polygon processing, production OCR or exhaustive inventory. No new complete pair is added. Frozen evidence and limitations are in <code>ocr-probe/connectivity-checks.json</code> and <code>CONNECTIVITY.md</code>; the previous repeated CPU results are preserved. Next acquisition work still requires complete postprocessing, alternatives and visibility/source proof.</p>
+<h2 id="section-14">Current Schedule SE residual incidence</h2>
+<p>A fresh current-binary review joins all 867/884 residual native references to actual graph/proposal ownership. Every reference has only inferred candidates in the incomplete component and no mandatory candidate. They occupy 11 full native-layout text nodes per side; their whole-node readings have no cross-revision common value. Equality-only domain work and candidate-count increases cannot alone discharge this measured residual. Prioritize source-backed boundaries/identity for changed domains while retaining independent paint inventory. <code>se-residual-v2.json</code> and <code>.md</code> preserve the full incidence, evidence hashes and limitations. No new completion or contract change is claimed.</p>
+<h2 id="section-15">Schedule SE discovery and mixed baselines</h2>
+<p>A read-only production trace confirms all residual nodes reach ordinary, row and native-structure discovery. Comparison and coverage exactly match the uninstrumented capture; production source and executable were restored. Seven residual node rectangles per side contact no retained paint, without proving closure of larger boundary intervals. Nodes 80, 84 and 87 have upward native baseline transitions at footnote digits/fraction numerators in both revisions; node 52 does not. Next isolate mixed-baseline order checks with a source-preserving fixture, retaining raised positions and rejecting ambiguous stacked text. Evidence: <code>se-runs-v1.json</code> and <code>.md</code>. No completion gain is claimed.</p>
+<h2 id="section-16">Raised inline source projection</h2>
+<p>The failing reproduction was committed as <code>d8e751f</code>. Source-preserving mixed-baseline order recovers a strict synthetic interval while retaining exact masks and rejecting overlapping or separated glyphs. Four broader revisions lost two EDPB B reviews and were rejected. The final implementation applies mixed-baseline projection only inside already-bounded strict intervals, preserving discovery. Its three-pair pilot exactly preserves all comparison objects and coverage: Schedule SE 4,291/4,291, Schedule C 5,015/5,015, EDPB 2,240/2,266; all incomplete. Evidence: <code>inline-source-v6-pilot.json</code>, <code>inline-source-checks.json</code>, <code>inline-source.md</code>. No natural gain is claimed. Continue identifying Schedule SE boundary/closure obligations; synthetic superscript success does not explain or discharge the complete natural residual.</p>
+<h2 id="closure-failures">Actual Schedule SE closure failures</h2>
+<p>A revision-bound trace records 52 old-side closure attempts: 31 reject paint contact, 20 reject node order and one rejects a non-monoline endpoint. New-side census is short-circuited, not validated. Independent full-band reconstruction shows 4–9 paint contacts for six paths, including the two amount-cell paths that already fail order. The 74/75 footer path has zero paint contacts but exact same-baseline, disjoint nodes rejected by the legacy order. Residual nodes 7, 76 and 99 never enter these closure calls. Evidence: <code>se-closure-v2.json</code> and <code>.md</code>; comparison and coverage exactly match production and the instrumented source/binary were restored. Next distinguish absent/terminal boundary premises from rejected censuses and test general same-row population closure. Do not assume superscript projection or more candidates can discharge the measured paint obligations. No new completion is claimed.</p>
+<h2 id="tagged-source-intervals">Tagged page regions connected to strict intervals</h2>
+<p>Reproduction <code>254c670</code> shows that disjoint same-row nodes inside a tagged page sequence fail strict interval ownership. The implementation reuses the existing spatial row census per region, records its convention and reacquires native membership before reconstructing owned intervals. Exact mask and overlap/missing-source/reversed-tag/unknown-paint controls pass; workspace 2,517 passed, two ignored, Clippy/format and generated 48/48 pass.</p>
+<p>A complete single fixed-panel recheck still reports 0/36. The current change gains 55/70 strict sources on IRS C and 57/72 on IRS SE, with one new B review each and no lost review signature anywhere in the panel. Source/mask oracles verify both footer/date intervals. Historical SSDF +517/+512 and ECB -31/-31 differences both reproduce exactly on the preceding frozen executable: the SSDF body-word removal is an earlier inline-projection gain; the ECB residual remains an earlier budget/proof-order issue. Do not attribute either to the new tagged-region connection. Evidence: <code>tagged-row-regions.md</code>, <code>tagged-row-regions-v1-audit.json</code>, <code>tagged-row-regions-v1-panel.json</code> and <code>tagged-row-regions-v1-panel-audit.json</code>. No new completion or fixed-body-target recovery is claimed. Continue remaining inventory/source/search obligations and diagnose the earlier ECB source loss without using elapsed time as a stopping rule.</p>
+<h2 id="paint-declarations">Paint declarations do not discharge inventory</h2>
+<p>The existing paint probe now retains inline ActualText, artifact markers, unresolved named properties and marker balance. Six fixed IRS documents (W-9, C and SE revisions), 20 pages and 1,215 paint operations have no inline ActualText or named-property frame at paint; 1,029 paints are artifact-tagged. These tags are not absence-of-text evidence. The CLI control keeps outlined text unresolved with and without an Artifact wrapper. Structure dictionaries, invoked Forms and annotation appearances remain outside this page-program diagnostic. No new completion or acquisition closure is claimed. Evidence: <code>paint-properties-v1.json</code> and <code>paint-properties.md</code>. Formatting, Clippy, 2,517 workspace tests, two probe tests and the extended CLI control pass. Continue source-bound acquisition investigation; an inline-declaration-only provider has no candidates for this measured paint population.</p>
+<h2 id="interval-lookup">Bounded interval lookup restores source coverage</h2>
+<p>A temporary ECB trace reproduced exhaustion before a previously owned 31/31-source interval. Whole-node interval preparation now shares each immutable graph-node lookup within one append call, charging construction and lookups while retaining all native, boundary and exact-diff checks. The five-pair pilot gains 151/150 ECB references, including the restored heading and two additional intervals. SSDF, Schedule C/SE and EDPB comparison and coverage remain identical. An independent raw-native/all-optimal-mask audit validates the three readings and masks (costs 2, 2, 1), with 225 oracle controls. Workspace tests 2,518 passed, two ignored; related tests 94, generated cases 48, formatting and Clippy pass. Evidence: interval-budget.md, interval-index-v1-pilot.json and interval-index-v1-audit.json. All five remain incomplete; no full-panel or final two-run completion gain is claimed. Continue acquisition closure and remaining source/search obligations under the original goal.</p>
+<h2 id="inventory-decision">Observation completion extension approved</h2>
+<p>A source-bound audit rechecked all 36 retained panel reports and the five latest pilot reports: every pair still has incomplete text inventory. The current OCR route is inferred even with confidence 100 and declared complete inventory; opaque rendering equality cannot interpret its text. inventory-contract.md records these boundaries and the approved, separately versioned observation extension. The user approved adding the separately versioned indicator on 2026-09-16. Implementation is pending and no predicate has changed. This addition does not replace the strict two-pair goal. Do not ask for OCR permission again, promote uncertainty, count observations as old strict completion, or assume that every future source-backed acquisition method is impossible. Keep both plans and the original goal active.</p>
+<h2 id="natural-equal-applicability">Natural equal-domain applicability measured</h2>
+<p>The mixed fixed-panel snapshot contains 37 equal whole-node intervals and 3,138 exhaustive nonempty components without mandatory edges. Only one component is wholly enclosed on both sides by one such interval: Llama 2 scope 0 component 413, with 18 references per side. The scope still has incomplete text enumeration. This is a necessary-condition screen, not a search-discharge proof. A fresh current-binary Llama capture additionally measures the preceding lookup fix: 15 more equal intervals and +113 compared references per side, all prior intervals retained and the rest of the comparison object unchanged. Evidence: content-invariance-v1.json and content-invariance.md. No new completion, full-panel rerun, independent transcription adjudication or contract change is claimed. Lower the priority of the first equal-domain search consumer and prioritize independently justified acquisition/interpretation; do not infer that future content-invariance proofs are impossible. The observation-contract extension has since been approved; its implementation remains pending and existing strict results remain separate.</p>
+<h2 id="strict-completion-impasse">Strict completion impasse</h2>
+<p>The unchanged strict two-pair objective is not achieved. The inventory-contract audit, equal-domain applicability follow-up and final source-state recheck retain the same acquisition-proof gap across three consecutive goal turns. Existing native evidence, inferred OCR and opaque relative equality cannot discharge it under the authorized contract. Independent source fixes and the measured equal-domain applicability investigation are complete; no presently justified implementation route to two strict completions has been established. Further advancement requires additional authoritative acquisition evidence or an explicit decision on a different comparison contract/target. The user subsequently approved adding the observation indicator. This opens the separate implementation path; adding it alone does not replace or fulfill the strict goal. Record this as an impasse, not completion, not proof of universal impossibility and not a confidence-threshold exception. Keep the original objective, frozen artifacts and both temporary plans; do not perform completion cleanup.</p>
+<h2 id="section-17">Blockers and resumption</h2>
+<p>The missing external ZIP does not block repository-based implementation. Do not cite its experiments as reproduced. Missing historical executables/reports require a transparent current baseline, not fabricated restoration. Input access, required text interpretation outside the authorized scope, or an essential missing observer/provenance interface may become concrete blockers only after recording source evidence, attempted compatible approaches and the precise needed access or decision. Complete independent work while such a decision is pending.</p>
+<p>No elapsed-time, turn-count or retry-count cutoff governs this goal. A tool timeout or harness interruption is not completion. Record the last validated source/build, commands, results, remaining obligations and next action, retain both plans, and resume from that evidence. Repeated failure calls for a revised hypothesis, not blind retries.</p>
+<h2 id="section-18">Completion report and cleanup</h2>
+<ol>
+<li>Evaluate the implemented result against the original problem and all completion criteria, reusing valid evidence. If unresolved or inconclusive, update this plan and continue; report a specific blocker only when needed.</li>
+<li>Preserve the original problem, result, per-pair evidence, controls, limitations and reproducibility references in durable benchmark artifacts and the final report, not solely in these temporary plans.</li>
+<li>Close any later recorded owned preview server/tunnel and delete its exact staged copy and empty temporary directory first. Preserve unrelated sessions and files.</li>
+<li>Delete only the two exact run-owned Markdown and HTML paths above, without wildcards, name-based searches or recursive directory deletion; verify both are absent. Preserve unrelated and later user edits. If ownership or cleanup is uncertain, report cleanup unfinished.</li>
+<li>Only then mark the goal complete and report the outcome, evidence, limitations and removed paths. Never link deleted planning files as completion evidence.</li>
+</ol>
+<h2 id="section-19">Runnable handoff contract</h2>
+<pre><code>/goal Resolve pdfdelta&#x27;s 0/36 common-text completion failure through general source-backed comparison, achieving at least two newly complete pairs with no completion losses on the unchanged fixed 36-pair natural-PDF panel in two same-build, same-input, same-argument and same-budget captures. Preserve strict inventory/source/search completion semantics, all five release acceptance cases, exact masks, explicit unresolved evidence, resource limits and producer-independent behavior; verify source adjudication, independent controls, a small newly frozen holdout evaluation and project checks.
+Follow /home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-completion/PLAN.md; its companion is /home/hayato/ghq/github.com/hayatosc/pdfdelta/docs/plans/source-completion/PLAN.html. Both are temporary planning files created for this run.
+Implement and record meaningful progress within the plan&#x27;s local crate/benchmark/documentation boundaries, preserving existing work. Local OCR is authorized only with Rust, multilingual support and cross-platform operation, while retaining recognition uncertainty and resource limits. Local commits are authorized. Do not publish, delegate, add custom parsing/semantic models, or change the completion contract without separate authorization. Continue based on evidence without elapsed-time, turn-count or retry-count cutoffs; lower residuals alone are not sufficient. Once the at-least-two-pair gain and required validation are established, end this implementation increment and report progress plus the remaining blockers; 36/36 is not required for this increment.
+After the checkpoints, evaluate the original 0/36 problem against the recorded criteria. If unresolved or unproven, continue or report a concrete scope/access blocker with evidence and remaining work; retain both plans and do not claim completion.
+After successful evaluation, preserve the result and evidence in durable artifacts and the final report, close recorded owned previews and remove their staged copies, then delete only the two exact run-owned planning files and verify their absence. Mark the goal complete only after evaluation and cleanup; report the original problem, resolution, evidence, limitations and deleted paths.</code></pre><footer class="dads-footer"><p>Generated from <a href="PLAN.md">the operational Markdown plan</a> using html-artifacts and the bundled Digital Agency Design System stylesheet. No external assets or remote preview.</p></footer></main></div></body></html>

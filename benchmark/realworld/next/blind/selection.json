@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "set": "blind",
+  "freeze_sha256": "d436eac8dd06deba9ca6999d81f5c81befbcbc19b1c2a7e41474c2dd0ce7f67c",
+  "selected_after_implementation_freeze": true,
+  "comparison_output_inspected": false,
+  "selection_rule": "Two new publication-series slots per family. Resolve these publication revisions from primary publishers, register exact input hashes, inspect actual presentation traits, and fix source references before comparison. Missing editions and replacements remain recorded. No selection depends on pdfdelta comparison results. Family labels are intended stress coverage pending source inspection.",
+  "pairs": [
+    {
+      "id": "ietf-tls-12-to-13",
+      "family": "id_free_prose",
+      "publisher": "RFC Editor / IETF",
+      "language": "en",
+      "series": "Transport Layer Security",
+      "old_revision": "RFC 5246 (TLS 1.2)",
+      "new_revision": "RFC 8446 (TLS 1.3)",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "gnu-gpl-2-to-3",
+      "family": "id_free_prose",
+      "publisher": "Free Software Foundation",
+      "language": "en",
+      "series": "GNU General Public License",
+      "old_revision": "Version 2",
+      "new_revision": "Version 3",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "ietf-http11-7230-to-9112",
+      "family": "heading_move_list_copy",
+      "publisher": "RFC Editor / IETF",
+      "language": "en",
+      "series": "HTTP/1.1 message syntax and routing",
+      "old_revision": "RFC 7230",
+      "new_revision": "RFC 9112",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "nist-risk-management-37-r1-to-r2",
+      "family": "heading_move_list_copy",
+      "publisher": "NIST",
+      "language": "en",
+      "series": "SP 800-37 Risk Management Framework",
+      "old_revision": "Revision 1",
+      "new_revision": "Revision 2",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "irs-1099-misc-2024-to-2025",
+      "family": "table_form",
+      "publisher": "IRS",
+      "language": "en",
+      "series": "Form 1099-MISC",
+      "old_revision": "2024",
+      "new_revision": "2025",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "irs-w2-2024-to-2025",
+      "family": "table_form",
+      "publisher": "IRS",
+      "language": "en",
+      "series": "Form W-2",
+      "old_revision": "2024",
+      "new_revision": "2025",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "arxiv-resnet-v1-to-v2",
+      "family": "multicolumn",
+      "publisher": "Microsoft Research / arXiv",
+      "language": "en",
+      "series": "Deep Residual Learning for Image Recognition, 1512.03385",
+      "old_revision": "v1",
+      "new_revision": "v2",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "arxiv-mask-rcnn-v1-to-v3",
+      "family": "multicolumn",
+      "publisher": "Facebook AI Research / arXiv",
+      "language": "en",
+      "series": "Mask R-CNN, 1703.06870",
+      "old_revision": "v1",
+      "new_revision": "v3",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "japan-post-domestic-terms-2023-to-2024",
+      "family": "japanese_vertical_rotated_ruby",
+      "publisher": "Japan Post",
+      "language": "ja",
+      "series": "Domestic postal service terms",
+      "old_revision": "2023 effective edition",
+      "new_revision": "2024 effective edition",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "bunka-official-writing-1952-to-2022",
+      "family": "japanese_vertical_rotated_ruby",
+      "publisher": "Japanese government / Agency for Cultural Affairs",
+      "language": "ja",
+      "series": "Guidance on official writing",
+      "old_revision": "1952 guidance",
+      "new_revision": "2022 guidance",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "faa-thunderstorms-b-to-c",
+      "family": "clip_overpaint_figure_scan_mixed",
+      "publisher": "FAA",
+      "language": "en",
+      "series": "AC 00-24 Thunderstorms",
+      "old_revision": "AC 00-24B",
+      "new_revision": "AC 00-24C",
+      "presentation_traits_verified": false
+    },
+    {
+      "id": "faa-maintenance-records-c-to-d",
+      "family": "clip_overpaint_figure_scan_mixed",
+      "publisher": "FAA",
+      "language": "en",
+      "series": "AC 43-9 Maintenance Records",
+      "old_revision": "AC 43-9C",
+      "new_revision": "AC 43-9D",
+      "presentation_traits_verified": false
+    }
+  ]
+}

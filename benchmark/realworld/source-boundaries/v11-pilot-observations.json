@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "complete": true,
+  "repetitions": 1,
+  "scope": "Two selected development diagnostics. Not the full panel or a recovery gate.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v11/build.json",
+    "sha256": "1d304edad81527ab55408129174c477012028a55811b83a7a68df5f0f16a559e"
+  },
+  "observations": [
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v11-panel/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "c478f756e80f9ab31b9995bea6849333ec69cd736407488cfe81af0b6242fd21"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v11-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "60a8182e45858cc3cecc3f82f42e07ead7685a94904d2120c45daf32e82ff7dc"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v11-panel/nist-sha-1803-to-1804-1/runs.json",
+        "sha256": "2835b6b4edcfe63e353f51dc6855921584a9c0e981ff8ccdb7d51fd177a91dfd"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v11-panel/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "d4025ee90429aa592d027adc33574f2a89aa7de0ac49abb26f8b22c99cc2b57b"
+      }
+    }
+  ]
+}

@@ -55,7 +55,6 @@ pub enum ViewBasis {
 }
 
 impl ViewBasis {
-    #[must_use]
     pub fn is_inferred(self) -> bool {
         matches!(
             self,
@@ -71,6 +70,11 @@ pub enum TextNormalization {
     /// Positions may be retained or removed independently, never selected by diff cost.
     Alternatives {
         optional_positions: Vec<usize>,
+        /// In-process source validation, bound to the complete token projection.
+        /// Serialized reports cannot convey this trust; reloaded alternatives
+        /// must be rebuilt from source evidence before local comparison.
+        #[serde(skip)]
+        certificate: Option<super::NormalizationCertificate>,
     },
     Unresolved {
         reason: String,
@@ -104,7 +108,6 @@ pub enum NodeContent {
 }
 
 impl NodeContent {
-    #[must_use]
     pub fn channel(&self) -> Option<Channel> {
         match self {
             Self::Text { .. } => Some(Channel::Text),
@@ -188,6 +191,7 @@ pub struct GraphLimits {
     pub max_tokens: usize,
     pub max_references: usize,
     pub max_label_bytes: usize,
+    pub max_normalization_work: usize,
 }
 
 impl Default for GraphLimits {
@@ -198,6 +202,7 @@ impl Default for GraphLimits {
             max_tokens: 5_000_000,
             max_references: 10_000_000,
             max_label_bytes: 16 * 1024 * 1024,
+            max_normalization_work: 1_000_000,
         }
     }
 }
@@ -242,7 +247,16 @@ impl DocumentGraph {
         evidence: EvidenceLimits,
         limits: GraphLimits,
     ) -> Result<()> {
-        store.validate(evidence)?;
+        self.validate_indexed(store, evidence, limits).map(|_| ())
+    }
+
+    pub(super) fn validate_indexed<'a>(
+        &self,
+        store: &'a EvidenceStore,
+        evidence: EvidenceLimits,
+        limits: GraphLimits,
+    ) -> Result<super::evidence::NativeIndex<'a>> {
+        let native = store.validate_indexed(evidence)?;
         bounded(self.nodes.len(), limits.max_nodes, "graph nodes")?;
         bounded(self.edges.len(), limits.max_edges, "graph edges")?;
         bounded(
@@ -298,13 +312,15 @@ impl DocumentGraph {
                     "recognized text cannot claim a direct-source view basis",
                 ));
             }
-            if node.sources.iter().any(|source| {
-                sources
-                    .get(source)
-                    .and_then(|page| *page)
-                    .is_some_and(|page| !node_pages.contains(&page))
-            }) {
-                return Err(invalid("graph node omits a contributing source page"));
+            if let Some(source) = node
+                .sources
+                .iter()
+                .find(|source| sources[*source].is_some_and(|page| !node_pages.contains(&page)))
+            {
+                return Err(invalid(&format!(
+                    "graph node {:?} omits a contributing source page {:?} from {:?}",
+                    node.id, sources[source], source,
+                )));
             }
             if let Some(key) = &node.identity {
                 if key.namespace.is_empty() || key.value.is_empty() {
@@ -366,7 +382,9 @@ impl DocumentGraph {
                         return Err(invalid("text view silently omits source evidence"));
                     }
                     match &view.normalization {
-                        TextNormalization::Alternatives { optional_positions } => {
+                        TextNormalization::Alternatives {
+                            optional_positions, ..
+                        } => {
                             charge(
                                 &mut references,
                                 optional_positions.len(),
@@ -488,9 +506,9 @@ impl DocumentGraph {
         while let Some(node) = queue.pop_front() {
             visited += 1;
             for child in adjacency.get(&node).into_iter().flatten() {
-                let Some(count) = incoming.get_mut(child) else {
-                    return Err(invalid("graph containment child has no incoming edge"));
-                };
+                let count = incoming
+                    .get_mut(child)
+                    .expect("hierarchy child has an incoming edge");
                 *count -= 1;
                 if *count == 0 {
                     queue.push_back(*child);
@@ -564,7 +582,7 @@ impl DocumentGraph {
             )?;
             check_sources(&conflict.sources, &sources, &mut references, limits)?;
         }
-        Ok(())
+        Ok(native)
     }
 }
 

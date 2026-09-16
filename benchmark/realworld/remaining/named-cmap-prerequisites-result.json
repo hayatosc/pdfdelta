@@ -1,0 +1,130 @@
+{
+  "status": "named_CMap_prerequisites_observed_no_decoder_change",
+  "pair": "mhlw-care-skills-original-to-revised",
+  "side": "old",
+  "input": {
+    "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-old.pdf",
+    "sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe"
+  },
+  "probe": {
+    "path": "crates/pdfdelta-bench/examples/font_encoding_probe.rs",
+    "sha256": "9ea0ac9f4b492515f5ef34b50270bc239bcecdb57fcade6c82a30425f0898acd"
+  },
+  "inventory": {
+    "path": "benchmark/realworld/cache/recovery/care-fonts.json",
+    "sha256": "9284f7d9c9740250da691364411b6faa2e511424ffa55def868850ee3e36f6a9"
+  },
+  "command": "cargo run -p pdfdelta-bench --example font_encoding_probe -- benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-old.pdf",
+  "resource_visits": 3285,
+  "type0_font_records": 76,
+  "encoding_counts": {
+    "UniJIS-UTF16-H": 1,
+    "Identity-H": 47,
+    "Identity-V": 28
+  },
+  "pages_without_explicit_resources": 0,
+  "unsupported_font_records": [
+    {
+      "base_font": {
+        "bytes": [
+          77,
+          83,
+          80,
+          71,
+          111,
+          116,
+          104,
+          105,
+          99
+        ],
+        "display": "MSPGothic"
+      },
+      "descendants": [
+        {
+          "font_programs": {
+            "font_file": null,
+            "font_file2": null,
+            "font_file3": null
+          },
+          "subtype": {
+            "bytes": [
+              67,
+              73,
+              68,
+              70,
+              111,
+              110,
+              116,
+              84,
+              121,
+              112,
+              101,
+              50
+            ],
+            "display": "CIDFontType2"
+          },
+          "system_info": {
+            "ordering": {
+              "bytes": [
+                74,
+                97,
+                112,
+                97,
+                110,
+                49
+              ],
+              "display": "Japan1"
+            },
+            "registry": {
+              "bytes": [
+                65,
+                100,
+                111,
+                98,
+                101
+              ],
+              "display": "Adobe"
+            },
+            "supplement": 5
+          }
+        }
+      ],
+      "encoding": {
+        "bytes": [
+          85,
+          110,
+          105,
+          74,
+          73,
+          83,
+          45,
+          85,
+          84,
+          70,
+          49,
+          54,
+          45,
+          72
+        ],
+        "display": "UniJIS-UTF16-H"
+      },
+      "font": {
+        "generation": 0,
+        "object": 2848
+      },
+      "to_unicode": null
+    }
+  ],
+  "findings": [
+    "Object 2848 is MSPGothic, UniJIS-UTF16-H, with CIDFontType2 Adobe-Japan1 supplement 5.",
+    "The observed font has no ToUnicode entry and its descriptor has no FontFile, FontFile2 or FontFile3 entry.",
+    "A correct decoder needs the predefined character-code-to-CID mapping before selecting metrics; interpreting UTF-16 values as CIDs is not valid."
+  ],
+  "limitations": [
+    "Explicit page and nested Form resources; inherited resources are not traversed",
+    "This resource inventory does not count actual text-showing uses or prove which font entries execute.",
+    "Raw field bytes and object references are retained; non-scalar values are explicitly marked.",
+    "No glyph recovery or gate improvement is claimed."
+  ],
+  "next_action": "Evaluate a pinned authoritative Adobe CMap, source segmentation and Unicode provenance requirements before implementing named-CMap support."
+}

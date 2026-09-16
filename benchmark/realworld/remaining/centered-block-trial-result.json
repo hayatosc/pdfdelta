@@ -1,0 +1,382 @@
+{
+  "version": 1,
+  "status": "rejected_trial",
+  "reason": "Centered continuation recovers the Faster title but merges the new SP 800-37 exit anchor into its next line, losing 1902 previously reviewed sources. Preserve the adopted implementation.",
+  "trial_sources": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/block.rs",
+      "sha256": "e50e8437109d90d9092f71a7276a452f81022fa688d5ca120cc2e4060e03f14b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/block_fixture.rs",
+      "sha256": "c9f017b8088ed7f9b1ac71d1a1c001b42cfcbab59b51eb361200cb3b8f41cc64"
+    }
+  ],
+  "trial_binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/pdfdelta",
+    "sha256": "1521729ab073505622716e1ca7f9bc65b4281d3cd3d01834a66c83dba7945235"
+  },
+  "comparisons": [
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-after/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "eca99c7ec897e567ed4380b7664119aee8cbb58270dde55eda7315f622d6eaa9"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "295195e3cad5e418cc0548b6bd03666a24c5a2bb2942ad38669ae57311fbd269"
+        }
+      ],
+      "B_counts": [
+        0,
+        0
+      ],
+      "B_source_union": [
+        0,
+        0
+      ],
+      "lost_B_sources": 0,
+      "added_B_sources": 0,
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-after/arxiv-mask-rcnn-v1-to-v3-text.json",
+          "sha256": "cc8f91d81a1933e258b3248769c1ebb080dcb75a320bd6849b4e21fdcb5c3843"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/arxiv-mask-rcnn-v1-to-v3-text.json",
+          "sha256": "a6eb2d51c23db16ed0b4d2a3b4bd69b12cf820f0b5557858db3d922b9d9c3092"
+        }
+      ],
+      "B_counts": [
+        18,
+        18
+      ],
+      "B_source_union": [
+        5571,
+        5571
+      ],
+      "lost_B_sources": 0,
+      "added_B_sources": 0,
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-nist/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "08b205905818e21cba62078ab551c287501c635bd28c37ce04974a78818c568b"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-nist/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "be91daa54877479ba5ea835aa90053f1f42e70b8fdcf160aae0515f8d7a28b5c"
+        }
+      ],
+      "B_counts": [
+        7,
+        7
+      ],
+      "B_source_union": [
+        2940,
+        2940
+      ],
+      "lost_B_sources": 0,
+      "added_B_sources": 0,
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-nist/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "9792b0607003fa38ab749a97a1fb5b6681c1d97838d283ad4d6b549bdab88fca"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-nist/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "061fe191fb8f321a8d3882971879429fa791b1a2321bdd9a106560fc868f22c8"
+        }
+      ],
+      "B_counts": [
+        14,
+        13
+      ],
+      "B_source_union": [
+        6753,
+        4851
+      ],
+      "lost_B_sources": 1902,
+      "added_B_sources": 0,
+      "complete": [
+        false,
+        false
+      ]
+    }
+  ],
+  "repeat_checks": [
+    {
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "295195e3cad5e418cc0548b6bd03666a24c5a2bb2942ad38669ae57311fbd269"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-faster-review/report.json",
+          "sha256": "d2db86333af545b27d78aa58a05f5f9011206946884e5a84a315b23711c96a4b"
+        }
+      ],
+      "equal_except_wall_time": true
+    },
+    {
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/arxiv-mask-rcnn-v1-to-v3-text.json",
+          "sha256": "a6eb2d51c23db16ed0b4d2a3b4bd69b12cf820f0b5557858db3d922b9d9c3092"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-mask-review/report.json",
+          "sha256": "ed1881e3109a6893d59959022effa4a35e62837c333d9c506a5da596cacb810e"
+        }
+      ],
+      "equal_except_wall_time": true
+    },
+    {
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "295195e3cad5e418cc0548b6bd03666a24c5a2bb2942ad38669ae57311fbd269"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/faster-report.json",
+          "sha256": "76a15bda80fa630b38b96b2fe7a72901662e949f05b54c202a84f12899153516"
+        }
+      ],
+      "equal_except_wall_time": true
+    },
+    {
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-nist/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "061fe191fb8f321a8d3882971879429fa791b1a2321bdd9a106560fc868f22c8"
+        },
+        {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/report.json",
+          "sha256": "a4bfb2cabc270d4c7f57d10fbfac42304b2234add21f8e33d543044b915febc4"
+        }
+      ],
+      "equal_except_wall_time": true
+    }
+  ],
+  "sp37_diagnosis": {
+    "lost_event": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/lost-event.json",
+      "sha256": "42690536d9e2bbfaf3007aaa6987bed27ef95e366e3bac7a58f082d2893c66c5"
+    },
+    "compact_graph": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/review/sources.json",
+      "sha256": "fe07da213d6f30a22c3eb1577c4c18fc72e931071edd6bcfd6133faabc6594fa"
+    },
+    "boundaries": [
+      {
+        "old": {
+          "original_boundary_sources": 97,
+          "matches": [
+            {
+              "node": 2438,
+              "sources": 97,
+              "boundary_sources_retained": 97,
+              "extra_sources": 0,
+              "text": "approach that provides a greater understanding of the integrated operations of the organization; "
+            }
+          ]
+        },
+        "new": {
+          "original_boundary_sources": 98,
+          "matches": [
+            {
+              "node": 4298,
+              "sources": 98,
+              "boundary_sources_retained": 98,
+              "extra_sources": 0,
+              "text": "approach that provides a greater understanding of the integrated operations of the organization; "
+            }
+          ]
+        }
+      },
+      {
+        "old": {
+          "original_boundary_sources": 97,
+          "matches": [
+            {
+              "node": 2445,
+              "sources": 97,
+              "boundary_sources_retained": 97,
+              "extra_sources": 0,
+              "text": "\u2022 Provide an organization-wide forum to consider all sources of risk (including aggregated risk) "
+            }
+          ]
+        },
+        "new": {
+          "original_boundary_sources": 97,
+          "matches": [
+            {
+              "node": 4312,
+              "sources": 188,
+              "boundary_sources_retained": 97,
+              "extra_sources": 91,
+              "text": "\u2022 Provide an organization-wide forum to consider all sources of risk (including aggregated risk) to organizational operations and assets, individuals, other organizations, and the Nation; "
+            }
+          ]
+        }
+      }
+    ],
+    "full_review_output_limit_failure": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/full-review-failure.log",
+      "sha256": "584c07cdeebcb349858881694e1d62c63825ad9c13c8ffcfe15dbb420696133b"
+    },
+    "note": "The old compact graph from an earlier build was used only for exploratory text inspection; the current boundary diagnosis uses the exact preceding report source lists and this trial graph."
+  },
+  "faster_diagnosis": {
+    "page_path_trace": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/faster-pages.log",
+      "sha256": "199a27a1f4a2aaba2795b25d7343ded2f4c1b4de7c1911b2edcaa9001fa6f76b"
+    },
+    "old_connected_pages": [
+      1,
+      4,
+      5,
+      7
+    ],
+    "new_connected_pages": [],
+    "page_zero_paths_available": false,
+    "title_anchor_record": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-faster-review/page-zero-anchors.json",
+      "sha256": "ecd3cb1ff6be1bd8219424bce8f257426b14c301416cf52a313f581e1df36677"
+    },
+    "fixed_introduction_recovered": false,
+    "region_probes": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/region_probe.rs",
+        "sha256": "1aa685107b39f9277bd2f1769e242e3a2e00266e66ea3e59f9839fdd3d3dec5b"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/title_probe.rs",
+        "sha256": "a9fb96419ab8614b363c695fac0db7c05aeb65c3b7314ef31dae32c97bcadbb6"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/all-region-options.json",
+        "sha256": "66669a8e61448b4eedaf301babc7b925f606e617ce2618ec85e5bbddb9a0ef16"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/region-variants.json",
+        "sha256": "dd2d112d82d8e33b1c0942ebf4a4eca1747fabfdaefd531511b765b787c461f3"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/title-input.json",
+        "sha256": "3b8f66780848978e5c9f5509ecc899de92a6045d607667b56f23690116dde73f"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/title-proposals.json",
+        "sha256": "381e245cd5c82b6980f714c18bfae6c8e139e21086e33804f77b0a8c2ccbdc81"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/current-targets.json",
+        "sha256": "4ef8447bf66296edd084946a2ca316667d369b403c913b28a05dc3eb7e4384b3"
+      }
+    ],
+    "interpretation": "The title supplies a new accepted anchor, but disconnected native runs exclude both page-zero paths. Removing a rotated stamp and cropping the lower page are diagnostic projections only and were not adopted."
+  },
+  "instrumentation": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/pdfdelta",
+      "sha256": "13fc41e920ec1afbe46f5581cf54e894d0a811796667f1ba7af54db4fb64dbf9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/review.rs",
+      "sha256": "226d362de02685560f28184c232552107287f5b81ec1e5e2169ab1cfe9b11605"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-sp37-graph/pages.rs",
+      "sha256": "2f051c31f285357f603c854f3b822ec2dfb84356a74436e80c05b26f963b35b6"
+    }
+  ],
+  "quality": {
+    "workspace_passed": 2448,
+    "ignored": 2,
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/clippy.log",
+        "sha256": "d5bc36ca80ea96830becc905efdeea8ff09dbb49988eaa9a226d510aaa67f309"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/workspace.log",
+        "sha256": "cb9e06a1045b959c7f9c05b3797cfad32e5df6dee5678c3ddaed488a0c0c43fd"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/acceptance.log",
+        "sha256": "cf4392885d4259cb54c713b0af786cbaa959aedfe31baafc4a2df4992608ff04"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/tests.log",
+        "sha256": "365ccf1d7e943cb463390781fd2354f3147b0bd43d98c0bc0352fa09619700e7"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/build.log",
+        "sha256": "d9904811a1797b7fd357ea997b4e215611eb7c34b5e55fb61f0d7bf80451c0b3"
+      },
+      {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/counterfactual.log",
+        "sha256": "f001276869858500a4893fea4264b404a8aa2011ad33f9cd4804fcc21804dca5"
+      }
+    ],
+    "applies_to": "Rejected uninstrumented trial; restored production retains preceding quality evidence."
+  },
+  "restored_files": [
+    {
+      "path": "crates/pdfdelta-core/src/layout/block.rs",
+      "sha256": "1ab94b791685390b2ff420494793a42d06a56bc479312b25c2ce7432b0b56806"
+    },
+    {
+      "path": "crates/pdfdelta-core/tests/block_fixture.rs",
+      "sha256": "e0eb9bdbf6d88d050a6f6132a3dd6f5ce4e2211351b9e3d448f3a98f340a1be9"
+    },
+    {
+      "path": "crates/pdfdelta-cli/src/review.rs",
+      "sha256": "11535f6242e14fd36138c8bbc9387c53c1ac787f68387ced69b7c209b686eabe"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes/cuts/pages.rs",
+      "sha256": "65fc555e24fa390d7fdfef748b166234ec7a54f98b531ea4bb6e1d5f2d5518f5"
+    }
+  ],
+  "restored_binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/line-empty-cut-after/pdfdelta",
+    "sha256": "86a4203b0a3277442ca2ab249f3e9cb65fe3034b515507960cced655b048bae1"
+  },
+  "production_restored": true,
+  "goal_complete": false,
+  "limits_changed": false,
+  "new_pdf_inputs": false,
+  "next": "Preserve literal source boundaries across alternate line/block partitions before adopting centered joins; independently address disconnected page paths using complete native evidence. No fixed-target or completion gate is incremented.",
+  "result_builder": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/centered-block-after/result-builder.py",
+    "sha256": "0512a3d8b60fefaf7e5cc9f69d1805d46b1bb7218da338620e7a025d6b5d4f89"
+  }
+}

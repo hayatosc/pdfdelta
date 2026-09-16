@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/equal-domain-v1/workspace.log",
+      "sha256": "51db82019518fd6b1886ca80e2c907f873b76054bbd3e829cc7e5615dc1a3439"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/equal-domain-v1/tests.log",
+      "sha256": "112d0b3081c495a492905da9484a5fecf940be3ebeebeae23798493d3ee87a53"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/equal-domain-v1/clippy.log",
+      "sha256": "821b81d3b4e3f3bdc8d61c48e96078c7b8bd7dd5f8ed2c093130ae8f57002f18"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/equal-domain-v1/fixtures.log",
+      "sha256": "70e13ac909ebc25663ac1caf0a4a613dd7ab0de59c0c1114580635c480323a63"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/equal-domain-v1/final-document_text_scopes_fixture.rs",
+      "sha256": "ada91aae333ffcda5575e8cedd057d1347c769c6526ef9f9713b09b7e08651b5"
+    }
+  ],
+  "workspace_passed": 2508,
+  "workspace_ignored": 2,
+  "focused_passed": 88,
+  "generated_passed": 48,
+  "clippy": "passed",
+  "note": "After freezing the pilot, two test unwrap calls were replaced with expect messages to satisfy Clippy; production source did not change."
+}

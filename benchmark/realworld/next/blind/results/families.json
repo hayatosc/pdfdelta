@@ -1,0 +1,4748 @@
+[
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "all",
+    "metrics": {
+      "attempted_pairs": 12,
+      "captured_pairs": 12,
+      "annotation_resolved_pairs": 11,
+      "changed_scope_targets": 12,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 117.84,
+      "peak_rss_kib_max": 3538400,
+      "report_bytes_sum": 15305951962,
+      "process_timeout_pairs": 0,
+      "A": 15,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 725,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 440,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 15,
+      "stages": {
+        "acquisition": {
+          "completed": 3,
+          "observed": 12,
+          "attempted": 12
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 1,
+        "gold_source_atoms": 2,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "precision": null,
+          "recall": 0.0
+        }
+      },
+      "native_C_quality": {
+        "predictions": 725,
+        "touching_target": 2,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "clip_overpaint_figure_scan_mixed",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 3.79,
+      "peak_rss_kib_max": 217380,
+      "report_bytes_sum": 233390635,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 393,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 393,
+        "touching_target": 2,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "heading_move_list_copy",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 21.97,
+      "peak_rss_kib_max": 1090132,
+      "report_bytes_sum": 3129961370,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 41,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 41,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "id_free_prose",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 85.47999999999999,
+      "peak_rss_kib_max": 3538400,
+      "report_bytes_sum": 11242907605,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 241,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 241,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "japanese_vertical_rotated_ruby",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 1,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 1.33,
+      "peak_rss_kib_max": 143424,
+      "report_bytes_sum": 75493100,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 0,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "multicolumn",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.44,
+      "peak_rss_kib_max": 174572,
+      "report_bytes_sum": 360101368,
+      "process_timeout_pairs": 0,
+      "A": 10,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 19,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 300,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 10,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 19,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "native",
+    "family": "table_form",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.83,
+      "peak_rss_kib_max": 79836,
+      "report_bytes_sum": 264097884,
+      "process_timeout_pairs": 0,
+      "A": 5,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 31,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 92,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 5,
+      "stages": {
+        "acquisition": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 1,
+        "gold_source_atoms": 2,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "precision": null,
+          "recall": 0.0
+        }
+      },
+      "native_C_quality": {
+        "predictions": 31,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "all",
+    "metrics": {
+      "attempted_pairs": 12,
+      "captured_pairs": 12,
+      "annotation_resolved_pairs": 11,
+      "changed_scope_targets": 12,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 116.13,
+      "peak_rss_kib_max": 716940,
+      "report_bytes_sum": 18878686,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 440,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "enumeration": {
+          "completed": 3,
+          "observed": 12,
+          "attempted": 12
+        },
+        "conflict_search": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "optimization": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "clip_overpaint_figure_scan_mixed",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.82,
+      "peak_rss_kib_max": 131248,
+      "report_bytes_sum": 311446,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "heading_move_list_copy",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 36.0,
+      "peak_rss_kib_max": 716940,
+      "report_bytes_sum": 1737134,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "id_free_prose",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 64.55,
+      "peak_rss_kib_max": 707840,
+      "report_bytes_sum": 5051627,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "japanese_vertical_rotated_ruby",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 1,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 6.52,
+      "peak_rss_kib_max": 198124,
+      "report_bytes_sum": 3008456,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "multicolumn",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 4.43,
+      "peak_rss_kib_max": 131408,
+      "report_bytes_sum": 3411785,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 300,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "text",
+    "family": "table_form",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 1.81,
+      "peak_rss_kib_max": 82512,
+      "report_bytes_sum": 5358238,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 92,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "all",
+    "metrics": {
+      "attempted_pairs": 12,
+      "captured_pairs": 12,
+      "annotation_resolved_pairs": 11,
+      "changed_scope_targets": 12,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 115.67999999999999,
+      "peak_rss_kib_max": 716916,
+      "report_bytes_sum": 22316521,
+      "process_timeout_pairs": 0,
+      "A": 20,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 440,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 20,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 12,
+          "attempted": 12
+        },
+        "conflict_search": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "optimization": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "clip_overpaint_figure_scan_mixed",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.95,
+      "peak_rss_kib_max": 129448,
+      "report_bytes_sum": 372640,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "heading_move_list_copy",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 35.08,
+      "peak_rss_kib_max": 716916,
+      "report_bytes_sum": 1740888,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "id_free_prose",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 64.78,
+      "peak_rss_kib_max": 710676,
+      "report_bytes_sum": 5055381,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "japanese_vertical_rotated_ruby",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 1,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 6.21,
+      "peak_rss_kib_max": 198424,
+      "report_bytes_sum": 3012121,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "multicolumn",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 4.62,
+      "peak_rss_kib_max": 124432,
+      "report_bytes_sum": 3415489,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 300,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "baseline",
+    "route": "all",
+    "family": "table_form",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.04,
+      "peak_rss_kib_max": 84524,
+      "report_bytes_sum": 8720002,
+      "process_timeout_pairs": 0,
+      "A": 20,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 92,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 20,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "all",
+    "metrics": {
+      "attempted_pairs": 12,
+      "captured_pairs": 12,
+      "annotation_resolved_pairs": 11,
+      "changed_scope_targets": 12,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 136.36,
+      "peak_rss_kib_max": 3562876,
+      "report_bytes_sum": 15305952097,
+      "process_timeout_pairs": 0,
+      "A": 15,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 725,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 440,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 15,
+      "stages": {
+        "acquisition": {
+          "completed": 3,
+          "observed": 12,
+          "attempted": 12
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 12
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 1,
+        "gold_source_atoms": 2,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "precision": null,
+          "recall": 0.0
+        }
+      },
+      "native_C_quality": {
+        "predictions": 725,
+        "touching_target": 2,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "clip_overpaint_figure_scan_mixed",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 3.6700000000000004,
+      "peak_rss_kib_max": 223616,
+      "report_bytes_sum": 233390635,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 393,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 393,
+        "touching_target": 2,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "heading_move_list_copy",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 23.81,
+      "peak_rss_kib_max": 1097080,
+      "report_bytes_sum": 3129961370,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 41,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 41,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "id_free_prose",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 103.36,
+      "peak_rss_kib_max": 3562876,
+      "report_bytes_sum": 11242907605,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 241,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 241,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "japanese_vertical_rotated_ruby",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 1,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 1.22,
+      "peak_rss_kib_max": 119124,
+      "report_bytes_sum": 75493100,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 0,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "multicolumn",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.68,
+      "peak_rss_kib_max": 195012,
+      "report_bytes_sum": 360101503,
+      "process_timeout_pairs": 0,
+      "A": 10,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 19,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 300,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 10,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 19,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "native",
+    "family": "table_form",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 1.62,
+      "peak_rss_kib_max": 80612,
+      "report_bytes_sum": 264097884,
+      "process_timeout_pairs": 0,
+      "A": 5,
+      "B": null,
+      "scope_C": null,
+      "legacy_C": 31,
+      "legacy_text_C": null,
+      "legacy_C_literal_target_containment": null,
+      "negative_atoms": 92,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 5,
+      "stages": {
+        "acquisition": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 0,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 1,
+        "gold_source_atoms": 2,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "precision": null,
+          "recall": 0.0
+        }
+      },
+      "native_C_quality": {
+        "predictions": 31,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "all",
+    "metrics": {
+      "attempted_pairs": 12,
+      "captured_pairs": 12,
+      "annotation_resolved_pairs": 11,
+      "changed_scope_targets": 12,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 115.14,
+      "peak_rss_kib_max": 716572,
+      "report_bytes_sum": 18880415,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 440,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "enumeration": {
+          "completed": 3,
+          "observed": 12,
+          "attempted": 12
+        },
+        "conflict_search": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "optimization": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "clip_overpaint_figure_scan_mixed",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.99,
+      "peak_rss_kib_max": 132308,
+      "report_bytes_sum": 311704,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "heading_move_list_copy",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 35.480000000000004,
+      "peak_rss_kib_max": 716572,
+      "report_bytes_sum": 1737392,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "id_free_prose",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 64.02,
+      "peak_rss_kib_max": 707492,
+      "report_bytes_sum": 5051885,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "japanese_vertical_rotated_ruby",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 1,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 6.220000000000001,
+      "peak_rss_kib_max": 195544,
+      "report_bytes_sum": 3008714,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "multicolumn",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 4.57,
+      "peak_rss_kib_max": 124068,
+      "report_bytes_sum": 3412224,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 300,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "text",
+    "family": "table_form",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 1.8599999999999999,
+      "peak_rss_kib_max": 83236,
+      "report_bytes_sum": 5358496,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 92,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "all",
+    "metrics": {
+      "attempted_pairs": 12,
+      "captured_pairs": 12,
+      "annotation_resolved_pairs": 11,
+      "changed_scope_targets": 12,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 116.86999999999999,
+      "peak_rss_kib_max": 715232,
+      "report_bytes_sum": 22318250,
+      "process_timeout_pairs": 0,
+      "A": 20,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 440,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 20,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 12,
+          "attempted": 12
+        },
+        "conflict_search": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "optimization": {
+          "completed": 11,
+          "observed": 12,
+          "attempted": 12
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 12,
+          "attempted": 12
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "clip_overpaint_figure_scan_mixed",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 3.02,
+      "peak_rss_kib_max": 132312,
+      "report_bytes_sum": 372898,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "heading_move_list_copy",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 35.67,
+      "peak_rss_kib_max": 715232,
+      "report_bytes_sum": 1741146,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "id_free_prose",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 64.92999999999999,
+      "peak_rss_kib_max": 709404,
+      "report_bytes_sum": 5055639,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 24,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "japanese_vertical_rotated_ruby",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 1,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 6.529999999999999,
+      "peak_rss_kib_max": 200048,
+      "report_bytes_sum": 3012379,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 0,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 1,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "multicolumn",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 4.72,
+      "peak_rss_kib_max": 124404,
+      "report_bytes_sum": 3415928,
+      "process_timeout_pairs": 0,
+      "A": 0,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 300,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 0,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 0,
+      "strict_gold_source_atoms": 0,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  },
+  {
+    "revision": "current",
+    "route": "all",
+    "family": "table_form",
+    "metrics": {
+      "attempted_pairs": 2,
+      "captured_pairs": 2,
+      "annotation_resolved_pairs": 2,
+      "changed_scope_targets": 2,
+      "B_exact_target_pairs": 0,
+      "B_contains_target_pairs": 0,
+      "C_contains_target_pairs": 0,
+      "wall_seconds_sum": 2.0,
+      "peak_rss_kib_max": 84064,
+      "report_bytes_sum": 8720260,
+      "process_timeout_pairs": 0,
+      "A": 20,
+      "B": 0,
+      "scope_C": 0,
+      "legacy_C": 0,
+      "legacy_text_C": 0,
+      "legacy_C_literal_target_containment": 0,
+      "negative_atoms": 92,
+      "negative_strict_hits": 0,
+      "unscored_strict_events": 20,
+      "stages": {
+        "acquisition": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "enumeration": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "conflict_search": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "optimization": {
+          "completed": 2,
+          "observed": 2,
+          "attempted": 2
+        },
+        "source_comparison": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        },
+        "overall": {
+          "completed": 0,
+          "observed": 2,
+          "attempted": 2
+        }
+      },
+      "strict_gold_events": 1,
+      "strict_gold_source_atoms": 2,
+      "strict_event": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "strict_source": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "B_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "C_quality": {
+        "predictions": 0,
+        "touching_reference": 0,
+        "unannotated": 0,
+        "range_precision_on_touched": null,
+        "extra_context_atoms_on_touched": 0
+      },
+      "native_C_numeric": {
+        "gold_events": 0,
+        "gold_source_atoms": 0,
+        "event": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        },
+        "source": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "native_C_quality": {
+        "predictions": 0,
+        "touching_target": 0,
+        "touching_both_target_sides": 0,
+        "unchanged_control_atoms_claimed_conditionally": 0
+      }
+    }
+  }
+]

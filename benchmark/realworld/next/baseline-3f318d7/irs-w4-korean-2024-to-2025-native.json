@@ -1,0 +1,36 @@
+{
+  "schema_version": 11,
+  "summary": {
+    "established_changes": 31,
+    "content_changes": 31,
+    "proven_changed_regions": 2,
+    "formatting_only_changes": 6,
+    "uncertain_changes": 0,
+    "unresolved_regions": 19,
+    "unsupported_extraction_issues": 0,
+    "unresolved_extraction_issues": 0,
+    "comparison_complete": false,
+    "difference_status": "detected",
+    "comparison_scope": {
+      "supported_text": true,
+      "images_compared": false
+    },
+    "tentative_candidates": 87,
+    "old_alignment_coverage": {
+      "resolved_tokens": 3380,
+      "total_tokens": 11864,
+      "ratio": 0.2848954821308159
+    },
+    "new_alignment_coverage": {
+      "resolved_tokens": 3398,
+      "total_tokens": 12360,
+      "ratio": 0.27491909385113267
+    },
+    "comparison_coverage_ratio": 0.27491909385113267
+  },
+  "extraction": {
+    "old_complete": true,
+    "new_complete": true,
+    "issues": 0
+  }
+}

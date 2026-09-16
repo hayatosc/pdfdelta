@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-xlnet-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "ce227b3e3280e350757038a10f7d1092dedaef0530e04537dc1104f239530d44",
+  "body_eligible": true,
+  "reason": "The complete abstract qualifies the experimental settings and removes the state-of-the-art-on-eighteen-tasks claim. Original terminal punctuation and the footnote marker are retained."
+}

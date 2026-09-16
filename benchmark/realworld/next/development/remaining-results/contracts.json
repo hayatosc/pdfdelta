@@ -1,0 +1,246 @@
+[
+  {
+    "pair": "mext-primary-japanese-2008-to-2017",
+    "route": "native",
+    "byte_identical": true,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "byte identical"
+  },
+  {
+    "pair": "mext-primary-japanese-2008-to-2017",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "e3044fad729debd8df5c3f7d41c513d42024ab41dd1623a70e6888cd5c795ee3",
+      "9093cab": "e3044fad729debd8df5c3f7d41c513d42024ab41dd1623a70e6888cd5c795ee3"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mext-primary-japanese-2008-to-2017",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "6ab5496f23f9910b567fc242bf1493b4e50a506d6aad642ec81d52470bf280fc",
+      "9093cab": "6ab5496f23f9910b567fc242bf1493b4e50a506d6aad642ec81d52470bf280fc"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mext-lower-secondary-japanese-2008-to-2017",
+    "route": "native",
+    "byte_identical": false,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "equal after removing only the page field immediately following glyph_gap scope",
+    "normalized_sha256": "60c75a58c6fade744971e0efc41050315d43cc2367ec86f57edc404086597da5",
+    "removed_gap_page_fields": 1
+  },
+  {
+    "pair": "mext-lower-secondary-japanese-2008-to-2017",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "5e67658a45ceacff73f0dbf5c5e079d9499c5032b45e51dcfaaeee1e71972bd2",
+      "9093cab": "5e67658a45ceacff73f0dbf5c5e079d9499c5032b45e51dcfaaeee1e71972bd2"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mext-lower-secondary-japanese-2008-to-2017",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "aa02b448af5686dcc494e4846eee76e299533eca26f0ade8f6bb8fcbd3dd0363",
+      "9093cab": "aa02b448af5686dcc494e4846eee76e299533eca26f0ade8f6bb8fcbd3dd0363"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mext-upper-secondary-japanese-2009-to-2018",
+    "route": "native",
+    "byte_identical": true,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "byte identical"
+  },
+  {
+    "pair": "mext-upper-secondary-japanese-2009-to-2018",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "b64257fede231f4ab9bb050ceff36c0f70ed93f16b80d6779001732693c47ed6",
+      "9093cab": "b64257fede231f4ab9bb050ceff36c0f70ed93f16b80d6779001732693c47ed6"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mext-upper-secondary-japanese-2009-to-2018",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "1c951b7131410046727763cf7b80d8f3b8b7c62f91fcc035039000646eb0493e",
+      "9093cab": "1c951b7131410046727763cf7b80d8f3b8b7c62f91fcc035039000646eb0493e"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mhlw-care-skills-original-to-revised",
+    "route": "native",
+    "byte_identical": false,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "equal after removing only the page field immediately following glyph_gap scope",
+    "normalized_sha256": "c90a56b1d817f776284c6f63b3ef98c669591f215b9dc3882a6be6b706ea574a",
+    "removed_gap_page_fields": 280
+  },
+  {
+    "pair": "mhlw-care-skills-original-to-revised",
+    "route": "text",
+    "normalized_existing_contract_equal": false,
+    "canonical_hashes": {
+      "3f318d7": "3def0f39d113486fac8f8ce2864d52dc13ffeaf995495c07a0831357ebdc4f31",
+      "9093cab": "3ab4582ff0866af409fda34a7d7292be2ec2fd807bad039d26efe1a566dd0996"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "mhlw-care-skills-original-to-revised",
+    "route": "all",
+    "normalized_existing_contract_equal": false,
+    "canonical_hashes": {
+      "3f318d7": "6cc88d738e5da095e376a36e4094af0a0b760771abb512aa159a1830029745c5",
+      "9093cab": "c8eff8a56bc2e6846680b0c7fc7b5b3d3f2a23325cd731edee2f3a043479519e"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "arxiv-gpt3-v1-to-v4",
+    "route": "native",
+    "byte_identical": true,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "byte identical"
+  },
+  {
+    "pair": "arxiv-gpt3-v1-to-v4",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "fe6d44c91046a9c1c2b34ba26f3344b09bff3511ae0ece833ac946f3c1d3f529",
+      "9093cab": "fe6d44c91046a9c1c2b34ba26f3344b09bff3511ae0ece833ac946f3c1d3f529"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "arxiv-gpt3-v1-to-v4",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "3acd05f170c499326a6100d3120dae703c3ac6cb86f984c8104269dc2e365836",
+      "9093cab": "3acd05f170c499326a6100d3120dae703c3ac6cb86f984c8104269dc2e365836"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "arxiv-llama2-v1-to-v2",
+    "route": "native",
+    "byte_identical": true,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "byte identical"
+  },
+  {
+    "pair": "arxiv-llama2-v1-to-v2",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "26dc13152de93c1a36a289e2d9b04c58553615d91922df3a7a6158393154ba9d",
+      "9093cab": "26dc13152de93c1a36a289e2d9b04c58553615d91922df3a7a6158393154ba9d"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "arxiv-llama2-v1-to-v2",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "0f00d8fee6853289775a2466a06664581abbf2ecfbfd4a1930c4dfed2ff9cc1b",
+      "9093cab": "0f00d8fee6853289775a2466a06664581abbf2ecfbfd4a1930c4dfed2ff9cc1b"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "nasa-buckling-8007-1968-to-2020",
+    "route": "native",
+    "byte_identical": false,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "equal after removing only the page field immediately following glyph_gap scope",
+    "normalized_sha256": "1e34c7ca190f3553224a43c32e9f224b61bdbe5fe6d4cb18d991d290027d2ca9",
+    "removed_gap_page_fields": 11
+  },
+  {
+    "pair": "nasa-buckling-8007-1968-to-2020",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "ceca7038fc7d8257e8f7e2220a96df9822f82ac18abd2c0d4ffd5ba7c2532f73",
+      "9093cab": "ceca7038fc7d8257e8f7e2220a96df9822f82ac18abd2c0d4ffd5ba7c2532f73"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "nasa-buckling-8007-1968-to-2020",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "50c53aaa0698a2d7a5d5c7790897afa7e9507b451180e09ff4dcc4ad9eb0fa56",
+      "9093cab": "50c53aaa0698a2d7a5d5c7790897afa7e9507b451180e09ff4dcc4ad9eb0fa56"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "ipcc-synthesis-ar5-to-ar6",
+    "route": "native",
+    "byte_identical": false,
+    "strict_changes_and_legacy_regions_empty": true,
+    "full_normalized_parity": "equal after removing only the page field immediately following glyph_gap scope",
+    "normalized_sha256": "6acabffe962037c7b0ffbd4cfe4a8d354d5e69498c59f60289e733eec3dda6d4",
+    "removed_gap_page_fields": 16
+  },
+  {
+    "pair": "ipcc-synthesis-ar5-to-ar6",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "15ae66f77ae958b97db9ae000ea4582275ec3a2160d0a91a824499dd7d6f7e22",
+      "9093cab": "15ae66f77ae958b97db9ae000ea4582275ec3a2160d0a91a824499dd7d6f7e22"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "ipcc-synthesis-ar5-to-ar6",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "8aaca61a3718436610832e1c0cb998c9990286c97d0c27ba19475115d8189f48",
+      "9093cab": "8aaca61a3718436610832e1c0cb998c9990286c97d0c27ba19475115d8189f48"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "ecb-annual-2023-to-2024",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "81bc53a7fbb34ab8247987190ceb7872cf6810cba9467778f03e91eb23817d9c",
+      "9093cab": "81bc53a7fbb34ab8247987190ceb7872cf6810cba9467778f03e91eb23817d9c"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  },
+  {
+    "pair": "ecb-annual-2023-to-2024",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_hashes": {
+      "3f318d7": "9f9e02480afc8212e777d9200ce79c40a7ff284ed74709384a90e8f240c57240",
+      "9093cab": "9f9e02480afc8212e777d9200ce79c40a7ff284ed74709384a90e8f240c57240"
+    },
+    "normalization": "Remove wall time, additive review fields and search counters. Project page_glyph_gap boundaries to glyph_gap; retain the matching baseline issue page (including known pages). Preserve rendering deadlines and partial evidence."
+  }
+]

@@ -1,0 +1,34 @@
+{
+  "version": 4,
+  "comparison_performed": false,
+  "pair": "arxiv-dino-v1-to-v2",
+  "reason": "The first substantively changed body paragraph in Related Work crosses unmapped glyphs 7098 and 7099 in the old PDF (ell and subscript 2). Literal annotation cannot omit them; earlier abstract and Introduction changes are citation renumbering. No comparison run.",
+  "source_range_checks": [
+    {
+      "range": [
+        6638,
+        7140
+      ],
+      "pages": [
+        1
+      ],
+      "unmapped": [
+        7098,
+        7099
+      ],
+      "quote": "Recentworkshaveshownthatwecanlearnunsupervisedfeatureswithoutdiscriminatingbetweenimages.Ofpar-ticularinterest,Grilletal.[28]proposeametric-learningformulationcalledBYOL,wherefeaturesaretrainedbymatchingthemtorepresentationsobtainedwithamomen-tumencoder.IthasbeenshownthatmethodslikeBYOLworkevenwithoutamomentumencoder,atthecostofadropofperformance[15,28].Severalotherworksechothisdirection,showingthatonecantrainfeaturesmatchingthemtoauniformdistributiononthehypersphere[6]orbyusingwhitening[22,78]."
+    },
+    {
+      "range": [
+        6635,
+        7143
+      ],
+      "pages": [
+        1
+      ],
+      "unmapped": [],
+      "quote": "Recentworkshaveshownthatwecanlearnunsupervisedfeatureswithoutdiscriminatingbetweenimages.Ofpar-ticularinterest,Grilletal.[30]proposeametric-learningformulationcalledBYOL,wherefeaturesaretrainedbymatchingthemtorepresentationsobtainedwithamomentumencoder.MethodslikeBYOLworkevenwithoutamomen-tumencoder,atthecostofadropofperformance[16,30].Severalotherworksechothisdirection,showingthatonecanmatchmoreelaboraterepresentations[26,27],trainfea-turesmatchingthemtoauniformdistribution[6]orbyusingwhitening[23,81]."
+    }
+  ],
+  "retired_utc": "2026-09-13T15:00:07.440606+00:00"
+}

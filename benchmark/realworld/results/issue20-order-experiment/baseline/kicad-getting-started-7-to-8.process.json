@@ -1,7 +1,0 @@
-{
-  "pair": "kicad-getting-started-7-to-8",
-  "set": "holdout",
-  "annotation": "none",
-  "status": "not_run",
-  "reason": "prioritized crash-fixed annotated comparison after all 12 original annotated pairs completed"
-}

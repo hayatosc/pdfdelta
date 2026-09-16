@@ -7,9 +7,12 @@ use crate::{
 };
 
 use super::{
-    Channel, ChannelInventory, EvidenceIssue, SourceRef, StructuredEvidence, StructuredValue,
+    Channel, ChannelInventory, EvidenceIssue, NativeStructureKid, SourceRef, StructuredEvidence,
+    StructuredValue,
     forms::{classify, dictionary},
 };
+
+mod parents;
 
 #[derive(Clone, Copy, Debug)]
 pub struct StructureLimits {
@@ -34,6 +37,8 @@ pub struct StructureEvidence {
     pub elements: Vec<StructuredEvidence>,
     pub issues: Vec<EvidenceIssue>,
     pub inventory: ChannelInventory,
+    pub key_inventory: super::KeyInventory,
+    pub native_inventory: super::NativeStructureInventory,
 }
 
 struct Pending {
@@ -63,6 +68,18 @@ pub fn extract_structure_evidence(
     limits: StructureLimits,
 ) -> Result<StructureEvidence> {
     let mut result = StructureEvidence {
+        native_inventory: super::NativeStructureInventory {
+            backend,
+            root: None,
+            roots: Vec::new(),
+            complete: false,
+            parents: None,
+        },
+        key_inventory: super::KeyInventory {
+            domain: super::KeyDomain::PdfStructureId,
+            backend,
+            complete: true,
+        },
         elements: Vec::new(),
         issues: Vec::new(),
         inventory: ChannelInventory {
@@ -85,6 +102,7 @@ pub fn extract_structure_evidence(
         return Ok(result);
     };
     let (root, root_object) = dictionary(pdf, root.clone())?;
+    result.native_inventory.root = root_object;
     let pages: HashMap<_, _> = pdf
         .pages()?
         .into_iter()
@@ -106,6 +124,7 @@ pub fn extract_structure_evidence(
             .push(index);
     }
     let roots = children(pdf, root.get(b"K".as_slice()).cloned())?;
+    let root_count = roots.len();
     if roots.len() > limits.max_nodes {
         return Err(limit("structure nodes", limits.max_nodes));
     }
@@ -182,11 +201,12 @@ pub fn extract_structure_evidence(
             }
             nodes = nodes.saturating_add(entries.len());
             let mut glyphs = Vec::new();
+            let mut content = vec![NativeStructureKid::Unresolved; entries.len()];
             let mut bound = true;
             let mut structural_children = Vec::new();
             let mut binding_errors = Vec::new();
             for (order, entry) in entries.into_iter().enumerate() {
-                let membership = match entry {
+                let membership = (|| match entry {
                     PdfObject::Integer(mcid) => bind_mcid(
                         native,
                         &marks,
@@ -195,7 +215,8 @@ pub fn extract_structure_evidence(
                         mcid,
                         &mut glyph_references,
                         limits,
-                    ),
+                    )
+                    .map(Some),
                     other => {
                         let (child, _) = dictionary(pdf, other.clone())?;
                         match child.get(b"Type".as_slice()) {
@@ -230,11 +251,17 @@ pub fn extract_structure_evidence(
                                     &mut glyph_references,
                                     limits,
                                 )
+                                .map(Some)
                             }
                             Some(PdfObject::Name(kind)) if kind == b"OBJR" => {
-                                Err(Error::Unsupported(
+                                let (object, page) =
+                                    parents::annotation(pdf, &child, page, &pages)?;
+                                content[order] = NativeStructureKid::Annotation { object, page };
+                                bound = false;
+                                binding_errors.push(Error::Unsupported(
                                     "structure object-reference binding is not implemented".into(),
-                                ))
+                                ));
+                                Ok(None)
                             }
                             _ => {
                                 structural_children.push(Pending {
@@ -245,13 +272,23 @@ pub fn extract_structure_evidence(
                                     order: order as u32,
                                     depth: item.depth + 1,
                                 });
-                                continue;
+                                Ok(None)
                             }
                         }
                     }
-                };
+                })();
                 match membership {
-                    Ok(members) => glyphs.extend(members),
+                    Ok(Some((sequence, members))) => {
+                        content[order] = NativeStructureKid::MarkedContent { sequence };
+                        if members.is_empty() {
+                            bound = false;
+                            binding_errors.push(unresolved(
+                                "marked content has no complete native glyph membership",
+                            ));
+                        }
+                        glyphs.extend(members);
+                    }
+                    Ok(None) => {}
                     Err(error @ Error::LimitExceeded { .. }) => return Err(error),
                     Err(error) => {
                         bound = false;
@@ -289,10 +326,25 @@ pub fn extract_structure_evidence(
                     identifier: identifier.cloned(),
                     text: None,
                     glyphs,
+                    content: Some(content),
                     parent: item.parent,
                     order: Some(item.order),
                 },
             });
+            if let Some(parent) = item.parent {
+                // The parent slot exists before descendant acquisition. A
+                // failed child therefore leaves an explicit unresolved entry.
+                let parent = &mut result.elements[(parent - first_id) as usize];
+                if let StructuredValue::StructureElement {
+                    content: Some(content),
+                    ..
+                } = &mut parent.value
+                {
+                    content[item.order as usize] = NativeStructureKid::Element { element: id };
+                }
+            } else {
+                result.native_inventory.roots.push(id);
+            }
             result.inventory.sources.push(source);
             for error in binding_errors {
                 issue(&mut result, Some(source), error);
@@ -301,6 +353,7 @@ pub fn extract_structure_evidence(
             Ok(())
         })();
         if let Err(error) = imported {
+            result.key_inventory.complete = false;
             let stop = matches!(error, Error::LimitExceeded { .. });
             issue(
                 &mut result,
@@ -311,6 +364,24 @@ pub fn extract_structure_evidence(
                 break;
             }
         }
+    }
+    result.native_inventory.complete = root_object.is_some()
+        && result.native_inventory.roots.len() == root_count
+        && result.elements.iter().all(|element| {
+            matches!(&element.value,
+            StructuredValue::StructureElement { content: Some(content), .. }
+            if !content.contains(&NativeStructureKid::Unresolved))
+        });
+    match parents::extract(
+        pdf,
+        native,
+        &pages,
+        root.get(b"ParentTree".as_slice()),
+        &mut nodes,
+        limits,
+    ) {
+        Ok(bindings) => result.native_inventory.parents = Some(bindings),
+        Err(error) => issue(&mut result, None, error),
     }
     issue(
         &mut result,
@@ -330,7 +401,7 @@ fn bind_mcid(
     mcid: i64,
     used: &mut usize,
     limits: StructureLimits,
-) -> Result<Vec<GlyphId>> {
+) -> Result<(usize, Vec<GlyphId>)> {
     let page = page.ok_or_else(|| unresolved("marked-content page is missing"))?;
     let mcid = u32::try_from(mcid).map_err(|_| unresolved("invalid MCID"))?;
     let matches = marks
@@ -346,7 +417,7 @@ fn bind_mcid(
         return Err(unresolved("marked-content sequence is incomplete"));
     }
     let glyphs = &native.items()[sequence.glyph_range.clone()];
-    if glyphs.is_empty() || glyphs.iter().any(|glyph| glyph.page != page) {
+    if glyphs.iter().any(|glyph| glyph.page != page) {
         return Err(unresolved(
             "marked content has no complete native glyph membership",
         ));
@@ -358,7 +429,134 @@ fn bind_mcid(
             limits.max_glyph_references,
         ));
     }
-    Ok(glyphs.iter().map(|glyph| glyph.id).collect())
+    Ok((*index, glyphs.iter().map(|glyph| glyph.id).collect()))
+}
+
+pub(super) fn validate_content(store: &super::EvidenceStore) -> Result<()> {
+    let elements: HashMap<_, _> = store
+        .structured
+        .iter()
+        .map(|element| (element.id, element))
+        .collect();
+    for parent in &store.structured {
+        if let StructuredValue::StructureElement {
+            parent: Some(owner),
+            order,
+            ..
+        } = parent.value
+            && let Some(owner) = elements.get(&owner)
+            && let StructuredValue::StructureElement {
+                content: Some(content),
+                ..
+            } = &owner.value
+            && order.and_then(|order| content.get(order as usize))
+                != Some(&NativeStructureKid::Element { element: parent.id })
+        {
+            return Err(super::invalid(
+                "native structure parent omits its child slot",
+            ));
+        }
+        let StructuredValue::StructureElement {
+            content: Some(content),
+            ..
+        } = &parent.value
+        else {
+            continue;
+        };
+        for (order, kid) in content.iter().enumerate() {
+            let NativeStructureKid::Element { element } = kid else {
+                continue;
+            };
+            let child = elements
+                .get(element)
+                .ok_or_else(|| super::invalid("missing native structure child"))?;
+            let StructuredValue::StructureElement {
+                parent: owner,
+                order: position,
+                ..
+            } = child.value
+            else {
+                return Err(super::invalid(
+                    "native structure child is not a structure element",
+                ));
+            };
+            if child.id == parent.id
+                || child.backend != parent.backend
+                || owner != Some(parent.id)
+                || position.map(|position| position as usize) != Some(order)
+            {
+                return Err(super::invalid(
+                    "native structure child disagrees with parent or order",
+                ));
+            }
+        }
+    }
+    for inventory in &store.native_structures {
+        let mut visited = HashSet::new();
+        let mut pending = Vec::new();
+        for (order, root) in inventory.roots.iter().enumerate() {
+            let root = elements
+                .get(root)
+                .ok_or_else(|| super::invalid("missing native structure root"))?;
+            let StructuredValue::StructureElement {
+                parent: None,
+                order: declared_order,
+                ..
+            } = root.value
+            else {
+                return Err(super::invalid("native structure root has a parent"));
+            };
+            if root.backend != inventory.backend
+                || (inventory.complete && declared_order.map(|value| value as usize) != Some(order))
+            {
+                return Err(super::invalid(
+                    "native structure root acquisition disagrees with its declaration",
+                ));
+            }
+            pending.push(root.id);
+        }
+        while let Some(id) = pending.pop() {
+            if !visited.insert(id) {
+                return Err(super::invalid("repeated native structure forest element"));
+            }
+            let element = elements[&id];
+            let StructuredValue::StructureElement {
+                content: Some(content),
+                ..
+            } = &element.value
+            else {
+                if inventory.complete {
+                    return Err(super::invalid(
+                        "complete native structure forest has missing content",
+                    ));
+                }
+                continue;
+            };
+            for kid in content {
+                match kid {
+                    NativeStructureKid::Element { element } => pending.push(*element),
+                    NativeStructureKid::Unresolved if inventory.complete => {
+                        return Err(super::invalid(
+                            "complete native structure forest has unresolved content",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if inventory.complete
+            && store.structured.iter().any(|element| {
+                element.backend == inventory.backend
+                    && matches!(element.value, StructuredValue::StructureElement { .. })
+                    && !visited.contains(&element.id)
+            })
+        {
+            return Err(super::invalid(
+                "complete native structure forest omits an acquired element",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn children(pdf: &dyn ParsedPdf, object: Option<PdfObject>) -> Result<Vec<PdfObject>> {
@@ -395,6 +593,7 @@ fn page_reference(
 
 fn issue(result: &mut StructureEvidence, source: Option<SourceRef>, error: Error) {
     result.issues.push(EvidenceIssue {
+        boundary: None,
         page: None,
         channel: Channel::Relations,
         sources: source.into_iter().collect(),

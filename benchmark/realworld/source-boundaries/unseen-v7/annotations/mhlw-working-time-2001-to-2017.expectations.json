@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "mhlw-working-time-2001-to-2017",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "7869e8c8ae589fddeffdbba4b0cb1330c56bfcd60b2d5fde5ac0b6b3a0388b45",
+  "body_eligible": true,
+  "reason": "Complete opening context paragraph; the first following however paragraph is separate. The older 2001 standard is the version reproduced in the 2010 official release. The final responsibility clause changes."
+}

@@ -7,7 +7,7 @@ use super::{
     UnicodeMapping,
     cmap::CMapLimits,
     common::{FontIdentitySource, resolve_object},
-    composite::{CompositeFontDecoder, LoadedCompositeFont},
+    composite::{CompositeFontDecoder, LoadedCompositeFont, WidthTables},
     simple::{LoadedSimpleFont, SimpleFontDecoder},
 };
 
@@ -56,12 +56,27 @@ pub(crate) struct LoadedFont {
     pub(crate) cid_width_entries: usize,
 }
 
-impl FontDecoder {
+/// Shares immutable width tables within exactly one parsed PDF. The extraction
+/// owner charges each load's newly retained entries to its document-wide limit.
+pub(crate) struct FontDecoderCache<'a> {
+    pdf: &'a dyn ParsedPdf,
+    widths: WidthTables,
+}
+
+impl<'a> FontDecoderCache<'a> {
+    pub(crate) fn new(pdf: &'a dyn ParsedPdf) -> Self {
+        Self {
+            pdf,
+            widths: WidthTables::new(),
+        }
+    }
+
     pub(crate) fn load(
-        pdf: &dyn ParsedPdf,
+        &mut self,
         font: &PdfObject,
         limits: FontDecoderLimits,
     ) -> Result<LoadedFont> {
+        let pdf = self.pdf;
         let resolved = resolve_object(pdf, font.clone(), limits.max_indirections)?;
         if let PdfObject::Dictionary(dictionary) = &resolved
             && matches!(dictionary.get(b"Subtype".as_slice()), Some(PdfObject::Name(name)) if name.as_slice() == b"Type0")
@@ -72,7 +87,7 @@ impl FontDecoder {
                 external_identity_allowed,
                 decoded_font_bytes,
                 cid_width_entries,
-            } = CompositeFontDecoder::load(pdf, dictionary, limits)?;
+            } = CompositeFontDecoder::load_shared(pdf, dictionary, limits, &mut self.widths)?;
             let external_base_font = if identity_source.is_none() && external_identity_allowed {
                 dictionary
                     .get(b"BaseFont".as_slice())
@@ -84,7 +99,7 @@ impl FontDecoder {
                 None
             };
             return Ok(LoadedFont {
-                decoder: Self::Composite(decoder),
+                decoder: FontDecoder::Composite(decoder),
                 identity_source,
                 external_base_font,
                 decoded_font_bytes,
@@ -97,12 +112,23 @@ impl FontDecoder {
             decoded_font_bytes,
         } = SimpleFontDecoder::load(pdf, font, limits)?;
         Ok(LoadedFont {
-            decoder: Self::Simple(decoder),
+            decoder: FontDecoder::Simple(decoder),
             identity_source,
             external_base_font: None,
             decoded_font_bytes,
             cid_width_entries: 0,
         })
+    }
+}
+
+impl FontDecoder {
+    #[cfg(feature = "fuzzing")]
+    pub(crate) fn load(
+        pdf: &dyn ParsedPdf,
+        font: &PdfObject,
+        limits: FontDecoderLimits,
+    ) -> Result<LoadedFont> {
+        FontDecoderCache::new(pdf).load(font, limits)
     }
 
     pub(crate) fn decode(

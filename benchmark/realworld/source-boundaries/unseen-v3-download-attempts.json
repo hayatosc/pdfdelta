@@ -1,0 +1,270 @@
+{
+  "version": 3,
+  "comparison_performed": false,
+  "attempts": [
+    {
+      "pair": "nist-171-r2-to-r3",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-171r2.pdf",
+      "started_utc": "2026-09-13T12:23:06.121329+00:00",
+      "wall_seconds": 0.012297237000893801,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: nvlpubs.nist.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "nist-171-r2-to-r3",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-171r3.pdf",
+      "started_utc": "2026-09-13T12:23:06.121725+00:00",
+      "wall_seconds": 0.01152002999879187,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: nvlpubs.nist.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "nist-82-r2-to-r3",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-82r2.pdf",
+      "started_utc": "2026-09-13T12:23:06.133350+00:00",
+      "wall_seconds": 0.011595074000069872,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: nvlpubs.nist.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "nist-82-r2-to-r3",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-82r3.pdf",
+      "started_utc": "2026-09-13T12:23:06.133779+00:00",
+      "wall_seconds": 0.01185337200149661,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: nvlpubs.nist.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "nist-64-r1-to-r2",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-64r1.pdf",
+      "started_utc": "2026-09-13T12:23:06.145158+00:00",
+      "wall_seconds": 0.011729650002962444,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: nvlpubs.nist.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "nist-64-r1-to-r2",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-64r2.pdf",
+      "started_utc": "2026-09-13T12:23:06.145800+00:00",
+      "wall_seconds": 0.011920944998564664,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: nvlpubs.nist.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "edpb-fines-v1-to-v2-1",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/2022-05/edpb_guidelines_042022_calculationofadministrativefines_en.pdf",
+      "started_utc": "2026-09-13T12:23:06.157124+00:00",
+      "wall_seconds": 0.012421430998074356,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.edpb.europa.eu\n",
+      "status": "failed"
+    },
+    {
+      "pair": "edpb-fines-v1-to-v2-1",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/2023-06/edpb_guidelines_042022_calculationofadministrativefines_en.pdf",
+      "started_utc": "2026-09-13T12:23:06.157878+00:00",
+      "wall_seconds": 0.011356172006344423,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.edpb.europa.eu\n",
+      "status": "failed"
+    },
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb_guidelines_202101_databreachnotificationexamples_v1_en.pdf",
+      "started_utc": "2026-09-13T12:23:06.169381+00:00",
+      "wall_seconds": 0.010794833004183602,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.edpb.europa.eu\n",
+      "status": "failed"
+    },
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/2022-01/edpb_guidelines_012021_pdbnotification_adopted_en.pdf",
+      "started_utc": "2026-09-13T12:23:06.169904+00:00",
+      "wall_seconds": 0.010875926003791392,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.edpb.europa.eu\n",
+      "status": "failed"
+    },
+    {
+      "pair": "arxiv-t5-v1-to-v3",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/1910.10683v1",
+      "started_utc": "2026-09-13T12:23:06.180364+00:00",
+      "wall_seconds": 0.011474372004158795,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: arxiv.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "arxiv-t5-v1-to-v3",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/1910.10683v3",
+      "started_utc": "2026-09-13T12:23:06.180848+00:00",
+      "wall_seconds": 0.011543082997377496,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: arxiv.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "arxiv-albert-v1-to-v6",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/1909.11942v1",
+      "started_utc": "2026-09-13T12:23:06.192072+00:00",
+      "wall_seconds": 0.012210615001094993,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: arxiv.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "arxiv-albert-v1-to-v6",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/1909.11942v6",
+      "started_utc": "2026-09-13T12:23:06.192470+00:00",
+      "wall_seconds": 0.012543513999844436,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: arxiv.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "arxiv-reformer-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2001.04451v1",
+      "started_utc": "2026-09-13T12:23:06.204476+00:00",
+      "wall_seconds": 0.010809393003000878,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: arxiv.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "arxiv-reformer-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2001.04451v2",
+      "started_utc": "2026-09-13T12:23:06.205096+00:00",
+      "wall_seconds": 0.011197912004718091,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: arxiv.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "faa-electronic-records-78a-to-78b",
+      "side": "old",
+      "url": "https://www.faa.gov/documentlibrary/media/advisory_circular/ac_120-78a.pdf",
+      "started_utc": "2026-09-13T12:23:06.215469+00:00",
+      "wall_seconds": 0.01103576800232986,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.faa.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "faa-electronic-records-78a-to-78b",
+      "side": "new",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-78B_FAA_Web.pdf",
+      "started_utc": "2026-09-13T12:23:06.216460+00:00",
+      "wall_seconds": 0.010852136998437345,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.faa.gov\n",
+      "status": "failed"
+    },
+    {
+      "pair": "mext-research-misconduct-2006-to-2014",
+      "side": "old",
+      "url": "https://www.mext.go.jp/b_menu/shingi/gijyutu/gijyutu12/houkoku/__icsFiles/afieldfile/2013/05/07/1213547_001.pdf",
+      "started_utc": "2026-09-13T12:23:06.226723+00:00",
+      "wall_seconds": 0.012764305000018794,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.mext.go.jp\n",
+      "status": "failed"
+    },
+    {
+      "pair": "mext-research-misconduct-2006-to-2014",
+      "side": "new",
+      "url": "https://www.mext.go.jp/b_menu/houdou/26/08/__icsFiles/afieldfile/2014/08/26/1351568_02_1.pdf",
+      "started_utc": "2026-09-13T12:23:06.227419+00:00",
+      "wall_seconds": 0.013355158997001126,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.mext.go.jp\n",
+      "status": "failed"
+    },
+    {
+      "pair": "ietf-json-4627-to-8259",
+      "side": "old",
+      "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc4627.txt.pdf",
+      "started_utc": "2026-09-13T12:23:06.239610+00:00",
+      "wall_seconds": 0.010626524999679532,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.rfc-editor.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "ietf-json-4627-to-8259",
+      "side": "new",
+      "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc8259.txt.pdf",
+      "started_utc": "2026-09-13T12:23:06.240965+00:00",
+      "wall_seconds": 0.011483033005788457,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.rfc-editor.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "ietf-uri-2396-to-3986",
+      "side": "old",
+      "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc2396.txt.pdf",
+      "started_utc": "2026-09-13T12:23:06.250491+00:00",
+      "wall_seconds": 0.012775432005582843,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.rfc-editor.org\n",
+      "status": "failed"
+    },
+    {
+      "pair": "ietf-uri-2396-to-3986",
+      "side": "new",
+      "url": "https://www.rfc-editor.org/rfc/pdfrfc/rfc3986.txt.pdf",
+      "started_utc": "2026-09-13T12:23:06.252678+00:00",
+      "wall_seconds": 0.010212413995759562,
+      "exit_code": 6,
+      "http_code": "000",
+      "stderr": "curl: (6) Could not resolve host: www.rfc-editor.org\n",
+      "status": "failed"
+    }
+  ]
+}

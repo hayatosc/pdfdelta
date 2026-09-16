@@ -15,7 +15,7 @@ repository = "https://github.com/hayatosc/pdfdelta"
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
-lopdf = { git = "https://github.com/J-F-Liu/lopdf", rev = "1e3d646ca249ebf1a6ff479278c07e9c0f9377a8", default-features = false }
+lopdf = { version = "0.45.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 serde-saphyr = { version = "1", default-features = false, features = ["deserialize"] }
@@ -88,6 +88,12 @@ trivially_copy_pass_by_ref = "allow"
 ref_option = "allow"
 if_not_else = "allow"
 missing_panics_doc = "allow"
+
+[profile.dev]
+# Keep file/line backtraces without full type and variable debug information.
+debug = "line-tables-only"
+# Favor disk usage over faster recompilation; test inherits these settings.
+incremental = false
 
 [profile.release]
 lto = "thin"

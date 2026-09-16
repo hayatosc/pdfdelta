@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "production_sha256": "8cd524c3f4037bc119c853028737f36b7592ea97963df985b3ac320c824b59dd",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/pdfdelta",
+    "sha256": "ee2cd10cfd162c16a50819b5d844b181258dc7b3139b33528b5ccdc69747fe58"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/build.json",
+    "sha256": "aba0380575af65ad17a1a993ee3ea66d566fa27e3c36c6f8f374b5e9d3e53a3f"
+  },
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v33-repeated-observations.json",
+    "sha256": "1d751ffed49eba7d7f5f973aa01999c23e8f5c689f95e15480ca91d2a31a941e"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v33-formal-adjudications.json",
+    "sha256": "f48f5083dfb77d896eefb9b8004ca5d604492a2969a7de36c3b1328fb6ee521d"
+  },
+  "controls": {
+    "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+    "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+  },
+  "scope": "Frozen V33 development evaluation only; natural segmented recovery, blind evaluation and the opaque experiment remain separate."
+}

@@ -70,6 +70,8 @@ fn fixture(text: &str) -> EvidenceStore {
                 }],
             },
         }],
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         inventories: vec![ChannelInventory {
             page: Some(PageId(0)),
             channel: Channel::Text,
@@ -347,6 +349,72 @@ fn recognition_retains_raster_grounding_and_enters_the_common_solver_as_inferred
             .validate(&old, EvidenceLimits::default(), GraphLimits::default())
             .is_err()
     );
+}
+
+#[test]
+fn recognition_inventory_and_confidence_cannot_discharge_strict_sources() {
+    for complete in [false, true] {
+        for confidence in [0.0, 100.0] {
+            for new_text in ["Revenue 100\n", "Revenue 200\n"] {
+                let mut old = fixture("Revenue 100\n");
+                let mut new = fixture(new_text);
+                for store in [&mut old, &mut new] {
+                    store.inventories[0].complete = complete;
+                    let StructuredValue::RecognizedText { words, .. } =
+                        &mut store.structured[0].value
+                    else {
+                        panic!("recognized fixture");
+                    };
+                    words[0].confidence = Some(confidence);
+                }
+                let old_graph = graph(&old);
+                let new_graph = graph(&new);
+                let old_view = DocumentView {
+                    evidence: &old,
+                    graph: &old_graph,
+                };
+                let new_view = DocumentView {
+                    evidence: &new,
+                    graph: &new_graph,
+                };
+                let channels = [Channel::Text].into();
+                let mut limits = DocumentComparisonLimits::default();
+                limits.matching.channels = MatchingChannels::from(&channels);
+                let comparison = compare_document_views(
+                    old_view,
+                    new_view,
+                    CorrespondenceScope {
+                        old: NodeId(0),
+                        new: NodeId(0),
+                    },
+                    limits,
+                    HierarchyLimits::default(),
+                )
+                .expect("compare recognized content");
+                let compared: Vec<_> = comparison
+                    .comparisons()
+                    .filter(|pair| pair.compared)
+                    .collect();
+                assert!(!compared.is_empty());
+                assert!(
+                    compared
+                        .iter()
+                        .all(|pair| { pair.interpretation == InterpretationStatus::Inferred })
+                );
+                let coverage = document_coverage(old_view, new_view, &comparison, &channels);
+                let text = &coverage[0];
+                assert_eq!(text.old_inventory_complete, complete);
+                assert_eq!(text.new_inventory_complete, complete);
+                assert_eq!(text.old_discovered_sources, 1);
+                assert_eq!(text.new_discovered_sources, 1);
+                assert_eq!(text.old_compared_sources, 0);
+                assert_eq!(text.new_compared_sources, 0);
+                assert_eq!(text.old_uncompared_sources, 1);
+                assert_eq!(text.new_uncompared_sources, 1);
+                assert!(!text.complete);
+            }
+        }
+    }
 }
 
 #[test]

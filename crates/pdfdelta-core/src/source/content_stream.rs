@@ -7,8 +7,8 @@ use crate::{
     Error, Result,
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphPathClipStatus, GlyphProvenance, MarkedContent, PageId, Rect, TextRenderMode, Vec2,
-        VectorLine, VectorLineId,
+        GlyphPathClipStatus, GlyphProvenance, MarkedContent, NonTextPaint, PageId, Rect,
+        TextRenderMode, Vec2, VectorLine, VectorLineId,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -18,8 +18,8 @@ use crate::{
         },
         font::cmap::CMapLimits,
         font::{
-            DecodedGlyph as FontGlyph, FontDecoder, FontDecoderLimits, FontIdentitySource,
-            UnicodeMapping, WritingMode, load_font_identity,
+            DecodedGlyph as FontGlyph, FontDecoder, FontDecoderCache, FontDecoderLimits,
+            FontIdentitySource, UnicodeMapping, WritingMode, load_font_identity,
         },
     },
 };
@@ -28,6 +28,12 @@ use super::{
     ExternalFontIdentities, ExtractionIssue, ExtractionLimits, ExtractionOutcome, ExtractionScope,
     GlyphExtractor,
 };
+
+mod clipping;
+use clipping::{ClipRegion, Quad};
+
+mod paint_bounds;
+use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContentStreamGlyphExtractor;
@@ -48,7 +54,7 @@ impl ContentStreamGlyphExtractor {
         Ok(self
             .page_frames(pdf, limits, max_pages)?
             .into_iter()
-            .map(|frame| frame.map(PageCoordinateFrame::canonical_bounds))
+            .map(|frame| frame.map(|frame| frame.canonical_bounds()))
             .collect())
     }
 
@@ -134,7 +140,7 @@ impl ContentStreamGlyphExtractor {
         ExtractionOutcome::new(
             Document::with_vector_lines(extraction.glyphs, extraction.vector_lines)
                 .with_marked_content(extraction.marked_content)
-                .with_last_non_text_paint(extraction.last_non_text_paint),
+                .with_non_text_paint_bounds(extraction.non_text_paint_bounds),
             issues,
         )
     }
@@ -171,12 +177,13 @@ struct Extraction<'a> {
     glyphs: Vec<Glyph>,
     vector_lines: Vec<VectorLine>,
     marked_content: Vec<MarkedContent>,
-    last_non_text_paint: std::collections::BTreeMap<PageId, u32>,
+    non_text_paint_bounds: Vec<NonTextPaint>,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
+    convex_clip_work: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
     bound_fonts: HashMap<BoundFontKey, Arc<BoundFont>>,
-    ext_gstate_fonts: HashMap<ExtGStateKey, Option<(Arc<BoundFont>, f64)>>,
+    ext_gstate_selections: HashMap<ExtGStateKey, ExtGStateSelection>,
     page_resource_cache: HashMap<usize, (Arc<PdfObject>, Resources)>,
     resource_cache: HashMap<ObjectRef, Resources>,
     resource_map_cache: HashMap<ObjectRef, Arc<ScopedResourceMap>>,
@@ -190,6 +197,7 @@ struct Extraction<'a> {
     operand_budget: OperandBudget,
     cmap_entries: usize,
     cid_width_entries: usize,
+    font_decoder_cache: FontDecoderCache<'a>,
     next_font_id: u32,
     next_scope_id: u64,
     render_order: u32,
@@ -209,12 +217,10 @@ pub struct PageCoordinateFrame {
 }
 
 impl PageCoordinateFrame {
-    #[must_use]
     pub fn canonical_bounds(self) -> Rect {
         self.geometry.crop_bounds
     }
 
-    #[must_use]
     pub fn rotation(self) -> u16 {
         self.geometry.rotation
     }
@@ -242,14 +248,6 @@ impl PageCoordinateFrame {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-enum ClipRegion {
-    #[default]
-    Unbounded,
-    Rectangle(Rect),
-    Empty,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PathSegment {
     from: Vec2,
@@ -266,6 +264,7 @@ struct CurrentPath {
     clip_rectangle: Option<Rect>,
     has_unsupported_segments: bool,
     clip_pending: bool,
+    paint_bounds: paint_bounds::Bounds,
 }
 
 impl CurrentPath {
@@ -377,6 +376,25 @@ impl CurrentPath {
         rectangle_from_segments(segments)
     }
 
+    fn clipping_quad(&self) -> Option<Quad> {
+        if self.has_unsupported_segments || self.drawn_subpaths != 1 {
+            return None;
+        }
+        let segments = self.segments.as_slice();
+        if !matches!(segments.len(), 3 | 4)
+            || !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
+            || (segments.len() == 4 && segments[3].to != segments[0].from)
+        {
+            return None;
+        }
+        Quad::new([
+            segments[0].from,
+            segments[0].to,
+            segments[1].to,
+            segments[2].to,
+        ])
+    }
+
     fn mark_current_subpath_drawn(&mut self) {
         if !self.current_subpath_has_segment {
             self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
@@ -396,12 +414,13 @@ impl<'a> Extraction<'a> {
             glyphs: Vec::new(),
             vector_lines: Vec::new(),
             marked_content: Vec::new(),
-            last_non_text_paint: std::collections::BTreeMap::new(),
+            non_text_paint_bounds: Vec::new(),
             issues: Vec::new(),
             consumed_glyphs: 0,
+            convex_clip_work: 0,
             font_cache: HashMap::new(),
             bound_fonts: HashMap::new(),
-            ext_gstate_fonts: HashMap::new(),
+            ext_gstate_selections: HashMap::new(),
             page_resource_cache: HashMap::new(),
             resource_cache: HashMap::new(),
             resource_map_cache: HashMap::new(),
@@ -415,6 +434,7 @@ impl<'a> Extraction<'a> {
             operand_budget,
             cmap_entries: 0,
             cid_width_entries: 0,
+            font_decoder_cache: FontDecoderCache::new(pdf),
             next_font_id: 0,
             next_scope_id: 0,
             render_order: 0,
@@ -544,11 +564,21 @@ impl<'a> Extraction<'a> {
     ) -> Result<()> {
         match operation.operator.as_slice() {
             b"BI" => {
-                self.record_non_text_paint(page);
+                self.record_non_text_paint(
+                    page,
+                    stream,
+                    operation,
+                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                );
             }
             b"sh" => {
                 one_name(operation)?;
-                self.record_non_text_paint(page);
+                self.record_non_text_paint(
+                    page,
+                    stream,
+                    operation,
+                    state.graphics.form_paint_bounds,
+                );
             }
             b"BMC" | b"BDC" => {
                 if state.marked_stack.len() >= self.limits.max_nesting_depth
@@ -619,10 +649,10 @@ impl<'a> Extraction<'a> {
             }
             b"cm" => {
                 let [a, b, c, d, e, f] = number_operands(operation)?;
-                state.graphics.ctm = state
-                    .graphics
-                    .ctm
-                    .concatenate(Matrix::new(a, b, c, d, e, f)?)?;
+                let matrix = Matrix::new(a, b, c, d, e, f)?;
+                state.graphics.ctm = state.graphics.ctm.concatenate(matrix)?;
+                state.graphics.paint_ctm =
+                    state.graphics.paint_ctm.then(MatrixBounds::from(matrix));
             }
             b"w" => {
                 let width = one_number(operation)?;
@@ -634,13 +664,49 @@ impl<'a> Extraction<'a> {
                 }
                 state.graphics.line_width = width;
             }
+            b"M" => {
+                let limit = one_number(operation)?;
+                if limit < 1.0 {
+                    return Err(operation_error(
+                        operation,
+                        "miter limit must be at least one",
+                    ));
+                }
+                state.graphics.miter_limit = limit;
+            }
+            b"J" | b"j" => {
+                if ![0.0, 1.0, 2.0].contains(&one_number(operation)?) {
+                    return Err(operation_error(
+                        operation,
+                        "invalid stroke cap or join style",
+                    ));
+                }
+            }
             b"m" => {
                 let [x, y] = number_operands(operation)?;
+                state
+                    .current_path
+                    .paint_bounds
+                    .include(paint_bounds::point_bounds(
+                        page_geometry,
+                        state.graphics.paint_ctm,
+                        x,
+                        y,
+                    ));
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state.current_path.move_to(point);
             }
             b"l" => {
                 let [x, y] = number_operands(operation)?;
+                state
+                    .current_path
+                    .paint_bounds
+                    .include(paint_bounds::point_bounds(
+                        page_geometry,
+                        state.graphics.paint_ctm,
+                        x,
+                        y,
+                    ));
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 self.ensure_path_segment_capacity(state, 1)?;
                 state.current_path.line_to(point).map_err(|_| {
@@ -648,7 +714,20 @@ impl<'a> Extraction<'a> {
                 })?;
             }
             b"c" => {
-                let [_, _, _, _, x, y] = number_operands(operation)?;
+                let [x1, y1, x2, y2, x, y] = number_operands(operation)?;
+                // A cubic lies in its control-point hull. The current point is
+                // already retained in page coordinates, even across CTM changes.
+                for [x, y] in [[x1, y1], [x2, y2], [x, y]] {
+                    state
+                        .current_path
+                        .paint_bounds
+                        .include(paint_bounds::point_bounds(
+                            page_geometry,
+                            state.graphics.paint_ctm,
+                            x,
+                            y,
+                        ));
+                }
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state
                     .current_path
@@ -656,7 +735,19 @@ impl<'a> Extraction<'a> {
                     .map_err(|_| operation_error(operation, "path curve has no current point"))?;
             }
             b"v" | b"y" => {
-                let [_, _, x, y] = number_operands(operation)?;
+                let [cx, cy, x, y] = number_operands(operation)?;
+                // The omitted control is the retained start (v) or end (y).
+                for [x, y] in [[cx, cy], [x, y]] {
+                    state
+                        .current_path
+                        .paint_bounds
+                        .include(paint_bounds::point_bounds(
+                            page_geometry,
+                            state.graphics.paint_ctm,
+                            x,
+                            y,
+                        ));
+                }
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state
                     .current_path
@@ -672,6 +763,17 @@ impl<'a> Extraction<'a> {
             }
             b"re" => {
                 let [x, y, width, height] = number_operands(operation)?;
+                state
+                    .current_path
+                    .paint_bounds
+                    .include(paint_bounds::rectangle_bounds(
+                        page_geometry,
+                        state.graphics.paint_ctm,
+                        x,
+                        y,
+                        width,
+                        height,
+                    ));
                 let (corners, rectangle) = transformed_rectangle_path(
                     page_geometry,
                     state.graphics.ctm,
@@ -837,10 +939,12 @@ impl<'a> Extraction<'a> {
                 let vector_line_start = self.vector_lines.len();
                 let marked_start = self.marked_content.len();
                 let issue_start = self.issues.len();
+                let paint_start = self.non_text_paint_bounds.len();
                 let render_order = self.render_order;
                 let result = self.invoke_xobject(
                     name,
                     operation,
+                    stream,
                     page,
                     page_geometry,
                     resources,
@@ -849,7 +953,10 @@ impl<'a> Extraction<'a> {
                 );
                 match result {
                     Ok(()) => {}
-                    Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
+                    Err(XObjectFailure {
+                        error: error @ (Error::Unsupported(_) | Error::Unresolved(_)),
+                        bounds,
+                    }) => {
                         self.glyphs.truncate(glyph_start);
                         self.vector_lines.truncate(vector_line_start);
                         self.marked_content.truncate(marked_start);
@@ -858,14 +965,20 @@ impl<'a> Extraction<'a> {
                         }
                         self.issues.truncate(issue_start);
                         self.render_order = render_order;
+                        // Partial effects of a failed invocation are replaced by
+                        // one opaque operation, retaining its caller provenance.
+                        self.non_text_paint_bounds.truncate(paint_start);
+                        self.record_non_text_paint(page, stream, operation, bounds);
                         self.issues.push(ExtractionIssue::from_error(
-                            ExtractionScope::GlyphGap {
+                            ExtractionScope::PageGlyphGap {
+                                page,
                                 retained_before: glyph_start,
+                                paint_index: bounds.map(|_| paint_start),
                             },
                             error,
                         )?);
                     }
-                    Err(error) => return Err(error),
+                    Err(failure) => return Err(failure.error),
                 }
             }
             b"BX" => {
@@ -906,11 +1019,21 @@ impl<'a> Extraction<'a> {
 }
 
 impl Extraction<'_> {
-    fn record_non_text_paint(&mut self, page: PageId) {
-        self.last_non_text_paint
-            .entry(page)
-            .and_modify(|order| *order = (*order).max(self.render_order))
-            .or_insert(self.render_order);
+    fn record_non_text_paint(
+        &mut self,
+        page: PageId,
+        stream: ObjectRef,
+        operation: &Operation,
+        bounds: Option<Rect>,
+    ) {
+        // Every record is charged by the existing global operator budget.
+        self.non_text_paint_bounds.push(NonTextPaint {
+            page,
+            render_order: self.render_order,
+            bounds,
+            content_stream: stream,
+            operator_index: operation.index,
+        });
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -932,23 +1055,36 @@ impl Extraction<'_> {
         }
 
         if operation.operator != b"n" && state.current_path.drawn_subpaths != 0 {
-            self.record_non_text_paint(page);
+            self.record_non_text_paint(
+                page,
+                stream,
+                operation,
+                path_paint_bounds(page_geometry, state, stroke)
+                    .or(state.graphics.form_paint_bounds),
+            );
         }
 
         let clip_update = if state.current_path.clip_pending {
             if state.current_path.has_unsupported_segments {
-                return Err(Error::Unsupported(format!(
+                Some(state.graphics.clip_region.intersect_unsupported(format!(
                     "curved clipping path at content operator index {}",
                     operation.index
-                )));
+                )))
+            } else {
+                self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+                if let Some(rectangle) = state.current_path.clipping_rectangle() {
+                    Some(state.graphics.clip_region.intersect_rectangle(rectangle))
+                } else {
+                    self.charge_convex_clip_work(16)?;
+                    Some(match state.current_path.clipping_quad() {
+                        Some(quad) => state.graphics.clip_region.intersect_quad(quad),
+                        None => state.graphics.clip_region.intersect_unsupported(format!(
+                            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}",
+                            operation.index
+                        )),
+                    })
+                }
             }
-            let rectangle = state.current_path.clipping_rectangle().ok_or_else(|| {
-                Error::Unsupported(format!(
-                    "non-rectangular clipping path at content operator index {}",
-                    operation.index
-                ))
-            })?;
-            Some(intersect_clip_region(state.graphics.clip_region, rectangle))
         } else {
             None
         };
@@ -960,7 +1096,8 @@ impl Extraction<'_> {
                 state.graphics.line_width,
             )?;
             for segment in state.current_path.segments.iter().copied() {
-                if segment_is_visible(segment, state.graphics.clip_region) {
+                self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+                if state.graphics.clip_region.segment_is_visible(segment) {
                     self.emit_vector_line(segment, width, operation, stream, page)?;
                 }
             }
@@ -1024,6 +1161,18 @@ impl Extraction<'_> {
                 limit: u32::MAX as usize,
             })?;
         Ok(render_order)
+    }
+
+    fn charge_convex_clip_work(&mut self, work: usize) -> Result<()> {
+        self.convex_clip_work = self
+            .convex_clip_work
+            .checked_add(work)
+            .filter(|total| *total <= self.limits.max_operators)
+            .ok_or(Error::LimitExceeded {
+                resource: "convex clipping work",
+                limit: self.limits.max_operators,
+            })?;
+        Ok(())
     }
 
     fn ensure_path_segment_capacity(
@@ -1214,6 +1363,8 @@ impl Extraction<'_> {
                     resource: "glyph identifier address space",
                     limit: usize::MAX,
                 })?;
+        self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+        let path_clip_status = state.graphics.clip_region.glyph_status(bbox)?;
         let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
         let is_word_space = raw_code.as_slice() == b" ";
@@ -1233,7 +1384,7 @@ impl Extraction<'_> {
             render_order,
             render_mode: state.graphics.render_mode,
             crop_status: glyph_crop_status(bbox, page_geometry.crop_bounds),
-            path_clip_status: glyph_path_clip_status(bbox, state.graphics.clip_region),
+            path_clip_status,
             provenance: GlyphProvenance {
                 content_stream: stream,
                 operator_index: operation.index,
@@ -1289,43 +1440,44 @@ impl Extraction<'_> {
                 .limits
                 .max_cid_width_entries
                 .saturating_sub(self.cid_width_entries);
-            let loaded = FontDecoder::load(
-                self.pdf,
-                selection.object.as_ref(),
-                FontDecoderLimits {
-                    max_indirections: self.limits.max_nesting_depth,
-                    max_simple_width_entries: 256,
-                    max_cid_width_entries: remaining_cid_width_entries,
-                    max_decoded_font_bytes: remaining_bytes,
-                    cmap: CMapLimits {
-                        max_entries: remaining_entries,
-                        max_code_bytes: 4,
-                        max_output_scalars: self.limits.max_string_bytes,
+            let loaded = self
+                .font_decoder_cache
+                .load(
+                    selection.object.as_ref(),
+                    FontDecoderLimits {
+                        max_indirections: self.limits.max_nesting_depth,
+                        max_simple_width_entries: 256,
+                        max_cid_width_entries: remaining_cid_width_entries,
+                        max_decoded_font_bytes: remaining_bytes,
+                        cmap: CMapLimits {
+                            max_entries: remaining_entries,
+                            max_code_bytes: 4,
+                            max_output_scalars: self.limits.max_string_bytes,
+                        },
                     },
-                },
-            )
-            .map_err(|error| match error {
-                Error::LimitExceeded {
-                    resource: "CID width entries",
-                    ..
-                } => Error::LimitExceeded {
-                    resource: "CID width entries",
-                    limit: self.limits.max_cid_width_entries,
-                },
-                error => error,
-            })?;
+                )
+                .map_err(|error| match error {
+                    Error::LimitExceeded {
+                        resource: "CID width entries",
+                        ..
+                    } => Error::LimitExceeded {
+                        resource: "CID width entries",
+                        limit: self.limits.max_cid_width_entries,
+                    },
+                    error => error,
+                })?;
             self.account_decoded_bytes(loaded.decoded_font_bytes)?;
             self.account_cid_width_entries(loaded.cid_width_entries)?;
             self.cmap_entries = self
                 .cmap_entries
                 .checked_add(loaded.decoder.cmap_entry_count())
                 .ok_or(Error::LimitExceeded {
-                    resource: "CMap entries",
+                    resource: "ToUnicode CMap entries",
                     limit: self.limits.max_cmap_entries,
                 })?;
             if self.cmap_entries > self.limits.max_cmap_entries {
                 return Err(Error::LimitExceeded {
-                    resource: "CMap entries",
+                    resource: "ToUnicode CMap entries",
                     limit: self.limits.max_cmap_entries,
                 });
             }
@@ -1502,16 +1654,59 @@ impl Extraction<'_> {
                 name: name.to_vec(),
             },
         };
-        if let Some(selection) = self.ext_gstate_fonts.get(&key) {
-            if let Some((font, size)) = selection {
-                state.graphics.font = Some(Arc::clone(font));
-                state.graphics.font_size = *size;
-            }
+        if let Some(selection) = self.ext_gstate_selections.get(&key) {
+            selection.apply(state);
             return Ok(());
         }
         let dictionary = self.dictionary_value(resource.as_ref(), "ExtGState resource")?;
+        let line_width = dictionary
+            .get(b"LW".as_slice())
+            .map(|value| self.number_value(value, "ExtGState line width"))
+            .transpose()?;
+        if line_width.is_some_and(|width| width < 0.0) {
+            return Err(operation_error(
+                operation,
+                "ExtGState line width must be non-negative",
+            ));
+        }
+        let miter_limit = dictionary
+            .get(b"ML".as_slice())
+            .map(|value| self.number_value(value, "ExtGState miter limit"))
+            .transpose()?;
+        if miter_limit.is_some_and(|limit| limit < 1.0) {
+            return Err(operation_error(
+                operation,
+                "ExtGState miter limit must be at least one",
+            ));
+        }
+        for key in [b"LC", b"LJ"] {
+            if let Some(value) = dictionary.get(key.as_slice())
+                && ![0.0, 1.0, 2.0].contains(&self.number_value(value, "ExtGState stroke style")?)
+            {
+                return Err(operation_error(operation, "invalid ExtGState stroke style"));
+            }
+        }
+        let stroke_adjustment = dictionary
+            .get(b"SA".as_slice())
+            .map(
+                |value| match self.resolve_value(value, "ExtGState stroke adjustment")? {
+                    PdfObject::Boolean(value) => Ok(value),
+                    _ => Err(operation_error(
+                        operation,
+                        "ExtGState stroke adjustment must be boolean",
+                    )),
+                },
+            )
+            .transpose()?;
         let Some(font) = dictionary.get(b"Font".as_slice()) else {
-            self.ext_gstate_fonts.insert(key, None);
+            let selection = ExtGStateSelection {
+                font: None,
+                line_width,
+                miter_limit,
+                stroke_adjustment,
+            };
+            selection.apply(state);
+            self.ext_gstate_selections.insert(key, selection);
             return Ok(());
         };
         let font = self.resolve_value(font, "ExtGState Font")?;
@@ -1532,10 +1727,14 @@ impl Extraction<'_> {
             ));
         }
         let font = self.bind_font(BoundFontKey::ExtGState(key.clone()), Arc::new(font.clone()))?;
-        self.ext_gstate_fonts
-            .insert(key, Some((Arc::clone(&font), size)));
-        state.graphics.font = Some(font);
-        state.graphics.font_size = size;
+        let selection = ExtGStateSelection {
+            font: Some((font, size)),
+            line_width,
+            miter_limit,
+            stroke_adjustment,
+        };
+        selection.apply(state);
+        self.ext_gstate_selections.insert(key, selection);
         Ok(())
     }
 
@@ -1544,12 +1743,13 @@ impl Extraction<'_> {
         &mut self,
         name: &[u8],
         operation: &Operation,
+        stream: ObjectRef,
         page: PageId,
         page_geometry: PageGeometry,
         resources: &Resources,
         state: &InterpreterState,
         form_depth: usize,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), XObjectFailure> {
         let object = resources.xobjects.entries.get(name).ok_or_else(|| {
             operation_error(
                 operation,
@@ -1564,22 +1764,30 @@ impl Extraction<'_> {
             PdfObject::Stream(_) => {
                 return Err(Error::Unsupported(
                     "direct Form XObject streams cannot retain object provenance".into(),
-                ));
+                )
+                .into());
             }
             _ => {
                 return Err(operation_error(
                     operation,
                     "XObject resource is not a stream reference",
-                ));
+                )
+                .into());
             }
         };
         let xobject = self.cached_xobject(reference)?;
         if matches!(xobject.kind, CachedXObjectKind::Image) {
-            self.record_non_text_paint(page);
+            self.record_non_text_paint(
+                page,
+                stream,
+                operation,
+                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+            );
         }
         let CachedXObjectKind::Form {
             matrix: form_matrix,
             resources: local_resources,
+            bbox,
         } = &xobject.kind
         else {
             return Ok(());
@@ -1589,14 +1797,27 @@ impl Extraction<'_> {
             return Err(Error::LimitExceeded {
                 resource: "Form XObject recursion depth",
                 limit: self.limits.max_form_depth,
-            });
+            }
+            .into());
         }
         if !self.active_forms.insert(reference) {
             return Err(Error::Unresolved(format!(
                 "cyclic Form XObject reference {} {}",
                 reference.object_number, reference.generation
-            )));
+            ))
+            .into());
         }
+
+        let bounds = bbox.and_then(|bbox| {
+            paint_bounds::form_paint_bounds(
+                page_geometry,
+                state
+                    .graphics
+                    .paint_ctm
+                    .then(MatrixBounds::from(*form_matrix)),
+                bbox,
+            )
+        });
 
         let result = (|| {
             let form_resources = local_resources.clone().unwrap_or_else(|| resources.clone());
@@ -1604,7 +1825,39 @@ impl Extraction<'_> {
             form_state.marked_stack.clear();
             form_state.marked_overflow = 0;
             form_state.content_form = Some(reference);
+            form_state.graphics.form_paint_bounds = bounds.or(state.graphics.form_paint_bounds);
             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
+            form_state.graphics.paint_ctm = form_state
+                .graphics
+                .paint_ctm
+                .then(MatrixBounds::from(*form_matrix));
+            let [x0, y0, x1, y1] =
+                bbox.ok_or_else(|| Error::Unresolved("Form XObject has no clipping BBox".into()))?;
+            let (min_x, max_x) = (x0.min(x1), x0.max(x1));
+            let (min_y, max_y) = (y0.min(y1), y0.max(y1));
+            let (corners, rectangle) = transformed_rectangle_path(
+                page_geometry,
+                form_state.graphics.ctm,
+                min_x,
+                min_y,
+                max_x - min_x,
+                max_y - min_y,
+            )?;
+            self.charge_convex_clip_work(form_state.graphics.clip_region.work())?;
+            // The Form's implicit clip is established before its operators and
+            // remains local to this invocation, including nested graphics saves.
+            form_state.graphics.clip_region = if let Some(rectangle) = rectangle {
+                form_state
+                    .graphics
+                    .clip_region
+                    .intersect_rectangle(rectangle)
+            } else {
+                self.charge_convex_clip_work(16)?;
+                let quad = Quad::new(corners).ok_or_else(|| {
+                    Error::Unsupported("uncertain convex Form XObject clipping BBox".into())
+                })?;
+                form_state.graphics.clip_region.intersect_quad(quad)
+            };
             form_state.graphics_stack.clear();
             form_state.current_path.reset();
             form_state.compatibility_depth = 0;
@@ -1643,7 +1896,7 @@ impl Extraction<'_> {
             Ok(())
         })();
         self.active_forms.remove(&reference);
-        result
+        result.map_err(|error| XObjectFailure { error, bounds })
     }
 
     fn cached_xobject(&mut self, reference: ObjectRef) -> Result<Arc<CachedXObject>> {
@@ -1674,7 +1927,15 @@ impl Extraction<'_> {
                     .get(b"Resources".as_slice())
                     .map(|value| self.resources(Some(value), None))
                     .transpose()?;
-                CachedXObjectKind::Form { matrix, resources }
+                let bbox = dictionary
+                    .get(b"BBox".as_slice())
+                    .map(|value| self.rectangle_value(value, "Form BBox"))
+                    .transpose()?;
+                CachedXObjectKind::Form {
+                    matrix,
+                    resources,
+                    bbox,
+                }
             }
             subtype => {
                 return Err(Error::Unsupported(format!(
@@ -2309,11 +2570,41 @@ impl Extraction<'_> {
     }
 }
 
+struct ExtGStateSelection {
+    font: Option<(Arc<BoundFont>, f64)>,
+    line_width: Option<f64>,
+    miter_limit: Option<f64>,
+    stroke_adjustment: Option<bool>,
+}
+
+impl ExtGStateSelection {
+    fn apply(&self, state: &mut InterpreterState) {
+        if let Some((font, size)) = &self.font {
+            state.graphics.font = Some(Arc::clone(font));
+            state.graphics.font_size = *size;
+        }
+        if let Some(width) = self.line_width {
+            state.graphics.line_width = width;
+        }
+        if let Some(limit) = self.miter_limit {
+            state.graphics.miter_limit = limit;
+        }
+        if let Some(adjustment) = self.stroke_adjustment {
+            state.graphics.stroke_adjustment = adjustment;
+        }
+    }
+}
+
 #[derive(Clone)]
 struct GraphicsState {
     ctm: Matrix,
+    paint_ctm: MatrixBounds,
     line_width: f64,
+    miter_limit: f64,
+    stroke_adjustment: bool,
     clip_region: ClipRegion,
+    // An outward bound of the enclosing Form remains valid for opaque paints.
+    form_paint_bounds: Option<Rect>,
     character_spacing: f64,
     word_spacing: f64,
     horizontal_scale: f64,
@@ -2328,8 +2619,12 @@ impl Default for GraphicsState {
     fn default() -> Self {
         Self {
             ctm: Matrix::IDENTITY,
+            paint_ctm: MatrixBounds::from(Matrix::IDENTITY),
             line_width: 1.0,
+            miter_limit: 10.0,
+            stroke_adjustment: false,
             clip_region: ClipRegion::Unbounded,
+            form_paint_bounds: None,
             character_spacing: 0.0,
             word_spacing: 0.0,
             horizontal_scale: 1.0,
@@ -2431,7 +2726,22 @@ enum CachedXObjectKind {
     Form {
         matrix: Matrix,
         resources: Option<Resources>,
+        bbox: Option<[f64; 4]>,
     },
+}
+
+struct XObjectFailure {
+    error: Error,
+    bounds: Option<Rect>,
+}
+
+impl From<Error> for XObjectFailure {
+    fn from(error: Error) -> Self {
+        Self {
+            error,
+            bounds: None,
+        }
+    }
 }
 
 struct BoundFont {
@@ -2730,51 +3040,6 @@ fn transformed_line_width(page_geometry: PageGeometry, ctm: Matrix, width: f64) 
     }
 }
 
-fn intersect_clip_region(current: ClipRegion, rectangle: Rect) -> ClipRegion {
-    if rectangle.max.x <= rectangle.min.x || rectangle.max.y <= rectangle.min.y {
-        return ClipRegion::Empty;
-    }
-    match current {
-        ClipRegion::Unbounded => ClipRegion::Rectangle(rectangle),
-        ClipRegion::Rectangle(current) => {
-            let intersection = Rect {
-                min: Vec2 {
-                    x: current.min.x.max(rectangle.min.x),
-                    y: current.min.y.max(rectangle.min.y),
-                },
-                max: Vec2 {
-                    x: current.max.x.min(rectangle.max.x),
-                    y: current.max.y.min(rectangle.max.y),
-                },
-            };
-            if intersection.max.x <= intersection.min.x || intersection.max.y <= intersection.min.y
-            {
-                ClipRegion::Empty
-            } else {
-                ClipRegion::Rectangle(intersection)
-            }
-        }
-        ClipRegion::Empty => ClipRegion::Empty,
-    }
-}
-
-fn segment_is_visible(segment: PathSegment, clip_region: ClipRegion) -> bool {
-    match clip_region {
-        ClipRegion::Unbounded => true,
-        ClipRegion::Rectangle(rectangle) => {
-            point_is_inside(segment.from, rectangle) && point_is_inside(segment.to, rectangle)
-        }
-        ClipRegion::Empty => false,
-    }
-}
-
-fn point_is_inside(point: Vec2, rectangle: Rect) -> bool {
-    point.x >= rectangle.min.x
-        && point.x <= rectangle.max.x
-        && point.y >= rectangle.min.y
-        && point.y <= rectangle.max.y
-}
-
 fn transformed_rect(matrix: Matrix, x0: f64, y0: f64, x1: f64, y1: f64) -> Result<Rect> {
     let corners = [
         matrix.transform_point(x0, y0)?,
@@ -2813,29 +3078,6 @@ fn glyph_crop_status(glyph: Rect, crop: Rect) -> GlyphCropStatus {
         GlyphCropStatus::PartiallyOutside
     } else {
         GlyphCropStatus::Inside
-    }
-}
-
-fn glyph_path_clip_status(glyph: Rect, clip_region: ClipRegion) -> GlyphPathClipStatus {
-    let clip = match clip_region {
-        ClipRegion::Rectangle(clip) => clip,
-        ClipRegion::Unbounded => return GlyphPathClipStatus::Unclipped,
-        ClipRegion::Empty => return GlyphPathClipStatus::Outside,
-    };
-    if glyph.max.x <= clip.min.x
-        || glyph.min.x >= clip.max.x
-        || glyph.max.y <= clip.min.y
-        || glyph.min.y >= clip.max.y
-    {
-        GlyphPathClipStatus::Outside
-    } else if glyph.min.x < clip.min.x
-        || glyph.max.x > clip.max.x
-        || glyph.min.y < clip.min.y
-        || glyph.max.y > clip.max.y
-    {
-        GlyphPathClipStatus::PartiallyOutside
-    } else {
-        GlyphPathClipStatus::Inside
     }
 }
 
@@ -3203,8 +3445,13 @@ mod tests {
         extraction.apply_ext_gstate(&operation, &first_resources, &mut state)?;
         extraction.apply_ext_gstate(&operation, &second_resources, &mut state)?;
 
-        assert_eq!(extraction.ext_gstate_fonts.len(), 1);
-        assert!(extraction.ext_gstate_fonts.values().all(Option::is_none));
+        assert_eq!(extraction.ext_gstate_selections.len(), 1);
+        assert!(
+            extraction
+                .ext_gstate_selections
+                .values()
+                .all(|selection| selection.font.is_none())
+        );
         Ok(())
     }
 
@@ -3304,7 +3551,7 @@ mod tests {
             &mut second_state,
         )?;
 
-        assert_eq!(extraction.ext_gstate_fonts.len(), 2);
+        assert_eq!(extraction.ext_gstate_selections.len(), 2);
         assert_eq!(extraction.bound_fonts.len(), 1);
         assert!(Arc::ptr_eq(
             first_state

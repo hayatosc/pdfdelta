@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "execution_started_utc": "2026-09-11T14:23:15Z",
+  "hard_stop_utc": "2026-09-12T02:23:15Z",
+  "working_baseline_commit": "31adc6a2ac04ed1f229f024807408f691c0ade76",
+  "historical": {
+    "panel": {
+      "path": "benchmark/realworld/followup/panel.json",
+      "sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744"
+    },
+    "baseline": {
+      "path": "benchmark/realworld/followup/baseline.json",
+      "sha256": "ddb9c0cd164314f069fb670fbc9b5b8465d245cc62417751539064144a7909a4"
+    },
+    "targets": {
+      "path": "benchmark/realworld/followup/targets.json",
+      "sha256": "a1ec08f034a00315acd9fc7e12c916214290511329ff3a49396dc9bdded78e7a"
+    },
+    "controls": {
+      "path": "benchmark/realworld/followup/controls.json",
+      "sha256": "9be1d8491f94373f1f55db4ba0e569ad7c934733be2a9ae213720c14e1788628"
+    },
+    "baseline-observations": {
+      "path": "benchmark/realworld/followup/baseline-observations.json",
+      "sha256": "3fd5e354615d5fe46711ecd117d61432f4a02722f402056d6866c58461a044c7"
+    },
+    "baseline-target-scores": {
+      "path": "benchmark/realworld/followup/baseline-target-scores.json",
+      "sha256": "2b898d519fb025a42bd5ca5897c353537be363fb95b0d91bfb0376e9c79504b0"
+    },
+    "baseline-diagnostics": {
+      "path": "benchmark/realworld/followup/baseline-diagnostics.json",
+      "sha256": "a01bc81df64c5971ce08bcdbcd0fbdde05065169e9772754438cf92fe364d8c1"
+    },
+    "panel-inventory-probes": {
+      "path": "benchmark/realworld/followup/panel-inventory-probes.json",
+      "sha256": "2d81d75a8fff931d703878ecf7a9e47c2bfee55b5ec2590c3c549aa1ade6d547"
+    }
+  },
+  "completion_contract": {
+    "channels": [
+      "text"
+    ],
+    "timeout_seconds": 180,
+    "limit_scale": 1,
+    "repetitions": 2
+  },
+  "panel_policy": "All 36 historical pairs remain fixed. No failed pair is removed. New proof rules must preserve completion semantics."
+}

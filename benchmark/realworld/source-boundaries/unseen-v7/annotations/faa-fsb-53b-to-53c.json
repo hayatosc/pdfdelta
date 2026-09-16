@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "faa-fsb-53b-to-53c",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 340,
+          "end": 553
+        }
+      },
+      "literal_quote": "It provides a means but not the only means of evaluating manufactured or modified aircraft by the use of standard systems, processes, and tests necessary to determine pilot training and qualification requirements.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 70,
+          "end": 87
+        }
+      },
+      "literal_quote": "Advisory Circular",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3,
+        "block": 3,
+        "range": {
+          "start": 791,
+          "end": 1066
+        }
+      },
+      "literal_quote": "It provides procedures for evaluating new or modified aircraft types and models or an aircraft with unique flight or handling characteristics to determine the appropriate pilot type rating1 and recommend pilot training, checking, and currency for the applicable type rating.2",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 68,
+          "end": 85
+        }
+      },
+      "literal_quote": "Advisory Circular",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "cf7d76de0e9586c41de2957e94ab0c81ed8a749d03b8480203fc19905692ca6c",
+  "new_sha256": "5b2fa26c9e5c618d36be3072685019840b0426b06f7fbaf089877fc639eae3b7"
+}

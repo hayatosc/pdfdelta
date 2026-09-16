@@ -1,0 +1,17 @@
+{
+  "head": "98bbae7abb85e69d2ed084376004107018d750b4",
+  "source_sha256": {
+    "benchmark/realworld/next/pricing-matrix.json": "0cf1b6471b32e49d36368b189d8517b73c5245b9880de66ee47e09844517b5b4",
+    "benchmark/realworld/next/measure-pricing.py": "bf3cef725b2f5f3af0be126487f313d2651544ac76a8c18bf813b078b272674b",
+    "crates/pdfdelta-core/src/document/matching/assignment.rs": "bfb9450de86df182c41fe53e92771ea711a0cd50f6b3fba86674950743fa176b",
+    "crates/pdfdelta-core/src/document/matching/assignment/pricing.rs": "667df5aa1282d25027bb0a6c62a937a5346b2314a9fb238735f985abd96dc5e6",
+    "crates/pdfdelta-core/src/document/matching/assignment/pricing/measurement.rs": "f1a1673018f1450a13d02f965fb812afe2bdcad9b438f25b1820f6896bda2d94",
+    "Cargo.lock": "9a839b70becc0788c62904352c7702230b07fc038f38684b24860ca00af962b1"
+  },
+  "binary_sha256": "0b5cd32f3e623a427c93cf54ce37e58174e637ad7d7d30799cfec303faf9bda1",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "repetitions": 3,
+  "memory_unit": "KiB; GNU time maximum resident set of each isolated test process; not allocator live heap",
+  "time_unit": "seconds; kernel includes universe construction and all solves; process includes test startup and JSON output"
+}

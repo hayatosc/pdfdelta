@@ -1,7 +1,0 @@
-{
-  "pair": "qgis-doc-guidelines-es-328-to-334",
-  "set": "holdout",
-  "annotation": "none",
-  "status": "not_run",
-  "reason": "prioritized crash-fixed annotated comparison after all 12 original annotated pairs completed"
-}

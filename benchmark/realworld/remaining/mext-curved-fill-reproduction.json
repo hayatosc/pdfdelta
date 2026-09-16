@@ -1,0 +1,98 @@
+{
+  "status": "fixed_mext_target_blocked_by_unbounded_curved_fill",
+  "production_changed": false,
+  "certifies_recovery": false,
+  "pair": "mext-primary-japanese-2008-to-2017",
+  "previous_turn_classification": "progress: fixed target source rebinding committed as 3423288",
+  "bindings": [
+    {
+      "path": "benchmark/realworld/cache/recovery/mext-target-page.json",
+      "sha256": "078533e958dfe821fe5c17c2c0317c0ec0f7a097a21657dee2a90e30fce7470a"
+    },
+    {
+      "path": "benchmark/realworld/cache/recovery/mext-target-paint.json",
+      "sha256": "a2fa154f33bd38426d1c762faa57b14e213cb235ca9cdea2b5a21d4e091c31f6"
+    },
+    {
+      "path": "crates/pdfdelta-bench/examples/matching_component_probe.rs",
+      "sha256": "49fadf36c64e25e76ae8224abaf836821a41816ac1e6a5038e6731471800d690"
+    }
+  ],
+  "pages": {
+    "old": {
+      "revision": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57",
+      "native_glyph_count": 102328,
+      "page": 10,
+      "page_glyphs": 841,
+      "page_nodes": 28,
+      "target_nodes": [
+        348,
+        349,
+        350
+      ],
+      "paint": [],
+      "target_node_bounds": {
+        "min_x": 56.99999999999994,
+        "max_x": 538.9979999999999,
+        "min_y": 314.3199,
+        "max_y": 374.3079
+      }
+    },
+    "new": {
+      "revision": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e",
+      "native_glyph_count": 249104,
+      "page": 10,
+      "page_glyphs": 780,
+      "page_nodes": 33,
+      "target_nodes": [
+        495,
+        496,
+        497,
+        498
+      ],
+      "paint": [
+        {
+          "bounds": null,
+          "content_stream": {
+            "generation": 0,
+            "object_number": 34
+          },
+          "operator_index": 111,
+          "page": 10,
+          "render_order": 8297
+        }
+      ],
+      "target_node_bounds": {
+        "min_x": 85.80279999999999,
+        "max_x": 481.8028,
+        "min_y": 515.7807999999997,
+        "max_y": 586.5327999999997
+      }
+    }
+  },
+  "findings": [
+    "Both fixed target literal populations are mapped in exact native text nodes; all three old and four new body lines remain separate nodes.",
+    "New page 10 has one unbounded non-text fill at stream 34, operator 111, after two shorthand cubic curves. Old page 10 has no paint record.",
+    "The curve control-point hull offers a conservative fill bound without solving extrema or approximating glyph visibility. Curve strokes and clipping need independent proofs and must remain uncertain.",
+    "A bounded fill does not itself establish corresponding interval boundaries or a fixed target recovery."
+  ],
+  "quality_checks": {
+    "fmt": "passed",
+    "clippy": "passed",
+    "workspace_tests": "2485 passed, 0 failed, 2 ignored",
+    "logs": [
+      {
+        "path": "benchmark/realworld/cache/recovery/mext-page-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/mext-page-clippy.log",
+        "sha256": "54104ede5ae49ce9468ff2b8b3709f650fb4d17b10f7ac14a74473fbb3552378"
+      },
+      {
+        "path": "benchmark/realworld/cache/recovery/mext-page-tests.log",
+        "sha256": "b169fdab2b3dddf3baff65d55f18ca6f6f74e19cf762e5de378b52a07088496d"
+      }
+    ]
+  }
+}

@@ -1,0 +1,220 @@
+{
+  "version": 9,
+  "selection_recorded_utc": "2026-09-14T05:43:00.190773+00:00",
+  "comparison_performed": false,
+  "pairs": [
+    {
+      "id": "nist-126-r2-to-r3",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-126 SCAP",
+      "old": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-126r2.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-126r3.pdf",
+      "old_revision": "Revision 2",
+      "new_revision": "Revision 3",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://csrc.nist.gov/pubs/sp/800/126/r2/final",
+        "https://csrc.nist.gov/pubs/sp/800/126/r3/final"
+      ]
+    },
+    {
+      "id": "nist-131a-r1-to-r2",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "series": "SP 800-131A cryptographic transitions",
+      "old": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-131Ar1.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-131Ar2.pdf",
+      "old_revision": "Revision 1",
+      "new_revision": "Revision 2",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://csrc.nist.gov/pubs/sp/800/131/a/r2/final"
+      ]
+    },
+    {
+      "id": "edpb-objection-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 09/2020 relevant and reasoned objection",
+      "language": "en",
+      "old_revision": "Version 1.0",
+      "new_revision": "Version 2.0",
+      "old": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb_guidelines_202009_relevant_and_reasoned_obj_en.pdf",
+      "new": "https://www.edpb.europa.eu/system/files/documents/2021-03/edpb_guidelines_202009_rro_final_en.pdf",
+      "primary_publication_pages": [
+        "https://www.edpb.europa.eu/documents/guideline/guidelines-092020-on-relevant-and-reasoned-objection-under-regulation-2016679_en"
+      ],
+      "selected_utc": "2026-09-14T05:56:03.002318+00:00"
+    },
+    {
+      "id": "edpb-article65-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "series": "Guidelines 03/2021 Article 65",
+      "old": "https://www.edpb.europa.eu/system/files/2021-04/edpb_guidelines_032021_article65-1-a_en.pdf",
+      "new": "https://www.edpb.europa.eu/system/files/documents/2023-06/edpb_guidelines_202103_article65-1-a_v2_en.pdf",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2.1 (editorial corrections 15 July 2024)",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://www.edpb.europa.eu/documents/guideline/guidelines-032021-on-the-application-of-article-651a-gdpr_en",
+        "https://www.edpb.europa.eu/public-consultations/guidelines-032021-on-the-application-of-article-651a-gdpr_en"
+      ]
+    },
+    {
+      "id": "arxiv-adam-v1-to-v9",
+      "family": "arxiv-paper",
+      "independent_producer": "Amsterdam/Toronto",
+      "series": "arXiv 1412.6980 adam",
+      "old": "https://arxiv.org/pdf/1412.6980v1",
+      "new": "https://arxiv.org/pdf/1412.6980v9",
+      "old_revision": "v1",
+      "new_revision": "v9",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://arxiv.org/abs/1412.6980"
+      ]
+    },
+    {
+      "id": "arxiv-batchnorm-v1-to-v3",
+      "family": "arxiv-paper",
+      "independent_producer": "Google",
+      "series": "arXiv 1502.03167 batchnorm",
+      "old": "https://arxiv.org/pdf/1502.03167v1",
+      "new": "https://arxiv.org/pdf/1502.03167v3",
+      "old_revision": "v1",
+      "new_revision": "v3",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://arxiv.org/abs/1502.03167"
+      ]
+    },
+    {
+      "id": "arxiv-vae-v1-to-v11",
+      "family": "arxiv-paper",
+      "independent_producer": "Amsterdam",
+      "series": "arXiv 1312.6114 vae",
+      "old": "https://arxiv.org/pdf/1312.6114v1",
+      "new": "https://arxiv.org/pdf/1312.6114v11",
+      "old_revision": "v1",
+      "new_revision": "v11",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://arxiv.org/abs/1312.6114"
+      ]
+    },
+    {
+      "id": "faa-weight-27e-to-27f",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "series": "AC 120-27 aircraft weight and balance",
+      "old": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC120-27E.pdf",
+      "new": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-27F.pdf",
+      "old_revision": "Revision E",
+      "new_revision": "Revision F",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentid/22749"
+      ]
+    },
+    {
+      "id": "mhlw-harassment-2020-to-2026",
+      "family": "japanese-guidance",
+      "independent_producer": "MHLW",
+      "series": "Sexual harassment prevention guidelines Notice 615",
+      "old": "https://www.mhlw.go.jp/content/11900000/000605548.pdf",
+      "new": "https://www.mhlw.go.jp/content/11900000/001701366.pdf",
+      "old_revision": "2020 amendment",
+      "new_revision": "2026 October applicability",
+      "language": "ja",
+      "primary_publication_pages": [
+        "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/koyou_roudou/koyoukintou/seisaku06/"
+      ]
+    },
+    {
+      "id": "ietf-ntp-1305-to-5905",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Network Time Protocol",
+      "old": "https://www.rfc-editor.org/rfc/rfc1305.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc5905.pdf",
+      "old_revision": "RFC 1305",
+      "new_revision": "RFC 5905",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://www.rfc-editor.org/info/rfc1305/",
+        "https://www.rfc-editor.org/info/rfc5905/"
+      ]
+    },
+    {
+      "id": "ietf-snmp-2571-to-3411",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "SNMP management architecture",
+      "old": "https://www.rfc-editor.org/rfc/rfc2571.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc3411.pdf",
+      "old_revision": "RFC 2571",
+      "new_revision": "RFC 3411",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://www.rfc-editor.org/info/rfc2571/",
+        "https://www.rfc-editor.org/info/rfc3411/"
+      ]
+    },
+    {
+      "id": "ietf-igmp-2236-to-3376",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "series": "Internet Group Management Protocol",
+      "old": "https://www.rfc-editor.org/rfc/rfc2236.pdf",
+      "new": "https://www.rfc-editor.org/rfc/rfc3376.pdf",
+      "old_revision": "RFC 2236",
+      "new_revision": "RFC 3376",
+      "language": "en",
+      "primary_publication_pages": [
+        "https://www.rfc-editor.org/info/rfc2236/",
+        "https://www.rfc-editor.org/info/rfc3376/"
+      ]
+    }
+  ],
+  "metadata_only_nonselections": [
+    {
+      "series": "NIST SP 800-128",
+      "reason": "Prior V5 selection prose already considered this series; excluded by novelty audit before acquisition."
+    },
+    {
+      "series": "NIST SP 800-137",
+      "reason": "No draft URL established; metadata-only consideration retained and excluded from future unseen sets."
+    },
+    {
+      "series": "arXiv 2304.02643 Segment Anything",
+      "reason": "Primary submission history contains only v1."
+    }
+  ],
+  "url_resolution_status": "Replacement selected before any comparison; its acquisition and source review remain pending.",
+  "source_edition_reviewed_utc": "2026-09-14T05:53:30.456216+00:00",
+  "source_only_rejections": [
+    {
+      "pair": {
+        "id": "edpb-access-v1-to-v21",
+        "family": "edpb-guidelines",
+        "independent_producer": "EDPB",
+        "series": "Guidelines 01/2022 right of access",
+        "old": "https://www.edpb.europa.eu/system/files/2022-01/edpb_guidelines_012022_right-of-access_0.pdf",
+        "new": "https://www.edpb.europa.eu/system/files/documents/2023-04/edpb_guidelines_202201_data_subject_rights_access_v2_en.pdf",
+        "old_revision": "Version 1.0",
+        "new_revision": "Version 2.1",
+        "language": "en",
+        "primary_publication_pages": [
+          "https://www.edpb.europa.eu/documents/guideline/guidelines-012022-on-data-subject-rights-right-of-access_en"
+        ]
+      },
+      "reason": "Guidelines 01/2022 access was explicitly excluded in the V3 intent and retained in V4-V6 intents. The initial novelty statement was incomplete; its selection, acquisition, annotations and source review are retained as a rejected pre-comparison registration."
+    }
+  ],
+  "novelty_correction": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v9-novelty-correction.json",
+    "sha256": "cf76d44d25eee95ce0e011c6f1826b9a4d75d95df0608a8926da5c53aec395ca"
+  }
+}

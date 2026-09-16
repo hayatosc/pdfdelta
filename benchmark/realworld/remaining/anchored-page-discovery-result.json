@@ -1,0 +1,2848 @@
+{
+  "version": 1,
+  "outcome": "Boundary-page discovery recovers two additional native source intervals in SP 800-53: 225 old and 223 new unique glyphs. SP 800-37 adds duplicate refinements only. Strict coverage and complete comparisons remain unchanged.",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/pdfdelta",
+    "sha256": "45de567fe6367d86dcedfd3b6ac24072db74ad58de52ed36e1e7b562aabcbd19"
+  },
+  "changed_build_files": [
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes.rs",
+      "sha256": "63457130db1078d6308647aedfa6cd80969dfeeaa54470580c9dd46a5822cf08"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes/native.rs",
+      "sha256": "e2929fb1af09bcdfcc6042617bc4c04f39111cb2ae4d1a9200d0ee3035bbf542"
+    },
+    {
+      "path": "crates/pdfdelta-core/tests/document_text_scopes_fixture.rs",
+      "sha256": "a77955102e681d8e64e6c280e35cdfc7e7bce0ed0250783c07fb7aa4c2a94ebe"
+    }
+  ],
+  "mechanism": {
+    "page_filter": "Prepare local native geometry only on pages containing accepted or non-owning text-boundary proposal members, when cross-page closure has no complete order provider.",
+    "exceptions": "Single-page inputs, acquired native structure order, and complete legacy relation inventories retain every page.",
+    "source_closure": "All original native sources, page inventories, graph evidence and external continuations remain available to unchanged closure checks. Preset budgets are unchanged."
+  },
+  "comparisons": [
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "b2b2fbf2fe01c5dc34c251324d8fd352412277c733459cb5ecec8d3151eaa3d0"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "b3cadf7e920f3ce1b7e83beb114b23aa670050fb3e3720394136b11c43860e8a"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/runs.json",
+        "sha256": "53195e075878a0bf8032634d2bd78eb75b47510ea062d4fd6e732df1288f3cfd"
+      },
+      "all_other_payloads_identical": true,
+      "all_prior_reviews_retained": true,
+      "scope_reviews_before": 0,
+      "scope_reviews_after": 6,
+      "source_union": {
+        "old": {
+          "before": 0,
+          "after": 225,
+          "additional": 225
+        },
+        "new": {
+          "before": 0,
+          "after": 223,
+          "additional": 223
+        }
+      },
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 2224
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 8,
+        "work": 168314,
+        "budget_at_entry": 247890
+      },
+      "new_reviews": [
+        {
+          "convention": "closed-native-paint-bounds-interval-v1",
+          "boundaries": [
+            1394,
+            1395
+          ],
+          "comparison": {
+            "old": [
+              18736
+            ],
+            "new": [
+              8876
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "b. Provides the means to indicate the security status of child zones and (if the child supports ",
+              "new": "b. Provide the means to indicate the security status of child zones and (if the child supports "
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 1,
+                "changed_source_upper": 1,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1235689
+                    }
+                  ]
+                }
+              ],
+              "new": []
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 96,
+            "new": 95
+          }
+        },
+        {
+          "convention": "closed-native-paint-bounds-interval-v1",
+          "boundaries": [
+            7312,
+            7313
+          ],
+          "comparison": {
+            "old": [
+              4073
+            ],
+            "new": [
+              11857
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "Generally an individual, process, or device causing information to flow among objects or change to the system state. See Object. ",
+              "new": "An individual, process, or device that causes information to flow among objects or change to the system state. Also see object. "
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 31,
+                "changed_source_upper": 31,
+                "mandatory_old": [
+                  true,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 0,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350487
+                    }
+                  ]
+                },
+                {
+                  "position": 1,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350488
+                    }
+                  ]
+                },
+                {
+                  "position": 3,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350490
+                    }
+                  ]
+                },
+                {
+                  "position": 4,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350491
+                    }
+                  ]
+                },
+                {
+                  "position": 5,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350492
+                    }
+                  ]
+                },
+                {
+                  "position": 6,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350493
+                    }
+                  ]
+                },
+                {
+                  "position": 7,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350494
+                    }
+                  ]
+                },
+                {
+                  "position": 8,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350495
+                    }
+                  ]
+                },
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350497
+                    }
+                  ]
+                },
+                {
+                  "position": 48,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350535
+                    }
+                  ]
+                },
+                {
+                  "position": 49,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350536
+                    }
+                  ]
+                },
+                {
+                  "position": 50,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350537
+                    }
+                  ]
+                },
+                {
+                  "position": 117,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350604
+                    }
+                  ]
+                },
+                {
+                  "position": 121,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350608
+                    }
+                  ]
+                }
+              ],
+              "new": [
+                {
+                  "position": 0,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533611
+                    }
+                  ]
+                },
+                {
+                  "position": 34,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533645
+                    }
+                  ]
+                },
+                {
+                  "position": 35,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533646
+                    }
+                  ]
+                },
+                {
+                  "position": 36,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533647
+                    }
+                  ]
+                },
+                {
+                  "position": 37,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533648
+                    }
+                  ]
+                },
+                {
+                  "position": 43,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533654
+                    }
+                  ]
+                },
+                {
+                  "position": 111,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533722
+                    }
+                  ]
+                },
+                {
+                  "position": 112,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533723
+                    }
+                  ]
+                },
+                {
+                  "position": 113,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533724
+                    }
+                  ]
+                },
+                {
+                  "position": 114,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533725
+                    }
+                  ]
+                },
+                {
+                  "position": 116,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533727
+                    }
+                  ]
+                },
+                {
+                  "position": 120,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533731
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 129,
+            "new": 128
+          }
+        },
+        {
+          "convention": "closed-native-source-cut-interval-v1",
+          "boundaries": [],
+          "comparison": {
+            "old": [
+              4073
+            ],
+            "new": [
+              11857
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "Generally an individual, process, or device causing information to flow among objects or change to the system state. See Object. ",
+              "new": "An individual, process, or device that causes information to flow among objects or change to the system state. Also see object. "
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 31,
+                "changed_source_upper": 31,
+                "mandatory_old": [
+                  true,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 0,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350487
+                    }
+                  ]
+                },
+                {
+                  "position": 1,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350488
+                    }
+                  ]
+                },
+                {
+                  "position": 3,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350490
+                    }
+                  ]
+                },
+                {
+                  "position": 4,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350491
+                    }
+                  ]
+                },
+                {
+                  "position": 5,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350492
+                    }
+                  ]
+                },
+                {
+                  "position": 6,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350493
+                    }
+                  ]
+                },
+                {
+                  "position": 7,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350494
+                    }
+                  ]
+                },
+                {
+                  "position": 8,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350495
+                    }
+                  ]
+                },
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350497
+                    }
+                  ]
+                },
+                {
+                  "position": 48,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350535
+                    }
+                  ]
+                },
+                {
+                  "position": 49,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350536
+                    }
+                  ]
+                },
+                {
+                  "position": 50,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350537
+                    }
+                  ]
+                },
+                {
+                  "position": 117,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350604
+                    }
+                  ]
+                },
+                {
+                  "position": 121,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350608
+                    }
+                  ]
+                }
+              ],
+              "new": [
+                {
+                  "position": 0,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533611
+                    }
+                  ]
+                },
+                {
+                  "position": 34,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533645
+                    }
+                  ]
+                },
+                {
+                  "position": 35,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533646
+                    }
+                  ]
+                },
+                {
+                  "position": 36,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533647
+                    }
+                  ]
+                },
+                {
+                  "position": 37,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533648
+                    }
+                  ]
+                },
+                {
+                  "position": 43,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533654
+                    }
+                  ]
+                },
+                {
+                  "position": 111,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533722
+                    }
+                  ]
+                },
+                {
+                  "position": 112,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533723
+                    }
+                  ]
+                },
+                {
+                  "position": 113,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533724
+                    }
+                  ]
+                },
+                {
+                  "position": 114,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533725
+                    }
+                  ]
+                },
+                {
+                  "position": 116,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533727
+                    }
+                  ]
+                },
+                {
+                  "position": 120,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533731
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 129,
+            "new": 128
+          }
+        },
+        {
+          "convention": "closed-native-source-cut-interval-v1",
+          "boundaries": [],
+          "comparison": {
+            "old": [
+              4073
+            ],
+            "new": [
+              11857
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "Generally an individual, process, or device causing information to flow among objects or change to the system state. See Object.",
+              "new": "An individual, process, or device that causes information to flow among objects or change to the system state. Also see object."
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 31,
+                "changed_source_upper": 31,
+                "mandatory_old": [
+                  true,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 0,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350487
+                    }
+                  ]
+                },
+                {
+                  "position": 1,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350488
+                    }
+                  ]
+                },
+                {
+                  "position": 3,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350490
+                    }
+                  ]
+                },
+                {
+                  "position": 4,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350491
+                    }
+                  ]
+                },
+                {
+                  "position": 5,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350492
+                    }
+                  ]
+                },
+                {
+                  "position": 6,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350493
+                    }
+                  ]
+                },
+                {
+                  "position": 7,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350494
+                    }
+                  ]
+                },
+                {
+                  "position": 8,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350495
+                    }
+                  ]
+                },
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350497
+                    }
+                  ]
+                },
+                {
+                  "position": 48,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350535
+                    }
+                  ]
+                },
+                {
+                  "position": 49,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350536
+                    }
+                  ]
+                },
+                {
+                  "position": 50,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350537
+                    }
+                  ]
+                },
+                {
+                  "position": 117,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350604
+                    }
+                  ]
+                },
+                {
+                  "position": 121,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 350608
+                    }
+                  ]
+                }
+              ],
+              "new": [
+                {
+                  "position": 0,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533611
+                    }
+                  ]
+                },
+                {
+                  "position": 34,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533645
+                    }
+                  ]
+                },
+                {
+                  "position": 35,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533646
+                    }
+                  ]
+                },
+                {
+                  "position": 36,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533647
+                    }
+                  ]
+                },
+                {
+                  "position": 37,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533648
+                    }
+                  ]
+                },
+                {
+                  "position": 43,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533654
+                    }
+                  ]
+                },
+                {
+                  "position": 111,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533722
+                    }
+                  ]
+                },
+                {
+                  "position": 112,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533723
+                    }
+                  ]
+                },
+                {
+                  "position": 113,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533724
+                    }
+                  ]
+                },
+                {
+                  "position": 114,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533725
+                    }
+                  ]
+                },
+                {
+                  "position": 116,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533727
+                    }
+                  ]
+                },
+                {
+                  "position": 120,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1533731
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 128,
+            "new": 127
+          }
+        },
+        {
+          "convention": "closed-native-source-cut-interval-v1",
+          "boundaries": [],
+          "comparison": {
+            "old": [
+              18736
+            ],
+            "new": [
+              8876
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "b. Provides the means to indicate the security status of child zones and (if the child supports ",
+              "new": "b. Provide the means to indicate the security status of child zones and (if the child supports "
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 1,
+                "changed_source_upper": 1,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1235689
+                    }
+                  ]
+                }
+              ],
+              "new": []
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 96,
+            "new": 95
+          }
+        },
+        {
+          "convention": "closed-native-source-cut-interval-v1",
+          "boundaries": [],
+          "comparison": {
+            "old": [
+              18736
+            ],
+            "new": [
+              8876
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "b. Provides the means to indicate the security status of child zones and (if the child supports",
+              "new": "b. Provide the means to indicate the security status of child zones and (if the child supports"
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 1,
+                "changed_source_upper": 1,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 1235689
+                    }
+                  ]
+                }
+              ],
+              "new": []
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 95,
+            "new": 94
+          }
+        }
+      ]
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-after/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "03e7a64f614228236508ecab4a48c9d134f1efbaa48914a751b685389b8611fe"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "57ad36bf41ea2a4978b7322b1d4be9f42c20071be62e964c7d1e89487d553189"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/runs.json",
+        "sha256": "53195e075878a0bf8032634d2bd78eb75b47510ea062d4fd6e732df1288f3cfd"
+      },
+      "all_other_payloads_identical": true,
+      "all_prior_reviews_retained": true,
+      "scope_reviews_before": 10,
+      "scope_reviews_after": 12,
+      "source_union": {
+        "old": {
+          "before": 2771,
+          "after": 2771,
+          "additional": 0
+        },
+        "new": {
+          "before": 3708,
+          "after": 3708,
+          "additional": 0
+        }
+      },
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 16,
+        "work": 300883,
+        "budget_at_entry": 366220
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 16,
+        "work": 443920,
+        "budget_at_entry": 509275
+      },
+      "new_reviews": [
+        {
+          "convention": "closed-native-source-cut-interval-v1",
+          "boundaries": [],
+          "comparison": {
+            "old": [
+              2280
+            ],
+            "new": [
+              4100,
+              4102,
+              4104,
+              4106
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "CNSS ",
+              "new": "CNSS CNSSI CNSSP CUI "
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 16,
+                "changed_source_upper": 16,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [],
+              "new": [
+                {
+                  "position": 9,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468079
+                    }
+                  ]
+                },
+                {
+                  "position": 15,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468136
+                    }
+                  ]
+                },
+                {
+                  "position": 17,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468184
+                    }
+                  ]
+                },
+                {
+                  "position": 18,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468185
+                    }
+                  ]
+                },
+                {
+                  "position": 19,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468186
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 5,
+            "new": 21
+          }
+        },
+        {
+          "convention": "closed-native-source-cut-interval-v1",
+          "boundaries": [],
+          "comparison": {
+            "old": [
+              2280
+            ],
+            "new": [
+              4100,
+              4102,
+              4104,
+              4106
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "CNSS",
+              "new": "CNSS CNSSI CNSSP CUI"
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 16,
+                "changed_source_upper": 16,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [],
+              "new": [
+                {
+                  "position": 4,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468035
+                    }
+                  ]
+                },
+                {
+                  "position": 9,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468079
+                    }
+                  ]
+                },
+                {
+                  "position": 10,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468080
+                    }
+                  ]
+                },
+                {
+                  "position": 15,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468136
+                    }
+                  ]
+                },
+                {
+                  "position": 16,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468137
+                    }
+                  ]
+                },
+                {
+                  "position": 17,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468184
+                    }
+                  ]
+                },
+                {
+                  "position": 18,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468185
+                    }
+                  ]
+                },
+                {
+                  "position": 19,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 468186
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          },
+          "source_counts": {
+            "old": 4,
+            "new": 20
+          }
+        }
+      ]
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-controls/faa-weight-27e-to-27f-text.json",
+        "sha256": "a41aa85548393e4fd8eed51cf93263743a10665406a204bdd1350e859b7ac45f"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-controls/faa-weight-27e-to-27f-text.json",
+        "sha256": "c6b35628bbd1c5de410615e3e4d6ccb2b9f3cfde2c81660f854a3149f21ebe61"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-controls/runs.json",
+        "sha256": "52e5b89d6be4f1a2c60f7bea93651758a717146519125216177ae24ea32d2992"
+      },
+      "all_other_payloads_identical": true,
+      "all_prior_reviews_retained": true,
+      "scope_reviews_before": 15,
+      "scope_reviews_after": 15,
+      "source_union": {
+        "old": {
+          "before": 4941,
+          "after": 4941,
+          "additional": 0
+        },
+        "new": {
+          "before": 4736,
+          "after": 4736,
+          "additional": 0
+        }
+      },
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 829121,
+        "budget_at_entry": 881950
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 853676,
+        "budget_at_entry": 906501
+      },
+      "new_reviews": []
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "before": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/padding-sources-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "51a2853607ff1bb5cbc5f94fcefa5bdb1a589fec81b648f1997655691f4b1c15"
+      },
+      "after": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-controls/nist-126-r2-to-r3-text.json",
+        "sha256": "d39aaaca18883a5a02c2e90ac786ea727beb94a24bce3021642500cf110c4108"
+      },
+      "run_manifest": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-controls/runs.json",
+        "sha256": "52e5b89d6be4f1a2c60f7bea93651758a717146519125216177ae24ea32d2992"
+      },
+      "all_other_payloads_identical": true,
+      "all_prior_reviews_retained": true,
+      "scope_reviews_before": 23,
+      "scope_reviews_after": 23,
+      "source_union": {
+        "old": {
+          "before": 6854,
+          "after": 6854,
+          "additional": 0
+        },
+        "new": {
+          "before": 8199,
+          "after": 8199,
+          "additional": 0
+        }
+      },
+      "source_cut_search_before": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 0
+      },
+      "source_cut_search_after": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 0
+      },
+      "new_reviews": []
+    }
+  ],
+  "checks": {
+    "fmt": "passed",
+    "diff_whitespace": "passed",
+    "clippy": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/clippy.log",
+      "sha256": "d2abc3f45b2c9635c622df1beca3af4ccb5b7595dcbe56aca4294c78b2970c92"
+    },
+    "workspace": {
+      "passed": 2438,
+      "ignored": 2,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/workspace.log",
+        "sha256": "b5b93001add6df9a27fa182b82c05129baebe5689b4b1c840e938f6da711ccd9"
+      }
+    },
+    "generated": {
+      "passed": 48,
+      "strict_accepted": 42,
+      "five_core_renderer_cells": 10,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/anchor-pages-after/acceptance.log",
+        "sha256": "a3795fc87a4afa2a876798f21c3d701be0595b55496afc400f155504b30f2ffe"
+      }
+    },
+    "regression": "20,000-glyph unanchored second page preserves a first-page interval, while an unassigned glyph inside that interval still blocks recovery. Existing cross-page fixtures pass."
+  },
+  "source_review": {
+    "sp53": {
+      "independent_ranges": 2,
+      "body_changes": [
+        "Provides -> Provide in child-zone security status clause",
+        "Subject definition wording and cross-reference capitalization"
+      ],
+      "boundary_review": "Unchanged surrounding name-resolution clauses and unchanged Spyware/Subsystem definitions were checked against retained graph text. Raw and literal-padding refinements reuse these parent intervals.",
+      "graph": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/controls-graph-diagnostic/sources.json",
+        "sha256": "0a981584422ba80f11121477dc4c9c25924bf554cb62e2355ef5963faac60747"
+      }
+    },
+    "sp37": {
+      "additional_unique_glyphs": 0,
+      "description": "CNSS acronym interval refinements duplicate the existing interval; no new recovery count.",
+      "graph": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/risk-graph-diagnostic/sources.json",
+        "sha256": "3cd92c0d9bb620b22d538823c48684c652603d5fef3d8fdf601ba06e4f2bb052"
+      }
+    }
+  },
+  "limitations": [
+    "Additional ranges are out-of-target observations, not newly adjudicated fixed-target gate hits.",
+    "The retained graph diagnostic supplies source membership and token text, not an independent raw geometry proof.",
+    "No additional strict source coverage, document-wide completion, blind result or gate achievement is claimed.",
+    "No new PDF collection, preset limit change or correspondence rule was introduced."
+  ]
+}

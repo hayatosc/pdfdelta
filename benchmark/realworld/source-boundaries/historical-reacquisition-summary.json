@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "original_executable_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd",
+  "byte_identical_restoration": {
+    "path": "benchmark/realworld/source-boundaries/historical-binary-restoration.json",
+    "sha256": "dd335841403d8ff2605cf561a3fefe00bbcd1344b10a30726faf8bb6aea4ef40"
+  },
+  "baseline_overlay": {
+    "path": "benchmark/realworld/source-boundaries/baseline-reacquisition.json",
+    "sha256": "bb59d43c799c3ea471984d08187d4e37e483338323364e0dcdfd4ed3b0167e40"
+  },
+  "new_attempts": 35,
+  "retained_attempts": 37,
+  "status_counts": {
+    "captured": 70,
+    "failed": 2
+  },
+  "wall_seconds": 770.85,
+  "peak_rss_kib": 1144084,
+  "report_bytes": 155242064,
+  "rejected_different_path_rebuild": {
+    "observations": {
+      "path": "benchmark/realworld/source-boundaries/historical-replay-v1-observations.json",
+      "sha256": "846e6bb8efa5019e99c77d79e17e21d8b2a437ad58a3dbc1edb6378c58530443"
+    },
+    "scope": "Same historical source rebuilt in a different source path produced a different executable hash. These replay observations are retained diagnostics and never replace the registered baseline."
+  },
+  "historical_files_modified": false,
+  "original_missing_capture_files_restored": false,
+  "scope": "The registered executable was restored exactly. Only absent capture slots were freshly observed with unchanged inputs, channels, timeout and scale. Missing original files are not represented as recovered original observations."
+}

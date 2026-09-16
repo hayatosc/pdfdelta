@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "ietf-json-4627-to-8259",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "A string is a sequence of zero or more Unicode characters [UNICODE].",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "A string is a sequence of zero or more Unicode characters [UNICODE].   Note that this citation references the latest version of Unicode   rather than a specific release.  It is not expected that future   changes in the Unicode specification will impact the syntax of JSON.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "a8ad40dde6777935d8f7667e27fe9f168176bafa483029b82f33173f95c6fffd",
+  "new_sha256": "36eae5d5812250c57e31cd87e591e6fd63fa2384ac4d8c53d7e0306807c75680"
+}

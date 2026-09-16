@@ -1,0 +1,28 @@
+{
+  "format": {
+    "command": "cargo fmt --all -- --check",
+    "exit_code": 0
+  },
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  "workspace": {
+    "command": "cargo test --workspace",
+    "exit_code": 0,
+    "passed": 2374,
+    "ignored": 2
+  },
+  "evaluator": {
+    "command": "/usr/bin/python3 -m unittest discover -s benchmark/realworld/remaining -p test_verify.py",
+    "exit_code": 0,
+    "methods": 10
+  },
+  "generated": {
+    "command": "cargo run -p pdfdelta-bench -- verify",
+    "exit_code": 0,
+    "passed": 48,
+    "total": 48,
+    "strict_author_intent_accepted": 42
+  }
+}

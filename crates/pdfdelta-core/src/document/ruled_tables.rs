@@ -421,6 +421,7 @@ fn cell_views(
     let mut output = Vec::new();
     let mut tokens = 0;
     let mut references = 0;
+    let mut normalization_work = limits.max_normalization_work;
     for glyphs in cells {
         if glyphs.is_empty() {
             return Ok(None);
@@ -440,7 +441,13 @@ fn cell_views(
         let Some(block) = normalized.first() else {
             return Ok(None);
         };
-        let (view, _) = block_text_view(block, limits, &mut tokens, &mut references)?;
+        let (view, _) = block_text_view(
+            block,
+            limits,
+            &mut tokens,
+            &mut references,
+            &mut normalization_work,
+        )?;
         if view.normalization != TextNormalization::Exact || view.tokens.is_empty() {
             return Ok(None);
         }
@@ -678,6 +685,8 @@ mod tests {
             }],
             rendered: Vec::new(),
             structured: Vec::new(),
+            key_inventories: Vec::new(),
+            native_structures: Vec::new(),
             inventories: Vec::new(),
             issues: Vec::new(),
         };

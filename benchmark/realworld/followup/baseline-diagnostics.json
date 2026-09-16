@@ -1,0 +1,2325 @@
+{
+  "version": 1,
+  "interpretation": "Observed stage-level facts only. These do not establish the earliest blocker for an individual target; caller tracing and minimal counterexamples are still required.",
+  "rows": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "observation": {
+        "pair": "edpb-controller-processor-v1-to-v2-1",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 0,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-controller-processor-v1-to-v2-1-text.json",
+          "sha256": "1740023a101f1bda8835480486ab413df774cc33fcc77dc25e8a59c39718224d"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 9.19,
+      "peak_rss_kib": 350228,
+      "report_bytes": 522584,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 1468,
+          "new_compared_sources": 1497,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 134320,
+          "new_uncompared_sources": 175495,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 28,
+      "compared_local_pairs": 28,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999571,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 4
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 1691,
+        "index_work": 263400,
+        "group_token_checks": 999571,
+        "group_constraint_checks": 30484,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "observation": {
+        "pair": "edpb-restrictions-v1-to-final",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 1,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-restrictions-v1-to-final-text.json",
+          "sha256": "1474eb1698c9aaf24f9ce6f126102e2ed28070c58faf82935e0f56a5fcea0364"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 2.81,
+      "peak_rss_kib": 147968,
+      "report_bytes": 204446,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 52431,
+          "new_discovered_sources": 57738,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 52431,
+          "new_uncompared_sources": 57738,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999130,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 1429,
+        "index_work": 96513,
+        "group_token_checks": 999130,
+        "group_constraint_checks": 13158,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "observation": {
+        "pair": "edpb-design-default-v1-to-v2",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 2,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-design-default-v1-to-v2-text.json",
+          "sha256": "bb8ce50feccdfb373634ba4b0df487cf33fd02026314e9a7cc0b0ab4576b9deb"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 11.58,
+      "peak_rss_kib": 224756,
+      "report_bytes": 129422,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 81687,
+          "new_discovered_sources": 91083,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 81687,
+          "new_uncompared_sources": 91083,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999980,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 2294,
+        "index_work": 132970,
+        "group_token_checks": 999980,
+        "group_constraint_checks": 7752,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "observation": {
+        "pair": "edpb-social-targeting-v1-to-v2",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 3,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/edpb-social-targeting-v1-to-v2-text.json",
+          "sha256": "d2a5ab909809cda4815980b3155d099f5c587f29bd60ceda6117c499da926679"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 6.52,
+      "peak_rss_kib": 283076,
+      "report_bytes": 735805,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 137655,
+          "new_discovered_sources": 144179,
+          "old_compared_sources": 8846,
+          "new_compared_sources": 8863,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 128809,
+          "new_uncompared_sources": 135316,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 111,
+      "compared_local_pairs": 111,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 996823,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 2
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 781,
+        "index_work": 87809,
+        "group_token_checks": 996823,
+        "group_constraint_checks": 2531,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "observation": {
+        "pair": "nist-incident-handling-r2-to-r3",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 4,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-incident-handling-r2-to-r3-text.json",
+          "sha256": "4966d707077b8fecd7a42db088fcb5abe7be5443a2493b640f2bd911435b101c"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 8.85,
+      "peak_rss_kib": 441612,
+      "report_bytes": 6717813,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 228231,
+          "new_discovered_sources": 104993,
+          "old_compared_sources": 407,
+          "new_compared_sources": 408,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 227824,
+          "new_uncompared_sources": 104585,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 54,
+      "compared_local_pairs": 54,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 498062,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component exceeded its search budget": 1,
+        "a correspondence conflict component has competing optima": 3
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 18180,
+        "index_work": 337011,
+        "group_token_checks": 498062,
+        "group_constraint_checks": 11427,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "observation": {
+        "pair": "nist-ssdf-draft-to-final",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 5,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-ssdf-draft-to-final-text.json",
+          "sha256": "408210a61ed2e93bf89b0735e34e6f88d0fbfb1d9af6b8052d09695a96ed7c4d"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 4.87,
+      "peak_rss_kib": 282532,
+      "report_bytes": 3322078,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 92494,
+          "new_discovered_sources": 105512,
+          "old_compared_sources": 11626,
+          "new_compared_sources": 11618,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 80868,
+          "new_uncompared_sources": 93894,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 307,
+      "compared_local_pairs": 307,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 110320,
+      "scope_unresolved_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 38,
+        "a correspondence component depends on omitted source candidates": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 8722,
+        "index_work": 263798,
+        "group_token_checks": 110320,
+        "group_constraint_checks": 26357,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "observation": {
+        "pair": "nist-ai-rmf-draft2-to-v1",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 6,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-ai-rmf-draft2-to-v1-text.json",
+          "sha256": "376f02421af525f41c4f0f10b7607caee6295536c7f78ae53b033fa24758a5f2"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 5.66,
+      "peak_rss_kib": 249112,
+      "report_bytes": 313935,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 86136,
+          "new_discovered_sources": 90392,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 86136,
+          "new_uncompared_sources": 90392,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999533,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 1400,
+        "index_work": 110494,
+        "group_token_checks": 999533,
+        "group_constraint_checks": 2276,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "observation": {
+        "pair": "nist-authentication-63b-to-63b4",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 7,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-authentication-63b-to-63b4-text.json",
+          "sha256": "46d422074b08f7a3496d8c4e35b7d89b8e268ef8cf8a5eb63b81b6684705f767"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 13.03,
+      "peak_rss_kib": 634108,
+      "report_bytes": 3769683,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 198793,
+          "new_discovered_sources": 280783,
+          "old_compared_sources": 225,
+          "new_compared_sources": 223,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 198568,
+          "new_uncompared_sources": 280560,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 5,
+      "compared_local_pairs": 5,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999842,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 5163,
+        "index_work": 440630,
+        "group_token_checks": 999842,
+        "group_constraint_checks": 75070,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "observation": {
+        "pair": "irs-w9-2018-to-2024",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 8,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/irs-w9-2018-to-2024-text.json",
+          "sha256": "74006c0cf7c0aa9b28c156dece0dad6468b1d42d390be462eca71684d06af5d8"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 1.5,
+      "peak_rss_kib": 86840,
+      "report_bytes": 876992,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 34858,
+          "new_discovered_sources": 37452,
+          "old_compared_sources": 9238,
+          "new_compared_sources": 9240,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 25620,
+          "new_uncompared_sources": 28212,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 179,
+      "compared_local_pairs": 179,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999178,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 4
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 897,
+        "index_work": 88229,
+        "group_token_checks": 999178,
+        "group_constraint_checks": 2304,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "observation": {
+        "pair": "irs-w4-english-2024-to-2025",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 9
+      },
+      "status": "failed",
+      "wall_seconds": 0.92,
+      "peak_rss_kib": 99752,
+      "report_bytes": null,
+      "process_failure": "correspondence descendant ownership exceeded its limit of 1000000\n"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "observation": {
+        "pair": "irs-schedule-c-2024-to-2025",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 10,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/irs-schedule-c-2024-to-2025-text.json",
+          "sha256": "4429375b5e46c9eea142616b3101395b2491351cb8daf086e1004ac95539c7f4"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 0.37,
+      "peak_rss_kib": 31056,
+      "report_bytes": 871669,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 4900,
+          "new_compared_sources": 4900,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1410,
+          "new_uncompared_sources": 1416,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 85,
+      "compared_local_pairs": 85,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 53046,
+      "scope_unresolved_reasons": {
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 420,
+        "index_work": 22873,
+        "group_token_checks": 53046,
+        "group_constraint_checks": 748,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "observation": {
+        "pair": "irs-schedule-se-2024-to-2025",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 11,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/irs-schedule-se-2024-to-2025-text.json",
+          "sha256": "3585f34cd974bde9ce0c2e764d4eb1e5472bf190dd87c0f431b4035bd8cda9f8"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 0.27,
+      "peak_rss_kib": 27904,
+      "report_bytes": 479087,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 3988,
+          "new_compared_sources": 3988,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1170,
+          "new_uncompared_sources": 1187,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 50,
+      "compared_local_pairs": 50,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 33691,
+      "scope_unresolved_reasons": {
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 174,
+        "index_work": 19099,
+        "group_token_checks": 33691,
+        "group_constraint_checks": 364,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "observation": {
+        "pair": "arxiv-bert-v1-to-v2",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 12,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-bert-v1-to-v2-text.json",
+          "sha256": "278f523427f10ae185bb2380b922890124baa349da1ea76390bf009ca0da80d0"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 1.96,
+      "peak_rss_kib": 128420,
+      "report_bytes": 586125,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 1838,
+          "new_compared_sources": 1838,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 44288,
+          "new_uncompared_sources": 52165,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 106,
+      "compared_local_pairs": 106,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999952,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 39
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 2706,
+        "index_work": 119582,
+        "group_token_checks": 999952,
+        "group_constraint_checks": 2953,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "observation": {
+        "pair": "arxiv-gpt3-v1-to-v4",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 13,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-gpt3-v1-to-v4-text.json",
+          "sha256": "56ba535cdfdc3b2139756d2800eddaf8c1447fd02a23cc3661f9c70e2a93bd2d"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 13.61,
+      "peak_rss_kib": 456904,
+      "report_bytes": 11810831,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 121033,
+          "new_compared_sources": 121033,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 62080,
+          "new_uncompared_sources": 67293,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "Type 3 Encoding Differences references a missing CharProc": 4
+        },
+        "new": {
+          "Type 3 Encoding Differences references a missing CharProc": 4
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 1544,
+      "compared_local_pairs": 1544,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999729,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component exceeded its search budget": 1,
+        "a correspondence conflict component has competing optima": 97
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 19302,
+        "index_work": 656360,
+        "group_token_checks": 999729,
+        "group_constraint_checks": 13354,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "observation": {
+        "pair": "mext-primary-japanese-2008-to-2017",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 14,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/mext-primary-japanese-2008-to-2017-text.json",
+          "sha256": "787b7bbe8dd4709ab7e092e53de7efd22f2afd2f7fd438889688b256a8c0a1de"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 24.6,
+      "peak_rss_kib": 1144084,
+      "report_bytes": 768343,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 49016,
+          "new_discovered_sources": 200257,
+          "old_compared_sources": 49,
+          "new_compared_sources": 49,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 48967,
+          "new_uncompared_sources": 200208,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 51": 9,
+          "non-rectangular clipping path at content operator index 85": 2,
+          "non-rectangular clipping path at content operator index 71": 1,
+          "non-rectangular clipping path at content operator index 58": 1,
+          "non-rectangular clipping path at content operator index 50": 2,
+          "non-rectangular clipping path at content operator index 70": 1,
+          "non-rectangular clipping path at content operator index 61": 3,
+          "non-rectangular clipping path at content operator index 48": 8,
+          "non-rectangular clipping path at content operator index 63": 4,
+          "non-rectangular clipping path at content operator index 59": 2,
+          "non-rectangular clipping path at content operator index 104": 1,
+          "non-rectangular clipping path at content operator index 89": 1,
+          "non-rectangular clipping path at content operator index 57": 1,
+          "non-rectangular clipping path at content operator index 54": 3,
+          "non-rectangular clipping path at content operator index 66": 2,
+          "non-rectangular clipping path at content operator index 72": 2,
+          "non-rectangular clipping path at content operator index 52": 2,
+          "non-rectangular clipping path at content operator index 67": 1,
+          "non-rectangular clipping path at content operator index 95": 1,
+          "non-rectangular clipping path at content operator index 87": 1,
+          "non-rectangular clipping path at content operator index 83": 1,
+          "non-rectangular clipping path at content operator index 94": 1,
+          "non-rectangular clipping path at content operator index 77": 2,
+          "non-rectangular clipping path at content operator index 55": 2,
+          "non-rectangular clipping path at content operator index 109": 1,
+          "non-rectangular clipping path at content operator index 84": 1,
+          "non-rectangular clipping path at content operator index 101": 1,
+          "non-rectangular clipping path at content operator index 49": 1,
+          "non-rectangular clipping path at content operator index 46": 9,
+          "non-rectangular clipping path at content operator index 81": 1,
+          "non-rectangular clipping path at content operator index 42": 2,
+          "non-rectangular clipping path at content operator index 65": 2,
+          "non-rectangular clipping path at content operator index 53": 1,
+          "non-rectangular clipping path at content operator index 62": 1
+        },
+        "new": {
+          "curved clipping path at content operator index 88": 1,
+          "curved clipping path at content operator index 12": 1,
+          "curved clipping path at content operator index 161": 1,
+          "curved clipping path at content operator index 151": 2,
+          "curved clipping path at content operator index 140": 3,
+          "curved clipping path at content operator index 86": 1,
+          "curved clipping path at content operator index 120": 1,
+          "Identity-V fonts with per-CID W2 metrics are not supported": 13,
+          "curved clipping path at content operator index 83": 1,
+          "curved clipping path at content operator index 149": 1,
+          "curved clipping path at content operator index 134": 3,
+          "curved clipping path at content operator index 122": 1,
+          "curved clipping path at content operator index 128": 3,
+          "curved clipping path at content operator index 130": 3,
+          "curved clipping path at content operator index 129": 1,
+          "curved clipping path at content operator index 146": 1,
+          "curved clipping path at content operator index 172": 1,
+          "curved clipping path at content operator index 279": 1,
+          "curved clipping path at content operator index 126": 2,
+          "curved clipping path at content operator index 144": 1,
+          "non-rectangular clipping path at content operator index 29816": 1,
+          "non-rectangular clipping path at content operator index 20210": 1,
+          "curved clipping path at content operator index 124": 1,
+          "curved clipping path at content operator index 118": 1,
+          "curved clipping path at content operator index 121": 1,
+          "curved clipping path at content operator index 108": 1,
+          "curved clipping path at content operator index 123": 1,
+          "curved clipping path at content operator index 145": 1,
+          "curved clipping path at content operator index 159": 1,
+          "curved clipping path at content operator index 165": 1,
+          "curved clipping path at content operator index 103": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 9,
+      "compared_local_pairs": 9,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999866,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 13
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 3531,
+        "index_work": 251966,
+        "group_token_checks": 999866,
+        "group_constraint_checks": 9715,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "observation": {
+        "pair": "mext-lower-secondary-japanese-2008-to-2017",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 15,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/mext-lower-secondary-japanese-2008-to-2017-text.json",
+          "sha256": "4958c253c4b72854f812fa218f9fe0d4bc3a6677ef3fd64d0a46954734b0cffc"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 15.24,
+      "peak_rss_kib": 591408,
+      "report_bytes": 682311,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 33923,
+          "new_discovered_sources": 158718,
+          "old_compared_sources": 27,
+          "new_compared_sources": 27,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 33896,
+          "new_uncompared_sources": 158691,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 123": 2,
+          "non-rectangular clipping path at content operator index 955": 1,
+          "non-rectangular clipping path at content operator index 37": 1,
+          "non-rectangular clipping path at content operator index 97": 1,
+          "non-rectangular clipping path at content operator index 1177": 1,
+          "non-rectangular clipping path at content operator index 1884": 1,
+          "non-rectangular clipping path at content operator index 211": 1,
+          "non-rectangular clipping path at content operator index 379": 1,
+          "non-rectangular clipping path at content operator index 1039": 1,
+          "non-rectangular clipping path at content operator index 353": 1,
+          "non-rectangular clipping path at content operator index 107": 3,
+          "non-rectangular clipping path at content operator index 611": 1,
+          "non-rectangular clipping path at content operator index 53": 1,
+          "non-rectangular clipping path at content operator index 73": 4,
+          "non-rectangular clipping path at content operator index 400": 1,
+          "non-rectangular clipping path at content operator index 289": 2,
+          "non-rectangular clipping path at content operator index 95": 1,
+          "non-rectangular clipping path at content operator index 345": 1,
+          "non-rectangular clipping path at content operator index 41": 3,
+          "non-rectangular clipping path at content operator index 55": 6,
+          "non-rectangular clipping path at content operator index 51": 2,
+          "non-rectangular clipping path at content operator index 487": 1,
+          "non-rectangular clipping path at content operator index 385": 1,
+          "non-rectangular clipping path at content operator index 203": 1,
+          "non-rectangular clipping path at content operator index 47": 1,
+          "non-rectangular clipping path at content operator index 45": 1,
+          "non-rectangular clipping path at content operator index 81": 2,
+          "non-rectangular clipping path at content operator index 309": 1,
+          "non-rectangular clipping path at content operator index 839": 1,
+          "non-rectangular clipping path at content operator index 1221": 1,
+          "non-rectangular clipping path at content operator index 227": 1,
+          "non-rectangular clipping path at content operator index 709": 1,
+          "non-rectangular clipping path at content operator index 1549": 1,
+          "non-rectangular clipping path at content operator index 581": 1,
+          "non-rectangular clipping path at content operator index 419": 1,
+          "non-rectangular clipping path at content operator index 369": 1,
+          "non-rectangular clipping path at content operator index 985": 1,
+          "non-rectangular clipping path at content operator index 905": 1,
+          "non-rectangular clipping path at content operator index 75": 1,
+          "non-rectangular clipping path at content operator index 63": 1,
+          "non-rectangular clipping path at content operator index 1371": 1,
+          "non-rectangular clipping path at content operator index 653": 1,
+          "non-rectangular clipping path at content operator index 127": 1,
+          "non-rectangular clipping path at content operator index 109": 1,
+          "non-rectangular clipping path at content operator index 1924": 1,
+          "non-rectangular clipping path at content operator index 85": 1,
+          "non-rectangular clipping path at content operator index 61": 1,
+          "non-rectangular clipping path at content operator index 175": 1,
+          "non-rectangular clipping path at content operator index 493": 1,
+          "non-rectangular clipping path at content operator index 723": 1,
+          "non-rectangular clipping path at content operator index 29": 2
+        },
+        "new": {
+          "curved clipping path at content operator index 11": 2,
+          "curved clipping path at content operator index 155": 1,
+          "curved clipping path at content operator index 114": 1,
+          "curved clipping path at content operator index 158": 1,
+          "Identity-V fonts with per-CID W2 metrics are not supported": 13,
+          "curved clipping path at content operator index 128": 2,
+          "curved clipping path at content operator index 126": 2,
+          "curved clipping path at content operator index 278": 1,
+          "curved clipping path at content operator index 353": 1,
+          "curved clipping path at content operator index 290": 1,
+          "curved clipping path at content operator index 348": 1,
+          "curved clipping path at content operator index 462": 1,
+          "curved clipping path at content operator index 352": 1,
+          "curved clipping path at content operator index 118": 1,
+          "curved clipping path at content operator index 102": 1,
+          "curved clipping path at content operator index 120": 2,
+          "curved clipping path at content operator index 36": 1,
+          "curved clipping path at content operator index 172": 1,
+          "curved clipping path at content operator index 148": 1,
+          "curved clipping path at content operator index 146": 1,
+          "curved clipping path at content operator index 157": 1,
+          "curved clipping path at content operator index 143": 2,
+          "curved clipping path at content operator index 116": 1,
+          "curved clipping path at content operator index 138": 1,
+          "non-rectangular clipping path at content operator index 27994": 1,
+          "non-rectangular clipping path at content operator index 25847": 1,
+          "curved clipping path at content operator index 132": 2,
+          "curved clipping path at content operator index 130": 1,
+          "non-rectangular clipping path at content operator index 654": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 4,
+      "compared_local_pairs": 4,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999638,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 10
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 4749,
+        "index_work": 194252,
+        "group_token_checks": 999638,
+        "group_constraint_checks": 11874,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "observation": {
+        "pair": "mext-upper-secondary-japanese-2009-to-2018",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 16,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/mext-upper-secondary-japanese-2009-to-2018-text.json",
+          "sha256": "31abae181c2cb8afb60a808cfd7b651d84b880f1638a55fc1893e9c830346503"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 17.49,
+      "peak_rss_kib": 594800,
+      "report_bytes": 577173,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 9528,
+          "new_discovered_sources": 260656,
+          "old_compared_sources": 13,
+          "new_compared_sources": 13,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 9515,
+          "new_uncompared_sources": 260643,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 105": 2,
+          "non-rectangular clipping path at content operator index 74": 4,
+          "non-rectangular clipping path at content operator index 147": 1,
+          "non-rectangular clipping path at content operator index 97": 1,
+          "non-rectangular clipping path at content operator index 86": 1,
+          "non-rectangular clipping path at content operator index 47": 2,
+          "non-rectangular clipping path at content operator index 26": 1,
+          "non-rectangular clipping path at content operator index 95": 1,
+          "non-rectangular clipping path at content operator index 107": 1,
+          "non-rectangular clipping path at content operator index 50": 3,
+          "non-rectangular clipping path at content operator index 87": 1,
+          "non-rectangular clipping path at content operator index 40": 7,
+          "non-rectangular clipping path at content operator index 64": 3,
+          "non-rectangular clipping path at content operator index 52": 3,
+          "non-rectangular clipping path at content operator index 66": 2,
+          "non-rectangular clipping path at content operator index 70": 2,
+          "non-rectangular clipping path at content operator index 88": 1,
+          "non-rectangular clipping path at content operator index 45": 4,
+          "non-rectangular clipping path at content operator index 60": 3,
+          "non-rectangular clipping path at content operator index 91": 2,
+          "non-rectangular clipping path at content operator index 61": 1,
+          "non-rectangular clipping path at content operator index 76": 2,
+          "non-rectangular clipping path at content operator index 99": 2,
+          "non-rectangular clipping path at content operator index 55": 1,
+          "non-rectangular clipping path at content operator index 56": 1,
+          "non-rectangular clipping path at content operator index 120": 1,
+          "non-rectangular clipping path at content operator index 96": 1,
+          "non-rectangular clipping path at content operator index 78": 1,
+          "non-rectangular clipping path at content operator index 71": 2,
+          "non-rectangular clipping path at content operator index 89": 1,
+          "non-rectangular clipping path at content operator index 62": 2,
+          "non-rectangular clipping path at content operator index 68": 1,
+          "non-rectangular clipping path at content operator index 69": 1,
+          "non-rectangular clipping path at content operator index 85": 1,
+          "non-rectangular clipping path at content operator index 82": 1,
+          "non-rectangular clipping path at content operator index 101": 1,
+          "non-rectangular clipping path at content operator index 51": 1,
+          "non-rectangular clipping path at content operator index 113": 1,
+          "non-rectangular clipping path at content operator index 84": 1,
+          "non-rectangular clipping path at content operator index 57": 1,
+          "non-rectangular clipping path at content operator index 77": 1,
+          "non-rectangular clipping path at content operator index 93": 1
+        },
+        "new": {
+          "curved clipping path at content operator index 12": 2,
+          "curved clipping path at content operator index 147": 1,
+          "curved clipping path at content operator index 160": 1,
+          "curved clipping path at content operator index 164": 1,
+          "curved clipping path at content operator index 179": 2,
+          "curved clipping path at content operator index 163": 1,
+          "Identity-V fonts with per-CID W2 metrics are not supported": 5,
+          "curved clipping path at content operator index 167": 2,
+          "curved clipping path at content operator index 399": 1,
+          "curved clipping path at content operator index 1128": 1,
+          "curved clipping path at content operator index 146": 1,
+          "curved clipping path at content operator index 214": 2,
+          "curved clipping path at content operator index 362": 1,
+          "curved clipping path at content operator index 181": 1,
+          "curved clipping path at content operator index 343": 1,
+          "curved clipping path at content operator index 196": 1,
+          "curved clipping path at content operator index 169": 2,
+          "curved clipping path at content operator index 342": 1,
+          "curved clipping path at content operator index 166": 1,
+          "curved clipping path at content operator index 165": 1,
+          "curved clipping path at content operator index 346": 1,
+          "curved clipping path at content operator index 216": 1,
+          "curved clipping path at content operator index 159": 1,
+          "curved clipping path at content operator index 347": 1,
+          "curved clipping path at content operator index 376": 1,
+          "curved clipping path at content operator index 175": 1,
+          "curved clipping path at content operator index 161": 1,
+          "curved clipping path at content operator index 170": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 6,
+      "compared_local_pairs": 6,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 998793,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 5
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 1008,
+        "index_work": 271126,
+        "group_token_checks": 998793,
+        "group_constraint_checks": 7565,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "observation": {
+        "pair": "mhlw-care-skills-original-to-revised",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 17,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/mhlw-care-skills-original-to-revised-text.json",
+          "sha256": "4f2e3ba31896f6047c8533dd4a21061437bddb60c0434f55b682a86a23d52cc6"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 51.91,
+      "peak_rss_kib": 609968,
+      "report_bytes": 6545526,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 55188,
+          "new_discovered_sources": 78050,
+          "old_compared_sources": 6909,
+          "new_compared_sources": 6909,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 48279,
+          "new_uncompared_sources": 71141,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "curved clipping path at content operator index 520": 1,
+          "Identity-V fonts with per-CID W2 metrics are not supported": 97,
+          "curved clipping path at content operator index 720": 1,
+          "non-rectangular clipping path at content operator index 278": 1,
+          "curved clipping path at content operator index 965": 1,
+          "non-rectangular clipping path at content operator index 8": 1,
+          "non-rectangular clipping path at content operator index 162": 1,
+          "curved clipping path at content operator index 148": 1,
+          "curved clipping path at content operator index 403": 1,
+          "non-rectangular clipping path at content operator index 293": 1,
+          "curved clipping path at content operator index 4527": 1,
+          "non-rectangular clipping path at content operator index 307": 1,
+          "curved clipping path at content operator index 9190": 1,
+          "non-rectangular clipping path at content operator index 56": 2,
+          "curved clipping path at content operator index 554": 1,
+          "Type0 encoding /UniJIS-UTF16-H is not supported": 200
+        },
+        "new": {
+          "Identity-V fonts with per-CID W2 metrics are not supported": 87,
+          "curved clipping path at content operator index 864": 1,
+          "curved clipping path at content operator index 338": 1,
+          "non-rectangular clipping path at content operator index 543": 1,
+          "curved clipping path at content operator index 1252": 1,
+          "non-rectangular clipping path at content operator index 8": 1,
+          "non-rectangular clipping path at content operator index 421": 1,
+          "curved clipping path at content operator index 401": 1,
+          "curved clipping path at content operator index 940": 1,
+          "non-rectangular clipping path at content operator index 756": 1,
+          "curved clipping path at content operator index 4869": 1,
+          "non-rectangular clipping path at content operator index 570": 1,
+          "curved clipping path at content operator index 9358": 1,
+          "curved clipping path at content operator index 3422": 1,
+          "curved clipping path at content operator index 257": 1,
+          "curved clipping path at content operator index 239": 1,
+          "curved clipping path at content operator index 265": 1,
+          "non-rectangular clipping path at content operator index 324": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 788,
+      "compared_local_pairs": 788,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 605352,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 130,
+        "a correspondence conflict component exceeded its search budget": 2
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 21422,
+        "index_work": 233587,
+        "group_token_checks": 605352,
+        "group_constraint_checks": 15008,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "observation": {
+        "pair": "nasa-buckling-8007-1968-to-2020",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 18,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nasa-buckling-8007-1968-to-2020-text.json",
+          "sha256": "ea51c26cf8c698b8d93af8940d87907f2da8b1de8fb6cc742af9dbafdbb726f6"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 10.22,
+      "peak_rss_kib": 525916,
+      "report_bytes": 1218572,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 62811,
+          "new_discovered_sources": 279728,
+          "old_compared_sources": 4,
+          "new_compared_sources": 4,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 62807,
+          "new_uncompared_sources": 279724,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {
+          "non-rectangular clipping path at content operator index 102": 1,
+          "non-rectangular clipping path at content operator index 9": 2,
+          "non-rectangular clipping path at content operator index 3": 4,
+          "non-rectangular clipping path at content operator index 4": 1,
+          "non-rectangular clipping path at content operator index 352": 1,
+          "non-rectangular clipping path at content operator index 154": 1,
+          "non-rectangular clipping path at content operator index 6": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 1,
+      "compared_local_pairs": 1,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999939,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 15
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 19225,
+        "index_work": 296179,
+        "group_token_checks": 999939,
+        "group_constraint_checks": 14510,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "observation": {
+        "pair": "ipcc-synthesis-ar5-to-ar6",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 19,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/ipcc-synthesis-ar5-to-ar6-text.json",
+          "sha256": "8de14d21e2764850529201e33ac5bfe310a2d026a4cf68f9afef9f1986a79dca"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 31.45,
+      "peak_rss_kib": 952484,
+      "report_bytes": 311379,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 606167,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 606167,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "native acquisition: evidence process failed (exit status: 3); no complete response was retained": 1
+        },
+        "new": {
+          "curved clipping path at content operator index 1611": 1,
+          "curved clipping path at content operator index 332": 1,
+          "non-rectangular clipping path at content operator index 239": 2,
+          "non-rectangular clipping path at content operator index 574": 1,
+          "non-rectangular clipping path at content operator index 167": 1,
+          "non-rectangular clipping path at content operator index 2514": 1,
+          "curved clipping path at content operator index 329": 1,
+          "curved clipping path at content operator index 1633": 1,
+          "non-rectangular clipping path at content operator index 37": 1,
+          "curved clipping path at content operator index 5210": 1,
+          "non-rectangular clipping path at content operator index 5": 15,
+          "non-rectangular clipping path at content operator index 6": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 193276,
+      "scope_unresolved_reasons": {},
+      "root_candidate_statistics": {
+        "examined_pairs": 0,
+        "index_work": 588640,
+        "group_token_checks": 193276,
+        "group_constraint_checks": 7681,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "observation": {
+        "pair": "ecb-annual-2023-to-2024",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 20,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/ecb-annual-2023-to-2024-text.json",
+          "sha256": "3504b7c1992da5d6ccf87958c1b15094a4f98ce57ecc55bfc14a3a8dbf078d67"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 20.79,
+      "peak_rss_kib": 892964,
+      "report_bytes": 574617,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 473275,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 473275,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "native acquisition: CID width entries exceeded its limit of 65536": 1
+        },
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 338040,
+      "scope_unresolved_reasons": {},
+      "root_candidate_statistics": {
+        "examined_pairs": 0,
+        "index_work": 452033,
+        "group_token_checks": 338040,
+        "group_constraint_checks": 6075,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "observation": {
+        "pair": "nist-sha-1803-to-1804",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 21,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/nist-sha-1803-to-1804-text.json",
+          "sha256": "bf6eef5d3f46b8bdde6638a440b5faa113bfa32c70c38a2b1e472831100629e5"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 2.51,
+      "peak_rss_kib": 175924,
+      "report_bytes": 2325945,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 41495,
+          "new_discovered_sources": 47831,
+          "old_compared_sources": 7516,
+          "new_compared_sources": 7515,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 33979,
+          "new_uncompared_sources": 40316,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 251": 1
+        },
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 169,
+      "compared_local_pairs": 169,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 116728,
+      "scope_unresolved_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 21,
+        "a correspondence component depends on omitted source candidates": 5
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 33257,
+        "index_work": 110308,
+        "group_token_checks": 116728,
+        "group_constraint_checks": 23704,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "observation": {
+        "pair": "arxiv-ddpm-v1-to-v2",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 22,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-ddpm-v1-to-v2-text.json",
+          "sha256": "b81fc10f751d85a81c1b4a7f12efd85802e23203fc83b749748a4ea8e21b2bbc"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 4.76,
+      "peak_rss_kib": 159716,
+      "report_bytes": 4769577,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 41561,
+          "new_discovered_sources": 45486,
+          "old_compared_sources": 14847,
+          "new_compared_sources": 14847,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 26714,
+          "new_uncompared_sources": 30639,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 45": 1
+        },
+        "new": {
+          "non-rectangular clipping path at content operator index 45": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 341,
+      "compared_local_pairs": 341,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999699,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 27
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 1982,
+        "index_work": 119271,
+        "group_token_checks": 999699,
+        "group_constraint_checks": 2477,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "observation": {
+        "pair": "arxiv-llama2-v1-to-v2",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/runs.json",
+          "sha256": "ab9c4cefe19e96d7a76af26de7f8d5bcc5a4675c00b2facf273abe08cd33f26e"
+        },
+        "run_index": 23,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/development/arxiv-llama2-v1-to-v2-text.json",
+          "sha256": "7873d33e373088c5af3461068a2f07df0d11d1942dc15377184d5381b2387e90"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 18.98,
+      "peak_rss_kib": 507452,
+      "report_bytes": 10624908,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 220758,
+          "new_discovered_sources": 221261,
+          "old_compared_sources": 102916,
+          "new_compared_sources": 102916,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 117842,
+          "new_uncompared_sources": 118345,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 1037,
+      "compared_local_pairs": 1037,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999868,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 208,
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 65420,
+        "index_work": 510909,
+        "group_token_checks": 999868,
+        "group_constraint_checks": 42479,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "observation": {
+        "pair": "nist-risk-management-37-r1-to-r2",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 0,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "e94b27022b8e045534f9a0b28d6bef31621ed1b49048f3eb703fd398b4b51c98"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 17.39,
+      "peak_rss_kib": 716040,
+      "report_bytes": 761916,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 379765,
+          "new_discovered_sources": 0,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 379765,
+          "new_uncompared_sources": 0,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 1109": 1
+        },
+        "new": {
+          "native acquisition: evidence process failed (exit status: 3); no complete response was retained": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 232427,
+      "scope_unresolved_reasons": {},
+      "root_candidate_statistics": {
+        "examined_pairs": 0,
+        "index_work": 324721,
+        "group_token_checks": 232427,
+        "group_constraint_checks": 2534,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "observation": {
+        "pair": "irs-1099-misc-2024-to-2025",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 1,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/irs-1099-misc-2024-to-2025-text.json",
+          "sha256": "9e0c49f4d83ed6c2c6cf694bd5e2fc76f734cf5b9325625ccb138b639d41c21b"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 0.69,
+      "peak_rss_kib": 55632,
+      "report_bytes": 3230648,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 11030,
+          "new_discovered_sources": 10779,
+          "old_compared_sources": 4661,
+          "new_compared_sources": 4661,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 6369,
+          "new_uncompared_sources": 6118,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 94,
+      "compared_local_pairs": 94,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999739,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 32
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 9054,
+        "index_work": 64590,
+        "group_token_checks": 999739,
+        "group_constraint_checks": 1803,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "observation": {
+        "pair": "irs-w2-2024-to-2025",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 2,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/irs-w2-2024-to-2025-text.json",
+          "sha256": "bcc48cd53d478b4b278c9198b55cd633944bcbbd2f286e221e772854089527c8"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 1.62,
+      "peak_rss_kib": 83476,
+      "report_bytes": 2127848,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 20660,
+          "new_discovered_sources": 20753,
+          "old_compared_sources": 9027,
+          "new_compared_sources": 9027,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 11633,
+          "new_uncompared_sources": 11726,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 140,
+      "compared_local_pairs": 140,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999106,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 31
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 3328,
+        "index_work": 113653,
+        "group_token_checks": 999106,
+        "group_constraint_checks": 2786,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "observation": {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 3,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/arxiv-mask-rcnn-v1-to-v3-text.json",
+          "sha256": "7bf292d6b55680e83e0cd3014ba03b258e02d35dea2a9f80c323eef4fa3c45d0"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 3.16,
+      "peak_rss_kib": 125356,
+      "report_bytes": 2993176,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 39906,
+          "new_discovered_sources": 52182,
+          "old_compared_sources": 8554,
+          "new_compared_sources": 8554,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 31352,
+          "new_uncompared_sources": 43628,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 12": 1
+        },
+        "new": {
+          "non-rectangular clipping path at content operator index 12": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 331,
+      "compared_local_pairs": 331,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999498,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 43
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 6038,
+        "index_work": 187852,
+        "group_token_checks": 999498,
+        "group_constraint_checks": 4128,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "observation": {
+        "pair": "bunka-official-writing-1952-to-2022",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 4,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/bunka-official-writing-1952-to-2022-text.json",
+          "sha256": "bab93db2f40230a0c0523bc1a16214e0801c33c339f47fe95aa5293c9b5a3b58"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 6.28,
+      "peak_rss_kib": 197736,
+      "report_bytes": 2980464,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 4867,
+          "new_discovered_sources": 68870,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 4867,
+          "new_uncompared_sources": 68870,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "non-rectangular clipping path at content operator index 99": 1
+        },
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999848,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 2
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 6752,
+        "index_work": 75552,
+        "group_token_checks": 999848,
+        "group_constraint_checks": 4771,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "observation": {
+        "pair": "faa-thunderstorms-b-to-c",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 5,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/faa-thunderstorms-b-to-c-text.json",
+          "sha256": "af1f7a534bedcbf40833da5c17cd17393791d2bb546dd554652fa24336db3c01"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 1.5,
+      "peak_rss_kib": 75400,
+      "report_bytes": 131983,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 15715,
+          "new_discovered_sources": 25205,
+          "old_compared_sources": 6,
+          "new_compared_sources": 6,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 15709,
+          "new_uncompared_sources": 25199,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {
+          "non-rectangular clipping path at content operator index 37": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 1,
+      "compared_local_pairs": 1,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 997832,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 1105,
+        "index_work": 38427,
+        "group_token_checks": 997832,
+        "group_constraint_checks": 2537,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "observation": {
+        "pair": "faa-maintenance-records-c-to-d",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 6,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/faa-maintenance-records-c-to-d-text.json",
+          "sha256": "7406d4b31a62a9e4eb121fb24797202f0802e8a4edbac4b44d737b6469c482ef"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 1.99,
+      "peak_rss_kib": 131768,
+      "report_bytes": 179721,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 28756,
+          "new_discovered_sources": 63192,
+          "old_compared_sources": 41,
+          "new_compared_sources": 41,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 28715,
+          "new_uncompared_sources": 63151,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {}
+      },
+      "scope_count": 1,
+      "local_comparisons": 1,
+      "compared_local_pairs": 1,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999509,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 566,
+        "index_work": 90906,
+        "group_token_checks": 999509,
+        "group_constraint_checks": 1808,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "observation": {
+        "pair": "arxiv-faster-rcnn-v1-to-v3",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 7,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/arxiv-faster-rcnn-v1-to-v3-text.json",
+          "sha256": "80b31e948fba364331598d2a08c2f2ba01ec24ba2b123627c71b06a2f683bac5"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 2.23,
+      "peak_rss_kib": 106624,
+      "report_bytes": 419048,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 31824,
+          "new_discovered_sources": 50209,
+          "old_compared_sources": 633,
+          "new_compared_sources": 633,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 31191,
+          "new_uncompared_sources": 49576,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "content operator Tj at index 56: font code has no Unicode mapping or stable font identity": 1
+        },
+        "new": {
+          "non-rectangular clipping path at content operator index 397": 1,
+          "content operator Tj at index 56: font code has no Unicode mapping or stable font identity": 1,
+          "non-rectangular clipping path at content operator index 53": 1,
+          "non-rectangular clipping path at content operator index 148": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 57,
+      "compared_local_pairs": 57,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 998925,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 16
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 3088,
+        "index_work": 82002,
+        "group_token_checks": 998925,
+        "group_constraint_checks": 3233,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "observation": {
+        "pair": "bunka-kana-1946-to-1986",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 8,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/bunka-kana-1946-to-1986-text.json",
+          "sha256": "f3c735b0fefd536a0a363a42d7ff0026d8404ca35e221a7bed173eff566f4c60"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 1.23,
+      "peak_rss_kib": 44776,
+      "report_bytes": 28250,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 0,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {
+          "non-rectangular clipping path at content operator index 70": 11
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 0,
+      "scope_unresolved_reasons": {},
+      "root_candidate_statistics": {
+        "examined_pairs": 0,
+        "index_work": 0,
+        "group_token_checks": 0,
+        "group_constraint_checks": 0,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "observation": {
+        "pair": "nist-controls-53-r4-to-r5",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 9,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "2139921e354a506910c095fa8fd0895edb8a99b0bf141e97f4a319edf7e52f7c"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 33.74,
+      "peak_rss_kib": 662372,
+      "report_bytes": 426165,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 0,
+          "new_discovered_sources": 0,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 0,
+          "new_uncompared_sources": 0,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {
+          "native acquisition: evidence process failed (exit status: 3); no complete response was retained": 1
+        },
+        "new": {
+          "native acquisition: evidence process failed (exit status: 3); no complete response was retained": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 0,
+      "candidate_group_token_checks": 0,
+      "scope_unresolved_reasons": {},
+      "root_candidate_statistics": {
+        "examined_pairs": 0,
+        "index_work": 0,
+        "group_token_checks": 0,
+        "group_constraint_checks": 0,
+        "exhaustive": true
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "observation": {
+        "pair": "nist-risk-assessment-30-to-r1",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 10,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/nist-risk-assessment-30-to-r1-text.json",
+          "sha256": "ca4d541b32f4aecdd03c93e2e93115f4f40a7f0ce975b70c85027f1a8019110e"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 25.95,
+      "peak_rss_kib": 555672,
+      "report_bytes": 975476,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 102460,
+          "new_discovered_sources": 317969,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 102460,
+          "new_uncompared_sources": 317969,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {
+          "curved clipping path at content operator index 922": 1,
+          "curved clipping path at content operator index 1123": 1,
+          "non-rectangular clipping path at content operator index 1137": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 0,
+      "compared_local_pairs": 0,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999660,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 6763,
+        "index_work": 402795,
+        "group_token_checks": 999660,
+        "group_constraint_checks": 9157,
+        "exhaustive": false
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "observation": {
+        "pair": "nist-contingency-34-to-r1",
+        "repetition": 2,
+        "capture": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/runs.json",
+          "sha256": "8d230fe8df1da7816140e7fd799aa01f7e24dea51bf88e88000b83a1d20d1b5e"
+        },
+        "run_index": 11,
+        "report": {
+          "path": "benchmark/realworld/cache/followup-baseline-repeat/blind/nist-contingency-34-to-r1-text.json",
+          "sha256": "7edfae4cd58ec3fdb1d82714d6370309e57bfa4b06bd24d26b828e2e37b3ab28"
+        }
+      },
+      "status": "captured",
+      "wall_seconds": 40.3,
+      "peak_rss_kib": 688656,
+      "report_bytes": 4617150,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 216916,
+          "new_discovered_sources": 294101,
+          "old_compared_sources": 26,
+          "new_compared_sources": 27,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 216890,
+          "new_uncompared_sources": 294074,
+          "complete": false
+        }
+      ],
+      "text_acquisition_issues": {
+        "old": {},
+        "new": {
+          "non-rectangular clipping path at content operator index 86": 1,
+          "non-rectangular clipping path at content operator index 61": 1,
+          "non-rectangular clipping path at content operator index 83": 1,
+          "non-rectangular clipping path at content operator index 96": 1,
+          "curved clipping path at content operator index 428": 1,
+          "curved clipping path at content operator index 198": 1,
+          "non-rectangular clipping path at content operator index 139": 1,
+          "non-rectangular clipping path at content operator index 378": 1,
+          "non-rectangular clipping path at content operator index 57": 3,
+          "non-rectangular clipping path at content operator index 117": 1,
+          "non-rectangular clipping path at content operator index 364": 1,
+          "non-rectangular clipping path at content operator index 124": 1,
+          "non-rectangular clipping path at content operator index 68": 1,
+          "non-rectangular clipping path at content operator index 261": 1,
+          "curved clipping path at content operator index 260": 1,
+          "non-rectangular clipping path at content operator index 75": 1,
+          "non-rectangular clipping path at content operator index 140": 1,
+          "non-rectangular clipping path at content operator index 305": 1,
+          "non-rectangular clipping path at content operator index 64": 1,
+          "non-rectangular clipping path at content operator index 132": 3,
+          "non-rectangular clipping path at content operator index 322": 1,
+          "non-rectangular clipping path at content operator index 228": 1,
+          "non-rectangular clipping path at content operator index 298": 1,
+          "non-rectangular clipping path at content operator index 280": 1,
+          "non-rectangular clipping path at content operator index 130": 1,
+          "non-rectangular clipping path at content operator index 148": 1,
+          "non-rectangular clipping path at content operator index 122": 1,
+          "non-rectangular clipping path at content operator index 194": 1,
+          "non-rectangular clipping path at content operator index 259": 1,
+          "non-rectangular clipping path at content operator index 357": 1,
+          "non-rectangular clipping path at content operator index 183": 1,
+          "non-rectangular clipping path at content operator index 155": 1,
+          "non-rectangular clipping path at content operator index 196": 1,
+          "non-rectangular clipping path at content operator index 76": 1,
+          "non-rectangular clipping path at content operator index 156": 1
+        }
+      },
+      "scope_count": 1,
+      "local_comparisons": 3,
+      "compared_local_pairs": 3,
+      "candidate_search_incomplete_scopes": 1,
+      "candidate_group_token_checks": 999956,
+      "scope_unresolved_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 3,
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "root_candidate_statistics": {
+        "examined_pairs": 14178,
+        "index_work": 532639,
+        "group_token_checks": 999956,
+        "group_constraint_checks": 16704,
+        "exhaustive": false
+      }
+    }
+  ]
+}

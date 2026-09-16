@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "convention": "Compare all event kinds and side-qualified occurrence glyph IDs. Reverse swaps sides and insertion/deletion. Ignore object renaming and the deliberately shifted page indices, not source ownership.",
+  "original": "../development/irs-results/native-selected-fields.json",
+  "records": [
+    {
+      "revision": "baseline",
+      "kind": "storage",
+      "all_strict_event_source_sets_equal": true,
+      "strict_events": 8
+    },
+    {
+      "revision": "baseline",
+      "kind": "prepended_blank_page",
+      "all_strict_event_source_sets_equal": true,
+      "strict_events": 8
+    },
+    {
+      "revision": "baseline",
+      "kind": "reverse",
+      "all_strict_event_source_sets_equal": true,
+      "strict_events": 8
+    },
+    {
+      "revision": "current",
+      "kind": "storage",
+      "all_strict_event_source_sets_equal": true,
+      "strict_events": 8
+    },
+    {
+      "revision": "current",
+      "kind": "prepended_blank_page",
+      "all_strict_event_source_sets_equal": true,
+      "strict_events": 8
+    },
+    {
+      "revision": "current",
+      "kind": "reverse",
+      "all_strict_event_source_sets_equal": true,
+      "strict_events": 8
+    }
+  ]
+}

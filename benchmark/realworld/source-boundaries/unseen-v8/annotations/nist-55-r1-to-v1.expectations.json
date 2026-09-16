@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-55-r1-to-v1",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "e392880c0b7a68cefed13f4a9e4c6c790b4a40609a37987845c43049ca42e08b",
+  "body_eligible": true,
+  "reason": "Complete first Introduction paragraph in both revisions. The original discusses regulatory and organizational reasons, while the revision discusses measurement and risk management. The old PDF paints line endings before beginnings; two disjoint literal source runs retain the entire paragraph in original render order. An independent visible-band census confirms that no body glyph is omitted and only outer trailing spaces are excluded. The unchanged control is the following Purpose and Scope heading."
+}

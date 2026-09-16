@@ -48,6 +48,42 @@ fn groups_regular_lines_into_one_body_block() {
 }
 
 #[test]
+fn source_ideographic_indent_after_a_short_line_starts_a_new_paragraph() {
+    for scale in [0.5, 1.0, 3.0] {
+        for (text, tail_width, split) in [
+            ("\u{3000}新しい段落", 70.0, true),
+            ("\u{3000}継続する行", 160.0, false),
+            ("継続する行", 70.0, false),
+            ("文中の\u{3000}空白", 70.0, false),
+        ] {
+            let mut specs = vec![
+                LineSpec::column(1, 0, "前の段落の長い行", 40.0, 100.0, 200.0),
+                LineSpec::column(2, 0, "短い最終行", 40.0, 86.0, tail_width),
+                LineSpec::column(3, 0, text, 40.0, 72.0, 200.0),
+                LineSpec::column(4, 0, "続きの行", 40.0, 58.0, 200.0),
+            ];
+            for spec in &mut specs {
+                spec.x *= scale;
+                spec.y *= scale;
+                spec.width *= scale;
+                spec.height *= scale;
+                spec.font_size *= scale;
+            }
+            let fixture = Fixture::new(specs);
+            let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+                .expect("source indentation fixture");
+            let actual: Vec<_> = blocks.iter().map(|b| b.lines.clone()).collect();
+            let expected = if split {
+                vec![vec![LineId(1), LineId(2)], vec![LineId(3), LineId(4)]]
+            } else {
+                vec![vec![LineId(1), LineId(2), LineId(3), LineId(4)]]
+            };
+            assert_eq!(actual, expected, "{text}, tail={tail_width}, scale={scale}");
+        }
+    }
+}
+
+#[test]
 fn joins_a_full_indented_first_line_without_absorbing_the_next_paragraph() {
     for scale in [0.5, 1.0, 3.0] {
         for (indent, width, joined) in [

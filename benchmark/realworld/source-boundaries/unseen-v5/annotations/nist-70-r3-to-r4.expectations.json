@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-70-r3-to-r4",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "2f59dc918dd16823c0793d06e4ef90b868b13d09523d3a3ef0f2ce19227f992e",
+  "body_eligible": true,
+  "reason": "The third Executive Summary paragraph removes specific repository search criteria. The abstract and first two summary paragraphs have no substantive prose change."
+}

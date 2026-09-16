@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-gpt3-v1-to-v4",
+  "old_sha256": "f756a2d3e23c2770a3e8c4354965e98d37411c18aab91556df0c335675dec396",
+  "new_sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "Asaresult,althoughGPT-3’strainingdataprimarilyconsistsofEnglish(93%bywordcount),italsoincludes7%foreignlanguagecontent.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-abstract-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "RecentworkhasdemonstratedsubstantialgainsonmanyNLPtasksandbenchmarksbypre-trainingonalargecorpusoftextfollowedbyﬁne-tuningonaspeciﬁctask.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "AlthoughGPT-3’strainingdataisstillprimarilyEnglish(93%bywordcount),italsoincludes7%oftextinotherlanguages.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-abstract-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "RecentworkhasdemonstratedsubstantialgainsonmanyNLPtasksandbenchmarksbypre-trainingonalargecorpusoftextfollowedbyﬁne-tuningonaspeciﬁctask.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

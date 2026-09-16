@@ -1,0 +1,232 @@
+{
+  "version": 1,
+  "profile": "default hayro worker; white RGB; 72 dpi; default optional content; annotations enabled",
+  "full_response_equal_to_original": true,
+  "blank_page_all_white": true,
+  "records": [
+    {
+      "side": "old",
+      "kind": "original",
+      "page": 0,
+      "object": [
+        1325,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+      "worker_response_sha256": "13c007a06bf35d419517fef8ec49dc95e54d96ab0ebe9512dda6e19df20d5e63"
+    },
+    {
+      "side": "old",
+      "kind": "original",
+      "page": 1,
+      "object": [
+        1,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+      "worker_response_sha256": "f87d0f0b6629871d061415357c363ca0ca72dd35081f1e84b8876026076ccc03"
+    },
+    {
+      "side": "old",
+      "kind": "storage",
+      "page": 0,
+      "object": [
+        46,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "ce016f8ad81489626a8490f61dafc504bb4ce1133c01ebd1f84621e163ff486a",
+      "worker_response_sha256": "13c007a06bf35d419517fef8ec49dc95e54d96ab0ebe9512dda6e19df20d5e63"
+    },
+    {
+      "side": "old",
+      "kind": "storage",
+      "page": 1,
+      "object": [
+        1372,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "ce016f8ad81489626a8490f61dafc504bb4ce1133c01ebd1f84621e163ff486a",
+      "worker_response_sha256": "f87d0f0b6629871d061415357c363ca0ca72dd35081f1e84b8876026076ccc03"
+    },
+    {
+      "side": "old",
+      "kind": "prepended_blank_page",
+      "page": 0,
+      "object": [
+        1373,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "187f62fbd42ba71e436c698a6bbdb0339456f06d1832c2d5b3ec733215b8fbdc",
+      "worker_response_sha256": "019537b5ffe055abbd512ff88a23f80d293697d279bbc22575bbd997705e0f4a"
+    },
+    {
+      "side": "old",
+      "kind": "prepended_blank_page",
+      "page": 1,
+      "object": [
+        1325,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "187f62fbd42ba71e436c698a6bbdb0339456f06d1832c2d5b3ec733215b8fbdc",
+      "worker_response_sha256": "13c007a06bf35d419517fef8ec49dc95e54d96ab0ebe9512dda6e19df20d5e63"
+    },
+    {
+      "side": "old",
+      "kind": "prepended_blank_page",
+      "page": 2,
+      "object": [
+        1,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "187f62fbd42ba71e436c698a6bbdb0339456f06d1832c2d5b3ec733215b8fbdc",
+      "worker_response_sha256": "f87d0f0b6629871d061415357c363ca0ca72dd35081f1e84b8876026076ccc03"
+    },
+    {
+      "side": "new",
+      "kind": "original",
+      "page": 0,
+      "object": [
+        1321,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716",
+      "worker_response_sha256": "81d59692f98a5606a1403c6b470c22d655c42b2884871b3f0fbd8535eec35b6e"
+    },
+    {
+      "side": "new",
+      "kind": "original",
+      "page": 1,
+      "object": [
+        1,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716",
+      "worker_response_sha256": "24f5973f6708daf5d1d09df80489be0e4882a46a61ed3a5984188deaaea130ea"
+    },
+    {
+      "side": "new",
+      "kind": "storage",
+      "page": 0,
+      "object": [
+        46,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "e5d40987f6a6d456d2b37c497372226e7e838225ab37c64bd6dd92d773973dd3",
+      "worker_response_sha256": "81d59692f98a5606a1403c6b470c22d655c42b2884871b3f0fbd8535eec35b6e"
+    },
+    {
+      "side": "new",
+      "kind": "storage",
+      "page": 1,
+      "object": [
+        1368,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "e5d40987f6a6d456d2b37c497372226e7e838225ab37c64bd6dd92d773973dd3",
+      "worker_response_sha256": "24f5973f6708daf5d1d09df80489be0e4882a46a61ed3a5984188deaaea130ea"
+    },
+    {
+      "side": "new",
+      "kind": "prepended_blank_page",
+      "page": 0,
+      "object": [
+        1369,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "549d8713b1ee55b1542a5e9b0c85e395c7decf2ec98daf69b2258cbb9dcd3f5f",
+      "worker_response_sha256": "019537b5ffe055abbd512ff88a23f80d293697d279bbc22575bbd997705e0f4a"
+    },
+    {
+      "side": "new",
+      "kind": "prepended_blank_page",
+      "page": 1,
+      "object": [
+        1321,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "549d8713b1ee55b1542a5e9b0c85e395c7decf2ec98daf69b2258cbb9dcd3f5f",
+      "worker_response_sha256": "81d59692f98a5606a1403c6b470c22d655c42b2884871b3f0fbd8535eec35b6e"
+    },
+    {
+      "side": "new",
+      "kind": "prepended_blank_page",
+      "page": 2,
+      "object": [
+        1,
+        0
+      ],
+      "dimensions": [
+        612,
+        792
+      ],
+      "warning_flag": 0,
+      "pdf_sha256": "549d8713b1ee55b1542a5e9b0c85e395c7decf2ec98daf69b2258cbb9dcd3f5f",
+      "worker_response_sha256": "24f5973f6708daf5d1d09df80489be0e4882a46a61ed3a5984188deaaea130ea"
+    }
+  ]
+}

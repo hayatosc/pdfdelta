@@ -1,0 +1,2223 @@
+{
+  "version": 1,
+  "status": "current_baseline_capture_finished",
+  "goal_complete": false,
+  "historical_baseline_restored": false,
+  "panel": {
+    "path": "benchmark/realworld/followup/panel.json",
+    "sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744"
+  },
+  "pairs": 36,
+  "head": "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+    "sha256": "f5ba123cdd092ba96c40c2494f77189386e6501cb5ae1d38a0ea53d2dde54010"
+  },
+  "source_archive": {
+    "path": "benchmark/realworld/cache/source-completion/baseline/source.tar.gz",
+    "sha256": "8110d1be2cf2a7491d69129ff13bcc28e0ecc6d5ca744f048279036f066b169a"
+  },
+  "worktree_patch": {
+    "path": "benchmark/realworld/cache/source-completion/baseline/worktree.patch",
+    "sha256": "1ace88bb2820b61f33781b3916670816cfabaf163179f1454ef4a99b386dd27c"
+  },
+  "capture_script": {
+    "path": "benchmark/realworld/cache/source-completion/baseline/capture.py",
+    "sha256": "1993d642f40b1a27d87c02e133247ebdff6d029879ad853b985cd868302c4fcc"
+  },
+  "lockfile": {
+    "path": "Cargo.lock",
+    "sha256": "5a554f13cafa518885d5ac84336c3fd49b5d49df0624ab249944ebac4aa4095f"
+  },
+  "build_command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "-p",
+    "pdfdelta-cli"
+  ],
+  "build_exit_code": 0,
+  "build_log_note": "Successful build output retained in execution session 12186; 55.52 seconds.",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0\nLLVM version: 22.1.8",
+  "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+  "build_environment": {},
+  "capture_contract": {
+    "route": "text",
+    "limit_scale": 1,
+    "timeout_seconds": 180,
+    "repetitions": 2
+  },
+  "inputs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-old.pdf",
+      "sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f"
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-new.pdf",
+      "sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-old.pdf",
+      "sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-new.pdf",
+      "sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986"
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-old.pdf",
+      "sha256": "3b090f638c33deb118a639f1a6af4ce928977dfe5ab3ada5253c36a55d42d76b"
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-new.pdf",
+      "sha256": "179c669a3aac9a2c6cd9b5765d262a2150347eec88e1b73e4e6cf3eb6dfb46ac"
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-old.pdf",
+      "sha256": "e231944e40d3741d22d54712eb434d4044edef54ddbd254c18c9742077f37ab7"
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-new.pdf",
+      "sha256": "1752ccea30a6fbeff0907c0be261c05e40fa5d6a5d512da483894ebd4060bbed"
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-old.pdf",
+      "sha256": "b1c5ead0632dcfb979c59d8c462b094ad2465ddaf62d5c246289d6d9b4419df1"
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-new.pdf",
+      "sha256": "e5593d6bb85daecec7e8d9549400c7b3473bcc3f06e469c82218073afa7fba2d"
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-old.pdf",
+      "sha256": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e"
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-new.pdf",
+      "sha256": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22"
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-old.pdf",
+      "sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000"
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-new.pdf",
+      "sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1"
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-old.pdf",
+      "sha256": "ccfce7510a1267933f912d023306c6e7d485f21be63d271108b61aad6139127e"
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-new.pdf",
+      "sha256": "d9ab89576b5ae2cfb3ba37781110788dea27a85a5079496dbfc1a79834670afd"
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-old.pdf",
+      "sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff"
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-new.pdf",
+      "sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53"
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-old.pdf",
+      "sha256": "e60e3af7512073bffbd7ef3c4f3a2fc9593d2aed2e420718d4ccf17659e2c3ed"
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-new.pdf",
+      "sha256": "94fa236f26c1a6dbbdeb40b8bd8870793e7a5be0f74ead3c2799d2b0961be68a"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+      "sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+      "sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716"
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-old.pdf",
+      "sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0"
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-new.pdf",
+      "sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347"
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-old.pdf",
+      "sha256": "58534a3c000cbcc60ed64e999a2d9ed839edc2d9894e4449e9d79e1118b5e5ba"
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-new.pdf",
+      "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e"
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-old.pdf",
+      "sha256": "f756a2d3e23c2770a3e8c4354965e98d37411c18aab91556df0c335675dec396"
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-new.pdf",
+      "sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83"
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-old.pdf",
+      "sha256": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57"
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-new.pdf",
+      "sha256": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e"
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-old.pdf",
+      "sha256": "793600d98c5de56971d5cd617ae84bc9661fadd92471c626a175741a02e52c99"
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-new.pdf",
+      "sha256": "d56fb8ec65d401abc7bd8b2cfeae445f8b67be0851cd6173045bf0c4f18ec576"
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-old.pdf",
+      "sha256": "c510378d787991b7da6b253bdd7bb32f00b39746e60dbcfb49cf2249e16830a5"
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-new.pdf",
+      "sha256": "012b3fe4e8c72f92d8c1879ffb02dbf53f27ab31cd09766ccf5da384470ed224"
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-old.pdf",
+      "sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe"
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-new.pdf",
+      "sha256": "2fa47d80d4167c5173e9f24c93178d90fdcf5e6cc45ca574360364f9820325af"
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-old.pdf",
+      "sha256": "6eb451ac9dadf2c0605d343398e6b92175c2d96fda5afaceee118583cc2a5e9c"
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-new.pdf",
+      "sha256": "299dfb8807862f174768356353f39c6bf6993596cb6f5933dd4fd23181e8837b"
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-old.pdf",
+      "sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c"
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-new.pdf",
+      "sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6"
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-old.pdf",
+      "sha256": "8d241acc31e76042d46640355c7539c0bacacf75effca4b51292fcd7b1bd65dd"
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-new.pdf",
+      "sha256": "9b1fa8402e6a50c318dba51c8158a14a54319dab92b3f25e0dfbc4a0e4ab43cc"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-old.pdf",
+      "sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-new.pdf",
+      "sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82"
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-old.pdf",
+      "sha256": "4bd69fcbb4a9e794d38424d187b91d7e958461f5eaaa14cf2a578a2b6aac71be"
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-new.pdf",
+      "sha256": "aee5e07a802e8dfd2a386374c94fd61d1d056cb7e1e0fec4f28e8120ff5d8505"
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-old.pdf",
+      "sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80"
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-new.pdf",
+      "sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91"
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-old.pdf",
+      "sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198"
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-new.pdf",
+      "sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d"
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-old.pdf",
+      "sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08"
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-new.pdf",
+      "sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be"
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf",
+      "sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526"
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf",
+      "sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96"
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-old.pdf",
+      "sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602"
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-new.pdf",
+      "sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8"
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-old.pdf",
+      "sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890"
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-new.pdf",
+      "sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9"
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-old.pdf",
+      "sha256": "f4ccfc41b97f113e4d26abf8e46fd7c59796eee477d1990cf990eedc2f730b8e"
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-new.pdf",
+      "sha256": "c46c75a25a87f078d1ae425c77c4e9937489382817c9724f1e8c6c76ccd134cc"
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-old.pdf",
+      "sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273"
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-new.pdf",
+      "sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd"
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-old.pdf",
+      "sha256": "9d72de197c6c8e76f32602fc447406d6a43f37b5b019933dd4d873463061a6ef"
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-new.pdf",
+      "sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1"
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-old.pdf",
+      "sha256": "3cb630da029ed53867ee7ff3e1f50aa3bb8419716b7b3864dcf2e778cd912999"
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-new.pdf",
+      "sha256": "da79514967608d2c384fb72bb121e5c57951b2c1fb9a634f66e0eb2f8a98b601"
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-old.pdf",
+      "sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e"
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-new.pdf",
+      "sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6"
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-old.pdf",
+      "sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef"
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-new.pdf",
+      "sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04"
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "old",
+      "path": "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-old.pdf",
+      "sha256": "1838f48f555d8fd8d54a6212024d138224307acfb4f86eea88fdf03c96d02a19"
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "new",
+      "path": "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-new.pdf",
+      "sha256": "476f04d4c60b0770c1ac8b2720551972074ce78e936a3e7a535048416111d0df"
+    }
+  ],
+  "attempts": [
+    {
+      "repetition": 1,
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/runs.json",
+        "sha256": "588307f2f3e860df122d97aedb97fe2a1d97cb02d7884ea4c45708bf11dc0b6d"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "edpb-restrictions-v1-to-final",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-restrictions-v1-to-final",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/runs.json",
+        "sha256": "569e4ed8c7e271b116b3c3c0f5f915bfc12c8dfe43db3661ea2d97b2abbf284a"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "edpb-design-default-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-design-default-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2/runs.json",
+        "sha256": "105e7425c3c677a9ad73f19a13454d82af2b2197ffec919f00b794d72bd1d357"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-social-targeting-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2/runs.json",
+        "sha256": "d57f9d50fdea7b3fba227634a3e6fa183700082590e16bf19aa133cc01237a9a"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-incident-handling-r2-to-r3",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-incident-handling-r2-to-r3",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3/runs.json",
+        "sha256": "3d9684a3a84cef66882de0fef8499e29a6e47a50abeebde17aecd294728aa1ef"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-ssdf-draft-to-final",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-ssdf-draft-to-final",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final/runs.json",
+        "sha256": "0971a5c54a9d64e6ca75d1dc1671df707f4784c1bbba0cdd3bb8f4ecbdf18fdc"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-ai-rmf-draft2-to-v1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1/runs.json",
+        "sha256": "c04839b4e3010a8c67bc07724f82e507ed9cf9be92486809e5592ff2f576cc2f"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-authentication-63b-to-63b4",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-authentication-63b-to-63b4",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4/runs.json",
+        "sha256": "e3e4fb4e78fa8a69f61f1fbc77011d8f649c28ec78f2187a4e91184bd0c6b849"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-w9-2018-to-2024",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-w9-2018-to-2024",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024/runs.json",
+        "sha256": "80b6ff24ccc4777e4827f47af4257f3248b275220aa79c1835d02f1cb972b086"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-w4-english-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-w4-english-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025/runs.json",
+        "sha256": "e676b4b6510c20381bbec7d560999aa866aef05b0e75ea8a3564426345435a1f"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-schedule-c-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/runs.json",
+        "sha256": "fe36cfbc9bb76a4bba9576ac38acf1e2f30c5659e17834661f821f1f62c9f96f"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-schedule-se-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/runs.json",
+        "sha256": "e48cb22ccf1b49eaf2db315011b5f10b7d53c4d894813b273b107d5196b4ca05"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-bert-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-bert-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2/runs.json",
+        "sha256": "17dc90b575af645b1ebdd30949099ec76ddec390a0aa0347a76b2a660795ec70"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-gpt3-v1-to-v4",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4/runs.json",
+        "sha256": "64185f07442457c9d2dba5821bd59b3a8828ab8b0897142d1a11c0a35329a993"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-primary-japanese-2008-to-2017",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017/runs.json",
+        "sha256": "58e0bbab86932bca06a53b6a3f5b1efdb154874b7020528da89308174f94d373"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-lower-secondary-japanese-2008-to-2017",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017/runs.json",
+        "sha256": "e4341fecf5dab4406db66b639b67497f95f0a6611f2868fb690e202c2d567c81"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-upper-secondary-japanese-2009-to-2018",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018/runs.json",
+        "sha256": "c503875a029ff18a38630a7fdc3010bd087e9ee3d7ab34b8054cf07418a3419a"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "mhlw-care-skills-original-to-revised",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mhlw-care-skills-original-to-revised",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "964b92b689e2164ea445736c5f848efcb7aabbf27138b953199f30924b51685b"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nasa-buckling-8007-1968-to-2020",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020/runs.json",
+        "sha256": "bf01934a001be36f5eed9aaaeca7f130e2b6a1c1b24a0d0cb2e2712d8f003fda"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "ipcc-synthesis-ar5-to-ar6",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6/runs.json",
+        "sha256": "5342de075ae210d0291264daa4b759f35542156365c8eda42e7aae6d99acdf67"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "ecb-annual-2023-to-2024",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/ecb-annual-2023-to-2024",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "ecb-annual-2023-to-2024",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ecb-annual-2023-to-2024/runs.json",
+        "sha256": "63233ffec83add1a83cf7fb0a3117cf08dc129c0b4b8573311c58aceaab3adb5"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-sha-1803-to-1804",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-sha-1803-to-1804",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804/runs.json",
+        "sha256": "57375f205c4ca23b662a6b4cf85fd88765a173c729bf749dd96c5aee273e61bd"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-ddpm-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2/runs.json",
+        "sha256": "bd933c0f26bc40f76360d7ba88e7e2fe0945a7a2dd5baf7484388fa50a7b5a28"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-llama2-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-llama2-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2/runs.json",
+        "sha256": "a624bcb5c2966b5229001f136010485680badb7706612eac37043f5d0bdea58c"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-risk-management-37-r1-to-r2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2/runs.json",
+        "sha256": "fcdfc4e2fa8924222e06a36934f404f58130cbcc60076d2be278a9f3c82a407a"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-1099-misc-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "irs-1099-misc-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025/runs.json",
+        "sha256": "fc9220e7b2b38c42e7cc8cf40363790be202e4897c1c5d864d865410b94b0bef"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "irs-w2-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "irs-w2-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025/runs.json",
+        "sha256": "8af715fcfb203390122c1b8f2c04d1ab2ee4a44b756fa97e5a80597d2a3f2f9a"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "arxiv-mask-rcnn-v1-to-v3",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3/runs.json",
+        "sha256": "58f2e3d3a130a5c3c81b1acf5a67ac7e0b03ebb0f054b3c0ffe4eca784f3c52d"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "bunka-official-writing-1952-to-2022",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "bunka-official-writing-1952-to-2022",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022/runs.json",
+        "sha256": "7f0f58c2d8d5d10fdbe9866d47ef1ced9abf775fd0e8fafdd34713a3bfc3ea7b"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "faa-thunderstorms-b-to-c",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "faa-thunderstorms-b-to-c",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c/runs.json",
+        "sha256": "cb15989da924fe6b4dd3ce5742013fd5bc74dfc621f984c52184daecdd6a0b0d"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "faa-maintenance-records-c-to-d",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "faa-maintenance-records-c-to-d",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d/runs.json",
+        "sha256": "044cf4fc15928bbcf5ddba69058f1fcf6d4d9221ccb023d69284fbdc6c72e198"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "arxiv-faster-rcnn-v1-to-v3",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3/runs.json",
+        "sha256": "72eb4fa7fabc3ceeeb3c093ca7182ea021461cf4d290829c71b848a2eebd426e"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "bunka-kana-1946-to-1986",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "bunka-kana-1946-to-1986",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986/runs.json",
+        "sha256": "c6b2ee6470a974e7a41b2f202ac975e8438dbd9cd7fff2f51a0048077bd72c34"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-controls-53-r4-to-r5",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-controls-53-r4-to-r5",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5/runs.json",
+        "sha256": "73832769d657f7552b33bd38c8383b79e5113ff607f72b779c5cdfd48dfd992a"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-risk-assessment-30-to-r1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-risk-assessment-30-to-r1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1/runs.json",
+        "sha256": "c2f5a9c515d856be92d00180d2be2d4fdb4de223b4340b2cd565d7a199f45ca9"
+      }
+    },
+    {
+      "repetition": 1,
+      "pair": "nist-contingency-34-to-r1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-contingency-34-to-r1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/runs.json",
+        "sha256": "735a4a5c9945b6ce08865cd79d3bdc68923896684b84569e13bb8c399909e5ee"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-controller-processor-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-controller-processor-v1-to-v2-1/runs.json",
+        "sha256": "7e4ed8c2bb9236fa3156ab0d55c6c19761e51cd89169eacaf29b75633d75e144"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-restrictions-v1-to-final",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-restrictions-v1-to-final",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-restrictions-v1-to-final",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-restrictions-v1-to-final/runs.json",
+        "sha256": "e0573d49a4ff99823e0f5f38eef713a5a8349318aadbbf5673b9aea4c5d6b4cc"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-design-default-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-design-default-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-design-default-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-design-default-v1-to-v2/runs.json",
+        "sha256": "5189137772d6190238afd26786902bce640e60071ef08098263af692d174e1db"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-social-targeting-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-social-targeting-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/edpb-social-targeting-v1-to-v2/runs.json",
+        "sha256": "ea735a088abaf9a7f04e085696ef027c5c9c837df34a2c7babeda8de8c0a86e9"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-incident-handling-r2-to-r3",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-incident-handling-r2-to-r3",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-incident-handling-r2-to-r3",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-incident-handling-r2-to-r3/runs.json",
+        "sha256": "da802721691e8822742b89793790d537b1c10531e1999c1b95da37df9801dae9"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-ssdf-draft-to-final",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ssdf-draft-to-final",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-ssdf-draft-to-final",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ssdf-draft-to-final/runs.json",
+        "sha256": "87a4281e209a179355e782e4c3edf92f3581a632b5a4a1fb99e7072291ee437a"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ai-rmf-draft2-to-v1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-ai-rmf-draft2-to-v1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-ai-rmf-draft2-to-v1/runs.json",
+        "sha256": "3103b1431e29ad34474d534b4646d39f66a15974a7ce1d17525135beaa4a35db"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-authentication-63b-to-63b4",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-authentication-63b-to-63b4",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-authentication-63b-to-63b4",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-authentication-63b-to-63b4/runs.json",
+        "sha256": "4f661c94ab5cb155982ebf777d128fda0c466e6eb01632cee5644898ed7e568b"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-w9-2018-to-2024",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w9-2018-to-2024",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-w9-2018-to-2024",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w9-2018-to-2024/runs.json",
+        "sha256": "b2177c4400d51c0558421de7a78e6bc9eec42ada6d78bf5a328f865c6881a2d3"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-w4-english-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w4-english-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-w4-english-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w4-english-2024-to-2025/runs.json",
+        "sha256": "501f3a0922b878e10f85deba660d5b3842d0004688a7666ad2cec76ed909443a"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-schedule-c-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-c-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-c-2024-to-2025/runs.json",
+        "sha256": "a891f45d11be9f86371b5b1346d022370f3ad74d3e86e8cab367bfed1ea0e5d0"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-schedule-se-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-se-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-schedule-se-2024-to-2025/runs.json",
+        "sha256": "cad77eb055d3ba37b596ce3d64fb27cf278829723a0fcf343669d64dc0be9c59"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-bert-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-bert-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-bert-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-bert-v1-to-v2/runs.json",
+        "sha256": "614b035c6538aef323cf7b5c1c72e5826fa4dd596e1673b317e50f1c5c1e41d7"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-gpt3-v1-to-v4",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-gpt3-v1-to-v4",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-gpt3-v1-to-v4/runs.json",
+        "sha256": "f05b7eb05a1580cf912b2e16c77fe1797879923e5baf85578982fd4000e73293"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-primary-japanese-2008-to-2017",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-primary-japanese-2008-to-2017",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-primary-japanese-2008-to-2017/runs.json",
+        "sha256": "74b7660e0779cb2c784a63d9a146cd4e37890d5aa5e50c6abc28b4c7490423e8"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-lower-secondary-japanese-2008-to-2017",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-lower-secondary-japanese-2008-to-2017",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-lower-secondary-japanese-2008-to-2017/runs.json",
+        "sha256": "159e60b0ef113099304c7ac59b4bd16a8d1a556609c863c024543ca27e8f19e3"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-upper-secondary-japanese-2009-to-2018",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mext-upper-secondary-japanese-2009-to-2018",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mext-upper-secondary-japanese-2009-to-2018/runs.json",
+        "sha256": "d0c271d66769fa9e2db03626675081e3256d9919442e77c52dd67a8c2c903b42"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "mhlw-care-skills-original-to-revised",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/mhlw-care-skills-original-to-revised",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "mhlw-care-skills-original-to-revised",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/mhlw-care-skills-original-to-revised/runs.json",
+        "sha256": "2703def8de918e6c0d82dd7735b221ad7e7548f98b4dec9f4af027c62befc1bb"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nasa-buckling-8007-1968-to-2020",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nasa-buckling-8007-1968-to-2020",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nasa-buckling-8007-1968-to-2020/runs.json",
+        "sha256": "996c0ebca7adc813eb49c1bef995046dc52482fccd6f4f6910921dcad3b48995"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/ipcc-synthesis-ar5-to-ar6",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "ipcc-synthesis-ar5-to-ar6",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ipcc-synthesis-ar5-to-ar6/runs.json",
+        "sha256": "e22dda51ef475ec4bf944c10cb9369a6849cbd648b493c1de67d2b3e17a02e94"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "ecb-annual-2023-to-2024",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/ecb-annual-2023-to-2024",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "ecb-annual-2023-to-2024",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/ecb-annual-2023-to-2024/runs.json",
+        "sha256": "3b7816ef058ec3e800d958054a7d1a4ae050b6272076474828f98d9abff58dc4"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-sha-1803-to-1804",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-sha-1803-to-1804",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "nist-sha-1803-to-1804",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-sha-1803-to-1804/runs.json",
+        "sha256": "78473f1e4c28d6c2e1367e97722846a06320b253458d227efc2bbf621e1a1361"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-ddpm-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-ddpm-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-ddpm-v1-to-v2/runs.json",
+        "sha256": "88dedf1cbb1547ab688bc72ac6235afdb51d959ec17342a83ecad73276cb5c89"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-llama2-v1-to-v2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-llama2-v1-to-v2",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "arxiv-llama2-v1-to-v2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-llama2-v1-to-v2/runs.json",
+        "sha256": "1c40977654940505591e2d583c31130370f24820c1d85a0aac840d5ac7c9ff54"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-management-37-r1-to-r2",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-risk-management-37-r1-to-r2",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-management-37-r1-to-r2/runs.json",
+        "sha256": "ea50dcde29d3367407de8da0c8b74d91493f58036412d55afd7b056cd7c664c9"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-1099-misc-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-1099-misc-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "irs-1099-misc-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-1099-misc-2024-to-2025/runs.json",
+        "sha256": "fac4750d851c80188e98c1373a09c16d50ead6298f921b54e133fb972fda09bd"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "irs-w2-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w2-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "irs-w2-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/irs-w2-2024-to-2025/runs.json",
+        "sha256": "8d6ab2edf3e138d4cccb2cbd773021484e3f1b68bfe8accd10ad6d1156554784"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-mask-rcnn-v1-to-v3",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "arxiv-mask-rcnn-v1-to-v3",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-mask-rcnn-v1-to-v3/runs.json",
+        "sha256": "8ab3539ac5e1fc2b3cdc70302e112f7de63175552baddb1ce40072a8245e5bc6"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "bunka-official-writing-1952-to-2022",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-official-writing-1952-to-2022",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "bunka-official-writing-1952-to-2022",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-official-writing-1952-to-2022/runs.json",
+        "sha256": "a60b48848f5654c47b5d9cb1a95d07ff6976bc3728cbfddb0e71a87a48701aea"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "faa-thunderstorms-b-to-c",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-thunderstorms-b-to-c",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "faa-thunderstorms-b-to-c",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-thunderstorms-b-to-c/runs.json",
+        "sha256": "ba1813277816cbf99c1db1cb616cc07b4e9fe627cf0b81256dfa895878b16587"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "faa-maintenance-records-c-to-d",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-maintenance-records-c-to-d",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "faa-maintenance-records-c-to-d",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/faa-maintenance-records-c-to-d/runs.json",
+        "sha256": "b4eb206b0a5b7eba673c3de0a47ee1b89cd50701e10d42f9dc2e2fa7cdcf5f77"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-faster-rcnn-v1-to-v3",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "arxiv-faster-rcnn-v1-to-v3",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/arxiv-faster-rcnn-v1-to-v3/runs.json",
+        "sha256": "be8ac5e8d23ff214e46628277d19abe989739e2461c3142782b764d46184acb3"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "bunka-kana-1946-to-1986",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-kana-1946-to-1986",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "bunka-kana-1946-to-1986",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/bunka-kana-1946-to-1986/runs.json",
+        "sha256": "9654d13da5f69fe8028e723d8d611c37a7b491c4b8cf5001398dfe2b9049ae1c"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-controls-53-r4-to-r5",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-controls-53-r4-to-r5",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-controls-53-r4-to-r5",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-controls-53-r4-to-r5/runs.json",
+        "sha256": "660471e530e0a44099ef52d04d6539c51b36432b709e2d2da7a5d0b5741fb889"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-risk-assessment-30-to-r1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-assessment-30-to-r1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-risk-assessment-30-to-r1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-risk-assessment-30-to-r1/runs.json",
+        "sha256": "52588def1034cc8db2590792d3b40eb0c2bfddbbd394e6ebf01ede936820e98c"
+      }
+    },
+    {
+      "repetition": 2,
+      "pair": "nist-contingency-34-to-r1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/baseline/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-contingency-34-to-r1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-contingency-34-to-r1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-2/nist-contingency-34-to-r1/runs.json",
+        "sha256": "9c1bc521825cb615b4250d61ba745882e7137e3ded186296475551a23203dcd3"
+      }
+    }
+  ],
+  "targets": {
+    "path": "benchmark/realworld/followup/targets.json",
+    "sha256": "a1ec08f034a00315acd9fc7e12c916214290511329ff3a49396dc9bdded78e7a"
+  },
+  "controls": {
+    "path": "benchmark/realworld/followup/controls.json",
+    "sha256": "9be1d8491f94373f1f55db4ba0e569ad7c934733be2a9ae213720c14e1788628"
+  }
+}

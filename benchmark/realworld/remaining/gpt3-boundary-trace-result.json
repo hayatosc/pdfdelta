@@ -1,0 +1,208 @@
+{
+  "status": "target_interval_closes_but_old_projection_rejects_superscript_rise",
+  "previous_turn_classification": "progress: boundary oracle disproved candidate acceptance as sufficient for fixed target recovery",
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "finding": "Both diagnostic hypotheses form the target interval and pass both source/paint censuses. WholeIntervals then fails old-side projection while new-side projection succeeds. With the plus oracle, all glyphs in the old interval are mapped; the isolated projection probe identifies the superscript baseline rise as sufficient to cause rejection.",
+  "traces": [
+    {
+      "label": "boundary-only",
+      "target_trace": [
+        "TRACE interval pass=WholeIntervals old=[NodeId(498), NodeId(499), NodeId(500), NodeId(501), NodeId(502)] new=[NodeId(501), NodeId(502), NodeId(503)]",
+        "TRACE census pass=WholeIntervals old=true new=true remaining=99592",
+        "TRACE projection pass=WholeIntervals old=false new=true remaining=72619"
+      ],
+      "run": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/boundary-only/run.json",
+        "sha256": "a97b1e9f9a5494fa4cb9f27abe82c1f2b137764100a7a9c2e44c89e3ad966523"
+      },
+      "stderr": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/boundary-only/stderr",
+        "sha256": "ac460db0de4b69b39ed0e98a276b8d57b075bc97501eda133d9f5ae0008fbfd4"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/boundary-only/report.json",
+        "sha256": "05ead47038432033cd3dbb240bf51c6107f34c18fad2fb94535fc0025d0eff7a"
+      }
+    },
+    {
+      "label": "boundary-plus",
+      "target_trace": [
+        "TRACE interval pass=WholeIntervals old=[NodeId(440), NodeId(441), NodeId(442)] new=[NodeId(443), NodeId(444), NodeId(445)]",
+        "TRACE census pass=WholeIntervals old=true new=true remaining=102790",
+        "TRACE projection pass=WholeIntervals old=false new=true remaining=72860"
+      ],
+      "run": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/boundary-plus/run.json",
+        "sha256": "5269392c4c6d1926d31f0884f747514c40a515120c8de14311c89606d3b8ebcc"
+      },
+      "stderr": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/boundary-plus/stderr",
+        "sha256": "a1f5f96abcc483fd2d65f0d5528a35fa7b6558bddab068092a0937c238f2507f"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/boundary-plus/report.json",
+        "sha256": "17f4d7e4242a6f3da2aad666fe348980e398cb7bef1190d554ec17bdf2f91f18"
+      }
+    }
+  ],
+  "superscript_evidence": {
+    "a": {
+      "id": 38716,
+      "text": {
+        "Mapped": "C"
+      },
+      "raw_code": [
+        67
+      ],
+      "page": 13,
+      "bbox": {
+        "min": {
+          "x": 230.2018056,
+          "y": 222.62507839999998
+        },
+        "max": {
+          "x": 236.8468598,
+          "y": 231.5316428
+        }
+      },
+      "baseline": {
+        "x": 230.2018056,
+        "y": 224.777
+      },
+      "direction": {
+        "x": 1.0,
+        "y": 0.0
+      },
+      "font_id": 2,
+      "font_size": 9.9626,
+      "render_order": 38740,
+      "render_mode": "Fill",
+      "crop_status": "Inside",
+      "path_clip_status": "Unclipped",
+      "provenance": {
+        "content_stream": {
+          "object_number": 478,
+          "generation": 0
+        },
+        "operator_index": 101
+      }
+    },
+    "b": {
+      "id": 38717,
+      "text": {
+        "Mapped": "+"
+      },
+      "raw_code": [
+        43
+      ],
+      "page": 13,
+      "bbox": {
+        "min": {
+          "x": 236.847,
+          "y": 227.0390828
+        },
+        "max": {
+          "x": 242.9630226,
+          "y": 233.2318172
+        }
+      },
+      "baseline": {
+        "x": 236.847,
+        "y": 228.392
+      },
+      "direction": {
+        "x": 1.0,
+        "y": 0.0
+      },
+      "font_id": 5,
+      "font_size": 6.9738,
+      "render_order": 38741,
+      "render_mode": "Fill",
+      "crop_status": "Inside",
+      "path_clip_status": "Unclipped",
+      "provenance": {
+        "content_stream": {
+          "object_number": 478,
+          "generation": 0
+        },
+        "operator_index": 104
+      }
+    }
+  },
+  "isolated_probe": {
+    "real_old_interior_projection": "rejected",
+    "real_old_boundaries_and_all_three_new_nodes": "accepted",
+    "counterfactual": "Changing only glyph 38717 baseline.y to glyph 38716 baseline.y makes old interior projection succeed. This mutation is confined to a disposable diagnostic test; no report or production source adopts it.",
+    "check": "one test passed"
+  },
+  "checks": {
+    "reports": "identical to prior boundary oracle except comparison_wall_time_ms",
+    "source_exports": "byte-identical in both scenarios",
+    "source_restoration": "all six files byte-identical to their snapshots",
+    "default_binary": {
+      "path": "target/release/pdfdelta",
+      "sha256": "a7312606207e5784ad80d452e1671360652b56c15a29742d2618cb1ffc5bda73"
+    },
+    "diagnostic_build": "passed after correcting temporary let-else instrumentation syntax",
+    "workspace_checks": "not rerun: no production changes retained"
+  },
+  "limitations": [
+    "The plus mapping and boundary remain unsupported diagnostic hypotheses, excluded from admitted coverage.",
+    "An upward baseline step may also indicate ambiguous order; accepting all rises would weaken the source-order contract.",
+    "Layout cross-axis attachment is a reconstruction heuristic, not a source-order certificate.",
+    "The counterfactual isolates a guard; it is not a valid PDF geometry correction."
+  ],
+  "next_action": "Measure a bounded superscript-order hypothesis using unchanged raw geometry, render order and source extents, then validate rival orders and closure before any production adoption. Keep strict Type1 decoding and boundary-only correspondence proof obligations separate.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/build.py",
+      "sha256": "efbc1faecd682aeee2e619939f7dc42baab67689c9fafc48dbf3c2b89e60d964"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/build.log",
+      "sha256": "63563dcf7da30507c07a49e0d6d536737f4373ff1e2dec2d6d4ebe6f4461e2df"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/run.py",
+      "sha256": "faf74982de57fac7de9420a56e14fcbea3e1feb2025237b6666daa3989c4caad"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/check.py",
+      "sha256": "3575b565549b02c4db1a01406afda93c257dfb43da2674340bb5c93151d9183a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/check.json",
+      "sha256": "e2b1dd8c1e59bf713abe5353e5d5b24ee1764d3c34fd828f9de777f7a25c3972"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/inspect.py",
+      "sha256": "5a57026033d461a4c573f5bf2967b3d823e11e58434f01f4ce6c81fbfbfada25"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/projection-evidence.json",
+      "sha256": "93b7eab371323e88f0763b5acffcf5c551942da094523fae247e8abfed4e0d90"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/projection-probe.rs",
+      "sha256": "b9bf43a8afdbee8888d7a9f7944bf8164255657298185ec744dfdb28ef7c165d"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/projection-probe.log",
+      "sha256": "2cef4c0b8fe80a0a58c2ec9d4cae9d20e48d4eb2ad735f78569840ffda17d03b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/scopes-trace.rs",
+      "sha256": "f1b39b0ee3682c06a6906ff083f3310e58281b331dc30f995e770a6ec0c09790"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/cuts-trace.rs",
+      "sha256": "c48fddb768b37f0ff14f2f327960e72d3c4f299be3c7bf234451b17fe2bbaa8f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/gpt3-boundary-trace/pdfdelta",
+      "sha256": "6fae5bae39bc07bc847b36399cb38c28411b75a410e17d0921504dc27885db97"
+    }
+  ]
+}

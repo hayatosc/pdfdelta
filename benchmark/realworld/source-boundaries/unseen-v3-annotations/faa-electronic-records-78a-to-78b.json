@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "faa-electronic-records-78a-to-78b",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC), as any AC, is not mandatory and does not constitute a regulation; rather, it provides standards and guidance for electronic signatures, electronic recordkeeping, and electronic manual systems. Electronic recordkeeping systems/programs are used to generate many types of records (e.g., load manifests, dispatch release, aircraft maintenance records, maintenance task cards, pilot training records, flight release, and/or airworthiness release). This AC describes an acceptable means, but not the only means, for a certificate holder to utilize an electronic signature, electronic recordkeeping, and electronic manual systems.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "U.S. Department",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC) provides standards and guidance for electronic signatures, electronic recordkeeping, and electronic manual systems. The standards and guidance contained in this AC apply to those signatures, records, and manuals required by Title 14 of the Code of Federal Regulations (14 CFR) when those items are in a digital or electronic format. This AC describes an acceptable means, but not the only means, for a certificate holder to utilize an electronic signature, electronic recordkeeping, and electronic manual systems. The contents of this document do not have the force and effect of law and are not meant to bind the public in any way, and the document is intended only to provide information to the public regarding existing requirements under the law or agency policies.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "U.S. Department",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "3f5c32065b1d07dd62ce19d227464e4db2fb9375003a7e28aeab84fd50b7607d",
+  "new_sha256": "7756208e384f6f18569cfc9c7ee84aef2fec09898dc99e08d2dedc2bd6dceaaf"
+}

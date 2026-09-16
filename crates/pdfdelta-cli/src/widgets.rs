@@ -117,6 +117,7 @@ pub fn collect(store: &mut EvidenceStore) {
                     store.rendered.push(region);
                 }
                 Err((kind, reason)) => store.issues.push(EvidenceIssue {
+                    boundary: None,
                     page: field.page,
                     channel: Channel::Forms,
                     sources: vec![SourceRef::Structured { element: field.id }],

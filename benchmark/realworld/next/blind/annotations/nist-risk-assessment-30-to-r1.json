@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "pair": "nist-risk-assessment-30-to-r1",
+  "old_sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef",
+  "new_sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 9
+      },
+      "literal_quote": "Thisguideprovidesafoundationforthedevelopmentofaneffectiveriskmanagementprogram,containingboththedefinitionsandthepracticalguidancenecessaryforassessingandmitigatingrisksidentifiedwithinITsystems.TheultimategoalistohelporganizationstobettermanageIT-relatedmissionrisks.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 10
+      },
+      "literal_quote": "The purpose of Special Publication 800-30 is to provide guidance for conducting risk assessments of federal information systems and organizations, amplifying the guidance in Special Publication 800-39. Risk assessments, carried out at all three tiers in the risk management hierarchy, are part of an overall risk management process—providing senior leaders/executives with the information needed to determine appropriate courses of action in response to identified risks.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

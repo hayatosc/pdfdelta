@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "frozen_before_blind_input_selection": true,
+  "freeze_observed_utc": "2026-09-11 04:33:14 UTC",
+  "implementation_commit": "b258a7b69ea0c2a81796330265572dfb2043476a",
+  "production_code_commit": "9093cab",
+  "production_sources_unchanged_since_code_commit": true,
+  "baseline_commit": "3f318d7fd5cb0911e78f47fe05ea4460ae54c633",
+  "binaries": {
+    "baseline": {
+      "path": "benchmark/realworld/cache/next-execution/pdfdelta-3f318d7",
+      "sha256": "22b90fa98422c38ab2de3bc6d8e4c3b0b115b3a4a6910e2d20ecd65da32a3beb"
+    },
+    "current": {
+      "path": "benchmark/realworld/cache/next-execution/pdfdelta-9093cab",
+      "sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+    },
+    "literal_resolver": {
+      "path": "target/debug/pdfbench",
+      "sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666"
+    }
+  },
+  "cargo_lock_sha256": "8569dfacfce366a1f9ae51ce3ba9a4141a84e469bcd3e7dd09c37f3de9645ed7",
+  "production_git_trees": {
+    "crates/pdfdelta-core": "10897120325335adae81581e75bdf63bae695564",
+    "crates/pdfdelta-cli": "5bc1fb1e3b9cb1d5dc082b7dc77d55da4db21955"
+  },
+  "freeze_environment_rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "comparison_config": {
+    "routes": {
+      "native": [
+        "--native-text-only"
+      ],
+      "text": [
+        "--channels",
+        "text"
+      ],
+      "all": [
+        "--channels",
+        "text,visual,forms,relations"
+      ]
+    },
+    "common_args": [
+      "--limit-scale",
+      "1",
+      "--quiet",
+      "--json",
+      "REPORT_PATH"
+    ],
+    "process_timeout_seconds": 180,
+    "kill_after_seconds": 5,
+    "resource_limits": "Default limits in the frozen production sources, scaled by 1. No per-pair tuning.",
+    "renderer_profile": "page-rgb-white-72dpi-annotations-v1; default optional content; warnings retained"
+  },
+  "annotation_config": {
+    "version": 2,
+    "source_view": "paint_order_raw",
+    "normalization": "none",
+    "position_unit": "unicode_scalar",
+    "rule": "Record source hashes, literal selectors and complete resolved glyph atom lists before comparison output. Keep explicit failure records; visual source references cannot substitute for unavailable native glyphs."
+  },
+  "selection_rule": "Select 12 new publication series after this freeze, two intended slots per registered family, excluding all previously inspected development and baseline/control series. Include English and Japanese and at least three independent publishers or producers. Inspect concrete presentation traits separately from family names. Retain unavailable revisions, replacements, parser failures and unresolved annotations. No selection or replacement may depend on comparison quality.",
+  "scoring_contract": "Separate native, shared text and all channels; keep A, non-owning B, scope C and legacy inferred proposals separate. Freeze finite content targets and unchanged controls before comparison; exact event/source gold only where independently unambiguous. Keep zero-detection precision undefined. Use complete conflict search AND every component exhaustive for optimization completion. Preserve attempted denominators and uncertainty.",
+  "change_policy": "If blind comparison output causes production or comparison-configuration changes, promote the exposed set to development and create a new freeze and new blind series.",
+  "blind_series_selected": false
+}

@@ -1,0 +1,31 @@
+{
+  "version": 6,
+  "url": "https://edpb.europa.eu/system/files/2022-10/edpb_guidelines_202209_personal_data_breach_notification_targetedupdate_en.pdf",
+  "responses": [
+    {
+      "status": 206,
+      "headers": {
+        "Date": "Sun, 13 Sep 2026 18:01:23 GMT",
+        "Content-Type": "application/pdf",
+        "Transfer-Encoding": "chunked",
+        "Connection": "close",
+        "Cache-Control": "private",
+        "Content-language": "en",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Expires": "Sun, 19 Nov 1978 05:00:00 GMT",
+        "Last-Modified": "Thu, 04 Jun 2026 10:12:01 GMT",
+        "Age": "0",
+        "Accept-Ranges": "bytes",
+        "X-FPFIS": "9535658",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload;",
+        "Content-Range": "bytes 0-524287/*"
+      },
+      "url": "https://www.edpb.europa.eu/system/files/2022-10/edpb_guidelines_202209_personal_data_breach_notification_targetedupdate_en.pdf"
+    }
+  ],
+  "result": {
+    "error": "",
+    "bytes": 0
+  }
+}

@@ -1,0 +1,495 @@
+{
+  "version": 1,
+  "attempts": [
+    {
+      "id": "edpb-controller-processor-v1-to-v2-1",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/documents/2023-10/EDPB_guidelines_202007_controllerprocessor_final_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/documents/2023-10/EDPB_guidelines_202007_controllerprocessor_final_en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 2.461077
+    },
+    {
+      "id": "edpb-restrictions-v1-to-final",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202010_article23_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202010_article23_en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.363938
+    },
+    {
+      "id": "edpb-restrictions-v1-to-final",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/2026-04/edpb_guidelines202010_on_art23_adopted_after_consultation_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/2026-04/edpb_guidelines202010_on_art23_adopted_after_consultation_en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.397371
+    },
+    {
+      "id": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb_guidelines_201904_dataprotection_by_design_and_by_default.pdf",
+      "effective_url": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb_guidelines_201904_dataprotection_by_design_and_by_default.pdf",
+      "http_code": 429,
+      "exit_code": 22,
+      "seconds": 0.268871
+    },
+    {
+      "id": "edpb-design-default-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/sites/default/files/files/file1/edpb_guidelines_201904_dataprotection_by_design_and_by_default_v2.0_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/documents/files/file1/edpb_guidelines_201904_dataprotection_by_design_and_by_default_v2.0_en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.540677
+    },
+    {
+      "id": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202008_onthetargetingofsocialmediausers_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202008_onthetargetingofsocialmediausers_en.pdf",
+      "http_code": 429,
+      "exit_code": 22,
+      "seconds": 0.267176
+    },
+    {
+      "id": "edpb-social-targeting-v1-to-v2",
+      "side": "new",
+      "url": "https://www.edpb.europa.eu/system/files/2021-04/edpb_guidelines_082020_on_the_targeting_of_social_media_users_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/documents/2021-04/edpb_guidelines_082020_on_the_targeting_of_social_media_users_en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.609249
+    },
+    {
+      "id": "nist-incident-handling-r2-to-r3",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.610691
+    },
+    {
+      "id": "nist-incident-handling-r2-to-r3",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r3.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r3.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.968582
+    },
+    {
+      "id": "nist-ssdf-draft-to-final",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218-draft.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218-draft.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.474265
+    },
+    {
+      "id": "nist-ssdf-draft-to-final",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.450395
+    },
+    {
+      "id": "nist-ai-rmf-draft2-to-v1",
+      "side": "old",
+      "url": "https://www.nist.gov/system/files/documents/2022/08/18/AI_RMF_2nd_draft.pdf",
+      "effective_url": "https://www.nist.gov/system/files/documents/2022/08/18/AI_RMF_2nd_draft.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.281146
+    },
+    {
+      "id": "nist-ai-rmf-draft2-to-v1",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.626571
+    },
+    {
+      "id": "nist-authentication-63b-to-63b4",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63b.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63b.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.977896
+    },
+    {
+      "id": "nist-authentication-63b-to-63b4",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.491852
+    },
+    {
+      "id": "irs-w9-2018-to-2024",
+      "side": "old",
+      "url": "https://www.irs.gov/pub/irs-prior/fw9--2018.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/fw9--2018.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.21495
+    },
+    {
+      "id": "irs-w9-2018-to-2024",
+      "side": "new",
+      "url": "https://www.irs.gov/pub/irs-prior/fw9--2024.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/fw9--2024.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.458148
+    },
+    {
+      "id": "irs-w4-english-2024-to-2025",
+      "side": "old",
+      "url": "https://www.irs.gov/pub/irs-prior/fw4--2024.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/fw4--2024.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.450319
+    },
+    {
+      "id": "irs-w4-english-2024-to-2025",
+      "side": "new",
+      "url": "https://www.irs.gov/pub/irs-prior/fw4--2025.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/fw4--2025.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.445542
+    },
+    {
+      "id": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sc--2024.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/f1040sc--2024.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.375872
+    },
+    {
+      "id": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sc--2025.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/f1040sc--2025.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.370907
+    },
+    {
+      "id": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sse--2024.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/f1040sse--2024.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.323499
+    },
+    {
+      "id": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sse--2025.pdf",
+      "effective_url": "https://www.irs.gov/pub/irs-prior/f1040sse--2025.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.34957
+    },
+    {
+      "id": "arxiv-bert-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/1810.04805v1",
+      "effective_url": "https://arxiv.org/pdf/1810.04805v1",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.073737
+    },
+    {
+      "id": "arxiv-bert-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/1810.04805v2",
+      "effective_url": "https://arxiv.org/pdf/1810.04805v2",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.014351
+    },
+    {
+      "id": "arxiv-gpt3-v1-to-v4",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2005.14165v1",
+      "effective_url": "https://arxiv.org/pdf/2005.14165v1",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.065297
+    },
+    {
+      "id": "arxiv-gpt3-v1-to-v4",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2005.14165v4",
+      "effective_url": "https://arxiv.org/pdf/2005.14165v4",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.065101
+    },
+    {
+      "id": "arxiv-clip-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2103.00020v1",
+      "effective_url": "https://arxiv.org/pdf/2103.00020v1",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.062138
+    },
+    {
+      "id": "arxiv-clip-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2103.00020v2",
+      "effective_url": "https://arxiv.org/pdf/2103.00020v2",
+      "http_code": 404,
+      "exit_code": 22,
+      "seconds": 0.003607
+    },
+    {
+      "id": "arxiv-llama-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2302.13971v1",
+      "effective_url": "https://arxiv.org/pdf/2302.13971v1",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.010113
+    },
+    {
+      "id": "arxiv-llama-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2302.13971v2",
+      "effective_url": "https://arxiv.org/pdf/2302.13971v2",
+      "http_code": 404,
+      "exit_code": 22,
+      "seconds": 0.003026
+    },
+    {
+      "id": "mext-primary-japanese-2008-to-2017",
+      "side": "old",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2010/12/28/1231931_02.pdf",
+      "effective_url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2010/12/28/1231931_02.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.191942
+    },
+    {
+      "id": "mext-primary-japanese-2008-to-2017",
+      "side": "new",
+      "url": "https://www.mext.go.jp/content/20220606-mxt_kyoiku02-100002607_002.pdf",
+      "effective_url": "https://www.mext.go.jp/content/20220606-mxt_kyoiku02-100002607_002.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.639741
+    },
+    {
+      "id": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "old",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2010/12/28/1282000_02.pdf",
+      "effective_url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2010/12/28/1282000_02.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.121721
+    },
+    {
+      "id": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "new",
+      "url": "https://www.mext.go.jp/content/20250410-mxt_kyoiku01-100002620_02.pdf",
+      "effective_url": "https://www.mext.go.jp/content/20250410-mxt_kyoiku01-100002620_02.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.195266
+    },
+    {
+      "id": "nasa-buckling-8007-1968-to-2020",
+      "side": "old",
+      "url": "https://ntrs.nasa.gov/api/citations/19690013955/downloads/19690013955.pdf",
+      "effective_url": "https://ntrs.nasa.gov/api/citations/19690013955/downloads/19690013955.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.421661
+    },
+    {
+      "id": "nasa-buckling-8007-1968-to-2020",
+      "side": "new",
+      "url": "https://ntrs.nasa.gov/api/citations/20205011530/downloads/20205011530%20Rev%202FINALa%201-2023.pdf",
+      "effective_url": "https://ntrs.nasa.gov/api/citations/20205011530/downloads/20205011530%20Rev%202FINALa%201-2023.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.394236
+    },
+    {
+      "id": "ipcc-synthesis-ar5-to-ar6",
+      "side": "old",
+      "url": "https://www.ipcc.ch/site/assets/uploads/2018/05/SYR_AR5_FINAL_full_wcover.pdf",
+      "effective_url": "https://www.ipcc.ch/site/assets/uploads/2018/05/SYR_AR5_FINAL_full_wcover.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.575183
+    },
+    {
+      "id": "ipcc-synthesis-ar5-to-ar6",
+      "side": "new",
+      "url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf",
+      "effective_url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.275578
+    },
+    {
+      "id": "ecb-annual-2023-to-2024",
+      "side": "old",
+      "url": "https://www.ecb.europa.eu/pub/pdf/annrep/ecb.ar2023~d033c21ac2.en.pdf",
+      "effective_url": "https://www.ecb.europa.eu/pub/pdf/annrep/ecb.ar2023~d033c21ac2.en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 5.91925
+    },
+    {
+      "id": "ecb-annual-2023-to-2024",
+      "side": "new",
+      "url": "https://www.ecb.europa.eu/pub/pdf/annrep/ecb.ar2024~8402d8191f.en.pdf",
+      "effective_url": "https://www.ecb.europa.eu/pub/pdf/annrep/ecb.ar2024~8402d8191f.en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 6.063809
+    },
+    {
+      "id": "nist-sha-1803-to-1804",
+      "side": "old",
+      "url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-3.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-3.pdf",
+      "http_code": 404,
+      "exit_code": 22,
+      "seconds": 0.80564
+    },
+    {
+      "id": "nist-sha-1803-to-1804",
+      "side": "new",
+      "url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf",
+      "effective_url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.768302
+    },
+    {
+      "id": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb_guidelines_201904_dataprotection_by_design_and_by_default.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files_en?file=consultation/edpb_guidelines_201904_dataprotection_by_design_and_by_default.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 2.697658
+    },
+    {
+      "id": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202008_onthetargetingofsocialmediausers_en.pdf",
+      "effective_url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202008_onthetargetingofsocialmediausers_en.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.393539
+    },
+    {
+      "id": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "old",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2014/04/15/1234912_2_1.pdf",
+      "effective_url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2014/04/15/1234912_2_1.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.38182
+    },
+    {
+      "id": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "new",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2019/03/18/1387018_002.pdf",
+      "effective_url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2019/03/18/1387018_002.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 3.153325
+    },
+    {
+      "id": "mhlw-care-skills-original-to-revised",
+      "side": "old",
+      "url": "https://www.jaccw.or.jp/kenkyu-R01_kaigono_tokutei_ginou_20201006.pdf",
+      "effective_url": "https://www.jaccw.or.jp/kenkyu-R01_kaigono_tokutei_ginou_20201006.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.246377
+    },
+    {
+      "id": "mhlw-care-skills-original-to-revised",
+      "side": "new",
+      "url": "https://www.mhlw.go.jp/content/12000000/001471473.pdf",
+      "effective_url": "https://www.mhlw.go.jp/content/12000000/001471473.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.273629
+    },
+    {
+      "id": "nist-sha-1803-to-1804",
+      "side": "old",
+      "url": "https://csrc.nist.gov/CSRC/media/Publications/fips/180/3/archive/2008-10-31/documents/fips180-3_final.pdf",
+      "effective_url": "https://csrc.nist.gov/files/pubs/fips/180-3/final/docs/fips180-3_final.pdf",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.004663
+    },
+    {
+      "id": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2006.11239v1",
+      "effective_url": "https://arxiv.org/pdf/2006.11239v1",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.330452
+    },
+    {
+      "id": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2006.11239v2",
+      "effective_url": "https://arxiv.org/pdf/2006.11239v2",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.097289
+    },
+    {
+      "id": "arxiv-llama2-v1-to-v2",
+      "side": "old",
+      "url": "https://arxiv.org/pdf/2307.09288v1",
+      "effective_url": "https://arxiv.org/pdf/2307.09288v1",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 1.511615
+    },
+    {
+      "id": "arxiv-llama2-v1-to-v2",
+      "side": "new",
+      "url": "https://arxiv.org/pdf/2307.09288v2",
+      "effective_url": "https://arxiv.org/pdf/2307.09288v2",
+      "http_code": 200,
+      "exit_code": 0,
+      "seconds": 0.12143
+    }
+  ],
+  "notes": [
+    "First sandboxed EDPB old-side curl failed DNS (exit 6). The same public URL succeeded with approved network access before the batch; its hash is retained in inputs.json.",
+    "Publisher URL lookup used official landing pages. A lookup failure is not a PDF comparison result."
+  ]
+}

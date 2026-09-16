@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "scope": "Seven selected development pairs. Identity preservation is not new source adjudication; additional outputs, if any, remain unreviewed. Candidate hits are not a recovery gate.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v27-pilot-observations.json",
+    "sha256": "ed6f4ac3ab3bf735e5009b9830ed920a4bf1d715c4f263e7a3fb4dad4e2e75a8"
+  },
+  "baseline": {
+    "path": "benchmark/realworld/source-boundaries/v19-pilot-observations.json",
+    "sha256": "b78a8e925c7b0b7ff9f95ada1b4cd64c720bc3936a4ae497d95e08d1bf2499ab"
+  },
+  "categories": {
+    "B": 55
+  },
+  "complete_pairs": 0,
+  "pairs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "categories": {
+        "B": 10
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 6.89,
+      "peak_rss_kib": 350336,
+      "report_bytes": 2606245
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "categories": {
+        "B": 3
+      },
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 9.74,
+      "peak_rss_kib": 220116,
+      "report_bytes": 415761
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "categories": {
+        "B": 3
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 6.74,
+      "peak_rss_kib": 446916,
+      "report_bytes": 8129692
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.74,
+      "peak_rss_kib": 303148,
+      "report_bytes": 4255877
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "categories": {},
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 9.42,
+      "peak_rss_kib": 636740,
+      "report_bytes": 4373782
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "categories": {
+        "B": 11
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 1.67,
+      "peak_rss_kib": 128384,
+      "report_bytes": 2986755
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "categories": {
+        "B": 28
+      },
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/12"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 19,
+      "edge_refinements": 6,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 2.2,
+      "peak_rss_kib": 174428,
+      "report_bytes": 5101225
+    }
+  ]
+}

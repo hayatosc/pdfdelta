@@ -1,0 +1,70 @@
+{
+  "source_sha256": "34596ec1beecde0f4b3f40ad5c06a2436a4880955dbd329f87249b2318c32536",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.3699498450005194,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v78-final-quality-0.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 0.5008943299981183,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v78-final-quality-1.log",
+        "sha256": "58caa2854002d9b6e5a52544c40f3feface7ca4b5a1add3f5fba176aa9137616"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "seconds": 32.63230245399973,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v78-final-quality-2.log",
+        "sha256": "9c90d084618530434f873cda6fcf343d47ac4fe60fe368093a09e0b42b569271"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "seconds": 15.652512794997165,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v78-quality-3.log",
+        "sha256": "a425b6e4ed05c7beb31a855625eafb09394d0d402a684e69301ff074ccba4757"
+      },
+      "reused_check_note": "The only subsequent Rust change adds a passing whitespace-projection integration test. Production source, benchmark source and fixtures are unchanged, and the final build has the same executable hash."
+    }
+  ]
+}

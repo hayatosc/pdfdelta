@@ -1,0 +1,2145 @@
+{
+  "annotation": {
+    "new_sha256": "032cf3313470154cba2d5e7ab30112b83d7288ed65d0a0bd0c8b454c22ec3f1c",
+    "normalization": "none",
+    "old_sha256": "962b9b37f14aa1f6dfa7b3debe1467a7cbc6f65c03a38ae749ae4c9b33457567",
+    "pair": "mhlw-working-time-2001-to-2017",
+    "selectors": [
+      {
+        "id": "body-old-1",
+        "literal_quote": "労働基準法においては、労働時間、休日、深夜業等について規定を設けていることから、使用者は、労働時間を適正に把握するなど労働時間を適切に管理する責務を有していることは明らかである。",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 167,
+            "start": 78
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "old"
+      },
+      {
+        "id": "control-old",
+        "literal_quote": "適用の範囲",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 663,
+            "start": 658
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "old"
+      },
+      {
+        "id": "body-new-1",
+        "literal_quote": "労働基準法においては、労働時間、休日、深夜業等について規定を設けていることから、使用者は、労働時間を適正に把握するなど労働時間を適切に管理する責務を有している。",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 162,
+            "start": 82
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "new"
+      },
+      {
+        "id": "control-new",
+        "literal_quote": "適用の範囲",
+        "locator": {
+          "block": 0,
+          "page": 0,
+          "range": {
+            "end": 380,
+            "start": 375
+          }
+        },
+        "position_unit": "unicode_scalar",
+        "side": "new"
+      }
+    ],
+    "source_view": "paint_order_raw",
+    "version": 2
+  },
+  "new": {
+    "block_count": 4,
+    "extraction_complete": true,
+    "extraction_issues": [],
+    "glyph_count": 3150,
+    "sha256": "032cf3313470154cba2d5e7ab30112b83d7288ed65d0a0bd0c8b454c22ec3f1c",
+    "source_view": "native_page_paint_order_scalars_v1"
+  },
+  "old": {
+    "block_count": 1,
+    "extraction_complete": true,
+    "extraction_issues": [],
+    "glyph_count": 1899,
+    "sha256": "962b9b37f14aa1f6dfa7b3debe1467a7cbc6f65c03a38ae749ae4c9b33457567",
+    "source_view": "native_page_paint_order_scalars_v1"
+  },
+  "schema_version": 2,
+  "selector_resolution_complete": true,
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 167,
+            "start": 78
+          },
+          "utf8_byte": {
+            "end": 415,
+            "start": 148
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 78,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 78,
+          "utf8_byte": 148,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 79,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 79,
+          "utf8_byte": 151,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 80,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 80,
+          "utf8_byte": 154,
+          "value": "基"
+        },
+        {
+          "atoms": [
+            {
+              "id": 81,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 81,
+          "utf8_byte": 157,
+          "value": "準"
+        },
+        {
+          "atoms": [
+            {
+              "id": 82,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 82,
+          "utf8_byte": 160,
+          "value": "法"
+        },
+        {
+          "atoms": [
+            {
+              "id": 83,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 83,
+          "utf8_byte": 163,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 84,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 84,
+          "utf8_byte": 166,
+          "value": "お"
+        },
+        {
+          "atoms": [
+            {
+              "id": 85,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 85,
+          "utf8_byte": 169,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 86,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 86,
+          "utf8_byte": 172,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 87,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 87,
+          "utf8_byte": 175,
+          "value": "は"
+        },
+        {
+          "atoms": [
+            {
+              "id": 88,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 88,
+          "utf8_byte": 178,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 89,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 89,
+          "utf8_byte": 181,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 90,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 90,
+          "utf8_byte": 184,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 91,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 91,
+          "utf8_byte": 187,
+          "value": "時"
+        },
+        {
+          "atoms": [
+            {
+              "id": 92,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 92,
+          "utf8_byte": 190,
+          "value": "間"
+        },
+        {
+          "atoms": [
+            {
+              "id": 93,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 93,
+          "utf8_byte": 193,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 94,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 94,
+          "utf8_byte": 196,
+          "value": "休"
+        },
+        {
+          "atoms": [
+            {
+              "id": 95,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 95,
+          "utf8_byte": 199,
+          "value": "日"
+        },
+        {
+          "atoms": [
+            {
+              "id": 96,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 96,
+          "utf8_byte": 202,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 97,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 97,
+          "utf8_byte": 205,
+          "value": "深"
+        },
+        {
+          "atoms": [
+            {
+              "id": 98,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 98,
+          "utf8_byte": 208,
+          "value": "夜"
+        },
+        {
+          "atoms": [
+            {
+              "id": 99,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 99,
+          "utf8_byte": 211,
+          "value": "業"
+        },
+        {
+          "atoms": [
+            {
+              "id": 100,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 100,
+          "utf8_byte": 214,
+          "value": "等"
+        },
+        {
+          "atoms": [
+            {
+              "id": 101,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 101,
+          "utf8_byte": 217,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 102,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 102,
+          "utf8_byte": 220,
+          "value": "つ"
+        },
+        {
+          "atoms": [
+            {
+              "id": 103,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 103,
+          "utf8_byte": 223,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 104,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 104,
+          "utf8_byte": 226,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 105,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 105,
+          "utf8_byte": 229,
+          "value": "規"
+        },
+        {
+          "atoms": [
+            {
+              "id": 106,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 106,
+          "utf8_byte": 232,
+          "value": "定"
+        },
+        {
+          "atoms": [
+            {
+              "id": 107,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 107,
+          "utf8_byte": 235,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 108,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 108,
+          "utf8_byte": 238,
+          "value": "設"
+        },
+        {
+          "atoms": [
+            {
+              "id": 109,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 109,
+          "utf8_byte": 241,
+          "value": "け"
+        },
+        {
+          "atoms": [
+            {
+              "id": 110,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 110,
+          "utf8_byte": 244,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 111,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 111,
+          "utf8_byte": 247,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 112,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 112,
+          "utf8_byte": 250,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 113,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 113,
+          "utf8_byte": 253,
+          "value": "こ"
+        },
+        {
+          "atoms": [
+            {
+              "id": 114,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 114,
+          "utf8_byte": 256,
+          "value": "と"
+        },
+        {
+          "atoms": [
+            {
+              "id": 115,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 115,
+          "utf8_byte": 259,
+          "value": "か"
+        },
+        {
+          "atoms": [
+            {
+              "id": 116,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 116,
+          "utf8_byte": 262,
+          "value": "ら"
+        },
+        {
+          "atoms": [
+            {
+              "id": 117,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 117,
+          "utf8_byte": 265,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 118,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 118,
+          "utf8_byte": 268,
+          "value": "使"
+        },
+        {
+          "atoms": [
+            {
+              "id": 119,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 119,
+          "utf8_byte": 271,
+          "value": "用"
+        },
+        {
+          "atoms": [
+            {
+              "id": 120,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 120,
+          "utf8_byte": 274,
+          "value": "者"
+        },
+        {
+          "atoms": [
+            {
+              "id": 121,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 121,
+          "utf8_byte": 277,
+          "value": "は"
+        },
+        {
+          "atoms": [
+            {
+              "id": 122,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 122,
+          "utf8_byte": 280,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 123,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 123,
+          "utf8_byte": 283,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 124,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 124,
+          "utf8_byte": 286,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 125,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 125,
+          "utf8_byte": 289,
+          "value": "時"
+        },
+        {
+          "atoms": [
+            {
+              "id": 126,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 126,
+          "utf8_byte": 292,
+          "value": "間"
+        },
+        {
+          "atoms": [
+            {
+              "id": 127,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 127,
+          "utf8_byte": 295,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 128,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 128,
+          "utf8_byte": 298,
+          "value": "適"
+        },
+        {
+          "atoms": [
+            {
+              "id": 129,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 129,
+          "utf8_byte": 301,
+          "value": "正"
+        },
+        {
+          "atoms": [
+            {
+              "id": 130,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 130,
+          "utf8_byte": 304,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 131,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 131,
+          "utf8_byte": 307,
+          "value": "把"
+        },
+        {
+          "atoms": [
+            {
+              "id": 132,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 132,
+          "utf8_byte": 310,
+          "value": "握"
+        },
+        {
+          "atoms": [
+            {
+              "id": 133,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 133,
+          "utf8_byte": 313,
+          "value": "す"
+        },
+        {
+          "atoms": [
+            {
+              "id": 134,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 134,
+          "utf8_byte": 316,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 135,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 135,
+          "utf8_byte": 319,
+          "value": "な"
+        },
+        {
+          "atoms": [
+            {
+              "id": 136,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 136,
+          "utf8_byte": 322,
+          "value": "ど"
+        },
+        {
+          "atoms": [
+            {
+              "id": 137,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 137,
+          "utf8_byte": 325,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 138,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 138,
+          "utf8_byte": 328,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 139,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 139,
+          "utf8_byte": 331,
+          "value": "時"
+        },
+        {
+          "atoms": [
+            {
+              "id": 140,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 140,
+          "utf8_byte": 334,
+          "value": "間"
+        },
+        {
+          "atoms": [
+            {
+              "id": 141,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 141,
+          "utf8_byte": 337,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 142,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 142,
+          "utf8_byte": 340,
+          "value": "適"
+        },
+        {
+          "atoms": [
+            {
+              "id": 143,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 143,
+          "utf8_byte": 343,
+          "value": "切"
+        },
+        {
+          "atoms": [
+            {
+              "id": 144,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 144,
+          "utf8_byte": 346,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 145,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 145,
+          "utf8_byte": 349,
+          "value": "管"
+        },
+        {
+          "atoms": [
+            {
+              "id": 146,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 146,
+          "utf8_byte": 352,
+          "value": "理"
+        },
+        {
+          "atoms": [
+            {
+              "id": 147,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 147,
+          "utf8_byte": 355,
+          "value": "す"
+        },
+        {
+          "atoms": [
+            {
+              "id": 148,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 148,
+          "utf8_byte": 358,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 149,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 149,
+          "utf8_byte": 361,
+          "value": "責"
+        },
+        {
+          "atoms": [
+            {
+              "id": 150,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 150,
+          "utf8_byte": 364,
+          "value": "務"
+        },
+        {
+          "atoms": [
+            {
+              "id": 151,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 151,
+          "utf8_byte": 367,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 152,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 152,
+          "utf8_byte": 370,
+          "value": "有"
+        },
+        {
+          "atoms": [
+            {
+              "id": 153,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 153,
+          "utf8_byte": 373,
+          "value": "し"
+        },
+        {
+          "atoms": [
+            {
+              "id": 154,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 154,
+          "utf8_byte": 376,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 155,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 155,
+          "utf8_byte": 379,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 156,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 156,
+          "utf8_byte": 382,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 157,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 157,
+          "utf8_byte": 385,
+          "value": "こ"
+        },
+        {
+          "atoms": [
+            {
+              "id": 158,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 158,
+          "utf8_byte": 388,
+          "value": "と"
+        },
+        {
+          "atoms": [
+            {
+              "id": 159,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 159,
+          "utf8_byte": 391,
+          "value": "は"
+        },
+        {
+          "atoms": [
+            {
+              "id": 160,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 160,
+          "utf8_byte": 394,
+          "value": "明"
+        },
+        {
+          "atoms": [
+            {
+              "id": 161,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 161,
+          "utf8_byte": 397,
+          "value": "ら"
+        },
+        {
+          "atoms": [
+            {
+              "id": 162,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 162,
+          "utf8_byte": 400,
+          "value": "か"
+        },
+        {
+          "atoms": [
+            {
+              "id": 163,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 163,
+          "utf8_byte": 403,
+          "value": "で"
+        },
+        {
+          "atoms": [
+            {
+              "id": 164,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 164,
+          "utf8_byte": 406,
+          "value": "あ"
+        },
+        {
+          "atoms": [
+            {
+              "id": 165,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 165,
+          "utf8_byte": 409,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 166,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 166,
+          "utf8_byte": 412,
+          "value": "。"
+        }
+      ],
+      "status": "unique"
+    },
+    {
+      "id": "control-old",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 663,
+            "start": 658
+          },
+          "utf8_byte": {
+            "end": 1885,
+            "start": 1870
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 658,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 658,
+          "utf8_byte": 1870,
+          "value": "適"
+        },
+        {
+          "atoms": [
+            {
+              "id": 659,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 659,
+          "utf8_byte": 1873,
+          "value": "用"
+        },
+        {
+          "atoms": [
+            {
+              "id": 660,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 660,
+          "utf8_byte": 1876,
+          "value": "の"
+        },
+        {
+          "atoms": [
+            {
+              "id": 661,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 661,
+          "utf8_byte": 1879,
+          "value": "範"
+        },
+        {
+          "atoms": [
+            {
+              "id": 662,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 662,
+          "utf8_byte": 1882,
+          "value": "囲"
+        }
+      ],
+      "status": "unique"
+    },
+    {
+      "id": "body-new-1",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 162,
+            "start": 82
+          },
+          "utf8_byte": {
+            "end": 396,
+            "start": 156
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 82,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 82,
+          "utf8_byte": 156,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 83,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 83,
+          "utf8_byte": 159,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 84,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 84,
+          "utf8_byte": 162,
+          "value": "基"
+        },
+        {
+          "atoms": [
+            {
+              "id": 85,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 85,
+          "utf8_byte": 165,
+          "value": "準"
+        },
+        {
+          "atoms": [
+            {
+              "id": 86,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 86,
+          "utf8_byte": 168,
+          "value": "法"
+        },
+        {
+          "atoms": [
+            {
+              "id": 87,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 87,
+          "utf8_byte": 171,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 88,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 88,
+          "utf8_byte": 174,
+          "value": "お"
+        },
+        {
+          "atoms": [
+            {
+              "id": 89,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 89,
+          "utf8_byte": 177,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 90,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 90,
+          "utf8_byte": 180,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 91,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 91,
+          "utf8_byte": 183,
+          "value": "は"
+        },
+        {
+          "atoms": [
+            {
+              "id": 92,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 92,
+          "utf8_byte": 186,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 93,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 93,
+          "utf8_byte": 189,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 94,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 94,
+          "utf8_byte": 192,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 95,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 95,
+          "utf8_byte": 195,
+          "value": "時"
+        },
+        {
+          "atoms": [
+            {
+              "id": 96,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 96,
+          "utf8_byte": 198,
+          "value": "間"
+        },
+        {
+          "atoms": [
+            {
+              "id": 97,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 97,
+          "utf8_byte": 201,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 98,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 98,
+          "utf8_byte": 204,
+          "value": "休"
+        },
+        {
+          "atoms": [
+            {
+              "id": 99,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 99,
+          "utf8_byte": 207,
+          "value": "日"
+        },
+        {
+          "atoms": [
+            {
+              "id": 100,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 100,
+          "utf8_byte": 210,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 101,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 101,
+          "utf8_byte": 213,
+          "value": "深"
+        },
+        {
+          "atoms": [
+            {
+              "id": 102,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 102,
+          "utf8_byte": 216,
+          "value": "夜"
+        },
+        {
+          "atoms": [
+            {
+              "id": 103,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 103,
+          "utf8_byte": 219,
+          "value": "業"
+        },
+        {
+          "atoms": [
+            {
+              "id": 104,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 104,
+          "utf8_byte": 222,
+          "value": "等"
+        },
+        {
+          "atoms": [
+            {
+              "id": 105,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 105,
+          "utf8_byte": 225,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 106,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 106,
+          "utf8_byte": 228,
+          "value": "つ"
+        },
+        {
+          "atoms": [
+            {
+              "id": 107,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 107,
+          "utf8_byte": 231,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 108,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 108,
+          "utf8_byte": 234,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 109,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 109,
+          "utf8_byte": 237,
+          "value": "規"
+        },
+        {
+          "atoms": [
+            {
+              "id": 110,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 110,
+          "utf8_byte": 240,
+          "value": "定"
+        },
+        {
+          "atoms": [
+            {
+              "id": 111,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 111,
+          "utf8_byte": 243,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 112,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 112,
+          "utf8_byte": 246,
+          "value": "設"
+        },
+        {
+          "atoms": [
+            {
+              "id": 113,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 113,
+          "utf8_byte": 249,
+          "value": "け"
+        },
+        {
+          "atoms": [
+            {
+              "id": 114,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 114,
+          "utf8_byte": 252,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 115,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 115,
+          "utf8_byte": 255,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 116,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 116,
+          "utf8_byte": 258,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 117,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 117,
+          "utf8_byte": 261,
+          "value": "こ"
+        },
+        {
+          "atoms": [
+            {
+              "id": 118,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 118,
+          "utf8_byte": 264,
+          "value": "と"
+        },
+        {
+          "atoms": [
+            {
+              "id": 119,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 119,
+          "utf8_byte": 267,
+          "value": "か"
+        },
+        {
+          "atoms": [
+            {
+              "id": 120,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 120,
+          "utf8_byte": 270,
+          "value": "ら"
+        },
+        {
+          "atoms": [
+            {
+              "id": 121,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 121,
+          "utf8_byte": 273,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 122,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 122,
+          "utf8_byte": 276,
+          "value": "使"
+        },
+        {
+          "atoms": [
+            {
+              "id": 123,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 123,
+          "utf8_byte": 279,
+          "value": "用"
+        },
+        {
+          "atoms": [
+            {
+              "id": 124,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 124,
+          "utf8_byte": 282,
+          "value": "者"
+        },
+        {
+          "atoms": [
+            {
+              "id": 125,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 125,
+          "utf8_byte": 285,
+          "value": "は"
+        },
+        {
+          "atoms": [
+            {
+              "id": 126,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 126,
+          "utf8_byte": 288,
+          "value": "、"
+        },
+        {
+          "atoms": [
+            {
+              "id": 127,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 127,
+          "utf8_byte": 291,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 128,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 128,
+          "utf8_byte": 294,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 129,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 129,
+          "utf8_byte": 297,
+          "value": "時"
+        },
+        {
+          "atoms": [
+            {
+              "id": 130,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 130,
+          "utf8_byte": 300,
+          "value": "間"
+        },
+        {
+          "atoms": [
+            {
+              "id": 131,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 131,
+          "utf8_byte": 303,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 132,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 132,
+          "utf8_byte": 306,
+          "value": "適"
+        },
+        {
+          "atoms": [
+            {
+              "id": 133,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 133,
+          "utf8_byte": 309,
+          "value": "正"
+        },
+        {
+          "atoms": [
+            {
+              "id": 134,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 134,
+          "utf8_byte": 312,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 135,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 135,
+          "utf8_byte": 315,
+          "value": "把"
+        },
+        {
+          "atoms": [
+            {
+              "id": 136,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 136,
+          "utf8_byte": 318,
+          "value": "握"
+        },
+        {
+          "atoms": [
+            {
+              "id": 137,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 137,
+          "utf8_byte": 321,
+          "value": "す"
+        },
+        {
+          "atoms": [
+            {
+              "id": 138,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 138,
+          "utf8_byte": 324,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 139,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 139,
+          "utf8_byte": 327,
+          "value": "な"
+        },
+        {
+          "atoms": [
+            {
+              "id": 140,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 140,
+          "utf8_byte": 330,
+          "value": "ど"
+        },
+        {
+          "atoms": [
+            {
+              "id": 141,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 141,
+          "utf8_byte": 333,
+          "value": "労"
+        },
+        {
+          "atoms": [
+            {
+              "id": 142,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 142,
+          "utf8_byte": 336,
+          "value": "働"
+        },
+        {
+          "atoms": [
+            {
+              "id": 143,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 143,
+          "utf8_byte": 339,
+          "value": "時"
+        },
+        {
+          "atoms": [
+            {
+              "id": 144,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 144,
+          "utf8_byte": 342,
+          "value": "間"
+        },
+        {
+          "atoms": [
+            {
+              "id": 145,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 145,
+          "utf8_byte": 345,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 146,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 146,
+          "utf8_byte": 348,
+          "value": "適"
+        },
+        {
+          "atoms": [
+            {
+              "id": 147,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 147,
+          "utf8_byte": 351,
+          "value": "切"
+        },
+        {
+          "atoms": [
+            {
+              "id": 148,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 148,
+          "utf8_byte": 354,
+          "value": "に"
+        },
+        {
+          "atoms": [
+            {
+              "id": 149,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 149,
+          "utf8_byte": 357,
+          "value": "管"
+        },
+        {
+          "atoms": [
+            {
+              "id": 150,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 150,
+          "utf8_byte": 360,
+          "value": "理"
+        },
+        {
+          "atoms": [
+            {
+              "id": 151,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 151,
+          "utf8_byte": 363,
+          "value": "す"
+        },
+        {
+          "atoms": [
+            {
+              "id": 152,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 152,
+          "utf8_byte": 366,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 153,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 153,
+          "utf8_byte": 369,
+          "value": "責"
+        },
+        {
+          "atoms": [
+            {
+              "id": 154,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 154,
+          "utf8_byte": 372,
+          "value": "務"
+        },
+        {
+          "atoms": [
+            {
+              "id": 155,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 155,
+          "utf8_byte": 375,
+          "value": "を"
+        },
+        {
+          "atoms": [
+            {
+              "id": 156,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 156,
+          "utf8_byte": 378,
+          "value": "有"
+        },
+        {
+          "atoms": [
+            {
+              "id": 157,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 157,
+          "utf8_byte": 381,
+          "value": "し"
+        },
+        {
+          "atoms": [
+            {
+              "id": 158,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 158,
+          "utf8_byte": 384,
+          "value": "て"
+        },
+        {
+          "atoms": [
+            {
+              "id": 159,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 159,
+          "utf8_byte": 387,
+          "value": "い"
+        },
+        {
+          "atoms": [
+            {
+              "id": 160,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 160,
+          "utf8_byte": 390,
+          "value": "る"
+        },
+        {
+          "atoms": [
+            {
+              "id": 161,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 161,
+          "utf8_byte": 393,
+          "value": "。"
+        }
+      ],
+      "status": "unique"
+    },
+    {
+      "id": "control-new",
+      "occurrences": [
+        {
+          "block": 0,
+          "block_pages": [
+            0
+          ],
+          "unicode_scalar": {
+            "end": 380,
+            "start": 375
+          },
+          "utf8_byte": {
+            "end": 1042,
+            "start": 1027
+          }
+        }
+      ],
+      "sources": [
+        {
+          "atoms": [
+            {
+              "id": 375,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 375,
+          "utf8_byte": 1027,
+          "value": "適"
+        },
+        {
+          "atoms": [
+            {
+              "id": 376,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 376,
+          "utf8_byte": 1030,
+          "value": "用"
+        },
+        {
+          "atoms": [
+            {
+              "id": 377,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 377,
+          "utf8_byte": 1033,
+          "value": "の"
+        },
+        {
+          "atoms": [
+            {
+              "id": 378,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 378,
+          "utf8_byte": 1036,
+          "value": "範"
+        },
+        {
+          "atoms": [
+            {
+              "id": 379,
+              "kind": "glyph"
+            }
+          ],
+          "scalar": 379,
+          "utf8_byte": 1039,
+          "value": "囲"
+        }
+      ],
+      "status": "unique"
+    }
+  ]
+}

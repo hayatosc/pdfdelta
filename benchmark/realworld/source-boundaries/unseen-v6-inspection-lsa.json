@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "2381de218f395234e89750ca9309cf2a17424a6dbeee05bae4b8f48065d0a344",
+  "attempts": [
+    {
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-matched-prefix-v60/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T18:05:32.881306+00:00",
+      "exit_code": 0,
+      "input_sha256": "c05e60391bd8f0afecb115729d0843a57007fbf6d5a3e94e052778bb3117e053",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-old.glyphs.txt",
+        "sha256": "b3b1e06a3e978d0fc3faee75e0cd14efdddc3d2da895a6c110aa908fbd5be46b"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-matched-prefix-v60/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T18:05:33.309566+00:00",
+      "exit_code": 0,
+      "input_sha256": "6fd69a68b5b1dc1055bd07cfaf6a000044cade01e2908a3d07a90a67e34b1a18",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-new.glyphs.txt",
+        "sha256": "51efbf1f42ec9347222342546f0b311b309e074677431ab16d2a165d9734e0de"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v6/edpb-lead-authority-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

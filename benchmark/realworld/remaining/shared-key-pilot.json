@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "build": {
+    "path": "benchmark/realworld/cache/remaining-shared-key-dev/build.json",
+    "sha256": "6e1e6b21990488bc23e4bc334d79e7f506e7a89984581c8755f52d619c3de3cc"
+  },
+  "observations": [
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-dev/runs.json",
+        "sha256": "b0b1cb08482e84a3773b90072446d45e6a4824756af64f7de624b0ab0e1de581"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-dev/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "a37371242b002e9d0786cb61def0e9a9e772bd9e71d392c84b1467c81de49091"
+      },
+      "score": {
+        "pair": "arxiv-bert-v1-to-v2",
+        "core_atoms": 703,
+        "extent_atoms": 703,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 46126,
+          "new_discovered_sources": 54003,
+          "old_compared_sources": 8399,
+          "new_compared_sources": 8399,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 37727,
+          "new_uncompared_sources": 45604,
+          "complete": false
+        }
+      ],
+      "index_work": 105323
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-dev/runs.json",
+        "sha256": "b0b1cb08482e84a3773b90072446d45e6a4824756af64f7de624b0ab0e1de581"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-dev/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "e93e04f3fa1dcae5d65a5fe873dc281fe87546cba7b2a0b043b1070f3af18e22"
+      },
+      "score": {
+        "pair": "arxiv-gpt3-v1-to-v4",
+        "core_atoms": 225,
+        "extent_atoms": 225,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 183113,
+          "new_discovered_sources": 188326,
+          "old_compared_sources": 118949,
+          "new_compared_sources": 118949,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 64164,
+          "new_uncompared_sources": 69377,
+          "complete": false
+        }
+      ],
+      "index_work": 680186
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-dev/runs.json",
+        "sha256": "b0b1cb08482e84a3773b90072446d45e6a4824756af64f7de624b0ab0e1de581"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-dev/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "b42c2381258488756c5ea9e40fe6b410a4ee020962c633e910260f6af53a522a"
+      },
+      "score": {
+        "pair": "edpb-controller-processor-v1-to-v2-1",
+        "core_atoms": 986,
+        "extent_atoms": 986,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 1,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 1406,
+          "new_compared_sources": 1432,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 134382,
+          "new_uncompared_sources": 175560,
+          "complete": false
+        }
+      ],
+      "index_work": 489892
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-nist/runs.json",
+        "sha256": "166239bb794f7658b70ca055a449485de1de05f449cc415046dffa26ec429a3a"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-shared-key-nist/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "a674d45004738e092804d68857d237322bf84c50525d62d4d1b03769d40f1193"
+      },
+      "score": {
+        "pair": "nist-risk-management-37-r1-to-r2",
+        "core_atoms": 514,
+        "extent_atoms": 514,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false,
+      "coverage": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 379765,
+          "new_discovered_sources": 643987,
+          "old_compared_sources": 0,
+          "new_compared_sources": 0,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 379765,
+          "new_uncompared_sources": 643987,
+          "complete": false
+        }
+      ],
+      "index_work": 999810
+    }
+  ],
+  "validation": {
+    "fmt": "passed",
+    "clippy": "passed",
+    "workspace_passed": 2340,
+    "workspace_ignored": 2,
+    "generated_fixtures": "48/48 passed"
+  },
+  "interpretation": "Avoids hashing an identical literal/boundary token slice twice; both key domains and exact retrieved-pair verification remain unchanged. Four same-budget pilot pairs retain their previous source coverage and fixed-target B outcomes; no G1/G3 gain is claimed."
+}

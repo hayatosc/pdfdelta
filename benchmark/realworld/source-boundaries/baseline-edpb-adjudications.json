@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "observations": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "107dc4dee36fc25dccb9cfeddafa15b16b544ddcfb90b7c9be4886e556c203c4"
+      },
+      "events": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+          "event_sha256": "05a87718494072841a2417181f6251233f547ad65b976ff9c87fff26cc5c5135",
+          "verdict": "source_supported",
+          "source_content_rationale": "Page 9 paragraph 12 visibly adds the sentence establishing that allocation follows factual circumstances and is not negotiable. The 375 old and 611 new atoms exactly match the frozen 986-atom target; reconstructed spacing is not the content witness.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-8.png",
+              "sha256": "ef1a1d98f06b93ecc5f4a109c54b9ba52f03596f317c6b6f826380077e9b2f1a"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-8.png",
+              "sha256": "b1651a8d85c4af231b50d28834e90d27e144a416a4a76281acd8a7f0ae21a0b1"
+            }
+          ]
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/1",
+          "event_sha256": "57750e4a8f96e9740de71587325c90d92fa9f17c6fb730fe3df233fa32c7be7c",
+          "verdict": "source_supported",
+          "source_content_rationale": "Page 9 paragraph 14 adds effective and complete protection of data subjects and the qualification about not diminishing the processor role. The following section headings are retained context, not changed masks. This output is outside the frozen recovery target.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-8.png",
+              "sha256": "ef1a1d98f06b93ecc5f4a109c54b9ba52f03596f317c6b6f826380077e9b2f1a"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-8.png",
+              "sha256": "b1651a8d85c4af231b50d28834e90d27e144a416a4a76281acd8a7f0ae21a0b1"
+            }
+          ]
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/2",
+          "event_sha256": "485779717d2b30c28588709abed2e1663b7de4556006dfbd4c9c7c70cab45941",
+          "verdict": "source_supported",
+          "source_content_rationale": "The first line of paragraph 30 on old page 13 becomes paragraph 32 on new page 14. The source numerals visibly differ; remaining text in this finite line is unchanged. This is numbering evidence outside the fixed prose target, not additional body recovery.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-12.png",
+              "sha256": "46b2e10264f29aca05a592485bb3433c71537573936e0005f15605c9f1f056de"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-13.png",
+              "sha256": "6fa9c4336aea481ade394fac584feb5363ae88ff336e8a4b225a047a9e3494e5"
+            }
+          ]
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/3",
+          "event_sha256": "38ef5f5b3e3a24e275d0410356750fdb69e9523aa9cf706450670f9d7e10553f",
+          "verdict": "source_supported",
+          "source_content_rationale": "The first line of paragraph 31 on old page 13 becomes paragraph 33 on new page 14. The source numerals visibly differ; this finite line is not a claim that the whole paragraph changed. It is outside the frozen prose target.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-12.png",
+              "sha256": "46b2e10264f29aca05a592485bb3433c71537573936e0005f15605c9f1f056de"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-13.png",
+              "sha256": "6fa9c4336aea481ade394fac584feb5363ae88ff336e8a4b225a047a9e3494e5"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-2/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "53cfb188f44a1cc5ded31163a69f1c2502f0b7ab08ce894d93dfbf368014af49"
+      },
+      "events": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+          "event_sha256": "05a87718494072841a2417181f6251233f547ad65b976ff9c87fff26cc5c5135",
+          "verdict": "source_supported",
+          "source_content_rationale": "Page 9 paragraph 12 visibly adds the sentence establishing that allocation follows factual circumstances and is not negotiable. The 375 old and 611 new atoms exactly match the frozen 986-atom target; reconstructed spacing is not the content witness.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-8.png",
+              "sha256": "ef1a1d98f06b93ecc5f4a109c54b9ba52f03596f317c6b6f826380077e9b2f1a"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-8.png",
+              "sha256": "b1651a8d85c4af231b50d28834e90d27e144a416a4a76281acd8a7f0ae21a0b1"
+            }
+          ]
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/1",
+          "event_sha256": "57750e4a8f96e9740de71587325c90d92fa9f17c6fb730fe3df233fa32c7be7c",
+          "verdict": "source_supported",
+          "source_content_rationale": "Page 9 paragraph 14 adds effective and complete protection of data subjects and the qualification about not diminishing the processor role. The following section headings are retained context, not changed masks. This output is outside the frozen recovery target.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-8.png",
+              "sha256": "ef1a1d98f06b93ecc5f4a109c54b9ba52f03596f317c6b6f826380077e9b2f1a"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-8.png",
+              "sha256": "b1651a8d85c4af231b50d28834e90d27e144a416a4a76281acd8a7f0ae21a0b1"
+            }
+          ]
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/2",
+          "event_sha256": "485779717d2b30c28588709abed2e1663b7de4556006dfbd4c9c7c70cab45941",
+          "verdict": "source_supported",
+          "source_content_rationale": "The first line of paragraph 30 on old page 13 becomes paragraph 32 on new page 14. The source numerals visibly differ; remaining text in this finite line is unchanged. This is numbering evidence outside the fixed prose target, not additional body recovery.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-12.png",
+              "sha256": "46b2e10264f29aca05a592485bb3433c71537573936e0005f15605c9f1f056de"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-13.png",
+              "sha256": "6fa9c4336aea481ade394fac584feb5363ae88ff336e8a4b225a047a9e3494e5"
+            }
+          ]
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/3",
+          "event_sha256": "38ef5f5b3e3a24e275d0410356750fdb69e9523aa9cf706450670f9d7e10553f",
+          "verdict": "source_supported",
+          "source_content_rationale": "The first line of paragraph 31 on old page 13 becomes paragraph 33 on new page 14. The source numerals visibly differ; this finite line is not a claim that the whole paragraph changed. It is outside the frozen prose target.",
+          "correspondence_rationale": "Compared intervals are bounded by independently accepted source-only unchanged correspondences in a closed native page band. Page images and retained source projections place each old/new interval in the same surrounding section. Review is non-owning and makes no document-wide completion or author-history claim.",
+          "source_evidence": [
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.json",
+              "sha256": "e1d12c4a849202b164154ac31e443b6e50621e17e2ac6ef97072dc67db7a6abf"
+            },
+            {
+              "path": "benchmark/realworld/next/development/annotations/edpb-controller-processor-v1-to-v2-1.resolved.json",
+              "sha256": "d33480ad5b21779b2173edc88c9e3e074c8bf0786d3bbc40569280487138e98f"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/sources.json",
+              "sha256": "c979a4e4088e88995a1deaba06481eeb52e6ff9a47bfa5d7a17c391101fc6b16"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/manifest.json",
+              "sha256": "0bb3dc73ddab1eabb2ba2116cfe6da67173b337002d30aca807f043c3ff00ce8"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/old-region-12.png",
+              "sha256": "46b2e10264f29aca05a592485bb3433c71537573936e0005f15605c9f1f056de"
+            },
+            {
+              "path": "benchmark/realworld/cache/source-boundaries-baseline-edpb-review/new-region-13.png",
+              "sha256": "6fa9c4336aea481ade394fac584feb5363ae88ff336e8a4b225a047a9e3494e5"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

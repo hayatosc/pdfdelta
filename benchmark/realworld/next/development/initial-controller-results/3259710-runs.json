@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "implementation_commit": "3259710",
+  "binary_sha256": "7d35da2c25fc8167287cb1078140c38d161cbca72d23d6217f344f882483f5a9",
+  "inputs_sha256": "ccfc3fab3fe4659f90259c1a05f29e05a1f20ee48b677db63de25958a84d2f60",
+  "timeout_seconds": 180,
+  "limit_scale": 1,
+  "annotation_scoring": false,
+  "provenance_note": "Caller identifies the build commit; the driver binds the executable hash but does not independently prove its build provenance.",
+  "runs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "native",
+      "old_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "new_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "reference_sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f",
+      "exit_code": 3,
+      "wall_seconds": 31.97,
+      "peak_rss_kib": 649292,
+      "status": "captured",
+      "report_bytes": 791109475,
+      "report_sha256": "9b16b12b10535e73e33488d042c487149571ee7295420d99c06ed49dd0407381",
+      "stderr": "",
+      "evaluation": "report exceeds existing 128 MiB summary input limit; native annotation metrics remain unknown"
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "text",
+      "old_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "new_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "reference_sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f",
+      "exit_code": 3,
+      "wall_seconds": 8.39,
+      "peak_rss_kib": 350096,
+      "status": "captured",
+      "report_bytes": 522487,
+      "report_sha256": "2e83945edf451ccc883b996b6f99092b34bcb67658d0d971aa798e68bd6c4cbb",
+      "stderr": "",
+      "observations": {
+        "comparison_complete": false,
+        "typed_changes": 0,
+        "inferred_changes": 0,
+        "scope_content_changes": null,
+        "inferred_scope_changes": null,
+        "scopes": [
+          {
+            "candidate_exhaustive": false,
+            "source_index_work": 263400,
+            "group_token_checks": 999571,
+            "group_constraint_checks": 30484,
+            "candidate_pair_checks": 1691,
+            "text_pair_checks": 0,
+            "text_token_visits": 0,
+            "accepted_correspondences": 28,
+            "proposal_count": 77,
+            "source_only_mandatory": 28,
+            "optimization_components": 32,
+            "optimization_complete": true,
+            "unresolved": [
+              "text candidate enumeration is incomplete",
+              "a correspondence conflict component has competing optima",
+              "a correspondence conflict component has competing optima",
+              "a correspondence conflict component has competing optima",
+              "a correspondence conflict component has competing optima"
+            ],
+            "scope_reviews": null
+          }
+        ],
+        "scope_reference": {
+          "detected": 0,
+          "expected": 1,
+          "unit": "manually inspected corresponding paragraph content change",
+          "precision": null,
+          "strict_event_metrics": null,
+          "strict_position_metrics": null
+        }
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "route": "all",
+      "old_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "new_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "reference_sha256": "8837266ea63828c2b5a00f1f2e015dd8c3346ec547cd8344580a2d14031b3d4f",
+      "exit_code": 3,
+      "wall_seconds": 8.73,
+      "peak_rss_kib": 351392,
+      "status": "captured",
+      "report_bytes": 524352,
+      "report_sha256": "bad33e8868cc058a6451f66227d4206f5b060842a5d8427a2f6a327682b2dc21",
+      "stderr": "",
+      "observations": {
+        "comparison_complete": false,
+        "typed_changes": 0,
+        "inferred_changes": 0,
+        "scope_content_changes": null,
+        "inferred_scope_changes": null,
+        "scopes": [
+          {
+            "candidate_exhaustive": false,
+            "source_index_work": 263400,
+            "group_token_checks": 999571,
+            "group_constraint_checks": 30589,
+            "candidate_pair_checks": 1691,
+            "text_pair_checks": 0,
+            "text_token_visits": 0,
+            "accepted_correspondences": 28,
+            "proposal_count": 77,
+            "source_only_mandatory": 28,
+            "optimization_components": 32,
+            "optimization_complete": true,
+            "unresolved": [
+              "visual candidate enumeration is incomplete",
+              "text candidate enumeration is incomplete",
+              "a correspondence conflict component has competing optima",
+              "a correspondence conflict component has competing optima",
+              "a correspondence conflict component has competing optima",
+              "a correspondence conflict component has competing optima"
+            ],
+            "scope_reviews": null
+          }
+        ],
+        "scope_reference": {
+          "detected": 0,
+          "expected": 1,
+          "unit": "manually inspected corresponding paragraph content change",
+          "precision": null,
+          "strict_event_metrics": null,
+          "strict_position_metrics": null
+        }
+      }
+    }
+  ]
+}

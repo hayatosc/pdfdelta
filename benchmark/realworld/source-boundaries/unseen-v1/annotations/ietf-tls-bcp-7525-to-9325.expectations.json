@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-tls-bcp-7525-to-9325",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "f90b084ba90c92c48cfd6dca47d1db7e669ab3515abf1cd7a6103d615160359a",
+  "body_eligible": true,
+  "reason": "The abstract updates TLS/DTLS guidance and adds a second paragraph describing the TLS 1.2/1.3 transition and the superseded/updated documents."
+}

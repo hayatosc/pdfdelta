@@ -1,0 +1,3224 @@
+{
+  "status": "single_diagnostic_capture",
+  "goal_complete": false,
+  "final_acceptance": false,
+  "fixed_denominator": 36,
+  "pilot": {
+    "path": "benchmark/realworld/remaining/source-completion/completion-recheck-v2.json",
+    "sha256": "1c362293a06e80ff252386dd6b14d24c144a7ac096796f0344a4f2fcb2ab71e9"
+  },
+  "audit_implementation": {
+    "path": "benchmark/realworld/remaining/audit_reports.py",
+    "sha256": "880eacb4ab5c75d69ac519a7bfe4295019413bcb70d8220aca4e817f3dc3f6bb"
+  },
+  "rows": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "b63275818fdf156a65f95c11f07170eac88d22b6da25954daf1384a757b0145e"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f5e4fb0dc0b3007e0f86b855b3e116f5b7fd2c1422b2330f374741b8176ad54f"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "253529082e18575366a5ebcc184de40cf802bcf5e030f31b59ba16413ceb9a1e"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 135788,
+          "compared": 2240,
+          "uncompared": 133548,
+          "compared_delta_from_baseline": 834
+        },
+        "new": {
+          "discovered": 176992,
+          "compared": 2266,
+          "uncompared": 174726,
+          "compared_delta_from_baseline": 834
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 48,
+          "native_glyphs": 135788,
+          "incomplete_text_inventories": 39,
+          "paint_pages": 39,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 51,
+          "native_glyphs": 176992,
+          "incomplete_text_inventories": 46,
+          "paint_pages": 46,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "correspondence 1 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 8 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence conflict component has competing optima": 13,
+        "correspondence 16 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 37 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 39 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 42 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 44 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 46 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 49 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 50 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 52 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 53 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 63 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 68 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 69 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 70 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 72 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 73 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 74 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 75 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 83 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 84 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 93 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 94 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 95 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 102 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 112 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 113 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 114 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 130 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 131 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 132 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 133 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 134 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 135 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 136 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 137 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 139 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 161 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 162 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 163 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 167 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 168 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 169 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 170 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 171 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 175 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 176 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 181 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 182 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 183 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 184 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 185 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 186 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 187 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 188 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 189 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 190 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 191 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 192 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 193 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 194 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 195 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 196 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 197 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 198 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 199 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 200 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 202 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 203 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 204 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 205 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 206 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 207 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 208 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 209 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 210 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 211 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 212 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 213 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 214 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 215 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 216 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 217 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 218 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 219 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 220 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 221 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 222 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 223 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 224 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 225 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 226 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 227 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 228 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 229 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 230 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 231 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 232 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 233 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 234 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 235 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 236 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 237 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 239 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 240 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 241 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 242 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 243 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 244 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 245 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 246 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 247 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 248 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 249 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 250 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 251 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 252 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 253 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 254 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 255 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 256 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 257 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 258 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 259 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 260 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 261 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 262 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 263 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 264 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 265 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 266 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 267 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 268 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 269 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 271 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 272 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 273 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 274 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 275 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 276 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 277 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 278 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 279 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 280 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 281 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 283 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 284 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 285 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 286 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 287 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 288 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 289 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 290 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 291 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 292 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 293 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 294 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 295 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 297 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 298 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 299 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 300 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 301 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 302 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 304 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 305 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 306 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 307 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 308 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 309 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 310 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 311 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 312 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 313 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 314 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 315 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 316 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 317 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 318 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 319 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 320 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 321 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 322 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 323 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 326 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 327 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 328 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 329 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 330 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 331 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 332 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 333 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 334 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 336 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 337 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 338 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 339 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 340 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 341 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 342 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 343 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 344 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 345 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 346 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 347 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 348 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 349 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 352 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 353 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 354 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 355 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 356 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 357 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 358 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 359 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 361 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 362 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 363 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 364 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 365 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 366 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 367 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 368 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 369 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 370 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 371 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 372 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 373 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 374 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 375 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 376 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 377 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 378 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 379 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 380 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 381 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 382 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 383 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 384 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 385 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 386 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 387 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 388 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 390 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 391 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 393 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 394 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 395 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 396 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 397 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 398 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 399 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 400 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 401 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 402 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 403 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 404 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 405 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 406 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 407 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 408 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 52
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "f7a75e2f2b8e0e062fa270c1d8e16e14d79581553fcea31ec155bdcf2799463e"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "fe87f1cb6e123cf4c11644e4b7dba7406a6944ef70bb14194666dd01108c74a6"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-restrictions-v1-to-final-1/runs.json",
+        "sha256": "b4b07b973d0d7bf80aec4ab8d10dfd4483f178c95c11afeaac9e272473f72e23"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 52431,
+          "compared": 1003,
+          "uncompared": 51428,
+          "compared_delta_from_baseline": 1003
+        },
+        "new": {
+          "discovered": 57738,
+          "compared": 1005,
+          "uncompared": 56733,
+          "compared_delta_from_baseline": 1005
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 18,
+          "native_glyphs": 52431,
+          "incomplete_text_inventories": 11,
+          "paint_pages": 11,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 20,
+          "native_glyphs": 57738,
+          "incomplete_text_inventories": 13,
+          "paint_pages": 13,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "correspondence 0 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence conflict component has competing optima": 8,
+        "correspondence 8 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 10 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 11 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 12 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 13 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 14 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 15 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 16 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 17 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 18 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 19 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 20 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 21 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 22 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 23 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 25 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 26 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 27 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 28 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 29 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 30 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 31 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 32 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 33 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 34 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 35 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 36 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 37 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 38 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 39 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 40 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 41 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 43 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 44 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 45 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 46 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 47 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 48 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 49 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 50 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 51 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 52 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 53 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 54 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 55 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 56 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 57 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 58 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 59 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 60 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 61 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 63 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 64 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 65 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 69 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 70 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 71 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 72 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 73 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 74 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 75 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 76 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 77 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 78 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 79 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 80 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 81 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 82 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 83 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 84 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 85 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 86 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 87 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 88 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 89 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 90 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 91 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 92 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 93 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 94 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 95 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 96 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 97 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 98 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 101 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 102 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 103 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 104 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 105 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 106 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 107 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 109 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 110 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 111 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 112 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 113 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 114 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 115 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 116 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 117 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 118 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 120 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 121 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 122 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 123 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 124 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 125 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 126 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 127 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 128 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 129 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 130 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 134 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 135 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 136 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 137 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 138 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 139 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 140 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 141 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 142 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 145 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 146 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 147 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 148 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 149 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 150 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 151 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 152 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 153 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 154 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 155 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 156 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 70
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-design-default-v1-to-v2-1/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "2758932e22a4d948043721676821f59bc529f62a1e89bd27826b7c85685460a7"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-design-default-v1-to-v2/edpb-design-default-v1-to-v2-text.json",
+        "sha256": "9819e3a57ae30dae69d15704d9a87f8b6ebec4d54cf086ed21718fbec54305b9"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-design-default-v1-to-v2-1/runs.json",
+        "sha256": "cdc855e3283b334ea4ca2f276f32505b4bba4af2306aa9ce07d6bf001a048c69"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 81687,
+          "compared": 164,
+          "uncompared": 81523,
+          "compared_delta_from_baseline": 164
+        },
+        "new": {
+          "discovered": 91083,
+          "compared": 164,
+          "uncompared": 90919,
+          "compared_delta_from_baseline": 164
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 27,
+          "native_glyphs": 81687,
+          "incomplete_text_inventories": 27,
+          "paint_pages": 27,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 31,
+          "native_glyphs": 91083,
+          "incomplete_text_inventories": 28,
+          "paint_pages": 28,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "correspondence 0 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence conflict component has competing optima": 2,
+        "correspondence 8 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 10 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 11 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 12 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 13 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 14 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 15 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 16 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 17 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 18 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 19 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 21 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 22 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 23 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 24 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 25 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 26 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 27 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 28 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 29 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 30 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 31 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 32 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 33 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 34 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 35 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 36 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 37 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 38 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 39 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 40 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 41 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 44 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 45 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 46 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 47 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 48 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 49 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 50 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 53 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 54 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 55 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 56 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 57 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 58 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 59 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 60 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 61 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 62 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 63 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 64 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 65 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 66 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 67 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 68 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 69 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 70 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 71 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 72 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 73 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 74 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 75 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 76 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 77 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 78 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 5
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-social-targeting-v1-to-v2-1/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "1f5653d114902814b88cd50e6b25100ed85ddaca18259121dc9b228c92929075"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-social-targeting-v1-to-v2/edpb-social-targeting-v1-to-v2-text.json",
+        "sha256": "03a55d26d580617d6efe45c52fe68325ec0f3053d034f7f7204d65d41793deec"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-social-targeting-v1-to-v2-1/runs.json",
+        "sha256": "acf25b188867bb16ac9f523d425703ef18a49936135324c6999b15403c11a6a0"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 137655,
+          "compared": 9690,
+          "uncompared": 127965,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 144179,
+          "compared": 9707,
+          "uncompared": 134472,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 37,
+          "native_glyphs": 137655,
+          "incomplete_text_inventories": 36,
+          "paint_pages": 36,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 40,
+          "native_glyphs": 144179,
+          "incomplete_text_inventories": 38,
+          "paint_pages": 38,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 11
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 17
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-incident-handling-r2-to-r3-1/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "59e43fee978f988f967513a95c05fbe9ee3453226017430b505701aabb424ba5"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-incident-handling-r2-to-r3/nist-incident-handling-r2-to-r3-text.json",
+        "sha256": "67bb064ce53a326ee8627aacdb7fc157fc5395118f2d2ac1404e1be4212af012"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-incident-handling-r2-to-r3-1/runs.json",
+        "sha256": "9f734713d9ddfdbc56aa6eae61e30e48769487e7b339bae2dab5da11da3652b4"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 228231,
+          "compared": 717,
+          "uncompared": 227514,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 104993,
+          "compared": 710,
+          "uncompared": 104283,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 80,
+          "native_glyphs": 228231,
+          "incomplete_text_inventories": 45,
+          "paint_pages": 45,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 48,
+          "native_glyphs": 104993,
+          "incomplete_text_inventories": 39,
+          "paint_pages": 39,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 5,
+        "a correspondence component depends on omitted source candidates": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 3
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "6d00c288c79802e64a335afb3c317a46fa9ddc7ecc6e9df9995d76e89893c725"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ssdf-draft-to-final/nist-ssdf-draft-to-final-text.json",
+        "sha256": "b35cbfcdbb1d735284ccf42f68da683c0cf5412579edb59bcf544d35ad258a4c"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ssdf-draft-to-final-1/runs.json",
+        "sha256": "81ef0ce18920684d9b40a5f17688335bdbdc5647b3c5953f680bc6e5c254646b"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 92494,
+          "compared": 24222,
+          "uncompared": 68272,
+          "compared_delta_from_baseline": 2294
+        },
+        "new": {
+          "discovered": 105512,
+          "compared": 24299,
+          "uncompared": 81213,
+          "compared_delta_from_baseline": 2384
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 32,
+          "native_glyphs": 92494,
+          "incomplete_text_inventories": 31,
+          "paint_pages": 31,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 36,
+          "native_glyphs": 105512,
+          "incomplete_text_inventories": 36,
+          "paint_pages": 36,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 71,
+        "a correspondence component depends on omitted source candidates": 1,
+        "correspondence 2287 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 27
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ai-rmf-draft2-to-v1-1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "d729cb8bdfbde33235056bcddef0ba3341bb9300fb86e84ddef145244b03ec3b"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-ai-rmf-draft2-to-v1/nist-ai-rmf-draft2-to-v1-text.json",
+        "sha256": "90066d53275a0d96bc943dae92805f00905352e235f749f22bf559170e22ebe6"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-ai-rmf-draft2-to-v1-1/runs.json",
+        "sha256": "88ccad15c31322676b271ee40e1918474d21937732ec20095b6a8eda96337a67"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 86136,
+          "compared": 0,
+          "uncompared": 86136,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 90392,
+          "compared": 0,
+          "uncompared": 90392,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 36,
+          "native_glyphs": 86136,
+          "incomplete_text_inventories": 30,
+          "paint_pages": 30,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 48,
+          "native_glyphs": 90392,
+          "incomplete_text_inventories": 48,
+          "paint_pages": 48,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "correspondence 0 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence conflict component has competing optima": 16,
+        "correspondence 9 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 10 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 11 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 12 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 13 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 14 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 15 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 19 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 20 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 21 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 22 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 34 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 36 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 43 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 44 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 1
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-authentication-63b-to-63b4-1/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "81dfd3bf7182cbe96db5944affa6f7c676a81cfc2656e50fc312fce258584730"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-authentication-63b-to-63b4/nist-authentication-63b-to-63b4-text.json",
+        "sha256": "50ff060e1dccaf7cb06dc94db4d242bee8fe169a270b0b1c76d86005aef3ecfc"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-authentication-63b-to-63b4-1/runs.json",
+        "sha256": "fe023a709942f18e3311ff8575d4e8cf3036ca7e80f464ccb5f609230aa2932f"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 198793,
+          "compared": 2514,
+          "uncompared": 196279,
+          "compared_delta_from_baseline": 1978
+        },
+        "new": {
+          "discovered": 280783,
+          "compared": 2510,
+          "uncompared": 278273,
+          "compared_delta_from_baseline": 1976
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 80,
+          "native_glyphs": 198793,
+          "incomplete_text_inventories": 80,
+          "paint_pages": 80,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 129,
+          "native_glyphs": 280783,
+          "incomplete_text_inventories": 73,
+          "paint_pages": 73,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 90,
+        "correspondence 14 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 18 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 19 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 29 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 33 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 36 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 40 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 41 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 42 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 52 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 64 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 65 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 66 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 67 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 72 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 143 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 144 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 154 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 167 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 171 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 193 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 294 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 322 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 359 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 360 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 392 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 394 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 405 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 439 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 441 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 470 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 478 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 485 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 486 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 494 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 497 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 498 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 499 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 507 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 508 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 509 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 510 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 573 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 624 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 702 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 703 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 704 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 705 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 706 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 707 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 708 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 709 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 710 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 711 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 712 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 713 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 714 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 715 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 719 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 723 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 732 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 735 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 742 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 748 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 6
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w9-2018-to-2024-1/irs-w9-2018-to-2024-text.json",
+        "sha256": "0c48d9604e5e85658f7d804c3d64b135c732beb2aa84dc9a6afe1529c680f5cf"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w9-2018-to-2024/irs-w9-2018-to-2024-text.json",
+        "sha256": "01ddab5ba4c49cb6a3c91306e792f4d034e1547911baf9c7c25c54594ce74910"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w9-2018-to-2024-1/runs.json",
+        "sha256": "134bcca4496633f2b673a9ccb807b9408bc42a2d619754a4cf6f99db326cebc1"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 34858,
+          "compared": 14976,
+          "uncompared": 19882,
+          "compared_delta_from_baseline": 6407
+        },
+        "new": {
+          "discovered": 37452,
+          "compared": 14951,
+          "uncompared": 22501,
+          "compared_delta_from_baseline": 6378
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 6,
+          "native_glyphs": 34858,
+          "incomplete_text_inventories": 6,
+          "paint_pages": 6,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 6,
+          "native_glyphs": 37452,
+          "incomplete_text_inventories": 6,
+          "paint_pages": 6,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 5,
+        "correspondence 28 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 62 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 35
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w4-english-2024-to-2025-1/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "0ef60412ef35033a7e017624538237ee04b5a6d21dc05aaa44e6afcb8bfa6fe0"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w4-english-2024-to-2025/irs-w4-english-2024-to-2025-text.json",
+        "sha256": "30068c180ed6325aba73cd6a8e445648f53c0497168b83b3f75ae1b8025f35a0"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w4-english-2024-to-2025-1/runs.json",
+        "sha256": "4281dad1c567016946c47a772304d86aa94908dd5449b18a09aa949717e0f467"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 19817,
+          "compared": 8564,
+          "uncompared": 11253,
+          "compared_delta_from_baseline": 175
+        },
+        "new": {
+          "discovered": 20974,
+          "compared": 8568,
+          "uncompared": 12406,
+          "compared_delta_from_baseline": 179
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 4,
+          "native_glyphs": 19817,
+          "incomplete_text_inventories": 4,
+          "paint_pages": 4,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 4,
+          "native_glyphs": 20974,
+          "incomplete_text_inventories": 4,
+          "paint_pages": 4,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 69
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 3
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "2390083cb664f1e93652b198138c4a0dc33b295caee3fa492296291067e4a82c"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "c055d1fad55f02420ea69ea69054d5f5d9850d6a580afe0a238799e388f71f52"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1/runs.json",
+        "sha256": "87bf30b2627a4dbf6dc921419c3bac86c2961a9dfb4c8066cfb99793ff2c6ebb"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 6310,
+          "compared": 5015,
+          "uncompared": 1295,
+          "compared_delta_from_baseline": 3
+        },
+        "new": {
+          "discovered": 6316,
+          "compared": 5015,
+          "uncompared": 1301,
+          "compared_delta_from_baseline": 3
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 2,
+          "native_glyphs": 6310,
+          "incomplete_text_inventories": 2,
+          "paint_pages": 2,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 2,
+          "native_glyphs": 6316,
+          "incomplete_text_inventories": 2,
+          "paint_pages": 2,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 32
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 1
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "fb7bdb2563c00c614d098c27620593a426ffe18f1d09ffbada25280348eed7d4"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "6df67bc05d527760796d5efdf2443b0b7f30b0114403d0d539bcd2ec63c3136b"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/runs.json",
+        "sha256": "2b1893004d53fc856750c0011c07b631acf3a64f1e5b387805f7db40d09d99b3"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 5158,
+          "compared": 4291,
+          "uncompared": 867,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 5175,
+          "compared": 4291,
+          "uncompared": 884,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 2,
+          "native_glyphs": 5158,
+          "incomplete_text_inventories": 2,
+          "paint_pages": 2,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 2,
+          "native_glyphs": 5175,
+          "incomplete_text_inventories": 2,
+          "paint_pages": 2,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "ca5e08d523de7e84d2c4f31533569b1db88c9e2a8058fbec33e8564c6f7599a2"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-bert-v1-to-v2/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "1508868355d1f3c5effab9123d1e6029c87ac748420ec866d60ae809880de212"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "5f16e46fe349666109b0700eb8cbdfc1eb95e01944599f8627aad06327200a17"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 46126,
+          "compared": 7064,
+          "uncompared": 39062,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 54003,
+          "compared": 7064,
+          "uncompared": 46939,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 14,
+          "native_glyphs": 46126,
+          "incomplete_text_inventories": 10,
+          "paint_pages": 10,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 16,
+          "native_glyphs": 54003,
+          "incomplete_text_inventories": 11,
+          "paint_pages": 11,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 62,
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 30
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-gpt3-v1-to-v4-1/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "6ba7d05c235b2b74d0830b978bc3e63aa5ddf3bb9f14423a52b87a2e0430642b"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-gpt3-v1-to-v4/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "77d257b16ec09eb9532e6c8e19eb8aa49298542822548f646e772ef45474255f"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-gpt3-v1-to-v4-1/runs.json",
+        "sha256": "4a91e936faec2a56b600adbc78947644673f47264dfb3d7ea390566ec05ff44c"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 183113,
+          "compared": 119031,
+          "uncompared": 64082,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 188326,
+          "compared": 119031,
+          "uncompared": 69295,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 72,
+          "native_glyphs": 183113,
+          "incomplete_text_inventories": 57,
+          "paint_pages": 55,
+          "text_issues": {
+            "Type 3 Encoding Differences references a missing CharProc": 4
+          }
+        },
+        "new": {
+          "pages": 75,
+          "native_glyphs": 188326,
+          "incomplete_text_inventories": 58,
+          "paint_pages": 56,
+          "text_issues": {
+            "Type 3 Encoding Differences references a missing CharProc": 4
+          }
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 274,
+        "a correspondence conflict component exceeded its search budget": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 8
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-primary-japanese-2008-to-2017-1/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "58bf1856ff9f1be66d7c6c749bdea9bc9d5c24409b183cadcc66e9b481588107"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-primary-japanese-2008-to-2017/mext-primary-japanese-2008-to-2017-text.json",
+        "sha256": "f986dedb74670bcf0705d180cad70047b34dc490a17ff1aa375c8e58ebc565f8"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-primary-japanese-2008-to-2017-1/runs.json",
+        "sha256": "ec32f8e589eb8f73a5e77f1ffb117baa95d84ccff7d922f8cfdd0d1cbc580d8f"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 102328,
+          "compared": 201,
+          "uncompared": 102127,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 249104,
+          "compared": 201,
+          "uncompared": 248903,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 139,
+          "native_glyphs": 102328,
+          "incomplete_text_inventories": 75,
+          "paint_pages": 75,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 249,
+          "native_glyphs": 249104,
+          "incomplete_text_inventories": 248,
+          "paint_pages": 248,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 65,
+        "correspondence 3991 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-lower-secondary-japanese-2008-to-2017-1/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "08f7166c5633929ed65f7fe35990ee6c6f49cc4aba68a3c28bae3c04e286b623"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-lower-secondary-japanese-2008-to-2017/mext-lower-secondary-japanese-2008-to-2017-text.json",
+        "sha256": "2763338cf61d2ef3d3cfc4cb4d4964e09bb5332afdf2c14b895b82293bccb2e6"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-lower-secondary-japanese-2008-to-2017-1/runs.json",
+        "sha256": "48595010660c43ac77c3c050e450508333c3fe4cc08f16c4a1b86500c2a2e29c"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 80303,
+          "compared": 153,
+          "uncompared": 80150,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 199442,
+          "compared": 154,
+          "uncompared": 199288,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 119,
+          "native_glyphs": 80303,
+          "incomplete_text_inventories": 69,
+          "paint_pages": 69,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 207,
+          "native_glyphs": 199442,
+          "incomplete_text_inventories": 206,
+          "paint_pages": 206,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component exceeded its search budget": 1,
+        "a correspondence conflict component has competing optima": 40,
+        "correspondence 4511 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6303 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-upper-secondary-japanese-2009-to-2018-1/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "3ce9ebe20328807df39fd0bb8d8d39f6a4c4e27c941e073bf89e0e42d55fcee2"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mext-upper-secondary-japanese-2009-to-2018/mext-upper-secondary-japanese-2009-to-2018-text.json",
+        "sha256": "eec3fa8d4d5e5746e97a58624e9a340c53956a1b1105be82fafea6d1c38befb1"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mext-upper-secondary-japanese-2009-to-2018-1/runs.json",
+        "sha256": "b5163ea4e562b25a4ab669d83f44b845b5b5eb056dbc47201c91a9a3b6264388"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 111053,
+          "compared": 115,
+          "uncompared": 110938,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 297348,
+          "compared": 116,
+          "uncompared": 297232,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 82,
+          "native_glyphs": 111053,
+          "incomplete_text_inventories": 71,
+          "paint_pages": 71,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 288,
+          "native_glyphs": 297348,
+          "incomplete_text_inventories": 286,
+          "paint_pages": 286,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 42
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mhlw-care-skills-original-to-revised-1/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "b477199dd32aad79b70b92f2e2baf8e2aaf77f755be44ce68eb652498a5ec713"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/mhlw-care-skills-original-to-revised/mhlw-care-skills-original-to-revised-text.json",
+        "sha256": "bd2c69581a7f8185a6c1f60ecbd38dbf705fb254b62621cf70df502d8fb9e941"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/mhlw-care-skills-original-to-revised-1/runs.json",
+        "sha256": "baf8c4f05918421ef4f04efb87fe94e7ff9c367b45f205a68a7b08507c066276"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 82640,
+          "compared": 9018,
+          "uncompared": 73622,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 104935,
+          "compared": 9018,
+          "uncompared": 95917,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 272,
+          "native_glyphs": 82640,
+          "incomplete_text_inventories": 268,
+          "paint_pages": 268,
+          "text_issues": {
+            "curved clipping path at content operator index 294": 1
+          }
+        },
+        "new": {
+          "pages": 276,
+          "native_glyphs": 104935,
+          "incomplete_text_inventories": 273,
+          "paint_pages": 273,
+          "text_issues": {
+            "curved clipping path at content operator index 548": 1
+          }
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence component depends on omitted source candidates": 1,
+        "a correspondence conflict component has competing optima": 214,
+        "a correspondence conflict component exceeded its search budget": 4
+      },
+      "incomplete_matching_components": 4,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nasa-buckling-8007-1968-to-2020-1/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "1fa3642561332d1882b0226ad60d7ce38e736a63343881d37bc43fa2a9a981ac"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nasa-buckling-8007-1968-to-2020/nasa-buckling-8007-1968-to-2020-text.json",
+        "sha256": "f0c1c1e3410cc15ff7aa154321d5cdcc3735d013a5380a10edd09f98da3afc4f"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nasa-buckling-8007-1968-to-2020-1/runs.json",
+        "sha256": "1df44eb6de7ce14b1b508f19a085340e4ca960e949ed6831fe883d13754b0a13"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 62811,
+          "compared": 18,
+          "uncompared": 62793,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 280452,
+          "compared": 18,
+          "uncompared": 280434,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 60,
+          "native_glyphs": 62811,
+          "incomplete_text_inventories": 60,
+          "paint_pages": 60,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 109,
+          "native_glyphs": 280452,
+          "incomplete_text_inventories": 75,
+          "paint_pages": 75,
+          "text_issues": {
+            "content operator TJ at index 4701: font code has no Unicode mapping or stable font identity": 1
+          }
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 81,
+        "correspondence 455 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1725 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2012 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2564 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2979 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2980 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3003 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3044 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ipcc-synthesis-ar5-to-ar6-1/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "f65533b3dfd8ffcb6afc8b9c75e1097fc1f0d5017495228797f5aee687bf430b"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ipcc-synthesis-ar5-to-ar6/ipcc-synthesis-ar5-to-ar6-text.json",
+        "sha256": "7ed25dc016637ac339f3303a79b53d427ec656e2dbc133399eef57fa23a28df5"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ipcc-synthesis-ar5-to-ar6-1/runs.json",
+        "sha256": "f991f1d16cb361956035d1a586996b6eade9bba21920d094a8c2337d503900cd"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 611699,
+          "compared": 5032,
+          "uncompared": 606667,
+          "compared_delta_from_baseline": 632
+        },
+        "new": {
+          "discovered": 637662,
+          "compared": 5026,
+          "uncompared": 632636,
+          "compared_delta_from_baseline": 631
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 169,
+          "native_glyphs": 611699,
+          "incomplete_text_inventories": 165,
+          "paint_pages": 165,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 186,
+          "native_glyphs": 637662,
+          "incomplete_text_inventories": 173,
+          "paint_pages": 173,
+          "text_issues": {
+            "curved clipping path at content operator index 6652": 1
+          }
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 212,
+        "correspondence 150 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 167 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 171 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 173 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 183 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 195 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 197 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 228 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 246 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 389 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 615 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 651 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 721 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 765 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 790 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 804 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 841 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 883 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 885 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 887 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 889 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 940 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 943 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 969 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 972 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 979 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 981 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 984 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 997 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 999 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence component depends on omitted source candidates": 8,
+        "correspondence 1028 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1049 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1070 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1071 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1079 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1080 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1081 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1094 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1104 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1249 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1567 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1633 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3133 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3295 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4840 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4845 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4846 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5332 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5453 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7144 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9231 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9269 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9478 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9561 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 4,
+      "non_owning_reviews": 3
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+        "sha256": "e5bc7539c5c343c5a1cb66d1dbce624e23f25a6ca49d01c36214a428b6ef933f"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.json",
+        "sha256": "38c9e34ea1f32a5750608c044c01506f4e8dd486e1b294269d1be8d44e8baa58"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/ecb-annual-2023-to-2024-1/runs.json",
+        "sha256": "8fbd2fb1a8e42b577cca83abf24f78642bc18dbeedd279cc341d3bda6bfe7e7a"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 462245,
+          "compared": 45958,
+          "uncompared": 416287,
+          "compared_delta_from_baseline": 45958
+        },
+        "new": {
+          "discovered": 473275,
+          "compared": 45943,
+          "uncompared": 427332,
+          "compared_delta_from_baseline": 45943
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 195,
+          "native_glyphs": 462245,
+          "incomplete_text_inventories": 155,
+          "paint_pages": 155,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 200,
+          "native_glyphs": 473275,
+          "incomplete_text_inventories": 161,
+          "paint_pages": 161,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 443,
+        "a correspondence component depends on omitted source candidates": 88,
+        "a correspondence conflict component exceeded its search budget": 2,
+        "correspondence 378 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 381 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 387 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 398 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 399 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 402 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5959 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1303 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5224 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5227 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5229 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6027 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6046 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6048 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6059 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6092 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6155 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6271 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6335 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6525 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6526 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6538 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6585 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6621 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6646 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6687 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6736 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6824 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6967 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6968 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 6986 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7018 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7019 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7108 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7476 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7477 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7688 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 8769 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9504 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 9505 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 8,
+      "non_owning_reviews": 34
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-sha-1803-to-1804-1/nist-sha-1803-to-1804-text.json",
+        "sha256": "e63d019485c373b1d017a8960a9b2e25f65c630fd3797de75c8981c06b5f8422"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-sha-1803-to-1804/nist-sha-1803-to-1804-text.json",
+        "sha256": "444ddc37f1485f0f57f907c10090f47e6ff8c1c6434adb604aa4227eea18bd28"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-sha-1803-to-1804-1/runs.json",
+        "sha256": "a425cc4747cadfc61056ebce6f66ac99c720c0edd6ae5e0c0d169df1204904e0"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 43539,
+          "compared": 9156,
+          "uncompared": 34383,
+          "compared_delta_from_baseline": 881
+        },
+        "new": {
+          "discovered": 47831,
+          "compared": 9322,
+          "uncompared": 38509,
+          "compared_delta_from_baseline": 1048
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 33,
+          "native_glyphs": 43539,
+          "incomplete_text_inventories": 13,
+          "paint_pages": 13,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 36,
+          "native_glyphs": 47831,
+          "incomplete_text_inventories": 14,
+          "paint_pages": 14,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "correspondence 1 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 8 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence conflict component has competing optima": 59,
+        "a correspondence component depends on omitted source candidates": 6,
+        "correspondence 701 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1276 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1684 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1716 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2632 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2635 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 2755 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3426 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 3555 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4222 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4298 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4299 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4300 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4458 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4514 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4563 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4756 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4768 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4772 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4773 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4774 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4846 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4895 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4898 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4907 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5047 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5182 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5190 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5192 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5194 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5195 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5196 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5197 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5198 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5199 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 3,
+      "non_owning_reviews": 39
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-ddpm-v1-to-v2-1/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "0a4be4a8a1add4d03699bbef0b99ffcd7719a287ff2b957cc6e5890cdefe2ce9"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-ddpm-v1-to-v2/arxiv-ddpm-v1-to-v2-text.json",
+        "sha256": "ed5be62d76ed5ada7626e58bdc45c8aa75527c7c9137f59c913d7ffe24c79098"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-ddpm-v1-to-v2-1/runs.json",
+        "sha256": "b3b3cae8c65fc80523ac2b5c713d3b4d4039f7392feb274a1ad6bc16ddb8d744"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 41561,
+          "compared": 15206,
+          "uncompared": 26355,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 45486,
+          "compared": 15206,
+          "uncompared": 30280,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 24,
+          "native_glyphs": 41561,
+          "incomplete_text_inventories": 20,
+          "paint_pages": 20,
+          "text_issues": {
+            "glyph relationship to convex clipping region is uncertain": 1
+          }
+        },
+        "new": {
+          "pages": 25,
+          "native_glyphs": 45486,
+          "incomplete_text_inventories": 21,
+          "paint_pages": 21,
+          "text_issues": {
+            "glyph relationship to convex clipping region is uncertain": 1
+          }
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 46
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 50
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-llama2-v1-to-v2-1/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "6f41a789d3807bb7d2122c81e6d929dded0a260709d959da22aef036f39a81c8"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-llama2-v1-to-v2/arxiv-llama2-v1-to-v2-text.json",
+        "sha256": "14bcfc2f50fc3179625b8ea3268c3e23222111f83d8fb9c5a140a624b645f8f7"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-llama2-v1-to-v2-1/runs.json",
+        "sha256": "324685bdc25c7703596b85584e75093225ea57b5430015734b990084eb171084"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 220758,
+          "compared": 102337,
+          "uncompared": 118421,
+          "compared_delta_from_baseline": 119
+        },
+        "new": {
+          "discovered": 221261,
+          "compared": 102337,
+          "uncompared": 118924,
+          "compared_delta_from_baseline": 119
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 76,
+          "native_glyphs": 220758,
+          "incomplete_text_inventories": 59,
+          "paint_pages": 59,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 77,
+          "native_glyphs": 221261,
+          "incomplete_text_inventories": 59,
+          "paint_pages": 59,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 272,
+        "a correspondence component depends on omitted source candidates": 3
+      },
+      "incomplete_matching_components": 3,
+      "non_owning_reviews": 2
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-management-37-r1-to-r2-1/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "213e12940e526e5883b1e2797cde239371de99198ade9dda3f56b4c0232a4db9"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-management-37-r1-to-r2/nist-risk-management-37-r1-to-r2-text.json",
+        "sha256": "5fe026e99a8030b2844afd45cbc5224f2593eda5237d84820b045f13e7a97c70"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-management-37-r1-to-r2-1/runs.json",
+        "sha256": "0e2fb7f4d9fae900da5aa11e9a52909b6c7fce3d029055ed9d80d580a6f9c452"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 382481,
+          "compared": 5377,
+          "uncompared": 377104,
+          "compared_delta_from_baseline": 914
+        },
+        "new": {
+          "discovered": 646585,
+          "compared": 5378,
+          "uncompared": 641207,
+          "compared_delta_from_baseline": 912
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 103,
+          "native_glyphs": 382481,
+          "incomplete_text_inventories": 65,
+          "paint_pages": 65,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 183,
+          "native_glyphs": 646585,
+          "incomplete_text_inventories": 183,
+          "paint_pages": 183,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 50,
+        "a correspondence component depends on omitted source candidates": 4,
+        "correspondence 1455 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1456 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1457 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 17
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-1099-misc-2024-to-2025-1/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "0fca77507fc9964fddb1b35e73f6431bdab996c26ec0abf898112c31cd39f52c"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-1099-misc-2024-to-2025/irs-1099-misc-2024-to-2025-text.json",
+        "sha256": "9c2a62d028ec74bf87304dbaeb699823a85622216562c08b8aa6739a7f24327e"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-1099-misc-2024-to-2025-1/runs.json",
+        "sha256": "fce0d10db596fb6d453bf2f6e34fef6f504dd7a63737356b9da5110a0f53c1f1"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 11030,
+          "compared": 1048,
+          "uncompared": 9982,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 10779,
+          "compared": 1048,
+          "uncompared": 9731,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 6,
+          "native_glyphs": 11030,
+          "incomplete_text_inventories": 5,
+          "paint_pages": 5,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 6,
+          "native_glyphs": 10779,
+          "incomplete_text_inventories": 5,
+          "paint_pages": 5,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 42
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w2-2024-to-2025-1/irs-w2-2024-to-2025-text.json",
+        "sha256": "adfdf17371b59d9f7b65b7d4bed61c44d11a073b678a443a794b2a5d3ed32820"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-w2-2024-to-2025/irs-w2-2024-to-2025-text.json",
+        "sha256": "7e232f6dc9c63ec10d76fb7fa2e51bb57e0edfa853689280194639e1d01431c0"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-w2-2024-to-2025-1/runs.json",
+        "sha256": "495b25372e57a5ea921043ed7c1b250337b19cdbb5192a8a5902e7ad94ebb2c9"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 20660,
+          "compared": 4613,
+          "uncompared": 16047,
+          "compared_delta_from_baseline": 1357
+        },
+        "new": {
+          "discovered": 20753,
+          "compared": 4613,
+          "uncompared": 16140,
+          "compared_delta_from_baseline": 1357
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 11,
+          "native_glyphs": 20660,
+          "incomplete_text_inventories": 7,
+          "paint_pages": 7,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 11,
+          "native_glyphs": 20753,
+          "incomplete_text_inventories": 7,
+          "paint_pages": 7,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 43
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 18
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-mask-rcnn-v1-to-v3-1/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "848f687c38385fee5b1aec8d13dd12561e16573e7e2fdfdd18445acfafafd2bc"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-mask-rcnn-v1-to-v3/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "6331decae79dbfd3db1f6a74ebe9e8ce3659ae34317fe3f27bd8ebaccdd1f22d"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-mask-rcnn-v1-to-v3-1/runs.json",
+        "sha256": "ad47e1339e3478802fb98ff4f07db78b0b9aff5a17402f17a13191736c2fd48a"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 39946,
+          "compared": 15023,
+          "uncompared": 24923,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 52222,
+          "compared": 15023,
+          "uncompared": 37199,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 9,
+          "native_glyphs": 39946,
+          "incomplete_text_inventories": 8,
+          "paint_pages": 8,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 12,
+          "native_glyphs": 52222,
+          "incomplete_text_inventories": 10,
+          "paint_pages": 10,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 111,
+        "a correspondence component depends on omitted source candidates": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 40
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-official-writing-1952-to-2022-1/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "292d8a04da947b19067724e4c0d5a968e849955eecb48452c255eded25b07793"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-official-writing-1952-to-2022/bunka-official-writing-1952-to-2022-text.json",
+        "sha256": "55cf08676aca68af9a77b4a188dcee31547c6e2c1ad32aa67eae18508e23c49c"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-official-writing-1952-to-2022-1/runs.json",
+        "sha256": "be78a14b88521b03b0d9a36c515eb517282dbcfef11fb10fdd8deef7dc29a63f"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 5584,
+          "compared": 2,
+          "uncompared": 5582,
+          "compared_delta_from_baseline": 2
+        },
+        "new": {
+          "discovered": 68870,
+          "compared": 2,
+          "uncompared": 68868,
+          "compared_delta_from_baseline": 2
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 8,
+          "native_glyphs": 5584,
+          "incomplete_text_inventories": 3,
+          "paint_pages": 3,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 63,
+          "native_glyphs": 68870,
+          "incomplete_text_inventories": 60,
+          "paint_pages": 60,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 5,
+        "correspondence 18 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 19 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 20 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 21 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1274 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1585 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1784 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1785 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1786 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1787 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-thunderstorms-b-to-c-1/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "4f0eb8c9a841984fe24fccb8b7ee50d1a7fea6d159719c28ad1fa8c2e26e8f52"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-thunderstorms-b-to-c/faa-thunderstorms-b-to-c-text.json",
+        "sha256": "17a58fd7580a52080acefdca811cc649069f1b5835d3a12020ebc33891348d56"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-thunderstorms-b-to-c-1/runs.json",
+        "sha256": "d6253b7d86452737dd59f4c138fb34ca6851243324153887b25c0bc30fdb661d"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 15715,
+          "compared": 6,
+          "uncompared": 15709,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 27732,
+          "compared": 6,
+          "uncompared": 27726,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 7,
+          "native_glyphs": 15715,
+          "incomplete_text_inventories": 7,
+          "paint_pages": 7,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 13,
+          "native_glyphs": 27732,
+          "incomplete_text_inventories": 9,
+          "paint_pages": 9,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 1
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-maintenance-records-c-to-d-1/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "973dd2ee9d9141588c096cb90295c3f1c4b142f344d5530f2747abeb84b591e5"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/faa-maintenance-records-c-to-d/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "47b3cc5c8caddd8602097281a9d73f6f681214fb7f784eaef41290b63011d23a"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/faa-maintenance-records-c-to-d-1/runs.json",
+        "sha256": "a99b3ce828c976e5f9d6a44e40a8170f82458cdd99cb5ac1428207777407f3a8"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 28756,
+          "compared": 92,
+          "uncompared": 28664,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 63192,
+          "compared": 92,
+          "uncompared": 63100,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 11,
+          "native_glyphs": 28756,
+          "incomplete_text_inventories": 11,
+          "paint_pages": 11,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 24,
+          "native_glyphs": 63192,
+          "incomplete_text_inventories": 21,
+          "paint_pages": 21,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "correspondence 0 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 1 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-faster-rcnn-v1-to-v3-1/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "c04293a08c72862d891734a21368c6b4f7a660adc3c163eb04ed458ca78f9dc3"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/arxiv-faster-rcnn-v1-to-v3/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "3193327266734bae0b4d0bf05be12d521070af5c7a14e4be7209c54d08712eb9"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/arxiv-faster-rcnn-v1-to-v3-1/runs.json",
+        "sha256": "5640652e4bd71db7e31bcf9aca05a32b5e1133c51c3c932d6d0d2710ab98a8f9"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 31824,
+          "compared": 965,
+          "uncompared": 30859,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 50289,
+          "compared": 965,
+          "uncompared": 49324,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 10,
+          "native_glyphs": 31824,
+          "incomplete_text_inventories": 10,
+          "paint_pages": 10,
+          "text_issues": {
+            "content operator Tj at index 56: font code has no Unicode mapping or stable font identity": 1
+          }
+        },
+        "new": {
+          "pages": 14,
+          "native_glyphs": 50289,
+          "incomplete_text_inventories": 13,
+          "paint_pages": 13,
+          "text_issues": {
+            "content operator Tj at index 56: font code has no Unicode mapping or stable font identity": 1,
+            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index 1224": 1,
+            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index 1238": 1
+          }
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 36
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-kana-1946-to-1986-1/bunka-kana-1946-to-1986-text.json",
+        "sha256": "d77c5849f92296ca670dcc930548c962b5ee0c548eea44d2b40e8aa88edbd0c9"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/bunka-kana-1946-to-1986/bunka-kana-1946-to-1986-text.json",
+        "sha256": "edc13241f158a251c103f9d9fe5c2ff36efcd53d4e841b678178a15f7ddd49ba"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/bunka-kana-1946-to-1986-1/runs.json",
+        "sha256": "ef40c5068977be2ee4e65ad293c9eaa4e11ea938d1180bcede9d838978a99ddc"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": true
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 0,
+          "compared": 0,
+          "uncompared": 0,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 5677,
+          "compared": 0,
+          "uncompared": 5677,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 13,
+          "native_glyphs": 0,
+          "incomplete_text_inventories": 13,
+          "paint_pages": 13,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 11,
+          "native_glyphs": 5677,
+          "incomplete_text_inventories": 11,
+          "paint_pages": 11,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {},
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-controls-53-r4-to-r5-1/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "ddffd8f47f4e1d06d733e86423295fad88f9189d83786a06086bef7c7aafbbce"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-controls-53-r4-to-r5/nist-controls-53-r4-to-r5-text.json",
+        "sha256": "89381c35d3ffc965682c4c6af3fbf6b9ac2970da7dfd95910e16066894a212b9"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-controls-53-r4-to-r5-1/runs.json",
+        "sha256": "75a520a1e4160177fcb031e376ff01eb62f3ed477bde6e254bc740d1ae8b0875"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 1580232,
+          "compared": 27662,
+          "uncompared": 1552570,
+          "compared_delta_from_baseline": 1153
+        },
+        "new": {
+          "discovered": 1629511,
+          "compared": 27479,
+          "uncompared": 1602032,
+          "compared_delta_from_baseline": 1023
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 463,
+          "native_glyphs": 1580232,
+          "incomplete_text_inventories": 410,
+          "paint_pages": 410,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 492,
+          "native_glyphs": 1629511,
+          "incomplete_text_inventories": 492,
+          "paint_pages": 492,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence component depends on omitted source candidates": 1529,
+        "a correspondence conflict component has competing optima": 6
+      },
+      "incomplete_matching_components": 2,
+      "non_owning_reviews": 12
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-assessment-30-to-r1-1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "2430183908f86e20328f241bdf75a291e49c08491f4e78b453825e4a79346cf2"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-risk-assessment-30-to-r1/nist-risk-assessment-30-to-r1-text.json",
+        "sha256": "fc94afbd84a3aceabfd7d98deb2e89a3226adf1d2e5418d8a428599b1eb447c5"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-risk-assessment-30-to-r1-1/runs.json",
+        "sha256": "27fd9f6d6bbda98e07b972e68806ce6e2d0e7fef584db3d4d968122a8d201829"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 102460,
+          "compared": 0,
+          "uncompared": 102460,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 326639,
+          "compared": 0,
+          "uncompared": 326639,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 65,
+          "native_glyphs": 102460,
+          "incomplete_text_inventories": 65,
+          "paint_pages": 65,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 95,
+          "native_glyphs": 326639,
+          "incomplete_text_inventories": 68,
+          "paint_pages": 68,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 22,
+        "correspondence 35 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 40 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 41 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 42 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 43 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 48 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 60 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 136 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 555 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 560 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 594 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 595 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 596 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 612 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 613 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 616 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1
+      },
+      "incomplete_matching_components": 0,
+      "non_owning_reviews": 0
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "status": "audited",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-contingency-34-to-r1-1/nist-contingency-34-to-r1-text.json",
+        "sha256": "5d5e7e594a8d2e215f530de66650ba7db0076807f64b7f740bb28d63beba2cf0"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "94012536d01430f4b0a9574ab229f5f4fe50537a34c702ace66937d36d087405"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/nist-contingency-34-to-r1-1/runs.json",
+        "sha256": "ca656b4973dfd3873774f4712ab9e1c7473bf2404624d1e0f681a1f0d5668222"
+      },
+      "obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "baseline_obligations": {
+        "inventory": false,
+        "source": false,
+        "search": false
+      },
+      "complete": false,
+      "baseline_complete": false,
+      "sources": {
+        "old": {
+          "discovered": 216916,
+          "compared": 26,
+          "uncompared": 216890,
+          "compared_delta_from_baseline": 0
+        },
+        "new": {
+          "discovered": 391537,
+          "compared": 27,
+          "uncompared": 391510,
+          "compared_delta_from_baseline": 0
+        }
+      },
+      "inventories": {
+        "old": {
+          "pages": 117,
+          "native_glyphs": 216916,
+          "incomplete_text_inventories": 117,
+          "paint_pages": 117,
+          "text_issues": {}
+        },
+        "new": {
+          "pages": 149,
+          "native_glyphs": 391537,
+          "incomplete_text_inventories": 114,
+          "paint_pages": 114,
+          "text_issues": {}
+        }
+      },
+      "search_reasons": {
+        "source candidate enumeration is incomplete in retained dependency regions": 1,
+        "text candidate enumeration is incomplete": 1,
+        "a correspondence conflict component has competing optima": 128,
+        "correspondence 4 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 7 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 16 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 22 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 25 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 26 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 33 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 37 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 38 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 40 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 42 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 44 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 46 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 48 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 49 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 50 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 51 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 52 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 53 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 57 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 64 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 67 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 96 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 97 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 131 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 132 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 133 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 134 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 135 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 136 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 138 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 139 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 140 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 141 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 142 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 143 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 145 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 147 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 149 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 167 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 170 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4528 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4539 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4542 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4543 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4544 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4546 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4564 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4567 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4575 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4590 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4591 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4632 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4649 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4667 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4689 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4690 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4695 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4710 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4714 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4715 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4767 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4769 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4774 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4776 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4778 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4780 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4798 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4802 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4808 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4809 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4812 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4849 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4867 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4868 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4872 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4875 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4876 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4877 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4878 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4879 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4881 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4902 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4907 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4911 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4912 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4913 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4919 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4923 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4930 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4963 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 4989 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5058 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5059 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5060 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5063 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5064 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "correspondence 5065 proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved": 1,
+        "a correspondence component depends on omitted source candidates": 1
+      },
+      "incomplete_matching_components": 1,
+      "non_owning_reviews": 0
+    }
+  ],
+  "complete_pairs": 0,
+  "missing_reports": 0,
+  "limitations": "One capture only. Source residual causes require full evidence graphs. No fixed target adjudication or recognition/visibility proof is inferred from these summaries.",
+  "diagnostic_implementation": {
+    "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/audit.py",
+    "sha256": "a647b70ca8c4203e438f438ec647cff76bfe9938537d262e5ffd0d2f9d5325e9"
+  },
+  "capture_implementation": {
+    "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/capture.py",
+    "sha256": "a5ec2d0924a1b2944747138643c29414452596a5fabd8263b301c3e0d817faae"
+  },
+  "compared_gain_pairs": 16,
+  "source_count_decrease_pairs": 0,
+  "compared_reference_delta": {
+    "old": 63874,
+    "new": 63958
+  },
+  "input_hashes_verified": 72
+}

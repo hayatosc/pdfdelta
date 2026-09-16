@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-133-r1-to-r2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "8a2f0e18b855fce778cdad21f604c99033a9b9b4ce193a86913a89e1c45f93f7",
+  "body_eligible": true,
+  "reason": "Introduction, complete opening paragraph. Abstract prose is unchanged; this paragraph changes transmission/storage wording and function to process."
+}

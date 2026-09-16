@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "irs-w9-2018-to-2024",
+  "old_sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff",
+  "new_sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Name (as shown on your income tax return). Name is required on this line; do not leave this line blank.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-title-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Request for Taxpayer Identification Number and Certification",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Name of entity/individual. An entry is required. (For a sole proprietor or disregarded entity, enter the owner’s name on line 1, and enter the business/disregarded entity’s name on line 2.)",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-title-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Request for Taxpayer Identification Number and Certification",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

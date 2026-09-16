@@ -1,0 +1,36 @@
+{
+  "version": 7,
+  "comparison_performed": false,
+  "binary_sha256": "7c8b3dafb6bbcfaa6da1aa564a65a1a1d67506f7002b1989b6917afc86f80275",
+  "selection_sha256": "e55ff9f98890a51cea9413398d5757a6de1e06593fa64d540468e05ec916708e",
+  "profile": "page-rgb-white-72dpi-annotations-v1",
+  "attempts": [
+    {
+      "id": "faa-fsb-53b-to-53c",
+      "side": "new",
+      "page": 3,
+      "input_sha256": "5b2fa26c9e5c618d36be3072685019840b0426b06f7fbaf089877fc639eae3b7",
+      "object_evidence_sha256": "20ed88e373e14e2809f90c57d4bc4c260afce5443778216b3b55b5e5612fa359",
+      "width": 612,
+      "height": 792,
+      "object_number": 9,
+      "generation": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-column-edges-v65/pdfdelta",
+        "render-page",
+        "3",
+        "63",
+        "612",
+        "792",
+        "9",
+        "0"
+      ],
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "4c932b81d9f75d061203ae5403375615b067c0c62b004f7c6c45adca098d76db",
+      "warning": false,
+      "png_sha256": "2dba10dbb96180c48a709d03ff7d56b3dc6a4436e46e27d6fca81925bdf3c532"
+    }
+  ]
+}

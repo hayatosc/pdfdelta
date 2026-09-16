@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary": "target/debug/pdfbench",
+  "binary_sha256": "56835f2416e374fd483da3d3a89d81307717f0e2be0f36cb1584a6d3cd34e6e4",
+  "attempts": [
+    {
+      "pair": "nist-55-r1-to-v1",
+      "started_utc": "2026-09-14T04:07:10.241351+00:00",
+      "elapsed_seconds": 1.4311736060008116,
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v8/annotations/nist-55-r1-to-v1.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v8/nist-55-r1-to-v1-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v8/nist-55-r1-to-v1-new.pdf"
+      ],
+      "annotation_sha256": "e392880c0b7a68cefed13f4a9e4c6c790b4a40609a37987845c43049ca42e08b",
+      "resolution_sha256": "32142fca25af2ef59e5b7b2e3b00d62f82d33b48c3d49734bd5046c445966c21",
+      "stderr": ""
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "started_utc": "2026-09-14T04:07:11.673156+00:00",
+      "elapsed_seconds": 2.7546946509992267,
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v8/annotations/ietf-sctp-4960-to-9260.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-sctp-4960-to-9260-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v8/ietf-sctp-4960-to-9260-new.pdf"
+      ],
+      "annotation_sha256": "b1e2c8485ed0fdb0dd45b13480b56936056a6ff81c4fd5431c130acbee8d3de0",
+      "resolution_sha256": "f148e452659c0c4fe3b0a236567ca50456a2d2abdc1bce57bb5fc58d076bf775",
+      "stderr": ""
+    }
+  ]
+}

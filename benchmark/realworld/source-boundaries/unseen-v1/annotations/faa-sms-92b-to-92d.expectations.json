@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "faa-sms-92b-to-92d",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "7f49ff78a05e16519460ed23f4039ecfde9a8745f88a36b32e9651dc41c09a8b",
+  "body_eligible": true,
+  "reason": "The first cover paragraph adds additional regulated aviation operations, voluntary acknowledgement and ICAO Annex 19 applicability."
+}

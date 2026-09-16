@@ -1,0 +1,66 @@
+{
+  "source_sha256": "1d15a497bdd0e6e7c6145c82de6c7ca9dc279b062530ae94370a8bdd7737dca0",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v57-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v57-locked-clippy.log",
+        "sha256": "32d47f791eadf1ea833d9f8c84fbfea5cab1f438e113e93be05bd5b908e1c2ac"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v57-locked-tests.log",
+        "sha256": "18fa6b622ab586b46b733caf662ae2dfee2d306d935e7c9ff80f3b6effcaf994"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v57-generated.log",
+        "sha256": "4779d8c32bba1113aa388fb46bab4483e91d48ec04e60b2fbb8a3f830bc8a239"
+      }
+    }
+  ],
+  "scope": "V57 prototype checks. Real development regression remains unresolved; not an adoption or goal claim."
+}

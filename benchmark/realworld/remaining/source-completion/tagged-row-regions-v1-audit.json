@@ -1,0 +1,649 @@
+{
+  "goal_complete": false,
+  "new_complete_pairs": 0,
+  "reproduction_commit": "254c670",
+  "audit": {
+    "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/audit.py",
+    "sha256": "a47570e4bee110b289e3d185f34c8a206c72a5125f9fed41f3c67efc86c05e83"
+  },
+  "oracle": {
+    "path": "benchmark/realworld/remaining/source-completion/audit_native_intervals.py",
+    "sha256": "acca73418cded80493effb5c34cf88aa9a018862fb6a3af6eba7d19982f47127"
+  },
+  "oracle_self_test_cases": 225,
+  "intervals": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "af3d8c37cac4d7ec77dac17b38aada841b1c9fb98f3eb780057be0721b43a1a0"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-se-2024-to-2025-review/sources.json",
+        "sha256": "c2059e7a66047feda55f466c6ac052b7a4fb57f043ac29c0e1cd831525876574"
+      },
+      "boundaries": [
+        89,
+        0
+      ],
+      "regions": {
+        "old": {
+          "convention": "native-k-parent-bound-page-regions-v1",
+          "regions": [
+            {
+              "page": 0,
+              "nodes": [
+                74,
+                75
+              ],
+              "bounded_paint": true,
+              "row_order": "horizontal-row-boundaries-v1"
+            },
+            {
+              "page": 1,
+              "nodes": [
+                76,
+                77
+              ],
+              "bounded_paint": true
+            }
+          ],
+          "transitions": [
+            {
+              "before": {
+                "origin": "native",
+                "glyph": 3734
+              },
+              "after": {
+                "origin": "native",
+                "glyph": 3735
+              },
+              "structure": {
+                "origin": "structured",
+                "element": 0
+              },
+              "position": 3735
+            }
+          ]
+        },
+        "new": {
+          "convention": "native-k-parent-bound-page-regions-v1",
+          "regions": [
+            {
+              "page": 0,
+              "nodes": [
+                74,
+                75
+              ],
+              "bounded_paint": true,
+              "row_order": "horizontal-row-boundaries-v1"
+            },
+            {
+              "page": 1,
+              "nodes": [
+                76,
+                77
+              ],
+              "bounded_paint": true
+            }
+          ],
+          "transitions": [
+            {
+              "before": {
+                "origin": "native",
+                "glyph": 3750
+              },
+              "after": {
+                "origin": "native",
+                "glyph": 3751
+              },
+              "structure": {
+                "origin": "structured",
+                "element": 0
+              },
+              "position": 3751
+            }
+          ]
+        }
+      },
+      "sides": {
+        "old": {
+          "owned_sources": 57,
+          "literal_text": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+          "boundary_source_overlap": 0,
+          "mask": [
+            {
+              "position": 27,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3733
+                }
+              ]
+            },
+            {
+              "position": 56,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3762
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "owned_sources": 72,
+          "literal_text": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025",
+          "boundary_source_overlap": 0,
+          "mask": [
+            {
+              "position": 27,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3734
+                }
+              ]
+            },
+            {
+              "position": 29,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3736
+                }
+              ]
+            },
+            {
+              "position": 30,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3737
+                }
+              ]
+            },
+            {
+              "position": 31,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3738
+                }
+              ]
+            },
+            {
+              "position": 32,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3739
+                }
+              ]
+            },
+            {
+              "position": 33,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3740
+                }
+              ]
+            },
+            {
+              "position": 34,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3741
+                }
+              ]
+            },
+            {
+              "position": 35,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3742
+                }
+              ]
+            },
+            {
+              "position": 37,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3744
+                }
+              ]
+            },
+            {
+              "position": 38,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3745
+                }
+              ]
+            },
+            {
+              "position": 39,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3746
+                }
+              ]
+            },
+            {
+              "position": 40,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3747
+                }
+              ]
+            },
+            {
+              "position": 42,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3749
+                }
+              ]
+            },
+            {
+              "position": 71,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 3778
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "edit_cost": 19
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "286d41591866d2ee34fc2040e6e1389a0fbabe98a889cf01a103c53f8589bb73"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-c-2024-to-2025-review/sources.json",
+        "sha256": "1e467e069e544df61d78566c36d417bf778453fcc7e3dd8ead0ff846524820dd"
+      },
+      "boundaries": [
+        400,
+        0
+      ],
+      "regions": {
+        "old": {
+          "convention": "native-k-parent-bound-page-regions-v1",
+          "regions": [
+            {
+              "page": 0,
+              "nodes": [
+                162,
+                163
+              ],
+              "bounded_paint": true,
+              "row_order": "horizontal-row-boundaries-v1"
+            },
+            {
+              "page": 1,
+              "nodes": [
+                164,
+                165
+              ],
+              "bounded_paint": true
+            }
+          ],
+          "transitions": [
+            {
+              "before": {
+                "origin": "native",
+                "glyph": 4348
+              },
+              "after": {
+                "origin": "native",
+                "glyph": 4349
+              },
+              "structure": {
+                "origin": "structured",
+                "element": 0
+              },
+              "position": 4349
+            }
+          ]
+        },
+        "new": {
+          "convention": "native-k-parent-bound-page-regions-v1",
+          "regions": [
+            {
+              "page": 0,
+              "nodes": [
+                162,
+                163
+              ],
+              "bounded_paint": true,
+              "row_order": "horizontal-row-boundaries-v1"
+            },
+            {
+              "page": 1,
+              "nodes": [
+                164,
+                165
+              ],
+              "bounded_paint": true
+            }
+          ],
+          "transitions": [
+            {
+              "before": {
+                "origin": "native",
+                "glyph": 4363
+              },
+              "after": {
+                "origin": "native",
+                "glyph": 4364
+              },
+              "structure": {
+                "origin": "structured",
+                "element": 0
+              },
+              "position": 4364
+            }
+          ]
+        }
+      },
+      "sides": {
+        "old": {
+          "owned_sources": 55,
+          "literal_text": "Schedule C (Form 1040) 2024 Schedule C (Form 1040) 2024",
+          "boundary_source_overlap": 0,
+          "mask": [
+            {
+              "position": 54,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4375
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "owned_sources": 70,
+          "literal_text": "Schedule C (Form 1040) 2025 Created 4/3/25 Schedule C (Form 1040) 2025",
+          "boundary_source_overlap": 0,
+          "mask": [
+            {
+              "position": 26,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4347
+                }
+              ]
+            },
+            {
+              "position": 27,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4348
+                }
+              ]
+            },
+            {
+              "position": 28,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4349
+                }
+              ]
+            },
+            {
+              "position": 29,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4350
+                }
+              ]
+            },
+            {
+              "position": 30,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4351
+                }
+              ]
+            },
+            {
+              "position": 31,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4352
+                }
+              ]
+            },
+            {
+              "position": 32,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4353
+                }
+              ]
+            },
+            {
+              "position": 33,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4354
+                }
+              ]
+            },
+            {
+              "position": 34,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4355
+                }
+              ]
+            },
+            {
+              "position": 35,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4356
+                }
+              ]
+            },
+            {
+              "position": 37,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4358
+                }
+              ]
+            },
+            {
+              "position": 38,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4359
+                }
+              ]
+            },
+            {
+              "position": 39,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4360
+                }
+              ]
+            },
+            {
+              "position": 40,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4361
+                }
+              ]
+            },
+            {
+              "position": 41,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4362
+                }
+              ]
+            },
+            {
+              "position": 69,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 4390
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "edit_cost": 17
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/nist-ssdf-draft-to-final-1/nist-ssdf-draft-to-final-text.json",
+        "sha256": "102727ca57347f005a5175ed785802600590ad0286215179df3a2f603a3b1611"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/nist-ssdf-draft-to-final-review/sources.json",
+        "sha256": "b7a32972f527916d0b9184ed066bc370c27a9116561b693dc994f3021094e7fe"
+      },
+      "boundaries": [
+        2065,
+        2066
+      ],
+      "regions": null,
+      "sides": {
+        "old": {
+          "owned_sources": 517,
+          "literal_text": "This document also provides a common language to describe fundamental secure software development practices. This is similar to the approach taken by the Framework for Improving Critical Infrastructure Cybersecurity, also known as the NIST Cybersecurity Framework [NISTCSF].2 Expertise in secure software development is not required to understand the practices. The common language helps facilitate communications about secure software practices among both internal and external organizational stakeholders, such as: ",
+          "boundary_source_overlap": 0,
+          "mask": [
+            {
+              "position": 14,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 22024
+                }
+              ]
+            },
+            {
+              "position": 15,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 22025
+                }
+              ]
+            },
+            {
+              "position": 16,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 22026
+                }
+              ]
+            },
+            {
+              "position": 17,
+              "sources": [
+                {
+                  "origin": "native",
+                  "glyph": 22027
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "owned_sources": 512,
+          "literal_text": "This document provides a common language to describe fundamental secure software development practices. This is similar to the approach taken by the Framework for Improving Critical Infrastructure Cybersecurity, also known as the NIST Cybersecurity Framework [NISTCSF].2 Expertise in secure software development is not required to understand the practices. The common language helps facilitate communications about secure software practices among both internal and external organizational stakeholders, such as: ",
+          "boundary_source_overlap": 0,
+          "mask": []
+        }
+      },
+      "edit_cost": 5
+    }
+  ],
+  "checks": {
+    "before.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/before.log",
+      "sha256": "24a1f79e17f2416b3f26d89900c096a24d88a2d0b929e0faf430a5b88b43cd84"
+    },
+    "before-clippy.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/before-clippy.log",
+      "sha256": "e64b6442e4e5bdd94da3bf4631cb87aa372320d7a357b7795646cc679aefa0f1"
+    },
+    "before-workspace.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/before-workspace.log",
+      "sha256": "1f7cff6093db1bc1773668e45e325e03c27b008678068c6fd85e4b0f908472f7"
+    },
+    "fixtures.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/fixtures.log",
+      "sha256": "1345d2ced6fbe014ad0aa5ccb9081f6dbf42e3728272950ae495d8aaf1e737d1"
+    },
+    "clippy.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/clippy.log",
+      "sha256": "73f736b7dfed4d8c3057790b79c303f0c5981bb32e8d5b08f9f7d746788a0332"
+    },
+    "workspace.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/workspace.log",
+      "sha256": "416340890bc04d9272a1b1c85c1683ad31aab17803200f43eec8195ee92c023a"
+    },
+    "generated.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/generated.log",
+      "sha256": "43a2061a08a530281d19d5d2ba5e41acb5adbc16c1f6e76a59de96d77dbe785d"
+    },
+    "build.log": {
+      "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/build.log",
+      "sha256": "1cc3d4fa9a9fa7b28fc42608ac098ac6abc1f281aa7a951fc5cf00ae9aface4b"
+    }
+  },
+  "test_totals": {
+    "passed": 2517,
+    "failed": 0,
+    "ignored": 2
+  },
+  "limitations": [
+    "Independent checks cover literal native source ownership, boundary exclusion and every optimal literal edit mask.",
+    "This audit does not independently certify PDF extraction, native structure binding, page-transition semantics, composited visibility or inventory.",
+    "Footer recovery is not fixed body-target recovery or whole-document completion."
+  ]
+}

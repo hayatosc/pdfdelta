@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "execution_started_utc": "2026-09-11T07:28:35+00:00",
+  "hard_stop_utc": "2026-09-11T19:28:35+00:00",
+  "baseline_commit": "a2904f2bf5a708ddf38ddc52b90f2adaedb2acea",
+  "production_code_commit": "9093cab",
+  "binary": {
+    "path": "benchmark/realworld/cache/next-execution/pdfdelta-9093cab",
+    "sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+  },
+  "original_baseline_commit": "3f318d7fd5cb0911e78f47fe05ea4460ae54c633",
+  "plan_approved_sha256": "050ab7a2a676991f75c87906b8216f05bf700ded23ed7dfbf17409bc46ec7756",
+  "initial_worktree": [
+    "untracked approved PLAN.md",
+    "untracked approved PLAN.html"
+  ],
+  "production_changed": false,
+  "completion_gates": {
+    "development_new_pairs": 6,
+    "development_independent_producers": 3,
+    "blind_registered_pairs": 12,
+    "blind_new_pairs": 3,
+    "blind_independent_producers": 2,
+    "common_text_additional_complete_pairs": 2,
+    "previously_complete_losses": 0
+  },
+  "comparison_configuration": {
+    "routes": {
+      "native": [
+        "--native-text-only"
+      ],
+      "text": [
+        "--channels",
+        "text"
+      ],
+      "all": [
+        "--channels",
+        "text,visual,forms,relations"
+      ]
+    },
+    "common_args": [
+      "--limit-scale",
+      "1",
+      "--quiet",
+      "--json",
+      "REPORT_PATH"
+    ],
+    "process_timeout_seconds": 180,
+    "kill_after_seconds": 5,
+    "resource_limits": "Default limits in the frozen production sources, scaled by 1. No per-pair tuning.",
+    "renderer_profile": "page-rgb-white-72dpi-annotations-v1; default optional content; warnings retained"
+  },
+  "exposed_set_promotion": {
+    "source": "benchmark/realworld/next/blind",
+    "new_use": "development only",
+    "effective_before_production_changes": true,
+    "old_files_immutable": true,
+    "reason": "The previous blind comparison has been disclosed and is now authorized for diagnosis."
+  },
+  "prior_evidence_status": "Earlier implementation and evaluation completed, but that alone does not establish this goal. Prior posthoc B units cannot count as additional recovery against this baseline; the newly approved numeric gates must be proven independently."
+}

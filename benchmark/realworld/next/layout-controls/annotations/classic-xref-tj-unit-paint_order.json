@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "pair": "classic-xref-tj-unit-paint_order",
+  "old_sha256": "3741ccaa5c9b00316cc10aa5018e55627a81b99df0596ca72f66dcaee5bb79bf",
+  "new_sha256": "c52d8b6eff943433402edd7c6fb0b3ca09f9ab41510e21977307bc8ac3a0c048",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "old-paragraph-0-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevesselcarries7crates.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-1-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thecablemeasures9meters.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-2-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevalveisopen.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-3-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ThesamplebelongstoOrion.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-3-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ThesamplebelongstoOrion.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-2-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevalveisopen.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-1-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thecablemeasures9inches.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-0-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevesselcarries7crates.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

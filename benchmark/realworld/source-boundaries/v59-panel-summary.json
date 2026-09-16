@@ -1,0 +1,640 @@
+{
+  "version": 1,
+  "scope": "All 36 registered development pairs. Identity preservation is not new source adjudication; additional outputs, if any, remain unreviewed. Candidate hits are not a recovery gate.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v59-panel-observations.json",
+    "sha256": "f72c60bfadeaf62529c284015aabe4cf380ab319119fc98846062b56b3227fe7"
+  },
+  "baseline": {
+    "path": "benchmark/realworld/source-boundaries/v54-panel-observations.json",
+    "sha256": "44db1c37c6cc4185e0518d447bbdff3f39b491f81a06efeb770ef8f981932788"
+  },
+  "categories": {
+    "B": 214,
+    "A": 1
+  },
+  "complete_pairs": 0,
+  "pairs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "categories": {
+        "B": 23
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 9.72,
+      "peak_rss_kib": 352776,
+      "report_bytes": 5109345
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "categories": {
+        "B": 32
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 11,
+      "edge_refinements": 5,
+      "row_profiles": 1,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.51,
+      "peak_rss_kib": 143064,
+      "report_bytes": 4491200
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "categories": {
+        "B": 3
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 15.78,
+      "peak_rss_kib": 221980,
+      "report_bytes": 415367
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "categories": {
+        "B": 14
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 12,
+      "edge_refinements": 0,
+      "row_profiles": 10,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 7.11,
+      "peak_rss_kib": 283056,
+      "report_bytes": 1632136
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "categories": {
+        "B": 3
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 1,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 11.71,
+      "peak_rss_kib": 449228,
+      "report_bytes": 8128345
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "categories": {
+        "B": 5
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/2"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 5,
+      "edge_refinements": 2,
+      "row_profiles": 5,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 8.15,
+      "peak_rss_kib": 303112,
+      "report_bytes": 5818544
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 8.34,
+      "peak_rss_kib": 259648,
+      "report_bytes": 371872
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "categories": {
+        "B": 6
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/5"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 4,
+      "edge_refinements": 2,
+      "row_profiles": 2,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 30.48,
+      "peak_rss_kib": 639960,
+      "report_bytes": 5627892
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "categories": {
+        "B": 13
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 4.85,
+      "peak_rss_kib": 86164,
+      "report_bytes": 3219754
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "categories": {
+        "A": 1
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 2.79,
+      "peak_rss_kib": 63284,
+      "report_bytes": 1774909
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 2.21,
+      "peak_rss_kib": 32856,
+      "report_bytes": 918201
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.25,
+      "peak_rss_kib": 28480,
+      "report_bytes": 562011
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "categories": {
+        "B": 11
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 2,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 8.94,
+      "peak_rss_kib": 128196,
+      "report_bytes": 2986756
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "categories": {
+        "B": 1
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 18.29,
+      "peak_rss_kib": 460268,
+      "report_bytes": 14708866
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 31.56,
+      "peak_rss_kib": 1143636,
+      "report_bytes": 862198
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 20.59,
+      "peak_rss_kib": 594644,
+      "report_bytes": 748611
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 20.86,
+      "peak_rss_kib": 595816,
+      "report_bytes": 599573
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 58.01,
+      "peak_rss_kib": 568796,
+      "report_bytes": 7372941
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 12.94,
+      "peak_rss_kib": 521760,
+      "report_bytes": 2254243
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 43.1,
+      "peak_rss_kib": 1230416,
+      "report_bytes": 2114293
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 26.12,
+      "peak_rss_kib": 906236,
+      "report_bytes": 692731
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "categories": {
+        "B": 29
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/25"
+      ],
+      "comparison_complete": false,
+      "source_cut_reviews": 21,
+      "edge_refinements": 7,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.28,
+      "peak_rss_kib": 175776,
+      "report_bytes": 5303822
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "categories": {
+        "B": 43
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 6.47,
+      "peak_rss_kib": 143156,
+      "report_bytes": 5019673
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 24.54,
+      "peak_rss_kib": 509048,
+      "report_bytes": 6541830
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 25.51,
+      "peak_rss_kib": 1071084,
+      "report_bytes": 3249672
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 0.74,
+      "peak_rss_kib": 57368,
+      "report_bytes": 3378063
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "categories": {
+        "B": 20
+      },
+      "ordered_event_identities_equal": false,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 18,
+      "edge_refinements": 9,
+      "row_profiles": 0,
+      "added_event_digests": [
+        "61175c38bd5cb843b8e6f4cfb6d46ffb168f905fd6762299dead340f36ab3eaa",
+        "f27b06dc391b8c9f5b77a59ac6a380b01159da791165eef43a0a1595d3bfe13e"
+      ],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 1.59,
+      "peak_rss_kib": 83748,
+      "report_bytes": 4822949
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "categories": {
+        "B": 11
+      },
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 3.87,
+      "peak_rss_kib": 137056,
+      "report_bytes": 5693620
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 7.35,
+      "peak_rss_kib": 200860,
+      "report_bytes": 3015682
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 1.5,
+      "peak_rss_kib": 74940,
+      "report_bytes": 134585
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 2.08,
+      "peak_rss_kib": 127448,
+      "report_bytes": 188046
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 2.4,
+      "peak_rss_kib": 103276,
+      "report_bytes": 782453
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 1.41,
+      "peak_rss_kib": 45080,
+      "report_bytes": 28607
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 41.11,
+      "peak_rss_kib": 667872,
+      "report_bytes": 426523
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 26.56,
+      "peak_rss_kib": 570356,
+      "report_bytes": 1356315
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "categories": {},
+      "ordered_event_identities_equal": true,
+      "candidate_fixed_target_hits": [],
+      "comparison_complete": false,
+      "source_cut_reviews": 0,
+      "edge_refinements": 0,
+      "row_profiles": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "status": "captured",
+      "wall_seconds": 42.91,
+      "peak_rss_kib": 674692,
+      "report_bytes": 6058394
+    }
+  ]
+}

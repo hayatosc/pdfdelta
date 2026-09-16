@@ -1,0 +1,127 @@
+{
+  "status": "bounded_declaration_reader_prototype_verified_not_integrated",
+  "previous_turn_classification": "progress: counterexamples established that permissive library Encoding lookup cannot certify exact text",
+  "baseline": {
+    "path": "benchmark/realworld/remaining/type1-encoding-contract-diagnosis.json",
+    "sha256": "74e7d3267904ec0d02c2edb043a8137a55968393a36c8278ad02b54ea435556f"
+  },
+  "production_changed": false,
+  "dependencies_added": false,
+  "fixed_panel_denominator": 36,
+  "new_recovery_claimed": false,
+  "implementation": "Diagnostic Rust scanner reads the clear-text prefix through top-level eexec, bounds input bytes, tokens, grouping, dictionary depth and assignment count, and checks the complete supported Encoding assignment form. It preserves the final raw name for every code rather than conditionally overwriting only names found in an outline table.",
+  "measured_cases": [
+    {
+      "case": "original",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/probe",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/original.pfa"
+      ],
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/original.pfa",
+        "sha256": "5d5ea0385600ee76b202ca00c8f90adba96b2f00c21f005715ba679673ba866a"
+      },
+      "prior_library_output": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "exit_code": 0,
+      "stdout": "plus\n",
+      "stderr": ""
+    },
+    {
+      "case": "arithmetic-selector",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/probe",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/arithmetic-selector.pfa"
+      ],
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/arithmetic-selector.pfa",
+        "sha256": "dbca3cd24423db03771394888d098ad91b2b8b606a4aa06bdba71da8bc1a6474"
+      },
+      "prior_library_output": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Error: \"Unsupported\"\n"
+    },
+    {
+      "case": "missing-character",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/probe",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/missing-character.pfa"
+      ],
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/missing-character.pfa",
+        "sha256": "159897747c8611ed1642632643a781d9c17d7ae5ecb44678eba51fb5a7231452"
+      },
+      "prior_library_output": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "exit_code": 0,
+      "stdout": "MissingGlyph\n",
+      "stderr": ""
+    },
+    {
+      "case": "missing-put",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/probe",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/missing-put.pfa"
+      ],
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/missing-put.pfa",
+        "sha256": "6d8adb2c8a453497d8010936320ebeaa65ab8579da6220578a8d2d56cfdbf01d"
+      },
+      "prior_library_output": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Error: \"Unsupported\"\n"
+    }
+  ],
+  "checks": {
+    "rustfmt": "passed",
+    "standalone_rustc_tests": 4,
+    "failing_tests": 0,
+    "real_source_and_three_prior_counterexamples": "passed",
+    "malformed_assignment_variants": 8,
+    "resource_exhaustion_variants": 4,
+    "comments_strings_procedures_and_dictionary_scope_checks": "passed",
+    "production_source_hashes": "unchanged",
+    "workspace_checks": "not rerun: standalone diagnostic code and documentation only"
+  },
+  "supported_declarations": [
+    "StandardEncoding with def or readonly def",
+    "256-slot array initialized to .notdef by the literal standard loop, then complete dup/integer/literal-name/put assignments and def or readonly def"
+  ],
+  "limits": {
+    "maximum_input_bytes": 1048576,
+    "maximum_tokens": 8192,
+    "maximum_nesting": 16,
+    "maximum_assignments": 1024,
+    "scope": "diagnostic bounds only; no production budget was added or raised"
+  },
+  "limitations": [
+    "This reader is a declaration validator, not a certificate that the entire Type1 program conforms. It is not used by the native decoder.",
+    "Executable clear-text preambles and other dictionary statements are not validated for all effects. Merely tracking lexical groups and dictionary depth does not establish their semantics.",
+    "Encrypted private data, synthetic/hybrid font behavior and mutations outside the clear-text declaration are not validated.",
+    "Raw names still require a validated CharStrings lookup and existing Adobe-name conversion before any Unicode can be emitted. MissingGlyph is retained as a raw declaration; it is not emitted as text.",
+    "File-size checks in the diagnostic runner assume immutable retained fixtures. Production loading must use the bounded neutral parser and existing cumulative font budgets."
+  ],
+  "next_action": "Validate the remaining clear-text statement and encrypted-program boundaries, or use a strict reader that reports those unsupported forms. Only after that certificate exists should the declaration reader be wired into simple-font fallback with precedence, identity and aggregate resource-limit tests.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/declaration.rs",
+      "sha256": "9e15dab258c6e74b6232a6ddd1b8898cf10fe8263f0e98c197eb9512da026d2b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/tests",
+      "sha256": "26213c9c2237b65a142237b533f9be2f803a7da2ed459b5060c36850eaf494be"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/tests.log",
+      "sha256": "040fa377b7e36a33aeb66dd195df9c0d0a007dc4584c5131190b27882f277f63"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/probe",
+      "sha256": "314427f16fe90473868977c3b7f75e9dd6df9b780922c50ecd922602fc4f8a77"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-strict-declaration/cases.json",
+      "sha256": "2514ec3ca8969581436fcf98f374801e9067cd96ef6186b41e64d82ac9ba41c0"
+    }
+  ]
+}

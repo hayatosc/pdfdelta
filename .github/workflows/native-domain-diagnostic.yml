@@ -1,0 +1,95 @@
+name: Native domain diagnostic
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diagnostic:
+    if: github.event.pull_request.head.ref == 'fix/native-domain-roundoff-20260916' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 4
+          persist-credentials: false
+      - uses: jdx/mise-action@v2
+      - name: Install clippy and rustfmt
+        run: mise exec -- rustup component add clippy rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Run diagnostic checks
+        env:
+          CARGO_TERM_COLOR: never
+        shell: bash
+        run: |
+          mkdir -p /tmp/native-domain-diagnostic
+          mise exec -- python3 - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          import time
+
+          out = pathlib.Path('/tmp/native-domain-diagnostic')
+          results = []
+          def run(label, args, limit=600):
+              start = time.monotonic()
+              log = out / (label + '.log')
+              with log.open('w') as handle:
+                  try:
+                      process = subprocess.run(args, stdout=handle, stderr=subprocess.STDOUT, timeout=limit)
+                      code = process.returncode
+                  except subprocess.TimeoutExpired:
+                      code = 124
+              results.append({'check': label, 'command': args, 'exit_code': code, 'seconds': round(time.monotonic() - start, 2)})
+              (out / 'results.json').write_text(json.dumps(results, indent=2))
+
+          run('format-check', ['cargo', 'fmt', '--all', '--', '--check'])
+          run('format-local', ['cargo', 'fmt', '--all'])
+          (out / 'format.patch').write_bytes(subprocess.check_output(['git', 'diff', '--', 'crates/pdfdelta-core/src/document/text_scopes/domains.rs', 'crates/pdfdelta-core/tests/document_native_domain_roundoff_fixture.rs']))
+          source = pathlib.Path('crates/pdfdelta-core/src/document/text_scopes/domains.rs')
+          candidate = source.read_bytes()
+          try:
+              source.write_bytes(subprocess.check_output(['git', 'show', '7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c:crates/pdfdelta-core/src/document/text_scopes/domains.rs']))
+              run('baseline-regression', ['cargo', 'test', '-p', 'pdfdelta-core', '--locked', '--test', 'document_native_domain_roundoff_fixture'])
+          finally:
+              source.write_bytes(candidate)
+          run('candidate-regression', ['cargo', 'test', '-p', 'pdfdelta-core', '--locked', '--test', 'document_native_domain_roundoff_fixture'])
+          run('clippy', ['cargo', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings'])
+          run('workspace-tests', ['cargo', 'test', '--workspace', '--locked'])
+          run('acceptance-benchmark', ['cargo', 'run', '-p', 'pdfdelta-bench', '--locked', '--', 'verify'])
+          PY
+      - name: Attach diagnostics to this PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import urllib.request
+
+          out = pathlib.Path('/tmp/native-domain-diagnostic')
+          body = ['## Temporary native-domain validation', '', 'Tested checkout: `' + os.environ['TESTED_SHA'] + '`.', '', 'Formatting is applied only in the runner before the remaining checks. Baseline regression temporarily uses production domains.rs from 7bf6b0a with the new test file. No natural 36-pair benchmark is run.', '']
+          results = out / 'results.json'
+          body += ['```json', results.read_text() if results.exists() else 'No result file: setup failed before diagnostic execution.', '```']
+          for name in ['format.patch', 'baseline-regression.log', 'candidate-regression.log', 'clippy.log', 'workspace-tests.log', 'acceptance-benchmark.log']:
+              path = out / name
+              if path.exists():
+                  text = path.read_text(errors='replace')
+                  excerpt = text if len(text) <= 6500 else '[tail of log]\n' + text[-6500:]
+                  body += ['', '<details><summary>' + name + '</summary>', '', '```text', excerpt.replace('```', '~~~'), '```', '</details>']
+          payload = json.dumps({'body': '\n'.join(body)}).encode()
+          request = urllib.request.Request('https://api.github.com/repos/' + os.environ['REPOSITORY'] + '/issues/' + os.environ['PR_NUMBER'] + '/comments', data=payload, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}, method='POST')
+          with urllib.request.urlopen(request) as response:
+              print('Posted diagnostic comment; HTTP', response.status)
+          PY

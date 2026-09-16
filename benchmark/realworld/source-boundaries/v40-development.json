@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "production_sha256": "c7f1355a666940091986ace9d1b4c92893726627e98eb853df64a6e6129a4d6a",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-anchored-page-v40/pdfdelta",
+    "sha256": "c3c1d8512530849fbd67dad1e69ccb5c3219e240975ccd13e21b55439806afe9"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-anchored-page-v40/build.json",
+    "sha256": "399d978a7c5be6ba0a654c9ec5489cdd7c60e628706b317c34fdc487402a0f32"
+  },
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v40-repeated-observations.json",
+    "sha256": "ee3662a9d7a984e928b7ab68e24ff25b3723cb79c85699daaf04729b34dc47a2"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v40-formal-adjudications.json",
+    "sha256": "5ba13e98b9c4e1cdcb59d2ff8447875be681b614877337916fd7902207bd09b5"
+  },
+  "controls": {
+    "path": "benchmark/realworld/source-boundaries/v40-reviewed-control-observations.json",
+    "sha256": "17b569c4e3d18c3e16df53b76aeaba178eace162b9fca6f99ff0256f03c69300"
+  },
+  "scope": "V40 development gate. Both failed unseen campaigns remain exposed; the EDNS development recovery does not count as unseen."
+}

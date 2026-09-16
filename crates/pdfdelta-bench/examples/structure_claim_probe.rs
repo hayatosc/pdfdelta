@@ -31,29 +31,22 @@ const EXPECTED_ATTENTION: &str =
 #[cfg(test)]
 const EXPECTED_IRS: &str =
     include_str!("../../../benchmark/realworld/expected/irs-form-1040-2024-to-2025.json");
-const HISTORY_FIPS: &str = include_str!(
-    "../../../benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-fips-186-4-to-5.json"
-);
-const HISTORY_CSF: &str = include_str!(
-    "../../../benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-csf-v1-1-to-v2-0.json"
-);
-const HISTORY_ATTENTION: &str = include_str!(
-    "../../../benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/arxiv-attention-v6-to-v7.json"
-);
+const HISTORY_FIPS: &str =
+    include_str!("../../../fixtures/structure-claims/nist-fips-186-4-to-5.json");
+const HISTORY_CSF: &str =
+    include_str!("../../../fixtures/structure-claims/nist-csf-v1-1-to-v2-0.json");
+const HISTORY_ATTENTION: &str =
+    include_str!("../../../fixtures/structure-claims/arxiv-attention-v6-to-v7.json");
 const PROBE_SOURCE: &[u8] = include_bytes!("structure_claim_probe.rs");
 
-const DSA_OLD_INTRO: &[u8] = include_bytes!(
-    "../../../benchmark/realworld/results/structure-claim-probe/inputs/dsa-old-introduction.txt"
-);
-const DSA_NEW_INTRO: &[u8] = include_bytes!(
-    "../../../benchmark/realworld/results/structure-claim-probe/inputs/dsa-new-introduction.txt"
-);
-const DSA_OLD_PARAGRAPH: &[u8] = include_bytes!(
-    "../../../benchmark/realworld/results/structure-claim-probe/inputs/dsa-old-paragraph.txt"
-);
-const DSA_NEW_PARAGRAPH: &[u8] = include_bytes!(
-    "../../../benchmark/realworld/results/structure-claim-probe/inputs/dsa-new-paragraph.txt"
-);
+const DSA_OLD_INTRO: &[u8] =
+    include_bytes!("../../../fixtures/structure-claims/dsa-old-introduction.txt");
+const DSA_NEW_INTRO: &[u8] =
+    include_bytes!("../../../fixtures/structure-claims/dsa-new-introduction.txt");
+const DSA_OLD_PARAGRAPH: &[u8] =
+    include_bytes!("../../../fixtures/structure-claims/dsa-old-paragraph.txt");
+const DSA_NEW_PARAGRAPH: &[u8] =
+    include_bytes!("../../../fixtures/structure-claims/dsa-new-paragraph.txt");
 
 type ProbeResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -2378,28 +2371,28 @@ fn build_report() -> ProbeResult<ProbeReport> {
 
     let old_intro = load_source(
         "dsa-old-introduction",
-        "benchmark/realworld/results/structure-claim-probe/inputs/dsa-old-introduction.txt",
+        "fixtures/structure-claims/dsa-old-introduction.txt",
         DSA_OLD_INTRO,
         1431,
         "14e567a49d96048a93a60f5c9835d8ddb009578127c0b71808fc55af26f95b55",
     )?;
     let new_intro = load_source(
         "dsa-new-introduction",
-        "benchmark/realworld/results/structure-claim-probe/inputs/dsa-new-introduction.txt",
+        "fixtures/structure-claims/dsa-new-introduction.txt",
         DSA_NEW_INTRO,
         2509,
         "0a88c6bec0fb2e2408018677c703b9524c6c69ecb5c8868b5c1af9094292a35b",
     )?;
     let old_paragraph = load_source(
         "dsa-old-paragraph",
-        "benchmark/realworld/results/structure-claim-probe/inputs/dsa-old-paragraph.txt",
+        "fixtures/structure-claims/dsa-old-paragraph.txt",
         DSA_OLD_PARAGRAPH,
         261,
         "73944214a506ec6c5d81075574468ecd4dbed3e4162ce62c6eabd0fd14dce676",
     )?;
     let new_paragraph = load_source(
         "dsa-new-paragraph",
-        "benchmark/realworld/results/structure-claim-probe/inputs/dsa-new-paragraph.txt",
+        "fixtures/structure-claims/dsa-new-paragraph.txt",
         DSA_NEW_PARAGRAPH,
         150,
         "e32002b9cfc35d78144cb37373fd69a41f882c9d4702b3aca7de239d828d0764",
@@ -2503,17 +2496,17 @@ fn build_report() -> ProbeResult<ProbeReport> {
         role_policies: roles,
         historical_accepted_event_gaps: vec![
             historical_gap(
-                "benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-fips-186-4-to-5.json",
+                "fixtures/structure-claims/nist-fips-186-4-to-5.json",
                 HISTORY_FIPS,
                 "nist-fips-186-4-to-5",
             )?,
             historical_gap(
-                "benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/nist-csf-v1-1-to-v2-0.json",
+                "fixtures/structure-claims/nist-csf-v1-1-to-v2-0.json",
                 HISTORY_CSF,
                 "nist-csf-v1-1-to-v2-0",
             )?,
             historical_gap(
-                "benchmark/realworld/results/issue20-order-experiment/order-controls-source-fixed/arxiv-attention-v6-to-v7.json",
+                "fixtures/structure-claims/arxiv-attention-v6-to-v7.json",
                 HISTORY_ATTENTION,
                 "arxiv-attention-v6-to-v7",
             )?,

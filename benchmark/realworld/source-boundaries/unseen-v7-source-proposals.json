@@ -1,0 +1,318 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "selections": [
+    {
+      "pair": "nist-107-original-to-r1",
+      "side": "old",
+      "page": 2,
+      "range": [
+        30,
+        612
+      ],
+      "glyph_count": 582,
+      "unmapped_inside": [],
+      "opening": "Cryptographic hash functions that compute a fixed- length me",
+      "closing": "des (HMACs) and Hash-based Key Derivation Functions (HKDFs)."
+    },
+    {
+      "pair": "nist-107-original-to-r1",
+      "side": "new",
+      "page": 1,
+      "range": [
+        19,
+        570
+      ],
+      "glyph_count": 551,
+      "unmapped_inside": [],
+      "opening": "Hash functions that compute a fixed-length message digest fr",
+      "closing": ") and Hash-based Key Derivation Functions (Hash-based KDFs)."
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "side": "old",
+      "page": 2,
+      "range": [
+        99,
+        328
+      ],
+      "glyph_count": 229,
+      "unmapped_inside": [],
+      "opening": "This Recommendation specifies techniques for the derivation ",
+      "closing": "red through some other manner, using pseudorandom functions."
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "side": "new",
+      "page": 4,
+      "range": [
+        93,
+        346
+      ],
+      "glyph_count": 253,
+      "unmapped_inside": [],
+      "opening": "This Recommendation specifies techniques for the derivation ",
+      "closing": "manner – using pseudorandom functions: HMAC, CMAC, and KMAC."
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "side": "old",
+      "page": 6,
+      "range": [
+        186,
+        662
+      ],
+      "glyph_count": 476,
+      "unmapped_inside": [],
+      "opening": "Cryptography is often used in an information technology secu",
+      "closing": " function, and the key is a parameter used by that function."
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "side": "new",
+      "page": 6,
+      "range": [
+        185,
+        637
+      ],
+      "glyph_count": 452,
+      "unmapped_inside": [],
+      "opening": "Cryptography is often used in an information technology secu",
+      "closing": "al process, and the key is a parameter used by that process."
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "side": "old",
+      "page": 3,
+      "range": [
+        974,
+        1788
+      ],
+      "glyph_count": 814,
+      "unmapped_inside": [],
+      "opening": "According to Article 5(3) ePD, ‘the storing of information, ",
+      "closing": "ist of the technical operations covered by Article 5(3) ePD."
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "side": "new",
+      "page": 4,
+      "range": [
+        977,
+        1658
+      ],
+      "glyph_count": 681,
+      "unmapped_inside": [],
+      "opening": "According to Article 5(3) ePD, ‘the storing of information, ",
+      "closing": "st  of the technical operations covered by Article 5(3) ePD."
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "side": "old",
+      "page": 2,
+      "range": [
+        1589,
+        1934
+      ],
+      "glyph_count": 345,
+      "unmapped_inside": [],
+      "opening": "Several other fundamental rights may be affected by the appl",
+      "closing": " the right to privacy laid down by Article 7 of the Charter."
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "side": "new",
+      "page": 4,
+      "range": [
+        1556,
+        1900
+      ],
+      "glyph_count": 344,
+      "unmapped_inside": [],
+      "opening": "Several other fundamental rights may be affected by the appl",
+      "closing": " the right to privacy laid down in Article 7 of the Charter."
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "side": "old",
+      "page": 0,
+      "range": [
+        597,
+        1214
+      ],
+      "glyph_count": 617,
+      "unmapped_inside": [],
+      "opening": "Togoevenfurther,weuseneuralarchitecturesearchtodesignanewbas",
+      "closing": "com/tensorflow/tpu/tree/master/models/official/efficientnet."
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "side": "new",
+      "page": 0,
+      "range": [
+        597,
+        1203
+      ],
+      "glyph_count": 606,
+      "unmapped_inside": [],
+      "opening": "Togoevenfurther,weuseneuralarchitec-turesearchtodesignanewba",
+      "closing": "com/tensorflow/tpu/tree/master/models/official/efficientnet."
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "side": "old",
+      "page": 2,
+      "range": [
+        1678,
+        3089
+      ],
+      "glyph_count": 1411,
+      "unmapped_inside": [],
+      "opening": "Apartfromthedesignofthenetworkarchitecture,thetrainingproced",
+      "closing": "sanaverageobtainedfromtrainingwiththreedifferentrandomseeds."
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "side": "new",
+      "page": 2,
+      "range": [
+        1726,
+        3140
+      ],
+      "glyph_count": 1414,
+      "unmapped_inside": [],
+      "opening": "Apartfromthedesignofthenetworkarchitecture,thetrainingproced",
+      "closing": "sanaverageobtainedfromtrainingwiththreedifferentrandomseeds."
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "side": "old",
+      "page": 0,
+      "range": [
+        1656,
+        2076
+      ],
+      "glyph_count": 420,
+      "unmapped_inside": [],
+      "opening": "WeproposetheMLP-Mixerarchitecture(or“Mixer”forshort),acompet",
+      "closing": "alayout(reshapesandtranspositions),andscalarnon-linearities."
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "side": "new",
+      "page": 0,
+      "range": [
+        1711,
+        2130
+      ],
+      "glyph_count": 419,
+      "unmapped_inside": [],
+      "opening": "WeproposetheMLP-Mixerarchitecture(or“Mixer”forshort),acompet",
+      "closing": "talayout(reshapesandtranspositions),andscalarnonlinearities."
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "side": "old",
+      "page": 0,
+      "range": [
+        340,
+        553
+      ],
+      "glyph_count": 213,
+      "unmapped_inside": [],
+      "opening": "It provides a means but not the only means of evaluating man",
+      "closing": " to determine pilot training and qualification requirements."
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "side": "new",
+      "page": 3,
+      "range": [
+        791,
+        1066
+      ],
+      "glyph_count": 275,
+      "unmapped_inside": [],
+      "opening": "It provides procedures for evaluating new or modified aircra",
+      "closing": "ing, checking, and currency for the applicable type rating.2"
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "side": "old",
+      "page": 0,
+      "range": [
+        78,
+        167
+      ],
+      "glyph_count": 89,
+      "unmapped_inside": [],
+      "opening": "労働基準法においては、労働時間、休日、深夜業等について規定を設けていることから、使用者は、労働時間を適正に把握するなど労",
+      "closing": "を設けていることから、使用者は、労働時間を適正に把握するなど労働時間を適切に管理する責務を有していることは明らかである。"
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "side": "new",
+      "page": 0,
+      "range": [
+        82,
+        162
+      ],
+      "glyph_count": 80,
+      "unmapped_inside": [],
+      "opening": "労働基準法においては、労働時間、休日、深夜業等について規定を設けていることから、使用者は、労働時間を適正に把握するなど労",
+      "closing": "夜業等について規定を設けていることから、使用者は、労働時間を適正に把握するなど労働時間を適切に管理する責務を有している。"
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "side": "old",
+      "page": 0,
+      "range": [
+        749,
+        1149
+      ],
+      "glyph_count": 400,
+      "unmapped_inside": [],
+      "opening": "This standard specifies a syntax for text messages that are ",
+      "closing": "ing   incremental changes that were specified in other RFCs."
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "side": "new",
+      "page": 0,
+      "range": [
+        679,
+        1163
+      ],
+      "glyph_count": 484,
+      "unmapped_inside": [],
+      "opening": "This document specifies the Internet Message Format (IMF), a",
+      "closing": "ating incremental changes that were specified in other RFCs."
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "side": "old",
+      "page": 0,
+      "range": [
+        659,
+        1213
+      ],
+      "glyph_count": 554,
+      "unmapped_inside": [],
+      "opening": "The Dynamic Host Configuration Protocol (DHCP) provides a fr",
+      "closing": "in the editorial process, this memo is reissued as RFC 1541."
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "side": "new",
+      "page": 0,
+      "range": [
+        672,
+        1117
+      ],
+      "glyph_count": 445,
+      "unmapped_inside": [],
+      "opening": "The Dynamic Host Configuration Protocol (DHCP) provides a fr",
+      "closing": "participants can interoperate   with BOOTP participants [9]."
+    }
+  ]
+}

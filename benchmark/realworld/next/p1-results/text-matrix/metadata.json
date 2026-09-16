@@ -1,0 +1,17 @@
+{
+  "head": "d9cdc8b5663a2e14c66b3d41d1a06469f59baec1",
+  "source_sha256": {
+    "benchmark/realworld/next/text-matrix.json": "cb09841643a413e7354f24ef1620170b61e4a973c585e0a6176aba1d9a1535f9",
+    "benchmark/realworld/next/measure-text.py": "a83f844b79d5e5750bd780bfbd7883a5bb8b0e5c36578d0bd4a3858035040b79",
+    "crates/pdfdelta-core/src/document/text_candidates.rs": "6593f36b49fb2c5e4382cfb4540d2b00665f38092857e9dd7067979fe88b8bcb",
+    "crates/pdfdelta-core/src/document/text_candidates/measurement.rs": "9508366b7dc6fda5a1c0886d36a816b82244ee1486ec84805032ae577eb80419",
+    "crates/pdfdelta-core/src/document/matching.rs": "b39eac8f93949c7e9dc0431de46d2d2ae7e08d9273fd676f46887bbc1da83676",
+    "Cargo.lock": "8569dfacfce366a1f9ae51ce3ba9a4141a84e469bcd3e7dd09c37f3de9645ed7"
+  },
+  "binary_sha256": "e874573d23d82223439197f7d51962ec977afd0eeb65ce2e26ebde3896b4f0a2",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "repetitions": 3,
+  "memory_unit": "KiB; GNU time maximum resident set of each isolated test process; not allocator live heap",
+  "time_unit": "seconds; kernel includes synthetic graph construction, eligible text features, enumeration, digest and solver; excludes PDF I/O and base identity proposals; process includes test startup and JSON output"
+}

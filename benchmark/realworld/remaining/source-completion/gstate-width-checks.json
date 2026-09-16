@@ -1,0 +1,34 @@
+{
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/gstate-width-v1/before.log",
+      "sha256": "ef0c53107e6f45923618e395a74ddb5e3217e9625898f4aa960417b02d54c728"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/gstate-width-v1/tests.log",
+      "sha256": "d73f4d75b427c1027379250cb49e7dd04d5a2496ea528ce5b64e868f17c48ea8"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/gstate-width-v1/workspace.log",
+      "sha256": "1be7667a566b837905b00f2601e8dfbe4f751c0fd39fff34c0468fb6c0e86230"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/gstate-width-v1/clippy.log",
+      "sha256": "7394edddc0545e9854db947df178f428426195463c83822c8d3aad4465545925"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/gstate-width-v1/fixtures.log",
+      "sha256": "8ca0f56ecbcb3e4d8d486d424c25f117af3bd5118cd3b9953f566e2705251d13"
+    }
+  ],
+  "before": "expected failure: widths 2,2,2,7,7 instead of 2,30,2,30,30",
+  "workspace_passed": 2512,
+  "workspace_ignored": 2,
+  "workspace_failed": 0,
+  "generated_passed": 48,
+  "clippy": "passed",
+  "format": "passed",
+  "diff_check": "passed",
+  "new_completions": 0,
+  "natural_pilot": "gstate-width-v1-pilot.json; inspect final status independently"
+}

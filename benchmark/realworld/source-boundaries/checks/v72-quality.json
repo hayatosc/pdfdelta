@@ -1,0 +1,69 @@
+{
+  "source_sha256": "76c2862c3713ac17292a048e7dbf844a68b9547404eaef3b4aea838dcd2de860",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.431941957998788,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v72-quality-0.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 0.15594282500023837,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v72-quality-1.log",
+        "sha256": "a5f4c585ee974ca44916ac30a98bbc189e067a7e0a6bc6d2e8d6bc525be724af"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "seconds": 141.03482486800021,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v72-quality-2.log",
+        "sha256": "13cb6dfe8bd7d52d7315e7754d7ab1a77a5032803e0de06518362b8cb17e698c"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "seconds": 17.609137732999443,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v72-quality-3.log",
+        "sha256": "0297678810a743cce375452541b029badf96efb34f6851ac46651d617655cb8e"
+      }
+    }
+  ]
+}

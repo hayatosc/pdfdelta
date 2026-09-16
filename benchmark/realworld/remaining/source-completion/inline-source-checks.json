@@ -1,0 +1,231 @@
+{
+  "goal_complete": false,
+  "new_complete_pairs": 0,
+  "format": "cargo fmt --all -- --check passed",
+  "reproduction_commit": "d8e751f1e9ed38789f489681430e2995e9e2acac",
+  "pilots": [
+    {
+      "pilot": {
+        "path": "benchmark/realworld/remaining/source-completion/inline-source-v1-pilot.json",
+        "sha256": "c08e62bab3066b37910a4f59f56eabb9ab64c9818288f44788298e93437b326c"
+      },
+      "rows": [
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 0,
+          "reviews_after": 0,
+          "complete": false
+        },
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 1,
+          "reviews_after": 1,
+          "complete": false
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "coverage_identical": true,
+          "comparison_identical": false,
+          "reviews_before": 52,
+          "reviews_after": 50,
+          "complete": false
+        }
+      ]
+    },
+    {
+      "pilot": {
+        "path": "benchmark/realworld/remaining/source-completion/inline-source-v2-pilot.json",
+        "sha256": "a3359715007a972475d1663cfded35ce281865961b3438aa7602cd672e5c2873"
+      },
+      "rows": [
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 0,
+          "reviews_after": 0,
+          "complete": false
+        },
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 1,
+          "reviews_after": 1,
+          "complete": false
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "coverage_identical": true,
+          "comparison_identical": false,
+          "reviews_before": 52,
+          "reviews_after": 50,
+          "complete": false
+        }
+      ]
+    },
+    {
+      "pilot": {
+        "path": "benchmark/realworld/remaining/source-completion/inline-source-v3-pilot.json",
+        "sha256": "906e6eb5188bbd68223af488fa3358a2470d458894194e0f2728664429907b72"
+      },
+      "rows": [
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 0,
+          "reviews_after": 0,
+          "complete": false
+        },
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 1,
+          "reviews_after": 1,
+          "complete": false
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "coverage_identical": true,
+          "comparison_identical": false,
+          "reviews_before": 52,
+          "reviews_after": 50,
+          "complete": false
+        }
+      ]
+    },
+    {
+      "pilot": {
+        "path": "benchmark/realworld/remaining/source-completion/inline-source-v4-pilot.json",
+        "sha256": "4026ecfd7c5d39e56a709b2f2da42696ebaf1771baad95f4e0b4a6f944cd93ba"
+      },
+      "rows": [
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 0,
+          "reviews_after": 0,
+          "complete": false
+        },
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 1,
+          "reviews_after": 1,
+          "complete": false
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "coverage_identical": true,
+          "comparison_identical": false,
+          "reviews_before": 52,
+          "reviews_after": 50,
+          "complete": false
+        }
+      ]
+    },
+    {
+      "pilot": {
+        "path": "benchmark/realworld/remaining/source-completion/inline-source-v5-pilot.json",
+        "sha256": "689bc5a0a6b79d507a9704d7d448e31c8f10b6b04fcf26d551d9e683ad58525d"
+      },
+      "rows": [
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 0,
+          "reviews_after": 0,
+          "complete": false
+        },
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 1,
+          "reviews_after": 1,
+          "complete": false
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 52,
+          "reviews_after": 52,
+          "complete": false
+        }
+      ]
+    },
+    {
+      "pilot": {
+        "path": "benchmark/realworld/remaining/source-completion/inline-source-v6-pilot.json",
+        "sha256": "082265e7f0f59f78e6575d3947b94bc470fc2f130aa967e5b0a4d28f32d14a0f"
+      },
+      "rows": [
+        {
+          "pair": "irs-schedule-se-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 0,
+          "reviews_after": 0,
+          "complete": false
+        },
+        {
+          "pair": "irs-schedule-c-2024-to-2025",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 1,
+          "reviews_after": 1,
+          "complete": false
+        },
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "coverage_identical": true,
+          "comparison_identical": true,
+          "reviews_before": 52,
+          "reviews_after": 52,
+          "complete": false
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "workspace.log": {
+      "path": "benchmark/realworld/cache/source-completion/inline-source-v6/workspace.log",
+      "sha256": "15cfbeff89c517a132d64e39f2a8df89a592477a782e59f902f32f92cffc35b9"
+    },
+    "clippy.log": {
+      "path": "benchmark/realworld/cache/source-completion/inline-source-v6/clippy.log",
+      "sha256": "249d3f147e041a936db91d3f4b285a8eae6b72787345ddb6a28c1d69c8b12426"
+    },
+    "generated.log": {
+      "path": "benchmark/realworld/cache/source-completion/inline-source-v6/generated.log",
+      "sha256": "b843984be7ff0f212b20c7df45a71294a029f5fcad1fc402d70d59a894459a3e"
+    },
+    "build.log": {
+      "path": "benchmark/realworld/cache/source-completion/inline-source-v6/build.log",
+      "sha256": "9442117c42d7feeade120f9dc656906ac786e02d526e00997ad04ce43c577751"
+    }
+  },
+  "test_totals": {
+    "passed": 2516,
+    "failed": 0,
+    "ignored": 2
+  },
+  "audit": {
+    "path": "benchmark/realworld/cache/source-completion/inline-source-v6/audit.py",
+    "sha256": "1a7c99810ddbca37900d4974565ddae6bcbebac5750fff4b6607ce9350f3cb1a"
+  },
+  "predecessor": {
+    "path": "benchmark/realworld/cache/source-completion/inline-source-predecessor/edpb-controller-processor-v1-to-v2-1-text.json",
+    "sha256": "73465ff07fd3dc993113ee23ff494c1fe07d39287d6feeb64add43de54fc24fb"
+  }
+}

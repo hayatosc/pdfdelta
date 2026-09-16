@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "development_only": true,
+  "retired_campaign": 3,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-page-edges-v44/pdfdelta",
+    "sha256": "5c5760e113de3afc7d5522a26faf0b89044760cd090376f046776b2601b6e52b"
+  },
+  "observations": [
+    {
+      "pair": "nist-171-r2-to-r3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/nist-171-r2-to-r3/runs.json",
+        "sha256": "bc9d3d6e4f8e2050ca13a4524ea7c7f9fe72cb755c56f3d9efa046c8ee16b607"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/nist-171-r2-to-r3/nist-171-r2-to-r3-text.json",
+        "sha256": "9384e5c44c4b18ad868efeca9732092b73f1be60cf0a6ef5ecfe9c27d9f9b3c7"
+      }
+    },
+    {
+      "pair": "nist-82-r2-to-r3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/nist-82-r2-to-r3/runs.json",
+        "sha256": "fd0b06a6d01f018ef332df1aa28e24a0719f2b1dc7362d677e8d9366db1a6150"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/nist-82-r2-to-r3/nist-82-r2-to-r3-text.json",
+        "sha256": "e3aea0f99bed9cfd28bd44204ec5082acd6697f073a44cabeb074357c6d28551"
+      }
+    },
+    {
+      "pair": "nist-64-r1-to-r2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/nist-64-r1-to-r2/runs.json",
+        "sha256": "7876558418b7f2c621cf2b32236d2fa3d62eecf514b30fa584c88924359aeb43"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/nist-64-r1-to-r2/nist-64-r1-to-r2-text.json",
+        "sha256": "5603af094aa41aee0991c50bd09778c497090758deac6def97d7e5d08d614e1d"
+      }
+    },
+    {
+      "pair": "edpb-fines-v1-to-v2-1",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/edpb-fines-v1-to-v2-1/runs.json",
+        "sha256": "d993b755eae3ca654d1976c7c7e0a45970a778540ee7fa6a792d45d9f108711a"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/edpb-fines-v1-to-v2-1/edpb-fines-v1-to-v2-1-text.json",
+        "sha256": "14cb97c61ccd9e2834d3c81d4d74ff72699691507935566038d2a049c8f86386"
+      }
+    },
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/edpb-breach-examples-v1-to-v2/runs.json",
+        "sha256": "8d1257099f6e5df458ed11fe77bcb7e11f8e0dba5f7d59825ae11cbbaaa72fe0"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/edpb-breach-examples-v1-to-v2/edpb-breach-examples-v1-to-v2-text.json",
+        "sha256": "dba3e2c15a1ee91264bfa0329a6fc9ba40e64a7d23158aedae78e212c69149e7"
+      }
+    },
+    {
+      "pair": "arxiv-t5-v1-to-v3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/arxiv-t5-v1-to-v3/runs.json",
+        "sha256": "b109bad27fc2cd483c7d0e6479626de7b7934824100572dc9f22cd0355708f97"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/arxiv-t5-v1-to-v3/arxiv-t5-v1-to-v3-text.json",
+        "sha256": "230fbbeeb9a0e541d9d4f27f0cd707024e23fbd571c33c3444360b91447dc226"
+      }
+    },
+    {
+      "pair": "arxiv-albert-v1-to-v6",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/arxiv-albert-v1-to-v6/runs.json",
+        "sha256": "07a691361a739104cdf07bba5cbd2d67d0993f400fac53638ddfc364aa88c354"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/arxiv-albert-v1-to-v6/arxiv-albert-v1-to-v6-text.json",
+        "sha256": "1d3b71ae18d563480f9741f48687e9412d84634f17e2155789ddd32f53189057"
+      }
+    },
+    {
+      "pair": "faa-electronic-records-78a-to-78b",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/faa-electronic-records-78a-to-78b/runs.json",
+        "sha256": "8aa8d4e52a349e6a209afa1d4fa2d653646755d3b7e28961f63a73720209e48a"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/faa-electronic-records-78a-to-78b/faa-electronic-records-78a-to-78b-text.json",
+        "sha256": "3a614707d007db74f381867b344b8ae80a9a3cbd1a83026fd0a0fd3afd2c56f0"
+      }
+    },
+    {
+      "pair": "mext-research-misconduct-2006-to-2014",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/mext-research-misconduct-2006-to-2014/runs.json",
+        "sha256": "23b8c7a2523334cf03e751069f35b32b9e69712afbd30a685eaa6126787c139f"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/mext-research-misconduct-2006-to-2014/mext-research-misconduct-2006-to-2014-text.json",
+        "sha256": "517acb5108844c54bbd7b984beab5ef216e276b960069f2f45a173bd9ef4e2dc"
+      }
+    },
+    {
+      "pair": "ietf-json-4627-to-8259",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/ietf-json-4627-to-8259/runs.json",
+        "sha256": "c042ee86f25a1c78b21d93433f5c000575c1dddf7e7ede23471dd64d575201a1"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/ietf-json-4627-to-8259/ietf-json-4627-to-8259-text.json",
+        "sha256": "b34c6029d6072724d5def33e79ace6ea3a8bfb493add76c8fa4cd3def75907b6"
+      }
+    },
+    {
+      "pair": "ietf-uri-2396-to-3986",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/ietf-uri-2396-to-3986/runs.json",
+        "sha256": "362ef7341a61677e3829872d485f3dc4e75edadd55461053cd14441f819de17e"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/ietf-uri-2396-to-3986/ietf-uri-2396-to-3986-text.json",
+        "sha256": "743e7225da5c2401d0da13f0829e4e8630dd1ae4377400572012a12ddf87e2da"
+      }
+    },
+    {
+      "pair": "arxiv-xlnet-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/arxiv-xlnet-v1-to-v2/runs.json",
+        "sha256": "8cf39de9bcdf106bfbc5b2af0345bb29778e470dd025574128576cc124c2650c"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v44-exposed-v3/arxiv-xlnet-v1-to-v2/arxiv-xlnet-v1-to-v2-text.json",
+        "sha256": "6bf7a421a10336943240a8b17444c958509f5c823cd26545c42d4958a2830c9b"
+      }
+    }
+  ]
+}

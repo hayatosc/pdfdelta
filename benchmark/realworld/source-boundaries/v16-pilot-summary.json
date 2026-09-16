@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "scope": "Native header/footer edges stop the discovery run without discarding the adjacent paragraph. The incident target remains three atoms too wide.",
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v16-pilot-observations.json",
+    "sha256": "58d7cf02ff9076bbc673b46f4841d70a20fe729cb1810a60bec126a7dd09f05d"
+  },
+  "baseline": {
+    "path": "benchmark/realworld/source-boundaries/v15-panel-observations.json",
+    "sha256": "a52453e82eb336302a524a7704fae9d215de49ffd64c43132fc15a086d4101c4"
+  },
+  "pairs": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "events": 9,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/0"
+      ],
+      "target_overlaps": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+          "atoms": 986,
+          "core_atoms": 986,
+          "outside_extent_atoms": 0
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 0
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "events": 1,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [],
+      "target_overlaps": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 17,
+        "paired_boundaries": 4,
+        "work": 420495,
+        "budget_at_entry": 560134
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "events": 1,
+      "added_event_digests": [
+        "bce43b114b48c83323f892f2413bc8c079cd10167c61010baa81d525d09ff8cd"
+      ],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [],
+      "target_overlaps": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/0",
+          "atoms": 1391,
+          "core_atoms": 1388,
+          "outside_extent_atoms": 3
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 19,
+        "paired_boundaries": 4,
+        "work": 118078,
+        "budget_at_entry": 192329
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "events": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [],
+      "target_overlaps": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 359411,
+        "budget_at_entry": 359808
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "events": 0,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [],
+      "target_overlaps": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 0,
+        "budget_at_entry": 1789
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "events": 11,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/10"
+      ],
+      "target_overlaps": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/10",
+          "atoms": 703,
+          "core_atoms": 703,
+          "outside_extent_atoms": 0
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 13,
+        "paired_boundaries": 6,
+        "work": 159948,
+        "budget_at_entry": 159948
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "events": 20,
+      "added_event_digests": [],
+      "lost_event_digests": [],
+      "candidate_fixed_target_hits": [
+        "/comparison/scopes/0/result/text_scope_reviews/12"
+      ],
+      "target_overlaps": [
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/10",
+          "atoms": 388,
+          "core_atoms": 383,
+          "outside_extent_atoms": 5
+        },
+        {
+          "pointer": "/comparison/scopes/0/result/text_scope_reviews/12",
+          "atoms": 383,
+          "core_atoms": 383,
+          "outside_extent_atoms": 0
+        }
+      ],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 86,
+        "paired_boundaries": 48,
+        "work": 684979,
+        "budget_at_entry": 691317
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-171-r2-to-r3",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "73895ac44575a0c870b6ff57353778a22e8a1db0e783f6fa58dfb24ffe85718b",
+  "body_eligible": true,
+  "reason": "The complete abstract changes the scope and security requirements for controlled unclassified information, including a new assessment-procedures sentence."
+}

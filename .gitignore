@@ -2,6 +2,11 @@
 /fuzz/target
 /fuzz/artifacts
 
+# Python benchmark helpers generate bytecode caches locally.
+__pycache__/
+*.pyc
+*.pyo
+
 # libFuzzer writes coverage-increasing units back into the corpus directory.
 # Only curated, format-specific seeds are tracked; generated units are regenerable.
 /fuzz/corpus/*/*
@@ -17,8 +22,3 @@ benchmark/realworld/cache/
 # Keep evaluation documents, measurements, and cited validation evidence.
 # Omit uncited raw execution logs and new temporary captures.
 benchmark/realworld/results/**/*.log
-!benchmark/realworld/results/issue20-order-experiment/**/generated.log
-!benchmark/realworld/results/issue20-order-experiment/**/checksums.log
-!benchmark/realworld/results/issue20-order-experiment/**/inputs-rechecked.log
-!benchmark/realworld/results/issue20-order-experiment/**/clippy.log
-!benchmark/realworld/results/issue20-order-experiment/**/workspace-tests.log

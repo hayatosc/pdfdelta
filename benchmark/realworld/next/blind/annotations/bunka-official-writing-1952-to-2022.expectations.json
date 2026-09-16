@@ -1,0 +1,450 @@
+{
+  "version": 1,
+  "pair": "bunka-official-writing-1952-to-2022",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "3baee46f48126e7bd7ab1065bb156d415b8ea0695457d919e9e888aff1bd9f85",
+  "resolution_sha256": "1e9c38ec4ad62c6a7b3eb994806e79db52ce8f3c840d510acb5bc80a591bec3d",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "annotation_status": "resolved",
+  "sampling": "One independently selected changed range per active pair, authored and visually inspected before comparison. Partial reference: all unannotated predictions require separate adjudication.",
+  "comparison_convention": "Compare the selected policy sentence, introductory paragraph, abstract, or named form field across publication revisions. Literal annotation preserves raw whitespace, glyph sharing and footnote digits. This reference does not assert a unique author edit history.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "old_new_regions": {
+      "old": {
+        "page": 1,
+        "selector": "body-old",
+        "bbox": [
+          95.64149999999982,
+          410.64830000000046,
+          510.20459999999974,
+          437.9378000000005
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "source_atoms": [
+          {
+            "kind": "glyph",
+            "id": 456
+          },
+          {
+            "kind": "glyph",
+            "id": 457
+          },
+          {
+            "kind": "glyph",
+            "id": 458
+          },
+          {
+            "kind": "glyph",
+            "id": 459
+          },
+          {
+            "kind": "glyph",
+            "id": 460
+          },
+          {
+            "kind": "glyph",
+            "id": 461
+          },
+          {
+            "kind": "glyph",
+            "id": 462
+          },
+          {
+            "kind": "glyph",
+            "id": 463
+          },
+          {
+            "kind": "glyph",
+            "id": 464
+          },
+          {
+            "kind": "glyph",
+            "id": 465
+          },
+          {
+            "kind": "glyph",
+            "id": 466
+          },
+          {
+            "kind": "glyph",
+            "id": 467
+          },
+          {
+            "kind": "glyph",
+            "id": 468
+          },
+          {
+            "kind": "glyph",
+            "id": 469
+          },
+          {
+            "kind": "glyph",
+            "id": 470
+          },
+          {
+            "kind": "glyph",
+            "id": 471
+          },
+          {
+            "kind": "glyph",
+            "id": 472
+          },
+          {
+            "kind": "glyph",
+            "id": 473
+          },
+          {
+            "kind": "glyph",
+            "id": 474
+          },
+          {
+            "kind": "glyph",
+            "id": 475
+          },
+          {
+            "kind": "glyph",
+            "id": 476
+          },
+          {
+            "kind": "glyph",
+            "id": 477
+          },
+          {
+            "kind": "glyph",
+            "id": 478
+          },
+          {
+            "kind": "glyph",
+            "id": 479
+          },
+          {
+            "kind": "glyph",
+            "id": 480
+          },
+          {
+            "kind": "glyph",
+            "id": 481
+          },
+          {
+            "kind": "glyph",
+            "id": 482
+          },
+          {
+            "kind": "glyph",
+            "id": 483
+          },
+          {
+            "kind": "glyph",
+            "id": 484
+          },
+          {
+            "kind": "glyph",
+            "id": 485
+          },
+          {
+            "kind": "glyph",
+            "id": 486
+          },
+          {
+            "kind": "glyph",
+            "id": 487
+          },
+          {
+            "kind": "glyph",
+            "id": 488
+          },
+          {
+            "kind": "glyph",
+            "id": 489
+          },
+          {
+            "kind": "glyph",
+            "id": 490
+          },
+          {
+            "kind": "glyph",
+            "id": 491
+          },
+          {
+            "kind": "glyph",
+            "id": 492
+          },
+          {
+            "kind": "glyph",
+            "id": 493
+          },
+          {
+            "kind": "glyph",
+            "id": 494
+          },
+          {
+            "kind": "glyph",
+            "id": 495
+          },
+          {
+            "kind": "glyph",
+            "id": 496
+          },
+          {
+            "kind": "glyph",
+            "id": 497
+          },
+          {
+            "kind": "glyph",
+            "id": 498
+          },
+          {
+            "kind": "glyph",
+            "id": 499
+          },
+          {
+            "kind": "glyph",
+            "id": 500
+          },
+          {
+            "kind": "glyph",
+            "id": 501
+          },
+          {
+            "kind": "glyph",
+            "id": 502
+          },
+          {
+            "kind": "glyph",
+            "id": 503
+          },
+          {
+            "kind": "glyph",
+            "id": 504
+          },
+          {
+            "kind": "glyph",
+            "id": 505
+          },
+          {
+            "kind": "glyph",
+            "id": 506
+          },
+          {
+            "kind": "glyph",
+            "id": 507
+          },
+          {
+            "kind": "glyph",
+            "id": 508
+          },
+          {
+            "kind": "glyph",
+            "id": 509
+          },
+          {
+            "kind": "glyph",
+            "id": 510
+          }
+        ]
+      },
+      "new": {
+        "page": 3,
+        "selector": "body-new",
+        "bbox": [
+          136.1,
+          249.5528,
+          503.84144000000026,
+          260.1128
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "source_atoms": [
+          {
+            "kind": "glyph",
+            "id": 1594
+          },
+          {
+            "kind": "glyph",
+            "id": 1595
+          },
+          {
+            "kind": "glyph",
+            "id": 1596
+          },
+          {
+            "kind": "glyph",
+            "id": 1597
+          },
+          {
+            "kind": "glyph",
+            "id": 1598
+          },
+          {
+            "kind": "glyph",
+            "id": 1599
+          },
+          {
+            "kind": "glyph",
+            "id": 1600
+          },
+          {
+            "kind": "glyph",
+            "id": 1601
+          },
+          {
+            "kind": "glyph",
+            "id": 1602
+          },
+          {
+            "kind": "glyph",
+            "id": 1603
+          },
+          {
+            "kind": "glyph",
+            "id": 1604
+          },
+          {
+            "kind": "glyph",
+            "id": 1605
+          },
+          {
+            "kind": "glyph",
+            "id": 1606
+          },
+          {
+            "kind": "glyph",
+            "id": 1607
+          },
+          {
+            "kind": "glyph",
+            "id": 1608
+          },
+          {
+            "kind": "glyph",
+            "id": 1609
+          },
+          {
+            "kind": "glyph",
+            "id": 1610
+          },
+          {
+            "kind": "glyph",
+            "id": 1611
+          },
+          {
+            "kind": "glyph",
+            "id": 1612
+          },
+          {
+            "kind": "glyph",
+            "id": 1613
+          },
+          {
+            "kind": "glyph",
+            "id": 1614
+          },
+          {
+            "kind": "glyph",
+            "id": 1615
+          },
+          {
+            "kind": "glyph",
+            "id": 1616
+          },
+          {
+            "kind": "glyph",
+            "id": 1617
+          },
+          {
+            "kind": "glyph",
+            "id": 1618
+          },
+          {
+            "kind": "glyph",
+            "id": 1619
+          },
+          {
+            "kind": "glyph",
+            "id": 1620
+          },
+          {
+            "kind": "glyph",
+            "id": 1621
+          },
+          {
+            "kind": "glyph",
+            "id": 1622
+          },
+          {
+            "kind": "glyph",
+            "id": 1623
+          },
+          {
+            "kind": "glyph",
+            "id": 1624
+          },
+          {
+            "kind": "glyph",
+            "id": 1625
+          },
+          {
+            "kind": "glyph",
+            "id": 1626
+          },
+          {
+            "kind": "glyph",
+            "id": 1627
+          },
+          {
+            "kind": "glyph",
+            "id": 1628
+          }
+        ]
+      }
+    },
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null
+  },
+  "controls": [],
+  "visual_checks": [
+    {
+      "id": "bunka-official-writing-1952-to-2022",
+      "side": "old",
+      "page": 1,
+      "input_sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890",
+      "object_evidence_sha256": "9eb61c719907fb7ea6815bbe61fcb88e3698c57fc15d7de38839806d7151f9c8",
+      "width": 596,
+      "height": 842,
+      "object_number": 1,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "8dde596722f544738ad64d0a5b480d28651cf1317971e690855d4c30533eeeb0",
+      "warning": false,
+      "png_sha256": "370d0a4bb61b679105f063762522cfe76fead7afbfdfdbb0b4c0112047d96715",
+      "cache_directory": "next-blind-body-renders",
+      "visually_inspected": true
+    },
+    {
+      "id": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "page": 3,
+      "input_sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9",
+      "object_evidence_sha256": "3aecc0192ffeeb7bb3135ae37fba67ddefc0d4c4c7063f017c8121c067413ebc",
+      "width": 596,
+      "height": 842,
+      "object_number": 5,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "b399efec559cd2621f32909f1bff35644ce779650fa4391133435bf4dacdb7ad",
+      "warning": false,
+      "png_sha256": "648e7996b19254a679e6b45e3b24a0ff8c0006484e4f07c65082946ffab3c16c",
+      "cache_directory": "next-blind-remaining-renders",
+      "visually_inspected": true
+    }
+  ],
+  "source_capture_hashes": {
+    "old": "160c6d1b55c0cfe026c36e83749500f27c1d61ebc9a9d0b889cb11352b23b401",
+    "new": "d1bfcb566b8b5a0e79bd2d9acf24c64805a7ba45808a29c0a06a2cd22ee6ef6a"
+  }
+}

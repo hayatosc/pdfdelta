@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "faa-sop-71a-to-71b",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Standard operating procedures (SOPs) are universally recognized as basic to safe aviation operations.  Effective crew coordination and crew performance, two central concepts of crew resource management (CRM), depend upon the crew’s having a shared mental model of each task.  That mental model, in turn, is founded on SOPs.  This advisory circular (AC) presents background, basic concepts, and philosophy in respect to SOPs.  It emphasizes that SOPs should be clear, comprehensive, and readily available in the manuals used by flight deck crewmembers.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Subject:",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "This advisory circular (AC) provides guidance for the design, development, implementation, evaluation, and updating of standard operating procedures (SOP), and for pilot monitoring (PM) duties. SOPs are universally recognized as fundamental to safe aviation operations. Their importance cannot be overstated, especially in light of the advent of PM standards with respect to the use of increasingly modernized automated systems. This AC provides a process for developing procedures that meet clear and specific requirements. Safe operations are founded on comprehensive SOPs made readily available within the manuals used by flight deck crewmembers. This AC also provides guidance on the definition and the training of PM duties and their integration into SOPs. Although this AC is directed towards Title 14 of the Code of Federal Regulations (14 CFR) part 121 and part 135 air carriers, the Federal Aviation Administration (FAA) encourages all air carriers, aircraft operators, pilot schools, and training centers to utilize this guidance.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Subject:",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "42b99d94740a3f9e9c799f94d694d38c44b6097e970be3ee2f7e0399bfc01385",
+  "new_sha256": "5cec8425626e7f5bed41eb1e9ff24e8119585469a9b76d2361e6536be2264855"
+}

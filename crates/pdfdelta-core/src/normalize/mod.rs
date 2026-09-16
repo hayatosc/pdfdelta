@@ -72,7 +72,6 @@ impl FontSizeSignature {
     /// Builds a signature from positive, finite effective font sizes.
     ///
     /// Returns `None` when `sizes` is empty or contains an invalid value.
-    #[must_use]
     pub fn new(sizes: &[f64]) -> Option<Self> {
         if sizes.is_empty() || sizes.iter().any(|size| !size.is_finite() || *size <= 0.0) {
             return None;
@@ -114,7 +113,6 @@ impl PositionSignature {
     /// Builds a signature from finite geometry and a non-zero text direction.
     ///
     /// Returns `None` when any component is non-finite or `direction` is zero.
-    #[must_use]
     pub fn new(baseline: Vec2, direction: Vec2) -> Option<Self> {
         if !baseline.x.is_finite()
             || !baseline.y.is_finite()
@@ -133,7 +131,6 @@ impl PositionSignature {
     }
 
     /// Returns the normalized-page baseline represented by this signature.
-    #[must_use]
     pub fn baseline(self) -> Vec2 {
         Vec2 {
             x: f64::from_bits(self.baseline_x),
@@ -142,7 +139,6 @@ impl PositionSignature {
     }
 
     /// Returns the text direction represented by this signature.
-    #[must_use]
     pub fn direction(self) -> Vec2 {
         Vec2 {
             x: f64::from_bits(self.direction_x),
@@ -177,7 +173,6 @@ pub enum ComparableToken {
 }
 
 impl ComparableToken {
-    #[must_use]
     pub fn as_scalar(&self) -> Option<char> {
         match self {
             Self::Scalar(scalar) => Some(*scalar),
@@ -185,7 +180,6 @@ impl ComparableToken {
         }
     }
 
-    #[must_use]
     pub fn is_scalar(&self) -> bool {
         matches!(self, Self::Scalar(_))
     }
@@ -342,7 +336,6 @@ impl MappedText {
     }
 
     /// Returns the `TextSource` covering the given output `ScalarRange`.
-    #[must_use]
     pub fn project_source(&self, range: ScalarRange) -> TextSource {
         let mut atoms = Vec::new();
         let mut seen = HashSet::new();
@@ -398,7 +391,6 @@ impl MappedText {
     }
 
     /// Returns all unique `GlyphId`s associated with the given output `ScalarRange`.
-    #[must_use]
     pub fn project_glyph_ids(&self, range: ScalarRange) -> Vec<GlyphId> {
         let source = self.project_source(range);
         let mut glyph_ids = Vec::new();
@@ -432,7 +424,6 @@ impl MappedText {
     }
 
     /// Returns the ordered list of `TextSourceAtom`s covering the given output `ScalarRange`.
-    #[must_use]
     pub fn project_source_atoms(&self, range: ScalarRange) -> Vec<TextSourceAtom> {
         self.project_source(range).atoms.into_vec()
     }
@@ -503,6 +494,52 @@ pub struct BlockText {
 }
 
 impl BlockText {
+    /// Returns retained discretionary hyphens in the requested comparable-token
+    /// interval. Every issue is source-projected before its local context is used;
+    /// unsupported issues overlapping the interval leave the whole set unknown.
+    pub(crate) fn checked_optional_hyphens(
+        &self,
+        tokens: &[ComparableToken],
+        interval: std::ops::Range<usize>,
+    ) -> Result<Option<Vec<usize>>> {
+        let ranges = self.checked_normalization_issue_ranges()?;
+        let mut positions = Vec::new();
+        for (issue, range) in self.issues.iter().zip(ranges) {
+            let start = range.start
+                + self
+                    .canonical
+                    .unmapped
+                    .partition_point(|token| token.scalar_index <= range.start);
+            let issue_start = start.saturating_sub(usize::from(range.start == range.end));
+            let issue_end = start.saturating_add((range.end - range.start).max(1));
+            if issue_start >= interval.end || issue_end <= interval.start {
+                continue;
+            }
+            let raw_index = issue.raw_range.start;
+            if raw_index == 0 {
+                return Ok(None);
+            }
+            let mut context = self.raw.text.chars().skip(raw_index - 1);
+            let [preceding, hyphen, line_break, following] =
+                std::array::from_fn(|_| context.next());
+            if range.end != range.start + 1
+                || issue.raw_range.end != raw_index + 1
+                || !matches!(hyphen, Some('-' | '\u{2010}'))
+                || line_break != Some('\n')
+                || !preceding.is_some_and(char::is_alphabetic)
+                || !following.is_some_and(char::is_lowercase)
+                || tokens.get(start) != hyphen.map(ComparableToken::Scalar).as_ref()
+                || start < interval.start
+            {
+                return Ok(None);
+            }
+            positions.push(start);
+        }
+        positions.sort_unstable();
+        positions.dedup();
+        Ok(Some(positions))
+    }
+
     /// Projects every normalization issue to a verified canonical range.
     ///
     /// Unlike [`Self::raw_to_canonical_range`], this method has no positional
@@ -617,7 +654,6 @@ impl BlockText {
     /// Empty ranges return a point only for an exact boundary; otherwise they
     /// return the containing raw extent. Use [`Self::canonical_to_raw_boundary`]
     /// to distinguish a shared source from an ambiguous boundary.
-    #[must_use]
     pub fn canonical_to_raw_range(&self, canonical_range: ScalarRange) -> ScalarRange {
         if canonical_range.start == canonical_range.end {
             return self.canonical_point_to_raw_offset(canonical_range.start);
@@ -688,7 +724,6 @@ impl BlockText {
     }
 
     /// Projects a raw `ScalarRange` to the corresponding canonical `ScalarRange` in `self.canonical`.
-    #[must_use]
     pub fn raw_to_canonical_range(&self, raw_range: ScalarRange) -> ScalarRange {
         if raw_range.start == raw_range.end {
             return self.raw_point_to_canonical_offset(raw_range.start);
@@ -754,13 +789,11 @@ impl BlockText {
     }
 
     /// Projects a canonical `ScalarRange` directly to its source `TextSource`.
-    #[must_use]
     pub fn project_canonical_source(&self, canonical_range: ScalarRange) -> TextSource {
         self.canonical.project_source(canonical_range)
     }
 
     /// Projects a canonical `ScalarRange` directly to its source `GlyphId`s.
-    #[must_use]
     pub fn project_canonical_glyph_ids(&self, canonical_range: ScalarRange) -> Vec<GlyphId> {
         self.canonical.project_glyph_ids(canonical_range)
     }
@@ -768,7 +801,6 @@ impl BlockText {
     /// Projects an insertion boundary without placing it inside a composed source.
     ///
     /// Returns `None` for an out-of-range offset or missing scalar evidence.
-    #[must_use]
     pub fn canonical_to_raw_boundary(&self, offset: usize) -> Option<RawBoundary> {
         let canonical_len = self.canonical.text.chars().count();
         let raw_len = self.raw.text.chars().count();
@@ -804,16 +836,18 @@ impl BlockText {
         } else {
             extent(offset)?.start
         };
-        Some(match left.cmp(&right) {
-            std::cmp::Ordering::Equal => RawBoundary::Exact(left),
-            std::cmp::Ordering::Greater => RawBoundary::WithinSource(ScalarRange {
+        Some(if left == right {
+            RawBoundary::Exact(left)
+        } else if left > right {
+            RawBoundary::WithinSource(ScalarRange {
                 start: right,
                 end: left,
-            }),
-            std::cmp::Ordering::Less => RawBoundary::Ambiguous(ScalarRange {
+            })
+        } else {
+            RawBoundary::Ambiguous(ScalarRange {
                 start: left,
                 end: right,
-            }),
+            })
         })
     }
 
@@ -1693,7 +1727,7 @@ fn expand_ligatures(atoms: Vec<Atom>) -> Vec<Atom> {
     expanded
 }
 
-fn ligature_expansion(scalar: char) -> Option<&'static str> {
+pub(crate) fn ligature_expansion(scalar: char) -> Option<&'static str> {
     match scalar {
         '\u{fb00}' => Some("ff"),
         '\u{fb01}' => Some("fi"),
@@ -1819,10 +1853,6 @@ fn resolve_line_breaks(atoms: &mut Vec<Atom>, issues: &mut Vec<NormalizationIssu
     atoms.truncate(write);
 }
 
-/// Whether the atoms begin a `“word”` pair whose closing quote is on the same
-/// line. Only a complete source-paired directional quoted word justifies a
-/// word separator; unmatched and ambiguous ASCII quotation marks stay
-/// unresolved.
 fn starts_closed_quoted_word(atoms: &[Atom]) -> bool {
     if atoms.first().and_then(Atom::scalar) != Some('“')
         || !atoms
@@ -1833,7 +1863,8 @@ fn starts_closed_quoted_word(atoms: &[Atom]) -> bool {
         return false;
     }
     // Each lookahead stays on the following line, so the total scan remains
-    // linear.
+    // linear. A paired directional quote supports the same word separator as
+    // a Latin word; unmatched and ambiguous ASCII quotation marks stay unresolved.
     for atom in &atoms[2..] {
         match atom.scalar() {
             Some('”') => return true,
@@ -1987,17 +2018,20 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
         // quick check is inconclusive, so those graphemes still have to be
         // normalized and compared — reporting `Nfc` for them unconditionally
         // would record a normalization that never happened.
-        let (value, normalized) = if is_nfc_quick(grapheme.chars()) == IsNormalized::Yes {
-            let mut chars = grapheme.chars();
-            let value = match (chars.next(), chars.next()) {
-                (Some(single), None) => TextPiece::Char(single),
-                _ => TextPiece::Str(grapheme.to_owned()),
-            };
-            (value, false)
-        } else {
-            let canonical = grapheme.nfc().collect::<String>();
-            let normalized = canonical != grapheme;
-            (TextPiece::Str(canonical), normalized)
+        let (value, normalized) = match is_nfc_quick(grapheme.chars()) {
+            IsNormalized::Yes => {
+                let mut chars = grapheme.chars();
+                let value = match (chars.next(), chars.next()) {
+                    (Some(single), None) => TextPiece::Char(single),
+                    _ => TextPiece::Str(grapheme.to_owned()),
+                };
+                (value, false)
+            }
+            _ => {
+                let canonical = grapheme.nfc().collect::<String>();
+                let normalized = canonical != grapheme;
+                (TextPiece::Str(canonical), normalized)
+            }
         };
         let mut kinds = atoms
             .iter()

@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "build": {
+    "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/build.json",
+    "sha256": "fb90987b749e864a784443fde4181b232e6262ed6c778dec1c8565dd7a116372"
+  },
+  "observations": [
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/runs.json",
+        "sha256": "547f69fcbd6312c2e0e939ae88ce24332df34de33509d3a0e602a639bf422ba9"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "c4bdf4b9d8f228d029852555e47bbdea959571e2d07a0a59426959ce48be58f6"
+      },
+      "score": {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "core_atoms": 1907,
+        "extent_atoms": 1907,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/runs.json",
+        "sha256": "547f69fcbd6312c2e0e939ae88ce24332df34de33509d3a0e602a639bf422ba9"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "2b47c9a454b3d762f53c26997b570dd472b267942af8836c8c8e8d87692085c7"
+      },
+      "score": {
+        "pair": "arxiv-faster-rcnn-v1-to-v3",
+        "core_atoms": 1023,
+        "extent_atoms": 1023,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-dev/runs.json",
+        "sha256": "3b06ea98a0d149cdcd2c9e2ccbfd67833cc39f49362c71f0a36164364e4d356c"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-dev/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "91120ea1d0759ef91da93bba6f5dd5236d5e05752a95c644ae124e5924806889"
+      },
+      "score": {
+        "pair": "edpb-controller-processor-v1-to-v2-1",
+        "core_atoms": 986,
+        "extent_atoms": 986,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 1,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-dev/runs.json",
+        "sha256": "3b06ea98a0d149cdcd2c9e2ccbfd67833cc39f49362c71f0a36164364e4d356c"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-dev/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "0cf94e3e78842e0b9c3c2514b0104873e53a5b1acb2af60bb3beb19ac51496e6"
+      },
+      "score": {
+        "pair": "arxiv-bert-v1-to-v2",
+        "core_atoms": 703,
+        "extent_atoms": 703,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-dev/runs.json",
+        "sha256": "3b06ea98a0d149cdcd2c9e2ccbfd67833cc39f49362c71f0a36164364e4d356c"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-first-indent-dev/arxiv-gpt3-v1-to-v4-text.json",
+        "sha256": "2e7afc292a50c9a536b4288545adbaee28ab6da2ecf527bf571c7c00059f6559"
+      },
+      "score": {
+        "pair": "arxiv-gpt3-v1-to-v4",
+        "core_atoms": 225,
+        "extent_atoms": 225,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    }
+  ],
+  "source_review": {
+    "path": "benchmark/realworld/cache/remaining-mask-first-indent-review/sources.json",
+    "sha256": "1fc47027b75cede21199d578472c4595413da163c24b2700dfbedd010a7a8b76"
+  },
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/workspace.log",
+      "sha256": "220f450cebb7db8b8a264886f0afe2f5e89c1822feb4a08cf5638506f12c7c0c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/clippy.log",
+      "sha256": "55a02db0a991699149faaf1b984c395008cde826c22230270c5fedfae25caa70"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/generated.log",
+      "sha256": "dd670567219cb5d099c38420eb4230c93708f65fc7f436f143302fadbb478e05"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-first-indent-rcnn/red.log",
+      "sha256": "ea686bd80ee8a0256db0a60f2f8c0b3ce421542bfcf0e86ec39cc67dafc32a90"
+    }
+  ],
+  "conclusion": "The Mask target now occupies one old and two new source-exclusive consecutive nodes, with 923 old and 984 new glyph sources. Existing controller/processor target recovery remains one; other pilot target hits and all complete counts remain zero."
+}

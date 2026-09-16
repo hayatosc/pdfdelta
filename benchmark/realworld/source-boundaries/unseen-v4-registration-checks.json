@@ -1,0 +1,50 @@
+{
+  "version": 4,
+  "checked_utc": "2026-09-13T15:05:06.942170+00:00",
+  "scope": "Pre-registration commit checks; production source and executable remain identical to V51. The formal locked/generated quality record remains current.",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/unseen-v4-registration-fmt.log",
+        "sha256": "655fcd50c149564a3ac01f3bb5175bd2a3b0749e3c2d0ababb217ab1fe3e3158"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/unseen-v4-registration-clippy.log",
+        "sha256": "520a2dfdec7786fd380c2ba4d4a0c5f0b1cb1b39a1783b8a6bbf09dd0c7a25da"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/unseen-v4-registration-test.log",
+        "sha256": "0ebc34f583925899a042be45dd7727c3464046dc92b00e9166c3202fe9050355"
+      }
+    }
+  ],
+  "passed_tests": 2398
+}

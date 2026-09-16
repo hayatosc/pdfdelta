@@ -1,0 +1,1521 @@
+{
+  "version": 1,
+  "capture": {
+    "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/runs.json",
+    "sha256": "cd97c5303e867d9998585b0751b0f4fc182acea919d13d2ad4eb6a12ce8c69da"
+  },
+  "reports": [
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-plain-native.json",
+        "sha256": "8bb9e1d47b6922598a0839be0de59fb5c5b1f7e3ba5c4dc9a480726804653ac9"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-plain-text.json",
+        "sha256": "b18a7e669783cdf693e08cc80ebb7e6a91145e7797753898a7708208caf932b8"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-plain-all.json",
+        "sha256": "7b3461bab7231650cec00142f51565d26dcbd3977606a5e79c3b1bceea08cff3"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-wrap-native.json",
+        "sha256": "13c16e26a474f6ccdda074fe82b192b3c41d7ed0d20c1dd83c31b51c6951c7da"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-wrap-text.json",
+        "sha256": "667d124348923136806118b87ff574148e3fa17372b0fa5ddffdb6db97ae599e"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-wrap-all.json",
+        "sha256": "62a44854808d143036183dc940edd108215e80bb352193495d5e5d4ce6b2295b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-page_break-native.json",
+        "sha256": "aea8bbdea10b99566994b334ced6c2d1f4c648fc0e22777728ac33f71e0ee914"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-page_break-text.json",
+        "sha256": "77a9605e1e488b578457c2db3a9b292c0833d32a7a982b42ce72571e5e93db09"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-page_break-all.json",
+        "sha256": "7720da4b29913849b41d4c90898da41d76177dd95ebe2cfe6a027128f3d097ea"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-font_size-native.json",
+        "sha256": "76091fffcdec8272a74aa269626d0d591312fd3aa553c0d342f39d64e17e081c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-font_size-text.json",
+        "sha256": "ed3e77295dc740863bd469ae67cf9c6ec17eabb91f5c91dae027a06b75539fcc"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-font_size-all.json",
+        "sha256": "c45bb2ab62134a6034aaf721c252f87c9aba73b50a996ba4a691aeaa789fc444"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-columns-native.json",
+        "sha256": "67d0e70a61b24380132925fadd896957797c092c11427861cc02589057d35d0e"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-columns-text.json",
+        "sha256": "e968dc113ac8ec9d7d6e8df46182775b67bbea9650c6833bb184293221f20f97"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-columns-all.json",
+        "sha256": "7b67a93e28899027806c3e605c799ff9457298a71a55e387523c3cae44fad876"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-paint_order-native.json",
+        "sha256": "4b778fdbc9919d9ffa5caaa07039cc0564d1fbfa9f6acd9fbad7adf2fb090145"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-paint_order-text.json",
+        "sha256": "9d0e534650404edc1d108e1a0b867c72d4d95f0ca811742e7a6b9b9a08ca6053"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unchanged-paint_order-all.json",
+        "sha256": "fae10446f31bd3f9cfe6d403ba90a283d23f80dc31b3fc95df3709a9a3b2d3f3"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-plain-native.json",
+        "sha256": "523463d09184279bf04fcbb7d04c9f57a33299406a62566ad4f42f59ae259d36"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-plain-text.json",
+        "sha256": "853d30bf37a5f5f9a6ac1cb78cdb5ba0074b150fc0aecc922faf9696f5fc0e2d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-plain-all.json",
+        "sha256": "1b9ec9b345c927eae02de3ead41ec69e8aa082df749905ecde97246f42553ddf"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-wrap-native.json",
+        "sha256": "7771d20e7d35c0230ad13967739acf17aafa9a2e3f19561d099c6327ae2b0b42"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-wrap-text.json",
+        "sha256": "db8b0fbf692d44a25767fd368f8220cf6f11e7f26e79ae66db848dccedc43b6c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-wrap-all.json",
+        "sha256": "17d61a889f8df3b5abf0e305b382c64c4426186f51c67943c9e266f8791c19e9"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-page_break-native.json",
+        "sha256": "aca1b50cfe0d0a52f5c6c9957907b3aebf507273f2d785214c52e0d7d970e7b4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-page_break-text.json",
+        "sha256": "b714800bdfe27063e5b45bb41661224fe7e1120ad44de8311ff6fcff2f23a646"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-page_break-all.json",
+        "sha256": "13395e40be8607c8557c6409410f78ac5ebf87d1e8efa37f66987fd77cb38ae4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-font_size-native.json",
+        "sha256": "d1128a8b1f31e15ac8d58cc6b2e951463d66f7ee06316c3647d244197a539d98"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-font_size-text.json",
+        "sha256": "a7709efe4f15beffa536899ffb89e9a62aaa8d4d38799d96fdef5d4eb910cc2a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-font_size-all.json",
+        "sha256": "a66eb80321b770df4e1a87591ed81ceb7059ce61347d648f08f0d95a9e92edc4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-columns-native.json",
+        "sha256": "2c6ef81a64a7306d77bb2333bd946c53725c3b4394caac693cd8752e410769e5"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-columns-text.json",
+        "sha256": "c21f4878404ca1cc3a99656c44375b77f69638dbc8ef15a0331a87da30a6356f"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-columns-all.json",
+        "sha256": "3710efda2b82fa86d0d9955c30860101892f3dd92afc203ddcb4917242ae38fb"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-paint_order-native.json",
+        "sha256": "10081fbffbdc4cacd27d6efb26d16a35986ea5d9c00ee17e6ab3814bc5a12a7b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-paint_order-text.json",
+        "sha256": "2faa1346ae691649afb9b49fcdf3024c5fcea420a54312c05ecf0fd5f184b82b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-number-paint_order-all.json",
+        "sha256": "42156a96c063539da68d2afe684a7804cb89f5709075474a4d785436c6fd3459"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-plain-native.json",
+        "sha256": "dc55a3e82ad9a5df80de65996ee37974b41e3c5762238bac53fa975684162779"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-plain-text.json",
+        "sha256": "f6dcef667196865d8b3531cbea81b180616dc9f2b8859cf94462ecee08583f10"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-plain-all.json",
+        "sha256": "326e9181344e77cad63cdb840a02bea057d5bad44f61ad7572ffedcc340ef07e"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-wrap-native.json",
+        "sha256": "aa4259bc369e92d81c486e27f08400e52aab356e71d5c0ab8dc62ad92985d0f4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-wrap-text.json",
+        "sha256": "acac250209d60b04ca1187492d4b5db82ea5dbf148602c471bea1cc351433aa9"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-wrap-all.json",
+        "sha256": "ca7c3e296aad1aea7183b81053183e0bf8621cc1c719a32cdc9267c889c35380"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-page_break-native.json",
+        "sha256": "5295d7558fbf435f80959e38c1a9586715e8b90116adb1184c3cc5b156147fd6"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-page_break-text.json",
+        "sha256": "12ed1f851fb9adacc61e391f817fec082862ffd0d169bb89ed613c267431d5f1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-page_break-all.json",
+        "sha256": "a8c55a6e67079df4df4f4742aaa9fd6672d342b890ead9b3a52bbd340defc0ba"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-font_size-native.json",
+        "sha256": "be982ab6e17cc68a8d3e8d762ee78ceaea5ead8830968c4712eb5830900fab7a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-font_size-text.json",
+        "sha256": "f86cb5bf217e417b90072b3ffb67bd830119329737d61efbb0e198499555d4ee"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-font_size-all.json",
+        "sha256": "76436fee282382e95f65fecbaa86cde59297a08194aedb20486e2786d34a38f2"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-columns-native.json",
+        "sha256": "e08b4f9e1f0ee65ded5e6b6b2f5abed9d6677e6583c91c2186e85cba3ccb7677"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-columns-text.json",
+        "sha256": "82ced540c28a74e0858f82a546da93c21ccc80ad057003aed6b313706da227cd"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-columns-all.json",
+        "sha256": "b317001aeb31102706a66bd56e24543bd83ec6b3290df77a9d1b2260a3db4cf2"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-paint_order-native.json",
+        "sha256": "128306d4986f37ccdf5392e3738c0610c9b1b3def48fa95ef6bc68607114616d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-paint_order-text.json",
+        "sha256": "96542591fe3445249385e57e2ab499adf5117b35adedffa3b9c12adef385f378"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-unit-paint_order-all.json",
+        "sha256": "836282984d3dc935fa6944faf3b3f82d93ac0a10db72b51266bf4efce7fd9ad0"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-plain-native.json",
+        "sha256": "5fc38792eb81390acb086b6c4a68bd8c896f1d0cc109acc2710cd19f64d5c728"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-plain-text.json",
+        "sha256": "f1f299b0f7f71b36b8be6677fbccf6c1dc2f1398e1239b0ff6d39fafc8bff262"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-plain-all.json",
+        "sha256": "a3b3129af6797d36fb6b51b1981256d0469265ea6931bfce7907b6cf81c8f1a1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-wrap-native.json",
+        "sha256": "be2894220faa737fa0fe94e5550c4adeb7a0ae9cbfffbd769f7c74f1fd59be76"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-wrap-text.json",
+        "sha256": "f9a40ff3c0be5b86c16d56407c96dd4049649afd0d39c78047939f3997b06814"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-wrap-all.json",
+        "sha256": "f751a779be6fbea3f2d972e58f643210608cebc8748949fcb18435fcaf080807"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-page_break-native.json",
+        "sha256": "3f5547d73ffc81468fdf3e493ed4ee6ef0d68aa0850439dbf82ee3f489d06a1a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-page_break-text.json",
+        "sha256": "ebbc9e604b16005436e0dcebd987ad08993c973fa5eff8e020f5c22e5271cc7b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-page_break-all.json",
+        "sha256": "6e546898ac0813958cea018c1cbd3411fd9bd5c0f773074f052a103595e7999b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-font_size-native.json",
+        "sha256": "c8bd44b4b94ea364f1815aabedac9921a48265df64a6f6b16537da62efddc1c1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-font_size-text.json",
+        "sha256": "ceba064d6083b590805bee2834f1fa862f5f3677b3b476dcbec9654d008cbe49"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-font_size-all.json",
+        "sha256": "b3e5296fae26481c841b54107ae260a9085f8720a06e97fd49295fb0ee119e78"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-columns-native.json",
+        "sha256": "06d0829e54822d3b1ccad2ffb4ef9ca696f80969d2b7611b150da40bc7645ecc"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-columns-text.json",
+        "sha256": "0fd66481dc0139c784915a990cc5019ae1ddd18d078dc2adda1c28cdf541508c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-columns-all.json",
+        "sha256": "0006ea19abb4cecf61415de2a19bc911c601de5ebb1b7e64013b5fb7ef6f4735"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-paint_order-native.json",
+        "sha256": "6458ac962f489971ac7814972b6c2459b3f83b07c057085c47dc21d4931f700c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-paint_order-text.json",
+        "sha256": "27a7bdd61399e8ab5da0b21d68c72300dc0b5e6be25d86b5e6505775090a572a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-negation-paint_order-all.json",
+        "sha256": "0429a5fb028b58f45b0dba958f3586f34e223f44fc1730a980259b59bd8e589f"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-plain-native.json",
+        "sha256": "c6f6e6d5a3e819f057d9ee04a82d602f941568b0d5e58d098981346b052dd685"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-plain-text.json",
+        "sha256": "5ee218441546b6f7be1b68e93eb43833456b24134ce649bdb11a45498e8cea40"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-plain-all.json",
+        "sha256": "100dee2ad907afab5c3a9f0df5b7c06d50ff0b56b142392f325ad5ceeab672e4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-wrap-native.json",
+        "sha256": "85e15c790c40e9e72685cd37a9f112fd73b9950a773795950b0aa7e3e6514cec"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-wrap-text.json",
+        "sha256": "83fd5d6daf04413902e8ab06ab30f6b529c06b2408b63ddc61056c8734ccb358"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-wrap-all.json",
+        "sha256": "929924b9d951a8c5288e1c251b6cd4666a6221bc11bee9161ef7de1b1584d2f1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-page_break-native.json",
+        "sha256": "92e268bd802ca87659439770b01f8876d5b3a77e2d4bc0189eadc337b3dbcc4a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-page_break-text.json",
+        "sha256": "17bc79df577b36ccd94b9d4b0f138791bda6de129238870f4266514a5b42455c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-page_break-all.json",
+        "sha256": "6eba88bedd476f34c32006dc66fa5e8c598db0e96e73203e480528b7ef3d1c9f"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-font_size-native.json",
+        "sha256": "4fc92d6536e9a30c00c3f3e62420983f11dcb09b8cc2087d6f452a54feff3788"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-font_size-text.json",
+        "sha256": "729b74c4caf3a04bbcc1ae9060195884d0e61ed9f20ab70cf8c966b843d6eae4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-font_size-all.json",
+        "sha256": "5cd0812f8d2ba1e7ed7b39d1bfe9aecac3efe618211e9c9561fea9cbbcabfc67"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-columns-native.json",
+        "sha256": "81d2045ffeed90025a0279bc18ca769240450174e15c88b7ec0837f9817ed3a2"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-columns-text.json",
+        "sha256": "9c95492379f8313508876885759e30570875334dce8cac0aac402f67d9c36647"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-columns-all.json",
+        "sha256": "53527b2b5930aefe57df037bd353db227ea14b35c0e5cd3de7efb6fa26e90ab4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-paint_order-native.json",
+        "sha256": "7cf979eb17ba2f96266a3245d7661f336b6a24d3bd68f9b8f1a35007e665e88d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-paint_order-text.json",
+        "sha256": "51852317007187e9fda681fceba1adf284f1383c9411b14d35e1f07262da9a73"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/lopdf-tj-affiliation-paint_order-all.json",
+        "sha256": "a8b209d67ddd6180b96dd3eceea6a8be141d4ece17d93515c7728a0bc5628137"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-plain-native.json",
+        "sha256": "ecfd5bb34d82c3196cfe31b46183d68c25d47efe106bb08d3d92c2e67d0d7e6b"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-plain-text.json",
+        "sha256": "748f4d2696dbf76653c268053d1c835728b069871ad642aa3e93141d951985c7"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-plain-all.json",
+        "sha256": "c6849823580e1417fe356a3fad0cf455e010324f164f9558fa2670a98ddb317a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-wrap-native.json",
+        "sha256": "f0737f0085ee453a7015b4276e917bbca609423c97968b4ec2d280d60ea4f6dd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-wrap-text.json",
+        "sha256": "f5b48045c3988619c6ca80e80665769e62d95664b493836d84c8a60ca9ddde7e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-wrap-all.json",
+        "sha256": "2a442f307bf2bc79463e0422c75fbca33b91ff0cdb1a1da3c0605fabc55bd2e8"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-page_break-native.json",
+        "sha256": "b4d9c3c3643ed56b227153ba27fc95732d313282972dafaec1f31307e69f5d6a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-page_break-text.json",
+        "sha256": "b0cde492fcfb7da73e3101892a083fcc8f9e7f745fde39e52ba5350c4fe58d88"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-page_break-all.json",
+        "sha256": "59435ada9ca07c309b5472144aa5b01ad1fcae55cba947af0125fdc15667c745"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-font_size-native.json",
+        "sha256": "204b5f6aca5bbe91ae6c0feae62e5f471e435b6a07fdb216be82cc70e61464a0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-font_size-text.json",
+        "sha256": "a6c4ff68a7f024d176816da6576600304f3c466bc376ea7c2efb0a88afe5a2c5"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-font_size-all.json",
+        "sha256": "1f6212f9ec28f5c4d3b1948d18bb0aec8ec933ab7f753384c3dbe2c0c25f32ab"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-columns-native.json",
+        "sha256": "eb6a15deaa836638928e322d0f0c340317722e49eec5389123e444564811ee7d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-columns-text.json",
+        "sha256": "96b45dae013f2bd577728c5b4a3ff509fb6393a359c31d510a14a0487e798d10"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-columns-all.json",
+        "sha256": "c5dfa7bc698f7d8c75af7c09b39665ede844f65111ef01a05193fb722d9f2d26"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-paint_order-native.json",
+        "sha256": "b47f00b988e6e7cbebb323cad7968ab085a8cfdeedcce05a40d91305cf5c2f80"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-paint_order-text.json",
+        "sha256": "242e7ee1a9610cf116b5ed60b012e637a91643146eb4b07612a9d833b1079de9"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unchanged-paint_order-all.json",
+        "sha256": "f7cc9d4bf9b68e6a70f41ca4297cbe74cfd11ff53f3771d97c1048406fc8d282"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-plain-native.json",
+        "sha256": "65ef568e24329943ca3a1e520bfd70a0ef3744d6db9d50edd5e6b26d19c3731e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-plain-text.json",
+        "sha256": "38fee848b66336d1ee838870019c91713a96e3f9aa0c690b7bd9adf9a5ea8229"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-plain-all.json",
+        "sha256": "a2285acc4369c2e30126293228bdd9e53e5bda642e4008b2373f0be58c33311a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-wrap-native.json",
+        "sha256": "99e987bf163d699f79faa906a53d4fe993167946ba284ab07e882ee631b7e421"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-wrap-text.json",
+        "sha256": "de463e83f3a9a121a140ff98486ead889efc3264de89aaf787f24b5b8d7806c4"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-wrap-all.json",
+        "sha256": "de4567dffea65b98f61836066170e114fd34a13b582c3cc8bf00b4bb65963a7c"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-page_break-native.json",
+        "sha256": "9370c9a38d4a6574f4ee8590f1c072680d1763966c423543703eaa1543c6ae2f"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-page_break-text.json",
+        "sha256": "6f1213701abaa638d43e59e28aa1936f4db96747a42c1cbf6a9ce12d1c79358d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-page_break-all.json",
+        "sha256": "44432b96561416e21ab3ea2caf0d7fbc434b9f362b358f9c821ae4d1665f9062"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-font_size-native.json",
+        "sha256": "cd68b8b2cadd6865dd1af9857ea13636ec0fee586573f8718e292d44b9b261cd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-font_size-text.json",
+        "sha256": "b48f86284c5ed4429040b85c0d19da75fd2dffa8883bf5423e091c7eebb81019"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-font_size-all.json",
+        "sha256": "61765181d9c6cbec90852ce7babb8126500109433e4f6f5ccc0da0d320acdbbb"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-columns-native.json",
+        "sha256": "013891464304a9cff18730becb0ab378b3146ae5460121a7cf922220688469b8"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-columns-text.json",
+        "sha256": "88ad38e9b7bf84a5f47211ac20e819ffe8f673cd455f1891d45bedb167405177"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-columns-all.json",
+        "sha256": "a6a8b8febdfb75706b818eba40b5e6d4fb589bb9936e14018c63cb10ad6cea75"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-paint_order-native.json",
+        "sha256": "d10cdadea3ae355a5865d38994d725a51ce6d8ab623ac3bcfe30b3e14c068b0e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-paint_order-text.json",
+        "sha256": "d6f46083aaf053bf9d8f39d0f26bcb47f8c0096f422163d50c5a14732fc3a34d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-number-paint_order-all.json",
+        "sha256": "faca33346db9a81d9f008b38302b9e83f207f916f2bb07ae5d6a5cc6a60389ad"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-plain-native.json",
+        "sha256": "b5b9954c94cf364c3dd154b836efac13f22deda33d06034ec3a2a88f0f0548b3"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-plain-text.json",
+        "sha256": "65f01e206c86ac9c12d26b861895f28119cb48f65c2d5ece388973442693897d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-plain-all.json",
+        "sha256": "86005be964fc210368d24c89542611bf8d3c4022fa5c85dde359f245491de16d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-wrap-native.json",
+        "sha256": "dcfbeb9f49bc95b91f73c646e092d80fd31a3e5ff695daac6a00c3ac3520d5c0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-wrap-text.json",
+        "sha256": "03a47798096a1fc0512698b5b20e320487b8129545a6b379893570f81b25b8df"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-wrap-all.json",
+        "sha256": "17216f736af079884ba22cf541653bb5996e7cfe38a9025c0f854e22b8e5eab3"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-page_break-native.json",
+        "sha256": "fde6a9e71c5f69c050c32039ec45a1e97d7a7c5965dda87feda5588b0ab1a5ea"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-page_break-text.json",
+        "sha256": "0ef7a4e68463b711a402175163b12c2e261d0f87f1daf46020c067945f41269e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-page_break-all.json",
+        "sha256": "eb71fbb0683b60bdc65624c24a8bec01e2dc479961e9258801c0fcdf2afa886d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-font_size-native.json",
+        "sha256": "d0a8b8c8286a7c1810c546f039c39a68633b24b6af89fffa79b1e067847a90dc"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-font_size-text.json",
+        "sha256": "9a3e2f20e6de64591ac05f7d48ea99f97a55e170641211406c2c122e2fb496cc"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-font_size-all.json",
+        "sha256": "70bb05db0839739b7a1bfd9f2e884874f7b1929ecf25f0965e9695821508ce9e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-columns-native.json",
+        "sha256": "0d8e36756bd47a8f4e8529b6c7df308dd55e2c61f901fd56d4da656d158b3961"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-columns-text.json",
+        "sha256": "edfe44a7e4b8a1069d5788bdec1c486c3f297f7d6a4d3f8764bab04a5b718839"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-columns-all.json",
+        "sha256": "46a9de9a6059d2228a1d1bf1db7bbb6625e8b2e11ae0ce86dbf37c4599d4e3fa"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-paint_order-native.json",
+        "sha256": "e1c447b8a0ddd7d2d2aba0835665352f9eb91819a4a3e24a5654b251f87e865b"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-paint_order-text.json",
+        "sha256": "ec15d7d0ac7fc8bc43cf4d040de1f3b316643392ce48d9db896f3af227ca9ab3"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-unit-paint_order-all.json",
+        "sha256": "e772d8213f3669bbdfe50a9cc23a9d1eca3e7d1c691d8ab4c69d7d8298bfb0d0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-plain-native.json",
+        "sha256": "6b5b0c2730eb6eb02bc92efb5f613a9ee0da92bf672260004e7e9ae6fa833c0d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-plain-text.json",
+        "sha256": "6bb5b03c15fe585ad81da9bc4dc30494cb258ddee1a27e99982ced1c384d364f"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-plain-all.json",
+        "sha256": "6be423bc94406e13d68141b7cb675be309802e3a5193d34fce61563ab755c1e4"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-wrap-native.json",
+        "sha256": "a172c7bbc6a8f3177ae1d34b945bfce3edfd3ca05b6f080141fa04d37d8eb4fb"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-wrap-text.json",
+        "sha256": "2c97e5371fe246ac20cc15065067758d237151f388e4b812f278367719054977"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-wrap-all.json",
+        "sha256": "da7ae470e3953ce7ea131add5ffa48dcc1d4eb7ad32c5b8dcaa23a01be969945"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-page_break-native.json",
+        "sha256": "a8b312b12a7f2fc7e7102eadf3fab2145458e570dc60aa4fca3b63a8cbdc59df"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-page_break-text.json",
+        "sha256": "dc16b5be99887f7a0bd55d498677b2cd1df4bb1dd919463e3fd151b1ce24a905"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-page_break-all.json",
+        "sha256": "7ffbd42de72363626a635f0e339a87e75bf5c9894a1147f56686bb5620a6c2d3"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-font_size-native.json",
+        "sha256": "2550b0df80a2eeb54b1bc4adfdaeb41dee21f2d1d2184db231d21ce5711d3d84"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-font_size-text.json",
+        "sha256": "d599073de286ca44e8f454e30c17c202aac11a28cba49bbf5dee73de99e4b6bd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-font_size-all.json",
+        "sha256": "9463d1dbe327c0669007d8f9aea787e17734ab645363493a949aef5d3f26a8a3"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-columns-native.json",
+        "sha256": "898282b6f3648f025ff747638a6ff2f3169bd9d9dffbb69eb8e168e452583704"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-columns-text.json",
+        "sha256": "08fabab9c278fc644f749586a1a07e97de9727059b76d39bccab13677c29d345"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-columns-all.json",
+        "sha256": "05b847b8657675838503fdda661b74c98a57a8aad11fb37d17c73574b2506e5d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-paint_order-native.json",
+        "sha256": "783efc9014b21f04e15c61397dc42e5827e7fe71bd7d033ebde59ce57bd39e84"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-paint_order-text.json",
+        "sha256": "f0aca16bb0c77cf24866d565711d77e7d38ee8a37512c44134c830642237910c"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-negation-paint_order-all.json",
+        "sha256": "02e983217354ff55c268a536fa75325d18fc4b68b100d4dbbc052a285eaa5e96"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-plain-native.json",
+        "sha256": "b0c65717503c6e37548b5be98f22c4bf2a078b5309c8a426a21d1aeaedbef2fd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-plain-text.json",
+        "sha256": "fa74840afbe0f9f29df4265340dae9ae802233eb61bbc36102ef92f2ac1761a0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-plain-all.json",
+        "sha256": "0d4c6b28a4c9aedbd3923d4e52b43d0060af110431b4be3e20d52a5ed9313558"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-wrap-native.json",
+        "sha256": "23122ef08890fc8741dec669188e7b747cf8984ff44561b9c6f9ba06a8064b5e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-wrap-text.json",
+        "sha256": "c132cfb19cc9ef94c5a036f85596704f7b57f1ef035ede84b6e004d003c51a57"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-wrap-all.json",
+        "sha256": "da708634472de5d1a27681bed8304c4bc4936f69f603bfe138a0068ed5a3989c"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-page_break-native.json",
+        "sha256": "5d27c7f199c0b1db06460305945c33347b45d947aa09cd2b86c6e57fa1d0e7b1"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-page_break-text.json",
+        "sha256": "5da6075260ef3b82f7c1a661a8f43ed005cd3b0d32f7c79eb6422d6566852ff0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-page_break-all.json",
+        "sha256": "66a54ee3c51da0d8abff9daa06e8842fe186915196712650e2c8f86bd94c7314"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-font_size-native.json",
+        "sha256": "52b2bd30c80d26be1f98940b5599ba1043333731de20be21071ec52c7c9f327a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-font_size-text.json",
+        "sha256": "f3d4b32d104990de302c0b28a786c55a781ec3bde9025335653e72a9fc41e977"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-font_size-all.json",
+        "sha256": "e7f805432e574fe220adc2a088a53c84555f1e06eb2e6a5e14cab1b1081a8c82"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-columns-native.json",
+        "sha256": "9bac656507a2fc51a2ab8e6a1ecbe6c3f586ffc38afe9f8720cbe623b623c1ca"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-columns-text.json",
+        "sha256": "3562abe0ef5832c65364eb3cb793b647b0b7f2a6da0f2f5369e6dcabc2168097"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-columns-all.json",
+        "sha256": "c83c8e956eea4606ecd3cb051336b80c2c2fb11f97bc701bd6f0d1c18d3c5ac9"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-paint_order-native.json",
+        "sha256": "d67809ac526fc78aebef7c957a40b1abeae718d238c1b92731926f72b94c5edf"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-paint_order-text.json",
+        "sha256": "e82bb6365bb0a76f7e96587443fefdbc956086a75e59fbd107b6f2e4f8cf683b"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/classic-xref-tj-affiliation-paint_order-all.json",
+        "sha256": "226d21f15d038fbf1058511876d2418e3d7b471bdab1f4e7dfbe312d99b52a1c"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-storage-text.json",
+        "sha256": "eaca5413697dae623a36b8403959cf0859915d7cd1e1b21b47a9dedac750bdb5"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-storage-all.json",
+        "sha256": "c0593dbdce1ef75b7941d776c4dec330b8a28ab3407201989e469ec38134955d"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-prepended_blank_page-text.json",
+        "sha256": "1025d8a900ca9163bf422633b03f2376ed6f4695b6f3b148bc486a424e8f9db3"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-prepended_blank_page-all.json",
+        "sha256": "e02ddd9f22586b512e81b00e5707aced042f6b05a813e2dbec23e9aa0599eab2"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-reverse-text.json",
+        "sha256": "3c37dbff37bdbb39bb16e3955af3e304db4ea1242b92eead9f51bef274eb5537"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v33-formal-controls/irs-schedule-c-reverse-all.json",
+        "sha256": "0d696421c52f7356e33ff793ebf5f81f32d58a728fda1365126b3e3b3d00cc92"
+      }
+    }
+  ]
+}

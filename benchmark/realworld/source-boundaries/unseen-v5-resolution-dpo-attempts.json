@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "3cc8998be715c216ca7e8980702a31b3ec50f8cacd603d6eb2070438ea117124",
+  "attempts": [
+    {
+      "pair": "arxiv-dpo-v1-to-v2",
+      "started_utc": "2026-09-13T16:25:37.465338+00:00",
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v5-annotations/arxiv-dpo-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "a540e3a36b60aa88cd28fd7da1cfa8b463e8e0fc28a746f10a781929ac78faee",
+      "resolution_sha256": "dd9807248e5a06e7e017ad3fdfe521cdf0d2dc47a853d6172bb96863c578102d",
+      "stderr": ""
+    }
+  ]
+}

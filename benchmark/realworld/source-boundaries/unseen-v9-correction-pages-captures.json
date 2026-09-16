@@ -1,0 +1,63 @@
+{
+  "version": 9,
+  "comparison_performed": false,
+  "binary_sha256": "5edefbd89bd4f6d8990d4d7553fb34645892815ad5e41a28ddf0ab10056dbffc",
+  "selection_sha256": "94c26c8aecf2bf2a4e4d82d7566c3b2e6db19c04d157096150ff06551b36d6d8",
+  "profile": "page-rgb-white-72dpi-annotations-v1",
+  "attempts": [
+    {
+      "id": "edpb-objection-v1-to-v2",
+      "side": "old",
+      "page": 3,
+      "input_sha256": "a7fe602114ce43209fdd6eba65f6aa2281a40686750cb571b8b49fa5740d1a82",
+      "object_evidence_sha256": "f02dbcded29a7965eb4de4388ecf4874d0cafd57e0cf6f03f0a9912c2e276f52",
+      "width": 596,
+      "height": 842,
+      "object_number": 31,
+      "generation": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+        "render-page",
+        "3",
+        "11",
+        "596",
+        "842",
+        "31",
+        "0"
+      ],
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "0ddd4b84fd6016f3e7b0e1a7c07baa7ebbefa507f9c29587abe22443926911ac",
+      "warning": false,
+      "png_sha256": "0c78dceffe08fe6060490d5d68980f54f60c2331fa4386176bb2f5825a14cd86"
+    },
+    {
+      "id": "edpb-objection-v1-to-v2",
+      "side": "new",
+      "page": 4,
+      "input_sha256": "79c498fd2f076e4aeed657717753085f007a5f83432e1c7b29d8ff8b98d2bf7d",
+      "object_evidence_sha256": "472743062804700f88b7ecf485dbb987a23b18f53842047fac96cdcf4ee1c9d6",
+      "width": 596,
+      "height": 842,
+      "object_number": 33,
+      "generation": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-closed-components-v75/pdfdelta",
+        "render-page",
+        "4",
+        "12",
+        "596",
+        "842",
+        "33",
+        "0"
+      ],
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "da7853ec6de4b9bf61c1cb89c17924b17a4836da5c76cb2eba59a244a9549e0e",
+      "warning": false,
+      "png_sha256": "4ab336d60f5f98909cf3871517adfa49ac9f9bee3d9928514bb5cd3ec3c48806"
+    }
+  ]
+}

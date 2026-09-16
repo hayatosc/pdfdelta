@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "status": "not_achieved",
+  "stop_reason": "deadline_observed_exceeded",
+  "execution_started_utc": "2026-09-11T14:23:15Z",
+  "deadline_utc": "2026-09-12T02:23:15Z",
+  "last_recorded_time_before_gap_utc": "2026-09-11T18:59:49Z",
+  "first_recorded_time_after_gap_utc": "2026-09-12T11:38:11Z",
+  "timing_note": "The elapsed-time limit was exceeded before it was detected. The cause of the gap between clock observations is not established; no on-time stop is claimed. New experiments stopped after detection.",
+  "production_commit": "b11ef893886803d9cbfee2dc5716414edf9cccea",
+  "final_command": [
+    "python",
+    "benchmark/realworld/remaining/verify.py",
+    "--stage",
+    "final"
+  ],
+  "final_exit_code": 1,
+  "final_log": {
+    "path": "benchmark/realworld/cache/remaining-deadline-stop/final-verification.log",
+    "sha256": "ee7e791484d132761d1c832fe3602b9c3908d0e58860847aa166c66c27422247"
+  },
+  "gates": {
+    "G1": {
+      "passed": false,
+      "formally_verified_pairs": 0,
+      "required_pairs": 6,
+      "required_producers": 3,
+      "pilot_only_pairs": 1,
+      "pilot_only_producers": 1
+    },
+    "G2": {
+      "passed": false,
+      "new_blind_pairs_acquired": 0,
+      "required_panel_pairs": 12,
+      "required_recoveries": 3,
+      "required_producers": 2
+    },
+    "G3": {
+      "passed": false,
+      "proved_complete_gain": 0,
+      "required_gain": 2
+    },
+    "G4": {
+      "passed": false,
+      "reason": "Final control evidence is not assembled; mandatory workspace tests and generated fixtures passed on the retained production revision."
+    },
+    "G5": {
+      "passed": false,
+      "reason": "Missing development.json and downstream final phase records."
+    }
+  },
+  "latest_verified_pilot": {
+    "path": "benchmark/realworld/remaining/first-indent-pilot.json",
+    "sha256": "d3735ed77cdc9e68de130b884f3d893ee5575445405c19916afda86e2da24fd4"
+  },
+  "unfinished_attempt": {
+    "path": "benchmark/realworld/cache/remaining-deadline-stop/unfinished-attempt.json",
+    "sha256": "8deb3a9b336bbda274e476dd837809826432d8d82fff530f304e33062cfd840a"
+  },
+  "publication_performed": false,
+  "closeout_checks": [
+    {
+      "name": "fmt",
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-deadline-stop/fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "clippy",
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-deadline-stop/clippy.log",
+        "sha256": "b17c0f2d8a677107b4b21e92689d9974c6f3d731844efb5d1839771ecd87dc2f"
+      }
+    },
+    {
+      "name": "workspace",
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/remaining-deadline-stop/workspace.log",
+        "sha256": "f37a0077eda3259165c1fcb853111477b6873f6af28741dcdd1e9202dbd8eba8"
+      }
+    }
+  ],
+  "workspace_passed": 2344,
+  "workspace_ignored": 2,
+  "closeout_build": {
+    "command": [
+      "cargo",
+      "build",
+      "--release",
+      "-p",
+      "pdfdelta-cli",
+      "--locked"
+    ],
+    "exit_code": 0,
+    "log": {
+      "path": "benchmark/realworld/cache/remaining-deadline-stop/build.log",
+      "sha256": "d4ba4eaa49d99f30e8680ea24310dd03210a4bcaf9467ee41661918d29e4a2e6"
+    },
+    "binary": {
+      "path": "benchmark/realworld/cache/remaining-deadline-stop/pdfdelta-verified-stop",
+      "sha256": "bca8b426b604bfe89ce1b9438cb38c448a7fe7cbcaab168ed23023bd8f1c9583"
+    }
+  }
+}

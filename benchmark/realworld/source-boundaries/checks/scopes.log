@@ -1,0 +1,21 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.85s
+     Running tests/document_text_scopes_fixture.rs (target/debug/deps/document_text_scopes_fixture-7f742ad567f64beb)
+
+running 13 tests
+test bounded_paint_closes_only_the_retained_local_interval ... ok
+test padding_premise_does_not_ignore_internal_spaces_or_resolve_duplicate_bodies ... ok
+test padding_boundaries_keep_whole_paragraphs_uncompared_and_close_the_interior ... ok
+test native_interval_survives_unrelated_pages_storage_order_and_reversal ... ok
+test whole_literal_correspondence_precedes_padding_even_at_extreme_weight ... ok
+test bounded_failed_invocation_closes_no_more_than_its_disjoint_local_band ... ok
+test missing_layout_adjacency_needs_monotone_sources_and_a_closed_band ... ok
+test native_interval_retains_literal_space_changes ... ok
+test native_interval_rejects_omissions_unsafe_visibility_and_order_competitors ... ok
+test native_interval_does_not_turn_an_external_continuation_into_a_content_change ... ok
+test paint_closure_rejects_unknown_bounds_boundary_ink_and_incomplete_sources ... ok
+test reconstructed_spaces_do_not_erase_independent_source_changes ... ok
+test large_spacing_family_retains_a_proved_change_without_a_false_exact_mask ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+

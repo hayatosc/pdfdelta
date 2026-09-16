@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "pair": "ietf-tcp-793-to-9293",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 20
+      },
+      "literal_quote": "TCP segments are sent as internet datagrams.  The Internet Protocol  header carries several information fields, including the source and  destination host addresses [2].  A TCP header follows the internet  header, supplying information specific to the TCP protocol.  This  division allows for the existence of host level protocols other than  TCP.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 20
+      },
+      "literal_quote": "Transmission Control Protocol",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 6
+      },
+      "literal_quote": "TCP segments are sent as internet datagrams. The Internet Protocol (IP) header carries severalinformation fields, including the source and destination host addresses  . A TCP headerfollows the IP headers, supplying information specific to TCP. This division allows for theexistence of host-level protocols other than TCP. In the early development of the Internet suite ofprotocols, the IP header fields had been a part of TCP.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-2",
+      "side": "new",
+      "locator": {
+        "page": 6
+      },
+      "literal_quote": "[1][13]",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Transmission Control Protocol",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "737ccc5c4a109913ab9e1a958c52471ff2f7b186160e325567a14cc77d716711",
+  "new_sha256": "8a941db70b484c13f684c0814292a844305fb8355ac54538d397dbf0db0c7ffa"
+}

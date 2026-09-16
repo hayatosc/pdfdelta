@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-content-v32/build.json",
+    "sha256": "7509fbdded07e4aa37493325bdd08cff55ab32a25bc342a363f07357de413ff7"
+  },
+  "command": [
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-content-v32/pdfdelta",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-target-diagnosis/edpb-restrictions-v1-to-final/old.pdf",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/remaining-target-diagnosis/edpb-restrictions-v1-to-final/new.pdf",
+    "--channels",
+    "text",
+    "--quiet",
+    "--json",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-content-v32/comparison.json",
+    "--review",
+    "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-content-v32/review"
+  ],
+  "exit_code": 3,
+  "log": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-content-v32/capture.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-content-v32/comparison.json",
+    "sha256": "16c407e864810750001c14796ad092e0d8c7ae8800edf6a7142ba32861927d5a"
+  },
+  "sources": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-content-v32/review/sources.json",
+    "sha256": "2ff571208608ba4dbd5f5412bbf1037805f2f3f708aa04c9080b19b65f0f972c"
+  },
+  "review_manifest": {
+    "path": "benchmark/realworld/cache/source-boundaries-native-content-v32/review/manifest.json",
+    "sha256": "acba7959bff77822373dc2b137ef8782c5b0b3a4a6725f3d0372b742223a44ad"
+  }
+}

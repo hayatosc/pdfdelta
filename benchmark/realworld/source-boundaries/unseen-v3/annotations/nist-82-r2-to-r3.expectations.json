@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-82-r2-to-r3",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "5089b2e07a05b39dbbf7deb2fa48a0bd3323e74e7cf07a3eb6239bb0e8b5889e",
+  "body_eligible": true,
+  "reason": "The complete abstract expands industrial control systems to operational technology and adds definitions and examples."
+}

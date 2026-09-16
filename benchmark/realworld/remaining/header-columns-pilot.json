@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "build": {
+    "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/build.json",
+    "sha256": "6d951ef96060d95f03df4eefc0f08a032da841184e5b3b34e6e120d6bad7d890"
+  },
+  "observations": [
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/runs.json",
+        "sha256": "fd0bf2a6b6e44a24bd2f16f088bd700d3778fc120607529d9e96f0e732be93a2"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/arxiv-mask-rcnn-v1-to-v3-text.json",
+        "sha256": "66e11fb9aafbe1ff98b948369d9a4ee1973f54a46400cc2d782196c4b680242b"
+      },
+      "score": {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "core_atoms": 1907,
+        "extent_atoms": 1907,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "capture": {
+        "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/runs.json",
+        "sha256": "fd0bf2a6b6e44a24bd2f16f088bd700d3778fc120607529d9e96f0e732be93a2"
+      },
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/arxiv-faster-rcnn-v1-to-v3-text.json",
+        "sha256": "08ec0acaa6c264176afc6038b96cd3fee3c28aa997a99806aed5a97eedb5ae73"
+      },
+      "score": {
+        "pair": "arxiv-faster-rcnn-v1-to-v3",
+        "core_atoms": 1023,
+        "extent_atoms": 1023,
+        "strict_control_atoms_claimed": 0,
+        "B_source_range_hits": 0,
+        "strict_event_recall": null,
+        "strict_source_recall": null
+      },
+      "comparison_complete": false
+    }
+  ],
+  "source_review": {
+    "path": "benchmark/realworld/cache/remaining-mask-header-columns-review/sources.json",
+    "sha256": "5633b3bf35798c2e21dfda441a320eea67ddbab9592e987974ddf51df5b41ae6"
+  },
+  "previous_terminal_source_review": {
+    "path": "benchmark/realworld/cache/remaining-mask-terminal-review/sources.json",
+    "sha256": "aa44cb60ef1ac58275fac3acec9e61bb77f7f64bd86c0de6294daedc4a5b8cfe"
+  },
+  "rejected_global_ratio_attempt": {
+    "path": "benchmark/realworld/cache/remaining-mask-header-review/attempt.patch",
+    "sha256": "74f06e7c835ade9363e4d3c12e731dfd12ee3fee7375b7e381e0a1543a97270a"
+  },
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/targets.log",
+      "sha256": "8a7c389d2037b856a67904451b2085631668ea8f7f30ea915c313352d90d8d9a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/workspace.log",
+      "sha256": "345d570eba92e5ba63f5bd99d72fb1afd09e5cb19f5d5ffb2d51ddb6fe13dfa7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/clippy.log",
+      "sha256": "c63bf6249e816b380d37707198b051a22993d37d6c5b1cb286bd00d990216e3a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-header-columns-rcnn/generated.log",
+      "sha256": "790a5c0112ea58e24e8f69fbd99cae76850569ed84ba42d00d2f26e1db35e1a5"
+    }
+  ],
+  "conclusion": "The Mask R-CNN target is retained in two old and three new consecutive source-exclusive nodes. Both fixed RCNN target range hit counts remain zero. This is a single-pass layout observation, not a recovery or completion gate claim."
+}

@@ -203,6 +203,144 @@ pub(super) fn append_details(
     let old_nodes = old.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes = new.nodes.iter().map(|node| (node.id, node)).collect();
     let mut seen = 0;
+    for (scope_index, scope) in comparison.scopes.iter().enumerate() {
+        for review in &scope.result.text_scope_reviews {
+            let pair = &review.comparison;
+            let category = match pair.interpretation {
+                InterpretationStatus::ConditionalOnCorrespondence => "B: scope content change",
+                InterpretationStatus::Inferred => "C: inferred scope comparison",
+            };
+            let _ = writeln!(
+                text,
+                "\n{category} (non-owning): {} -> {}",
+                label(&pair.old, &old_nodes),
+                label(&pair.new, &new_nodes)
+            );
+            let _ = writeln!(
+                text,
+                "  Scope {scope_index}, boundary proposals {:?}; convention {}.",
+                review.boundaries,
+                preview(&review.convention)
+            );
+            if review.candidate_search_exhaustive == Some(false) {
+                if pair.interpretation == InterpretationStatus::Inferred {
+                    let _ = writeln!(
+                        text,
+                        "  Inferred correspondence; candidate search is incomplete and this review establishes no strict source ownership."
+                    );
+                } else {
+                    let _ = writeln!(
+                        text,
+                        "  Interior correspondence search is incomplete; this content review relies on accepted source boundaries and assigns no interior identity."
+                    );
+                }
+            }
+            for reason in &pair.unresolved {
+                let _ = writeln!(text, "  {}", preview(reason));
+            }
+            if let Some(TypedOperation::TextChanged { old, new }) = &pair.operation {
+                let _ = writeln!(
+                    text,
+                    "  - {}\n  + {}",
+                    old.as_deref()
+                        .map(quoted)
+                        .unwrap_or_else(|| "(text unresolved)".into()),
+                    new.as_deref()
+                        .map(quoted)
+                        .unwrap_or_else(|| "(text unresolved)".into())
+                );
+            }
+            if let Some(mask) = &pair.text_mask {
+                let _ = writeln!(
+                    text,
+                    "  Conditional changed positions: old {}, new {}. This review adds no strict ownership; displayed text includes context.",
+                    mask.old.len(),
+                    mask.new.len()
+                );
+            }
+        }
+    }
+    if let Some(keys) = &comparison.key_presence {
+        let operations: BTreeMap<_, _> = keys
+            .scoped
+            .iter()
+            .flat_map(|scoped| &scoped.operations)
+            .map(|operation| (operation.claim, operation))
+            .collect();
+        for (claim_index, claim) in keys.claims.iter().enumerate() {
+            if !matches!(
+                claim.counterpart,
+                pdfdelta_core::document::KeyCounterpart::AbsentInDocument { .. }
+            ) || !entry(&mut seen)
+            {
+                continue;
+            }
+            let key = match std::str::from_utf8(&claim.key) {
+                Ok(key) => quoted(key),
+                Err(_) => {
+                    let bytes: String = claim
+                        .key
+                        .iter()
+                        .take(64)
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect();
+                    format!(
+                        "bytes {bytes}{}",
+                        if claim.key.len() > 64 {
+                            " [truncated]"
+                        } else {
+                            ""
+                        }
+                    )
+                }
+            };
+            let direction = match claim.side {
+                pdfdelta_core::document::PresenceSide::Old => "removed",
+                pdfdelta_core::document::PresenceSide::New => "inserted",
+            };
+            let domain = match claim.domain {
+                pdfdelta_core::document::KeyDomain::PdfFieldName => "field name",
+                pdfdelta_core::document::KeyDomain::PdfStructureId => "structure ID",
+            };
+            if let Some(operation) = operations.get(&claim_index) {
+                let _ = writeln!(
+                    text,
+                    "\nKeyed {:?} {direction}: {key} (verified scope membership; no character mask)",
+                    operation.node_kind
+                );
+            } else {
+                let _ = writeln!(
+                    text,
+                    "\nRaw PDF {domain} {direction}: {key} (key identity only; no character mask)"
+                );
+            }
+        }
+        for obligation in &keys.obligations {
+            if entry(&mut seen) {
+                let _ = writeln!(
+                    text,
+                    "\nUnresolved raw key population ({:?}, {:?}): {:?}; next action: {:?}",
+                    obligation.side, obligation.domain, obligation.missing, obligation.next_action
+                );
+            }
+        }
+        let mut pending = BTreeMap::<_, (usize, _)>::new();
+        for obligation in keys.scoped.iter().flat_map(|scoped| &scoped.obligations) {
+            let entry = pending
+                .entry(format!("{:?}", obligation.missing))
+                .or_insert((0, obligation));
+            entry.0 += 1;
+        }
+        for (reason, (count, obligation)) in pending {
+            if entry(&mut seen) {
+                let _ = writeln!(
+                    text,
+                    "\nUnresolved keyed-element membership: {reason} ({count} obligations); next action: {:?}",
+                    obligation.next_action
+                );
+            }
+        }
+    }
     for pair in comparison.comparisons() {
         let Some(operation) = &pair.operation else {
             continue;
@@ -378,6 +516,7 @@ mod tests {
     #[test]
     fn detail_limits_leave_the_full_comparison_intact() {
         let comparison = DocumentViewComparison {
+            key_presence: None,
             scopes: Vec::new(),
             relations: Vec::new(),
             relation_unresolved: vec!["unmatched endpoint".into(); MAX_ENTRIES + 5],

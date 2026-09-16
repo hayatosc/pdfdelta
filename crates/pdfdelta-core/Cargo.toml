@@ -12,6 +12,7 @@ default = []
 fuzzing = []
 
 [dependencies]
+hayro-cmap = { version = "=0.1.0", default-features = false }
 lopdf.workspace = true
 rayon.workspace = true
 serde.workspace = true

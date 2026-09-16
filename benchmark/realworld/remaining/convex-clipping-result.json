@@ -1,0 +1,388 @@
+{
+  "status": "implemented_bounded_convex_clips_with_partial_panel_recovery",
+  "previous_turn_classification": "progress: inherited Form clipping committed as 079398f",
+  "production_changed": true,
+  "fixed_panel_denominator": 36,
+  "scope": "Retain certified convex quadrilaterals as intersecting half-planes. Outward determinant intervals certify glyph relations; unresolved overlap is not replaced by a rectangular approximation. Carry outward enclosing Form bounds for otherwise opaque paints.",
+  "binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/pdfdelta",
+    "sha256": "a9a60bb9f1014ee1ae2d19c2035450af7ef2e6045a7bddff6cbe4df364b2c9dc"
+  },
+  "resource_contract": {
+    "limits_changed": false,
+    "convex_work_ceiling": "The existing max_operators value also bounds cumulative convex-constraint copying and classification work. Overflow is a resource-limit error; saved graphics states share immutable constraints.",
+    "cache_version": 9,
+    "backend_profile": "content-stream-v5-convex-clipping-worker-v1"
+  },
+  "pilot": {
+    "rows": [
+      {
+        "pair": "arxiv-ddpm-v1-to-v2",
+        "complete_before_after": [
+          false,
+          false
+        ],
+        "coverage_before": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 41561,
+            "new_discovered_sources": 45486,
+            "old_compared_sources": 15206,
+            "new_compared_sources": 15206,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 26355,
+            "new_uncompared_sources": 30280,
+            "complete": false
+          }
+        ],
+        "coverage_after": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 41561,
+            "new_discovered_sources": 45486,
+            "old_compared_sources": 15206,
+            "new_compared_sources": 15206,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 26355,
+            "new_uncompared_sources": 30280,
+            "complete": false
+          }
+        ],
+        "payload_equality": {
+          "typed_changes": true,
+          "inferred_changes": true,
+          "scope_content_changes": true,
+          "inferred_scope_changes": true,
+          "table_refinements": true,
+          "comparison": true
+        },
+        "sides": [
+          {
+            "side": "old",
+            "native_glyphs_before_after": [
+              41561,
+              41561
+            ],
+            "glyph_sequence_preserved": true,
+            "paint_records_before_after": [
+              3222,
+              3222
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 0,
+            "clip_status_changes": [],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 45": 1
+            },
+            "text_issues_after": {
+              "glyph relationship to convex clipping region is uncertain": 1
+            },
+            "mapped_glyphs_before_after": [
+              38195,
+              38195
+            ],
+            "vector_lines_before_after": [
+              417,
+              417
+            ]
+          },
+          {
+            "side": "new",
+            "native_glyphs_before_after": [
+              45486,
+              45486
+            ],
+            "glyph_sequence_preserved": true,
+            "paint_records_before_after": [
+              3225,
+              3225
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 0,
+            "clip_status_changes": [],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 45": 1
+            },
+            "text_issues_after": {
+              "glyph relationship to convex clipping region is uncertain": 1
+            },
+            "mapped_glyphs_before_after": [
+              42039,
+              42039
+            ],
+            "vector_lines_before_after": [
+              414,
+              414
+            ]
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/arxiv-ddpm-v1-to-v2/report.json",
+            "sha256": "e526f9601f8efe515b0ed99b63c0cee14116643f2324fd54a2a94051b7bae2ed"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/arxiv-ddpm-v1-to-v2/review/sources.json",
+            "sha256": "a93ca78dba3cb4ae5440322c83d9f756a22a58495ef0c81f4811c727c57fd2db"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/arxiv-ddpm-v1-to-v2/run.json",
+            "sha256": "0ecb499b0a44e007647fa435912f7a76e7c356ff1a06d863fcabad84852983ba"
+          }
+        ]
+      },
+      {
+        "pair": "arxiv-mask-rcnn-v1-to-v3",
+        "complete_before_after": [
+          false,
+          false
+        ],
+        "coverage_before": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 39906,
+            "new_discovered_sources": 52182,
+            "old_compared_sources": 14801,
+            "new_compared_sources": 14801,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 25105,
+            "new_uncompared_sources": 37381,
+            "complete": false
+          }
+        ],
+        "coverage_after": [
+          {
+            "channel": "text",
+            "old_inventory_complete": false,
+            "new_inventory_complete": false,
+            "old_discovered_sources": 39946,
+            "new_discovered_sources": 52222,
+            "old_compared_sources": 15023,
+            "new_compared_sources": 15023,
+            "old_presence_sources": 0,
+            "new_presence_sources": 0,
+            "old_uncompared_sources": 24923,
+            "new_uncompared_sources": 37199,
+            "complete": false
+          }
+        ],
+        "payload_equality": {
+          "typed_changes": true,
+          "inferred_changes": true,
+          "scope_content_changes": false,
+          "inferred_scope_changes": true,
+          "table_refinements": true,
+          "comparison": false
+        },
+        "sides": [
+          {
+            "side": "old",
+            "native_glyphs_before_after": [
+              39906,
+              39946
+            ],
+            "glyph_sequence_preserved": false,
+            "paint_records_before_after": [
+              5068,
+              5168
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 40,
+            "clip_status_changes": [],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 12": 1
+            },
+            "text_issues_after": {},
+            "mapped_glyphs_before_after": [
+              39689,
+              39729
+            ],
+            "vector_lines_before_after": [
+              37562,
+              37673
+            ]
+          },
+          {
+            "side": "new",
+            "native_glyphs_before_after": [
+              52182,
+              52222
+            ],
+            "glyph_sequence_preserved": false,
+            "paint_records_before_after": [
+              5817,
+              5917
+            ],
+            "lost_raw_glyph_records": 0,
+            "added_raw_glyph_records": 40,
+            "clip_status_changes": [],
+            "text_issues_before": {
+              "non-rectangular clipping path at content operator index 12": 1
+            },
+            "text_issues_after": {},
+            "mapped_glyphs_before_after": [
+              51924,
+              51964
+            ],
+            "vector_lines_before_after": [
+              100384,
+              100495
+            ]
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/arxiv-mask-rcnn-v1-to-v3/report.json",
+            "sha256": "f3d667bb14856a41403d89276938a3d9ad057a1a1bbfa445b473f2c911bfacdd"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/arxiv-mask-rcnn-v1-to-v3/review/sources.json",
+            "sha256": "c04e337aa65d777acf25cdb7ae3d45c32309edfb84066f6ca923496342350686"
+          },
+          {
+            "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/arxiv-mask-rcnn-v1-to-v3/run.json",
+            "sha256": "d21e1a5bbca3497501d221b750ea7701d6d8850fb8d31833a66f76dcccefdb8f"
+          }
+        ]
+      }
+    ]
+  },
+  "mask_recovery": {
+    "abstract_923_984_source_view_preserved": true,
+    "rows": [
+      {
+        "side": "old",
+        "extra_mapped_text": "RoIAlignRoIAlignclassboxconvconvconvconv",
+        "extra_glyphs": 40,
+        "page_zero_unknown_paints": [
+          0,
+          8,
+          0
+        ]
+      },
+      {
+        "side": "new",
+        "extra_mapped_text": "RoIAlignRoIAlignclassboxconvconvconvconv",
+        "extra_glyphs": 40,
+        "page_zero_unknown_paints": [
+          0,
+          8,
+          0
+        ]
+      }
+    ]
+  },
+  "new_conditional_views": {
+    "added": 25,
+    "removed": 6,
+    "source_union": {
+      "old": {
+        "added_B_sources": 1696,
+        "lost_B_sources": 477
+      },
+      "new": {
+        "added_B_sources": 1700,
+        "lost_B_sources": 628
+      }
+    },
+    "new_multiplicity_claims_verified": true,
+    "all_new_text_masks_null": true,
+    "adjudication": "The 25 new views contain changed citation references, an inference-overhead sentence, figure numbering and overlapping portions of the changed abstract. Their literal token-multiplicity witnesses are checked against retained source text. Existing correspondence conditions and unresolved normalization remain attached; these are not strict changed-character masks.",
+    "lost_views": "Six earlier views no longer occur in the bounded candidate population; their exact text and source-union losses are retained in new-views.json. The registered 923/984-glyph abstract remains present."
+  },
+  "checks": {
+    "format": "passed",
+    "clippy_workspace_all_targets_deny_warnings": "passed",
+    "workspace_passed": 2469,
+    "workspace_ignored": 2,
+    "generated_passed": 48,
+    "core_five_acceptance_cases": "passed through both renderers",
+    "focused_extraction_passed": 99,
+    "geometry_tests_passed": 4
+  },
+  "limitations": [
+    "DDPM still rolls back its Form because a glyph/clip relationship cannot be certified; its source coverage is unchanged.",
+    "Both pilot pairs remain document-wide incomplete. No G3 gain or new blind evaluation is claimed.",
+    "Mask R-CNN was already a development recovery; preserving its registered abstract and adding other ranges does not establish a newly qualifying G1 pair.",
+    "The full 36-pair capture is running separately and has not been scored for this implementation result.",
+    "Numerical uncertainty, unsupported path topology and unproved intersections remain extraction issues.",
+    "New captured glyphs shift local identifiers and render-order ordinals; evidence comparisons bind text, raw codes, geometry and operator provenance rather than assume stable numbering."
+  ],
+  "next_action": "Complete and score the running fixed-panel capture, inspect recovery losses and controls, then diagnose the uncertified DDPM glyph/clip intersection with retained source geometry.",
+  "full_panel_capture_script": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/capture-panel.py",
+    "sha256": "cb227f88f0a3ec92fa6381ebcc6f43826baa2f1ef9669131cbadd31296b8d7ac"
+  },
+  "full_panel_output": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-panel",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/run.py",
+      "sha256": "a19ec8aa332ac492d0dfe43f436e039ca0e51089005bf256be2e338d60ca161a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/check.py",
+      "sha256": "7e8fe80d2037e161f6dc4cf496256b388b2d9f577eaca6fbdd5017aaacd6bc25"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/check.json",
+      "sha256": "1f2e700a33410ab3f5f73a91862e434e7bf00cfd67613ef28e2f6769f0b91e6c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/review.py",
+      "sha256": "c86a3215b520ef07ba939a3940f66b04af4398ac3ccda2042f5d82b7d806d473"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/new-views.json",
+      "sha256": "b98d8b028baa314b3aceb57a06aea357c097f57d51b203d384c3088c1e0a7a15"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/recovery.json",
+      "sha256": "3a13cc8fdf244aeca7a4412ec292c8c12c61e8fc0707401011019b06f561268b"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/implementation.patch",
+      "sha256": "e764f6a3da84a33a9a5485db5b95edf24a31ac002894e7a75462f821355ef3c3"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/clipping.rs",
+      "sha256": "6955f7acce9ad1ef4430ccc86858a3d89f6abc4c918a6e3681e944ceec0f02cf"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/clip-regression-before.log",
+      "sha256": "d7ba448a97ad04d755752c28611ab11bcc2421da11e31bdbe76f13ce9c2264db"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/paint-regression-before.log",
+      "sha256": "550c69264685b2976f8886456c605b0d959355bb5594cc4f2a1de82aaeda7b8c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/geometry-tests.log",
+      "sha256": "ceb94613ca74783cee40e8760aec1c5eb1adda2c4dd7bb4500106957b69dd0f4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/focused-tests.log",
+      "sha256": "73eb17239aec6cd390cc3901930f8e1771c5f30db5f678412035f91a48f89b1f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/workspace.log",
+      "sha256": "93062891c1478809b38248fcf395186ae413a334d7a595cab2aff138d25ca5e7"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/generated.log",
+      "sha256": "a5bde1dc012f4cea87b2b0ab611cf96ae50cbd7607e1670f10b2b0716ed0f68d"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/convex-clipping-bounded-paint/build.log",
+      "sha256": "3de87799fb6e00acfe4fef9caae9fa736150ed9975a4175c58a47b76278022e3"
+    }
+  ]
+}

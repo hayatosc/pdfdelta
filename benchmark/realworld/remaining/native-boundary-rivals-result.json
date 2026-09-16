@@ -1,0 +1,116 @@
+{
+  "status": "unique_in_bounded_retained_native_paragraph_and_path_population",
+  "previous_turn_classification": "progress: equal native glyph evidence was separated from unresolved layout normalization",
+  "baseline": {
+    "path": "benchmark/realworld/remaining/gpt3-following-boundary-diagnosis.json",
+    "sha256": "7d16de437c4c6dcbb8b79a60852bd8b6e99e15dcf8066fb05d3376e92a826451"
+  },
+  "production_changed": false,
+  "new_recovery_claimed": false,
+  "fixed_panel_denominator": 36,
+  "finding": "The 581-glyph following-boundary stream has exactly one compatible retained native paragraph/path per side, even when each unmapped glyph conservatively matches any single glyph text. Known literal spaces and glyph partitioning are preserved.",
+  "populations": [
+    {
+      "side": "old",
+      "eligible_paragraphs": 3338,
+      "skipped_paragraphs": {
+        "included_with_unmapped_wildcards": 893
+      },
+      "retained_precedes_edges": 1980,
+      "target_node": 502,
+      "target_glyph_symbols": 581,
+      "search": {
+        "complete": true,
+        "work": 247103,
+        "limit": 1000000,
+        "matches": [
+          [
+            502
+          ]
+        ]
+      }
+    },
+    {
+      "side": "new",
+      "eligible_paragraphs": 3403,
+      "skipped_paragraphs": {
+        "included_with_unmapped_wildcards": 918
+      },
+      "retained_precedes_edges": 2003,
+      "target_node": 503,
+      "target_glyph_symbols": 581,
+      "search": {
+        "complete": true,
+        "work": 253142,
+        "limit": 1000000,
+        "matches": [
+          [
+            503
+          ]
+        ]
+      }
+    }
+  ],
+  "predicate": "Exact equality of ordered per-glyph mapped strings; for rival exclusion, an unmapped glyph is a wildcard for one such symbol. Paths use retained Precedes edges between unkeyed native paragraphs and may not repeat nodes or source atoms.",
+  "prototype": "A work-limited depth-first prefix search returns all matches only on completion. On exhaustion it returns an explicitly incomplete result with partial matches, never a completed unique candidate set.",
+  "checks": {
+    "five_test_groups_passed": true,
+    "whole_paragraph_copies_and_split_paths_retained": true,
+    "unmapped_rival_not_dropped": true,
+    "source_overlap_and_cycles_excluded": true,
+    "literal_spaces_and_glyph_partition_not_normalized": true,
+    "budget_exhaustion_fail_closed": true,
+    "production_source_modified": false,
+    "workspace_checks": "not rerun: standalone diagnostic prototype and documentation only"
+  },
+  "limitations": [
+    "Uniqueness is established only in the supplied retained native paragraph/Precedes population, not all possible reconstructed boundaries or incomplete acquisitions.",
+    "The work counter bounds this diagnostic search; it is not a wall-time, allocator or complete production cost model.",
+    "Known equality of source glyph streams does not certify equality of independently uncertain layout spaces. No strict literal boundary was added.",
+    "A production boundary-only premise still requires explicit matching priority, interaction with split/group alternatives and source conflicts, closure checks and evaluator support.",
+    "The native target interior retains an unmapped glyph independently of this boundary problem."
+  ],
+  "next_action": "Measure whether a boundary-only correspondence based on this stream can close the target under a diagnostic hypothesis, then implement a distinct supported premise only if the effect and its complete rival/closure conditions are demonstrated. Do not remove the existing Exact normalization guard or count this uniqueness result as target recovery.",
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/search.py",
+      "sha256": "e847aae5e71d2990305ac0efb26da12b6e3cc1243e0b06524a0ca30032a5f5fe"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/run.py",
+      "sha256": "1c474f08b5f6349cca9376e0c7a065159fa5ac4c5eebbad784f6b2f7a1aa311c"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/test_search.py",
+      "sha256": "27eeb772d61c52168f6ca58eb6527891810fd55ab05095bdcada9b69c3dca626"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/tests.log",
+      "sha256": "888a0c0ed615e57d32cf72be501b0c355f33b8613c81dfdaa99db33d7959487e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/all-native-result.json",
+      "sha256": "d238e70d4722f7cf91c135d66aa788581596463adec89b04fd5a462c04ff3dee"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/all-native.log",
+      "sha256": "ef8fad99eec7fa863da4c6715ca5e06da0bfca7071b874acbfed3cddc98ee7ab"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/mapped-only-search.py",
+      "sha256": "194fe71dcc1792ea6963daf90e4510e6dd369d1e0bd6bd13a18118e9fa6905a0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/mapped-only-run.py",
+      "sha256": "030fa08f93a5a0a8a633070100f4425a01be7bb9c3897d41bb55b8e05b49e437"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/result.json",
+      "sha256": "0cff719a27dd5b7ef407bc8e28f90729c6fad525aeb520f1730633427e045642"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/native-boundary-rivals/run.log",
+      "sha256": "4682a4a5e9db3348f0c9a4cc3e455d250f259796b5d83d7be4af659fb6329aaf"
+    }
+  ]
+}

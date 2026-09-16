@@ -1,0 +1,306 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "checks": [
+    {
+      "pair": "nist-126-r2-to-r3",
+      "selector": "body-old-1",
+      "glyph_count": 84,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "selector": "control-old",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "selector": "body-new-1",
+      "glyph_count": 84,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "selector": "control-new",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "selector": "body-old-1",
+      "glyph_count": 689,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "selector": "body-new-1",
+      "glyph_count": 724,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-access-v1-to-v21",
+      "selector": "body-old-1",
+      "glyph_count": 270,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-access-v1-to-v21",
+      "selector": "control-old",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-access-v1-to-v21",
+      "selector": "body-new-1",
+      "glyph_count": 269,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-access-v1-to-v21",
+      "selector": "control-new",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "selector": "body-old-1",
+      "glyph_count": 567,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "selector": "control-old",
+      "glyph_count": 42,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "selector": "body-new-1",
+      "glyph_count": 598,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "selector": "control-new",
+      "glyph_count": 42,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "selector": "body-old-1",
+      "glyph_count": 970,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "selector": "body-new-1",
+      "glyph_count": 954,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "selector": "body-old-1",
+      "glyph_count": 1038,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "selector": "control-old",
+      "glyph_count": 24,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "selector": "body-new-1",
+      "glyph_count": 1044,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "selector": "control-new",
+      "glyph_count": 24,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "selector": "body-old-1",
+      "glyph_count": 739,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "selector": "body-new-1",
+      "glyph_count": 823,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "selector": "body-old-1",
+      "glyph_count": 261,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "selector": "body-old-2",
+      "glyph_count": 345,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "selector": "control-old",
+      "glyph_count": 5,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "selector": "body-new-1",
+      "glyph_count": 594,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "selector": "control-new",
+      "glyph_count": 5,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "selector": "body-old-1",
+      "glyph_count": 115,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "selector": "body-old-2",
+      "glyph_count": 165,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "selector": "control-old",
+      "glyph_count": 4,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "selector": "body-new-1",
+      "glyph_count": 276,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "selector": "control-new",
+      "glyph_count": 4,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "selector": "body-old-1",
+      "glyph_count": 638,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "selector": "body-new-1",
+      "glyph_count": 815,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "selector": "body-old-1",
+      "glyph_count": 464,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "selector": "body-new-1",
+      "glyph_count": 538,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "selector": "body-old-1",
+      "glyph_count": 131,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "selector": "body-new-1",
+      "glyph_count": 654,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    }
+  ]
+}

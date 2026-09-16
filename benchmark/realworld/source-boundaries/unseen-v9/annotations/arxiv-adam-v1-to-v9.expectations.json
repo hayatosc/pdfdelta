@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-adam-v1-to-v9",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "f2fcc411c8d6b05b190029e6bb07ca678de045bbb44c4086411a85a2b53b4c44",
+  "body_eligible": true,
+  "reason": "Complete Abstract in both editions; the optimization method description and empirical discussion are rewritten, including the new AdaMax sentence. Unmapped mathematics elsewhere are not omitted from document evidence or treated as complete interpretation."
+}

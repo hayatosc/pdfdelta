@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-rag-v1-to-v4",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "959ead63343517b74bf666f676212de33ccd0d1fbdbb09696a6fb04e1acdf653",
+  "body_eligible": true,
+  "reason": "The complete abstract removes the claim that explicit memory can overcome the stated issue and changes the description of the second retrieval formulation."
+}

@@ -1,22 +1,31 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use crate::{
     Error, Result,
-    pdf::{ParsedPdf, PdfDict, PdfObject},
+    pdf::{ObjectRef, ParsedPdf, PdfDict, PdfObject},
 };
 
 use super::{
     cmap::{ToUnicodeCMap, UnicodeMapping, parse_identity_cid_encoding},
     common::{
         FontIdentityDomain, FontIdentitySource, apply_bbox_vertical_fallback, finite_number,
-        load_descriptor_bbox, load_to_unicode, non_negative_number, resolve_font_identity_source,
-        resolve_object, resolve_stream_reference, unresolved,
+        load_descriptor_bbox, load_to_unicode_with_width, non_negative_number,
+        resolve_font_identity_source, resolve_object, resolve_stream_reference, unresolved,
     },
     decoder::{DecodedGlyph, FontDecoderLimits, VerticalGlyphMetrics, WritingMode},
 };
 
-#[derive(Clone, Copy, Debug)]
-struct DefaultVerticalMetrics {
+mod predefined;
+mod vertical;
+
+use predefined::Encoding;
+
+#[derive(Clone, Debug)]
+struct VerticalMetrics {
+    overrides: BTreeMap<u16, VerticalGlyphMetrics>,
     displacement_y_1000_em: f64,
     origin_y_1000_em: f64,
 }
@@ -24,22 +33,22 @@ struct DefaultVerticalMetrics {
 #[derive(Clone, Debug)]
 pub(crate) struct CompositeFontDecoder {
     to_unicode: Option<ToUnicodeCMap>,
-    identity_cmap_entries: usize,
-    widths: BTreeMap<u16, f64>,
+    predefined_unicode: Option<ToUnicodeCMap>,
+    collection_max_cid: Option<u16>,
+    widths: Arc<BTreeMap<u16, f64>>,
     default_width: f64,
     ascent: f64,
     descent: f64,
-    source_width: usize,
+    encoding: Encoding,
     writing_mode: WritingMode,
-    vertical: Option<DefaultVerticalMetrics>,
+    vertical: Option<VerticalMetrics>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct LoadedEncoding {
     writing_mode: WritingMode,
-    source_width: usize,
+    encoding: Encoding,
     decoded_bytes: usize,
-    cmap_entries: usize,
 }
 
 pub(super) struct LoadedCompositeFont {
@@ -50,24 +59,55 @@ pub(super) struct LoadedCompositeFont {
     pub(super) cid_width_entries: usize,
 }
 
+/// Width tables belong to one immutable parsed PDF, through `FontDecoderCache`.
+/// Only successful font loads publish shared tables; all other metrics stay local.
+pub(super) type WidthTables = HashMap<ObjectRef, Arc<BTreeMap<u16, f64>>>;
+
 impl CompositeFontDecoder {
+    #[cfg(test)]
     pub(super) fn load(
         pdf: &dyn ParsedPdf,
         dictionary: &PdfDict,
         limits: FontDecoderLimits,
     ) -> Result<LoadedCompositeFont> {
+        Self::load_shared(pdf, dictionary, limits, &mut WidthTables::new())
+    }
+
+    pub(super) fn load_shared(
+        pdf: &dyn ParsedPdf,
+        dictionary: &PdfDict,
+        limits: FontDecoderLimits,
+        tables: &mut WidthTables,
+    ) -> Result<LoadedCompositeFont> {
         let encoding = load_encoding(pdf, dictionary, limits)?;
         let writing_mode = encoding.writing_mode;
-        let descendant = load_descendant(pdf, dictionary, limits.max_indirections)?;
+        let (descendant, reference) = load_descendant(pdf, dictionary, limits.max_indirections)?;
+        let collection_max_cid = if matches!(encoding.encoding, Encoding::UniJisUtf16(_)) {
+            Some(predefined::collection_max_cid(
+                pdf,
+                &descendant,
+                limits.max_indirections,
+            )?)
+        } else {
+            None
+        };
         let default_width = load_default_width(pdf, &descendant, limits.max_indirections)?;
-        let widths = load_widths(pdf, &descendant, limits)?;
+        let shared = reference.and_then(|reference| tables.get(&reference));
+        let (widths, new_width_entries) = if let Some(widths) = shared {
+            (Arc::clone(widths), 0)
+        } else {
+            let widths = load_widths(pdf, &descendant, limits)?;
+            let entries = widths.len();
+            (Arc::new(widths), entries)
+        };
         let vertical = load_vertical_metrics(
             pdf,
             &descendant,
-            limits.max_indirections,
+            limits,
             writing_mode,
             default_width,
             &widths,
+            new_width_entries,
         )?;
         let (ascent, descent) = load_metrics(pdf, &descendant, limits.max_indirections)?;
         let identity_domain = identity_domain(pdf, &descendant, limits.max_indirections)?;
@@ -87,10 +127,48 @@ impl CompositeFontDecoder {
             })?;
         let to_unicode_limits = FontDecoderLimits {
             max_decoded_font_bytes: remaining_font_bytes,
+            cmap: super::cmap::CMapLimits {
+                max_entries: limits
+                    .cmap
+                    .max_entries
+                    .saturating_sub(encoding.encoding.entry_count()),
+                ..limits.cmap
+            },
             ..limits
         };
-        let (to_unicode, decoded_to_unicode_bytes) =
-            load_to_unicode(pdf, dictionary, to_unicode_limits, encoding.source_width)?;
+        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode_with_width(
+            pdf,
+            dictionary,
+            to_unicode_limits,
+            encoding.encoding.fixed_width(),
+        )?;
+        if collection_max_cid.is_some()
+            && to_unicode
+                .as_ref()
+                .is_some_and(|cmap| !cmap.uses_only_widths(&[2, 4]))
+        {
+            return unresolved("UniJIS-UTF16-H ToUnicode codespaces must use two or four bytes");
+        }
+        let predefined_unicode = if collection_max_cid.is_some() && to_unicode.is_none() {
+            if predefined::UNICODE_BYTES.len() > remaining_font_bytes {
+                return Err(Error::LimitExceeded {
+                    resource: "decoded ToUnicode bytes",
+                    limit: remaining_font_bytes,
+                });
+            }
+            Some(super::cmap::parse_to_unicode_for_width(
+                predefined::UNICODE_BYTES,
+                to_unicode_limits.cmap,
+                2,
+            )?)
+        } else {
+            None
+        };
+        let decoded_to_unicode_bytes = if predefined_unicode.is_some() {
+            predefined::UNICODE_BYTES.len()
+        } else {
+            decoded_to_unicode_bytes
+        };
         let decoded_font_bytes = encoding
             .decoded_bytes
             .checked_add(decoded_to_unicode_bytes)
@@ -99,16 +177,23 @@ impl CompositeFontDecoder {
                 limit: limits.max_decoded_font_bytes,
             })?;
 
+        if let Some(reference) = reference {
+            tables
+                .entry(reference)
+                .or_insert_with(|| Arc::clone(&widths));
+        }
         Ok(LoadedCompositeFont {
-            cid_width_entries: widths.len(),
+            cid_width_entries: new_width_entries
+                + vertical.as_ref().map_or(0, |v| v.overrides.len()),
             decoder: Self {
                 to_unicode,
-                identity_cmap_entries: encoding.cmap_entries,
+                predefined_unicode,
+                collection_max_cid,
                 widths,
                 default_width,
                 ascent,
                 descent,
-                source_width: encoding.source_width,
+                encoding: encoding.encoding,
                 writing_mode,
                 vertical,
             },
@@ -124,35 +209,54 @@ impl CompositeFontDecoder {
         max_output_glyphs: usize,
         max_mapped_text_bytes: usize,
     ) -> Result<Vec<DecodedGlyph>> {
-        if !input.len().is_multiple_of(self.source_width) {
-            return if self.source_width == 2 {
-                unresolved("Identity Type0 text code has an odd number of bytes")
-            } else {
-                unresolved("Type0 text bytes are truncated for the encoding width")
-            };
+        if let Some(width) = self.encoding.fixed_width() {
+            if !input.len().is_multiple_of(width) {
+                return if width == 2 {
+                    unresolved("Identity Type0 text code has an odd number of bytes")
+                } else {
+                    unresolved("Type0 text bytes are truncated for the encoding width")
+                };
+            }
+            if input.len() / width > max_output_glyphs {
+                return Err(Error::LimitExceeded {
+                    resource: "decoded composite-font glyphs",
+                    limit: max_output_glyphs,
+                });
+            }
         }
-        let glyph_count = input.len() / self.source_width;
-        if glyph_count > max_output_glyphs {
-            return Err(Error::LimitExceeded {
-                resource: "decoded composite-font glyphs",
-                limit: max_output_glyphs,
-            });
-        }
-
-        let mut glyphs = Vec::with_capacity(glyph_count);
+        let mut glyphs = Vec::with_capacity(
+            self.encoding
+                .fixed_width()
+                .map_or(0, |width| input.len() / width),
+        );
         let mut mapped_text_bytes = 0usize;
-        for source in input.chunks_exact(self.source_width) {
-            let glyph_id = u16::try_from(
-                source
-                    .iter()
-                    .fold(0_u32, |value, byte| (value << 8) | u32::from(*byte)),
-            )
-            .map_err(|_| Error::Unresolved("Type0 character code exceeds the CID range".into()))?;
-            let mapping = self
-                .to_unicode
-                .as_ref()
-                .and_then(|cmap| cmap.exact_mapping_entry(source))
-                .unwrap_or(UnicodeMapping::Unmapped);
+        let mut remaining = input;
+        while !remaining.is_empty() {
+            if glyphs.len() >= max_output_glyphs {
+                return Err(Error::LimitExceeded {
+                    resource: "decoded composite-font glyphs",
+                    limit: max_output_glyphs,
+                });
+            }
+            let (width, glyph_id, notdef) = self.encoding.next_code(remaining)?;
+            let source = &remaining[..width];
+            remaining = &remaining[width..];
+            if self
+                .collection_max_cid
+                .is_some_and(|maximum| glyph_id > maximum)
+            {
+                return unresolved("Type0 CID exceeds the declared Adobe-Japan1 supplement");
+            }
+            let mapping = if let Some(cmap) = &self.to_unicode {
+                cmap.exact_mapping_entry(source)
+            } else if !notdef {
+                self.predefined_unicode
+                    .as_ref()
+                    .and_then(|cmap| cmap.exact_mapping_entry(&glyph_id.to_be_bytes()))
+            } else {
+                None
+            }
+            .unwrap_or(UnicodeMapping::Unmapped);
             if let UnicodeMapping::Mapped(text) = &mapping {
                 mapped_text_bytes =
                     mapped_text_bytes
@@ -178,10 +282,16 @@ impl CompositeFontDecoder {
                 mapping,
                 glyph_id,
                 width_1000_em,
-                vertical: self.vertical.map(|vertical| VerticalGlyphMetrics {
-                    displacement_y_1000_em: vertical.displacement_y_1000_em,
-                    origin_x_1000_em: width_1000_em / 2.0,
-                    origin_y_1000_em: vertical.origin_y_1000_em,
+                vertical: self.vertical.as_ref().map(|vertical| {
+                    vertical
+                        .overrides
+                        .get(&glyph_id)
+                        .copied()
+                        .unwrap_or(VerticalGlyphMetrics {
+                            displacement_y_1000_em: vertical.displacement_y_1000_em,
+                            origin_x_1000_em: width_1000_em / 2.0,
+                            origin_y_1000_em: vertical.origin_y_1000_em,
+                        })
                 }),
             });
         }
@@ -189,11 +299,14 @@ impl CompositeFontDecoder {
     }
 
     pub(super) fn cmap_entry_count(&self) -> usize {
-        self.identity_cmap_entries.saturating_add(
-            self.to_unicode
+        self.to_unicode
+            .as_ref()
+            .map_or(0, ToUnicodeCMap::entry_count)
+            + self
+                .predefined_unicode
                 .as_ref()
-                .map_or(0, ToUnicodeCMap::entry_count),
-        )
+                .map_or(0, ToUnicodeCMap::entry_count)
+            + self.encoding.entry_count()
     }
 
     pub(super) fn writing_mode(&self) -> WritingMode {
@@ -220,15 +333,18 @@ fn load_encoding(
     match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
         PdfObject::Name(name) if name.as_slice() == b"Identity-H" => Ok(LoadedEncoding {
             writing_mode: WritingMode::Horizontal,
-            source_width: 2,
+            encoding: Encoding::Identity(2),
             decoded_bytes: 0,
-            cmap_entries: 0,
         }),
         PdfObject::Name(name) if name.as_slice() == b"Identity-V" => Ok(LoadedEncoding {
             writing_mode: WritingMode::Vertical,
-            source_width: 2,
+            encoding: Encoding::Identity(2),
             decoded_bytes: 0,
-            cmap_entries: 0,
+        }),
+        PdfObject::Name(name) if name.as_slice() == b"UniJIS-UTF16-H" => Ok(LoadedEncoding {
+            writing_mode: WritingMode::Horizontal,
+            encoding: predefined::load(limits)?,
+            decoded_bytes: predefined::ENCODING_BYTES.len(),
         }),
         PdfObject::Name(name) => Err(Error::Unsupported(format!(
             "Type0 encoding /{} is not supported",
@@ -251,9 +367,8 @@ fn load_encoding(
                 } else {
                     WritingMode::Horizontal
                 },
-                source_width: parsed.source_width,
+                encoding: Encoding::Identity(parsed.source_width),
                 decoded_bytes: stream.bytes.len(),
-                cmap_entries: parsed.entries,
             })
         }
         PdfObject::Dictionary(_) => Err(Error::Unsupported(
@@ -267,7 +382,7 @@ fn load_descendant(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
     max_indirections: usize,
-) -> Result<PdfDict> {
+) -> Result<(PdfDict, Option<ObjectRef>)> {
     let descendants = dictionary
         .get(b"DescendantFonts".as_slice())
         .ok_or_else(|| Error::Unresolved("Type0 font has no DescendantFonts".into()))?;
@@ -283,6 +398,10 @@ fn load_descendant(
     let descendant = descendants
         .pop()
         .ok_or_else(|| Error::Unresolved("Type0 font has no descendant font".into()))?;
+    let reference = match &descendant {
+        PdfObject::Reference(reference) => Some(pdf.terminal_reference(*reference)?),
+        _ => None,
+    };
     let descendant = resolve_object(pdf, descendant, max_indirections)?;
     let PdfObject::Dictionary(descendant) = descendant else {
         return unresolved("Type0 descendant font is not a dictionary");
@@ -298,7 +417,7 @@ fn load_descendant(
         }
         _ => return unresolved("Type0 descendant font has no valid Subtype"),
     }
-    Ok(descendant)
+    Ok((descendant, reference))
 }
 
 fn identity_domain(
@@ -418,19 +537,16 @@ fn load_widths(
 fn load_vertical_metrics(
     pdf: &dyn ParsedPdf,
     descendant: &PdfDict,
-    max_indirections: usize,
+    limits: FontDecoderLimits,
     writing_mode: WritingMode,
     default_width: f64,
     widths: &BTreeMap<u16, f64>,
-) -> Result<Option<DefaultVerticalMetrics>> {
+    new_width_entries: usize,
+) -> Result<Option<VerticalMetrics>> {
     if matches!(writing_mode, WritingMode::Horizontal) {
         return Ok(None);
     }
-    if descendant.contains_key(b"W2".as_slice()) {
-        return Err(Error::Unsupported(
-            "Identity-V fonts with per-CID W2 metrics are not supported".into(),
-        ));
-    }
+    let max_indirections = limits.max_indirections;
     if default_width <= 0.0 || widths.values().any(|width| *width <= 0.0) {
         return unresolved("Identity-V font has a non-positive horizontal width");
     }
@@ -465,7 +581,8 @@ fn load_vertical_metrics(
             "Identity-V fonts with non-downward default displacement are not supported".into(),
         ));
     }
-    Ok(Some(DefaultVerticalMetrics {
+    Ok(Some(VerticalMetrics {
+        overrides: vertical::load(pdf, descendant, limits, new_width_entries)?,
         displacement_y_1000_em,
         origin_y_1000_em,
     }))
@@ -565,6 +682,389 @@ mod tests {
     };
     const TO_UNICODE: &[u8] = b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
         1 beginbfrange <01> <0005> <0041> endbfrange";
+
+    fn unijis_fixture() -> (MockPdf, PdfDict, FontDecoderLimits) {
+        let mut descendant = descendant_with_widths(PdfObject::Array(vec![
+            PdfObject::Integer(34),
+            PdfObject::Array(vec![PdfObject::Integer(510)]),
+            PdfObject::Integer(3531),
+            PdfObject::Array(vec![PdfObject::Integer(920)]),
+            PdfObject::Integer(19130),
+            PdfObject::Array(vec![PdfObject::Integer(980)]),
+        ]));
+        let PdfObject::Dictionary(d) = &mut descendant else {
+            unreachable!()
+        };
+        d.insert(
+            b"CIDSystemInfo".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Registry".to_vec(), PdfObject::String(b"Adobe".to_vec())),
+                (b"Ordering".to_vec(), PdfObject::String(b"Japan1".to_vec())),
+                (b"Supplement".to_vec(), PdfObject::Integer(5)),
+            ])),
+        );
+        let pdf = MockPdf::with_descendant(descendant);
+        let mut font = font_dictionary();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"UniJIS-UTF16-H".to_vec()),
+        );
+        font.remove(b"ToUnicode".as_slice());
+        let limits = FontDecoderLimits {
+            max_decoded_font_bytes: 1_000_000,
+            cmap: CMapLimits {
+                max_entries: 100_000,
+                max_output_scalars: 100_000,
+                ..LIMITS.cmap
+            },
+            ..LIMITS
+        };
+        (pdf, font, limits)
+    }
+
+    #[test]
+    fn decodes_unijis_utf16_through_cids_with_raw_surrogate_codes() -> Result<()> {
+        let (pdf, font, limits) = unijis_fixture();
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let glyphs =
+            loaded
+                .decoder
+                .decode(&[0, 0x41, 0x5b, 0xcc, 0xd8, 0x84, 0xdf, 0x50], 3, 100)?;
+        assert_eq!(
+            glyphs.iter().map(|g| g.glyph_id).collect::<Vec<_>>(),
+            [34, 3531, 19130]
+        );
+        assert_eq!(
+            glyphs.iter().map(|g| g.width_1000_em).collect::<Vec<_>>(),
+            [510.0, 920.0, 980.0]
+        );
+        assert_eq!(glyphs[0].mapping, mapped("A"));
+        assert_eq!(glyphs[1].mapping, mapped("富"));
+        assert_eq!(glyphs[2].raw_code, [0xd8, 0x84, 0xdf, 0x50]);
+        assert_eq!(glyphs[2].mapping, mapped("\u{31350}"));
+        Ok(())
+    }
+
+    #[test]
+    fn unijis_preserves_canonical_unicode_sequences_and_notdef_evidence() -> Result<()> {
+        let (pdf, font, limits) = unijis_fixture();
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0x82, 0xa6, 0, 0, 0, 0x5c], 3, 100)?;
+        assert_eq!(glyphs[0].mapping, mapped("芦\u{e0100}"));
+        assert_eq!(glyphs[0].glyph_id, 1142);
+        assert_eq!(glyphs[1].raw_code, [0, 0]);
+        assert_eq!(glyphs[1].glyph_id, 1);
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(glyphs[2].glyph_id, 97);
+        assert_eq!(glyphs[2].mapping, mapped("\\"));
+        for input in [
+            &[0][..],
+            &[0xd8, 0],
+            &[0xd8, 0, 0, 0x41],
+            &[0xdc, 0],
+            &[0xff, 0xff],
+        ] {
+            assert!(matches!(
+                loaded.decoder.decode(input, 10, 100),
+                Err(Error::Unresolved(_))
+            ));
+        }
+        assert!(matches!(
+            loaded.decoder.decode(&[0, 0x41, 0, 0x42], 1, 100),
+            Err(Error::LimitExceeded {
+                resource: "decoded composite-font glyphs",
+                ..
+            })
+        ));
+        assert!(matches!(
+            loaded.decoder.decode(&[0x82, 0xa6], 1, 6),
+            Err(Error::LimitExceeded {
+                resource: "decoded Unicode text bytes",
+                ..
+            })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn unijis_explicit_tounicode_takes_priority_without_filling_gaps() -> Result<()> {
+        let (mut pdf, mut font, limits) = unijis_fixture();
+        font.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+        pdf.streams.insert(object_ref(1), b"3 begincodespacerange <0000> <D7FF> <D800DC00> <DBFFDFFF> <E000> <FFFF> endcodespacerange 3 beginbfchar <0041> <005A> <5BCC> <D800> <D884DF50> <0058> endbfchar".to_vec());
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let glyphs = loaded.decoder.decode(
+            &[0, 0x41, 0, 0x42, 0x5b, 0xcc, 0xd8, 0x84, 0xdf, 0x50],
+            4,
+            100,
+        )?;
+        assert_eq!(glyphs[0].mapping, mapped("Z"));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(glyphs[3].mapping, mapped("X"));
+        assert_eq!(glyphs[3].glyph_id, 19130);
+        pdf.streams.insert(object_ref(1), b"1 begincodespacerange <00> <FF> endcodespacerange 1 beginbfchar <41> <005A> endbfchar".to_vec());
+        assert!(matches!(
+            CompositeFontDecoder::load(&pdf, &font, limits),
+            Err(Error::Unresolved(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn unijis_charges_bundled_maps_against_existing_limits() -> Result<()> {
+        let (pdf, font, limits) = unijis_fixture();
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let bytes = loaded.decoded_font_bytes;
+        let entries = loaded.decoder.cmap_entry_count();
+        assert_eq!(bytes, 482_336);
+        assert!(entries > 15_927);
+        for reduced in [
+            FontDecoderLimits {
+                max_decoded_font_bytes: bytes - 1,
+                ..limits
+            },
+            FontDecoderLimits {
+                cmap: CMapLimits {
+                    max_entries: entries - 1,
+                    ..limits.cmap
+                },
+                ..limits
+            },
+            FontDecoderLimits {
+                cmap: CMapLimits {
+                    max_entries: 15_926,
+                    ..limits.cmap
+                },
+                ..limits
+            },
+            FontDecoderLimits {
+                cmap: CMapLimits {
+                    max_code_bytes: 2,
+                    ..limits.cmap
+                },
+                ..limits
+            },
+            FontDecoderLimits {
+                cmap: CMapLimits {
+                    max_output_scalars: 16,
+                    ..limits.cmap
+                },
+                ..limits
+            },
+        ] {
+            assert!(matches!(
+                CompositeFontDecoder::load(&pdf, &font, reduced),
+                Err(Error::LimitExceeded { .. })
+            ));
+        }
+        CompositeFontDecoder::load(
+            &pdf,
+            &font,
+            FontDecoderLimits {
+                max_decoded_font_bytes: bytes,
+                cmap: CMapLimits {
+                    max_entries: entries,
+                    ..limits.cmap
+                },
+                ..limits
+            },
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn unijis_validates_collection_and_declared_supplement() -> Result<()> {
+        let (mut pdf, font, limits) = unijis_fixture();
+        for (key, value) in [
+            (b"Registry".as_slice(), PdfObject::String(b"Other".to_vec())),
+            (b"Ordering".as_slice(), PdfObject::String(b"GB1".to_vec())),
+            (b"Supplement".as_slice(), PdfObject::Integer(8)),
+            (b"Supplement".as_slice(), PdfObject::Integer(-1)),
+        ] {
+            let (mut invalid, _, _) = unijis_fixture();
+            let Some(PdfObject::Dictionary(d)) = invalid.objects.get_mut(&object_ref(2)) else {
+                unreachable!()
+            };
+            let Some(PdfObject::Dictionary(info)) = d.get_mut(b"CIDSystemInfo".as_slice()) else {
+                unreachable!()
+            };
+            info.insert(key.to_vec(), value);
+            assert!(matches!(
+                CompositeFontDecoder::load(&invalid, &font, limits),
+                Err(Error::Unresolved(_) | Error::Unsupported(_))
+            ));
+        }
+        let Some(PdfObject::Dictionary(d)) = pdf.objects.get_mut(&object_ref(2)) else {
+            unreachable!()
+        };
+        let Some(PdfObject::Dictionary(info)) = d.get_mut(b"CIDSystemInfo".as_slice()) else {
+            unreachable!()
+        };
+        info.insert(b"Supplement".to_vec(), PdfObject::Integer(0));
+        info.insert(b"Registry".to_vec(), PdfObject::Reference(object_ref(3)));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::String(b"Adobe".to_vec()));
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        assert_eq!(
+            loaded.decoder.decode(&[0, 0x41], 1, 100)?[0].mapping,
+            mapped("A")
+        );
+        assert!(matches!(
+            loaded.decoder.decode(&[0xd8, 0x84, 0xdf, 0x50], 1, 100),
+            Err(Error::Unresolved(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn shares_only_native_width_tables_and_retains_per_font_character_mappings() -> Result<()> {
+        use super::super::decoder::{FontDecoder, FontDecoderCache};
+        let mut pdf = MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(vec![
+            PdfObject::Integer(1),
+            PdfObject::Array(vec![PdfObject::Integer(500)]),
+        ])));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(
+            object_ref(3),
+            String::from_utf8_lossy(TO_UNICODE)
+                .replace("<0041>", "<0051>")
+                .into_bytes(),
+        );
+        let mut second = font_dictionary();
+        second.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(3)));
+        let mut cache = FontDecoderCache::new(&pdf);
+        let first = cache.load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?;
+        let second = cache.load(
+            &PdfObject::Dictionary(second),
+            FontDecoderLimits {
+                max_cid_width_entries: 0,
+                ..LIMITS
+            },
+        )?;
+        assert_eq!(first.cid_width_entries, 1);
+        assert_eq!(second.cid_width_entries, 0);
+        let FontDecoder::Composite(a) = &first.decoder else {
+            unreachable!()
+        };
+        let FontDecoder::Composite(b) = &second.decoder else {
+            unreachable!()
+        };
+        assert!(Arc::ptr_eq(&a.widths, &b.widths));
+        let a = first.decoder.decode(&[0, 1], 1, 100)?;
+        let b = second.decoder.decode(&[0, 1], 1, 100)?;
+        assert_eq!(a[0].mapping, mapped("A"));
+        assert_eq!(b[0].mapping, mapped("Q"));
+        assert_eq!(a[0].width_1000_em, 500.0);
+        assert_eq!(b[0].width_1000_em, 500.0);
+        Ok(())
+    }
+
+    #[test]
+    fn shared_widths_never_publish_failed_loads_or_cross_pdf_boundaries() -> Result<()> {
+        use super::super::decoder::FontDecoderCache;
+        let pdf = |width| {
+            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Array(vec![PdfObject::Integer(width)]),
+            ])))
+        };
+        let a = pdf(500);
+        let b = pdf(700);
+        let mut cache = FontDecoderCache::new(&a);
+        let mut bad = font_dictionary();
+        bad.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(999)));
+        assert!(cache.load(&PdfObject::Dictionary(bad), LIMITS).is_err());
+        assert!(matches!(
+            cache.load(
+                &PdfObject::Dictionary(font_dictionary()),
+                FontDecoderLimits {
+                    max_cid_width_entries: 0,
+                    ..LIMITS
+                }
+            ),
+            Err(Error::LimitExceeded {
+                resource: "CID width entries",
+                ..
+            })
+        ));
+        let first = cache.load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?;
+        let second =
+            FontDecoderCache::new(&b).load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?;
+        assert_eq!(first.cid_width_entries, 1);
+        assert_eq!(second.cid_width_entries, 1);
+        assert_eq!(
+            second.decoder.decode(&[0, 1], 1, 100)?[0].width_1000_em,
+            700.0
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn shared_horizontal_widths_do_not_hide_new_vertical_metric_costs() -> Result<()> {
+        use super::super::decoder::FontDecoderCache;
+        let mut descendant = descendant_with_widths(PdfObject::Array(vec![
+            PdfObject::Integer(1),
+            PdfObject::Array(vec![PdfObject::Integer(500)]),
+        ]));
+        let PdfObject::Dictionary(dict) = &mut descendant else {
+            unreachable!()
+        };
+        dict.insert(
+            b"W2".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Array(vec![
+                    PdfObject::Integer(-1000),
+                    PdfObject::Integer(250),
+                    PdfObject::Integer(800),
+                ]),
+            ]),
+        );
+        let pdf = MockPdf::with_descendant(descendant);
+        let mut cache = FontDecoderCache::new(&pdf);
+        assert_eq!(
+            cache
+                .load(&PdfObject::Dictionary(font_dictionary()), LIMITS)?
+                .cid_width_entries,
+            1
+        );
+        let mut vertical = font_dictionary();
+        vertical.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-V".to_vec()),
+        );
+        let font = PdfObject::Dictionary(vertical);
+        assert!(matches!(
+            cache.load(
+                &font,
+                FontDecoderLimits {
+                    max_cid_width_entries: 0,
+                    ..LIMITS
+                }
+            ),
+            Err(Error::LimitExceeded {
+                resource: "CID width entries",
+                ..
+            })
+        ));
+        let result = cache.load(
+            &font,
+            FontDecoderLimits {
+                max_cid_width_entries: 1,
+                ..LIMITS
+            },
+        )?;
+        assert_eq!(result.cid_width_entries, 1);
+        assert!(
+            result.decoder.decode(&[0, 1], 1, 100)?[0]
+                .vertical
+                .is_some()
+        );
+        Ok(())
+    }
 
     #[test]
     fn decodes_identity_h_codes_with_cid_widths_and_metrics() -> Result<()> {
@@ -719,35 +1219,6 @@ mod tests {
     }
 
     #[test]
-    fn charges_custom_identity_encoding_entries_to_the_aggregate_count() -> Result<()> {
-        let mut pdf =
-            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
-        pdf.objects
-            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
-        pdf.streams.insert(
-            object_ref(3),
-            b"1 begincodespacerange <00> <FF> endcodespacerange \
-              1 begincidrange <00> <FF> 0 endcidrange"
-                .to_vec(),
-        );
-        let mut font = font_dictionary();
-        font.insert(b"Encoding".to_vec(), PdfObject::Reference(object_ref(3)));
-        let limits = FontDecoderLimits {
-            cmap: CMapLimits {
-                max_entries: 300,
-                ..LIMITS.cmap
-            },
-            ..LIMITS
-        };
-
-        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
-
-        // Six ToUnicode range entries plus the 1-byte identity codespace and range.
-        assert_eq!(loaded.decoder.cmap_entry_count(), 263);
-        Ok(())
-    }
-
-    #[test]
     fn defaults_cid_width_and_allows_missing_to_unicode() -> Result<()> {
         let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
         let PdfObject::Dictionary(ref mut dictionary) = descendant else {
@@ -846,23 +1317,218 @@ mod tests {
     }
 
     #[test]
-    fn rejects_identity_v_per_cid_vertical_metrics() {
+    fn decodes_identity_v_per_cid_vertical_metrics() -> Result<()> {
         let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
         let PdfObject::Dictionary(dictionary) = &mut descendant else {
-            unreachable!();
+            unreachable!()
         };
-        dictionary.insert(b"W2".to_vec(), PdfObject::Array(Vec::new()));
+        let numbers = |values: &[i64]| {
+            PdfObject::Array(values.iter().copied().map(PdfObject::Integer).collect())
+        };
+        dictionary.insert(
+            b"W2".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                numbers(&[-900, 400, 850, -1100, 450, 900]),
+                PdfObject::Integer(4),
+                PdfObject::Integer(5),
+                PdfObject::Integer(-1200),
+                PdfObject::Integer(600),
+                PdfObject::Integer(950),
+            ]),
+        );
         let pdf = MockPdf::with_descendant(descendant);
         let mut font = font_dictionary();
         font.insert(
             b"Encoding".to_vec(),
             PdfObject::Name(b"Identity-V".to_vec()),
         );
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(loaded.cid_width_entries, 4);
+        let glyphs = loaded
+            .decoder
+            .decode(&[0, 1, 0, 2, 0, 3, 0, 4, 0, 5], 5, usize::MAX)?;
+        for (glyph, (dy, x, y)) in glyphs.iter().zip([
+            (-900.0, 400.0, 850.0),
+            (-1100.0, 450.0, 900.0),
+            (-1000.0, 450.0, 880.0),
+            (-1200.0, 600.0, 950.0),
+            (-1200.0, 600.0, 950.0),
+        ]) {
+            assert_eq!(
+                glyph.vertical,
+                Some(VerticalGlyphMetrics {
+                    displacement_y_1000_em: dy,
+                    origin_x_1000_em: x,
+                    origin_y_1000_em: y,
+                })
+            );
+        }
+        Ok(())
+    }
 
-        assert!(matches!(
-            CompositeFontDecoder::load(&pdf, &font, LIMITS),
-            Err(Error::Unsupported(message)) if message.contains("per-CID W2")
-        ));
+    fn vertical_fixture(metrics: PdfObject) -> (MockPdf, PdfDict) {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(dictionary) = &mut descendant else {
+            unreachable!()
+        };
+        dictionary.insert(b"W2".to_vec(), metrics);
+        let mut font = font_dictionary();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-V".to_vec()),
+        );
+        (MockPdf::with_descendant(descendant), font)
+    }
+
+    #[test]
+    fn rejects_malformed_vertical_metric_tables() {
+        let ints = |values: &[i64]| {
+            PdfObject::Array(values.iter().copied().map(PdfObject::Integer).collect())
+        };
+        for value in [
+            PdfObject::Integer(1),
+            ints(&[1]),
+            ints(&[1, 2, -1000, 500]),
+            ints(&[2, 1, -1000, 500, 880]),
+            ints(&[-1, 2, -1000, 500, 880]),
+            ints(&[1, 65536, -1000, 500, 880]),
+            ints(&[1, 2, -1000, 500, 880, 2, 3, -1000, 500, 880]),
+            PdfObject::Array(vec![PdfObject::Integer(1), ints(&[-1000, 500])]),
+            PdfObject::Array(vec![PdfObject::Integer(1), ints(&[])]),
+            PdfObject::Array(vec![
+                PdfObject::Integer(65535),
+                ints(&[-1000, 500, 880, -1000, 500, 880]),
+            ]),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Array(vec![
+                    PdfObject::Real(f64::NAN),
+                    PdfObject::Integer(500),
+                    PdfObject::Integer(880),
+                ]),
+            ]),
+        ] {
+            let (pdf, font) = vertical_fixture(value);
+            assert!(matches!(
+                CompositeFontDecoder::load(&pdf, &font, LIMITS),
+                Err(Error::Unresolved(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn vertical_metric_ranges_share_the_horizontal_entry_limit() -> Result<()> {
+        let (mut pdf, font) = vertical_fixture(PdfObject::Array(vec![
+            PdfObject::Integer(1),
+            PdfObject::Integer(2),
+            PdfObject::Integer(-1000),
+            PdfObject::Integer(500),
+            PdfObject::Integer(880),
+        ]));
+        let PdfObject::Dictionary(descendant) = pdf
+            .objects
+            .get_mut(&object_ref(2))
+            .expect("fixture descendant")
+        else {
+            unreachable!()
+        };
+        descendant.insert(
+            b"W".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Integer(2),
+                PdfObject::Integer(1000),
+            ]),
+        );
+        for limit in [3, 4] {
+            let result = CompositeFontDecoder::load(
+                &pdf,
+                &font,
+                FontDecoderLimits {
+                    max_cid_width_entries: limit,
+                    ..LIMITS
+                },
+            );
+            if limit == 3 {
+                assert!(matches!(
+                    result,
+                    Err(Error::LimitExceeded {
+                        resource: "CID width entries",
+                        limit: 3
+                    })
+                ));
+            } else {
+                assert_eq!(result?.cid_width_entries, 4);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn vertical_metrics_resolve_indirect_entries_and_preserve_downward_policy() -> Result<()> {
+        let (mut pdf, font) = vertical_fixture(PdfObject::Reference(object_ref(3)));
+        pdf.objects.insert(
+            object_ref(3),
+            PdfObject::Array(vec![
+                PdfObject::Integer(1),
+                PdfObject::Reference(object_ref(4)),
+            ]),
+        );
+        pdf.objects.insert(
+            object_ref(4),
+            PdfObject::Array(vec![
+                PdfObject::Reference(object_ref(5)),
+                PdfObject::Integer(-20),
+                PdfObject::Integer(850),
+            ]),
+        );
+        for displacement in [-900, 0, 900] {
+            pdf.objects
+                .insert(object_ref(5), PdfObject::Integer(displacement));
+            let result = CompositeFontDecoder::load(&pdf, &font, LIMITS);
+            if displacement < 0 {
+                let glyph = result?.decoder.decode(&[0, 1], 1, usize::MAX)?[0].clone();
+                assert_eq!(
+                    glyph.vertical,
+                    Some(VerticalGlyphMetrics {
+                        displacement_y_1000_em: -900.0,
+                        origin_x_1000_em: -20.0,
+                        origin_y_1000_em: 850.0
+                    })
+                );
+            } else {
+                assert!(matches!(result, Err(Error::Unsupported(_))));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn empty_vertical_table_uses_defaults_and_horizontal_fonts_ignore_it() -> Result<()> {
+        let (pdf, mut font) = vertical_fixture(PdfObject::Array(Vec::new()));
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(loaded.cid_width_entries, 0);
+        assert_eq!(
+            loaded.decoder.decode(&[0, 1], 1, usize::MAX)?[0]
+                .vertical
+                .expect("vertical fixture")
+                .origin_x_1000_em,
+            450.0
+        );
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-H".to_vec()),
+        );
+        let (pdf, _) = vertical_fixture(PdfObject::Integer(1));
+        assert!(
+            CompositeFontDecoder::load(&pdf, &font, LIMITS)?
+                .decoder
+                .decode(&[0, 1], 1, usize::MAX)?[0]
+                .vertical
+                .is_none()
+        );
+        Ok(())
     }
 
     #[test]

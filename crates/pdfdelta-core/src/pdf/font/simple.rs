@@ -94,6 +94,7 @@ struct DifferenceMapping {
     glyph_name: Vec<u8>,
     unicode: UnicodeMapping,
     metric_scalar: Option<char>,
+    missing_type3_procedure: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -214,6 +215,7 @@ impl SimpleFontDecoder {
                 let glyph_ids = encoding
                     .differences
                     .iter()
+                    .filter(|(_, mapping)| !mapping.missing_type3_procedure)
                     .map(|(code, mapping)| {
                         binding
                             .glyph_ids_by_name
@@ -354,6 +356,15 @@ impl SimpleFontDecoder {
     }
 
     fn decoded_glyph(&self, code: u8, mapping: UnicodeMapping) -> Result<DecodedGlyph> {
+        // A missing procedure affects uses of its code, not unrelated encoding
+        // entries. A Unicode declaration cannot supply the absent drawing.
+        if self
+            .differences
+            .get(&code)
+            .is_some_and(|entry| entry.missing_type3_procedure)
+        {
+            return unresolved("Type 3 font code references a missing CharProc");
+        }
         let glyph_id = if matches!(mapping, UnicodeMapping::Unmapped) {
             self.type3_identity_glyph_ids
                 .as_ref()
@@ -1032,16 +1043,15 @@ fn parse_differences(
                 needs_name = true;
             }
             PdfObject::Name(name) => {
-                if allowed_names.is_some_and(|allowed| !allowed.contains_key(&name)) {
-                    return unresolved("Type 3 Encoding Differences references a missing CharProc");
-                }
                 let code = next_code.ok_or_else(|| {
                     Error::Unresolved("font Encoding Differences name precedes a code".into())
                 })?;
                 let code = u8::try_from(code).map_err(|_| {
                     Error::Unresolved("font Encoding Differences extends beyond code 255".into())
                 })?;
-                let mapping = glyph_name_mapping(&name);
+                let mut mapping = glyph_name_mapping(&name);
+                mapping.missing_type3_procedure =
+                    allowed_names.is_some_and(|allowed| !allowed.contains_key(&name));
                 identity_ambiguous |= mappings.insert(code, mapping).is_some();
                 next_code = Some(u16::from(code) + 1);
                 needs_name = false;
@@ -1157,12 +1167,14 @@ fn glyph_name_mapping(name: &[u8]) -> DifferenceMapping {
             glyph_name: name.to_vec(),
             unicode: UnicodeMapping::Unmapped,
             metric_scalar: None,
+            missing_type3_procedure: false,
         };
     };
     DifferenceMapping {
         glyph_name: name.to_vec(),
         unicode: UnicodeMapping::Mapped(unicode),
         metric_scalar,
+        missing_type3_procedure: false,
     }
 }
 
@@ -2790,23 +2802,49 @@ mod tests {
     }
 
     #[test]
-    fn rejects_type3_fonts_with_missing_char_procs() {
-        let mut missing_char_proc = standard_type3_font();
-        let PdfObject::Dictionary(dictionary) = &mut missing_char_proc else {
+    fn unused_type3_char_proc_gap_does_not_block_defined_codes() -> Result<()> {
+        let mut font = standard_type3_font();
+        let PdfObject::Dictionary(dictionary) = &mut font else {
             unreachable!();
         };
-        dictionary.insert(
-            b"CharProcs".to_vec(),
-            PdfObject::Dictionary(PdfDict::from([(
-                b"A".to_vec(),
-                PdfObject::Stream(PdfDict::new()),
-            )])),
-        );
+        let Some(PdfObject::Dictionary(procedures)) = dictionary.get_mut(b"CharProcs".as_slice())
+        else {
+            unreachable!();
+        };
+        procedures.remove(b"B".as_slice());
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"A", 1, usize::MAX)?;
+        assert_eq!(glyphs.len(), 1);
+        assert_eq!(glyphs[0].mapping, mapped_text("A"));
+        assert_eq!(glyphs[0].raw_code, b"A");
         assert!(matches!(
-            SimpleFontDecoder::load(&MockPdf::default(), &missing_char_proc, LIMITS),
-            Err(Error::Unresolved(message))
-                if message == "Type 3 Encoding Differences references a missing CharProc"
+            loaded.decoder.decode(b"B", 1, usize::MAX),
+            Err(Error::Unresolved(_))
         ));
+        assert!(matches!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX),
+            Err(Error::Unresolved(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn type3_to_unicode_cannot_hide_a_missing_procedure() -> Result<()> {
+        let mut font = standard_type3_font();
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"CharProcs".to_vec(), PdfObject::Dictionary(PdfDict::new()));
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), b"1 begincodespacerange <00> <FF> endcodespacerange 1 beginbfchar <41> <005A> endbfchar".to_vec());
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert!(
+            matches!(loaded.decoder.decode(b"A", 1, usize::MAX), Err(Error::Unresolved(message)) if message == "Type 3 font code references a missing CharProc")
+        );
+        Ok(())
     }
 
     fn set_type3_numbers<const N: usize>(font: &mut PdfObject, key: &[u8], values: [f64; N]) {

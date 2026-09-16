@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "pair": "classic-xref-tj-affiliation-wrap",
+  "old_sha256": "3741ccaa5c9b00316cc10aa5018e55627a81b99df0596ca72f66dcaee5bb79bf",
+  "new_sha256": "6acdf27237469fa1e3f399f24fb96514382b1c982dd10b3d305f7ad06b9cadc2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "old-paragraph-0-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevesselcarries7crates.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-1-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thecablemeasures9meters.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-2-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevalveisopen.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "old-paragraph-3-piece-0",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ThesamplebelongstoOrion.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-0-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevesselcarries",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-0-piece-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "7crates.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-1-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thecablemeasures9meters.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-2-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Thevalveisopen.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "new-paragraph-3-piece-0",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ThesamplebelongstoLyra.",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

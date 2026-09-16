@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "ietf-dkim-4871-to-6376",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "DomainKeys Identified Mail (DKIM) defines a domain-level   authentication framework for email using public-key cryptography and   key server technology to permit verification of the source and   contents of messages by either Mail Transfer Agents (MTAs) or Mail   User Agents (MUAs).  The ultimate goal of this framework is to permit   a signing domain to assert responsibility for a message, thus   protecting message signer identity and the integrity of the messages   they convey while retaining the functionality of Internet email as it   is known today.  Protection of email identity may assist in the   global control of \"spam\" and \"phishing\".",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "DomainKeys Identified Mail (DKIM) permits a person, role, or   organization that owns the signing domain to claim some   responsibility for a message by associating the domain with the   message.  This can be an author’s organization, an operational relay,   or one of their agents.  DKIM separates the question of the identity   of the Signer of the message from the purported author of the   message.  Assertion of responsibility is validated through a   cryptographic signature and by querying the Signer’s domain directly   to retrieve the appropriate public key.  Message transit from author   to recipient is through relays that typically make no substantive   change to the message content and thus preserve the DKIM signature.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "4ce8bbe9b45fa87c36a8e9f56c4851f157ce6bee63bbd8e13df69bffea2c934c",
+  "new_sha256": "4ea0270991b257ccb464dcdee8edd3aa0a9f2bd378927be927757a30a495de6c"
+}

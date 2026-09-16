@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-codes-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "b9c77bdd5072cf1b817a1f779db8498f57bd29770263a63979bca44c241292ae",
+  "body_eligible": true,
+  "reason": "Complete first numbered Introduction paragraph, excluding its label and external footnote bodies while retaining every inline marker. Specific sectors becomes particular sectors and inline marker 6 is added."
+}

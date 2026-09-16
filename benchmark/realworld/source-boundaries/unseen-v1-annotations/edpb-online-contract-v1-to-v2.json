@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-online-contract-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "Pursuant to Article 8 of the Charter of Fundamental Rights of the European Union, personal data mustbe processed fairly for specified purposes and on the basis ofalegitimate basis laid down by law. Inthis regard, Article 6(1) of the General Data Protection Regulation1(GDPR) specifies that processingshall be lawful only on the basis of one of six specified conditions set out in Article 6(1)(a) to (f).Identifying the appropriate legal basis is of essential importance. Controllers must take into accountthe impact on data subjects’ rights when identifying the appropriate lawful basisso as to fully respectthe principle of fairness.2",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "PART 1–INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "Pursuant to Article 8 of the Charter of Fundamental Rights of the European Union, personal data mustbe processed fairly for specified purposes and on the basis ofalegitimate basis laid downby law. Inthis regard, Article 6(1) of the General Data Protection Regulation1(GDPR) specifies that processingshall be lawful only on the basis of one of six specified conditions set out in Article 6(1)(a) to (f).Identifying the appropriate legal basisthat corresponds to the objective and essence of the processingis of essential importance. Controllers must,inter alia,take into account the impact on data subjects’rights when identifying the appropriate lawful basisin order torespect the principleof fairness.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 3
+      },
+      "literal_quote": "PART 1–INTRODUCTION",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "bfbd52a00d4217e929c291993ef34c9a42b3259a87badb6f85a1b9926bbf8f04",
+  "new_sha256": "bacffd3d66abf3b3e097739bbba618b8db78ad908d7a7ea1941314e192122bf5"
+}

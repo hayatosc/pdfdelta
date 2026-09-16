@@ -1,0 +1,317 @@
+{
+  "version": 9,
+  "observations": [
+    {
+      "pair": "nist-126-r2-to-r3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/nist-126-r2-to-r3-text.json",
+        "sha256": "f743aed0ea0dbe310f1282ebab6686d5f5b2e8b965f62294592ab7a0edb887ae"
+      }
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/nist-131a-r1-to-r2-text.json",
+        "sha256": "d97aca9fba22a84fad2ed0287f6b98744da0177814b153fedbc9cd221c9bbbf1"
+      }
+    },
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/edpb-objection-v1-to-v2-text.json",
+        "sha256": "a482785f7cd752f3f833beb71bef2856f8b637bb748d81069942253396c6d601"
+      }
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 3,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/edpb-article65-v1-to-v2-text.json",
+        "sha256": "d7705eb1a61c8fd29727a54591128a4c1cb24dd7e3c47efa9fe226df1d494474"
+      }
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 4,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/arxiv-adam-v1-to-v9-text.json",
+        "sha256": "b59131f922a63ca0c7a38bea5b5e64674530daa3e158d2b51e7a360d5025d6b8"
+      }
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 5,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/arxiv-batchnorm-v1-to-v3-text.json",
+        "sha256": "7ba98a0a47d5f0a0d086b7f57f94df3090f9285382ac0856538e034bec06013e"
+      }
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 6,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/arxiv-vae-v1-to-v11-text.json",
+        "sha256": "f25e935b284fe002f8d8ace4db9bbef53694cd8d69bbe2849db526a3db99c10d"
+      }
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 7,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/faa-weight-27e-to-27f-text.json",
+        "sha256": "c6efd39bcf5f0c333e833d227cc67fba6f538bf1dc589304d5aed94982496c35"
+      }
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 8,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/mhlw-harassment-2020-to-2026-text.json",
+        "sha256": "4d388327bee7934b5f375c624109c7bb7b71fbd8b98a0e36632e0afad1371072"
+      }
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 9,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/ietf-ntp-1305-to-5905-text.json",
+        "sha256": "7cf04dad89c395c5d296f12f207ccbce83335104b5dbd034940f4930aff71922"
+      }
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 10,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/ietf-snmp-2571-to-3411-text.json",
+        "sha256": "2ab218556b138c8a864a1373bd9a4420a5312be138d271c49648dbedd857c7b4"
+      }
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/runs.json",
+        "sha256": "72e076b28606c0d7245b0747d0eeb0dc1ae719774b89d4c528910886d8d50599"
+      },
+      "run_index": 11,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition1/ietf-igmp-2236-to-3376-text.json",
+        "sha256": "4fb3a2446274ac7bee79b758602df9d30fb9fa9243e3f14d11dfc58d8192b8c1"
+      }
+    },
+    {
+      "pair": "nist-126-r2-to-r3",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/nist-126-r2-to-r3-text.json",
+        "sha256": "d98eac143ac80c76545fbc51927f5c4b44806e447150c56ac3b4003c947685a0"
+      }
+    },
+    {
+      "pair": "nist-131a-r1-to-r2",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 1,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/nist-131a-r1-to-r2-text.json",
+        "sha256": "6e7ebcf40d24d80b3e5c8b77a632f6fc88b907ddbbc8b4c8f166bc8869510cef"
+      }
+    },
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 2,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/edpb-objection-v1-to-v2-text.json",
+        "sha256": "d008e8095b64d0604ab8e401fca95355c95698aaa02ae3ddc643a19faf9b12e4"
+      }
+    },
+    {
+      "pair": "edpb-article65-v1-to-v2",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 3,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/edpb-article65-v1-to-v2-text.json",
+        "sha256": "2f9f704c7525927e09401a51f13d5e236d961660b4cf819423039876aeeb59ff"
+      }
+    },
+    {
+      "pair": "arxiv-adam-v1-to-v9",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 4,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/arxiv-adam-v1-to-v9-text.json",
+        "sha256": "00153046b36b814e3a82974ad3b72060acbcfd178558a57426b0c4a2d1e943b8"
+      }
+    },
+    {
+      "pair": "arxiv-batchnorm-v1-to-v3",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 5,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/arxiv-batchnorm-v1-to-v3-text.json",
+        "sha256": "7ba98a0a47d5f0a0d086b7f57f94df3090f9285382ac0856538e034bec06013e"
+      }
+    },
+    {
+      "pair": "arxiv-vae-v1-to-v11",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 6,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/arxiv-vae-v1-to-v11-text.json",
+        "sha256": "05666f6093cfb3d9abfbbf64f441d20b70757f4e47685d6cde139be995027098"
+      }
+    },
+    {
+      "pair": "faa-weight-27e-to-27f",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 7,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/faa-weight-27e-to-27f-text.json",
+        "sha256": "48244290d046d25bb9f4a4dd39d9efb4b1d65fa2cade037d15bd91251b02704b"
+      }
+    },
+    {
+      "pair": "mhlw-harassment-2020-to-2026",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 8,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/mhlw-harassment-2020-to-2026-text.json",
+        "sha256": "8f7a80f3d9ad543df51921b4cb084752a0bca8043aafd3fa740dbbe271357965"
+      }
+    },
+    {
+      "pair": "ietf-ntp-1305-to-5905",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 9,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/ietf-ntp-1305-to-5905-text.json",
+        "sha256": "77abb4c66572b0fdee4a2235818738b686d739855604bd5d947a142a03f71dbe"
+      }
+    },
+    {
+      "pair": "ietf-snmp-2571-to-3411",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 10,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/ietf-snmp-2571-to-3411-text.json",
+        "sha256": "2ab218556b138c8a864a1373bd9a4420a5312be138d271c49648dbedd857c7b4"
+      }
+    },
+    {
+      "pair": "ietf-igmp-2236-to-3376",
+      "repetition": 2,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/runs.json",
+        "sha256": "122f83fc2d47ae2009f8b87c1b0ce8035d423584b5affcdde266d9247d4d7485"
+      },
+      "run_index": 11,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v9/historical-repetition2/ietf-igmp-2236-to-3376-text.json",
+        "sha256": "237ea472121857a74db3e74a8482025aeb0b96ec7e437395ad1fb03e57b4cd86"
+      }
+    }
+  ]
+}

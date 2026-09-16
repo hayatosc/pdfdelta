@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "mhlw-harassment-2020-to-2026",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "43729953a1a55a044fccd2269903834e36a0cee404cac1da67916014e86e45ac",
+  "body_eligible": true,
+  "reason": "Complete item 2(1), including both old paragraphs and the corresponding merged new paragraph. The old body crosses physical pages 0 and 1; page counters are separate source evidence. The definition of victim is removed and 性自認 becomes ジェンダーアイデンティティ. The preceding introduction changes only character width; this is the first lexical prose change. No page separator or glyph is fabricated."
+}

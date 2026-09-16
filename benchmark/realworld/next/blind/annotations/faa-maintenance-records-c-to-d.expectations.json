@@ -1,0 +1,3971 @@
+{
+  "version": 1,
+  "pair": "faa-maintenance-records-c-to-d",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "9a2c8bdbd47bd8b559f11d28662b9a6c4cb731bfb6fb322e8b4b5f10b3c92864",
+  "resolution_sha256": "01f55d66c67deddce1394bd762c2a9c19e1deb8921c47c2d751165a072ccde2c",
+  "resolver_binary_sha256": "4cb7ed07a16f05aa4455569a6860dd37c94056c8c63135ae498e693f1c72e666",
+  "annotation_status": "resolved",
+  "sampling": "One independently selected changed range per active pair, authored and visually inspected before comparison. Partial reference: all unannotated predictions require separate adjudication.",
+  "comparison_convention": "Compare the selected policy sentence, introductory paragraph, abstract, or named form field across publication revisions. Literal annotation preserves raw whitespace, glyph sharing and footnote digits. This reference does not assert a unique author edit history.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "old_new_regions": {
+      "old": {
+        "page": 0,
+        "selector": "body-old",
+        "bbox": [
+          45.00408704000006,
+          417.297,
+          541.7873419199999,
+          523.78875
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "source_atoms": [
+          {
+            "kind": "glyph",
+            "id": 169
+          },
+          {
+            "kind": "glyph",
+            "id": 170
+          },
+          {
+            "kind": "glyph",
+            "id": 171
+          },
+          {
+            "kind": "glyph",
+            "id": 172
+          },
+          {
+            "kind": "glyph",
+            "id": 173
+          },
+          {
+            "kind": "glyph",
+            "id": 174
+          },
+          {
+            "kind": "glyph",
+            "id": 175
+          },
+          {
+            "kind": "glyph",
+            "id": 176
+          },
+          {
+            "kind": "glyph",
+            "id": 177
+          },
+          {
+            "kind": "glyph",
+            "id": 178
+          },
+          {
+            "kind": "glyph",
+            "id": 179
+          },
+          {
+            "kind": "glyph",
+            "id": 180
+          },
+          {
+            "kind": "glyph",
+            "id": 181
+          },
+          {
+            "kind": "glyph",
+            "id": 182
+          },
+          {
+            "kind": "glyph",
+            "id": 183
+          },
+          {
+            "kind": "glyph",
+            "id": 184
+          },
+          {
+            "kind": "glyph",
+            "id": 185
+          },
+          {
+            "kind": "glyph",
+            "id": 186
+          },
+          {
+            "kind": "glyph",
+            "id": 187
+          },
+          {
+            "kind": "glyph",
+            "id": 188
+          },
+          {
+            "kind": "glyph",
+            "id": 189
+          },
+          {
+            "kind": "glyph",
+            "id": 190
+          },
+          {
+            "kind": "glyph",
+            "id": 191
+          },
+          {
+            "kind": "glyph",
+            "id": 192
+          },
+          {
+            "kind": "glyph",
+            "id": 193
+          },
+          {
+            "kind": "glyph",
+            "id": 194
+          },
+          {
+            "kind": "glyph",
+            "id": 195
+          },
+          {
+            "kind": "glyph",
+            "id": 196
+          },
+          {
+            "kind": "glyph",
+            "id": 197
+          },
+          {
+            "kind": "glyph",
+            "id": 198
+          },
+          {
+            "kind": "glyph",
+            "id": 199
+          },
+          {
+            "kind": "glyph",
+            "id": 200
+          },
+          {
+            "kind": "glyph",
+            "id": 201
+          },
+          {
+            "kind": "glyph",
+            "id": 202
+          },
+          {
+            "kind": "glyph",
+            "id": 203
+          },
+          {
+            "kind": "glyph",
+            "id": 204
+          },
+          {
+            "kind": "glyph",
+            "id": 205
+          },
+          {
+            "kind": "glyph",
+            "id": 206
+          },
+          {
+            "kind": "glyph",
+            "id": 207
+          },
+          {
+            "kind": "glyph",
+            "id": 208
+          },
+          {
+            "kind": "glyph",
+            "id": 209
+          },
+          {
+            "kind": "glyph",
+            "id": 210
+          },
+          {
+            "kind": "glyph",
+            "id": 211
+          },
+          {
+            "kind": "glyph",
+            "id": 212
+          },
+          {
+            "kind": "glyph",
+            "id": 213
+          },
+          {
+            "kind": "glyph",
+            "id": 214
+          },
+          {
+            "kind": "glyph",
+            "id": 215
+          },
+          {
+            "kind": "glyph",
+            "id": 216
+          },
+          {
+            "kind": "glyph",
+            "id": 217
+          },
+          {
+            "kind": "glyph",
+            "id": 218
+          },
+          {
+            "kind": "glyph",
+            "id": 219
+          },
+          {
+            "kind": "glyph",
+            "id": 220
+          },
+          {
+            "kind": "glyph",
+            "id": 221
+          },
+          {
+            "kind": "glyph",
+            "id": 222
+          },
+          {
+            "kind": "glyph",
+            "id": 223
+          },
+          {
+            "kind": "glyph",
+            "id": 224
+          },
+          {
+            "kind": "glyph",
+            "id": 225
+          },
+          {
+            "kind": "glyph",
+            "id": 226
+          },
+          {
+            "kind": "glyph",
+            "id": 227
+          },
+          {
+            "kind": "glyph",
+            "id": 228
+          },
+          {
+            "kind": "glyph",
+            "id": 229
+          },
+          {
+            "kind": "glyph",
+            "id": 230
+          },
+          {
+            "kind": "glyph",
+            "id": 231
+          },
+          {
+            "kind": "glyph",
+            "id": 232
+          },
+          {
+            "kind": "glyph",
+            "id": 233
+          },
+          {
+            "kind": "glyph",
+            "id": 234
+          },
+          {
+            "kind": "glyph",
+            "id": 235
+          },
+          {
+            "kind": "glyph",
+            "id": 236
+          },
+          {
+            "kind": "glyph",
+            "id": 237
+          },
+          {
+            "kind": "glyph",
+            "id": 238
+          },
+          {
+            "kind": "glyph",
+            "id": 239
+          },
+          {
+            "kind": "glyph",
+            "id": 240
+          },
+          {
+            "kind": "glyph",
+            "id": 241
+          },
+          {
+            "kind": "glyph",
+            "id": 242
+          },
+          {
+            "kind": "glyph",
+            "id": 243
+          },
+          {
+            "kind": "glyph",
+            "id": 244
+          },
+          {
+            "kind": "glyph",
+            "id": 245
+          },
+          {
+            "kind": "glyph",
+            "id": 246
+          },
+          {
+            "kind": "glyph",
+            "id": 247
+          },
+          {
+            "kind": "glyph",
+            "id": 248
+          },
+          {
+            "kind": "glyph",
+            "id": 249
+          },
+          {
+            "kind": "glyph",
+            "id": 250
+          },
+          {
+            "kind": "glyph",
+            "id": 251
+          },
+          {
+            "kind": "glyph",
+            "id": 252
+          },
+          {
+            "kind": "glyph",
+            "id": 253
+          },
+          {
+            "kind": "glyph",
+            "id": 254
+          },
+          {
+            "kind": "glyph",
+            "id": 255
+          },
+          {
+            "kind": "glyph",
+            "id": 256
+          },
+          {
+            "kind": "glyph",
+            "id": 257
+          },
+          {
+            "kind": "glyph",
+            "id": 258
+          },
+          {
+            "kind": "glyph",
+            "id": 259
+          },
+          {
+            "kind": "glyph",
+            "id": 260
+          },
+          {
+            "kind": "glyph",
+            "id": 261
+          },
+          {
+            "kind": "glyph",
+            "id": 262
+          },
+          {
+            "kind": "glyph",
+            "id": 263
+          },
+          {
+            "kind": "glyph",
+            "id": 264
+          },
+          {
+            "kind": "glyph",
+            "id": 265
+          },
+          {
+            "kind": "glyph",
+            "id": 266
+          },
+          {
+            "kind": "glyph",
+            "id": 267
+          },
+          {
+            "kind": "glyph",
+            "id": 268
+          },
+          {
+            "kind": "glyph",
+            "id": 269
+          },
+          {
+            "kind": "glyph",
+            "id": 270
+          },
+          {
+            "kind": "glyph",
+            "id": 271
+          },
+          {
+            "kind": "glyph",
+            "id": 272
+          },
+          {
+            "kind": "glyph",
+            "id": 273
+          },
+          {
+            "kind": "glyph",
+            "id": 274
+          },
+          {
+            "kind": "glyph",
+            "id": 275
+          },
+          {
+            "kind": "glyph",
+            "id": 276
+          },
+          {
+            "kind": "glyph",
+            "id": 277
+          },
+          {
+            "kind": "glyph",
+            "id": 278
+          },
+          {
+            "kind": "glyph",
+            "id": 279
+          },
+          {
+            "kind": "glyph",
+            "id": 280
+          },
+          {
+            "kind": "glyph",
+            "id": 281
+          },
+          {
+            "kind": "glyph",
+            "id": 282
+          },
+          {
+            "kind": "glyph",
+            "id": 283
+          },
+          {
+            "kind": "glyph",
+            "id": 284
+          },
+          {
+            "kind": "glyph",
+            "id": 285
+          },
+          {
+            "kind": "glyph",
+            "id": 286
+          },
+          {
+            "kind": "glyph",
+            "id": 287
+          },
+          {
+            "kind": "glyph",
+            "id": 288
+          },
+          {
+            "kind": "glyph",
+            "id": 289
+          },
+          {
+            "kind": "glyph",
+            "id": 290
+          },
+          {
+            "kind": "glyph",
+            "id": 291
+          },
+          {
+            "kind": "glyph",
+            "id": 292
+          },
+          {
+            "kind": "glyph",
+            "id": 293
+          },
+          {
+            "kind": "glyph",
+            "id": 294
+          },
+          {
+            "kind": "glyph",
+            "id": 295
+          },
+          {
+            "kind": "glyph",
+            "id": 296
+          },
+          {
+            "kind": "glyph",
+            "id": 297
+          },
+          {
+            "kind": "glyph",
+            "id": 298
+          },
+          {
+            "kind": "glyph",
+            "id": 299
+          },
+          {
+            "kind": "glyph",
+            "id": 300
+          },
+          {
+            "kind": "glyph",
+            "id": 301
+          },
+          {
+            "kind": "glyph",
+            "id": 302
+          },
+          {
+            "kind": "glyph",
+            "id": 303
+          },
+          {
+            "kind": "glyph",
+            "id": 304
+          },
+          {
+            "kind": "glyph",
+            "id": 305
+          },
+          {
+            "kind": "glyph",
+            "id": 306
+          },
+          {
+            "kind": "glyph",
+            "id": 307
+          },
+          {
+            "kind": "glyph",
+            "id": 308
+          },
+          {
+            "kind": "glyph",
+            "id": 309
+          },
+          {
+            "kind": "glyph",
+            "id": 310
+          },
+          {
+            "kind": "glyph",
+            "id": 311
+          },
+          {
+            "kind": "glyph",
+            "id": 312
+          },
+          {
+            "kind": "glyph",
+            "id": 313
+          },
+          {
+            "kind": "glyph",
+            "id": 314
+          },
+          {
+            "kind": "glyph",
+            "id": 315
+          },
+          {
+            "kind": "glyph",
+            "id": 316
+          },
+          {
+            "kind": "glyph",
+            "id": 317
+          },
+          {
+            "kind": "glyph",
+            "id": 318
+          },
+          {
+            "kind": "glyph",
+            "id": 319
+          },
+          {
+            "kind": "glyph",
+            "id": 320
+          },
+          {
+            "kind": "glyph",
+            "id": 321
+          },
+          {
+            "kind": "glyph",
+            "id": 322
+          },
+          {
+            "kind": "glyph",
+            "id": 323
+          },
+          {
+            "kind": "glyph",
+            "id": 324
+          },
+          {
+            "kind": "glyph",
+            "id": 325
+          },
+          {
+            "kind": "glyph",
+            "id": 326
+          },
+          {
+            "kind": "glyph",
+            "id": 327
+          },
+          {
+            "kind": "glyph",
+            "id": 328
+          },
+          {
+            "kind": "glyph",
+            "id": 329
+          },
+          {
+            "kind": "glyph",
+            "id": 330
+          },
+          {
+            "kind": "glyph",
+            "id": 331
+          },
+          {
+            "kind": "glyph",
+            "id": 332
+          },
+          {
+            "kind": "glyph",
+            "id": 333
+          },
+          {
+            "kind": "glyph",
+            "id": 334
+          },
+          {
+            "kind": "glyph",
+            "id": 335
+          },
+          {
+            "kind": "glyph",
+            "id": 336
+          },
+          {
+            "kind": "glyph",
+            "id": 337
+          },
+          {
+            "kind": "glyph",
+            "id": 338
+          },
+          {
+            "kind": "glyph",
+            "id": 339
+          },
+          {
+            "kind": "glyph",
+            "id": 340
+          },
+          {
+            "kind": "glyph",
+            "id": 341
+          },
+          {
+            "kind": "glyph",
+            "id": 342
+          },
+          {
+            "kind": "glyph",
+            "id": 343
+          },
+          {
+            "kind": "glyph",
+            "id": 344
+          },
+          {
+            "kind": "glyph",
+            "id": 345
+          },
+          {
+            "kind": "glyph",
+            "id": 346
+          },
+          {
+            "kind": "glyph",
+            "id": 347
+          },
+          {
+            "kind": "glyph",
+            "id": 348
+          },
+          {
+            "kind": "glyph",
+            "id": 349
+          },
+          {
+            "kind": "glyph",
+            "id": 350
+          },
+          {
+            "kind": "glyph",
+            "id": 351
+          },
+          {
+            "kind": "glyph",
+            "id": 352
+          },
+          {
+            "kind": "glyph",
+            "id": 353
+          },
+          {
+            "kind": "glyph",
+            "id": 354
+          },
+          {
+            "kind": "glyph",
+            "id": 355
+          },
+          {
+            "kind": "glyph",
+            "id": 356
+          },
+          {
+            "kind": "glyph",
+            "id": 357
+          },
+          {
+            "kind": "glyph",
+            "id": 358
+          },
+          {
+            "kind": "glyph",
+            "id": 359
+          },
+          {
+            "kind": "glyph",
+            "id": 360
+          },
+          {
+            "kind": "glyph",
+            "id": 361
+          },
+          {
+            "kind": "glyph",
+            "id": 362
+          },
+          {
+            "kind": "glyph",
+            "id": 363
+          },
+          {
+            "kind": "glyph",
+            "id": 364
+          },
+          {
+            "kind": "glyph",
+            "id": 365
+          },
+          {
+            "kind": "glyph",
+            "id": 366
+          },
+          {
+            "kind": "glyph",
+            "id": 367
+          },
+          {
+            "kind": "glyph",
+            "id": 368
+          },
+          {
+            "kind": "glyph",
+            "id": 369
+          },
+          {
+            "kind": "glyph",
+            "id": 370
+          },
+          {
+            "kind": "glyph",
+            "id": 371
+          },
+          {
+            "kind": "glyph",
+            "id": 372
+          },
+          {
+            "kind": "glyph",
+            "id": 373
+          },
+          {
+            "kind": "glyph",
+            "id": 374
+          },
+          {
+            "kind": "glyph",
+            "id": 375
+          },
+          {
+            "kind": "glyph",
+            "id": 376
+          },
+          {
+            "kind": "glyph",
+            "id": 377
+          },
+          {
+            "kind": "glyph",
+            "id": 378
+          },
+          {
+            "kind": "glyph",
+            "id": 379
+          },
+          {
+            "kind": "glyph",
+            "id": 380
+          },
+          {
+            "kind": "glyph",
+            "id": 381
+          },
+          {
+            "kind": "glyph",
+            "id": 382
+          },
+          {
+            "kind": "glyph",
+            "id": 383
+          },
+          {
+            "kind": "glyph",
+            "id": 384
+          },
+          {
+            "kind": "glyph",
+            "id": 385
+          },
+          {
+            "kind": "glyph",
+            "id": 386
+          },
+          {
+            "kind": "glyph",
+            "id": 387
+          },
+          {
+            "kind": "glyph",
+            "id": 388
+          },
+          {
+            "kind": "glyph",
+            "id": 389
+          },
+          {
+            "kind": "glyph",
+            "id": 390
+          },
+          {
+            "kind": "glyph",
+            "id": 391
+          },
+          {
+            "kind": "glyph",
+            "id": 392
+          },
+          {
+            "kind": "glyph",
+            "id": 393
+          },
+          {
+            "kind": "glyph",
+            "id": 394
+          },
+          {
+            "kind": "glyph",
+            "id": 395
+          },
+          {
+            "kind": "glyph",
+            "id": 396
+          },
+          {
+            "kind": "glyph",
+            "id": 397
+          },
+          {
+            "kind": "glyph",
+            "id": 398
+          },
+          {
+            "kind": "glyph",
+            "id": 399
+          },
+          {
+            "kind": "glyph",
+            "id": 400
+          },
+          {
+            "kind": "glyph",
+            "id": 401
+          },
+          {
+            "kind": "glyph",
+            "id": 402
+          },
+          {
+            "kind": "glyph",
+            "id": 403
+          },
+          {
+            "kind": "glyph",
+            "id": 404
+          },
+          {
+            "kind": "glyph",
+            "id": 405
+          },
+          {
+            "kind": "glyph",
+            "id": 406
+          },
+          {
+            "kind": "glyph",
+            "id": 407
+          },
+          {
+            "kind": "glyph",
+            "id": 408
+          },
+          {
+            "kind": "glyph",
+            "id": 409
+          },
+          {
+            "kind": "glyph",
+            "id": 410
+          },
+          {
+            "kind": "glyph",
+            "id": 411
+          },
+          {
+            "kind": "glyph",
+            "id": 412
+          },
+          {
+            "kind": "glyph",
+            "id": 413
+          },
+          {
+            "kind": "glyph",
+            "id": 414
+          },
+          {
+            "kind": "glyph",
+            "id": 415
+          },
+          {
+            "kind": "glyph",
+            "id": 416
+          },
+          {
+            "kind": "glyph",
+            "id": 417
+          },
+          {
+            "kind": "glyph",
+            "id": 418
+          },
+          {
+            "kind": "glyph",
+            "id": 419
+          },
+          {
+            "kind": "glyph",
+            "id": 420
+          },
+          {
+            "kind": "glyph",
+            "id": 421
+          },
+          {
+            "kind": "glyph",
+            "id": 422
+          },
+          {
+            "kind": "glyph",
+            "id": 423
+          },
+          {
+            "kind": "glyph",
+            "id": 424
+          },
+          {
+            "kind": "glyph",
+            "id": 425
+          },
+          {
+            "kind": "glyph",
+            "id": 426
+          },
+          {
+            "kind": "glyph",
+            "id": 427
+          },
+          {
+            "kind": "glyph",
+            "id": 428
+          },
+          {
+            "kind": "glyph",
+            "id": 429
+          },
+          {
+            "kind": "glyph",
+            "id": 430
+          },
+          {
+            "kind": "glyph",
+            "id": 431
+          },
+          {
+            "kind": "glyph",
+            "id": 432
+          },
+          {
+            "kind": "glyph",
+            "id": 433
+          },
+          {
+            "kind": "glyph",
+            "id": 434
+          },
+          {
+            "kind": "glyph",
+            "id": 435
+          },
+          {
+            "kind": "glyph",
+            "id": 436
+          },
+          {
+            "kind": "glyph",
+            "id": 437
+          },
+          {
+            "kind": "glyph",
+            "id": 438
+          },
+          {
+            "kind": "glyph",
+            "id": 439
+          },
+          {
+            "kind": "glyph",
+            "id": 440
+          },
+          {
+            "kind": "glyph",
+            "id": 441
+          },
+          {
+            "kind": "glyph",
+            "id": 442
+          },
+          {
+            "kind": "glyph",
+            "id": 443
+          },
+          {
+            "kind": "glyph",
+            "id": 444
+          },
+          {
+            "kind": "glyph",
+            "id": 445
+          },
+          {
+            "kind": "glyph",
+            "id": 446
+          },
+          {
+            "kind": "glyph",
+            "id": 447
+          },
+          {
+            "kind": "glyph",
+            "id": 448
+          },
+          {
+            "kind": "glyph",
+            "id": 449
+          },
+          {
+            "kind": "glyph",
+            "id": 450
+          },
+          {
+            "kind": "glyph",
+            "id": 451
+          },
+          {
+            "kind": "glyph",
+            "id": 452
+          },
+          {
+            "kind": "glyph",
+            "id": 453
+          },
+          {
+            "kind": "glyph",
+            "id": 454
+          },
+          {
+            "kind": "glyph",
+            "id": 455
+          },
+          {
+            "kind": "glyph",
+            "id": 456
+          },
+          {
+            "kind": "glyph",
+            "id": 457
+          },
+          {
+            "kind": "glyph",
+            "id": 458
+          },
+          {
+            "kind": "glyph",
+            "id": 459
+          },
+          {
+            "kind": "glyph",
+            "id": 460
+          },
+          {
+            "kind": "glyph",
+            "id": 461
+          },
+          {
+            "kind": "glyph",
+            "id": 462
+          },
+          {
+            "kind": "glyph",
+            "id": 463
+          },
+          {
+            "kind": "glyph",
+            "id": 464
+          },
+          {
+            "kind": "glyph",
+            "id": 465
+          },
+          {
+            "kind": "glyph",
+            "id": 466
+          },
+          {
+            "kind": "glyph",
+            "id": 467
+          },
+          {
+            "kind": "glyph",
+            "id": 468
+          },
+          {
+            "kind": "glyph",
+            "id": 469
+          },
+          {
+            "kind": "glyph",
+            "id": 470
+          },
+          {
+            "kind": "glyph",
+            "id": 471
+          },
+          {
+            "kind": "glyph",
+            "id": 472
+          },
+          {
+            "kind": "glyph",
+            "id": 473
+          },
+          {
+            "kind": "glyph",
+            "id": 474
+          },
+          {
+            "kind": "glyph",
+            "id": 475
+          },
+          {
+            "kind": "glyph",
+            "id": 476
+          },
+          {
+            "kind": "glyph",
+            "id": 477
+          },
+          {
+            "kind": "glyph",
+            "id": 478
+          },
+          {
+            "kind": "glyph",
+            "id": 479
+          },
+          {
+            "kind": "glyph",
+            "id": 480
+          },
+          {
+            "kind": "glyph",
+            "id": 481
+          },
+          {
+            "kind": "glyph",
+            "id": 482
+          },
+          {
+            "kind": "glyph",
+            "id": 483
+          },
+          {
+            "kind": "glyph",
+            "id": 484
+          },
+          {
+            "kind": "glyph",
+            "id": 485
+          },
+          {
+            "kind": "glyph",
+            "id": 486
+          },
+          {
+            "kind": "glyph",
+            "id": 487
+          },
+          {
+            "kind": "glyph",
+            "id": 488
+          },
+          {
+            "kind": "glyph",
+            "id": 489
+          },
+          {
+            "kind": "glyph",
+            "id": 490
+          },
+          {
+            "kind": "glyph",
+            "id": 491
+          },
+          {
+            "kind": "glyph",
+            "id": 492
+          },
+          {
+            "kind": "glyph",
+            "id": 493
+          },
+          {
+            "kind": "glyph",
+            "id": 494
+          },
+          {
+            "kind": "glyph",
+            "id": 495
+          },
+          {
+            "kind": "glyph",
+            "id": 496
+          },
+          {
+            "kind": "glyph",
+            "id": 497
+          },
+          {
+            "kind": "glyph",
+            "id": 498
+          },
+          {
+            "kind": "glyph",
+            "id": 499
+          },
+          {
+            "kind": "glyph",
+            "id": 500
+          },
+          {
+            "kind": "glyph",
+            "id": 501
+          },
+          {
+            "kind": "glyph",
+            "id": 502
+          },
+          {
+            "kind": "glyph",
+            "id": 503
+          },
+          {
+            "kind": "glyph",
+            "id": 504
+          },
+          {
+            "kind": "glyph",
+            "id": 505
+          },
+          {
+            "kind": "glyph",
+            "id": 506
+          },
+          {
+            "kind": "glyph",
+            "id": 507
+          },
+          {
+            "kind": "glyph",
+            "id": 508
+          },
+          {
+            "kind": "glyph",
+            "id": 509
+          },
+          {
+            "kind": "glyph",
+            "id": 510
+          },
+          {
+            "kind": "glyph",
+            "id": 511
+          },
+          {
+            "kind": "glyph",
+            "id": 512
+          },
+          {
+            "kind": "glyph",
+            "id": 513
+          },
+          {
+            "kind": "glyph",
+            "id": 514
+          },
+          {
+            "kind": "glyph",
+            "id": 515
+          },
+          {
+            "kind": "glyph",
+            "id": 516
+          },
+          {
+            "kind": "glyph",
+            "id": 517
+          },
+          {
+            "kind": "glyph",
+            "id": 518
+          },
+          {
+            "kind": "glyph",
+            "id": 519
+          },
+          {
+            "kind": "glyph",
+            "id": 520
+          },
+          {
+            "kind": "glyph",
+            "id": 521
+          },
+          {
+            "kind": "glyph",
+            "id": 522
+          },
+          {
+            "kind": "glyph",
+            "id": 523
+          },
+          {
+            "kind": "glyph",
+            "id": 524
+          },
+          {
+            "kind": "glyph",
+            "id": 525
+          },
+          {
+            "kind": "glyph",
+            "id": 526
+          },
+          {
+            "kind": "glyph",
+            "id": 527
+          },
+          {
+            "kind": "glyph",
+            "id": 528
+          },
+          {
+            "kind": "glyph",
+            "id": 529
+          },
+          {
+            "kind": "glyph",
+            "id": 530
+          },
+          {
+            "kind": "glyph",
+            "id": 531
+          },
+          {
+            "kind": "glyph",
+            "id": 532
+          },
+          {
+            "kind": "glyph",
+            "id": 533
+          },
+          {
+            "kind": "glyph",
+            "id": 534
+          },
+          {
+            "kind": "glyph",
+            "id": 535
+          },
+          {
+            "kind": "glyph",
+            "id": 536
+          },
+          {
+            "kind": "glyph",
+            "id": 537
+          },
+          {
+            "kind": "glyph",
+            "id": 538
+          },
+          {
+            "kind": "glyph",
+            "id": 539
+          },
+          {
+            "kind": "glyph",
+            "id": 540
+          },
+          {
+            "kind": "glyph",
+            "id": 541
+          },
+          {
+            "kind": "glyph",
+            "id": 542
+          },
+          {
+            "kind": "glyph",
+            "id": 543
+          },
+          {
+            "kind": "glyph",
+            "id": 544
+          },
+          {
+            "kind": "glyph",
+            "id": 545
+          },
+          {
+            "kind": "glyph",
+            "id": 546
+          },
+          {
+            "kind": "glyph",
+            "id": 547
+          },
+          {
+            "kind": "glyph",
+            "id": 548
+          },
+          {
+            "kind": "glyph",
+            "id": 549
+          },
+          {
+            "kind": "glyph",
+            "id": 550
+          },
+          {
+            "kind": "glyph",
+            "id": 551
+          },
+          {
+            "kind": "glyph",
+            "id": 552
+          },
+          {
+            "kind": "glyph",
+            "id": 553
+          },
+          {
+            "kind": "glyph",
+            "id": 554
+          },
+          {
+            "kind": "glyph",
+            "id": 555
+          },
+          {
+            "kind": "glyph",
+            "id": 556
+          },
+          {
+            "kind": "glyph",
+            "id": 557
+          },
+          {
+            "kind": "glyph",
+            "id": 558
+          },
+          {
+            "kind": "glyph",
+            "id": 559
+          },
+          {
+            "kind": "glyph",
+            "id": 560
+          },
+          {
+            "kind": "glyph",
+            "id": 561
+          },
+          {
+            "kind": "glyph",
+            "id": 562
+          },
+          {
+            "kind": "glyph",
+            "id": 563
+          },
+          {
+            "kind": "glyph",
+            "id": 564
+          },
+          {
+            "kind": "glyph",
+            "id": 565
+          },
+          {
+            "kind": "glyph",
+            "id": 566
+          },
+          {
+            "kind": "glyph",
+            "id": 567
+          },
+          {
+            "kind": "glyph",
+            "id": 568
+          },
+          {
+            "kind": "glyph",
+            "id": 569
+          },
+          {
+            "kind": "glyph",
+            "id": 570
+          },
+          {
+            "kind": "glyph",
+            "id": 571
+          },
+          {
+            "kind": "glyph",
+            "id": 572
+          },
+          {
+            "kind": "glyph",
+            "id": 573
+          },
+          {
+            "kind": "glyph",
+            "id": 574
+          },
+          {
+            "kind": "glyph",
+            "id": 575
+          },
+          {
+            "kind": "glyph",
+            "id": 576
+          },
+          {
+            "kind": "glyph",
+            "id": 577
+          },
+          {
+            "kind": "glyph",
+            "id": 578
+          },
+          {
+            "kind": "glyph",
+            "id": 579
+          },
+          {
+            "kind": "glyph",
+            "id": 580
+          },
+          {
+            "kind": "glyph",
+            "id": 581
+          },
+          {
+            "kind": "glyph",
+            "id": 582
+          },
+          {
+            "kind": "glyph",
+            "id": 583
+          },
+          {
+            "kind": "glyph",
+            "id": 584
+          },
+          {
+            "kind": "glyph",
+            "id": 585
+          },
+          {
+            "kind": "glyph",
+            "id": 586
+          },
+          {
+            "kind": "glyph",
+            "id": 587
+          },
+          {
+            "kind": "glyph",
+            "id": 588
+          },
+          {
+            "kind": "glyph",
+            "id": 589
+          },
+          {
+            "kind": "glyph",
+            "id": 590
+          },
+          {
+            "kind": "glyph",
+            "id": 591
+          },
+          {
+            "kind": "glyph",
+            "id": 592
+          },
+          {
+            "kind": "glyph",
+            "id": 593
+          },
+          {
+            "kind": "glyph",
+            "id": 594
+          },
+          {
+            "kind": "glyph",
+            "id": 595
+          },
+          {
+            "kind": "glyph",
+            "id": 596
+          },
+          {
+            "kind": "glyph",
+            "id": 597
+          },
+          {
+            "kind": "glyph",
+            "id": 598
+          },
+          {
+            "kind": "glyph",
+            "id": 599
+          },
+          {
+            "kind": "glyph",
+            "id": 600
+          },
+          {
+            "kind": "glyph",
+            "id": 601
+          },
+          {
+            "kind": "glyph",
+            "id": 602
+          },
+          {
+            "kind": "glyph",
+            "id": 603
+          },
+          {
+            "kind": "glyph",
+            "id": 604
+          },
+          {
+            "kind": "glyph",
+            "id": 605
+          },
+          {
+            "kind": "glyph",
+            "id": 606
+          },
+          {
+            "kind": "glyph",
+            "id": 607
+          },
+          {
+            "kind": "glyph",
+            "id": 608
+          },
+          {
+            "kind": "glyph",
+            "id": 609
+          },
+          {
+            "kind": "glyph",
+            "id": 610
+          },
+          {
+            "kind": "glyph",
+            "id": 611
+          },
+          {
+            "kind": "glyph",
+            "id": 612
+          },
+          {
+            "kind": "glyph",
+            "id": 613
+          },
+          {
+            "kind": "glyph",
+            "id": 614
+          },
+          {
+            "kind": "glyph",
+            "id": 615
+          },
+          {
+            "kind": "glyph",
+            "id": 616
+          },
+          {
+            "kind": "glyph",
+            "id": 617
+          },
+          {
+            "kind": "glyph",
+            "id": 618
+          },
+          {
+            "kind": "glyph",
+            "id": 619
+          },
+          {
+            "kind": "glyph",
+            "id": 620
+          },
+          {
+            "kind": "glyph",
+            "id": 621
+          },
+          {
+            "kind": "glyph",
+            "id": 622
+          },
+          {
+            "kind": "glyph",
+            "id": 623
+          },
+          {
+            "kind": "glyph",
+            "id": 624
+          },
+          {
+            "kind": "glyph",
+            "id": 625
+          },
+          {
+            "kind": "glyph",
+            "id": 626
+          },
+          {
+            "kind": "glyph",
+            "id": 627
+          },
+          {
+            "kind": "glyph",
+            "id": 628
+          },
+          {
+            "kind": "glyph",
+            "id": 629
+          },
+          {
+            "kind": "glyph",
+            "id": 630
+          },
+          {
+            "kind": "glyph",
+            "id": 631
+          },
+          {
+            "kind": "glyph",
+            "id": 632
+          },
+          {
+            "kind": "glyph",
+            "id": 633
+          },
+          {
+            "kind": "glyph",
+            "id": 634
+          },
+          {
+            "kind": "glyph",
+            "id": 635
+          },
+          {
+            "kind": "glyph",
+            "id": 636
+          },
+          {
+            "kind": "glyph",
+            "id": 637
+          },
+          {
+            "kind": "glyph",
+            "id": 638
+          },
+          {
+            "kind": "glyph",
+            "id": 639
+          },
+          {
+            "kind": "glyph",
+            "id": 640
+          },
+          {
+            "kind": "glyph",
+            "id": 641
+          },
+          {
+            "kind": "glyph",
+            "id": 642
+          },
+          {
+            "kind": "glyph",
+            "id": 643
+          },
+          {
+            "kind": "glyph",
+            "id": 644
+          },
+          {
+            "kind": "glyph",
+            "id": 645
+          },
+          {
+            "kind": "glyph",
+            "id": 646
+          },
+          {
+            "kind": "glyph",
+            "id": 647
+          },
+          {
+            "kind": "glyph",
+            "id": 648
+          },
+          {
+            "kind": "glyph",
+            "id": 649
+          },
+          {
+            "kind": "glyph",
+            "id": 650
+          },
+          {
+            "kind": "glyph",
+            "id": 651
+          },
+          {
+            "kind": "glyph",
+            "id": 652
+          },
+          {
+            "kind": "glyph",
+            "id": 653
+          },
+          {
+            "kind": "glyph",
+            "id": 654
+          },
+          {
+            "kind": "glyph",
+            "id": 655
+          },
+          {
+            "kind": "glyph",
+            "id": 656
+          },
+          {
+            "kind": "glyph",
+            "id": 657
+          },
+          {
+            "kind": "glyph",
+            "id": 658
+          },
+          {
+            "kind": "glyph",
+            "id": 659
+          },
+          {
+            "kind": "glyph",
+            "id": 660
+          },
+          {
+            "kind": "glyph",
+            "id": 661
+          },
+          {
+            "kind": "glyph",
+            "id": 662
+          },
+          {
+            "kind": "glyph",
+            "id": 663
+          },
+          {
+            "kind": "glyph",
+            "id": 664
+          },
+          {
+            "kind": "glyph",
+            "id": 665
+          },
+          {
+            "kind": "glyph",
+            "id": 666
+          },
+          {
+            "kind": "glyph",
+            "id": 667
+          },
+          {
+            "kind": "glyph",
+            "id": 668
+          },
+          {
+            "kind": "glyph",
+            "id": 669
+          },
+          {
+            "kind": "glyph",
+            "id": 670
+          },
+          {
+            "kind": "glyph",
+            "id": 671
+          },
+          {
+            "kind": "glyph",
+            "id": 672
+          },
+          {
+            "kind": "glyph",
+            "id": 673
+          },
+          {
+            "kind": "glyph",
+            "id": 674
+          },
+          {
+            "kind": "glyph",
+            "id": 675
+          },
+          {
+            "kind": "glyph",
+            "id": 676
+          },
+          {
+            "kind": "glyph",
+            "id": 677
+          },
+          {
+            "kind": "glyph",
+            "id": 678
+          },
+          {
+            "kind": "glyph",
+            "id": 679
+          },
+          {
+            "kind": "glyph",
+            "id": 680
+          },
+          {
+            "kind": "glyph",
+            "id": 681
+          },
+          {
+            "kind": "glyph",
+            "id": 682
+          },
+          {
+            "kind": "glyph",
+            "id": 683
+          },
+          {
+            "kind": "glyph",
+            "id": 684
+          },
+          {
+            "kind": "glyph",
+            "id": 685
+          },
+          {
+            "kind": "glyph",
+            "id": 686
+          },
+          {
+            "kind": "glyph",
+            "id": 687
+          },
+          {
+            "kind": "glyph",
+            "id": 688
+          },
+          {
+            "kind": "glyph",
+            "id": 689
+          },
+          {
+            "kind": "glyph",
+            "id": 690
+          },
+          {
+            "kind": "glyph",
+            "id": 691
+          },
+          {
+            "kind": "glyph",
+            "id": 692
+          },
+          {
+            "kind": "glyph",
+            "id": 693
+          },
+          {
+            "kind": "glyph",
+            "id": 694
+          },
+          {
+            "kind": "glyph",
+            "id": 695
+          },
+          {
+            "kind": "glyph",
+            "id": 696
+          },
+          {
+            "kind": "glyph",
+            "id": 697
+          },
+          {
+            "kind": "glyph",
+            "id": 698
+          },
+          {
+            "kind": "glyph",
+            "id": 699
+          },
+          {
+            "kind": "glyph",
+            "id": 700
+          },
+          {
+            "kind": "glyph",
+            "id": 701
+          },
+          {
+            "kind": "glyph",
+            "id": 702
+          },
+          {
+            "kind": "glyph",
+            "id": 703
+          },
+          {
+            "kind": "glyph",
+            "id": 704
+          },
+          {
+            "kind": "glyph",
+            "id": 705
+          },
+          {
+            "kind": "glyph",
+            "id": 706
+          },
+          {
+            "kind": "glyph",
+            "id": 707
+          },
+          {
+            "kind": "glyph",
+            "id": 708
+          },
+          {
+            "kind": "glyph",
+            "id": 709
+          },
+          {
+            "kind": "glyph",
+            "id": 710
+          },
+          {
+            "kind": "glyph",
+            "id": 711
+          },
+          {
+            "kind": "glyph",
+            "id": 712
+          },
+          {
+            "kind": "glyph",
+            "id": 713
+          },
+          {
+            "kind": "glyph",
+            "id": 714
+          },
+          {
+            "kind": "glyph",
+            "id": 715
+          },
+          {
+            "kind": "glyph",
+            "id": 716
+          },
+          {
+            "kind": "glyph",
+            "id": 717
+          },
+          {
+            "kind": "glyph",
+            "id": 718
+          },
+          {
+            "kind": "glyph",
+            "id": 719
+          },
+          {
+            "kind": "glyph",
+            "id": 720
+          },
+          {
+            "kind": "glyph",
+            "id": 721
+          },
+          {
+            "kind": "glyph",
+            "id": 722
+          },
+          {
+            "kind": "glyph",
+            "id": 723
+          },
+          {
+            "kind": "glyph",
+            "id": 724
+          },
+          {
+            "kind": "glyph",
+            "id": 725
+          },
+          {
+            "kind": "glyph",
+            "id": 726
+          },
+          {
+            "kind": "glyph",
+            "id": 727
+          },
+          {
+            "kind": "glyph",
+            "id": 728
+          },
+          {
+            "kind": "glyph",
+            "id": 729
+          },
+          {
+            "kind": "glyph",
+            "id": 730
+          },
+          {
+            "kind": "glyph",
+            "id": 731
+          },
+          {
+            "kind": "glyph",
+            "id": 732
+          },
+          {
+            "kind": "glyph",
+            "id": 733
+          },
+          {
+            "kind": "glyph",
+            "id": 734
+          },
+          {
+            "kind": "glyph",
+            "id": 735
+          },
+          {
+            "kind": "glyph",
+            "id": 736
+          },
+          {
+            "kind": "glyph",
+            "id": 737
+          },
+          {
+            "kind": "glyph",
+            "id": 738
+          }
+        ]
+      },
+      "new": {
+        "page": 0,
+        "selector": "body-new",
+        "bbox": [
+          108.0,
+          501.39599999999996,
+          542.2199999999998,
+          586.5600000000001
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "source_atoms": [
+          {
+            "kind": "glyph",
+            "id": 250
+          },
+          {
+            "kind": "glyph",
+            "id": 251
+          },
+          {
+            "kind": "glyph",
+            "id": 252
+          },
+          {
+            "kind": "glyph",
+            "id": 253
+          },
+          {
+            "kind": "glyph",
+            "id": 254
+          },
+          {
+            "kind": "glyph",
+            "id": 255
+          },
+          {
+            "kind": "glyph",
+            "id": 256
+          },
+          {
+            "kind": "glyph",
+            "id": 257
+          },
+          {
+            "kind": "glyph",
+            "id": 258
+          },
+          {
+            "kind": "glyph",
+            "id": 259
+          },
+          {
+            "kind": "glyph",
+            "id": 260
+          },
+          {
+            "kind": "glyph",
+            "id": 261
+          },
+          {
+            "kind": "glyph",
+            "id": 262
+          },
+          {
+            "kind": "glyph",
+            "id": 263
+          },
+          {
+            "kind": "glyph",
+            "id": 264
+          },
+          {
+            "kind": "glyph",
+            "id": 265
+          },
+          {
+            "kind": "glyph",
+            "id": 266
+          },
+          {
+            "kind": "glyph",
+            "id": 267
+          },
+          {
+            "kind": "glyph",
+            "id": 268
+          },
+          {
+            "kind": "glyph",
+            "id": 269
+          },
+          {
+            "kind": "glyph",
+            "id": 270
+          },
+          {
+            "kind": "glyph",
+            "id": 271
+          },
+          {
+            "kind": "glyph",
+            "id": 272
+          },
+          {
+            "kind": "glyph",
+            "id": 273
+          },
+          {
+            "kind": "glyph",
+            "id": 274
+          },
+          {
+            "kind": "glyph",
+            "id": 275
+          },
+          {
+            "kind": "glyph",
+            "id": 276
+          },
+          {
+            "kind": "glyph",
+            "id": 277
+          },
+          {
+            "kind": "glyph",
+            "id": 278
+          },
+          {
+            "kind": "glyph",
+            "id": 279
+          },
+          {
+            "kind": "glyph",
+            "id": 280
+          },
+          {
+            "kind": "glyph",
+            "id": 281
+          },
+          {
+            "kind": "glyph",
+            "id": 282
+          },
+          {
+            "kind": "glyph",
+            "id": 283
+          },
+          {
+            "kind": "glyph",
+            "id": 284
+          },
+          {
+            "kind": "glyph",
+            "id": 285
+          },
+          {
+            "kind": "glyph",
+            "id": 286
+          },
+          {
+            "kind": "glyph",
+            "id": 287
+          },
+          {
+            "kind": "glyph",
+            "id": 288
+          },
+          {
+            "kind": "glyph",
+            "id": 289
+          },
+          {
+            "kind": "glyph",
+            "id": 290
+          },
+          {
+            "kind": "glyph",
+            "id": 291
+          },
+          {
+            "kind": "glyph",
+            "id": 292
+          },
+          {
+            "kind": "glyph",
+            "id": 293
+          },
+          {
+            "kind": "glyph",
+            "id": 294
+          },
+          {
+            "kind": "glyph",
+            "id": 295
+          },
+          {
+            "kind": "glyph",
+            "id": 296
+          },
+          {
+            "kind": "glyph",
+            "id": 297
+          },
+          {
+            "kind": "glyph",
+            "id": 298
+          },
+          {
+            "kind": "glyph",
+            "id": 299
+          },
+          {
+            "kind": "glyph",
+            "id": 300
+          },
+          {
+            "kind": "glyph",
+            "id": 301
+          },
+          {
+            "kind": "glyph",
+            "id": 302
+          },
+          {
+            "kind": "glyph",
+            "id": 303
+          },
+          {
+            "kind": "glyph",
+            "id": 304
+          },
+          {
+            "kind": "glyph",
+            "id": 305
+          },
+          {
+            "kind": "glyph",
+            "id": 306
+          },
+          {
+            "kind": "glyph",
+            "id": 307
+          },
+          {
+            "kind": "glyph",
+            "id": 308
+          },
+          {
+            "kind": "glyph",
+            "id": 309
+          },
+          {
+            "kind": "glyph",
+            "id": 310
+          },
+          {
+            "kind": "glyph",
+            "id": 311
+          },
+          {
+            "kind": "glyph",
+            "id": 312
+          },
+          {
+            "kind": "glyph",
+            "id": 313
+          },
+          {
+            "kind": "glyph",
+            "id": 314
+          },
+          {
+            "kind": "glyph",
+            "id": 315
+          },
+          {
+            "kind": "glyph",
+            "id": 316
+          },
+          {
+            "kind": "glyph",
+            "id": 317
+          },
+          {
+            "kind": "glyph",
+            "id": 318
+          },
+          {
+            "kind": "glyph",
+            "id": 319
+          },
+          {
+            "kind": "glyph",
+            "id": 320
+          },
+          {
+            "kind": "glyph",
+            "id": 321
+          },
+          {
+            "kind": "glyph",
+            "id": 322
+          },
+          {
+            "kind": "glyph",
+            "id": 323
+          },
+          {
+            "kind": "glyph",
+            "id": 324
+          },
+          {
+            "kind": "glyph",
+            "id": 325
+          },
+          {
+            "kind": "glyph",
+            "id": 326
+          },
+          {
+            "kind": "glyph",
+            "id": 327
+          },
+          {
+            "kind": "glyph",
+            "id": 328
+          },
+          {
+            "kind": "glyph",
+            "id": 329
+          },
+          {
+            "kind": "glyph",
+            "id": 330
+          },
+          {
+            "kind": "glyph",
+            "id": 331
+          },
+          {
+            "kind": "glyph",
+            "id": 332
+          },
+          {
+            "kind": "glyph",
+            "id": 333
+          },
+          {
+            "kind": "glyph",
+            "id": 334
+          },
+          {
+            "kind": "glyph",
+            "id": 335
+          },
+          {
+            "kind": "glyph",
+            "id": 336
+          },
+          {
+            "kind": "glyph",
+            "id": 337
+          },
+          {
+            "kind": "glyph",
+            "id": 338
+          },
+          {
+            "kind": "glyph",
+            "id": 339
+          },
+          {
+            "kind": "glyph",
+            "id": 340
+          },
+          {
+            "kind": "glyph",
+            "id": 341
+          },
+          {
+            "kind": "glyph",
+            "id": 342
+          },
+          {
+            "kind": "glyph",
+            "id": 343
+          },
+          {
+            "kind": "glyph",
+            "id": 344
+          },
+          {
+            "kind": "glyph",
+            "id": 345
+          },
+          {
+            "kind": "glyph",
+            "id": 346
+          },
+          {
+            "kind": "glyph",
+            "id": 347
+          },
+          {
+            "kind": "glyph",
+            "id": 348
+          },
+          {
+            "kind": "glyph",
+            "id": 349
+          },
+          {
+            "kind": "glyph",
+            "id": 350
+          },
+          {
+            "kind": "glyph",
+            "id": 351
+          },
+          {
+            "kind": "glyph",
+            "id": 352
+          },
+          {
+            "kind": "glyph",
+            "id": 353
+          },
+          {
+            "kind": "glyph",
+            "id": 354
+          },
+          {
+            "kind": "glyph",
+            "id": 355
+          },
+          {
+            "kind": "glyph",
+            "id": 356
+          },
+          {
+            "kind": "glyph",
+            "id": 357
+          },
+          {
+            "kind": "glyph",
+            "id": 358
+          },
+          {
+            "kind": "glyph",
+            "id": 359
+          },
+          {
+            "kind": "glyph",
+            "id": 360
+          },
+          {
+            "kind": "glyph",
+            "id": 361
+          },
+          {
+            "kind": "glyph",
+            "id": 362
+          },
+          {
+            "kind": "glyph",
+            "id": 363
+          },
+          {
+            "kind": "glyph",
+            "id": 364
+          },
+          {
+            "kind": "glyph",
+            "id": 365
+          },
+          {
+            "kind": "glyph",
+            "id": 366
+          },
+          {
+            "kind": "glyph",
+            "id": 367
+          },
+          {
+            "kind": "glyph",
+            "id": 368
+          },
+          {
+            "kind": "glyph",
+            "id": 369
+          },
+          {
+            "kind": "glyph",
+            "id": 370
+          },
+          {
+            "kind": "glyph",
+            "id": 371
+          },
+          {
+            "kind": "glyph",
+            "id": 372
+          },
+          {
+            "kind": "glyph",
+            "id": 373
+          },
+          {
+            "kind": "glyph",
+            "id": 374
+          },
+          {
+            "kind": "glyph",
+            "id": 375
+          },
+          {
+            "kind": "glyph",
+            "id": 376
+          },
+          {
+            "kind": "glyph",
+            "id": 377
+          },
+          {
+            "kind": "glyph",
+            "id": 378
+          },
+          {
+            "kind": "glyph",
+            "id": 379
+          },
+          {
+            "kind": "glyph",
+            "id": 380
+          },
+          {
+            "kind": "glyph",
+            "id": 381
+          },
+          {
+            "kind": "glyph",
+            "id": 382
+          },
+          {
+            "kind": "glyph",
+            "id": 383
+          },
+          {
+            "kind": "glyph",
+            "id": 384
+          },
+          {
+            "kind": "glyph",
+            "id": 385
+          },
+          {
+            "kind": "glyph",
+            "id": 386
+          },
+          {
+            "kind": "glyph",
+            "id": 387
+          },
+          {
+            "kind": "glyph",
+            "id": 388
+          },
+          {
+            "kind": "glyph",
+            "id": 389
+          },
+          {
+            "kind": "glyph",
+            "id": 390
+          },
+          {
+            "kind": "glyph",
+            "id": 391
+          },
+          {
+            "kind": "glyph",
+            "id": 392
+          },
+          {
+            "kind": "glyph",
+            "id": 393
+          },
+          {
+            "kind": "glyph",
+            "id": 394
+          },
+          {
+            "kind": "glyph",
+            "id": 395
+          },
+          {
+            "kind": "glyph",
+            "id": 396
+          },
+          {
+            "kind": "glyph",
+            "id": 397
+          },
+          {
+            "kind": "glyph",
+            "id": 398
+          },
+          {
+            "kind": "glyph",
+            "id": 399
+          },
+          {
+            "kind": "glyph",
+            "id": 400
+          },
+          {
+            "kind": "glyph",
+            "id": 401
+          },
+          {
+            "kind": "glyph",
+            "id": 402
+          },
+          {
+            "kind": "glyph",
+            "id": 403
+          },
+          {
+            "kind": "glyph",
+            "id": 404
+          },
+          {
+            "kind": "glyph",
+            "id": 405
+          },
+          {
+            "kind": "glyph",
+            "id": 406
+          },
+          {
+            "kind": "glyph",
+            "id": 407
+          },
+          {
+            "kind": "glyph",
+            "id": 408
+          },
+          {
+            "kind": "glyph",
+            "id": 409
+          },
+          {
+            "kind": "glyph",
+            "id": 410
+          },
+          {
+            "kind": "glyph",
+            "id": 411
+          },
+          {
+            "kind": "glyph",
+            "id": 412
+          },
+          {
+            "kind": "glyph",
+            "id": 413
+          },
+          {
+            "kind": "glyph",
+            "id": 414
+          },
+          {
+            "kind": "glyph",
+            "id": 415
+          },
+          {
+            "kind": "glyph",
+            "id": 416
+          },
+          {
+            "kind": "glyph",
+            "id": 417
+          },
+          {
+            "kind": "glyph",
+            "id": 418
+          },
+          {
+            "kind": "glyph",
+            "id": 419
+          },
+          {
+            "kind": "glyph",
+            "id": 420
+          },
+          {
+            "kind": "glyph",
+            "id": 421
+          },
+          {
+            "kind": "glyph",
+            "id": 422
+          },
+          {
+            "kind": "glyph",
+            "id": 423
+          },
+          {
+            "kind": "glyph",
+            "id": 424
+          },
+          {
+            "kind": "glyph",
+            "id": 425
+          },
+          {
+            "kind": "glyph",
+            "id": 426
+          },
+          {
+            "kind": "glyph",
+            "id": 427
+          },
+          {
+            "kind": "glyph",
+            "id": 428
+          },
+          {
+            "kind": "glyph",
+            "id": 429
+          },
+          {
+            "kind": "glyph",
+            "id": 430
+          },
+          {
+            "kind": "glyph",
+            "id": 431
+          },
+          {
+            "kind": "glyph",
+            "id": 432
+          },
+          {
+            "kind": "glyph",
+            "id": 433
+          },
+          {
+            "kind": "glyph",
+            "id": 434
+          },
+          {
+            "kind": "glyph",
+            "id": 435
+          },
+          {
+            "kind": "glyph",
+            "id": 436
+          },
+          {
+            "kind": "glyph",
+            "id": 437
+          },
+          {
+            "kind": "glyph",
+            "id": 438
+          },
+          {
+            "kind": "glyph",
+            "id": 439
+          },
+          {
+            "kind": "glyph",
+            "id": 440
+          },
+          {
+            "kind": "glyph",
+            "id": 441
+          },
+          {
+            "kind": "glyph",
+            "id": 442
+          },
+          {
+            "kind": "glyph",
+            "id": 443
+          },
+          {
+            "kind": "glyph",
+            "id": 444
+          },
+          {
+            "kind": "glyph",
+            "id": 445
+          },
+          {
+            "kind": "glyph",
+            "id": 446
+          },
+          {
+            "kind": "glyph",
+            "id": 447
+          },
+          {
+            "kind": "glyph",
+            "id": 448
+          },
+          {
+            "kind": "glyph",
+            "id": 449
+          },
+          {
+            "kind": "glyph",
+            "id": 450
+          },
+          {
+            "kind": "glyph",
+            "id": 451
+          },
+          {
+            "kind": "glyph",
+            "id": 452
+          },
+          {
+            "kind": "glyph",
+            "id": 453
+          },
+          {
+            "kind": "glyph",
+            "id": 454
+          },
+          {
+            "kind": "glyph",
+            "id": 455
+          },
+          {
+            "kind": "glyph",
+            "id": 456
+          },
+          {
+            "kind": "glyph",
+            "id": 457
+          },
+          {
+            "kind": "glyph",
+            "id": 458
+          },
+          {
+            "kind": "glyph",
+            "id": 459
+          },
+          {
+            "kind": "glyph",
+            "id": 460
+          },
+          {
+            "kind": "glyph",
+            "id": 461
+          },
+          {
+            "kind": "glyph",
+            "id": 462
+          },
+          {
+            "kind": "glyph",
+            "id": 463
+          },
+          {
+            "kind": "glyph",
+            "id": 464
+          },
+          {
+            "kind": "glyph",
+            "id": 465
+          },
+          {
+            "kind": "glyph",
+            "id": 466
+          },
+          {
+            "kind": "glyph",
+            "id": 467
+          },
+          {
+            "kind": "glyph",
+            "id": 468
+          },
+          {
+            "kind": "glyph",
+            "id": 469
+          },
+          {
+            "kind": "glyph",
+            "id": 470
+          },
+          {
+            "kind": "glyph",
+            "id": 471
+          },
+          {
+            "kind": "glyph",
+            "id": 472
+          },
+          {
+            "kind": "glyph",
+            "id": 473
+          },
+          {
+            "kind": "glyph",
+            "id": 474
+          },
+          {
+            "kind": "glyph",
+            "id": 475
+          },
+          {
+            "kind": "glyph",
+            "id": 476
+          },
+          {
+            "kind": "glyph",
+            "id": 477
+          },
+          {
+            "kind": "glyph",
+            "id": 478
+          },
+          {
+            "kind": "glyph",
+            "id": 479
+          },
+          {
+            "kind": "glyph",
+            "id": 480
+          },
+          {
+            "kind": "glyph",
+            "id": 481
+          },
+          {
+            "kind": "glyph",
+            "id": 482
+          },
+          {
+            "kind": "glyph",
+            "id": 483
+          },
+          {
+            "kind": "glyph",
+            "id": 484
+          },
+          {
+            "kind": "glyph",
+            "id": 485
+          },
+          {
+            "kind": "glyph",
+            "id": 486
+          },
+          {
+            "kind": "glyph",
+            "id": 487
+          },
+          {
+            "kind": "glyph",
+            "id": 488
+          },
+          {
+            "kind": "glyph",
+            "id": 489
+          },
+          {
+            "kind": "glyph",
+            "id": 490
+          },
+          {
+            "kind": "glyph",
+            "id": 491
+          },
+          {
+            "kind": "glyph",
+            "id": 492
+          },
+          {
+            "kind": "glyph",
+            "id": 493
+          },
+          {
+            "kind": "glyph",
+            "id": 494
+          },
+          {
+            "kind": "glyph",
+            "id": 495
+          },
+          {
+            "kind": "glyph",
+            "id": 496
+          },
+          {
+            "kind": "glyph",
+            "id": 497
+          },
+          {
+            "kind": "glyph",
+            "id": 498
+          },
+          {
+            "kind": "glyph",
+            "id": 499
+          },
+          {
+            "kind": "glyph",
+            "id": 500
+          },
+          {
+            "kind": "glyph",
+            "id": 501
+          },
+          {
+            "kind": "glyph",
+            "id": 502
+          },
+          {
+            "kind": "glyph",
+            "id": 503
+          },
+          {
+            "kind": "glyph",
+            "id": 504
+          },
+          {
+            "kind": "glyph",
+            "id": 505
+          },
+          {
+            "kind": "glyph",
+            "id": 506
+          },
+          {
+            "kind": "glyph",
+            "id": 507
+          },
+          {
+            "kind": "glyph",
+            "id": 508
+          },
+          {
+            "kind": "glyph",
+            "id": 509
+          },
+          {
+            "kind": "glyph",
+            "id": 510
+          },
+          {
+            "kind": "glyph",
+            "id": 511
+          },
+          {
+            "kind": "glyph",
+            "id": 512
+          },
+          {
+            "kind": "glyph",
+            "id": 513
+          },
+          {
+            "kind": "glyph",
+            "id": 514
+          },
+          {
+            "kind": "glyph",
+            "id": 515
+          },
+          {
+            "kind": "glyph",
+            "id": 516
+          },
+          {
+            "kind": "glyph",
+            "id": 517
+          },
+          {
+            "kind": "glyph",
+            "id": 518
+          },
+          {
+            "kind": "glyph",
+            "id": 519
+          },
+          {
+            "kind": "glyph",
+            "id": 520
+          },
+          {
+            "kind": "glyph",
+            "id": 521
+          },
+          {
+            "kind": "glyph",
+            "id": 522
+          },
+          {
+            "kind": "glyph",
+            "id": 523
+          },
+          {
+            "kind": "glyph",
+            "id": 524
+          },
+          {
+            "kind": "glyph",
+            "id": 525
+          },
+          {
+            "kind": "glyph",
+            "id": 526
+          },
+          {
+            "kind": "glyph",
+            "id": 527
+          },
+          {
+            "kind": "glyph",
+            "id": 528
+          },
+          {
+            "kind": "glyph",
+            "id": 529
+          },
+          {
+            "kind": "glyph",
+            "id": 530
+          },
+          {
+            "kind": "glyph",
+            "id": 531
+          },
+          {
+            "kind": "glyph",
+            "id": 532
+          },
+          {
+            "kind": "glyph",
+            "id": 533
+          },
+          {
+            "kind": "glyph",
+            "id": 534
+          },
+          {
+            "kind": "glyph",
+            "id": 535
+          },
+          {
+            "kind": "glyph",
+            "id": 536
+          },
+          {
+            "kind": "glyph",
+            "id": 537
+          },
+          {
+            "kind": "glyph",
+            "id": 538
+          },
+          {
+            "kind": "glyph",
+            "id": 539
+          },
+          {
+            "kind": "glyph",
+            "id": 540
+          },
+          {
+            "kind": "glyph",
+            "id": 541
+          },
+          {
+            "kind": "glyph",
+            "id": 542
+          },
+          {
+            "kind": "glyph",
+            "id": 543
+          },
+          {
+            "kind": "glyph",
+            "id": 544
+          },
+          {
+            "kind": "glyph",
+            "id": 545
+          },
+          {
+            "kind": "glyph",
+            "id": 546
+          },
+          {
+            "kind": "glyph",
+            "id": 547
+          },
+          {
+            "kind": "glyph",
+            "id": 548
+          },
+          {
+            "kind": "glyph",
+            "id": 549
+          },
+          {
+            "kind": "glyph",
+            "id": 550
+          },
+          {
+            "kind": "glyph",
+            "id": 551
+          },
+          {
+            "kind": "glyph",
+            "id": 552
+          },
+          {
+            "kind": "glyph",
+            "id": 553
+          },
+          {
+            "kind": "glyph",
+            "id": 554
+          },
+          {
+            "kind": "glyph",
+            "id": 555
+          },
+          {
+            "kind": "glyph",
+            "id": 556
+          },
+          {
+            "kind": "glyph",
+            "id": 557
+          },
+          {
+            "kind": "glyph",
+            "id": 558
+          },
+          {
+            "kind": "glyph",
+            "id": 559
+          },
+          {
+            "kind": "glyph",
+            "id": 560
+          },
+          {
+            "kind": "glyph",
+            "id": 561
+          },
+          {
+            "kind": "glyph",
+            "id": 562
+          },
+          {
+            "kind": "glyph",
+            "id": 563
+          },
+          {
+            "kind": "glyph",
+            "id": 564
+          },
+          {
+            "kind": "glyph",
+            "id": 565
+          },
+          {
+            "kind": "glyph",
+            "id": 566
+          },
+          {
+            "kind": "glyph",
+            "id": 567
+          },
+          {
+            "kind": "glyph",
+            "id": 568
+          },
+          {
+            "kind": "glyph",
+            "id": 569
+          },
+          {
+            "kind": "glyph",
+            "id": 570
+          },
+          {
+            "kind": "glyph",
+            "id": 571
+          },
+          {
+            "kind": "glyph",
+            "id": 572
+          },
+          {
+            "kind": "glyph",
+            "id": 573
+          },
+          {
+            "kind": "glyph",
+            "id": 574
+          },
+          {
+            "kind": "glyph",
+            "id": 575
+          },
+          {
+            "kind": "glyph",
+            "id": 576
+          },
+          {
+            "kind": "glyph",
+            "id": 577
+          },
+          {
+            "kind": "glyph",
+            "id": 578
+          },
+          {
+            "kind": "glyph",
+            "id": 579
+          },
+          {
+            "kind": "glyph",
+            "id": 580
+          },
+          {
+            "kind": "glyph",
+            "id": 581
+          },
+          {
+            "kind": "glyph",
+            "id": 582
+          },
+          {
+            "kind": "glyph",
+            "id": 583
+          },
+          {
+            "kind": "glyph",
+            "id": 584
+          },
+          {
+            "kind": "glyph",
+            "id": 585
+          },
+          {
+            "kind": "glyph",
+            "id": 586
+          },
+          {
+            "kind": "glyph",
+            "id": 587
+          },
+          {
+            "kind": "glyph",
+            "id": 588
+          },
+          {
+            "kind": "glyph",
+            "id": 589
+          },
+          {
+            "kind": "glyph",
+            "id": 590
+          },
+          {
+            "kind": "glyph",
+            "id": 591
+          },
+          {
+            "kind": "glyph",
+            "id": 592
+          },
+          {
+            "kind": "glyph",
+            "id": 593
+          },
+          {
+            "kind": "glyph",
+            "id": 594
+          },
+          {
+            "kind": "glyph",
+            "id": 595
+          },
+          {
+            "kind": "glyph",
+            "id": 596
+          },
+          {
+            "kind": "glyph",
+            "id": 597
+          },
+          {
+            "kind": "glyph",
+            "id": 598
+          },
+          {
+            "kind": "glyph",
+            "id": 599
+          },
+          {
+            "kind": "glyph",
+            "id": 600
+          },
+          {
+            "kind": "glyph",
+            "id": 601
+          },
+          {
+            "kind": "glyph",
+            "id": 602
+          },
+          {
+            "kind": "glyph",
+            "id": 603
+          },
+          {
+            "kind": "glyph",
+            "id": 604
+          },
+          {
+            "kind": "glyph",
+            "id": 605
+          },
+          {
+            "kind": "glyph",
+            "id": 606
+          },
+          {
+            "kind": "glyph",
+            "id": 607
+          },
+          {
+            "kind": "glyph",
+            "id": 608
+          },
+          {
+            "kind": "glyph",
+            "id": 609
+          },
+          {
+            "kind": "glyph",
+            "id": 610
+          },
+          {
+            "kind": "glyph",
+            "id": 611
+          },
+          {
+            "kind": "glyph",
+            "id": 612
+          },
+          {
+            "kind": "glyph",
+            "id": 613
+          },
+          {
+            "kind": "glyph",
+            "id": 614
+          },
+          {
+            "kind": "glyph",
+            "id": 615
+          },
+          {
+            "kind": "glyph",
+            "id": 616
+          },
+          {
+            "kind": "glyph",
+            "id": 617
+          },
+          {
+            "kind": "glyph",
+            "id": 618
+          },
+          {
+            "kind": "glyph",
+            "id": 619
+          },
+          {
+            "kind": "glyph",
+            "id": 620
+          },
+          {
+            "kind": "glyph",
+            "id": 621
+          },
+          {
+            "kind": "glyph",
+            "id": 622
+          },
+          {
+            "kind": "glyph",
+            "id": 623
+          },
+          {
+            "kind": "glyph",
+            "id": 624
+          },
+          {
+            "kind": "glyph",
+            "id": 625
+          },
+          {
+            "kind": "glyph",
+            "id": 626
+          },
+          {
+            "kind": "glyph",
+            "id": 627
+          },
+          {
+            "kind": "glyph",
+            "id": 628
+          },
+          {
+            "kind": "glyph",
+            "id": 629
+          },
+          {
+            "kind": "glyph",
+            "id": 630
+          },
+          {
+            "kind": "glyph",
+            "id": 631
+          },
+          {
+            "kind": "glyph",
+            "id": 632
+          },
+          {
+            "kind": "glyph",
+            "id": 633
+          },
+          {
+            "kind": "glyph",
+            "id": 634
+          },
+          {
+            "kind": "glyph",
+            "id": 635
+          },
+          {
+            "kind": "glyph",
+            "id": 636
+          },
+          {
+            "kind": "glyph",
+            "id": 637
+          },
+          {
+            "kind": "glyph",
+            "id": 638
+          },
+          {
+            "kind": "glyph",
+            "id": 639
+          },
+          {
+            "kind": "glyph",
+            "id": 640
+          },
+          {
+            "kind": "glyph",
+            "id": 641
+          },
+          {
+            "kind": "glyph",
+            "id": 642
+          },
+          {
+            "kind": "glyph",
+            "id": 643
+          },
+          {
+            "kind": "glyph",
+            "id": 644
+          },
+          {
+            "kind": "glyph",
+            "id": 645
+          },
+          {
+            "kind": "glyph",
+            "id": 646
+          },
+          {
+            "kind": "glyph",
+            "id": 647
+          },
+          {
+            "kind": "glyph",
+            "id": 648
+          },
+          {
+            "kind": "glyph",
+            "id": 649
+          }
+        ]
+      }
+    },
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null
+  },
+  "controls": [],
+  "visual_checks": [
+    {
+      "id": "faa-maintenance-records-c-to-d",
+      "side": "old",
+      "page": 0,
+      "input_sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273",
+      "object_evidence_sha256": "0313b0d9b90c345a2aef262530c7dda14770c2ba64eabd65343a269e66d30978",
+      "width": 614,
+      "height": 798,
+      "object_number": 921,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "ce80b6e26d500009d6db7186a53ff973dfcd6cd3d29d3911ee3c70b96edf6e63",
+      "warning": false,
+      "png_sha256": "eb06fb5d2cc126cfb2f68f8bbca4bf265320b0687d64a029e75b6aee6419786d",
+      "cache_directory": "next-blind-renders",
+      "visually_inspected": true
+    },
+    {
+      "id": "faa-maintenance-records-c-to-d",
+      "side": "new",
+      "page": 0,
+      "input_sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd",
+      "object_evidence_sha256": "24fa49ac36536fd40ffb93163f05fe8b1613d5877c801031d7be4240a121ddf3",
+      "width": 612,
+      "height": 792,
+      "object_number": 1507,
+      "generation": 0,
+      "exit_code": 0,
+      "status": "rendered",
+      "stderr": "",
+      "raw_sha256": "d800d20f3b6e600615cf14a383638893e024245d8f059895629afbac617e08c1",
+      "warning": false,
+      "png_sha256": "3f1cad670954cef9596e37b829d517255b99e8ecc5c7ae983412ad386692f68e",
+      "cache_directory": "next-blind-renders",
+      "visually_inspected": true
+    }
+  ],
+  "source_capture_hashes": {
+    "old": "ece32c78f3dd1efca0be18e454e0b3bdfac622603a6bf45ce905e94b21f32aeb",
+    "new": "2dbcf6c0ce1f4cacbda8066185c56bc840f54ac471af4ba50801ad492168362d"
+  },
+  "visible_text_caveat": "Old source is a scanned page with OCR-like stored text. Literal source references follow that stored text, whose errors differ from the visible document. Visible paragraphs also change, but no glyph-to-image transcription proof is claimed."
+}

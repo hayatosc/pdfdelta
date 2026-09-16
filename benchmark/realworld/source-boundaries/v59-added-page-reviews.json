@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "scope": "Three additional pilot identities only; the rest of the retired DeiT report remains outside formal panel adjudication.",
+  "events": [
+    {
+      "pair": "arxiv-deit-v1-to-v2",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/36",
+      "event_sha256": "3eb958e193d18aca56de20f6dd80af75e456cdccd1aa447d9b05ebaf996f4f65",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/report.json",
+        "sha256": "edf24acf18c2a1f6cfd0241150f8d2bca7a6aa84955f078a08a481da313a2709"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/source-review/sources.json",
+        "sha256": "cacad660e0cba55d37b4ec8fff4e04dbea036b0fdf9e0dd3ddf943eda4606447"
+      },
+      "page_images": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/source-review/old-region-0.png",
+          "sha256": "b90f740d7798d9111bfccd81e9361de323a766e175365f7e4f20815d2fecb6ed"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/arxiv-deit-v1-to-v2/source-review/new-region-0.png",
+          "sha256": "42530d467947d1696118f81b38c51f85b1141765792b921fd5c8f5953bb70cf8"
+        }
+      ],
+      "source_checks": {
+        "path": "benchmark/realworld/source-boundaries/v59-added-source-checks.json",
+        "sha256": "893a5fbaf8f4ce2dc5ad5863047f8f7aa76115d4c07988d0ee0a7a3c27b810d3"
+      },
+      "verdict": "source_supported",
+      "reason": "The page images show the abstract changing its description of pretraining and infrastructure, removing qualifications and relocating the code/models statement, and changing the reported top accuracy from 84.4% to 85.2%. The unchanged first body row belongs to the abstract and is retained in the enclosing view. Exactly 993 old and 888 new glyphs lie between Abstract and Introduction; title, authors and introduction are excluded. The raw comma counts are independently 7 and 5; exact masks remain unresolved. This is a retired-series development diagnostic, not unseen recovery, and no adjudication of the other DeiT outputs is claimed."
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/18",
+      "event_sha256": "f27b06dc391b8c9f5b77a59ac6a380b01159da791165eef43a0a1595d3bfe13e",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/report.json",
+        "sha256": "a93b4ee355e81342abad5948344d52beceee1d2758b8d4fb043198f930e7c913"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/sources.json",
+        "sha256": "2967f35d496a252b5baa22abef13db9419208c3ee3f5bd2175c0f12e99050d3f"
+      },
+      "page_images": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/old-region-4.png",
+          "sha256": "d74c84ff6aa6e855e6001c86f7bff7d2727c6a9eb6a2e1904759fed9361d4207"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/new-region-4.png",
+          "sha256": "c9a99f8f6485557cd54b4982d643bc24ee4366c65c044bbc5189bbe6b531e9ce"
+        }
+      ],
+      "source_checks": {
+        "path": "benchmark/realworld/source-boundaries/v59-added-source-checks.json",
+        "sha256": "893a5fbaf8f4ce2dc5ad5863047f8f7aa76115d4c07988d0ee0a7a3c27b810d3"
+      },
+      "verdict": "source_supported",
+      "reason": "Both page images show exactly three 2024-to-2025 substitutions in the EITC paragraph. The finite enclosing range also includes the unchanged opening row of the following SSN paragraph through For your. Its preceding filing-requirement paragraph and the continuation privacy text provide corresponding endpoints. The original glyph census excludes the other column. Four independent spacing combinations yield exactly three mandatory changed digits per side. The raw and trailing-space-refined views overlap and are not separate author changes."
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/19",
+      "event_sha256": "61175c38bd5cb843b8e6f4cfb6d46ffb168f905fd6762299dead340f36ab3eaa",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/report.json",
+        "sha256": "a93b4ee355e81342abad5948344d52beceee1d2758b8d4fb043198f930e7c913"
+      },
+      "sources": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/sources.json",
+        "sha256": "2967f35d496a252b5baa22abef13db9419208c3ee3f5bd2175c0f12e99050d3f"
+      },
+      "page_images": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/old-region-4.png",
+          "sha256": "d74c84ff6aa6e855e6001c86f7bff7d2727c6a9eb6a2e1904759fed9361d4207"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v59/irs-w2-2024-to-2025/source-review/new-region-4.png",
+          "sha256": "c9a99f8f6485557cd54b4982d643bc24ee4366c65c044bbc5189bbe6b531e9ce"
+        }
+      ],
+      "source_checks": {
+        "path": "benchmark/realworld/source-boundaries/v59-added-source-checks.json",
+        "sha256": "893a5fbaf8f4ce2dc5ad5863047f8f7aa76115d4c07988d0ee0a7a3c27b810d3"
+      },
+      "verdict": "source_supported",
+      "reason": "Both page images show exactly three 2024-to-2025 substitutions in the EITC paragraph. The finite enclosing range also includes the unchanged opening row of the following SSN paragraph through For your. Its preceding filing-requirement paragraph and the continuation privacy text provide corresponding endpoints. The original glyph census excludes the other column. Four independent spacing combinations yield exactly three mandatory changed digits per side. The raw and trailing-space-refined views overlap and are not separate author changes."
+    }
+  ]
+}

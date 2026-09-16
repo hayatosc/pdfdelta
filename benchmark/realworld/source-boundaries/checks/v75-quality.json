@@ -1,0 +1,69 @@
+{
+  "source_sha256": "8b836a9293eea3ad0f9c197a039b86c08aac41dfdb156fddbfb1211094ac59b4",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.546401153000261,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v75-quality-0.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 19.16449545999967,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v75-quality-1.log",
+        "sha256": "c9ae17eefeb29d9d1f6a430e2411fe61a54d439a7426afa1932ffc148766debc"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "seconds": 138.73812052600078,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v75-quality-2.log",
+        "sha256": "9398449a10daed42f4995d86cb7d27645502b7c7e8582913071ccc68c0078a98"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "seconds": 22.8091473530003,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v75-quality-3.log",
+        "sha256": "1dd0939a6a9a25a5eb0986dbd37d0c1519d6fdde4502db6b9457472e64921006"
+      }
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "report_sha256": "1528147eeb55bf6e2cca4b50cf68c94ea4ad16339bc39b35a659969819dbd849",
+  "report_schema_version": 2,
+  "findings": [
+    {
+      "stage": "acquisition",
+      "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+      "observations": 8,
+      "example_locations": [
+        "/old/issues/59/reason",
+        "/old/issues/60/reason",
+        "/old/issues/61/reason",
+        "/old/issues/62/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unresolved content: marked content has no complete native glyph membership",
+      "observations": 4,
+      "example_locations": [
+        "/old/issues/35/reason",
+        "/old/issues/47/reason",
+        "/new/issues/35/reason",
+        "/new/issues/47/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+      "observations": 2,
+      "example_locations": [
+        "/old/issues/58/reason",
+        "/new/issues/58/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+      "observations": 54,
+      "example_locations": [
+        "/old/issues/0/reason",
+        "/old/issues/2/reason",
+        "/old/issues/4/reason",
+        "/old/issues/6/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unsupported feature: structure object-reference binding is not implemented",
+      "observations": 58,
+      "example_locations": [
+        "/old/issues/1/reason",
+        "/old/issues/3/reason",
+        "/old/issues/5/reason",
+        "/old/issues/7/reason"
+      ]
+    },
+    {
+      "stage": "counterpart_decision",
+      "reason": "independent_correspondence_evidence",
+      "observations": 36,
+      "example_locations": [
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/2/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/3/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/4/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/5/missing/0"
+      ]
+    },
+    {
+      "stage": "counterpart_decision",
+      "reason": "resolved_rivals",
+      "observations": 34,
+      "example_locations": [
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/0/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/1/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/2/missing/1",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/3/missing/1"
+      ]
+    },
+    {
+      "stage": "localization",
+      "reason": "local character proof did not finish within its work budget",
+      "observations": 2,
+      "example_locations": [
+        "/comparison/scopes/0/result/comparisons/24/unresolved/0",
+        "/comparison/scopes/0/result/comparisons/26/unresolved/0"
+      ]
+    },
+    {
+      "stage": "localization",
+      "reason": "local compared=false",
+      "observations": 2,
+      "example_locations": [
+        "/comparison/scopes/0/result/comparisons/24/compared",
+        "/comparison/scopes/0/result/comparisons/26/compared"
+      ]
+    },
+    {
+      "stage": "localization",
+      "reason": "local correspondence 33: claim DP memory exceeded its limit of 67108864",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/scopes/0/result/unresolved/0"
+      ]
+    }
+  ]
+}

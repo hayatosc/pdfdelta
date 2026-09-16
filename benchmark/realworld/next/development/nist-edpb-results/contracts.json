@@ -1,0 +1,352 @@
+[
+  {
+    "pair": "edpb-design-default-v1-to-v2",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "dc08d1c251e1c40aedcef4018aa15b58d5e84571de3529268acf863fb6e36f49"
+  },
+  {
+    "pair": "edpb-design-default-v1-to-v2",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "d052141dee8d8d386f512e2e2ba71c352aa8a7790c8876aa22a683656f336eac",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "edpb-design-default-v1-to-v2",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "5bfca96bc9f7fbcc72e9b17ff9a31b0a0f6aa6b24668c31a7548f06a670377e8",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "edpb-restrictions-v1-to-final",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "d77c4f39e84c2db8b6f41d0e34b8db07428d057094440eb13f9309910027dd39"
+  },
+  {
+    "pair": "edpb-restrictions-v1-to-final",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "54dd24317a398ec94fd478cee1d59f1660e3f35e8eb5452d68ef676480178623",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "edpb-restrictions-v1-to-final",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "cec3aa301a76b300b0c2fcbceb64d155b997308c3aba8881f84a76e7e709f361",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "edpb-social-targeting-v1-to-v2",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "d70456f6d81e0b05b60be4c9711cfa0378d522485199a98c98fdfb2e41079113"
+  },
+  {
+    "pair": "edpb-social-targeting-v1-to-v2",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "55319e8596fc6286e56edd3d78d97943048e3e757645ca19b921bc64a107811b",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "edpb-social-targeting-v1-to-v2",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "b49f5cbc76fe3e678b2765c710e1b2eb41c18d51a957b0f0635d637d6b37169e",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-ai-rmf-draft2-to-v1",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "6c7b5360c5db1306d1ce8842c30d9e99b99651c63dc7c29104f376a66b586043"
+  },
+  {
+    "pair": "nist-ai-rmf-draft2-to-v1",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "2dd3a39b30788eeaa99fb510565baa3dbaed6ada7fb04b754d728d983485c468",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-ai-rmf-draft2-to-v1",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "5132a1058fcdc58c360f837ea5634ae87faa2e649a326507304be6130a3d618f",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-authentication-63b-to-63b4",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "4a496472c609ce4825517de54c739c980a90e1ed97076202498a9e3f53e18e07"
+  },
+  {
+    "pair": "nist-authentication-63b-to-63b4",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "24894f7854378a89aa9cbc7ffd0681b270a6bf7cddba5e02d465d52610b48b44",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-authentication-63b-to-63b4",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "72c6283ccdd97534e20d7d649c8b16e053122ac0289dd8ff943a4174fe62785c",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-incident-handling-r2-to-r3",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "9c6891508b69436673970269a11b69a74cf2b3e9bfc46aaa76b8b959f70beb9c"
+  },
+  {
+    "pair": "nist-incident-handling-r2-to-r3",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "850be10685fbc7ec71731b092e2c4f5ca13d2fd266531c1d6298c96186e661d9",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-incident-handling-r2-to-r3",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "91db5aec929653366f60574dac09a37890c2c82600d4cd06a84d288f2a9b6631",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-ssdf-draft-to-final",
+    "route": "native",
+    "byte_identical": true,
+    "report_sha256": "9f3dac1d9d34765e519a0af3dccf82a639fa65a8e83bceef0cbd83dfc164990c"
+  },
+  {
+    "pair": "nist-ssdf-draft-to-final",
+    "route": "text",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "def1e45ee4d3904b19100353374db3f12af45e1ea6c4764c09d09e85f3254d4e",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  },
+  {
+    "pair": "nist-ssdf-draft-to-final",
+    "route": "all",
+    "unchanged_existing_result_contract": true,
+    "removed": [
+      "comparison_wall_time_ms",
+      "scope_content_changes",
+      "inferred_scope_changes",
+      "comparison.scopes[].result.text_scope_reviews",
+      "comparison.scopes[].result.text_search.index_entries",
+      "comparison.scopes[].result.text_search.token_visits"
+    ],
+    "canonical_sha256": "54de54102534d0bf3e6e72b0af838ee205ebca68d0522509401be4b80507ca70",
+    "text_token_visits": {
+      "baseline": [
+        0
+      ],
+      "current": [
+        0
+      ]
+    }
+  }
+]

@@ -1,0 +1,210 @@
+{
+  "status": "diagnostic_with_source_backed_next_implementation_candidate",
+  "previous_turn_classification": "progress: implemented and verified the SSDF fixed-target refinement",
+  "baseline": {
+    "path": "benchmark/realworld/remaining/borrowed-cut-members-result.json",
+    "sha256": "211ce356ab9e78848a57c053da6dfc3461769ceae9cafce1e82fd1bfd6fbbfb6"
+  },
+  "fixed_panel_denominator": 36,
+  "new_recovery_claimed": false,
+  "production_changed": false,
+  "dependencies_added": false,
+  "findings": {
+    "edpb_design_default": "All 847 frozen target glyph atoms are present in exact native nodes. Both whole and unpadded accepted boundaries were inspected. Old paragraph labels 4/5 and new labels differ in retained order relative to their bodies. Four rotated obsolete watermark glyphs and two finite non-text bounds intersect the target-node envelope; new-page paint is disjoint. This is not resolved by copying fewer tokens.",
+    "nist_ai_rmf": "All 949 target glyph atoms are present, but no accepted whole or unpadded boundary touches the target pages. Eleven old non-text bounds intersect the target-node envelope; the new page has a full-page paint bound. Page inventories remain incomplete.",
+    "gpt3": "All 225 target glyph atoms are present. The Translation heading is an accepted boundary, but the old target spans nodes 499/500 and the latter also contains an unmapped citation glyph. The enclosing range cannot simply omit that glyph. Its embedded Type1 program provides an explicit code-to-name mapping that the current simple-font decoder does not read."
+  },
+  "type1_probe": {
+    "glyph": {
+      "id": 38717,
+      "text": {
+        "Unmapped": {
+          "font_hash": [
+            193,
+            155,
+            182,
+            70,
+            76,
+            164,
+            105,
+            98,
+            15,
+            199,
+            185,
+            9,
+            28,
+            3,
+            103,
+            87,
+            145,
+            19,
+            176,
+            191,
+            76,
+            156,
+            77,
+            94,
+            87,
+            72,
+            28,
+            46,
+            44,
+            154,
+            152,
+            193
+          ],
+          "glyph_id": 43
+        }
+      },
+      "raw_code": [
+        43
+      ],
+      "page": 13,
+      "bbox": {
+        "min": {
+          "x": 236.847,
+          "y": 227.0390828
+        },
+        "max": {
+          "x": 242.9630226,
+          "y": 233.2318172
+        }
+      },
+      "baseline": {
+        "x": 236.847,
+        "y": 228.392
+      },
+      "direction": {
+        "x": 1.0,
+        "y": 0.0
+      },
+      "font_id": 5,
+      "font_size": 6.9738,
+      "render_order": 38741,
+      "render_mode": "Fill",
+      "crop_status": "Inside",
+      "path_clip_status": "Unclipped",
+      "provenance": {
+        "content_stream": {
+          "object_number": 478,
+          "generation": 0
+        },
+        "operator_index": 104
+      }
+    },
+    "font": {
+      "base_font": "RGMAWK+CMR7",
+      "descriptor": "Some(Dictionary({[65, 115, 99, 101, 110, 116]: Integer(694), [67, 97, 112, 72, 101, 105, 103, 104, 116]: Integer(683), [67, 104, 97, 114, 83, 101, 116]: String([47, 67, 47, 97, 47, 98, 47, 99, 47, 100, 47, 101, 47, 101, 105, 103, 104, 116, 47, 102, 47, 102, 102, 47, 102, 111, 117, 114, 47, 104, 47, 105, 47, 106, 47, 108, 47, 109, 47, 110, 47, 111, 47, 111, 110, 101, 47, 112, 47, 112, 97, 114, 101, 110, 108, 101, 102, 116, 47, 112, 97, 114, 101, 110, 114, 105, 103, 104, 116, 47, 112, 108, 117, 115, 47, 114, 47, 115, 47, 116, 47, 116, 119, 111, 47, 119, 47, 120, 47, 121]), [68, 101, 115, 99, 101, 110, 116]: Integer(-194), [70, 108, 97, 103, 115]: Integer(4), [70, 111, 110, 116, 66, 66, 111, 120]: Array([Integer(-27), Integer(-250), Integer(1122), Integer(750)]), [70, 111, 110, 116, 70, 105, 108, 101]: Reference(ObjectRef { object_number: 1460, generation: 0 }), [70, 111, 110, 116, 78, 97, 109, 101]: Name([82, 71, 77, 65, 87, 75, 43, 67, 77, 82, 55]), [73, 116, 97, 108, 105, 99, 65, 110, 103, 108, 101]: Integer(0), [83, 116, 101, 109, 86]: Integer(79), [84, 121, 112, 101]: Name([70, 111, 110, 116, 68, 101, 115, 99, 114, 105, 112, 116, 111, 114]), [88, 72, 101, 105, 103, 104, 116]: Integer(431)}))",
+      "encoding": "None",
+      "font": "{[66, 97, 115, 101, 70, 111, 110, 116]: Name([82, 71, 77, 65, 87, 75, 43, 67, 77, 82, 55]), [70, 105, 114, 115, 116, 67, 104, 97, 114]: Integer(11), [70, 111, 110, 116, 68, 101, 115, 99, 114, 105, 112, 116, 111, 114]: Reference(ObjectRef { object_number: 1461, generation: 0 }), [76, 97, 115, 116, 67, 104, 97, 114]: Integer(121), [83, 117, 98, 116, 121, 112, 101]: Name([84, 121, 112, 101, 49]), [84, 121, 112, 101]: Name([70, 111, 110, 116]), [87, 105, 100, 116, 104, 115]: Reference(ObjectRef { object_number: 1441, generation: 0 })}",
+      "object": "Reference(ObjectRef { object_number: 209, generation: 0 })",
+      "resource": "F7"
+    },
+    "program_encoding": "/Encoding 256 array\n0 1 255 {1 index exch /.notdef put} for\ndup 67 /C put\ndup 97 /a put\ndup 98 /b put\ndup 99 /c put\ndup 100 /d put\ndup 101 /e put\ndup 56 /eight put\ndup 102 /f put\ndup 11 /ff put\ndup 52 /four put\ndup 104 /h put\ndup 105 /i put\ndup 106 /j put\ndup 108 /l put\ndup 109 /m put\ndup 110 /n put\ndup 111 /o put\ndup 49 /one put\ndup 112 /p put\ndup 40 /parenleft put\ndup 41 /parenright put\ndup 43 /plus put\ndup 114 /r put\ndup 115 /s put\ndup 116 /t put\ndup 50 /two put\ndup 119 /w put\ndup 120 /x put\ndup 121 /y put\nreadonly def\ncurrentdict end\n",
+    "library_result": {
+      "code": 43,
+      "glyph_name": "plus",
+      "glyph_id": 4,
+      "font_glyphs": 30
+    },
+    "same_font_native_glyph_count": 334,
+    "same_font_unmapped_glyph_count": 334,
+    "library": "existing compiled read-fonts 0.39.2, Type1Font::encoding/map/glyph_name",
+    "source_program_object": 1460,
+    "resource_object": 209,
+    "resource_name": "F7",
+    "reproduction": [
+      "cargo run -p pdfdelta-bench --locked --example glyph_font_probe -- benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-old.pdf (temporary example preserved as font-probe.rs, removed after execution)",
+      "rustc --edition 2024 encoding-probe.rs --extern read_fonts=target/debug/deps/libread_fonts-46b2eb7f4ea25f88.rlib -L dependency=target/debug/deps -o encoding-probe",
+      "encoding-probe gpt3-cmr7.bin"
+    ],
+    "probe_input_limit_bytes": 1048576
+  },
+  "next_action": "Evaluate bounded Type1 built-in Encoding support in the simple-font decoder using the existing font library and retained embedded program. Preserve explicit Encoding and ToUnicode precedence, font/source identity, geometry, and aggregate resource limits. First prove the source mapping on constructed controls, then measure whether the GPT-3 enclosing range and fixed target become recoverable; decoding this glyph alone is not a recovery claim.",
+  "checks": {
+    "three_native_exports_equal_measured_reports_except_wall_time": true,
+    "font_probe_compiled_and_ran": true,
+    "type1_encoding_probe_compiled_and_ran": true,
+    "temporary_example_removed": true,
+    "production_cut_source_unchanged": true,
+    "workspace_checks": "not rerun: no production or test source was changed"
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/export.py",
+      "sha256": "7167e3487d7e24832431adc6d6d41b1b56396944abff439f31ca054b78ef5b18"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/export.log",
+      "sha256": "d8e3cbfad926777530a8a509cc93fb30966e83aa7ae75e55f30953867eaea729"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/inspect.py",
+      "sha256": "79915ad57f5ed7614c1dfd074867f5d1cdb67599c0084911bbd74d7ff4c37329"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/nodes.json",
+      "sha256": "3157652b7623f663555e07c374b7d17a05074f6f04dfa3e23e94190f413d0617"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/check-boundaries.py",
+      "sha256": "99c939a97aa7477e31fb4bff93e8e3afe27353b62d3c1f907e1cbfb3c307000a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/boundaries.json",
+      "sha256": "1d07e6fd6fd8a99c1ee16730c762ef21429698c8832820fedd54044c16175c0f"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/font-probe.rs",
+      "sha256": "226363cf2bafe0355b3929f2201588c77189ae7e0f81d90f6ced065365163b39"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/font-probe.log",
+      "sha256": "3e480946e915cf82f207709f77e9ad28c2453ba5ee396b0184b30f5be1773ea9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/gpt3-fonts.json",
+      "sha256": "7cfb69f1e12b2826dae0cfd0becb85754d3e212f6edf1c300cc7e4ce2bb33fc3"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/gpt3-stream-478.bin",
+      "sha256": "c312045c3ef7d8b399ef428ed8ff75897be1fa15c2948f05f0c6f0dbd42b6919"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/gpt3-cmr7.bin",
+      "sha256": "5d5ea0385600ee76b202ca00c8f90adba96b2f00c21f005715ba679673ba866a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/encoding-probe.rs",
+      "sha256": "95e1b9cae7f49827e6dc038089032a58c22219a73bc38bd6c749df5e75434790"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/encoding-probe",
+      "sha256": "b1874dc236e484e3fe24298835d9fc0587659f0bfa324e0d17feadec34333402"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/encoding-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/encoding.json",
+      "sha256": "0cc85cd1b60580f4234da25038b5a674645b893767cfa89bda73d2af93806d8e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/remaining-body-boundaries/retain.py",
+      "sha256": "45bb62ffd2889809bd9e9959e14d88c015097ad5ccee5b323abe2df559dac716"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/pdf/font/simple.rs",
+      "sha256": "964159eadbd9e5f619db466e15578dfdf6e8189bef6a4b5d77e1a73177402a20"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes.rs",
+      "sha256": "ee5da55ddbe8d719c268c663ab7f161e45c38b044602c9b6a88a0b798898f1a9"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_scopes/cuts/pages.rs",
+      "sha256": "03b6570d7e606e0767f3ed0e96958d9df5dd8be5123a95232ab734fe8e18a1d6"
+    }
+  ]
+}

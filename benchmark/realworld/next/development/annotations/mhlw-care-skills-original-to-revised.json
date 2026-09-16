@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "mhlw-care-skills-original-to-revised",
+  "old_sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe",
+  "new_sha256": "2fa47d80d4167c5173e9f24c93178d90fdcf5e6cc45ca574360364f9820325af",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old",
+      "side": "old",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "社会や地域の中でその人らしく、我が慢まんすることなく、普ふ通つうの生活を継けい続ぞくすることです。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-heading-old",
+      "side": "old",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "４）ノーマライゼーション",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new",
+      "side": "new",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "社しゃ会かいや地ち域いきの中なかで、障しょう害がいのある人ひともない人ひとも、お互たがいに支ささえ合あい、その人ひとらしく生せい活かつを継けい続ぞくすることです。",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "unchanged-heading-new",
+      "side": "new",
+      "locator": {
+        "page": 13
+      },
+      "literal_quote": "４）ノーマライゼーション",
+      "position_unit": "unicode_scalar"
+    }
+  ]
+}

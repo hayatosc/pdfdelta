@@ -1,0 +1,764 @@
+{
+  "status": "candidate_screen_only_not_a_proof",
+  "pairs": [
+    {
+      "pair": "c",
+      "source_bundle_sha256": "30c4e0ff9637ce6d7dd487338e07c747771a3e4cffe2f01421b0cafc00bb5d4f",
+      "report_sha256": "64985649a9eb9941290da9e9f77a6d517e79a8519668423009be7869b347163e",
+      "candidate_components": [
+        {
+          "scope": 0,
+          "component": 16,
+          "endpoints": {
+            "old": [
+              181,
+              183
+            ],
+            "new": [
+              181,
+              183
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 18,
+          "endpoints": {
+            "old": [
+              184,
+              186
+            ],
+            "new": [
+              184,
+              186
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 20,
+          "endpoints": {
+            "old": [
+              187,
+              189
+            ],
+            "new": [
+              187,
+              189
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 22,
+          "endpoints": {
+            "old": [
+              190,
+              192
+            ],
+            "new": [
+              190,
+              192
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 24,
+          "endpoints": {
+            "old": [
+              193,
+              195
+            ],
+            "new": [
+              193,
+              195
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 26,
+          "endpoints": {
+            "old": [
+              196,
+              198
+            ],
+            "new": [
+              196,
+              198
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 28,
+          "endpoints": {
+            "old": [
+              199,
+              201
+            ],
+            "new": [
+              199,
+              201
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 30,
+          "endpoints": {
+            "old": [
+              202,
+              204
+            ],
+            "new": [
+              202,
+              204
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 36,
+          "endpoints": {
+            "old": [
+              209,
+              210
+            ],
+            "new": [
+              209,
+              210
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 48,
+          "endpoints": {
+            "old": [
+              232,
+              234
+            ],
+            "new": [
+              232,
+              234
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 84,
+          "endpoints": {
+            "old": [
+              51,
+              53
+            ],
+            "new": [
+              51,
+              53
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 86,
+          "endpoints": {
+            "old": [
+              54,
+              56
+            ],
+            "new": [
+              54,
+              56
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 88,
+          "endpoints": {
+            "old": [
+              57,
+              59
+            ],
+            "new": [
+              57,
+              59
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 90,
+          "endpoints": {
+            "old": [
+              60,
+              62
+            ],
+            "new": [
+              60,
+              62
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 92,
+          "endpoints": {
+            "old": [
+              63,
+              65
+            ],
+            "new": [
+              63,
+              65
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 95,
+          "endpoints": {
+            "old": [
+              67,
+              69
+            ],
+            "new": [
+              67,
+              69
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 97,
+          "endpoints": {
+            "old": [
+              70,
+              72
+            ],
+            "new": [
+              70,
+              72
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 99,
+          "endpoints": {
+            "old": [
+              73,
+              75
+            ],
+            "new": [
+              73,
+              75
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 101,
+          "endpoints": {
+            "old": [
+              76,
+              79
+            ],
+            "new": [
+              76,
+              79
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 4,
+            "new": 4
+          }
+        },
+        {
+          "scope": 0,
+          "component": 106,
+          "endpoints": {
+            "old": [
+              82,
+              84
+            ],
+            "new": [
+              82,
+              84
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 109,
+          "endpoints": {
+            "old": [
+              86,
+              88
+            ],
+            "new": [
+              86,
+              88
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 113,
+          "endpoints": {
+            "old": [
+              93,
+              95
+            ],
+            "new": [
+              93,
+              95
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 115,
+          "endpoints": {
+            "old": [
+              96,
+              108
+            ],
+            "new": [
+              96,
+              108
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 119,
+          "endpoints": {
+            "old": [
+              100,
+              105
+            ],
+            "new": [
+              100,
+              105
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 2,
+            "new": 2
+          }
+        },
+        {
+          "scope": 0,
+          "component": 121,
+          "endpoints": {
+            "old": [
+              102,
+              104
+            ],
+            "new": [
+              102,
+              104
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 134,
+          "endpoints": {
+            "old": [
+              119,
+              121
+            ],
+            "new": [
+              119,
+              121
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 138,
+          "endpoints": {
+            "old": [
+              124,
+              126
+            ],
+            "new": [
+              124,
+              126
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 145,
+          "endpoints": {
+            "old": [
+              136,
+              138
+            ],
+            "new": [
+              136,
+              138
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 147,
+          "endpoints": {
+            "old": [
+              139,
+              141
+            ],
+            "new": [
+              139,
+              141
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        },
+        {
+          "scope": 0,
+          "component": 149,
+          "endpoints": {
+            "old": [
+              142,
+              146
+            ],
+            "new": [
+              142,
+              146
+            ]
+          },
+          "same_endpoint_counts": true,
+          "all_retained_tokens_identical": true,
+          "source_overlap_within_side": {
+            "old": false,
+            "new": false
+          },
+          "not_yet_compared_sources": {
+            "old": 6,
+            "new": 6
+          }
+        }
+      ],
+      "maximum_source_opportunity_before_domain_validation": {
+        "old": 160,
+        "new": 160
+      },
+      "strict_coverage_gain_claimed": 0,
+      "unverified_preconditions": [
+        "closed corresponding source domains",
+        "local inventory",
+        "meaningful order and membership",
+        "rival partition invariance",
+        "perfect source ownership across all permitted correspondences",
+        "pending dependency closure"
+      ]
+    },
+    {
+      "pair": "se",
+      "source_bundle_sha256": "21f785affb654a72327e0fc87c97c1850895096c762d6340bfbc1cf919be683b",
+      "report_sha256": "f646128cac88c6c1104986f7401d4c7860885ccb68a572bfd30fff9100c591f8",
+      "candidate_components": [],
+      "maximum_source_opportunity_before_domain_validation": {
+        "old": 0,
+        "new": 0
+      },
+      "strict_coverage_gain_claimed": 0,
+      "unverified_preconditions": [
+        "closed corresponding source domains",
+        "local inventory",
+        "meaningful order and membership",
+        "rival partition invariance",
+        "perfect source ownership across all permitted correspondences",
+        "pending dependency closure"
+      ]
+    }
+  ]
+}

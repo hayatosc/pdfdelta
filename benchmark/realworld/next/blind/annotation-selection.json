@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "sampling": "One changed source scope per active pair; unchanged control where a unique unchanged literal was identified. No exhaustive event inventory or unique author edit history is asserted. Kana quotes are manual visual transcriptions and are expected to remain unresolved by the glyph-only selector.",
+  "pairs": [
+    {
+      "id": "nist-risk-management-37-r1-to-r2",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 302,
+        "new": 212
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "irs-1099-misc-2024-to-2025",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 36,
+        "new": 3
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "irs-w2-2024-to-2025",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 33,
+        "new": 33
+      },
+      "kind": "literal raw source range",
+      "strict_gold": "one-character year replacement only"
+    },
+    {
+      "id": "arxiv-mask-rcnn-v1-to-v3",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 923,
+        "new": 984
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "bunka-official-writing-1952-to-2022",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 55,
+        "new": 35
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "faa-thunderstorms-b-to-c",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 591,
+        "new": 788
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "faa-maintenance-records-c-to-d",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 570,
+        "new": 400
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "arxiv-faster-rcnn-v1-to-v3",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 506,
+        "new": 517
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "bunka-kana-1946-to-1986",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 51,
+        "new": 60
+      },
+      "kind": "human-visible text unresolved in native glyph view",
+      "strict_gold": null
+    },
+    {
+      "id": "nist-controls-53-r4-to-r5",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 334,
+        "new": 235
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "nist-risk-assessment-30-to-r1",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 269,
+        "new": 471
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    },
+    {
+      "id": "nist-contingency-34-to-r1",
+      "status": "annotation_authored_before_comparison",
+      "body_quote_lengths": {
+        "old": 457,
+        "new": 777
+      },
+      "kind": "literal raw source range",
+      "strict_gold": null
+    }
+  ]
+}

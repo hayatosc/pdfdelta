@@ -1,0 +1,533 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "pair": "nist-47-original-to-r1",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The complete first Executive Summary paragraph changes system interconnections to information exchanges and changes applicability. The old edition has no Abstract.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-47-original-to-r1.json",
+          "sha256": "51a76f30616f7ab0109b1fe01e453b553a0d74594e6725d4519db376327903fe"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-47-original-to-r1.resolved.json",
+          "sha256": "e1542055c1e2413df21b570507b688d72364d7b803878c6b50a934c038e96328"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-47-original-to-r1.expectations.json",
+          "sha256": "c5aa4c325ae12984c830f74961a40618310a963d4064d38bbe26b4b5b24382a8"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-52-r1-to-r2",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes the minimum TLS version and recommended migration date, and revises certificate and extension guidance.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-52-r1-to-r2.json",
+          "sha256": "f2da98c1433dc1fc2d08cb9b96232535b74b774839ff076cbedc5df0242a949d"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-52-r1-to-r2.resolved.json",
+          "sha256": "245917dc5793e4eaba845737a7e743d21354c4a6c273d59acb658acf0407309f"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-52-r1-to-r2.expectations.json",
+          "sha256": "9cb6a3a2c467e945dcc7730afc5341682fa4000963100fad5d777cec624c01b3"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-41-original-to-r1",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The complete first Executive Summary paragraph changes the firewall scope and deployment rationale. The old publisher PDF is a scan with a pre-existing text layer; extraction and image inventory limitations remain explicit.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-41-original-to-r1.json",
+          "sha256": "761eff0eb300d31c98c56a7198d44b315b77c96b5f45282784fecee950ca0d01"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-41-original-to-r1.resolved.json",
+          "sha256": "7b19e4556dfa030353c830a506111fd1c7690546ba610ab381c100629ba2aab9"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/nist-41-original-to-r1.expectations.json",
+          "sha256": "c5d27e97e40ca48d9c71c9eae736d811bdddf9742acc3f3e71bb2050e25817c8"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "The complete first Introduction paragraph changes biometric authentication/identification to uniquely identifying a natural person. Original numbering and footnote marker remain.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/edpb-connected-vehicles-v1-to-v2.json",
+          "sha256": "76ea4470c640577d632abc70861213ca0efaed0532e677eaec19aa914b479228"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/edpb-connected-vehicles-v1-to-v2.resolved.json",
+          "sha256": "78329fdcc67826954ec2db1863fb26293d1873e6d05eeb317200e478b32c4ebf"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/edpb-connected-vehicles-v1-to-v2.expectations.json",
+          "sha256": "71b456bbac07b6d85b67e27875a83b3dc01448005b9d35f184c1e2e5b2d5b5cc"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "edpb-interplay-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "The second Introduction paragraph changes the explanation of protection outside the EU and adds international organisations. The first body paragraph has no substantive prose change. Old raw numbering is retained; the new visible numbering has no glyph in this raw contiguous text range and is not certified absent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/edpb-interplay-v1-to-v2.json",
+          "sha256": "e585848c4f91735f967b069cab2ef2415c8e89df74bc6cbbd300d24cafe0b64d"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/edpb-interplay-v1-to-v2.resolved.json",
+          "sha256": "509179c7ea498e768a4fd064d86024dcd3ef022d6e24e99bdc7065ba9310c3e7"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/edpb-interplay-v1-to-v2.expectations.json",
+          "sha256": "cffae611042228b07ae7672bfe88735fcfe2c936463bff03881672383b11c398"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "arxiv-rag-v1-to-v4",
+      "publisher": "Meta AI",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract removes the claim that explicit memory can overcome the stated issue and changes the description of the second retrieval formulation.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-rag-v1-to-v4.json",
+          "sha256": "959ead63343517b74bf666f676212de33ccd0d1fbdbb09696a6fb04e1acdf653"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-rag-v1-to-v4.resolved.json",
+          "sha256": "9b9f60bffdaead0d006a31fe5555f4f76ab2dfffce079a391dabc83108115ed0"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-rag-v1-to-v4.expectations.json",
+          "sha256": "a046b5a1484bead8d4e1c069b6f98899ee92dc6b30fc6334e5f8710df05b4c11"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Meta AI"
+    },
+    {
+      "pair": "arxiv-longformer-v1-to-v2",
+      "publisher": "Allen Institute for AI",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract adds the Longformer Encoder Decoder and summarization result. Both terminal footnote markers remain in the source range.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-longformer-v1-to-v2.json",
+          "sha256": "e6f6c55e89f058f1ad04db7fb708d949e2eba8276f0fb06a7f539b2a11aba268"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-longformer-v1-to-v2.resolved.json",
+          "sha256": "d8ef67b141068758b0112c7cf56be79e62f1b873499c9ab4fc9545198be4ab6b"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-longformer-v1-to-v2.expectations.json",
+          "sha256": "ef981db7c84a89b96df1de8faf7588bb0502887452a82291e5b2174acd24e639"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Allen Institute for AI"
+    },
+    {
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "publisher": "Hugging Face",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract corrects remain to remains in its first sentence. This grammatical text replacement is a real prose edit; it is not a citation or publication-date change.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-distilbert-v1-to-v4.json",
+          "sha256": "37895e3db033516e2bc06796d39777821fbc4d32002b40eb5a812cb24e181453"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-distilbert-v1-to-v4.resolved.json",
+          "sha256": "75bc920d01f2824dbdc2a03a4a9d16bae8685b041a2790f073fe73497970e87f"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/arxiv-distilbert-v1-to-v4.expectations.json",
+          "sha256": "fa93db73bb6bc281927dca5410e61119d4fadd8e242d000f4efc8a6897a1db48"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Hugging Face"
+    },
+    {
+      "pair": "faa-sop-71a-to-71b",
+      "publisher": "FAA",
+      "body_eligible": true,
+      "eligibility_reason": "The complete first purpose body paragraph is compared with the new complete opening scope paragraph, including new pilot-monitoring guidance. The inline old General heading, mastheads and signatures remain outside the target.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/faa-sop-71a-to-71b.json",
+          "sha256": "356978dd53547b97b7bc697bf0b8a6d7c8334ee58c85bd7aeecca6061bfe86af"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/faa-sop-71a-to-71b.resolved.json",
+          "sha256": "b0ff7e6ebc8488ac0234d1154fe0e5169a34c5634aea623e2efd90df58e92a1c"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/faa-sop-71a-to-71b.expectations.json",
+          "sha256": "62ca65d7ce6121136a13e0347b761105a043c7869d443f10aecf8792220f5400"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "FAA"
+    },
+    {
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "publisher": "MHLW",
+      "body_eligible": true,
+      "eligibility_reason": "The complete first current-state paragraph changes the listed reasons for side jobs. Both original paragraph markers remain.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/mhlw-sidejobs-2018-to-2022.json",
+          "sha256": "3d38a33d1604147a8ad51aad1901deb952f5dc9e88f4406f3620d886fdadd785"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/mhlw-sidejobs-2018-to-2022.resolved.json",
+          "sha256": "5400fc20290bb81c366aebcb8b944a8755f196842bd2c9f02938392906c4c501"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/mhlw-sidejobs-2018-to-2022.expectations.json",
+          "sha256": "50728e6d393fa46efe149792c57d01e7433c75627b2b6a265818467a900156f6"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "MHLW"
+    },
+    {
+      "pair": "ietf-smtp-2821-to-5321",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "The first complete abstract prose paragraph replaces the old description that introduces the following separate list with the new full abstract paragraph describing extension mechanisms and submission. The old list and subsequent abstract paragraphs remain outside this finite target.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/ietf-smtp-2821-to-5321.json",
+          "sha256": "fc17ee61ef3305e4f58ae0f677ea5228d4a0d0dfe98a1de1b554373e003fd2f0"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/ietf-smtp-2821-to-5321.resolved.json",
+          "sha256": "0871b68b783c9ca2771bdd1d59c12d34e81d871ee70158314f17281d1cacec29"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/ietf-smtp-2821-to-5321.expectations.json",
+          "sha256": "b6bd12fa1b1a2e33b619b5b3e7b0da5dcd9b20c7437c539a9c214c95ca0d2d6e"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    },
+    {
+      "pair": "ietf-imap-3501-to-9051",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes protocol operations and mail-submission guidance, and removes the separate paragraph about single-server support. All four old and three new paragraphs remain in the source extent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/ietf-imap-3501-to-9051.json",
+          "sha256": "e9eb499a1fd9b6e844feef2d46afd817a7ece24fc712c3f129da5a9a048dda95"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/ietf-imap-3501-to-9051.resolved.json",
+          "sha256": "bbd0a30cbb0f81e3f35c990696478231c6ca296c7d6861f79daabbae7f816906"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v4/annotations/ietf-imap-3501-to-9051.expectations.json",
+          "sha256": "9f3d4a71a218ad3ce46c42558b675bbdf9a7006b486905f42791bc126c272954"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    }
+  ]
+}

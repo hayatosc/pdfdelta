@@ -1,0 +1,314 @@
+{
+  "status": "finished",
+  "goal_complete": false,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/inline-source-v5/pdfdelta",
+    "sha256": "22718145ed9c75fc48f13075382fcaab66ce4dbfab663eda90772d29d1251210"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/inline-source-v5/source.tar.gz",
+    "sha256": "37f2389694ce07e74f4c50ed6dc125ef120c9dbce81912d3ad0a2dc3506a4a6c"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-completion/inline-source-v5/build.log",
+    "sha256": "3130e0a2216935d3ce34a81382440101c99a638cf9b38a5d2f6c63a5979f5163"
+  },
+  "rows": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/inline-source-v5/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/inline-source-v5/irs-schedule-se-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "d8e751f1e9ed38789f489681430e2995e9e2acac",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "fb7bdb2563c00c614d098c27620593a426ffe18f1d09ffbada25280348eed7d4"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/inline-source-v5/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "67654fdcf70a6f4e02c6872c277f3984200b2ef98e8736c28baf951cc5dc232d"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/inline-source-v5/irs-schedule-se-2024-to-2025-1/runs.json",
+        "sha256": "433a2d55eef7487aa557ca61e5a58df610e7fa03d59bc5586fcc3b0b1ce4219d"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 5158,
+        "new": 5175
+      },
+      "native_glyphs_after": {
+        "old": 5158,
+        "new": 5175
+      },
+      "comparison_identical": true,
+      "native_intervals": []
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/inline-source-v5/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/inline-source-v5/irs-schedule-c-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "d8e751f1e9ed38789f489681430e2995e9e2acac",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "2390083cb664f1e93652b198138c4a0dc33b295caee3fa492296291067e4a82c"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/inline-source-v5/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "a77ebdb00403cf6b617e65d7322c534fa3612455624b937f3b1c8059cb852b52"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/inline-source-v5/irs-schedule-c-2024-to-2025-1/runs.json",
+        "sha256": "4c99ae5e4e5ac2e30e3eca5e517660f3cf70c37b74635f498e5db6bb878aed5c"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5015,
+          "new_compared_sources": 5015,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1295,
+          "new_uncompared_sources": 1301,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5015,
+          "new_compared_sources": 5015,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1295,
+          "new_uncompared_sources": 1301,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 6310,
+        "new": 6316
+      },
+      "native_glyphs_after": {
+        "old": 6310,
+        "new": 6316
+      },
+      "comparison_identical": true,
+      "native_intervals": [
+        {
+          "boundaries": [
+            321,
+            337
+          ],
+          "old_sources": [
+            {
+              "origin": "native",
+              "glyph": 2637
+            },
+            {
+              "origin": "native",
+              "glyph": 2638
+            },
+            {
+              "origin": "native",
+              "glyph": 2639
+            }
+          ],
+          "new_sources": [
+            {
+              "origin": "native",
+              "glyph": 2637
+            },
+            {
+              "origin": "native",
+              "glyph": 2638
+            },
+            {
+              "origin": "native",
+              "glyph": 2639
+            }
+          ],
+          "comparison": {
+            "old": [
+              102
+            ],
+            "new": [
+              102
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": null,
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 0,
+                "changed_source_upper": 0,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [],
+              "new": []
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          }
+        }
+      ]
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/inline-source-v5/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/inline-source-v5/edpb-controller-processor-v1-to-v2-1-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "d8e751f1e9ed38789f489681430e2995e9e2acac",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "b63275818fdf156a65f95c11f07170eac88d22b6da25954daf1384a757b0145e"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/inline-source-v5/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "a5b98ff727b231850b4d257c61e5388c98925de605f038ceed1a6a1d612a7515"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/inline-source-v5/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "5d23027e26f357545d9d545c6cf28f82f84b8624588ee86b679b212620125a05"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 2240,
+          "new_compared_sources": 2266,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 133548,
+          "new_uncompared_sources": 174726,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 2240,
+          "new_compared_sources": 2266,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 133548,
+          "new_uncompared_sources": 174726,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 135788,
+        "new": 176992
+      },
+      "native_glyphs_after": {
+        "old": 135788,
+        "new": 176992
+      },
+      "comparison_identical": true,
+      "native_intervals": []
+    }
+  ]
+}

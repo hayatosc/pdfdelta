@@ -1,0 +1,17 @@
+{
+  "cpu_model": "AMD Ryzen 5 5600X 6-Core Processor",
+  "logical_cpus": 12,
+  "affinity_cpus": 12,
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "runtime": "CPU only; RTen 0.26.0; no GPU provider",
+  "host_isolation": "Shared virtualized desktop; no exclusive CPU reservation; medians of three sequential runs. Other host activity was not controlled.",
+  "fixture_panel_total_pages": 5684,
+  "full_panel_ocr_run": false,
+  "fixture_rendering_in_timing": false,
+  "model_threads": [
+    1,
+    4
+  ],
+  "document_batch_parallelism": 1,
+  "per_process_timeout_seconds": 60
+}

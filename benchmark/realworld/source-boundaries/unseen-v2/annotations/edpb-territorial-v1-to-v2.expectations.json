@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-territorial-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "8ab3402b8262699dee9355cea65769cc4bf8716d9f6439f48847e9f9a43ca3ea",
+  "body_eligible": true,
+  "reason": "The first Introduction paragraph adds the alternative name or the Regulation for GDPR; the full paragraph and raw footnote markers are retained."
+}

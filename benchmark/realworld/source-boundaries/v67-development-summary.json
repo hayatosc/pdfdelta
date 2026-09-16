@@ -1,0 +1,49 @@
+{
+  "version": 67,
+  "gates": {
+    "G1": {
+      "observed_pairs": 6,
+      "required_pairs": 6,
+      "observed_producers": 3,
+      "required_producers": 3,
+      "passed": true
+    },
+    "G2": {
+      "observed_pairs": 0,
+      "required_pairs": 3,
+      "observed_producers": 0,
+      "required_producers": 2,
+      "passed": false
+    },
+    "G3": {
+      "gained_pairs": [],
+      "lost_pairs": [],
+      "required_gain": 2,
+      "allowed_losses": 0,
+      "passed": false
+    },
+    "G4": {
+      "passed": true
+    },
+    "G5": {
+      "passed": false
+    }
+  },
+  "verification": {
+    "path": "benchmark/realworld/source-boundaries/checks/v67-development-verification.log",
+    "sha256": "0b451aecdfb009182260381fa944ef68391a51da96a3f56a2c31c9a4bbef3cad"
+  },
+  "development": {
+    "path": "benchmark/realworld/source-boundaries/v67-development.json",
+    "sha256": "d250f7c02a95ec179e70b6504ebaa3963a16fb60db44d67b7c93ff0adbbd7bef"
+  },
+  "quality_checks": {
+    "path": "benchmark/realworld/source-boundaries/v67-quality-checks.json",
+    "sha256": "8258d29c084d1ca258b168a3a37fe628b89c2c8282bc08c9da6021c8ab78d23d"
+  },
+  "exposed_dhcp_review": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v7-diagnosis/v67-dhcp-target-review.json",
+    "sha256": "b5d8087bbfa9133ea7a01187b724f03969792dc8a5e7971cf184f8fe2d9ff6a1"
+  },
+  "scope": "Formal development recovery and correctness pass. All six fixed natural targets and 213 V65 outputs are retained. The additional exact DHCP target is an exposed-series diagnostic. G2 and historical G3 remain false; natural segmented recovery remains unproved."
+}

@@ -1,0 +1,84 @@
+[
+  {
+    "id": "irs-w2-2024-to-2025",
+    "side": "old",
+    "page": 1
+  },
+  {
+    "id": "irs-w2-2024-to-2025",
+    "side": "new",
+    "page": 1
+  },
+  {
+    "id": "irs-1099-misc-2024-to-2025",
+    "side": "old",
+    "page": 1
+  },
+  {
+    "id": "irs-1099-misc-2024-to-2025",
+    "side": "new",
+    "page": 1
+  },
+  {
+    "id": "nist-risk-management-37-r1-to-r2",
+    "side": "old",
+    "page": 18
+  },
+  {
+    "id": "nist-risk-management-37-r1-to-r2",
+    "side": "new",
+    "page": 19
+  },
+  {
+    "id": "nist-risk-assessment-30-to-r1",
+    "side": "old",
+    "page": 9
+  },
+  {
+    "id": "nist-risk-assessment-30-to-r1",
+    "side": "new",
+    "page": 9
+  },
+  {
+    "id": "nist-contingency-34-to-r1",
+    "side": "old",
+    "page": 11
+  },
+  {
+    "id": "nist-contingency-34-to-r1",
+    "side": "new",
+    "page": 14
+  },
+  {
+    "id": "nist-controls-53-r4-to-r5",
+    "side": "old",
+    "page": 24
+  },
+  {
+    "id": "nist-controls-53-r4-to-r5",
+    "side": "new",
+    "page": 27
+  },
+  {
+    "id": "bunka-official-writing-1952-to-2022",
+    "side": "old",
+    "page": 1
+  },
+  {
+    "id": "bunka-official-writing-1952-to-2022",
+    "side": "new",
+    "page": 6
+  },
+  {
+    "id": "bunka-kana-1946-to-1986",
+    "side": "new",
+    "page": 0,
+    "native_metadata": "benchmark/realworld/cache/next-blind-renders/kana-new-metadata.json"
+  },
+  {
+    "id": "bunka-kana-1946-to-1986",
+    "side": "new",
+    "page": 1,
+    "native_metadata": "benchmark/realworld/cache/next-blind-renders/kana-new-metadata.json"
+  }
+]

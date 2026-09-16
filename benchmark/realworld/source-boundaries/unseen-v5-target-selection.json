@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "status": "All twelve finite source targets resolved and all 32 target/control pages visually reviewed before comparison.",
+  "targets": [
+    {
+      "pair": "nist-40-r3-to-r4",
+      "target_ranges": {
+        "old": [
+          [
+            5955,
+            6834
+          ]
+        ],
+        "new": [
+          [
+            5100,
+            6093
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "nist-56a-r2-to-r3",
+      "target_ranges": {
+        "old": [
+          [
+            26252,
+            27306
+          ]
+        ],
+        "new": [
+          [
+            27424,
+            28460
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "nist-70-r3-to-r4",
+      "target_ranges": {
+        "old": [
+          [
+            17842,
+            18709
+          ]
+        ],
+        "new": [
+          [
+            16270,
+            17063
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "edpb-certification-transfers-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            1077,
+            2394
+          ]
+        ],
+        "new": [
+          [
+            1058,
+            2366
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "edpb-codes-transfers-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            3355,
+            3930
+          ]
+        ],
+        "new": [
+          [
+            6985,
+            7602
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "arxiv-mamba-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            13016,
+            13241
+          ]
+        ],
+        "new": [
+          [
+            13064,
+            13292
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "arxiv-dpo-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            244,
+            1648
+          ]
+        ],
+        "new": [
+          [
+            244,
+            1611
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "arxiv-deit-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            196,
+            1189
+          ]
+        ],
+        "new": [
+          [
+            196,
+            1084
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "faa-crm-51d-to-51e",
+      "target_ranges": {
+        "old": [
+          [
+            116,
+            1372
+          ]
+        ],
+        "new": [
+          [
+            128,
+            1550
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "mhlw-medical-security-v5-1-to-v5-2",
+      "target_ranges": {
+        "old": [
+          [
+            11470,
+            11748
+          ]
+        ],
+        "new": [
+          [
+            3583,
+            3921
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "ietf-tcp-793-to-9293",
+      "target_ranges": {
+        "old": [
+          [
+            35117,
+            35464
+          ]
+        ],
+        "new": [
+          [
+            11022,
+            11445
+          ],
+          [
+            11642,
+            11649
+          ]
+        ]
+      },
+      "comparison_performed": false
+    },
+    {
+      "pair": "ietf-pkix-3280-to-5280",
+      "target_ranges": {
+        "old": [
+          [
+            1229,
+            1950
+          ]
+        ],
+        "new": [
+          [
+            1433,
+            2171
+          ]
+        ]
+      },
+      "comparison_performed": false
+    }
+  ]
+}

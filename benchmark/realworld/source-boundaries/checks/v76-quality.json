@@ -1,0 +1,41 @@
+{
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-guard-v76/build.json",
+    "sha256": "adbd9520a9d8e04b676e6c5223cc086d6bf655543cc816d74bca4f727db17c98"
+  },
+  "scope": "Diagnostic candidate before subsequent implementation edits. Check outcomes transcribed from completed tool calls; raw command logs were not captured.",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "observed_output": "cargo clippy: No issues found"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "exit_code": 0,
+      "observed_output": "cargo test: 2408 passed, 2 ignored (45 suites, 48.22s)"
+    }
+  ]
+}

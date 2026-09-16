@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-t5-v1-to-v3",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "7b07b9ea4e3c99a0a15e1bb6ea0e75b1495a7fe2337611e722a9f1bfb37d3d3e",
+  "body_eligible": true,
+  "reason": "The complete abstract changes every language problem to all text-based language problems. Both raw terminal footnote markers are retained; the new Keywords paragraph is excluded."
+}

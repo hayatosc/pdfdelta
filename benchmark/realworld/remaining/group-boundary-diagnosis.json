@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "outcome": "The grouped-boundary experiment added no recovered source extent and was reverted. The next observed blocker is source-cut refinement consuming the work needed to enter general page search.",
+  "production": {
+    "path": "target/release/pdfdelta",
+    "sha256": "1ed553b2b5be32fc27920f4bf849b3b810133062aea1fc072c935524cef61f51"
+  },
+  "production_baseline": "validated-native-index-result.json",
+  "production_code_changes_retained": false,
+  "group_boundary_experiment": {
+    "retained_implementation": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-boundaries-after/experiment.json",
+      "sha256": "a5e5dc888d920ed786717d62a953a4ba9ad63daf258f67ef19d286a3d92ef9e1"
+    },
+    "binary": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-boundaries-after/pdfdelta",
+      "sha256": "21b610b6865270343a70d039bb61ead82262308a90925e7f9b0193baebc09958"
+    },
+    "observations": [
+      {
+        "pair": "nist-risk-management-37-r1-to-r2",
+        "baseline": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/validated-index-after/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "2d8c51fc04b2d94ad20e7545a12a70ab6042feb77a6833227fe45f873f5740d7"
+        },
+        "experiment": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-boundaries-after/nist-risk-management-37-r1-to-r2-text.json",
+          "sha256": "39fc092f98eeef89891218677e83b0d19f8dc0603961d6a7312bd396bda072cb"
+        },
+        "scope_review_count_before": 10,
+        "scope_review_count_after": 8,
+        "strict_comparisons_and_coverage_identical": true,
+        "new_native_source_extent": 0
+      },
+      {
+        "pair": "nist-controls-53-r4-to-r5",
+        "baseline": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/validated-index-after/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "0a2925525740c42e32fd6ab737b88ad03306296c512e0069d527179474d46daa"
+        },
+        "experiment": {
+          "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-boundaries-after/nist-controls-53-r4-to-r5-text.json",
+          "sha256": "6463147a11bcd9b5c287d83a10dd235a1e8c59f23426d2eb8a25404e2e003634"
+        },
+        "scope_review_count_before": 0,
+        "scope_review_count_after": 0,
+        "strict_comparisons_and_coverage_identical": true,
+        "new_native_source_extent": 0
+      }
+    ],
+    "fixture_result": "Both split/merge directions and an unassigned glyph inside the entry boundary behaved correctly. Full workspace and generated acceptance passed for the experiment. This is not evidence of real-target recovery.",
+    "rejection": "No new SP 800-37 or SP 800-53 range was recovered. Additional work removed two redundant abstract-cut representations on SP 800-37 while leaving its source union unchanged. The production baseline was restored byte-for-byte."
+  },
+  "page_search_diagnostic": {
+    "stderr": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/risk-page-diagnostic2/nist-risk-management-37-r1-to-r2-text.stderr",
+      "sha256": "97feab0dcc0f3182b11aae2f49459cc81537caf578ec426218574cb35fc3e35d"
+    },
+    "report": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/risk-page-diagnostic2/nist-risk-management-37-r1-to-r2-text.json",
+      "sha256": "83be422f45ce0ca9ebb73909e6124186d5ec42c5485851ebb3bd8e3a74236990"
+    },
+    "run": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/risk-page-diagnostic2/runs.json",
+      "sha256": "484796530ac139e4adf38ba067b42469662eb901294897d58d99650441e67bef"
+    },
+    "binary": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/risk-page-diagnostic2/pdfdelta",
+      "sha256": "f04d16fc96b2c4e4751ccdd4d855b8b265b5a3d4293c3cbc0b605fe614bd6019"
+    },
+    "diagnostic_report_matches_production_except_timing": true,
+    "trace": [
+      "CUT_PASS pass=1 remaining=91555 runs=446/1129 anchors=138",
+      "CUT_PASS pass=3 remaining=209344 runs=446/1129 anchors=138",
+      "CUT_PASS pass=2 remaining=1 runs=446/1129 anchors=138",
+      "CUT_PASS pass=0 remaining=3 runs=446/1129 anchors=138",
+      "PAGE_PASS outer=true remaining=3 runs=446/1129 anchors=138",
+      "PAGE_PASS outer=false remaining=3 runs=446/1129 anchors=138",
+      "CUT_PASS pass=4 remaining=3 runs=446/1129 anchors=138",
+      "CUT_PASS pass=0 remaining=3 runs=0/0 anchors=0",
+      "PAGE_PASS outer=true remaining=3 runs=0/0 anchors=0",
+      "PAGE_POPULATION pairs=0 paths=0/0 remaining=3",
+      "PAGE_PASS outer=false remaining=3 runs=0/0 anchors=0",
+      "PAGE_POPULATION pairs=0 paths=0/0 remaining=3",
+      "CUT_PASS pass=4 remaining=3 runs=0/0 anchors=0"
+    ],
+    "refine_existing_budget_at_entry": 209344,
+    "general_page_search_budget_at_entry": 3,
+    "general_page_search_candidates_examined": 0,
+    "source_files_restored_byte_for_byte": true
+  },
+  "secondary_observation": {
+    "graph": {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/risk-graph-diagnostic/sources.json",
+      "sha256": "3cd92c0d9bb620b22d538823c48684c652603d5fef3d8fdf601ba06e4f2bb052"
+    },
+    "heading_group": {
+      "proposal": 8572,
+      "old": [
+        960,
+        961
+      ],
+      "new": [
+        880
+      ]
+    },
+    "native_graph_breaks": "The raw native graph has heading chains 960->961->962 and 880->881, but the body chains start at 964 and 883. Adjacent malformed opening nodes 963 and 882 retain large-initial-letter material and later line fragments. This may be a later population/order blocker; the observed run exhausts its budget before page candidate construction, so it has not yet tested that hypothesis."
+  },
+  "next_investigation": "Profile RefineExisting source projection and literal-space edge trimming. The current edge trim scans whole views and constructs an interior solely to validate it before the caller constructs that interior again. Preserve glyph-splitting checks, optional normalization certificates, original cut mapping, source closure and all retained ranges when eliminating duplicate work.",
+  "checks": {
+    "production_files_and_executable_match_validated_index_baseline": true,
+    "fmt": "passed",
+    "diff_whitespace": "passed"
+  },
+  "limitations": [
+    "No additional A/B target recovery or strict coverage gain is claimed in this experiment.",
+    "The production baseline keeps the twelve new disjoint conditional bands from the validated-index change.",
+    "No new PDF collection, evaluation campaign, gate denominator or budget change occurred."
+  ]
+}

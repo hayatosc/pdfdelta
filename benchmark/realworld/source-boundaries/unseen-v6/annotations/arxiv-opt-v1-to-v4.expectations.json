@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-opt-v1-to-v4",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "66e3ac14f30ea96b327c7e338e23bbcee1410798efbde1ae3b20eee1a9d0f115",
+  "body_eligible": true,
+  "reason": "Complete release-access paragraph, including unchanged inline footnote marker 3. The first genuine body revision changes 30B to 66B; the earlier changed footnote is not the target."
+}

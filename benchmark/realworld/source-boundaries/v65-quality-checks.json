@@ -1,0 +1,66 @@
+{
+  "source_sha256": "c773d5ecf18f0eb5cc56dd89469582371cc553c1ba3a704ea87870ac3df42e42",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v65-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v65-clippy.log",
+        "sha256": "6ae4e4bc5cd8a103ec6203c7b93b5fc3017544275e9ec1e1de1c44de1a6f1a86"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v65-tests.log",
+        "sha256": "421303b244895724bd8a4170eac8c9c4ec24e5b5b139e151df06c276d115e8c0"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/source-boundaries/checks/v65-generated.log",
+        "sha256": "9c6ed990931aaa169bf8eb21f23170a13602c2ac24666da0bdd40abeabf1dace"
+      }
+    }
+  ],
+  "reuse_note": "The four canonical commands completed against the frozen V65 Rust and Cargo source snapshot. The deliberately disabled-guard negative test is separate and was restored before these checks."
+}

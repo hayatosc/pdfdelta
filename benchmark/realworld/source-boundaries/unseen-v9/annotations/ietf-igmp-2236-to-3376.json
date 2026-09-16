@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "ietf-igmp-2236-to-3376",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 766,
+          "end": 897
+        }
+      },
+      "literal_quote": "This memo documents IGMPv2, used by IP hosts to report their   multicast group memberships to routers.  It updates STD 5, RFC 1112.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 755,
+          "end": 763
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1239,
+          "end": 1893
+        }
+      },
+      "literal_quote": "This document specifies Version 3 of the Internet Group Management   Protocol, IGMPv3.  IGMP is the protocol used by IPv4 systems to   report their IP multicast group memberships to neighboring multicast   routers.  Version 3 of IGMP adds support for \"source filtering\", that   is, the ability for a system to report interest in receiving packets   *only* from specific source addresses, or from *all but* specific   source addresses, sent to a particular multicast address.  That   information may be used by multicast routing protocols to avoid   delivering multicast packets from specific sources to networks where   there are no interested receivers.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1228,
+          "end": 1236
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "9b827082df3fb06e4caadcc9d849eec23cf754e1af77e54d190a5d74ed29e52f",
+  "new_sha256": "07ba143b4e803b8485d63dda6802a5b7b87bc19ed0bbea9c03dda581bb952228"
+}

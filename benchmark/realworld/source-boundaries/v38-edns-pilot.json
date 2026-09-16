@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "development_only": true,
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-anchored-page-v38/build.json",
+    "sha256": "07eb8b7edc794b9136d2ed9d3182968d5dd363460e1929a9f4c24b197fc9d8e2"
+  },
+  "capture": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/development-v38-edns/runs.json",
+    "sha256": "1efd68942306795f52d1e7c01412adaefc36a131c9e4ccf38b7936f349cd43ba"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v2/development-v38-edns/ietf-edns-2671-to-6891-text.json",
+    "sha256": "300915aef316ad1296cb8a1dbb86fcc44246d5cd46ff5576b859eec66d3224a6"
+  },
+  "exact_target_hits": 0,
+  "categories": {
+    "B": 3
+  },
+  "source_cut_search": {
+    "convention": "matched-interval-native-fragment-cuts-v2",
+    "exhaustive": false,
+    "examined_fragments": 113,
+    "paired_boundaries": 18,
+    "work": 940688,
+    "budget_at_entry": 940771
+  },
+  "independent_adjudication_complete": false
+}

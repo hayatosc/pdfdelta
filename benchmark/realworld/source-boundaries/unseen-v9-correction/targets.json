@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "publisher": "EDPB",
+      "independent_producer": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "Complete paragraph 7 in both editions, visually reviewed on old page 3 and new page 4. The new paragraph adds and explains the Article 4(24) threshold and rewrites the consequences of deficient draft decisions. No sentence is omitted; all literal source spacing remains. The unchanged Article 4(24) GDPR defines phrase in paragraph 5 is a disjoint control.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.json",
+          "sha256": "1ff8ffeac854aa3af5dce8607043bf33f983e5ed593c26e0d177f1d31cdece45"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.resolved.json",
+          "sha256": "77e65e4c5dba4b612ad4221b4d9a742ded68ae9f6c301f017b89c3d02b5cc39f"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.expectations.json",
+          "sha256": "ddc3a4efa54728eb205184034bb329896bb79ff25ce1c0f47ace3752bf532cf5"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null
+    }
+  ]
+}

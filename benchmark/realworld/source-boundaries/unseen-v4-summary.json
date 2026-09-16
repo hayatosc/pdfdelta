@@ -1,0 +1,446 @@
+{
+  "version": 4,
+  "status": "G2 failed even at the unadjudicated upper bound: one additional pair of twelve, from one producer",
+  "freeze": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v4-freeze.json",
+    "sha256": "7e609d5e2a2e9bacc847e9805e4e720ea1b128e74f2b1f0d9a08d7b87e662d73"
+  },
+  "registration": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v4/registration-status.json",
+    "sha256": "61071f436f6d1db901a6a14d58c9ee896677a376bb7b85d93ca15ed846eb86f4"
+  },
+  "attempts": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v4-comparison-attempts.json",
+    "sha256": "74456c6d0bfa94a7c4c03e37aa0acc26825939cfe446a0d0d02bd6ddf5d608de"
+  },
+  "results": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v4-preliminary-results.json",
+    "sha256": "457a4b37c183675235a5d6ac552f9c47e81320271125a575a8db872d14e7c06f"
+  },
+  "event_identity_repetition_checks": [
+    {
+      "implementation": "current",
+      "pair": "nist-47-original-to-r1",
+      "event_identity_sha256": "4858a91b6014d9728d4d6a3b0cb0fd59a6eca905840c8afc269b515fe2b3a5d0",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/nist-47-original-to-r1-text.json",
+          "sha256": "cea960b2ff3fd193335c57a89be4cbd3b233d7885cd7c2e41d338f8ed010eb0a"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/nist-47-original-to-r1-text.json",
+          "sha256": "72a3683bb1934c2af5d0dba06555052a3ad5661347cf4cda3f18014f392ea121"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-52-r1-to-r2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/nist-52-r1-to-r2-text.json",
+          "sha256": "3234d261c63e94a08e21236063030853696de559e771be531541da3255d98fb0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/nist-52-r1-to-r2-text.json",
+          "sha256": "2c8174305a5477de5778198c5958f1a9d0a594f75ee005901c4f28a9c5dc8425"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-41-original-to-r1",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/nist-41-original-to-r1-text.json",
+          "sha256": "6a506e0d5d7678d6d7d94a13298b4397d5454727ec79b1a280515dd614905bc0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/nist-41-original-to-r1-text.json",
+          "sha256": "0d0010c76849403f8bcd0d619dc66c8d83ca000dcf1f78a5efb939a5484ed62f"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "event_identity_sha256": "2a6d3691c55fe0ce27405a4e8fcf8d497c8562c38f8ebb649596dceb49d42a3f",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/edpb-connected-vehicles-v1-to-v2-text.json",
+          "sha256": "da65c3c1717abd40d9d98c8cea1a5d9324f947d0ce87ab45c86a7e970aa381d9"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/edpb-connected-vehicles-v1-to-v2-text.json",
+          "sha256": "da71d3c6c4f92754fcefba828648c4ca8c2bcdaaf4a6842f0d4207acf18f42b7"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-interplay-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/edpb-interplay-v1-to-v2-text.json",
+          "sha256": "9a7e0795c1edb363fd5ed6cbf53bf8d5c08a75dc04dfb6bb8da4d404f56c6770"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/edpb-interplay-v1-to-v2-text.json",
+          "sha256": "70c0e9dff69c4d56d59b43c9e50970cf52608b74fdda4bee66335af7c98b9b61"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-rag-v1-to-v4",
+      "event_identity_sha256": "291b5a940ef1e1f1675a1fd6c481e0ec1694705fdfed0028217938981cfc767e",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/arxiv-rag-v1-to-v4-text.json",
+          "sha256": "5e7ee598c57aa01d27cbe14e3d098107d04e5887a009b6e3f1ac088dc06f8a9b"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/arxiv-rag-v1-to-v4-text.json",
+          "sha256": "4d35417c16a05939c87b630918f6b61bb81473b17c0c8f5bae322d3b8fbe6143"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-longformer-v1-to-v2",
+      "event_identity_sha256": "87e39c93c0bce535ef29ff45a9e9a2707a867e4141e08f43d6c2799c55b1288c",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/arxiv-longformer-v1-to-v2-text.json",
+          "sha256": "016820873281e6b1f0b0d597bc439848ef30efdde693572e7617b849e8e47a2c"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/arxiv-longformer-v1-to-v2-text.json",
+          "sha256": "612987168d12eeda22389da46fb4fd3be1c94a4f16625c3cf76c1a7e4fb11ebd"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "event_identity_sha256": "1bbbe27f2c341b7a7e8f34f8ec35f48d4b92751e6dbfb460f0f3d0f6d4294961",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/arxiv-distilbert-v1-to-v4-text.json",
+          "sha256": "eb0b908203cff69cd687871bee174f82644a8ae204aaf3bb5016b1e00a9c9088"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/arxiv-distilbert-v1-to-v4-text.json",
+          "sha256": "0b2f478445d223699902e1fe4b92f94a01d5f2a2d13ac3dc6b931882c925b62a"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "faa-sop-71a-to-71b",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/faa-sop-71a-to-71b-text.json",
+          "sha256": "4c11d9b2b2ae07dc76fd8eed3d789b35ffcf7ecf4bcddf345ee94e06d42f943e"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/faa-sop-71a-to-71b-text.json",
+          "sha256": "7a9eeb65c29d73a8fd4c2dc688f5d17fa54ad671063590c32a79cd8d7a5ca587"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/mhlw-sidejobs-2018-to-2022-text.json",
+          "sha256": "82d7c6703ac83dca505befddf135aa2cd7fee05a6d6a22196d5d6b84e8ab4f40"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/mhlw-sidejobs-2018-to-2022-text.json",
+          "sha256": "cab41b165bf005c1fce01d4d6c1cfec6292ce24194b860f2b0ba47a46120661b"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-smtp-2821-to-5321",
+      "event_identity_sha256": "822276748f7b638f1fbff5c81d57d85f69efe0d27946c641636cf7ad25db4e47",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/ietf-smtp-2821-to-5321-text.json",
+          "sha256": "ecda7d7de80f3af727db7d85d8295948b45249202747b824f38cbebfbecd00c9"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/ietf-smtp-2821-to-5321-text.json",
+          "sha256": "527ca00d0a1b503eae937aab28b6ec7ad2c0d82424ec5e1a1c25ea5ecf3dcbed"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-imap-3501-to-9051",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition1/ietf-imap-3501-to-9051-text.json",
+          "sha256": "6b539e6ac5ddeb4bd49721cf55b8a4b1ac09ee52f587cdb3f11975412ceee044"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/current-repetition2/ietf-imap-3501-to-9051-text.json",
+          "sha256": "bb4013e59d63c325e53f882f044cf7f83dae00bf8f1ce4edefaac79bd67acec6"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-47-original-to-r1",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/nist-47-original-to-r1-text.json",
+          "sha256": "11aada61b8590acbac1e8d390ea2c00b25defd6f1457b473c686dca97f14622d"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/nist-47-original-to-r1-text.json",
+          "sha256": "ed8a714acab31a6929b1a5495f17a83ed4b1ee39b7f97ace7a0ff9b068a967a4"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-52-r1-to-r2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/nist-52-r1-to-r2-text.json",
+          "sha256": "e5388c0588e90b81b0bd33d7ed48b8679d184b6c93196fe583b0f7a78d55686f"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/nist-52-r1-to-r2-text.json",
+          "sha256": "46c505d3d7649fab60f503f92df7af47a2ed76ebcdbb9feec09d681a2c736522"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-41-original-to-r1",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/nist-41-original-to-r1-text.json",
+          "sha256": "412a83a6387df71f42bb1623234d9ad7228dd2fdb3cb4b316e07720a94033c41"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/nist-41-original-to-r1-text.json",
+          "sha256": "5a5a4d11198a4462f476b813445a86af93bd8fd5d7dbe233325f55d9942e3245"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-connected-vehicles-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/edpb-connected-vehicles-v1-to-v2-text.json",
+          "sha256": "593540e8ae2736c342bd43bbe94a4d851e3e1927f06585dc3fbd605d8486ba29"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/edpb-connected-vehicles-v1-to-v2-text.json",
+          "sha256": "ea06555cebff30800d952b0989c63e7835f17cbfe0660f9caa3cc83ab7404dcb"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-interplay-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/edpb-interplay-v1-to-v2-text.json",
+          "sha256": "2bebee04a483a4ad28b7734f9c1a17989292357dd0d31d5f3fbb03e796d689fa"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/edpb-interplay-v1-to-v2-text.json",
+          "sha256": "fa6d8f94bac50f929b51aff3798c6fe2deba0f8ee372c59b0395165334ac30e1"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-rag-v1-to-v4",
+      "event_identity_sha256": "833e772dcd26a33ab308460af9d04ea2c460b884e49f86abdad068959e11d36b",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/arxiv-rag-v1-to-v4-text.json",
+          "sha256": "5763b1e9c87ac73b4130115d88f2238d9fd65f5555630988ccadf2a4a8f679a3"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/arxiv-rag-v1-to-v4-text.json",
+          "sha256": "a276735d4260635b33e54f414431609519552afd7166b9ffaf7d60cc286df619"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-longformer-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/arxiv-longformer-v1-to-v2-text.json",
+          "sha256": "7364b20d8b33ed17dc1890516adb2b91add5744bfc8cd13fad042767c756ab5f"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/arxiv-longformer-v1-to-v2-text.json",
+          "sha256": "9a6b92a52c71d95a0c5b9f67e6c286317f3bc3678e295efba220786b616fefff"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-distilbert-v1-to-v4",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/arxiv-distilbert-v1-to-v4-text.json",
+          "sha256": "668d02d7041e1e3daf337209f824e696ff2117e6c9d16becf229201a299bb134"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/arxiv-distilbert-v1-to-v4-text.json",
+          "sha256": "ccf515e3f8f4bfbb6cf7dbec26cab4454c9eff1e64c0d0053c5bb934acccf5c5"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "faa-sop-71a-to-71b",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/faa-sop-71a-to-71b-text.json",
+          "sha256": "69ff84cbf4ad8531723e237b2b202093a3c45c13a5991ed02d9a1205b6dde29b"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/faa-sop-71a-to-71b-text.json",
+          "sha256": "232588434ef78949f7d91dbd8136effb69d2834fbf7b6bd42aa370f6c65bc20f"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "mhlw-sidejobs-2018-to-2022",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/mhlw-sidejobs-2018-to-2022-text.json",
+          "sha256": "6fd7b160957277076cdabaafc5e2d1197aeb5d0df41c9392d7ef415d3dba5bf5"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/mhlw-sidejobs-2018-to-2022-text.json",
+          "sha256": "2bdb372e0fe19fd2af593e409d5c7f8a33fe0566cab7e33fa1427be2f531b586"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-smtp-2821-to-5321",
+      "event_identity_sha256": "3e07c8242e3b7af3c7266c690de87c4d5aec69fcbebbefbc4d153de25e2dfcfc",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/ietf-smtp-2821-to-5321-text.json",
+          "sha256": "9b7ab9658801196accce9ff60c08b784eaae043441f963bd1cb14b3c95342d10"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/ietf-smtp-2821-to-5321-text.json",
+          "sha256": "fa5eca9a2079bafd784c7724648580289183e9d86a74ce57bbccf25c04089ddc"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-imap-3501-to-9051",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition1/ietf-imap-3501-to-9051-text.json",
+          "sha256": "b51dd7984c4ce90d483a657e955921e450441fb39b80692ec49c8f551e2e1950"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/historical-repetition2/ietf-imap-3501-to-9051-text.json",
+          "sha256": "adc3bf089c67766c25ea9f65ab53813c7952fbe6ea30c23f2476e12c286df07b"
+        }
+      ]
+    }
+  ],
+  "formal_adjudication_complete": false,
+  "correctness_note": "Every certificate passed structural validation; both repetitions retain identical complete event payloads, including masks, with zero strict atoms on unchanged controls. All B outputs, including the single target-bearing output, still require independent source adjudication. This is an upper-bound failure, not formal unseen correctness.",
+  "G2": {
+    "passed": false,
+    "additional_pair_upper_bound": 1,
+    "additional_pairs": [
+      "arxiv-distilbert-v1-to-v4"
+    ],
+    "producer_upper_bound": 1,
+    "required_pairs": 3,
+    "required_producers": 2
+  },
+  "implementations": {
+    "current": {
+      "attempts": 24,
+      "captured": 24,
+      "A": 0,
+      "B": 198,
+      "C": 0,
+      "complete": 0,
+      "exact_target_pairs": [
+        "arxiv-distilbert-v1-to-v4"
+      ],
+      "wall_seconds": 143.31,
+      "peak_rss_kib": 733432,
+      "report_bytes": 59634155
+    },
+    "historical": {
+      "attempts": 24,
+      "captured": 24,
+      "A": 0,
+      "B": 86,
+      "C": 0,
+      "complete": 0,
+      "exact_target_pairs": [],
+      "wall_seconds": 145.15,
+      "peak_rss_kib": 733028,
+      "report_bytes": 36075956
+    }
+  }
+}

@@ -1,0 +1,691 @@
+{
+  "version": 1,
+  "status": "Source diagnosis; no additional target recovery claimed.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v19/build.json",
+    "sha256": "b878f1feb33929d34fd46e6a40a29fff0c213ebaf5ac9f4e2527da24565a9169"
+  },
+  "sources": {
+    "path": "benchmark/realworld/cache/source-boundaries-ssdf-v19-review/sources.json",
+    "sha256": "7022844ac282709b54f161ef564baf90b65d23883dd7d091fb8d70feabc1a782"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-boundaries-ssdf-v19-review.json",
+    "sha256": "916f894620e66003c093d116b6896f8f53307555e05233b3fdfc9c7dfc88007d"
+  },
+  "search": {
+    "convention": "matched-interval-native-fragment-cuts-v2",
+    "exhaustive": false,
+    "examined_fragments": 0,
+    "paired_boundaries": 0,
+    "work": 359411,
+    "budget_at_entry": 359808
+  },
+  "source_index_acquisition_work": 396012,
+  "sides": {
+    "old": {
+      "page_image": {
+        "path": "benchmark/realworld/cache/source-boundaries-ssdf-v19-review/old-region-4.png",
+        "sha256": "74ffbee060f8e542af375efebc7d91b442c15db2471dcdded1d0a37e1b16306a"
+      },
+      "nodes": [
+        {
+          "node": 213,
+          "sources": 9,
+          "text": "Abstract ",
+          "baseline": [
+            531.66,
+            531.66
+          ],
+          "render": [
+            9925,
+            9933
+          ],
+          "horizontal_bounds": [
+            281.64,
+            333.63599999999997
+          ]
+        },
+        {
+          "node": 214,
+          "sources": 4,
+          "text": "101 ",
+          "baseline": [
+            531.66,
+            531.66
+          ],
+          "render": [
+            9934,
+            9937
+          ],
+          "horizontal_bounds": [
+            36.0,
+            57.0
+          ]
+        },
+        {
+          "node": 215,
+          "sources": 4,
+          "text": "102 ",
+          "baseline": [
+            505.91999999999996,
+            505.91999999999996
+          ],
+          "render": [
+            10028,
+            10031
+          ],
+          "horizontal_bounds": [
+            36.0,
+            57.0
+          ]
+        },
+        {
+          "node": 216,
+          "sources": 90,
+          "text": "Few software development life cycle (SDLC) models explicitly address software security in ",
+          "baseline": [
+            505.91999999999996,
+            505.91999999999996
+          ],
+          "render": [
+            9938,
+            10027
+          ],
+          "horizontal_bounds": [
+            72.0,
+            516.5399999999998
+          ]
+        },
+        {
+          "node": 217,
+          "sources": 4,
+          "text": "103 ",
+          "baseline": [
+            492.11999999999995,
+            492.11999999999995
+          ],
+          "render": [
+            10125,
+            10128
+          ],
+          "horizontal_bounds": [
+            36.0,
+            57.0
+          ]
+        },
+        {
+          "node": 218,
+          "sources": 93,
+          "text": "detail, so secure software development practices usually need to be added to each SDLC model ",
+          "baseline": [
+            492.11999999999995,
+            492.11999999999995
+          ],
+          "render": [
+            10032,
+            10124
+          ],
+          "horizontal_bounds": [
+            72.0,
+            532.5563999999998
+          ]
+        },
+        {
+          "node": 219,
+          "sources": 4,
+          "text": "104 ",
+          "baseline": [
+            478.31999999999994,
+            478.31999999999994
+          ],
+          "render": [
+            10219,
+            10222
+          ],
+          "horizontal_bounds": [
+            35.99999999999994,
+            56.99999999999994
+          ]
+        },
+        {
+          "node": 220,
+          "sources": 90,
+          "text": "to ensure that the software being developed is well-secured. This document recommends the ",
+          "baseline": [
+            478.31999999999994,
+            478.31999999999994
+          ],
+          "render": [
+            10129,
+            10218
+          ],
+          "horizontal_bounds": [
+            72.0,
+            518.5799999999999
+          ]
+        },
+        {
+          "node": 221,
+          "sources": 4,
+          "text": "105 ",
+          "baseline": [
+            464.5199999999999,
+            464.5199999999999
+          ],
+          "render": [
+            10311,
+            10314
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 222,
+          "sources": 88,
+          "text": "Secure Software Development Framework (SSDF) \u2013 a core set of high-level secure software ",
+          "baseline": [
+            464.5199999999999,
+            464.5199999999999
+          ],
+          "render": [
+            10223,
+            10310
+          ],
+          "horizontal_bounds": [
+            71.99999999999994,
+            519.5999999999997
+          ]
+        },
+        {
+          "node": 223,
+          "sources": 4,
+          "text": "106 ",
+          "baseline": [
+            450.7199999999999,
+            450.7199999999999
+          ],
+          "render": [
+            10407,
+            10410
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 224,
+          "sources": 92,
+          "text": "development practices that can be integrated into each SDLC implementation. Following these ",
+          "baseline": [
+            450.7199999999999,
+            450.7199999999999
+          ],
+          "render": [
+            10315,
+            10406
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            530.3399999999997
+          ]
+        },
+        {
+          "node": 225,
+          "sources": 4,
+          "text": "107 ",
+          "baseline": [
+            436.9199999999999,
+            436.9199999999999
+          ],
+          "render": [
+            10501,
+            10504
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 226,
+          "sources": 90,
+          "text": "practices should help software producers reduce the number of vulnerabilities in released ",
+          "baseline": [
+            436.9199999999999,
+            436.9199999999999
+          ],
+          "render": [
+            10411,
+            10500
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            502.4999999999998
+          ]
+        },
+        {
+          "node": 227,
+          "sources": 4,
+          "text": "108 ",
+          "baseline": [
+            423.1199999999999,
+            423.1199999999999
+          ],
+          "render": [
+            10594,
+            10597
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 228,
+          "sources": 89,
+          "text": "software, mitigate the potential impact of the exploitation of undetected or unaddressed ",
+          "baseline": [
+            423.1199999999999,
+            423.1199999999999
+          ],
+          "render": [
+            10505,
+            10593
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            494.2199999999999
+          ]
+        },
+        {
+          "node": 229,
+          "sources": 4,
+          "text": "109 ",
+          "baseline": [
+            409.3199999999999,
+            409.3199999999999
+          ],
+          "render": [
+            10693,
+            10696
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 230,
+          "sources": 95,
+          "text": "vulnerabilities, and address the root causes of vulnerabilities to prevent future recurrences. ",
+          "baseline": [
+            409.3199999999999,
+            409.3199999999999
+          ],
+          "render": [
+            10598,
+            10692
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            509.27999999999975
+          ]
+        },
+        {
+          "node": 231,
+          "sources": 4,
+          "text": "110 ",
+          "baseline": [
+            395.51999999999987,
+            395.51999999999987
+          ],
+          "render": [
+            10781,
+            10784
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 232,
+          "sources": 84,
+          "text": "Because the framework provides a common vocabulary for secure software development, ",
+          "baseline": [
+            395.51999999999987,
+            395.51999999999987
+          ],
+          "render": [
+            10697,
+            10780
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            505.1999999999997
+          ]
+        },
+        {
+          "node": 233,
+          "sources": 4,
+          "text": "111 ",
+          "baseline": [
+            381.71999999999986,
+            381.71999999999986
+          ],
+          "render": [
+            10878,
+            10881
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 234,
+          "sources": 93,
+          "text": "software purchasers and consumers can also use it to foster communications with suppliers in ",
+          "baseline": [
+            381.71999999999986,
+            381.71999999999986
+          ],
+          "render": [
+            10785,
+            10877
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            523.8599999999999
+          ]
+        },
+        {
+          "node": 235,
+          "sources": 55,
+          "text": "acquisition processes and other management activities. ",
+          "baseline": [
+            367.91999999999985,
+            367.91999999999985
+          ],
+          "render": [
+            10882,
+            10936
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            338.55599999999987
+          ]
+        },
+        {
+          "node": 236,
+          "sources": 4,
+          "text": "112 ",
+          "baseline": [
+            367.91999999999985,
+            367.91999999999985
+          ],
+          "render": [
+            10937,
+            10940
+          ],
+          "horizontal_bounds": [
+            35.999999999999886,
+            56.999999999999886
+          ]
+        },
+        {
+          "node": 237,
+          "sources": 1,
+          "text": " ",
+          "baseline": [
+            342.05999999999983,
+            342.05999999999983
+          ],
+          "render": [
+            10941,
+            10941
+          ],
+          "horizontal_bounds": [
+            71.99999999999989,
+            75.33599999999988
+          ]
+        },
+        {
+          "node": 238,
+          "sources": 9,
+          "text": "Keywords ",
+          "baseline": [
+            342.05999999999983,
+            342.05999999999983
+          ],
+          "render": [
+            10942,
+            10950
+          ],
+          "horizontal_bounds": [
+            277.3199999999999,
+            338.0159999999999
+          ]
+        },
+        {
+          "node": 239,
+          "sources": 4,
+          "text": "113 ",
+          "baseline": [
+            342.06,
+            342.06
+          ],
+          "render": [
+            10952,
+            10955
+          ],
+          "horizontal_bounds": [
+            36.0,
+            57.0
+          ]
+        }
+      ],
+      "native_precedes": [
+        {
+          "from": 213,
+          "to": 214,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 234,
+          "to": 235,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 235,
+          "to": 236,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 236,
+          "to": 237,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 237,
+          "to": 238,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        }
+      ]
+    },
+    "new": {
+      "page_image": {
+        "path": "benchmark/realworld/cache/source-boundaries-ssdf-v19-review/new-region-3.png",
+        "sha256": "386fc274f8d0c689dd2475ee737bf6783cfd0f8c376999fe88bf89fbd3ac878c"
+      },
+      "nodes": [
+        {
+          "node": 106,
+          "sources": 9,
+          "text": "Abstract ",
+          "baseline": [
+            531.66,
+            531.66
+          ],
+          "render": [
+            5973,
+            5981
+          ],
+          "horizontal_bounds": [
+            281.64,
+            333.63599999999997
+          ]
+        },
+        {
+          "node": 107,
+          "sources": 941,
+          "text": "Few software development life cycle (SDLC) models explicitly address software security in detail, so secure software development practices usually need to be added to each SDLC model to ensure that the software being developed is well-secured. This document recommends the Secure Software Development Framework (SSDF) \u2013 a core set of high-level secure software development practices that can be integrated into each SDLC implementation. Following such practices should help software producers reduce the number of vulnerabilities in released software, reduce the potential impact of the exploitation of undetected or unaddressed vulnerabilities, and address the root causes of vulnerabilities to prevent future recurrences. Because the framework provides a common vocabulary for secure software development, software acquirers can also use it to foster communications with suppliers in acquisition processes and other management activities. ",
+          "baseline": [
+            367.91999999999985,
+            505.91999999999996
+          ],
+          "render": [
+            5982,
+            6922
+          ],
+          "horizontal_bounds": [
+            71.99999999999993,
+            532.5563999999998
+          ]
+        },
+        {
+          "node": 108,
+          "sources": 1,
+          "text": " ",
+          "baseline": [
+            342.05999999999983,
+            342.05999999999983
+          ],
+          "render": [
+            6923,
+            6923
+          ],
+          "horizontal_bounds": [
+            71.99999999999994,
+            75.33599999999994
+          ]
+        },
+        {
+          "node": 109,
+          "sources": 9,
+          "text": "Keywords ",
+          "baseline": [
+            342.05999999999983,
+            342.06
+          ],
+          "render": [
+            6924,
+            6932
+          ],
+          "horizontal_bounds": [
+            277.31999999999994,
+            337.73244
+          ]
+        }
+      ],
+      "native_precedes": [
+        {
+          "from": 106,
+          "to": 107,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 107,
+          "to": 108,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 108,
+          "to": 109,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        },
+        {
+          "from": 109,
+          "to": 110,
+          "kind": "precedes",
+          "sources": [],
+          "basis": {
+            "kind": "native_layout"
+          }
+        }
+      ]
+    }
+  },
+  "accepted_boundaries": [
+    {
+      "index": 2236,
+      "old": [
+        213
+      ],
+      "new": [
+        106
+      ],
+      "basis": "literal_content",
+      "supplier": "typed-scope-v1",
+      "weight": 1
+    },
+    {
+      "index": 2237,
+      "old": [
+        238
+      ],
+      "new": [
+        109
+      ],
+      "basis": "literal_content",
+      "supplier": "typed-scope-v1",
+      "weight": 1
+    }
+  ],
+  "findings": [
+    "The frozen target includes old line number 101 on the same baseline to the left of Abstract, and line numbers 102 through 112 after each body line in render order. Keywords and line number 113 are excluded from the fixed interior target.",
+    "Both Abstract and Keywords are accepted native boundaries. Most old body-line and line-number nodes lack native Precedes connections. The new abstract is one multiline node.",
+    "The current spatial-prefix discovery profile cannot assume that sorting left to right preserves this registered paint-order range. A raw render-order profile would require an independently checked same-row boundary census; changing target extents or treating numbers as ignorable is not authorized.",
+    "The instrumented v19 run reaches 522 accepted anchors with 409,296 units remaining. Whole-node work leaves 359,808 at initial source cuts; 48 eligible interval attempts leave only 397. The Abstract/Keywords pair is not attempted because its old endpoints are in different discovery runs. No second-pass source acquisition begins. Reusing source indices does not change these observed results and was rejected."
+  ],
+  "budget_diagnostic": {
+    "path": "benchmark/realworld/cache/source-boundaries-ssdf-v19-budget-diagnostic/diagnostic.json",
+    "sha256": "1d23cddd850c3236b23becdea7a704424f1d7f888538ed7dadd30d4e43a9db5b"
+  }
+}

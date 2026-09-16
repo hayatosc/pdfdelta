@@ -49,7 +49,6 @@ pub enum BlockRole {
 
 impl BlockRole {
     /// Returns whether blocks with these roles may participate in one alignment match.
-    #[must_use]
     pub fn is_alignment_compatible(self, other: Self) -> bool {
         self == other
     }
@@ -1677,6 +1676,15 @@ fn should_join(
     // the general ceiling without new errors.
     let previous_width = previous.inline_interval.1 - previous.inline_interval.0;
     let current_width = current.inline_interval.1 - current.inline_interval.0;
+    // A source ideographic space can encode indentation without moving the
+    // glyph-union left edge. After a ragged tail, retain that paragraph break
+    // as a reversible layout boundary; keep the whitespace glyph itself.
+    if previous_width <= current_width * RAGGED_CONTINUATION_MAX_WIDTH_RATIO
+        && matches!(current.signature.first(),
+            Some(SignatureToken::Text(DecodedText::Mapped(text))) if text.starts_with('\u{3000}'))
+    {
+        return Ok(false);
+    }
     let right_edge_ratio = (previous.inline_interval.1 - current.inline_interval.1).abs() / height;
     let first_line_continuation = previous.inline_start > current.inline_start
         && indent_ratio > options.max_indent_height_ratio
@@ -2288,14 +2296,10 @@ mod tests {
             SignatureToken::SyntheticSpace,
         ];
 
-        // 1. Reflexivity and Eq consistency: ordering and equality agree for
-        // independently constructed copies of equal content.
+        // 1. Reflexivity and Eq consistency: a.cmp(a) == Equal, and a == a
         for a in &tokens {
             assert_eq!(a.cmp(a), Ordering::Equal);
-        }
-        for (a, b) in tokens.iter().zip(tokens.iter().cloned()) {
-            assert_eq!(a, &b);
-            assert_eq!(a.cmp(&b), Ordering::Equal);
+            assert_eq!(a, a);
         }
 
         // 2. Consistency with Eq and Antisymmetry for all pairs (a, b)

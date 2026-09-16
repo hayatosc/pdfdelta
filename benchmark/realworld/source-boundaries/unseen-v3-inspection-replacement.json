@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "c3c1d8512530849fbd67dad1e69ccb5c3219e240975ccd13e21b55439806afe9",
+  "attempts": [
+    {
+      "pair": "arxiv-xlnet-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-anchored-page-v40/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-xlnet-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T12:29:32.876685+00:00",
+      "exit_code": 0,
+      "input_sha256": "dc7f53ab0acafd8836ca23d5a024df0df9a46fd09fd0cc7d8075fadca787c685",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-xlnet-v1-to-v2-old.glyphs.txt",
+        "sha256": "d70faf5d2e50a75e026fbc0213080fbc5ae557dd330574501eb65e13d4ca1e55"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-xlnet-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-xlnet-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-anchored-page-v40/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-xlnet-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T12:29:33.112386+00:00",
+      "exit_code": 0,
+      "input_sha256": "51ebaf21e4cd586761016a64b2b753ee5ca05dd52a0de6bf8058a7eb8e932d91",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-xlnet-v1-to-v2-new.glyphs.txt",
+        "sha256": "7801139559d79ddc756e400cf2d627618513c9b9e8e61ba4a1394926caace02c"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/arxiv-xlnet-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

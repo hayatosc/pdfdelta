@@ -1,0 +1,2 @@
+cargo fmt --all -- --check
+Exit code: 0. No stdout/stderr.

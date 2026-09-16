@@ -1,0 +1,14 @@
+[
+  {
+    "stage": "reporting_evaluation",
+    "pair": "edpb-right-of-access-v1-to-final",
+    "route": "native",
+    "observation": "Initial unbounded jq summary completed; adopted collector refuses inputs above 128 MiB. The same measured comparison and report hash are retained with summary_input_limit; no repeated native comparison."
+  },
+  {
+    "stage": "reporting_evaluation",
+    "pair": "edpb-right-of-access-v1-to-final",
+    "route": "all",
+    "observation": "Initial capture interrupted with SIGINT after the oversized native summary. The terminated capture was resumed for outstanding routes; this all-channel run was repeated and only the completed process measurement is used."
+  }
+]

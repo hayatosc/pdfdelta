@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "observations": 72,
+  "pairs": 36,
+  "complete_pairs": 0,
+  "statuses": {
+    "captured": 72
+  },
+  "failed_attempts": [],
+  "source_fingerprint": "870af13a1536e1f0438628dfcf1c5f5d0eedcab53fa06c1bd6773a585b810abe",
+  "fixed_baseline_commit": "599855dba3a4e3de8aa0a7dec23128bdf09412dc",
+  "interpretation": "Two distinct same-budget captures per registered pair. Full current baseline validation succeeded; target reviews outside EDPB remain pending."
+}

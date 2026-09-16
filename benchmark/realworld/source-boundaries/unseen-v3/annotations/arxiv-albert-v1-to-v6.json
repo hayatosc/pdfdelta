@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "arxiv-albert-v1-to-v6",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Increasingmodelsizewhenpretrainingnaturallanguagerepresentationsoftenre-sultsinimprovedperformanceondownstreamtasks.However,atsomepointfur-thermodelincreasesbecomeharderduetoGPU/TPUmemorylimitations,longertrainingtimes,andunexpectedmodeldegradation.Toaddresstheseproblems,wepresenttwoparameter-reductiontechniquestolowermemoryconsumptionandincreasethetrainingspeedofBERT(Devlinetal.,2019).ComprehensiveempiricalevidenceshowsthatourproposedmethodsleadtomodelsthatscalemuchbettercomparedtotheoriginalBERT.Wealsouseaself-supervisedlossthatfocusesonmodelinginter-sentencecoherence,andshowitconsistentlyhelpsdownstreamtaskswithmulti-sentenceinputs.Asaresult,ourbestmodelestab-lishesnewstate-of-the-artresultsontheGLUE,RACE,andSQuADbenchmarkswhilehavingfewerparameterscomparedtoBERT-large.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ABSTRACT",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Increasingmodelsizewhenpretrainingnaturallanguagerepresentationsoftenre-sultsinimprovedperformanceondownstreamtasks.However,atsomepointfur-thermodelincreasesbecomeharderduetoGPU/TPUmemorylimitationsandlongertrainingtimes.Toaddresstheseproblems,wepresenttwoparameter-reductiontechniquestolowermemoryconsumptionandincreasethetrainingspeedofBERT(Devlinetal.,2019).ComprehensiveempiricalevidenceshowsthatourproposedmethodsleadtomodelsthatscalemuchbettercomparedtotheoriginalBERT.Wealsouseaself-supervisedlossthatfocusesonmodelinginter-sentencecoherence,andshowitconsistentlyhelpsdownstreamtaskswithmulti-sentenceinputs.Asaresult,ourbestmodelestablishesnewstate-of-the-artresultsontheGLUE,RACE,andSQuADbenchmarkswhilehavingfewerparam-eterscomparedtoBERT-large.Thecodeandthepretrainedmodelsareavailableathttps://github.com/google-research/ALBERT.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ABSTRACT",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "77cdb00018b9cbc9df4892184cc65976d9c66965e6e5f67cda2e91ae3e812b25",
+  "new_sha256": "d631c30f3f41684862e854ad1cb379e9dbf9b1c1fa1510ab618f45b8dfc07e2c"
+}

@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "status": "Source-only literal annotations; independent resolution pending. Full visual paragraph extents retained, including internal source spaces and all body fragments.",
+  "targets": [
+    {
+      "pair": "nist-73-3-to-4",
+      "target_ranges": {
+        "old": [
+          [
+            23048,
+            23642
+          ],
+          [
+            24570,
+            24600
+          ]
+        ],
+        "new": [
+          [
+            35224,
+            35849
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "nist-78-3-to-4",
+      "target_ranges": {
+        "old": [
+          [
+            7384,
+            7953
+          ]
+        ],
+        "new": [
+          [
+            11821,
+            12400
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "nist-90a-original-to-r1",
+      "target_ranges": {
+        "old": [
+          [
+            1703,
+            1917
+          ]
+        ],
+        "new": [
+          [
+            4120,
+            4132
+          ],
+          [
+            5176,
+            5363
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "edpb-deceptive-patterns-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            235,
+            673
+          ]
+        ],
+        "new": [
+          [
+            414,
+            1111
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "faa-stall-109-to-109a",
+      "target_ranges": {
+        "old": [
+          [
+            196,
+            1207
+          ]
+        ],
+        "new": [
+          [
+            195,
+            1095
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "mext-generative-ai-2023-to-2024",
+      "target_ranges": {
+        "old": [
+          [
+            1581,
+            1752
+          ]
+        ],
+        "new": [
+          [
+            1505,
+            1783
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "arxiv-mobilenetv2-v1-to-v4",
+      "target_ranges": {
+        "old": [
+          [
+            638,
+            1518
+          ]
+        ],
+        "new": [
+          [
+            594,
+            1382
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "arxiv-opt-v1-to-v4",
+      "target_ranges": {
+        "old": [
+          [
+            2720,
+            3464
+          ]
+        ],
+        "new": [
+          [
+            2751,
+            3495
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "arxiv-mae-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            25684,
+            25975
+          ]
+        ],
+        "new": [
+          [
+            25687,
+            25965
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "ietf-http-semantics-7231-to-9110",
+      "target_ranges": {
+        "old": [
+          [
+            452,
+            877
+          ]
+        ],
+        "new": [
+          [
+            30,
+            468
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "ietf-ldap-2251-to-4511",
+      "target_ranges": {
+        "old": [
+          [
+            6783,
+            7261
+          ]
+        ],
+        "new": [
+          [
+            744,
+            1110
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": true
+    },
+    {
+      "pair": "edpb-lead-authority-v1-to-v2",
+      "target_ranges": {
+        "old": [
+          [
+            6564,
+            6791
+          ]
+        ],
+        "new": [
+          [
+            6608,
+            6838
+          ]
+        ]
+      },
+      "comparison_performed": false,
+      "body_eligible": false
+    }
+  ]
+}

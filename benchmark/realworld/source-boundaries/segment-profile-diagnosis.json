@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "profile": "native-tag-ordered-page-regions-v1",
+  "scope": "Existing exposed source exports diagnose the restricted transition premise; these are not new recovery observations.",
+  "decision": "Do not connect these natural targets under the incomplete tag inventory. A tag occurrence alone does not close unknown order competitors. Page adjacency and language continuity are not substitutes.",
+  "remaining": "Prove natural transitions with a complete source-supported local order and source-set closure, including column cases; existing target extents remain fixed.",
+  "records": [
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "source_export": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/faa-maintenance-records-c-to-d/sources.json",
+        "sha256": "b4dca6ffe32c5b366850b4d103021c52168cdbfc6a389bf7812df23e0aaa231a"
+      },
+      "sides": {
+        "old": {
+          "native_structure_elements": 0,
+          "relation_inventories": [
+            {
+              "page": null,
+              "channel": "relations",
+              "backend": 0,
+              "complete": false,
+              "source_reference_count": 0
+            }
+          ],
+          "cross_page_memberships": [],
+          "profile_status": "unresolved: native relation acquisition is incomplete"
+        },
+        "new": {
+          "native_structure_elements": 658,
+          "relation_inventories": [
+            {
+              "page": null,
+              "channel": "relations",
+              "backend": 0,
+              "complete": false,
+              "source_reference_count": 658
+            }
+          ],
+          "cross_page_memberships": [
+            {
+              "element": 75,
+              "glyphs": 911,
+              "pages": [
+                2,
+                3
+              ]
+            },
+            {
+              "element": 124,
+              "glyphs": 344,
+              "pages": [
+                6,
+                7
+              ]
+            },
+            {
+              "element": 133,
+              "glyphs": 644,
+              "pages": [
+                7,
+                8
+              ]
+            },
+            {
+              "element": 167,
+              "glyphs": 1241,
+              "pages": [
+                11,
+                12
+              ]
+            },
+            {
+              "element": 209,
+              "glyphs": 428,
+              "pages": [
+                14,
+                15
+              ]
+            }
+          ],
+          "profile_status": "unresolved: native relation acquisition is incomplete"
+        }
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "source_export": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/nist-ai-rmf-draft2-to-v1/sources.json",
+        "sha256": "cae9054a422b49c90e8dfd9c610b71924c57eaf6b25de7bd9466f390a8ee6ab8"
+      },
+      "sides": {
+        "old": {
+          "native_structure_elements": 997,
+          "relation_inventories": [
+            {
+              "page": null,
+              "channel": "relations",
+              "backend": 0,
+              "complete": false,
+              "source_reference_count": 997
+            }
+          ],
+          "cross_page_memberships": [
+            {
+              "element": 197,
+              "glyphs": 500,
+              "pages": [
+                9,
+                10
+              ]
+            },
+            {
+              "element": 204,
+              "glyphs": 779,
+              "pages": [
+                10,
+                11
+              ]
+            },
+            {
+              "element": 231,
+              "glyphs": 641,
+              "pages": [
+                13,
+                14
+              ]
+            },
+            {
+              "element": 375,
+              "glyphs": 571,
+              "pages": [
+                18,
+                19
+              ]
+            },
+            {
+              "element": 540,
+              "glyphs": 694,
+              "pages": [
+                24,
+                25
+              ]
+            },
+            {
+              "element": 575,
+              "glyphs": 103,
+              "pages": [
+                25,
+                26
+              ]
+            },
+            {
+              "element": 844,
+              "glyphs": 148,
+              "pages": [
+                29,
+                30
+              ]
+            },
+            {
+              "element": 891,
+              "glyphs": 355,
+              "pages": [
+                32,
+                33
+              ]
+            },
+            {
+              "element": 925,
+              "glyphs": 242,
+              "pages": [
+                34,
+                35
+              ]
+            }
+          ],
+          "profile_status": "unresolved: native relation acquisition is incomplete"
+        },
+        "new": {
+          "native_structure_elements": 0,
+          "relation_inventories": [
+            {
+              "page": null,
+              "channel": "relations",
+              "backend": 0,
+              "complete": false,
+              "source_reference_count": 0
+            }
+          ],
+          "cross_page_memberships": [],
+          "profile_status": "unresolved: native relation acquisition is incomplete"
+        }
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "source_export": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/edpb-restrictions-v1-to-final/sources.json",
+        "sha256": "4dcea5118595ca0000b2a581389cb442b8dc9b635cf5891c7d1f44f78bfb7e14"
+      },
+      "sides": {
+        "old": {
+          "native_structure_elements": 0,
+          "relation_inventories": [
+            {
+              "page": null,
+              "channel": "relations",
+              "backend": 0,
+              "complete": false,
+              "source_reference_count": 0
+            }
+          ],
+          "cross_page_memberships": [],
+          "profile_status": "unresolved: native relation acquisition is incomplete"
+        },
+        "new": {
+          "native_structure_elements": 675,
+          "relation_inventories": [
+            {
+              "page": null,
+              "channel": "relations",
+              "backend": 0,
+              "complete": false,
+              "source_reference_count": 675
+            }
+          ],
+          "cross_page_memberships": [
+            {
+              "element": 310,
+              "glyphs": 310,
+              "pages": [
+                9,
+                10
+              ]
+            },
+            {
+              "element": 568,
+              "glyphs": 455,
+              "pages": [
+                16,
+                17
+              ]
+            }
+          ],
+          "profile_status": "unresolved: native relation acquisition is incomplete"
+        }
+      }
+    }
+  ]
+}

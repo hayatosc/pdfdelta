@@ -1,0 +1,36 @@
+{
+  "status": "local proof budget exhaustion observed",
+  "scope": "Read-only trace, identical comparison and coverage to joined-stroke-v1; production file and binary restored after capture.",
+  "log": {
+    "path": "benchmark/realworld/cache/source-completion/domain-budget-v1/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.stderr",
+    "sha256": "965ea953987612566fce6688c3c0b040d58bf589fa0331f27184b2727f4b6627"
+  },
+  "final_trace": [
+    "DOMAIN_BUDGET reject line=163 proposal=277 remaining=95459",
+    "DOMAIN_BUDGET start proposal=278 remaining=95459",
+    "DOMAIN_BUDGET reject line=163 proposal=278 remaining=87504",
+    "DOMAIN_BUDGET start proposal=279 remaining=87504",
+    "DOMAIN_BUDGET reject line=163 proposal=279 remaining=65602",
+    "DOMAIN_BUDGET start proposal=280 remaining=65602",
+    "DOMAIN_BUDGET reject line=163 proposal=280 remaining=53078",
+    "DOMAIN_BUDGET start proposal=281 remaining=53078",
+    "DOMAIN_BUDGET reject line=163 proposal=281 remaining=45310",
+    "DOMAIN_BUDGET start proposal=283 remaining=45310",
+    "DOMAIN_BUDGET accept proposal=283 remaining=36656",
+    "DOMAIN_BUDGET start proposal=284 remaining=36656",
+    "DOMAIN_BUDGET reject line=163 proposal=284 remaining=28729",
+    "DOMAIN_BUDGET start proposal=285 remaining=28729",
+    "DOMAIN_BUDGET reject line=163 proposal=285 remaining=19575",
+    "DOMAIN_BUDGET start proposal=286 remaining=19575",
+    "DOMAIN_BUDGET reject line=163 proposal=286 remaining=11619",
+    "DOMAIN_BUDGET start proposal=287 remaining=11619",
+    "DOMAIN_BUDGET accept proposal=287 remaining=4310",
+    "DOMAIN_BUDGET start proposal=288 remaining=4310",
+    "DOMAIN_BUDGET reject line=156 proposal=288 remaining=0",
+    "DOMAIN_BUDGET start proposal=289 remaining=0"
+  ],
+  "proposal_288_start": 4310,
+  "proposal_288_rejected_remaining": 0,
+  "proposal_289_evaluated": false,
+  "limits_changed": false
+}

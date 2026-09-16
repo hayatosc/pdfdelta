@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "production_sha256": "152b4da5e23adff641f32a91d1cb4564e4cd2d110f4dd63479df455fb53a06ef",
+  "binary": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-proof-v78-final/pdfdelta",
+    "sha256": "ed583bbc536c98b1c92fa8679ca04c6765f05dc9b762d1115382ddec560329cb"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-order-proof-v78-final/build.json",
+    "sha256": "1caaf34ddeca4ecfe629c3f62a3939c3c2ab9c0300f8e5b9704f9937ed89a996"
+  },
+  "observations": {
+    "path": "benchmark/realworld/source-boundaries/v78-repeated-observations.json",
+    "sha256": "589a25d1ba380bc1c38e01ef3a18a8500d386dbeb4116540ee36c6c269713a48"
+  },
+  "adjudications": {
+    "path": "benchmark/realworld/source-boundaries/v78-formal-adjudications.json",
+    "sha256": "a4a9647d88f551fcbcb47aa8829ae0fc746204892403f23a13ffbc621655e06d"
+  },
+  "controls": {
+    "path": "benchmark/realworld/source-boundaries/v78-reviewed-control-observations.json",
+    "sha256": "9efdf0692e691f9821c15dbabc8a335a4320cae819ebfb8bcb311f0472a65293"
+  },
+  "scope": "Native whole-range masks require a source-side spatial projection. When order is unresolved, only the existing order-independent source-count witness may retain change, with no mask. Both 36-pair observations have identical complete payloads for one A and 216 B. Four replacements have independent raw-count and image review; fourteen earlier event identities are absent, with all fixed-target recoveries retained. Every other output has exact prior review identity and both baselines remain scored. All 189 control payloads match. Both plain and paint-interleaved unchanged source controls pass. The V9 NIST XML failure is corrected diagnostically; that set remains retired and fresh unseen recovery remains unproved. Natural segmented recovery and historical completeness remain separately unproved."
+}

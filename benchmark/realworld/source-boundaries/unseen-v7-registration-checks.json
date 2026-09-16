@@ -1,0 +1,19 @@
+{
+  "version": 7,
+  "comparison_performed": false,
+  "fmt_exit_code": 0,
+  "clippy_exit_code": 0,
+  "test_exit_code": 0,
+  "test_totals": {
+    "passed": 2403,
+    "failed": 0,
+    "ignored": 2
+  },
+  "logs": [
+    {
+      "path": "benchmark/realworld/source-boundaries/checks/unseen-v7-registration-tests.log",
+      "sha256": "2c6f9e90e82320a0088e8e59c418cf06b177826e16a542b2bb6508f28bfdb33c"
+    }
+  ],
+  "format_and_clippy_evidence": "Both required commands completed successfully in this registration turn; formatting emitted no output and Clippy reported no issues."
+}

@@ -1,0 +1,386 @@
+{
+  "version": 1,
+  "scope": "Frozen target coverage in previously exposed native exports; no new recovery or transition acceptance.",
+  "profile_diagnosis": {
+    "path": "benchmark/realworld/source-boundaries/segment-profile-diagnosis.json",
+    "sha256": "8898f2eecdf856f2a51fd23b1d480b559570b309d1ed8cf49db950ca668e2b32"
+  },
+  "targets": {
+    "path": "benchmark/realworld/followup/targets.json",
+    "sha256": "a1ec08f034a00315acd9fc7e12c916214290511329ff3a49396dc9bdded78e7a"
+  },
+  "reproducer": {
+    "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/diagnose-segment-targets.py",
+    "sha256": "037a067f1757aad882b3e4f5a81bf99350f3a5aed92280417282ef22be7717a9"
+  },
+  "decision": "Do not relax relation completeness: the exports also retain actual binding failures. EDPB's new frozen target spans pages 4 and 5; all 656 glyphs occur in complete marked-content ranges, but only four survive as tag memberships. Acquire the ordered mixed structure children and their unresolved dependencies before attempting a local transition certificate. FAA and NIST frozen target sides each occupy one page, so unrelated cross-page tags do not explain their target misses.",
+  "records": [
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "source_export": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/faa-maintenance-records-c-to-d/sources.json",
+        "sha256": "b4dca6ffe32c5b366850b4d103021c52168cdbfc6a389bf7812df23e0aaa231a"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/blind/annotations/faa-maintenance-records-c-to-d.resolved.json",
+        "sha256": "01f55d66c67deddce1394bd762c2a9c19e1deb8921c47c2d751165a072ccde2c"
+      },
+      "sides": {
+        "old": {
+          "relation_issue_counts": {},
+          "relation_inventories": [
+            {
+              "page": null,
+              "backend": 0,
+              "complete": false,
+              "source_count": 0
+            }
+          ],
+          "targets": [
+            {
+              "selector": "body-old",
+              "source_atom_occurrences": 570,
+              "unique_glyphs": 570,
+              "pages": [
+                0
+              ],
+              "retained_tag_covered_glyphs": 0,
+              "retained_tag_overlaps": [],
+              "marked_content_covered_glyphs": 0,
+              "marked_content_overlaps": []
+            }
+          ]
+        },
+        "new": {
+          "relation_issue_counts": {
+            "unresolved content: marked content has no complete native glyph membership": 2,
+            "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined": 1,
+            "unresolved content: overlapping or mixed structure memberships require additional views": 53,
+            "unsupported feature: structure object-reference binding is not implemented": 97
+          },
+          "relation_inventories": [
+            {
+              "page": null,
+              "backend": 0,
+              "complete": false,
+              "source_count": 658
+            }
+          ],
+          "targets": [
+            {
+              "selector": "body-new",
+              "source_atom_occurrences": 400,
+              "unique_glyphs": 400,
+              "pages": [
+                0
+              ],
+              "retained_tag_covered_glyphs": 0,
+              "retained_tag_overlaps": [],
+              "marked_content_covered_glyphs": 400,
+              "marked_content_overlaps": [
+                {
+                  "page": 0,
+                  "form": null,
+                  "mcid": 21,
+                  "glyph_range": {
+                    "start": 208,
+                    "end": 429
+                  },
+                  "complete": true,
+                  "target_glyphs": 179
+                },
+                {
+                  "page": 0,
+                  "form": null,
+                  "mcid": 22,
+                  "glyph_range": {
+                    "start": 429,
+                    "end": 431
+                  },
+                  "complete": true,
+                  "target_glyphs": 2
+                },
+                {
+                  "page": 0,
+                  "form": null,
+                  "mcid": 23,
+                  "glyph_range": {
+                    "start": 431,
+                    "end": 436
+                  },
+                  "complete": true,
+                  "target_glyphs": 5
+                },
+                {
+                  "page": 0,
+                  "form": null,
+                  "mcid": 24,
+                  "glyph_range": {
+                    "start": 436,
+                    "end": 438
+                  },
+                  "complete": true,
+                  "target_glyphs": 2
+                },
+                {
+                  "page": 0,
+                  "form": null,
+                  "mcid": 25,
+                  "glyph_range": {
+                    "start": 438,
+                    "end": 448
+                  },
+                  "complete": true,
+                  "target_glyphs": 10
+                },
+                {
+                  "page": 0,
+                  "form": null,
+                  "mcid": 29,
+                  "glyph_range": {
+                    "start": 448,
+                    "end": 651
+                  },
+                  "complete": true,
+                  "target_glyphs": 202
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "source_export": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/nist-ai-rmf-draft2-to-v1/sources.json",
+        "sha256": "cae9054a422b49c90e8dfd9c610b71924c57eaf6b25de7bd9466f390a8ee6ab8"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/nist-ai-rmf-draft2-to-v1.resolved.json",
+        "sha256": "fc403926653d85518ddf8c7b40f8511ac762e689386676901da2205766047d86"
+      },
+      "sides": {
+        "old": {
+          "relation_issue_counts": {
+            "unresolved content: marked content has no complete native glyph membership": 175,
+            "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined": 1,
+            "unresolved content: overlapping or mixed structure memberships require additional views": 52,
+            "unsupported feature: structure object-reference binding is not implemented": 66
+          },
+          "relation_inventories": [
+            {
+              "page": null,
+              "backend": 0,
+              "complete": false,
+              "source_count": 997
+            }
+          ],
+          "targets": [
+            {
+              "selector": "body-old",
+              "source_atom_occurrences": 671,
+              "unique_glyphs": 671,
+              "pages": [
+                3
+              ],
+              "retained_tag_covered_glyphs": 671,
+              "retained_tag_overlaps": [
+                {
+                  "element": 81,
+                  "object": {
+                    "object_number": 1282,
+                    "generation": 0
+                  },
+                  "target_glyphs": 671,
+                  "membership_glyphs": 864,
+                  "membership_pages": [
+                    3
+                  ]
+                }
+              ],
+              "marked_content_covered_glyphs": 671,
+              "marked_content_overlaps": [
+                {
+                  "page": 3,
+                  "form": null,
+                  "mcid": 7,
+                  "glyph_range": {
+                    "start": 6771,
+                    "end": 7635
+                  },
+                  "complete": true,
+                  "target_glyphs": 671
+                }
+              ]
+            }
+          ]
+        },
+        "new": {
+          "relation_issue_counts": {},
+          "relation_inventories": [
+            {
+              "page": null,
+              "backend": 0,
+              "complete": false,
+              "source_count": 0
+            }
+          ],
+          "targets": [
+            {
+              "selector": "body-new",
+              "source_atom_occurrences": 279,
+              "unique_glyphs": 278,
+              "pages": [
+                2
+              ],
+              "retained_tag_covered_glyphs": 0,
+              "retained_tag_overlaps": [],
+              "marked_content_covered_glyphs": 0,
+              "marked_content_overlaps": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "source_export": {
+        "path": "benchmark/realworld/cache/remaining-target-diagnosis/edpb-restrictions-v1-to-final/sources.json",
+        "sha256": "4dcea5118595ca0000b2a581389cb442b8dc9b635cf5891c7d1f44f78bfb7e14"
+      },
+      "resolution": {
+        "path": "benchmark/realworld/next/development/annotations/edpb-restrictions-v1-to-final.resolved.json",
+        "sha256": "bdb9dfe76f944d95a68743644a455904d345909aba648aab681015216d155032"
+      },
+      "sides": {
+        "old": {
+          "relation_issue_counts": {},
+          "relation_inventories": [
+            {
+              "page": null,
+              "backend": 0,
+              "complete": false,
+              "source_count": 0
+            }
+          ],
+          "targets": [
+            {
+              "selector": "body-old",
+              "source_atom_occurrences": 656,
+              "unique_glyphs": 656,
+              "pages": [
+                3
+              ],
+              "retained_tag_covered_glyphs": 0,
+              "retained_tag_overlaps": [],
+              "marked_content_covered_glyphs": 0,
+              "marked_content_overlaps": []
+            }
+          ]
+        },
+        "new": {
+          "relation_issue_counts": {
+            "unresolved content: marked content has no complete native glyph membership": 1,
+            "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined": 1,
+            "unresolved content: overlapping or mixed structure memberships require additional views": 148,
+            "unsupported feature: structure object-reference binding is not implemented": 66
+          },
+          "relation_inventories": [
+            {
+              "page": null,
+              "backend": 0,
+              "complete": false,
+              "source_count": 675
+            }
+          ],
+          "targets": [
+            {
+              "selector": "body-new-1",
+              "source_atom_occurrences": 509,
+              "unique_glyphs": 509,
+              "pages": [
+                4
+              ],
+              "retained_tag_covered_glyphs": 4,
+              "retained_tag_overlaps": [
+                {
+                  "element": 173,
+                  "object": {
+                    "object_number": 486,
+                    "generation": 0
+                  },
+                  "target_glyphs": 4,
+                  "membership_glyphs": 5,
+                  "membership_pages": [
+                    4
+                  ]
+                }
+              ],
+              "marked_content_covered_glyphs": 509,
+              "marked_content_overlaps": [
+                {
+                  "page": 4,
+                  "form": null,
+                  "mcid": 31,
+                  "glyph_range": {
+                    "start": 7148,
+                    "end": 7652
+                  },
+                  "complete": true,
+                  "target_glyphs": 504
+                },
+                {
+                  "page": 4,
+                  "form": null,
+                  "mcid": 32,
+                  "glyph_range": {
+                    "start": 7652,
+                    "end": 7653
+                  },
+                  "complete": true,
+                  "target_glyphs": 1
+                },
+                {
+                  "page": 4,
+                  "form": null,
+                  "mcid": 33,
+                  "glyph_range": {
+                    "start": 7653,
+                    "end": 7658
+                  },
+                  "complete": true,
+                  "target_glyphs": 4
+                }
+              ]
+            },
+            {
+              "selector": "body-new-2",
+              "source_atom_occurrences": 147,
+              "unique_glyphs": 147,
+              "pages": [
+                5
+              ],
+              "retained_tag_covered_glyphs": 0,
+              "retained_tag_overlaps": [],
+              "marked_content_covered_glyphs": 147,
+              "marked_content_overlaps": [
+                {
+                  "page": 5,
+                  "form": null,
+                  "mcid": 2,
+                  "glyph_range": {
+                    "start": 8373,
+                    "end": 8522
+                  },
+                  "complete": true,
+                  "target_glyphs": 147
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

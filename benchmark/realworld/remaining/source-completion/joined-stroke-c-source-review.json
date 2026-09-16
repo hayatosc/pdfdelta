@@ -1,0 +1,24 @@
+{
+  "status": "native equality and whole-node source conservation verified",
+  "scope": "Checks raw native reading and ownership; not independent boundary, paint closure, visibility or inventory certification.",
+  "report": {
+    "path": "benchmark/realworld/cache/source-completion/joined-stroke-v1/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+    "sha256": "d3697d1c3bc5c4f0f58c3690a68816bf87fc43d1c406f155e4e1946e6786d04d"
+  },
+  "source_bundle": {
+    "path": "benchmark/realworld/cache/source-completion/diagnostic-v1/c-review/sources.json",
+    "sha256": "30c4e0ff9637ce6d7dd487338e07c747771a3e4cffe2f01421b0cafc00bb5d4f"
+  },
+  "sides": {
+    "old": {
+      "node": 102,
+      "sources": 3,
+      "text": "23 "
+    },
+    "new": {
+      "node": 102,
+      "sources": 3,
+      "text": "23 "
+    }
+  }
+}

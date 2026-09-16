@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "reason": "Only 1484 of 276532 old glyphs have mapped text, primarily in the publisher archive cover. The old body cannot supply a complete literal prose target. Unmapped evidence is not empty text.",
+  "mapped_glyphs": 1484,
+  "total_glyphs": 276532,
+  "inspection": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/nist-83-original-to-r1-old.glyphs.txt",
+    "sha256": "bb442979b303b78fd8811cd9b01124f4b29c3556b141bc1f648021b23d1453b7"
+  }
+}

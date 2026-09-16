@@ -1,0 +1,448 @@
+{
+  "version": 5,
+  "status": "G2 failed even at the unadjudicated upper bound: two additional pairs of twelve, from two producers",
+  "freeze": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v5-freeze.json",
+    "sha256": "f91e40c793a8db6685637ecce78891b4e40eacc06e70194525822671b4dc09c0"
+  },
+  "registration": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v5/registration-status.json",
+    "sha256": "66718580101dc10f1df20095e5d3f3e4a67c4a2351bb15ce0c03bfb2313741ec"
+  },
+  "attempts": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v5-comparison-attempts.json",
+    "sha256": "583cdae2790dfb99d08a158c59b304beef501db3980161979c89929ede770d87"
+  },
+  "results": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v5-preliminary-results.json",
+    "sha256": "a4296611f4f83c440df45feab951b3047f9af5799d93134eeafb5f3ca335a91f"
+  },
+  "event_identity_repetition_checks": [
+    {
+      "implementation": "current",
+      "pair": "nist-40-r3-to-r4",
+      "event_identity_sha256": "eadecb5d3c9397d450cdb05f69671fc8dbd4ea6ca813bb101823f28533b3d4ce",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/nist-40-r3-to-r4-text.json",
+          "sha256": "ef92500dd68ef2192108fbdfa61a34b6213ba110fe0f2ccc312c20b0ecbbd998"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/nist-40-r3-to-r4-text.json",
+          "sha256": "4b3cb0bf28be10cb4da15c924c93c372722524abaabae678483c46e1618caac8"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-56a-r2-to-r3",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/nist-56a-r2-to-r3-text.json",
+          "sha256": "c725c5a74843d5042fb83c292641aaf11badeea7c1dde1d3fb9d2a7e1c04fda9"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/nist-56a-r2-to-r3-text.json",
+          "sha256": "b28fcab6d61ccebf4c1e40d9e63c6c4a463e6c480f9e80d8d6ad03295f80d2dd"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "nist-70-r3-to-r4",
+      "event_identity_sha256": "1667b4cc9e384a5bf495752e3d047347f15cc7992767ad72b06392cdc3c420e3",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/nist-70-r3-to-r4-text.json",
+          "sha256": "adb305ed2ef8cc57c3e8f8906688e4e88485e93967d39a1de69b94a516ce4ceb"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/nist-70-r3-to-r4-text.json",
+          "sha256": "871a0507fe1acb7b654555428c9ceec78987f418fbab5edd3a70448b764aab4e"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-certification-transfers-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/edpb-certification-transfers-v1-to-v2-text.json",
+          "sha256": "ba880bfafd9d16180a5807df9d1737089e1cc6da7ed354e7fff6dc19e55b3ba8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/edpb-certification-transfers-v1-to-v2-text.json",
+          "sha256": "b50dfe7b9263ec088be147e22d34bd09d171d7f7c280f92ceb12dfef2061221b"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "edpb-codes-transfers-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/edpb-codes-transfers-v1-to-v2-text.json",
+          "sha256": "2c3096cd995752fb5cdb4607014ab2f0dceec25c6f72faf4de5fae829528e027"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/edpb-codes-transfers-v1-to-v2-text.json",
+          "sha256": "15d7115cae3ebf3ceef06d43d3073e7a4f0dbef40d7f02b0b9e0728cb5541ea1"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-mamba-v1-to-v2",
+      "event_identity_sha256": "334ad5ddfb0e0d06ebf764659ff1a1755c7cbcecfeeee0f94dbbe0dc3e8023fb",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/arxiv-mamba-v1-to-v2-text.json",
+          "sha256": "39576e4a16ef9d73f31d9774b59800707611edd8960fe50a32aef506ad54eece"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/arxiv-mamba-v1-to-v2-text.json",
+          "sha256": "6c6a7361da692705865787a5146441d31c3c4bc18827c71c14705f65d384199f"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-dpo-v1-to-v2",
+      "event_identity_sha256": "d864edad40de161f84e476c20579939f42000f945d69779f264ac1f0d9fe6aa7",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/arxiv-dpo-v1-to-v2-text.json",
+          "sha256": "e7aeb1a907e7091fb7a8aca7c3c53dba51be751471ce43aa784483ad0beaa875"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/arxiv-dpo-v1-to-v2-text.json",
+          "sha256": "418fcd7e56dfec582f4d36add82c1627b9d2181e36629fb5beeff93142dac872"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "arxiv-deit-v1-to-v2",
+      "event_identity_sha256": "1de3620020ea3fd4fb989d0c4ab351e11cb384167f7e8f807d5594299e4213d0",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/arxiv-deit-v1-to-v2-text.json",
+          "sha256": "9f27b02d1bc55124c27cb20e8b82dd458820870141af6be919e2b2f817641e18"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/arxiv-deit-v1-to-v2-text.json",
+          "sha256": "129611643f447b077630fab71cc38a8e1ea1c55695c44d284f9492386de914c6"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "faa-crm-51d-to-51e",
+      "event_identity_sha256": "8384fc3dbaee28fdd3aac8ab1b61c060e2101f1210ccf9c02c8e8b7e86c5ae90",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/faa-crm-51d-to-51e-text.json",
+          "sha256": "8ff0d72c180545a1cd26f637c00d11ab64dcf6e0e8731381ee37532c7a2bc26f"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/faa-crm-51d-to-51e-text.json",
+          "sha256": "a61f3c8ef8690ad80a8eb89092d9349a17121966bae2f908d988642990693580"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "mhlw-medical-security-v5-1-to-v5-2",
+      "event_identity_sha256": "cefb6c16371611f864bac8ebac3273a56f6c7ae8459a7a3efff418c70e369f0c",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/mhlw-medical-security-v5-1-to-v5-2-text.json",
+          "sha256": "05c4bd62377a88325d2ef8164b42efdddab99f6dbe22f437923bced2e79974d1"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/mhlw-medical-security-v5-1-to-v5-2-text.json",
+          "sha256": "d50ed29fad55442ff8e69c87f537e33ea8c9bb71ac44e7dfaf872155872d3d82"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-tcp-793-to-9293",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/ietf-tcp-793-to-9293-text.json",
+          "sha256": "f72a191c7624bc35496c690bcb0699d2c49c86537144d57fd3c14449800342b4"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/ietf-tcp-793-to-9293-text.json",
+          "sha256": "b2796066e1870d1e8c226f4d7edc5442860871565f02ee42179edc1959b866a0"
+        }
+      ]
+    },
+    {
+      "implementation": "current",
+      "pair": "ietf-pkix-3280-to-5280",
+      "event_identity_sha256": "79a17ac824a0a90ac9bd3c4e1c06dd070d95fb3dedc1e3d3ba4ca614f9aacf4f",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition1/ietf-pkix-3280-to-5280-text.json",
+          "sha256": "dbbe053afacd857e1dfbad06c37947d3a9ceaea50d3a2673d8202d91845c41ec"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/current-repetition2/ietf-pkix-3280-to-5280-text.json",
+          "sha256": "10c2de0e904ce109513b1f5b5421061ebc85876d41d11f8d105d11d419f3bc2d"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-40-r3-to-r4",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/nist-40-r3-to-r4-text.json",
+          "sha256": "1e1e0f8766bb0460975c960f95e2e91656f25e2877134ae0f11a92385f72b203"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/nist-40-r3-to-r4-text.json",
+          "sha256": "4928f81ab0fbcb0b468b7bad805e632672d0c367ec0b847bd6ee52eee3977d6b"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-56a-r2-to-r3",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/nist-56a-r2-to-r3-text.json",
+          "sha256": "3e9b9f7ebe6a76a78cbcb1dd5c81a92227feb0a06cd883f81133de62db7aaf0d"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/nist-56a-r2-to-r3-text.json",
+          "sha256": "09e77b0a564a7d155ed4b5ce3e3f24c8979ff7c88c4244dd721b6be49e03cb02"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "nist-70-r3-to-r4",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/nist-70-r3-to-r4-text.json",
+          "sha256": "685176363dca89597827081e34e05e3d64202bc5b19b5316c719925263e3bf26"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/nist-70-r3-to-r4-text.json",
+          "sha256": "bc4e2d0301de1fc7bb95e9f96f38382dce217dfec325719208b8046355c8f877"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-certification-transfers-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/edpb-certification-transfers-v1-to-v2-text.json",
+          "sha256": "c2a1d1e37b8162c23fef301de7a71a4786b874891ef077f6293d1dc7d8ba3b2e"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/edpb-certification-transfers-v1-to-v2-text.json",
+          "sha256": "eb54c1543aeaad6104b9246b8693035c0b5ebb1c40449ca43644c11eed7dc127"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "edpb-codes-transfers-v1-to-v2",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/edpb-codes-transfers-v1-to-v2-text.json",
+          "sha256": "8c375b8408fb8e942efc53c5cd9115d21030da3089a313e65aa56d8dcb7077e7"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/edpb-codes-transfers-v1-to-v2-text.json",
+          "sha256": "c225a7a584599f82cd6b898222d7338b5b6f83ad9efb32d05e661601966e1547"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-mamba-v1-to-v2",
+      "event_identity_sha256": "af08169923c4185d7a2b0bd1a1e91a27e63a6736e635dabce189e833285c866e",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/arxiv-mamba-v1-to-v2-text.json",
+          "sha256": "172151f97f459c20eca7a3602f939b35fc8a92707bae7f8b446cd5daa2f54a49"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/arxiv-mamba-v1-to-v2-text.json",
+          "sha256": "57b4db62c2e247464355986263bbe4467a53932aa27afc3aca08c2a515c07972"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-dpo-v1-to-v2",
+      "event_identity_sha256": "cb0d3f331b85ace6a18c81772b994c848c53d09520362326588f24fcb9cd441e",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/arxiv-dpo-v1-to-v2-text.json",
+          "sha256": "bd2b7a0086ca4202223c2e734cbab178c265bbc7802acc62bcfedbcff7549c7f"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/arxiv-dpo-v1-to-v2-text.json",
+          "sha256": "9bee606bb9fe4584dcf8b1835d4c0f81bcedd4da56a8d8c6bc5af875498a72fc"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "arxiv-deit-v1-to-v2",
+      "event_identity_sha256": "a03a5db443324f8f464ef536f95d1ff820f8ea7b1670858f6b8c45a143ea11be",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/arxiv-deit-v1-to-v2-text.json",
+          "sha256": "dc6e332f00dca613381f8aa3863466326e7bc0ef22519cd75c93a10b9feb0ee2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/arxiv-deit-v1-to-v2-text.json",
+          "sha256": "77ba820da10c5cd5805474347504348499e45275d4fdf0ead9fb936eae4d4a02"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "faa-crm-51d-to-51e",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/faa-crm-51d-to-51e-text.json",
+          "sha256": "f8a732fbdb84db3112d3f022fbece917189d252b66c2e6279844d9d63c9e3bc9"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/faa-crm-51d-to-51e-text.json",
+          "sha256": "80b3311e8960f22c2eaf2b2a7a09119b6e6d566e6bf717ba0d1923f5cba12828"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "mhlw-medical-security-v5-1-to-v5-2",
+      "event_identity_sha256": "691f10907e79dacbedfdb6ca9d8bd9930d14b8eeaead1880ce2925cf91f5aec7",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/mhlw-medical-security-v5-1-to-v5-2-text.json",
+          "sha256": "971af3c95c2f4f4354d85ec62a0b92a929f39947b4792f04b5039ca5c361a556"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/mhlw-medical-security-v5-1-to-v5-2-text.json",
+          "sha256": "69573ed4c08f6e48599c70165eaab61a01589a7533166e9afbef0ddb3d3849c4"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-tcp-793-to-9293",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/ietf-tcp-793-to-9293-text.json",
+          "sha256": "a09488373571d86440bedbd441cbf91bfc938d1970d0829eb11f2f145b0a2dac"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/ietf-tcp-793-to-9293-text.json",
+          "sha256": "dcc7a3b6e93ae1887797bfefd3d5cdd78992da90d8b113ee2fe5b00aee0a16f4"
+        }
+      ]
+    },
+    {
+      "implementation": "historical",
+      "pair": "ietf-pkix-3280-to-5280",
+      "event_identity_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "full_event_payloads_identical": true,
+      "reports": [
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition1/ietf-pkix-3280-to-5280-text.json",
+          "sha256": "f1af0d5dc6b50d88059611ca1eeecf37a6cc7c44dc812239e993644d53f1eaff"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/historical-repetition2/ietf-pkix-3280-to-5280-text.json",
+          "sha256": "db82b0f731b045523f098fd687b0b14ab41ccd21116032f62ce2e920843beecd"
+        }
+      ]
+    }
+  ],
+  "formal_adjudication_complete": false,
+  "correctness_note": "Every certificate passed structural validation; both repetitions retain identical complete event payloads, including masks, with zero strict atoms on unchanged controls. All B outputs, including the two target-bearing outputs, still require independent source adjudication. This is an upper-bound failure, not formal unseen correctness.",
+  "G2": {
+    "passed": false,
+    "additional_pair_upper_bound": 2,
+    "additional_pairs": [
+      "arxiv-dpo-v1-to-v2",
+      "nist-40-r3-to-r4"
+    ],
+    "producer_upper_bound": 2,
+    "required_pairs": 3,
+    "required_producers": 2
+  },
+  "implementations": {
+    "current": {
+      "attempts": 24,
+      "captured": 24,
+      "A": 0,
+      "B": 360,
+      "C": 0,
+      "complete": 0,
+      "exact_target_pairs": [
+        "arxiv-dpo-v1-to-v2",
+        "nist-40-r3-to-r4"
+      ],
+      "wall_seconds": 169.73,
+      "peak_rss_kib": 940048,
+      "report_bytes": 101146870
+    },
+    "historical": {
+      "attempts": 24,
+      "captured": 24,
+      "A": 0,
+      "B": 158,
+      "C": 0,
+      "complete": 0,
+      "exact_target_pairs": [],
+      "wall_seconds": 174.28,
+      "peak_rss_kib": 942384,
+      "report_bytes": 77406858
+    }
+  }
+}

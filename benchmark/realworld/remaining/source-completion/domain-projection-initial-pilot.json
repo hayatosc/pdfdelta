@@ -1,0 +1,274 @@
+{
+  "status": "native_domains_pilot_finished",
+  "goal_complete": false,
+  "complete_gain_claimed": false,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/pdfdelta",
+    "sha256": "600918aa14cf02bcdc3aa37af1fb4d628b4cef2a0776773d294f5e864113256a"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/source.tar.gz",
+    "sha256": "4bf3430c2a1cd5f5102de82eba2557a676205af18cbca80640c1845f62ce8b55"
+  },
+  "build_command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "-p",
+    "pdfdelta-cli"
+  ],
+  "checks": {
+    "build": {
+      "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/build.log",
+      "sha256": "5810718ecc8128cabd59f86f68e149a66eab8614f83d9f20d40ad1a3dbe2dbde"
+    }
+  },
+  "rows": [
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/irs-schedule-c-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        0
+      ],
+      "source_gain": {
+        "old": 0,
+        "new": 0
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "c055d1fad55f02420ea69ea69054d5f5d9850d6a580afe0a238799e388f71f52"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/irs-schedule-c-2024-to-2025/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "04252b6be1f3425dff72a5ae540f135ecd705f3ff3ed0d06fad263559ad6049f"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/irs-schedule-c-2024-to-2025/runs.json",
+        "sha256": "e6065b9a9fd5161e7ad4bcf539c0d3cef9faefab19e3348ed56841482160b2e6"
+      },
+      "coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        0,
+        0
+      ],
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/irs-schedule-se-2024-to-2025",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        0
+      ],
+      "source_gain": {
+        "old": 0,
+        "new": 0
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "6df67bc05d527760796d5efdf2443b0b7f30b0114403d0d539bcd2ec63c3136b"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "8c49c38dbef4f8423811e867e7e093a6bd5ce7c7059df96f6195dce51b2d21cc"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/irs-schedule-se-2024-to-2025/runs.json",
+        "sha256": "5565769768c8ad0ef919da1b8e3eb09dbd9f191958018df2d5d480543e437965"
+      },
+      "coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        0,
+        0
+      ],
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/edpb-controller-processor-v1-to-v2-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        23
+      ],
+      "source_gain": {
+        "old": 294,
+        "new": 294
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "f5e4fb0dc0b3007e0f86b855b3e116f5b7fd2c1422b2330f374741b8176ad54f"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/edpb-controller-processor-v1-to-v2-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "5af3ba751e3b30b93eb4724dc4e0f830834c95375bd4b9e5cab4010ffcf87eb3"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/edpb-controller-processor-v1-to-v2-1/runs.json",
+        "sha256": "3c4384956e36bd05609379419859f50f16b57f1c1316f2ad9d09fc0fec03f964"
+      },
+      "coverage_equal": false,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        45,
+        45
+      ],
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/edpb-restrictions-v1-to-final",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-restrictions-v1-to-final",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        14
+      ],
+      "source_gain": {
+        "old": 163,
+        "new": 163
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "fe87f1cb6e123cf4c11644e4b7dba7406a6944ef70bb14194666dd01108c74a6"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/edpb-restrictions-v1-to-final/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "bace126f17935d9cd8cae78c7b6076f54e3538c5f8cbf6654868aebd9b006193"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/edpb-restrictions-v1-to-final/runs.json",
+        "sha256": "e92de4f198b345d6138970ee04cfde1916e3bb881c514b34f33d0d38a5cebb59"
+      },
+      "coverage_equal": false,
+      "strict_comparisons_equal": true,
+      "reviews_equal": false,
+      "review_counts": [
+        56,
+        59
+      ],
+      "complete": [
+        false,
+        false
+      ]
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/pdfdelta",
+        "benchmark/realworld/cache/next-blind",
+        "benchmark/realworld/cache/source-completion/domain-projection-v3/nist-contingency-34-to-r1",
+        "--manifest",
+        "benchmark/realworld/next/blind/inputs.json",
+        "--pair",
+        "nist-contingency-34-to-r1",
+        "--implementation",
+        "4ef99cac98fa0e45e7cb5ed820c14b0b8a485704",
+        "--route",
+        "text"
+      ],
+      "driver_exit_code": 0,
+      "native_domains": [
+        0
+      ],
+      "source_gain": {
+        "old": 0,
+        "new": 0
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-completion/baseline/repetition-1/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "94012536d01430f4b0a9574ab229f5f4fe50537a34c702ace66937d36d087405"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "8907546c51efbfb7404f6f15cc48d6674ea78f077730856d68b26fb195d89c73"
+      },
+      "capture": {
+        "path": "benchmark/realworld/cache/source-completion/domain-projection-v3/nist-contingency-34-to-r1/runs.json",
+        "sha256": "7deb35ec1c2e403156e4f1fd58001ca9a4ec50e4427375cb2ba789f1d30a9bab"
+      },
+      "coverage_equal": true,
+      "strict_comparisons_equal": true,
+      "reviews_equal": true,
+      "review_counts": [
+        0,
+        0
+      ],
+      "complete": [
+        false,
+        false
+      ]
+    }
+  ]
+}

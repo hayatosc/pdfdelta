@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "pair": "faa-weight-27e-to-27f",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 179,
+          "end": 440
+        }
+      },
+      "literal_quote": "This AC provides operators with guidance on how to develop and receive approval for a weight and balance control program for aircraft operated under Title 14 of the Code of Federal Regulations (14 CFR) part 91, subpart K of part 91, and parts 121, 125, and 135.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-2",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 447,
+          "end": 792
+        }
+      },
+      "literal_quote": "This AC presents recommendations for an acceptable means, but not the only means, to develop and receive approval for a weight and balance control program, and includes guidance for using average and estimated weights in accordance with part 121, section 121.153(b) and other applicable parts of subpart K of part 91 and parts 121, 125, and 135.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2,
+        "block": 2,
+        "range": {
+          "start": 47,
+          "end": 52
+        }
+      },
+      "literal_quote": "Date:",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 188,
+          "end": 782
+        }
+      },
+      "literal_quote": "This advisory circular (AC) provides operators with guidance on how to develop and receive approval for a Weight and Balance (W&B) control program for aircraft operated under Title 14 of the Code of Federal Regulations (14 CFR) part 91 subpart K (part 91K), and parts 121, 125, and 135. This AC presents recommendations for an acceptable means, but not the only means, to develop and receive approval for a W&B control program, and includes guidance for using average and estimated weights in accordance with part 121, § 121.153(b) and other applicable sections of parts 91K, 121, 125, and 135.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 130,
+          "end": 135
+        }
+      },
+      "literal_quote": "Date:",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "66f26c5ffd13300aca69621ef6963ec9a3cfbc6dc5a1d0bec22d9c6d9a7f7237",
+  "new_sha256": "726adba4c7050d366e430f17d117e25baf80308b564ffaaaacd4e7f337131f78"
+}

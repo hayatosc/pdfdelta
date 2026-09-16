@@ -1,0 +1,315 @@
+{
+  "status": "source_projection_and_equal_native_text_verified",
+  "scope": "retained native source equality, not whole-document completion or visible-text inventory",
+  "source_bundle": {
+    "path": "benchmark/realworld/cache/source-completion/native-domains-v1/controller-review/sources.json",
+    "sha256": "29043038da9790f8a61b4fbad16f704c08360e8020d3a6c89c8a1e5c59bd1351"
+  },
+  "comparison": {
+    "path": "benchmark/realworld/cache/source-completion/native-domains-v1/controller-review/comparison.json",
+    "sha256": "f4a0c66ec78ff3b7029364ef3519f4dc98bbe9953a57f85fd2b471ee7df93e36"
+  },
+  "domains": [
+    {
+      "proposal": 182,
+      "sides": {
+        "old": {
+          "node": 766,
+          "tokens": [
+            0,
+            85
+          ],
+          "owned_sources": 85,
+          "complement_sources": 0,
+          "text": "all data subjects’ requests, the data subjects themselves may still choose otherwise."
+        },
+        "new": {
+          "node": 1011,
+          "tokens": [
+            0,
+            85
+          ],
+          "owned_sources": 85,
+          "complement_sources": 1,
+          "text": "all data subjects’ requests, the data subjects themselves may still choose otherwise."
+        }
+      }
+    },
+    {
+      "proposal": 189,
+      "sides": {
+        "old": {
+          "node": 749,
+          "tokens": [
+            0,
+            101
+          ],
+          "owned_sources": 101,
+          "complement_sources": 0,
+          "text": "“upon request” nor “publicly available by way of appropriate means”. Therefore, it is up to the joint"
+        },
+        "new": {
+          "node": 989,
+          "tokens": [
+            0,
+            101
+          ],
+          "owned_sources": 101,
+          "complement_sources": 1,
+          "text": "“upon request” nor “publicly available by way of appropriate means”. Therefore, it is up to the joint"
+        }
+      }
+    },
+    {
+      "proposal": 190,
+      "sides": {
+        "old": {
+          "node": 752,
+          "tokens": [
+            0,
+            59
+          ],
+          "owned_sources": 59,
+          "complement_sources": 0,
+          "text": "point for data subjects. Such designation is not mandatory."
+        },
+        "new": {
+          "node": 992,
+          "tokens": [
+            0,
+            59
+          ],
+          "owned_sources": 59,
+          "complement_sources": 2,
+          "text": "point for data subjects. Such designation is not mandatory."
+        }
+      }
+    },
+    {
+      "proposal": 191,
+      "sides": {
+        "old": {
+          "node": 756,
+          "tokens": [
+            0,
+            61
+          ],
+          "owned_sources": 61,
+          "complement_sources": 0,
+          "text": "recommends joint controllers to designate such contact point."
+        },
+        "new": {
+          "node": 996,
+          "tokens": [
+            0,
+            61
+          ],
+          "owned_sources": 61,
+          "complement_sources": 1,
+          "text": "recommends joint controllers to designate such contact point."
+        }
+      }
+    },
+    {
+      "proposal": 192,
+      "sides": {
+        "old": {
+          "node": 760,
+          "tokens": [
+            0,
+            90
+          ],
+          "owned_sources": 90,
+          "complement_sources": 0,
+          "text": "or her rights under the GDPR in respect of and against each of the joint data controllers."
+        },
+        "new": {
+          "node": 1007,
+          "tokens": [
+            0,
+            90
+          ],
+          "owned_sources": 90,
+          "complement_sources": 2,
+          "text": "or her rights under the GDPR in respect of and against each of the joint data controllers."
+        }
+      }
+    },
+    {
+      "proposal": 203,
+      "sides": {
+        "old": {
+          "node": 681,
+          "tokens": [
+            0,
+            100
+          ],
+          "owned_sources": 100,
+          "complement_sources": 0,
+          "text": "agree on their respective responsibilities for compliance with the obligations under the Regulation."
+        },
+        "new": {
+          "node": 912,
+          "tokens": [
+            0,
+            100
+          ],
+          "owned_sources": 100,
+          "complement_sources": 2,
+          "text": "agree on their respective responsibilities for compliance with the obligations under the Regulation."
+        }
+      }
+    },
+    {
+      "proposal": 252,
+      "sides": {
+        "old": {
+          "node": 466,
+          "tokens": [
+            0,
+            9
+          ],
+          "owned_sources": 9,
+          "complement_sources": 0,
+          "text": "Recipient"
+        },
+        "new": {
+          "node": 641,
+          "tokens": [
+            1,
+            10
+          ],
+          "owned_sources": 9,
+          "complement_sources": 2,
+          "text": "Recipient"
+        }
+      }
+    },
+    {
+      "proposal": 268,
+      "sides": {
+        "old": {
+          "node": 424,
+          "tokens": [
+            0,
+            80
+          ],
+          "owned_sources": 80,
+          "complement_sources": 0,
+          "text": "Example: Service provider referred to as data processor but acting as controller"
+        },
+        "new": {
+          "node": 580,
+          "tokens": [
+            0,
+            80
+          ],
+          "owned_sources": 80,
+          "complement_sources": 2,
+          "text": "Example: Service provider referred to as data processor but acting as controller"
+        }
+      }
+    },
+    {
+      "proposal": 283,
+      "sides": {
+        "old": {
+          "node": 379,
+          "tokens": [
+            0,
+            20
+          ],
+          "owned_sources": 20,
+          "complement_sources": 0,
+          "text": "Example: Headhunters"
+        },
+        "new": {
+          "node": 522,
+          "tokens": [
+            0,
+            20
+          ],
+          "owned_sources": 20,
+          "complement_sources": 1,
+          "text": "Example: Headhunters"
+        }
+      }
+    },
+    {
+      "proposal": 288,
+      "sides": {
+        "old": {
+          "node": 370,
+          "tokens": [
+            0,
+            39
+          ],
+          "owned_sources": 39,
+          "complement_sources": 0,
+          "text": "Example: Research project by institutes"
+        },
+        "new": {
+          "node": 507,
+          "tokens": [
+            0,
+            39
+          ],
+          "owned_sources": 39,
+          "complement_sources": 1,
+          "text": "Example: Research project by institutes"
+        }
+      }
+    },
+    {
+      "proposal": 289,
+      "sides": {
+        "old": {
+          "node": 372,
+          "tokens": [
+            0,
+            28
+          ],
+          "owned_sources": 28,
+          "complement_sources": 0,
+          "text": "Example: Marketing operation"
+        },
+        "new": {
+          "node": 510,
+          "tokens": [
+            0,
+            28
+          ],
+          "owned_sources": 28,
+          "complement_sources": 2,
+          "text": "Example: Marketing operation"
+        }
+      }
+    },
+    {
+      "proposal": 295,
+      "sides": {
+        "old": {
+          "node": 362,
+          "tokens": [
+            0,
+            22
+          ],
+          "owned_sources": 22,
+          "complement_sources": 0,
+          "text": "Example: Travel agency"
+        },
+        "new": {
+          "node": 504,
+          "tokens": [
+            0,
+            22
+          ],
+          "owned_sources": 22,
+          "complement_sources": 2,
+          "text": "Example: Travel agency"
+        }
+      }
+    }
+  ],
+  "count": 12
+}

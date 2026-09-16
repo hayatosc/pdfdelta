@@ -1181,6 +1181,16 @@ fn projected_event(sides: [&Side<'_>; 2], event: &ChangeEvent) -> Result<Project
     })
 }
 
+fn charge_work(remaining: &mut usize, count: usize) -> bool {
+    if let Some(next) = remaining.checked_sub(count) {
+        *remaining = next;
+        true
+    } else {
+        *remaining = 0;
+        false
+    }
+}
+
 fn tokens_equal_with_budget(
     old: &[ComparableToken],
     new: &[ComparableToken],

@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "freeze": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v4-freeze.json",
+    "sha256": "7e609d5e2a2e9bacc847e9805e4e720ea1b128e74f2b1f0d9a08d7b87e662d73"
+  },
+  "development": {
+    "path": "benchmark/realworld/source-boundaries/v51-development.json",
+    "sha256": "73cdff3ffa0994253396ddbc32fa0f95d2cadf02fb55fcc5270ed2839864eecd"
+  },
+  "development_verification": {
+    "path": "benchmark/realworld/source-boundaries/checks/v51-development-verification.log",
+    "sha256": "af68ab46b53aeddccef21a39592ec80b11f6a624474da0e49e8b888ab860036c"
+  },
+  "scope": "Validated blind_freeze, registration, quality and additional prior-campaign byte/ID exclusion. Full development verification retained for identical V51 source, binary and configuration; no production edits after that successful formal gate. Manual series novelty includes aliases and source-only rejections.",
+  "pairs": 12,
+  "independent_producers": 8
+}

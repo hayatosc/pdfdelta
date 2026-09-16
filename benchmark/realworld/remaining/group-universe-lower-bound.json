@@ -1,0 +1,148 @@
+{
+  "status": "candidate_universe_lower_bound_verified_no_production_change",
+  "records": [
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "two_member_candidate_lower_bound": 19044,
+      "existing_proposals": 175,
+      "directions": [
+        {
+          "whole_side": "old",
+          "eligible_wholes": 171,
+          "eligible_parts": 173,
+          "two_member_groups": 54,
+          "overlapping_edges_rejected": 0,
+          "exact_equal_pairs_excluded": 0,
+          "additional_distinct_proposals": 8964
+        },
+        {
+          "whole_side": "new",
+          "eligible_wholes": 173,
+          "eligible_parts": 171,
+          "two_member_groups": 60,
+          "overlapping_edges_rejected": 0,
+          "exact_equal_pairs_excluded": 0,
+          "additional_distinct_proposals": 10080
+        }
+      ],
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-panel/irs-w9-2018-to-2024-text.json",
+        "sha256": "88a70af4529af60dd7979828c1129eee1d9ba1ba378d31477597fe6227058f0a"
+      },
+      "source": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/irs-w9-2018-to-2024/review/sources.json",
+        "sha256": "e775604620e355cad1511573c6bb18ce14c727319fa06a3a149f54e06469851d"
+      },
+      "witness": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-diagnosis/irs-w9-2018-to-2024-witness.json",
+        "sha256": "68fe13cb9c82f432101964e12de953e5c584898a1073aa3d4fd0d6cf72fda617"
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "two_member_candidate_lower_bound": 58099,
+      "existing_proposals": 157,
+      "directions": [
+        {
+          "whole_side": "old",
+          "eligible_wholes": 248,
+          "eligible_parts": 253,
+          "two_member_groups": 128,
+          "overlapping_edges_rejected": 0,
+          "exact_equal_pairs_excluded": 0,
+          "additional_distinct_proposals": 29440
+        },
+        {
+          "whole_side": "new",
+          "eligible_wholes": 253,
+          "eligible_parts": 248,
+          "two_member_groups": 123,
+          "overlapping_edges_rejected": 0,
+          "exact_equal_pairs_excluded": 0,
+          "additional_distinct_proposals": 28659
+        }
+      ],
+      "report": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/census-reuse-panel/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "5c4778dc1fc7a81d1a0f29e6eb62cfbc85ed1de03e21bfb05dee4b73565388be"
+      },
+      "source": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/edpb-restrictions-v1-to-final/review/sources.json",
+        "sha256": "777cfdb5a1cd04c8a1cdc1bfb11a4b0d36ec6d3e7ddbbc26830952c06f379021"
+      },
+      "witness": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-diagnosis/edpb-restrictions-v1-to-final-witness.json",
+        "sha256": "2cb6751ae6d7d9eac9659db5497cfff7d22d9dc95971ca860c9ca3a2033271d5"
+      }
+    }
+  ],
+  "existing_proposal_limit": 10000,
+  "conclusion": "Even the source-compatible two-member subset exceeds the unchanged proposal limit in both scopes. Reusing trigram features cannot by itself make this supplier exhaustive. The supplier withdraws its inferred additions on truncation; no coverage gain follows from reducing its token work alone.",
+  "proof_scope": "All counted pairs use allowed exact unkeyed non-cell leaf nodes, retained same-kind Precedes edges, disjoint sources, and unequal literal token sequences. Both graphs have no alternative partitions or source conflicts. Existing proposals and duplicate tuples are excluded. Longer groups are omitted only from this mathematical lower bound, not from production discovery.",
+  "decision": "Do not implement the trigram-cache-only proposal as a coverage fix. Do not raise limits, prune low-similarity candidates without a dominance proof, or change completion semantics.",
+  "next_action": "Return to the frozen Faster R-CNN body target: inspect whether source-backed glyph ink bounds can resolve the demonstrated rotated-margin census overlap before changing fragment boundary discovery.",
+  "production_unchanged": true,
+  "comparison_payloads_equal_for_both_source_exports": true,
+  "new_A_or_B_recovery": 0,
+  "strict_coverage_gain": 0,
+  "document_completion_gain": 0,
+  "gate_gain": 0,
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-diagnosis/count.py",
+      "sha256": "ccc8b19b1b425d2ab92e1f622910c8799044d7a7eedf79a59cd57c21f6a6966e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-diagnosis/counts.json",
+      "sha256": "07db25408a46edb231629c221a80aa47ba7004bf0849ced2d43d6896901e62ca"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-diagnosis/export-sources.py",
+      "sha256": "6667ab05c16de1d3fb058c91ca9bc74e6ea397d68f387fb98fd33f8f0a2161ea"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-diagnosis/export.log",
+      "sha256": "66db901749a480fbb04aadf2ae75c5f4ec34e771dababd11a0a952ad2910ebd9"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/groups.rs",
+      "sha256": "9ca1713ddd4d4d7ef370fba58b9165a24265ea72211587ef2659c294422188a2"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/groups/nonexact.rs",
+      "sha256": "4f52b67522db022e76bd72f87bf34effc11dfbaea0642a00d5e828d593d18f36"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/text_candidates.rs",
+      "sha256": "a7436d1e0afa742b9067897221abc66c917dcd9460f9e6c6f0040dfab7c25663"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/document/matching.rs",
+      "sha256": "12498a59fc7131898034bb77a7c5ce99b099388aebfb285ccd8a832b1ff87f19"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/irs-w9-2018-to-2024/run.json",
+      "sha256": "ac98d765a39eaa4bffe47c64efeb61604ea627119055020e56526092bb432c48"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/irs-w9-2018-to-2024/report.json",
+      "sha256": "a0230b5f28cfcd5d14b6c99538316cda7ac6983e24f3d2c42bdde8f5f70f284e"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/irs-w9-2018-to-2024/review/manifest.json",
+      "sha256": "9b313c18eab83dec2ea1bdd8ed425f4c09095b4636ccb1cedcdb19b09283b7b4"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/edpb-restrictions-v1-to-final/run.json",
+      "sha256": "393c5d12c20a15a72bc9b229b58748c5e225842238e33502159970c17f5da9e9"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/edpb-restrictions-v1-to-final/report.json",
+      "sha256": "13f2c8548a7fc174cbd22832d74d00213ea2f2db90cf65e972a80881c0f0517a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-universe-exports/edpb-restrictions-v1-to-final/review/manifest.json",
+      "sha256": "e9e6461e69543e266d03e2ead390b55a35f7ec98994ba66646256bc7fe1a7068"
+    }
+  ]
+}

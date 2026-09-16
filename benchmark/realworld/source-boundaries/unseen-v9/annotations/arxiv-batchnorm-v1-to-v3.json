@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "arxiv-batchnorm-v1-to-v3",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1685,
+          "end": 2723
+        }
+      },
+      "literal_quote": "WeappliedBatchNormalizationtoanewvariantoftheInceptionnetworkSzegedyetal.(2014),trainedontheImageNetclassiﬁcationtaskRussakovskyetal.(2014).Thenetworkhasalargenumberofconvolutionalandpoolinglayers,withasoftmaxlayertopredicttheimageclass,outof1000possibilities.ConvolutionallayersuseReLUasthenonlinearity.Themaindifferencetothenet-workdescribedinSzegedyetal.(2014)isthatthe5×5convolutionallayersarereplacedbytwoconsecutivelay-ersof3×3convolutionswithupto128ﬁlters.Thenet-workcontains13.6·106parameters,and,otherthanthetopsoftmaxlayer,hasnofully-connectedlayers.MoredetailsaregivenintheAppendix.WerefertothismodelasInceptionintherestofthetext.ThemodelwastrainedusingaversionofStochasticGradientDescentwithmo-mentumSutskeveretal.(2013),usingthemini-batchsizeof32.Thetrainingwasperformedusingalarge-scale,distributedarchitecture(similartoDeanetal.(2012)).Allnetworksareevaluatedastrainingprogressesbycomput-ingthevalidationaccuracy@1,i.e.theprobabilityofpredictingthecorrectlabeloutof1000possibilities,onaheld-outset,usingasinglecropperimage.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1661,
+          "end": 1685
+        }
+      },
+      "literal_quote": "4.2ImageNetclassiﬁcation",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1685,
+          "end": 2729
+        }
+      },
+      "literal_quote": "WeappliedBatchNormalizationtoanewvariantoftheInceptionnetwork(Szegedyetal.,2014),trainedontheImageNetclassiﬁcationtask(Russakovskyetal.,2014).Thenetworkhasalargenumberofconvolutionalandpoolinglayers,withasoftmaxlayertopredicttheimageclass,outof1000possibilities.ConvolutionallayersuseReLUasthenonlinearity.Themaindifferencetothenet-workdescribedin(Szegedyetal.,2014)isthatthe5×5convolutionallayersarereplacedbytwoconsecutivelay-ersof3×3convolutionswithupto128ﬁlters.Thenet-workcontains13.6·106parameters,and,otherthanthetopsoftmaxlayer,hasnofully-connectedlayers.MoredetailsaregivenintheAppendix.WerefertothismodelasInceptionintherestofthetext.ThemodelwastrainedusingaversionofStochasticGradientDescentwithmo-mentum(Sutskeveretal.,2013),usingthemini-batchsizeof32.Thetrainingwasperformedusingalarge-scale,dis-tributedarchitecture(similarto(Deanetal.,2012)).Allnetworksareevaluatedastrainingprogressesbycomput-ingthevalidationaccuracy@1,i.e.theprobabilityofpredictingthecorrectlabeloutof1000possibilities,onaheld-outset,usingasinglecropperimage.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 5,
+        "block": 5,
+        "range": {
+          "start": 1661,
+          "end": 1685
+        }
+      },
+      "literal_quote": "4.2ImageNetclassiﬁcation",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "4591881ed6e7b3815eaa7c13cb8d8cc1c807ca5411150c11d11f718e6ba48949",
+  "new_sha256": "bdc69e0b568f41d8d3181cc9077a461f58fcdd1c70c9f49efe60a05ee6109655"
+}

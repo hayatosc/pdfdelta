@@ -29,8 +29,8 @@ pub struct LocalTextClaims {
 /// Runs the existing bounded proof kernel for an already proposed local pair.
 /// Returned masks contain only source-backed positions; synthetic layout
 /// separators participate in alignment but never become changed source tokens.
-/// `None` means a proof did not finish, not that the pair is equal. An exact
-/// grid declined before evaluation leaves its unspent work available;
+/// `None` means a proof did not finish, not that the pair is equal.
+/// An exact grid declined before evaluation leaves its unspent work available;
 /// completed setup and LCS work remain charged.
 ///
 /// # Errors
@@ -44,11 +44,6 @@ pub fn local_text_claims(
     if old.optional.len() != old.tokens.len() || new.optional.len() != new.tokens.len() {
         return Err(crate::Error::InvalidConfiguration(
             "local normalization mask length differs from tokens".into(),
-        ));
-    }
-    if old.source.len() != old.tokens.len() || new.source.len() != new.tokens.len() {
-        return Err(crate::Error::InvalidConfiguration(
-            "local source mask length differs from tokens".into(),
         ));
     }
     let result = if old

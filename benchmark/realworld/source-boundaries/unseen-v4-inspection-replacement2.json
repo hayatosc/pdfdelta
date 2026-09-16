@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "7836eff1f3430aaea7498517237329d9f472b08ff281dad6d813d2f415675b59",
+  "attempts": [
+    {
+      "pair": "arxiv-dino-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:57:40.070891+00:00",
+      "exit_code": 0,
+      "input_sha256": "9d0c03af1a99d11982b0fc62094591849d7dfc698c2c6692d6588d71e9da3174",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-old.glyphs.txt",
+        "sha256": "441a4e8a3bd9d4469223d7731a264f3fb02c137f7ebaaa3a776338f647501f3e"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-dino-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-page-edges-v51/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T14:57:40.608170+00:00",
+      "exit_code": 0,
+      "input_sha256": "aa464cfd59a428890190bea1065823a491a853478b4fb2a25f5eb44d442ce296",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-new.glyphs.txt",
+        "sha256": "4dc497a2e63ef0d5bb1dc635ffae75297cca0263d4acd01d4691cd78928a5884"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v4/arxiv-dino-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

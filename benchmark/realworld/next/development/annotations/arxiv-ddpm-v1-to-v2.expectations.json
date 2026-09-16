@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "pair": "arxiv-ddpm-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_sha256": "b1790b9d1a936d00919606f2530914c7bb5c2343bdabc6cd269ddbd70189bd95",
+  "resolution_sha256": "5d7ad524a8431459763e22800345bed5c6f349417af0f09e5d48b8bc0e2ef969",
+  "resolver_binary_sha256": "2948960ce8cbfdcb01d9ddcba735e343d74c07e2f848167670cafb646ff9e207",
+  "sampling": "One changed body paragraph and one unchanged abstract sentence, selected from source before any comparison. Partial reference, not whole-document gold.",
+  "comparison_convention": "Compare the finite named body paragraph on the first PDF page. Citation renumbering is visible content change; no unique author edit history is asserted.",
+  "positive_scope": {
+    "expected_content_change": true,
+    "changed_scope_denominator": 1,
+    "old_new_regions": {
+      "old": {
+        "page": 0,
+        "bbox": [
+          107.751,
+          335.62607840000004,
+          505.245463,
+          388.1686428
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "body-old"
+      },
+      "new": {
+        "page": 0,
+        "bbox": [
+          107.751,
+          334.52307840000003,
+          505.245463,
+          387.0656428
+        ],
+        "coordinate_system": "native PDF user-space evidence bounds",
+        "selector": "body-new"
+      }
+    },
+    "strict_event_gold": null,
+    "strict_changed_position_gold": null,
+    "reason": "Paragraph reference does not impose a unique internal minimal edit script; any separate numeric target has its own restricted denominator."
+  },
+  "controls": [
+    "unchanged-sentence-old",
+    "unchanged-sentence-new"
+  ],
+  "control_convention": "The selected first abstract sentence has identical literal paint-order text and unchanged visible content; unselected surrounding whitespace is outside the control.",
+  "presentation": {
+    "single_column_body": true,
+    "two_column_body": false,
+    "layout_family_label_is_not_proof": true,
+    "cross_page_split_in_this_scope": false,
+    "rotated_margin_label": true,
+    "embedded_images_on_selected_page": true
+  },
+  "visual_checks": [
+    {
+      "side": "old",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        74,
+        0
+      ],
+      "pages": 24,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "511b93031d0a39a982958774d2e86bc1acd08a9ed21a6e37dfcec2d642969fa6",
+      "input_sha256": "4bd69fcbb4a9e794d38424d187b91d7e958461f5eaaa14cf2a578a2b6aac71be",
+      "renderer_binary_sha256": "7afae7466f0885c4a10bf6a66703182b75cc9ac356e287400841b60de8149933",
+      "profile": "existing render-page worker; white background; default annotation/display state; ceil page dimensions at 72 dpi",
+      "visually_inspected": true
+    },
+    {
+      "side": "new",
+      "page": 0,
+      "width": 612,
+      "height": 792,
+      "page_object": [
+        78,
+        0
+      ],
+      "pages": 25,
+      "warning_flag": 0,
+      "raw_rgb_response_sha256": "51530160439f02b72d66bb142c09261a073fd8bce0e7e1cfb422c8107c4d1e14",
+      "input_sha256": "aee5e07a802e8dfd2a386374c94fd61d1d056cb7e1e0fec4f28e8120ff5d8505",
+      "renderer_binary_sha256": "7afae7466f0885c4a10bf6a66703182b75cc9ac356e287400841b60de8149933",
+      "profile": "existing render-page worker; white background; default annotation/display state; ceil page dimensions at 72 dpi",
+      "visually_inspected": true
+    }
+  ]
+}

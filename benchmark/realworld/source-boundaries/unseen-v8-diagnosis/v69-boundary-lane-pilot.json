@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "scope": "Post-retirement diagnostic pilots, neither adopted nor counted as unseen validation. Boundary-lane tests a source-closed subsequence after declining the original interval, excluding whole nodes strictly left of both anchors. It does not increase any budget or change source annotations. Event digest differences are unadjudicated observations.",
+  "command_ledgers": [
+    {
+      "path": "benchmark/realworld/cache/source-boundaries-boundary-lane-v69/commands.json",
+      "sha256": "2a7e4934e0f876a98bfdc78530adeb3f0eacc25e038b2cb28ca54a662de8117a"
+    }
+  ],
+  "rows": [
+    {
+      "variant": "boundary-lane",
+      "pair": "nist-184-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-boundary-lane-v69/nist-184-draft-to-final.json",
+        "sha256": "3e75183d3763a37725864609ac9853426e05c6ec7c1ffe5fe35f23dee69f1cfa"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/current-repetition1/nist-184-draft-to-final-text.json",
+        "sha256": "0c89a4499a6f6571dab6b13cb17c681cba53b4628bab5c5034e25375dce95c6c"
+      },
+      "categories": {
+        "B": 12
+      },
+      "exact_range_hits": [],
+      "added_event_digests": [],
+      "removed_event_digests": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 16,
+        "work": 405813,
+        "budget_at_entry": 405817
+      }
+    },
+    {
+      "variant": "boundary-lane",
+      "pair": "nist-150-draft-to-final",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-boundary-lane-v69/nist-150-draft-to-final.json",
+        "sha256": "e7b525623aaf7ebfbb001d14de9b90a154bc1592fe5dc091c3963e51cab36baa"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/current-repetition1/nist-150-draft-to-final-text.json",
+        "sha256": "5692adb5ef2f6f1efb1380669c7e9e833cc44ed72a9e53d09f4b17b027d3cf0b"
+      },
+      "categories": {},
+      "exact_range_hits": [],
+      "added_event_digests": [],
+      "removed_event_digests": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 0,
+        "work": 354896,
+        "budget_at_entry": 355006
+      }
+    },
+    {
+      "variant": "boundary-lane",
+      "pair": "ietf-ipv6-2460-to-8200",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-boundary-lane-v69/ietf-ipv6-2460-to-8200.json",
+        "sha256": "e0b51245e179540bc061876c77b157af373bc0e146930375566974d922e812ee"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/current-repetition1/ietf-ipv6-2460-to-8200-text.json",
+        "sha256": "65d439767326ad63bc47e0cbaa2f26c11d9ff817f35a81af8a166802090840bb"
+      },
+      "categories": {
+        "B": 42
+      },
+      "exact_range_hits": [],
+      "added_event_digests": [],
+      "removed_event_digests": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 0,
+        "paired_boundaries": 36,
+        "work": 666833,
+        "budget_at_entry": 666836
+      }
+    },
+    {
+      "variant": "boundary-lane",
+      "pair": "arxiv-cot-v1-to-v6",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-boundary-lane-v69/arxiv-cot-v1-to-v6.json",
+        "sha256": "5e076e7debbe92ec051d375f2f9bdfe6936fec86246074b6161085c23f4d357a"
+      },
+      "baseline": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v8/current-repetition1/arxiv-cot-v1-to-v6-text.json",
+        "sha256": "7a29d8ce2fadd04545473a3e923f87e43bd474b312713a7cd4ae959678bc8101"
+      },
+      "categories": {
+        "B": 1
+      },
+      "exact_range_hits": [],
+      "added_event_digests": [],
+      "removed_event_digests": [],
+      "source_cut_search": {
+        "convention": "matched-interval-native-fragment-cuts-v2",
+        "exhaustive": false,
+        "examined_fragments": 8,
+        "paired_boundaries": 8,
+        "work": 611586,
+        "budget_at_entry": 615758
+      }
+    }
+  ]
+}

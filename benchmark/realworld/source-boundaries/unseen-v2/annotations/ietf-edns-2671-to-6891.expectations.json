@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-edns-2671-to-6891",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "bb55292dcd1a7f2ba02adea7e5e05d8cc0ffb3ae85670cfbbd026d2537ef0ede",
+  "body_eligible": true,
+  "reason": "The first abstract paragraph changes clients and servers to requestors and responders and adds a hyphen in backward-compatible."
+}

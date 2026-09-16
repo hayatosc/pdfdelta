@@ -1,0 +1,1972 @@
+{
+  "status": "finished",
+  "goal_complete": false,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/pdfdelta",
+    "sha256": "7e6f64719007552708cc7e7880d05f071f929a5a117b51717539051e28a4835f"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/source.tar.gz",
+    "sha256": "6d48913e6834701b5d877e0cadf8edeb33ed73468120681dbcbef73b48c79404"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/build.log",
+    "sha256": "1cc3d4fa9a9fa7b28fc42608ac098ac6abc1f281aa7a951fc5cf00ae9aface4b"
+  },
+  "rows": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-se-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-se-2024-to-2025",
+        "--implementation",
+        "254c67086ed600dc85c234231ceac2c931d15123",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "fb7bdb2563c00c614d098c27620593a426ffe18f1d09ffbada25280348eed7d4"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-se-2024-to-2025-1/irs-schedule-se-2024-to-2025-text.json",
+        "sha256": "af3d8c37cac4d7ec77dac17b38aada841b1c9fb98f3eb780057be0721b43a1a0"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-se-2024-to-2025-1/runs.json",
+        "sha256": "1a21b65cadaf60a8e763ecb796c61c503d8709a5c5ec19d5b53e581a1745c2ad"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4291,
+          "new_compared_sources": 4291,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 867,
+          "new_uncompared_sources": 884,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 5158,
+          "new_discovered_sources": 5175,
+          "old_compared_sources": 4348,
+          "new_compared_sources": 4363,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 810,
+          "new_uncompared_sources": 812,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 5158,
+        "new": 5175
+      },
+      "native_glyphs_after": {
+        "old": 5158,
+        "new": 5175
+      },
+      "comparison_identical": false,
+      "native_intervals": [
+        {
+          "boundaries": [
+            89,
+            0
+          ],
+          "old_sources": [
+            {
+              "origin": "native",
+              "glyph": 3706
+            },
+            {
+              "origin": "native",
+              "glyph": 3707
+            },
+            {
+              "origin": "native",
+              "glyph": 3708
+            },
+            {
+              "origin": "native",
+              "glyph": 3709
+            },
+            {
+              "origin": "native",
+              "glyph": 3710
+            },
+            {
+              "origin": "native",
+              "glyph": 3711
+            },
+            {
+              "origin": "native",
+              "glyph": 3712
+            },
+            {
+              "origin": "native",
+              "glyph": 3713
+            },
+            {
+              "origin": "native",
+              "glyph": 3714
+            },
+            {
+              "origin": "native",
+              "glyph": 3715
+            },
+            {
+              "origin": "native",
+              "glyph": 3716
+            },
+            {
+              "origin": "native",
+              "glyph": 3717
+            },
+            {
+              "origin": "native",
+              "glyph": 3718
+            },
+            {
+              "origin": "native",
+              "glyph": 3719
+            },
+            {
+              "origin": "native",
+              "glyph": 3720
+            },
+            {
+              "origin": "native",
+              "glyph": 3721
+            },
+            {
+              "origin": "native",
+              "glyph": 3722
+            },
+            {
+              "origin": "native",
+              "glyph": 3723
+            },
+            {
+              "origin": "native",
+              "glyph": 3724
+            },
+            {
+              "origin": "native",
+              "glyph": 3725
+            },
+            {
+              "origin": "native",
+              "glyph": 3726
+            },
+            {
+              "origin": "native",
+              "glyph": 3727
+            },
+            {
+              "origin": "native",
+              "glyph": 3728
+            },
+            {
+              "origin": "native",
+              "glyph": 3729
+            },
+            {
+              "origin": "native",
+              "glyph": 3730
+            },
+            {
+              "origin": "native",
+              "glyph": 3731
+            },
+            {
+              "origin": "native",
+              "glyph": 3732
+            },
+            {
+              "origin": "native",
+              "glyph": 3733
+            },
+            {
+              "origin": "native",
+              "glyph": 3734
+            },
+            {
+              "origin": "native",
+              "glyph": 3735
+            },
+            {
+              "origin": "native",
+              "glyph": 3736
+            },
+            {
+              "origin": "native",
+              "glyph": 3737
+            },
+            {
+              "origin": "native",
+              "glyph": 3738
+            },
+            {
+              "origin": "native",
+              "glyph": 3739
+            },
+            {
+              "origin": "native",
+              "glyph": 3740
+            },
+            {
+              "origin": "native",
+              "glyph": 3741
+            },
+            {
+              "origin": "native",
+              "glyph": 3742
+            },
+            {
+              "origin": "native",
+              "glyph": 3743
+            },
+            {
+              "origin": "native",
+              "glyph": 3744
+            },
+            {
+              "origin": "native",
+              "glyph": 3745
+            },
+            {
+              "origin": "native",
+              "glyph": 3746
+            },
+            {
+              "origin": "native",
+              "glyph": 3747
+            },
+            {
+              "origin": "native",
+              "glyph": 3748
+            },
+            {
+              "origin": "native",
+              "glyph": 3749
+            },
+            {
+              "origin": "native",
+              "glyph": 3750
+            },
+            {
+              "origin": "native",
+              "glyph": 3751
+            },
+            {
+              "origin": "native",
+              "glyph": 3752
+            },
+            {
+              "origin": "native",
+              "glyph": 3753
+            },
+            {
+              "origin": "native",
+              "glyph": 3754
+            },
+            {
+              "origin": "native",
+              "glyph": 3755
+            },
+            {
+              "origin": "native",
+              "glyph": 3756
+            },
+            {
+              "origin": "native",
+              "glyph": 3757
+            },
+            {
+              "origin": "native",
+              "glyph": 3758
+            },
+            {
+              "origin": "native",
+              "glyph": 3759
+            },
+            {
+              "origin": "native",
+              "glyph": 3760
+            },
+            {
+              "origin": "native",
+              "glyph": 3761
+            },
+            {
+              "origin": "native",
+              "glyph": 3762
+            }
+          ],
+          "new_sources": [
+            {
+              "origin": "native",
+              "glyph": 3707
+            },
+            {
+              "origin": "native",
+              "glyph": 3708
+            },
+            {
+              "origin": "native",
+              "glyph": 3709
+            },
+            {
+              "origin": "native",
+              "glyph": 3710
+            },
+            {
+              "origin": "native",
+              "glyph": 3711
+            },
+            {
+              "origin": "native",
+              "glyph": 3712
+            },
+            {
+              "origin": "native",
+              "glyph": 3713
+            },
+            {
+              "origin": "native",
+              "glyph": 3714
+            },
+            {
+              "origin": "native",
+              "glyph": 3715
+            },
+            {
+              "origin": "native",
+              "glyph": 3716
+            },
+            {
+              "origin": "native",
+              "glyph": 3717
+            },
+            {
+              "origin": "native",
+              "glyph": 3718
+            },
+            {
+              "origin": "native",
+              "glyph": 3719
+            },
+            {
+              "origin": "native",
+              "glyph": 3720
+            },
+            {
+              "origin": "native",
+              "glyph": 3721
+            },
+            {
+              "origin": "native",
+              "glyph": 3722
+            },
+            {
+              "origin": "native",
+              "glyph": 3723
+            },
+            {
+              "origin": "native",
+              "glyph": 3724
+            },
+            {
+              "origin": "native",
+              "glyph": 3725
+            },
+            {
+              "origin": "native",
+              "glyph": 3726
+            },
+            {
+              "origin": "native",
+              "glyph": 3727
+            },
+            {
+              "origin": "native",
+              "glyph": 3728
+            },
+            {
+              "origin": "native",
+              "glyph": 3729
+            },
+            {
+              "origin": "native",
+              "glyph": 3730
+            },
+            {
+              "origin": "native",
+              "glyph": 3731
+            },
+            {
+              "origin": "native",
+              "glyph": 3732
+            },
+            {
+              "origin": "native",
+              "glyph": 3733
+            },
+            {
+              "origin": "native",
+              "glyph": 3734
+            },
+            {
+              "origin": "native",
+              "glyph": 3735
+            },
+            {
+              "origin": "native",
+              "glyph": 3736
+            },
+            {
+              "origin": "native",
+              "glyph": 3737
+            },
+            {
+              "origin": "native",
+              "glyph": 3738
+            },
+            {
+              "origin": "native",
+              "glyph": 3739
+            },
+            {
+              "origin": "native",
+              "glyph": 3740
+            },
+            {
+              "origin": "native",
+              "glyph": 3741
+            },
+            {
+              "origin": "native",
+              "glyph": 3742
+            },
+            {
+              "origin": "native",
+              "glyph": 3743
+            },
+            {
+              "origin": "native",
+              "glyph": 3744
+            },
+            {
+              "origin": "native",
+              "glyph": 3745
+            },
+            {
+              "origin": "native",
+              "glyph": 3746
+            },
+            {
+              "origin": "native",
+              "glyph": 3747
+            },
+            {
+              "origin": "native",
+              "glyph": 3748
+            },
+            {
+              "origin": "native",
+              "glyph": 3749
+            },
+            {
+              "origin": "native",
+              "glyph": 3750
+            },
+            {
+              "origin": "native",
+              "glyph": 3751
+            },
+            {
+              "origin": "native",
+              "glyph": 3752
+            },
+            {
+              "origin": "native",
+              "glyph": 3753
+            },
+            {
+              "origin": "native",
+              "glyph": 3754
+            },
+            {
+              "origin": "native",
+              "glyph": 3755
+            },
+            {
+              "origin": "native",
+              "glyph": 3756
+            },
+            {
+              "origin": "native",
+              "glyph": 3757
+            },
+            {
+              "origin": "native",
+              "glyph": 3758
+            },
+            {
+              "origin": "native",
+              "glyph": 3759
+            },
+            {
+              "origin": "native",
+              "glyph": 3760
+            },
+            {
+              "origin": "native",
+              "glyph": 3761
+            },
+            {
+              "origin": "native",
+              "glyph": 3762
+            },
+            {
+              "origin": "native",
+              "glyph": 3763
+            },
+            {
+              "origin": "native",
+              "glyph": 3764
+            },
+            {
+              "origin": "native",
+              "glyph": 3765
+            },
+            {
+              "origin": "native",
+              "glyph": 3766
+            },
+            {
+              "origin": "native",
+              "glyph": 3767
+            },
+            {
+              "origin": "native",
+              "glyph": 3768
+            },
+            {
+              "origin": "native",
+              "glyph": 3769
+            },
+            {
+              "origin": "native",
+              "glyph": 3770
+            },
+            {
+              "origin": "native",
+              "glyph": 3771
+            },
+            {
+              "origin": "native",
+              "glyph": 3772
+            },
+            {
+              "origin": "native",
+              "glyph": 3773
+            },
+            {
+              "origin": "native",
+              "glyph": 3774
+            },
+            {
+              "origin": "native",
+              "glyph": 3775
+            },
+            {
+              "origin": "native",
+              "glyph": 3776
+            },
+            {
+              "origin": "native",
+              "glyph": 3777
+            },
+            {
+              "origin": "native",
+              "glyph": 3778
+            }
+          ],
+          "comparison": {
+            "old": [
+              75,
+              76
+            ],
+            "new": [
+              75,
+              76
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+              "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025"
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 19,
+                "changed_source_upper": 19,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 27,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3733
+                    }
+                  ]
+                },
+                {
+                  "position": 56,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3762
+                    }
+                  ]
+                }
+              ],
+              "new": [
+                {
+                  "position": 27,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3734
+                    }
+                  ]
+                },
+                {
+                  "position": 29,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3736
+                    }
+                  ]
+                },
+                {
+                  "position": 30,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3737
+                    }
+                  ]
+                },
+                {
+                  "position": 31,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3738
+                    }
+                  ]
+                },
+                {
+                  "position": 32,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3739
+                    }
+                  ]
+                },
+                {
+                  "position": 33,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3740
+                    }
+                  ]
+                },
+                {
+                  "position": 34,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3741
+                    }
+                  ]
+                },
+                {
+                  "position": 35,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3742
+                    }
+                  ]
+                },
+                {
+                  "position": 37,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3744
+                    }
+                  ]
+                },
+                {
+                  "position": 38,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3745
+                    }
+                  ]
+                },
+                {
+                  "position": 39,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3746
+                    }
+                  ]
+                },
+                {
+                  "position": 40,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3747
+                    }
+                  ]
+                },
+                {
+                  "position": 42,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3749
+                    }
+                  ]
+                },
+                {
+                  "position": 71,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 3778
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          }
+        }
+      ]
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-c-2024-to-2025-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "irs-schedule-c-2024-to-2025",
+        "--implementation",
+        "254c67086ed600dc85c234231ceac2c931d15123",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "2390083cb664f1e93652b198138c4a0dc33b295caee3fa492296291067e4a82c"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-c-2024-to-2025-1/irs-schedule-c-2024-to-2025-text.json",
+        "sha256": "286d41591866d2ee34fc2040e6e1389a0fbabe98a889cf01a103c53f8589bb73"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/irs-schedule-c-2024-to-2025-1/runs.json",
+        "sha256": "b77b5baefeeb69426db5467087e60bc9f09210aeca0568eba8a9ae5b629fe49f"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5015,
+          "new_compared_sources": 5015,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1295,
+          "new_uncompared_sources": 1301,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 6310,
+          "new_discovered_sources": 6316,
+          "old_compared_sources": 5070,
+          "new_compared_sources": 5085,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 1240,
+          "new_uncompared_sources": 1231,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 6310,
+        "new": 6316
+      },
+      "native_glyphs_after": {
+        "old": 6310,
+        "new": 6316
+      },
+      "comparison_identical": false,
+      "native_intervals": [
+        {
+          "boundaries": [
+            400,
+            0
+          ],
+          "old_sources": [
+            {
+              "origin": "native",
+              "glyph": 4321
+            },
+            {
+              "origin": "native",
+              "glyph": 4322
+            },
+            {
+              "origin": "native",
+              "glyph": 4323
+            },
+            {
+              "origin": "native",
+              "glyph": 4324
+            },
+            {
+              "origin": "native",
+              "glyph": 4325
+            },
+            {
+              "origin": "native",
+              "glyph": 4326
+            },
+            {
+              "origin": "native",
+              "glyph": 4327
+            },
+            {
+              "origin": "native",
+              "glyph": 4328
+            },
+            {
+              "origin": "native",
+              "glyph": 4329
+            },
+            {
+              "origin": "native",
+              "glyph": 4330
+            },
+            {
+              "origin": "native",
+              "glyph": 4331
+            },
+            {
+              "origin": "native",
+              "glyph": 4332
+            },
+            {
+              "origin": "native",
+              "glyph": 4333
+            },
+            {
+              "origin": "native",
+              "glyph": 4334
+            },
+            {
+              "origin": "native",
+              "glyph": 4335
+            },
+            {
+              "origin": "native",
+              "glyph": 4336
+            },
+            {
+              "origin": "native",
+              "glyph": 4337
+            },
+            {
+              "origin": "native",
+              "glyph": 4338
+            },
+            {
+              "origin": "native",
+              "glyph": 4339
+            },
+            {
+              "origin": "native",
+              "glyph": 4340
+            },
+            {
+              "origin": "native",
+              "glyph": 4341
+            },
+            {
+              "origin": "native",
+              "glyph": 4342
+            },
+            {
+              "origin": "native",
+              "glyph": 4343
+            },
+            {
+              "origin": "native",
+              "glyph": 4344
+            },
+            {
+              "origin": "native",
+              "glyph": 4345
+            },
+            {
+              "origin": "native",
+              "glyph": 4346
+            },
+            {
+              "origin": "native",
+              "glyph": 4347
+            },
+            {
+              "origin": "native",
+              "glyph": 4348
+            },
+            {
+              "origin": "native",
+              "glyph": 4349
+            },
+            {
+              "origin": "native",
+              "glyph": 4350
+            },
+            {
+              "origin": "native",
+              "glyph": 4351
+            },
+            {
+              "origin": "native",
+              "glyph": 4352
+            },
+            {
+              "origin": "native",
+              "glyph": 4353
+            },
+            {
+              "origin": "native",
+              "glyph": 4354
+            },
+            {
+              "origin": "native",
+              "glyph": 4355
+            },
+            {
+              "origin": "native",
+              "glyph": 4356
+            },
+            {
+              "origin": "native",
+              "glyph": 4357
+            },
+            {
+              "origin": "native",
+              "glyph": 4358
+            },
+            {
+              "origin": "native",
+              "glyph": 4359
+            },
+            {
+              "origin": "native",
+              "glyph": 4360
+            },
+            {
+              "origin": "native",
+              "glyph": 4361
+            },
+            {
+              "origin": "native",
+              "glyph": 4362
+            },
+            {
+              "origin": "native",
+              "glyph": 4363
+            },
+            {
+              "origin": "native",
+              "glyph": 4364
+            },
+            {
+              "origin": "native",
+              "glyph": 4365
+            },
+            {
+              "origin": "native",
+              "glyph": 4366
+            },
+            {
+              "origin": "native",
+              "glyph": 4367
+            },
+            {
+              "origin": "native",
+              "glyph": 4368
+            },
+            {
+              "origin": "native",
+              "glyph": 4369
+            },
+            {
+              "origin": "native",
+              "glyph": 4370
+            },
+            {
+              "origin": "native",
+              "glyph": 4371
+            },
+            {
+              "origin": "native",
+              "glyph": 4372
+            },
+            {
+              "origin": "native",
+              "glyph": 4373
+            },
+            {
+              "origin": "native",
+              "glyph": 4374
+            },
+            {
+              "origin": "native",
+              "glyph": 4375
+            }
+          ],
+          "new_sources": [
+            {
+              "origin": "native",
+              "glyph": 4321
+            },
+            {
+              "origin": "native",
+              "glyph": 4322
+            },
+            {
+              "origin": "native",
+              "glyph": 4323
+            },
+            {
+              "origin": "native",
+              "glyph": 4324
+            },
+            {
+              "origin": "native",
+              "glyph": 4325
+            },
+            {
+              "origin": "native",
+              "glyph": 4326
+            },
+            {
+              "origin": "native",
+              "glyph": 4327
+            },
+            {
+              "origin": "native",
+              "glyph": 4328
+            },
+            {
+              "origin": "native",
+              "glyph": 4329
+            },
+            {
+              "origin": "native",
+              "glyph": 4330
+            },
+            {
+              "origin": "native",
+              "glyph": 4331
+            },
+            {
+              "origin": "native",
+              "glyph": 4332
+            },
+            {
+              "origin": "native",
+              "glyph": 4333
+            },
+            {
+              "origin": "native",
+              "glyph": 4334
+            },
+            {
+              "origin": "native",
+              "glyph": 4335
+            },
+            {
+              "origin": "native",
+              "glyph": 4336
+            },
+            {
+              "origin": "native",
+              "glyph": 4337
+            },
+            {
+              "origin": "native",
+              "glyph": 4338
+            },
+            {
+              "origin": "native",
+              "glyph": 4339
+            },
+            {
+              "origin": "native",
+              "glyph": 4340
+            },
+            {
+              "origin": "native",
+              "glyph": 4341
+            },
+            {
+              "origin": "native",
+              "glyph": 4342
+            },
+            {
+              "origin": "native",
+              "glyph": 4343
+            },
+            {
+              "origin": "native",
+              "glyph": 4344
+            },
+            {
+              "origin": "native",
+              "glyph": 4345
+            },
+            {
+              "origin": "native",
+              "glyph": 4346
+            },
+            {
+              "origin": "native",
+              "glyph": 4347
+            },
+            {
+              "origin": "native",
+              "glyph": 4348
+            },
+            {
+              "origin": "native",
+              "glyph": 4349
+            },
+            {
+              "origin": "native",
+              "glyph": 4350
+            },
+            {
+              "origin": "native",
+              "glyph": 4351
+            },
+            {
+              "origin": "native",
+              "glyph": 4352
+            },
+            {
+              "origin": "native",
+              "glyph": 4353
+            },
+            {
+              "origin": "native",
+              "glyph": 4354
+            },
+            {
+              "origin": "native",
+              "glyph": 4355
+            },
+            {
+              "origin": "native",
+              "glyph": 4356
+            },
+            {
+              "origin": "native",
+              "glyph": 4357
+            },
+            {
+              "origin": "native",
+              "glyph": 4358
+            },
+            {
+              "origin": "native",
+              "glyph": 4359
+            },
+            {
+              "origin": "native",
+              "glyph": 4360
+            },
+            {
+              "origin": "native",
+              "glyph": 4361
+            },
+            {
+              "origin": "native",
+              "glyph": 4362
+            },
+            {
+              "origin": "native",
+              "glyph": 4363
+            },
+            {
+              "origin": "native",
+              "glyph": 4364
+            },
+            {
+              "origin": "native",
+              "glyph": 4365
+            },
+            {
+              "origin": "native",
+              "glyph": 4366
+            },
+            {
+              "origin": "native",
+              "glyph": 4367
+            },
+            {
+              "origin": "native",
+              "glyph": 4368
+            },
+            {
+              "origin": "native",
+              "glyph": 4369
+            },
+            {
+              "origin": "native",
+              "glyph": 4370
+            },
+            {
+              "origin": "native",
+              "glyph": 4371
+            },
+            {
+              "origin": "native",
+              "glyph": 4372
+            },
+            {
+              "origin": "native",
+              "glyph": 4373
+            },
+            {
+              "origin": "native",
+              "glyph": 4374
+            },
+            {
+              "origin": "native",
+              "glyph": 4375
+            },
+            {
+              "origin": "native",
+              "glyph": 4376
+            },
+            {
+              "origin": "native",
+              "glyph": 4377
+            },
+            {
+              "origin": "native",
+              "glyph": 4378
+            },
+            {
+              "origin": "native",
+              "glyph": 4379
+            },
+            {
+              "origin": "native",
+              "glyph": 4380
+            },
+            {
+              "origin": "native",
+              "glyph": 4381
+            },
+            {
+              "origin": "native",
+              "glyph": 4382
+            },
+            {
+              "origin": "native",
+              "glyph": 4383
+            },
+            {
+              "origin": "native",
+              "glyph": 4384
+            },
+            {
+              "origin": "native",
+              "glyph": 4385
+            },
+            {
+              "origin": "native",
+              "glyph": 4386
+            },
+            {
+              "origin": "native",
+              "glyph": 4387
+            },
+            {
+              "origin": "native",
+              "glyph": 4388
+            },
+            {
+              "origin": "native",
+              "glyph": 4389
+            },
+            {
+              "origin": "native",
+              "glyph": 4390
+            }
+          ],
+          "comparison": {
+            "old": [
+              163,
+              164
+            ],
+            "new": [
+              163,
+              164
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": {
+              "kind": "text_changed",
+              "old": "Schedule C (Form 1040) 2024 Schedule C (Form 1040) 2024",
+              "new": "Schedule C (Form 1040) 2025 Created 4/3/25 Schedule C (Form 1040) 2025"
+            },
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 17,
+                "changed_source_upper": 17,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  true
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [
+                {
+                  "position": 54,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4375
+                    }
+                  ]
+                }
+              ],
+              "new": [
+                {
+                  "position": 26,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4347
+                    }
+                  ]
+                },
+                {
+                  "position": 27,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4348
+                    }
+                  ]
+                },
+                {
+                  "position": 28,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4349
+                    }
+                  ]
+                },
+                {
+                  "position": 29,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4350
+                    }
+                  ]
+                },
+                {
+                  "position": 30,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4351
+                    }
+                  ]
+                },
+                {
+                  "position": 31,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4352
+                    }
+                  ]
+                },
+                {
+                  "position": 32,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4353
+                    }
+                  ]
+                },
+                {
+                  "position": 33,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4354
+                    }
+                  ]
+                },
+                {
+                  "position": 34,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4355
+                    }
+                  ]
+                },
+                {
+                  "position": 35,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4356
+                    }
+                  ]
+                },
+                {
+                  "position": 37,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4358
+                    }
+                  ]
+                },
+                {
+                  "position": 38,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4359
+                    }
+                  ]
+                },
+                {
+                  "position": 39,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4360
+                    }
+                  ]
+                },
+                {
+                  "position": 40,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4361
+                    }
+                  ]
+                },
+                {
+                  "position": 41,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4362
+                    }
+                  ]
+                },
+                {
+                  "position": 69,
+                  "sources": [
+                    {
+                      "origin": "native",
+                      "glyph": 4390
+                    }
+                  ]
+                }
+              ]
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          }
+        },
+        {
+          "boundaries": [
+            321,
+            337
+          ],
+          "old_sources": [
+            {
+              "origin": "native",
+              "glyph": 2637
+            },
+            {
+              "origin": "native",
+              "glyph": 2638
+            },
+            {
+              "origin": "native",
+              "glyph": 2639
+            }
+          ],
+          "new_sources": [
+            {
+              "origin": "native",
+              "glyph": 2637
+            },
+            {
+              "origin": "native",
+              "glyph": 2638
+            },
+            {
+              "origin": "native",
+              "glyph": 2639
+            }
+          ],
+          "comparison": {
+            "old": [
+              102
+            ],
+            "new": [
+              102
+            ],
+            "interpretation": "conditional_on_correspondence",
+            "operation": null,
+            "text_mask": {
+              "convention": "literal-minimal-source-tokens-v1",
+              "claims": {
+                "changed_source_lower": 0,
+                "changed_source_upper": 0,
+                "mandatory_old": [
+                  false,
+                  false,
+                  false
+                ],
+                "mandatory_new": [
+                  false,
+                  false,
+                  false
+                ],
+                "normalization_pairs": 1
+              },
+              "old": [],
+              "new": []
+            },
+            "pixel_mask": null,
+            "unresolved": [],
+            "compared": true
+          }
+        }
+      ]
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "repetition": 1,
+      "command": [
+        "python",
+        "benchmark/realworld/next/development/capture-comparisons.py",
+        "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/pdfdelta",
+        "benchmark/realworld/cache/next-dev",
+        "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/edpb-controller-processor-v1-to-v2-1-1",
+        "--manifest",
+        "benchmark/realworld/next/development/inputs.json",
+        "--pair",
+        "edpb-controller-processor-v1-to-v2-1",
+        "--implementation",
+        "254c67086ed600dc85c234231ceac2c931d15123",
+        "--route",
+        "text"
+      ],
+      "driver_exit": 0,
+      "prior": {
+        "path": "benchmark/realworld/cache/source-completion/completion-recheck-v2/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "b63275818fdf156a65f95c11f07170eac88d22b6da25954daf1384a757b0145e"
+      },
+      "current": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/edpb-controller-processor-v1-to-v2-1-1/edpb-controller-processor-v1-to-v2-1-text.json",
+        "sha256": "1306e727671758ffaf8b0e4ae0655a8ddb2da56860452699f80a3acac91f7d82"
+      },
+      "runs": {
+        "path": "benchmark/realworld/cache/source-completion/tagged-row-regions-v1/edpb-controller-processor-v1-to-v2-1-1/runs.json",
+        "sha256": "9084fa1729d76dfe7270246521006d297eae6516e5bffbf45b8052a18c215dde"
+      },
+      "coverage_before": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 2240,
+          "new_compared_sources": 2266,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 133548,
+          "new_uncompared_sources": 174726,
+          "complete": false
+        }
+      ],
+      "coverage_after": [
+        {
+          "channel": "text",
+          "old_inventory_complete": false,
+          "new_inventory_complete": false,
+          "old_discovered_sources": 135788,
+          "new_discovered_sources": 176992,
+          "old_compared_sources": 2240,
+          "new_compared_sources": 2266,
+          "old_presence_sources": 0,
+          "new_presence_sources": 0,
+          "old_uncompared_sources": 133548,
+          "new_uncompared_sources": 174726,
+          "complete": false
+        }
+      ],
+      "complete_before": false,
+      "complete_after": false,
+      "native_glyphs_before": {
+        "old": 135788,
+        "new": 176992
+      },
+      "native_glyphs_after": {
+        "old": 135788,
+        "new": 176992
+      },
+      "comparison_identical": true,
+      "native_intervals": []
+    }
+  ]
+}

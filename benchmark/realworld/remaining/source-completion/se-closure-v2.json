@@ -1,0 +1,2144 @@
+{
+  "goal_complete": false,
+  "new_completions": 0,
+  "comparison_identical": true,
+  "coverage_identical": true,
+  "production_source_restored": true,
+  "files": {
+    "pdfdelta": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/pdfdelta",
+      "sha256": "1186c54c53e96115185ab9dcfa13bb362ebd5a0e270f811288107cfe81d67190"
+    },
+    "native-original.rs": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/native-original.rs",
+      "sha256": "5641aabafa9fa718dee5d8a789cca8c2fff2907d063f92bb607b106c9ce38b6a"
+    },
+    "native-instrumented.rs": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/native-instrumented.rs",
+      "sha256": "115ad0ac370f4d3974a682e3328e1025204527e8c31f21dc4fc0f2ecf65fdbdb"
+    },
+    "trace.log": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/trace.log",
+      "sha256": "8a249efabd6c21bf02ca8ce343ac2fda8d240b51bf2b67990ec338a779df0441"
+    },
+    "report.json": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/report.json",
+      "sha256": "9a698302b96bd72bf35d84823b77666000de26a1aa4f684103853dd8b962b702"
+    },
+    "run.json": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/run.json",
+      "sha256": "c5e4f493812dc56d587de976baa48bc2eda8d91d331c9789efde5f1c1ca5c43b"
+    },
+    "audit.py": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/audit.py",
+      "sha256": "35614f73d6bcadd4b0d308bc7d6b8fd0bfc1fc47ce710537d66da19cfea411d2"
+    },
+    "build.log": {
+      "path": "benchmark/realworld/cache/source-completion/se-closure-v2/build.log",
+      "sha256": "a406554c285b61db7fcbe784f4be646a0afe94134df751ac6c11e4f67156d588"
+    }
+  },
+  "sources": {
+    "path": "benchmark/realworld/cache/source-completion/se-residual-v2/sources.json",
+    "sha256": "c2059e7a66047feda55f466c6ac052b7a4fb57f043ac29c0e1cd831525876574"
+  },
+  "invocations": [
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 994465,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 994231,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 993980,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 993966,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 993679,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 993666,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 247267,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 245995,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 245029,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 243966,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 242574,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 241349,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 983907,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 982635,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 981669,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 980606,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 979214,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 977989,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 961831,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "Some(\"horizontal-row-boundaries-v1\")",
+      "budget": 961081,
+      "events": [
+        "CLOSURE_FAIL reason=7"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 960372,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "Some(\"horizontal-row-boundaries-v1\")",
+      "budget": 959721,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 959155,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "Some(\"horizontal-row-boundaries-v1\")",
+      "budget": 958809,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 958078,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "Some(\"horizontal-row-boundaries-v1\")",
+      "budget": 957235,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 956399,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "Some(\"horizontal-row-boundaries-v1\")",
+      "budget": 956070,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 955161,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "Some(\"horizontal-row-boundaries-v1\")",
+      "budget": 954420,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 820338,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        74,
+        75
+      ],
+      "row_order": "None",
+      "budget": 820104,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 820055,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 819768,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 819755,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 819354,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 819103,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 203723,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        74,
+        75
+      ],
+      "row_order": "None",
+      "budget": 202656,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 201976,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 200584,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 199359,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 198138,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 197172,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "row_order": "None",
+      "budget": 809470,
+      "events": [
+        "CLOSURE_PAINT band=(50.4, 407.187, 348.613, 443.351)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 388.0499999999995, y: 431.49999999999955 }, max: Vec2 { x: 411.1500000000005, y: 432.50000000000045 } } stream=ObjectRef { object_number: 528, generation: 0 } operator=276",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        74,
+        75
+      ],
+      "row_order": "None",
+      "budget": 808403,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "row_order": "None",
+      "budget": 807723,
+      "events": [
+        "CLOSURE_PAINT band=(35.995000000000005, 477.69700000000006, 696.614, 744.612)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 34.74999999999994, y: 743.0009999999991 }, max: Vec2 { x: 541.2500000000008, y: 745.0010000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=8",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "row_order": "None",
+      "budget": 806331,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "row_order": "None",
+      "budget": 805106,
+      "events": [
+        "CLOSURE_PAINT band=(35.995782500000075, 500.7060000000001, 624.614, 683.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 671.2479999999991 }, max: Vec2 { x: 482.9000000000004, y: 696.7490000000009 } } stream=ObjectRef { object_number: 2, generation: 0 } operator=417",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "row_order": "None",
+      "budget": 803885,
+      "events": [
+        "CLOSURE_PAINT band=(45.396, 498.204, 384.61, 406.347)",
+        "PAINT_CONTACT bounds=Rect { min: Vec2 { x: 481.8999999999995, y: 383.24799999999954 }, max: Vec2 { x: 482.9000000000004, y: 408.7490000000005 } } stream=ObjectRef { object_number: 529, generation: 0 } operator=298",
+        "PAINT_FAIL reason=5"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "row_order": "None",
+      "budget": 802919,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        74,
+        75
+      ],
+      "row_order": "None",
+      "budget": 795568,
+      "events": [
+        "CLOSURE_FAIL reason=6"
+      ]
+    }
+  ],
+  "path_facts": [
+    {
+      "side": "old",
+      "nodes": [
+        41,
+        52,
+        53
+      ],
+      "geometry": [
+        {
+          "node": 41,
+          "text": " definition of church employee income .............",
+          "top": 434.576,
+          "bottom": 434.576,
+          "bounds": {
+            "min": {
+              "x": 50.4,
+              "y": 432.61400000000003
+            },
+            "max": {
+              "x": 374.49900000000014,
+              "y": 443.351
+            }
+          }
+        },
+        {
+          "node": 52,
+          "text": "  and railroad retirement (tier 1) compensation. If $168,600 or more, skip lines",
+          "top": 361.577,
+          "bottom": 361.577,
+          "bounds": {
+            "min": {
+              "x": 50.4,
+              "y": 359.615
+            },
+            "max": {
+              "x": 381.645,
+              "y": 370.352
+            }
+          }
+        },
+        {
+          "node": 53,
+          "text": "8b through 10, and go to line 11............... 8a ",
+          "top": 350.579,
+          "bottom": 350.575,
+          "bounds": {
+            "min": {
+              "x": 64.84500000000003,
+              "y": 348.613
+            },
+            "max": {
+              "x": 407.187,
+              "y": 359.34999999999997
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 50.4,
+          "y": 348.613
+        },
+        "max": {
+          "x": 407.187,
+          "y": 443.351
+        }
+      },
+      "paint_contacts": [
+        {
+          "index": 45,
+          "paint": {
+            "page": 0,
+            "render_order": 2377,
+            "bounds": {
+              "min": {
+                "x": 388.0499999999995,
+                "y": 431.49999999999955
+              },
+              "max": {
+                "x": 411.1500000000005,
+                "y": 432.50000000000045
+              }
+            },
+            "content_stream": {
+              "object_number": 528,
+              "generation": 0
+            },
+            "operator_index": 276
+          }
+        },
+        {
+          "index": 47,
+          "paint": {
+            "page": 0,
+            "render_order": 2379,
+            "bounds": {
+              "min": {
+                "x": 388.2999999999995,
+                "y": 431.2499999999995
+              },
+              "max": {
+                "x": 389.30000000000047,
+                "y": 456.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 528,
+              "generation": 0
+            },
+            "operator_index": 292
+          }
+        },
+        {
+          "index": 66,
+          "paint": {
+            "page": 0,
+            "render_order": 2930,
+            "bounds": {
+              "min": {
+                "x": 388.2999999999995,
+                "y": 347.25099999999946
+              },
+              "max": {
+                "x": 389.30000000000047,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 116
+          }
+        },
+        {
+          "index": 74,
+          "paint": {
+            "page": 0,
+            "render_order": 3015,
+            "bounds": {
+              "min": {
+                "x": 388.2999999999995,
+                "y": 335.2519999999995
+              },
+              "max": {
+                "x": 389.30000000000047,
+                "y": 348.75100000000043
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 208
+          }
+        }
+      ],
+      "non_descending_steps": []
+    },
+    {
+      "side": "old",
+      "nodes": [
+        47,
+        48,
+        49
+      ],
+      "geometry": [
+        {
+          "node": 47,
+          "text": "7 Maximum amount of combined wages and self-employment earnings subject to social security tax or ",
+          "top": 397.572,
+          "bottom": 397.572,
+          "bounds": {
+            "min": {
+              "x": 45.396,
+              "y": 395.61
+            },
+            "max": {
+              "x": 477.711,
+              "y": 406.347
+            }
+          }
+        },
+        {
+          "node": 48,
+          "text": "the 6.2% portion of the 7.65% railroad retirement (tier 1) tax for 2024...........",
+          "top": 386.574,
+          "bottom": 386.574,
+          "bounds": {
+            "min": {
+              "x": 64.80900000000003,
+              "y": 384.648
+            },
+            "max": {
+              "x": 470.48400000000015,
+              "y": 395.142
+            }
+          }
+        },
+        {
+          "node": 49,
+          "text": "7 ",
+          "top": 386.572,
+          "bottom": 386.572,
+          "bounds": {
+            "min": {
+              "x": 490.698,
+              "y": 384.61
+            },
+            "max": {
+              "x": 498.204,
+              "y": 395.347
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 45.396,
+          "y": 384.61
+        },
+        "max": {
+          "x": 498.204,
+          "y": 406.347
+        }
+      },
+      "paint_contacts": [
+        {
+          "index": 62,
+          "paint": {
+            "page": 0,
+            "render_order": 2708,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 383.24799999999954
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 408.7490000000005
+              }
+            },
+            "content_stream": {
+              "object_number": 529,
+              "generation": 0
+            },
+            "operator_index": 298
+          }
+        },
+        {
+          "index": 65,
+          "paint": {
+            "page": 0,
+            "render_order": 2929,
+            "bounds": {
+              "min": {
+                "x": 409.8999999999995,
+                "y": 347.25099999999946
+              },
+              "max": {
+                "x": 410.9000000000004,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 108
+          }
+        },
+        {
+          "index": 66,
+          "paint": {
+            "page": 0,
+            "render_order": 2930,
+            "bounds": {
+              "min": {
+                "x": 388.2999999999995,
+                "y": 347.25099999999946
+              },
+              "max": {
+                "x": 389.30000000000047,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 116
+          }
+        },
+        {
+          "index": 71,
+          "paint": {
+            "page": 0,
+            "render_order": 2937,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 323.12499999999943
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 164
+          }
+        }
+      ],
+      "non_descending_steps": []
+    },
+    {
+      "side": "old",
+      "nodes": [
+        49,
+        50,
+        51
+      ],
+      "geometry": [
+        {
+          "node": 49,
+          "text": "7 ",
+          "top": 386.572,
+          "bottom": 386.572,
+          "bounds": {
+            "min": {
+              "x": 490.698,
+              "y": 384.61
+            },
+            "max": {
+              "x": 498.204,
+              "y": 395.347
+            }
+          }
+        },
+        {
+          "node": 50,
+          "text": "168,600",
+          "top": 387.201,
+          "bottom": 387.201,
+          "bounds": {
+            "min": {
+              "x": 534.561,
+              "y": 384.11100000000005
+            },
+            "max": {
+              "x": 574.2510000000003,
+              "y": 396.06100000000004
+            }
+          }
+        },
+        {
+          "node": 51,
+          "text": "8 a Total social security wages and tips (total of boxes 3 and 7 on Form(s) W-2) ",
+          "top": 372.575,
+          "bottom": 372.575,
+          "bounds": {
+            "min": {
+              "x": 45.396,
+              "y": 370.613
+            },
+            "max": {
+              "x": 384.156,
+              "y": 381.34999999999997
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 45.396,
+          "y": 370.613
+        },
+        "max": {
+          "x": 574.2510000000003,
+          "y": 396.06100000000004
+        }
+      },
+      "paint_contacts": [
+        {
+          "index": 61,
+          "paint": {
+            "page": 0,
+            "render_order": 2707,
+            "bounds": {
+              "min": {
+                "x": 503.49999999999955,
+                "y": 383.24799999999954
+              },
+              "max": {
+                "x": 504.50000000000045,
+                "y": 408.7490000000005
+              }
+            },
+            "content_stream": {
+              "object_number": 529,
+              "generation": 0
+            },
+            "operator_index": 290
+          }
+        },
+        {
+          "index": 62,
+          "paint": {
+            "page": 0,
+            "render_order": 2708,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 383.24799999999954
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 408.7490000000005
+              }
+            },
+            "content_stream": {
+              "object_number": 529,
+              "generation": 0
+            },
+            "operator_index": 298
+          }
+        },
+        {
+          "index": 63,
+          "paint": {
+            "page": 0,
+            "render_order": 2711,
+            "bounds": {
+              "min": {
+                "x": 503.24999999999955,
+                "y": 383.5009999999995
+              },
+              "max": {
+                "x": 576.7500000000007,
+                "y": 384.5010000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 529,
+              "generation": 0
+            },
+            "operator_index": 315
+          }
+        },
+        {
+          "index": 65,
+          "paint": {
+            "page": 0,
+            "render_order": 2929,
+            "bounds": {
+              "min": {
+                "x": 409.8999999999995,
+                "y": 347.25099999999946
+              },
+              "max": {
+                "x": 410.9000000000004,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 108
+          }
+        },
+        {
+          "index": 66,
+          "paint": {
+            "page": 0,
+            "render_order": 2930,
+            "bounds": {
+              "min": {
+                "x": 388.2999999999995,
+                "y": 347.25099999999946
+              },
+              "max": {
+                "x": 389.30000000000047,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 116
+          }
+        },
+        {
+          "index": 68,
+          "paint": {
+            "page": 0,
+            "render_order": 2935,
+            "bounds": {
+              "min": {
+                "x": 482.3999999999997,
+                "y": 323.9999999999998
+              },
+              "max": {
+                "x": 504.00000000000045,
+                "y": 384.0010000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 141
+          }
+        },
+        {
+          "index": 69,
+          "paint": {
+            "page": 0,
+            "render_order": 2935,
+            "bounds": {
+              "min": {
+                "x": 481.6499999999995,
+                "y": 383.5009999999995
+              },
+              "max": {
+                "x": 504.75000000000045,
+                "y": 384.5010000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 148
+          }
+        },
+        {
+          "index": 70,
+          "paint": {
+            "page": 0,
+            "render_order": 2936,
+            "bounds": {
+              "min": {
+                "x": 503.49999999999955,
+                "y": 323.12499999999943
+              },
+              "max": {
+                "x": 504.50000000000045,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 156
+          }
+        },
+        {
+          "index": 71,
+          "paint": {
+            "page": 0,
+            "render_order": 2937,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 323.12499999999943
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 384.7510000000004
+              }
+            },
+            "content_stream": {
+              "object_number": 530,
+              "generation": 0
+            },
+            "operator_index": 164
+          }
+        }
+      ],
+      "non_descending_steps": [
+        [
+          49,
+          50
+        ]
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        74,
+        75
+      ],
+      "geometry": [
+        {
+          "node": 74,
+          "text": "Cat. No. 11358Z",
+          "top": 206.003,
+          "bottom": 206.003,
+          "bounds": {
+            "min": {
+              "x": 362.995,
+              "y": 204.505
+            },
+            "max": {
+              "x": 414.606,
+              "y": 212.66699999999997
+            }
+          }
+        },
+        {
+          "node": 75,
+          "text": "Schedule SE (Form 1040) 2024 ",
+          "top": 206.003,
+          "bottom": 206.003,
+          "bounds": {
+            "min": {
+              "x": 475.383,
+              "y": 204.47699999999998
+            },
+            "max": {
+              "x": 577.9470000000003,
+              "y": 212.82799999999997
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 362.995,
+          "y": 204.47699999999998
+        },
+        "max": {
+          "x": 577.9470000000003,
+          "y": 212.82799999999997
+        }
+      },
+      "paint_contacts": [],
+      "non_descending_steps": [
+        [
+          74,
+          75
+        ]
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        79,
+        80,
+        81
+      ],
+      "geometry": [
+        {
+          "node": 79,
+          "text": "Optional Methods To Figure Net Earnings (see instructions) ",
+          "top": 734.862,
+          "bottom": 734.862,
+          "bounds": {
+            "min": {
+              "x": 86.0,
+              "y": 732.682
+            },
+            "max": {
+              "x": 364.32,
+              "y": 744.612
+            }
+          }
+        },
+        {
+          "node": 80,
+          "text": "Farm Optional Method. You may use this method only if (a) your gross farm income1 wasn\u2019t more than $10,380, or (b) your net farm profits2  were less than $7,493. ",
+          "top": 725.516,
+          "bottom": 711.572,
+          "bounds": {
+            "min": {
+              "x": 35.995000000000005,
+              "y": 709.61
+            },
+            "max": {
+              "x": 477.69700000000006,
+              "y": 731.2909999999999
+            }
+          }
+        },
+        {
+          "node": 81,
+          "text": "14 Maximum income for optional methods.....................",
+          "top": 698.576,
+          "bottom": 698.576,
+          "bounds": {
+            "min": {
+              "x": 40.392,
+              "y": 696.614
+            },
+            "max": {
+              "x": 470.4390000000003,
+              "y": 707.351
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 35.995000000000005,
+          "y": 696.614
+        },
+        "max": {
+          "x": 477.69700000000006,
+          "y": 744.612
+        }
+      },
+      "paint_contacts": [
+        {
+          "index": 107,
+          "paint": {
+            "page": 1,
+            "render_order": 3841,
+            "bounds": {
+              "min": {
+                "x": 34.74999999999994,
+                "y": 743.0009999999991
+              },
+              "max": {
+                "x": 541.2500000000008,
+                "y": 745.0010000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 8
+          }
+        },
+        {
+          "index": 109,
+          "paint": {
+            "page": 1,
+            "render_order": 3877,
+            "bounds": {
+              "min": {
+                "x": 35.99999999999997,
+                "y": 732.0019999999995
+              },
+              "max": {
+                "x": 72.00000000000009,
+                "y": 744.0010000000008
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 40
+          }
+        },
+        {
+          "index": 110,
+          "paint": {
+            "page": 1,
+            "render_order": 3877,
+            "bounds": {
+              "min": {
+                "x": 34.99999999999994,
+                "y": 743.2509999999991
+              },
+              "max": {
+                "x": 73.00000000000011,
+                "y": 744.7510000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 48
+          }
+        },
+        {
+          "index": 111,
+          "paint": {
+            "page": 1,
+            "render_order": 3878,
+            "bounds": {
+              "min": {
+                "x": 35.24999999999994,
+                "y": 731.501999999999
+              },
+              "max": {
+                "x": 72.75000000000011,
+                "y": 732.5020000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 57
+          }
+        },
+        {
+          "index": 112,
+          "paint": {
+            "page": 1,
+            "render_order": 3886,
+            "bounds": {
+              "min": {
+                "x": 35.24999999999994,
+                "y": 731.501999999999
+              },
+              "max": {
+                "x": 576.7500000000009,
+                "y": 732.5020000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 74
+          }
+        }
+      ],
+      "non_descending_steps": []
+    },
+    {
+      "side": "old",
+      "nodes": [
+        82,
+        83,
+        84,
+        85
+      ],
+      "geometry": [
+        {
+          "node": 82,
+          "text": "14 ",
+          "top": 698.576,
+          "bottom": 698.576,
+          "bounds": {
+            "min": {
+              "x": 488.196,
+              "y": 696.614
+            },
+            "max": {
+              "x": 500.7060000000001,
+              "y": 707.351
+            }
+          }
+        },
+        {
+          "node": 83,
+          "text": "6,920",
+          "top": 699.202,
+          "bottom": 699.202,
+          "bounds": {
+            "min": {
+              "x": 547.201,
+              "y": 696.112
+            },
+            "max": {
+              "x": 574.2510000000002,
+              "y": 708.062
+            }
+          }
+        },
+        {
+          "node": 84,
+          "text": "15 Enter the smaller of: two-thirds (2/3) of gross farm income1 (not less than zero) or $6,920. Also, include",
+          "top": 689.072,
+          "bottom": 686.072,
+          "bounds": {
+            "min": {
+              "x": 40.392,
+              "y": 684.11
+            },
+            "max": {
+              "x": 475.193,
+              "y": 694.847
+            }
+          }
+        },
+        {
+          "node": 85,
+          "text": "this amount on line 4b above........................",
+          "top": 675.074,
+          "bottom": 675.074,
+          "bounds": {
+            "min": {
+              "x": 64.79299999999995,
+              "y": 673.1479999999999
+            },
+            "max": {
+              "x": 470.4230000000003,
+              "y": 683.6419999999999
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 40.392,
+          "y": 673.1479999999999
+        },
+        "max": {
+          "x": 574.2510000000002,
+          "y": 708.062
+        }
+      },
+      "paint_contacts": [
+        {
+          "index": 113,
+          "paint": {
+            "page": 1,
+            "render_order": 4108,
+            "bounds": {
+              "min": {
+                "x": 482.3999999999997,
+                "y": 707.9979999999996
+              },
+              "max": {
+                "x": 504.00000000000045,
+                "y": 731.9990000000008
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 156
+          }
+        },
+        {
+          "index": 115,
+          "paint": {
+            "page": 1,
+            "render_order": 4109,
+            "bounds": {
+              "min": {
+                "x": 503.49999999999955,
+                "y": 707.2479999999991
+              },
+              "max": {
+                "x": 504.50000000000045,
+                "y": 732.7490000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 171
+          }
+        },
+        {
+          "index": 116,
+          "paint": {
+            "page": 1,
+            "render_order": 4110,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 707.2479999999991
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 732.7490000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 179
+          }
+        },
+        {
+          "index": 117,
+          "paint": {
+            "page": 1,
+            "render_order": 4170,
+            "bounds": {
+              "min": {
+                "x": 481.6499999999995,
+                "y": 695.501999999999
+              },
+              "max": {
+                "x": 504.75000000000045,
+                "y": 696.5020000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 244
+          }
+        },
+        {
+          "index": 118,
+          "paint": {
+            "page": 1,
+            "render_order": 4171,
+            "bounds": {
+              "min": {
+                "x": 503.49999999999955,
+                "y": 695.251999999999
+              },
+              "max": {
+                "x": 504.50000000000045,
+                "y": 708.7510000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 252
+          }
+        },
+        {
+          "index": 119,
+          "paint": {
+            "page": 1,
+            "render_order": 4172,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 695.251999999999
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 708.7510000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 260
+          }
+        },
+        {
+          "index": 120,
+          "paint": {
+            "page": 1,
+            "render_order": 4176,
+            "bounds": {
+              "min": {
+                "x": 503.24999999999955,
+                "y": 695.501999999999
+              },
+              "max": {
+                "x": 576.7500000000007,
+                "y": 696.5020000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 277
+          }
+        },
+        {
+          "index": 121,
+          "paint": {
+            "page": 1,
+            "render_order": 4343,
+            "bounds": {
+              "min": {
+                "x": 503.49999999999955,
+                "y": 671.2479999999991
+              },
+              "max": {
+                "x": 504.50000000000045,
+                "y": 696.7490000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 409
+          }
+        },
+        {
+          "index": 122,
+          "paint": {
+            "page": 1,
+            "render_order": 4344,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 671.2479999999991
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 696.7490000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 417
+          }
+        }
+      ],
+      "non_descending_steps": [
+        [
+          82,
+          83
+        ]
+      ]
+    },
+    {
+      "side": "old",
+      "nodes": [
+        86,
+        87,
+        88
+      ],
+      "geometry": [
+        {
+          "node": 86,
+          "text": "15 ",
+          "top": 674.572,
+          "bottom": 674.572,
+          "bounds": {
+            "min": {
+              "x": 488.196,
+              "y": 672.61
+            },
+            "max": {
+              "x": 500.7060000000001,
+              "y": 683.347
+            }
+          }
+        },
+        {
+          "node": 87,
+          "text": "Nonfarm Optional Method. You may use this method only if (a) your net nonfarm profits3 were less than $7,493 and also less than 72.189% of your gross nonfarm income,4  and (b) you had net earnings from self-employment of at least $400 in 2 of the prior 3 years. Caution: You may use this method no more than five times.",
+          "top": 664.319,
+          "bottom": 639.575,
+          "bounds": {
+            "min": {
+              "x": 35.995782500000075,
+              "y": 637.613
+            },
+            "max": {
+              "x": 477.6398850000001,
+              "y": 670.0939999999999
+            }
+          }
+        },
+        {
+          "node": 88,
+          "text": "16 Subtract line 15 from line 14.........................",
+          "top": 626.576,
+          "bottom": 626.576,
+          "bounds": {
+            "min": {
+              "x": 40.392,
+              "y": 624.614
+            },
+            "max": {
+              "x": 470.43000000000035,
+              "y": 635.351
+            }
+          }
+        }
+      ],
+      "band": {
+        "min": {
+          "x": 35.995782500000075,
+          "y": 624.614
+        },
+        "max": {
+          "x": 500.7060000000001,
+          "y": 683.347
+        }
+      },
+      "paint_contacts": [
+        {
+          "index": 122,
+          "paint": {
+            "page": 1,
+            "render_order": 4344,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 671.2479999999991
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 696.7490000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 417
+          }
+        },
+        {
+          "index": 124,
+          "paint": {
+            "page": 1,
+            "render_order": 4349,
+            "bounds": {
+              "min": {
+                "x": 35.49999999999913,
+                "y": 671.5009999999991
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 672.5010000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 445
+          }
+        },
+        {
+          "index": 125,
+          "paint": {
+            "page": 1,
+            "render_order": 4669,
+            "bounds": {
+              "min": {
+                "x": 482.3999999999997,
+                "y": 636.0009999999995
+              },
+              "max": {
+                "x": 504.00000000000045,
+                "y": 672.0010000000008
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 561
+          }
+        },
+        {
+          "index": 126,
+          "paint": {
+            "page": 1,
+            "render_order": 4669,
+            "bounds": {
+              "min": {
+                "x": 481.6499999999995,
+                "y": 671.5009999999991
+              },
+              "max": {
+                "x": 504.75000000000045,
+                "y": 672.5010000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 569
+          }
+        },
+        {
+          "index": 128,
+          "paint": {
+            "page": 1,
+            "render_order": 4671,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 635.2509999999991
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 672.7510000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 585
+          }
+        },
+        {
+          "index": 131,
+          "paint": {
+            "page": 1,
+            "render_order": 4731,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 623.251999999999
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 636.7510000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 674
+          }
+        },
+        {
+          "index": 135,
+          "paint": {
+            "page": 1,
+            "render_order": 4909,
+            "bounds": {
+              "min": {
+                "x": 481.8999999999995,
+                "y": 599.2479999999991
+              },
+              "max": {
+                "x": 482.9000000000004,
+                "y": 624.7490000000009
+              }
+            },
+            "content_stream": {
+              "object_number": 2,
+              "generation": 0
+            },
+            "operator_index": 822
+          }
+        }
+      ],
+      "non_descending_steps": []
+    }
+  ],
+  "limitations": [
+    "Tracing is observational and preserves decision budgets; it does not discharge any obligation.",
+    "Closure calls short-circuit; an old-side failure can prevent testing the new side.",
+    "Full-band contacts include boundary sources; isolated node geometry is not a closure proof.",
+    "Post-paint native census and alternative-partition checks may remain untested when paint rejects."
+  ]
+}

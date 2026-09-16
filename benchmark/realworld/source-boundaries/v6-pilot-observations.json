@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "complete": true,
+  "repetitions": 1,
+  "scope": "Three selected development diagnostics. Not the full panel or a recovery gate.",
+  "build": {
+    "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6/build.json",
+    "sha256": "866b95a551c6c7594bdf63e9fa09ae8c1741f377b7a6655bfa34b4e3bf2f7bce"
+  },
+  "observations": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6-panel/edpb-restrictions-v1-to-final-1/runs.json",
+        "sha256": "9157438235870e853fbb667e926fd13abd9843f50aed2bf1441f44654f839824"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6-panel/edpb-restrictions-v1-to-final-1/edpb-restrictions-v1-to-final-text.json",
+        "sha256": "c71812f15dd25ad624371a31fe3fcb1f39b8b11528e5ca14925e42bca95c88bc"
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6-panel/arxiv-bert-v1-to-v2-1/runs.json",
+        "sha256": "bbc636f003b0feab235d1e2467f6fe7f54537e390bc87c1e443f1a6abb9bd10e"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6-panel/arxiv-bert-v1-to-v2-1/arxiv-bert-v1-to-v2-text.json",
+        "sha256": "07ff6a1e108573680fcefa1a8f6fb3341cfca70df17d6f48e75d437df4c7a4fd"
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "repetition": 1,
+      "capture": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6-panel/faa-maintenance-records-c-to-d-1/runs.json",
+        "sha256": "d30d1371010add1ab196656299a6a780f9155d8b9ab1975596d6b30884d5d6cf"
+      },
+      "run_index": 0,
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6-panel/faa-maintenance-records-c-to-d-1/faa-maintenance-records-c-to-d-text.json",
+        "sha256": "a6a8b9819510198ef7848664d454ef01f61a7fe0afc2adb9222e70855f2fe690"
+      }
+    }
+  ]
+}

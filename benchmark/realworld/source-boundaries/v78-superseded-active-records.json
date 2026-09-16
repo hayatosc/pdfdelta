@@ -1,0 +1,25 @@
+{
+  "version": 78,
+  "records": [
+    {
+      "superseded": {
+        "path": "benchmark/realworld/source-boundaries/development.json",
+        "sha256": "45146efbad9adde655ee35f982b515331a6890b10467269c19703abbc76097e1"
+      },
+      "archive": {
+        "path": "benchmark/realworld/source-boundaries/v78-superseded-development.json",
+        "sha256": "45146efbad9adde655ee35f982b515331a6890b10467269c19703abbc76097e1"
+      }
+    },
+    {
+      "superseded": {
+        "path": "benchmark/realworld/source-boundaries/quality-checks.json",
+        "sha256": "a3d18ab3504b3a70e88bd2d091ae7419e6d44b36d5be254afa96b9bcbb17bf8b"
+      },
+      "archive": {
+        "path": "benchmark/realworld/source-boundaries/v78-superseded-quality-checks.json",
+        "sha256": "a3d18ab3504b3a70e88bd2d091ae7419e6d44b36d5be254afa96b9bcbb17bf8b"
+      }
+    }
+  ]
+}

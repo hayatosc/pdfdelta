@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "v6": {
+    "build": {
+      "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v6/build.json",
+      "sha256": "866b95a551c6c7594bdf63e9fa09ae8c1741f377b7a6655bfa34b4e3bf2f7bce"
+    },
+    "observations": {
+      "path": "benchmark/realworld/source-boundaries/v6-pilot-observations.json",
+      "sha256": "e58d942ba15574d295c29857790d0c9255c0361a7b66d6b11f94f2ff1458bcbe"
+    },
+    "status": "Rejected regression: BERT lost both source-cut outputs, including the 703-atom target. A new scoped presence review consumed work before cut discovery; source_cut_search started with 109460 instead of the retained v5 budget. Its new presence output has not been adjudicated."
+  },
+  "v7": {
+    "build": {
+      "path": "benchmark/realworld/cache/source-boundaries-local-cuts-v7/build.json",
+      "sha256": "577f80483dedfce0961d59c6b09350ae6ed4471c4febc68078930a6dd1b4e821"
+    },
+    "observations": {
+      "path": "benchmark/realworld/source-boundaries/v7-pilot-observations.json",
+      "sha256": "849537ebc1f47467460e374ab7cc0180acf0cbe2af064a6c59ec90e3ce8f0bea"
+    },
+    "correction": "Attempt two-sided native intervals and source cuts before additional empty-sided intervals, sharing the unchanged work cap. Exact duplicate empty-sided ranges are suppressed.",
+    "bert": {
+      "path": "benchmark/realworld/source-boundaries/bert-v7-scores.json",
+      "sha256": "f15bacdd32247d2da831b46cc30e229e502a77140200eb6d5776e202631421ea"
+    },
+    "other_selected_pairs": "EDPB restrictions retains all 21 event identities and FAA maintenance retains zero. No new region-chain review is emitted for these three pairs; unreviewed EDPB outputs remain unreviewed."
+  },
+  "transition_diagnosis": {
+    "path": "benchmark/realworld/source-boundaries/segment-profile-diagnosis.json",
+    "sha256": "8898f2eecdf856f2a51fd23b1d480b559570b309d1ed8cf49db950ca668e2b32"
+  },
+  "limits": "Native tag order is a restricted page-region profile, not a column-order solver or a complete local-tree validator. Three checked natural tag inventories are incomplete. No new natural recovery is attributed to this capability. Full G1/G2 and unseen evaluation remain unmet.",
+  "checks": {
+    "format": "pass",
+    "workspace_clippy": "pass",
+    "workspace_tests": {
+      "passed": 2368,
+      "ignored": 2
+    },
+    "scope_fixtures": 25,
+    "evaluator_tests": 11,
+    "generated": {
+      "path": "benchmark/realworld/source-boundaries/checks/local-cuts-v7-generated.log",
+      "sha256": "1146ab58a0487a50e27b99f3bcd61c3004395fc7b99f1157e91d9efc0d0f9d1d"
+    }
+  }
+}

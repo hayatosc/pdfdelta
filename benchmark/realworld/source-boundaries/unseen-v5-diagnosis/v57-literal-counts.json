@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "scope": "Independent raw source count checks only; complete cut/closure and all-output adjudication remain pending.",
+  "rows": [
+    {
+      "pair": "arxiv-deit-v1-to-v2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v57/arxiv-deit-v1-to-v2/report.json",
+        "sha256": "337625c818bfe8b80258b5cf50a2aae4e254c9c4bccefee2582613573b8b44c8"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v57/arxiv-deit-v1-to-v2/source-review/sources.json",
+        "sha256": "cacad660e0cba55d37b4ec8fff4e04dbea036b0fdf9e0dd3ddf943eda4606447"
+      },
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/36",
+      "literal_scalar": ",",
+      "counts": {
+        "old": 7,
+        "new": 5
+      },
+      "exact_mask_claimed": false,
+      "source_count_check_passed": true
+    },
+    {
+      "pair": "arxiv-dpo-v1-to-v2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v57/arxiv-dpo-v1-to-v2/report.json",
+        "sha256": "990a1fa9556b6acaa4ad974a2abb01fbeb98b53e31a9a43345f597034c1efadd"
+      },
+      "source_export": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/diagnosis-v57/arxiv-dpo-v1-to-v2/source-review/sources.json",
+        "sha256": "177763ae4b40fce5cb0e5fc09161dd5ad9774f0df472bcc918b6f9ba0c0cb462"
+      },
+      "pointer": "/comparison/scopes/0/result/text_scope_reviews/21",
+      "literal_scalar": ",",
+      "counts": {
+        "old": 15,
+        "new": 13
+      },
+      "exact_mask_claimed": false,
+      "source_count_check_passed": true
+    }
+  ]
+}

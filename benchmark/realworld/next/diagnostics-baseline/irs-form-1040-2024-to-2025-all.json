@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "report_sha256": "431f278e17e1a559a9978c8dadfd9070a9d06b73b22c1a13c3038786795c2ca4",
+  "report_schema_version": 2,
+  "findings": [
+    {
+      "stage": "acquisition",
+      "reason": "XFA form content remains unexamined",
+      "observations": 2,
+      "example_locations": [
+        "/old/issues/1/reason",
+        "/new/issues/1/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "form appearance or rich-text value requires separate comparison",
+      "observations": 340,
+      "example_locations": [
+        "/old/issues/2/reason",
+        "/old/issues/3/reason",
+        "/old/issues/4/reason",
+        "/old/issues/5/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "invalid configuration: state-selected widget rendering is not supported",
+      "observations": 110,
+      "example_locations": [
+        "/old/issues/342/reason",
+        "/old/issues/343/reason",
+        "/old/issues/344/reason",
+        "/old/issues/345/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "invalid configuration: widget normal appearance is missing",
+      "observations": 224,
+      "example_locations": [
+        "/old/issues/325/reason",
+        "/old/issues/326/reason",
+        "/old/issues/327/reason",
+        "/old/issues/328/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified",
+      "observations": 4,
+      "example_locations": [
+        "/old/issues/323/reason",
+        "/old/issues/324/reason",
+        "/new/issues/488/reason",
+        "/new/issues/489/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "page widget appearances require separate comparison",
+      "observations": 2,
+      "example_locations": [
+        "/old/issues/0/reason",
+        "/new/issues/0/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unresolved content: native tags do not establish complete semantic relationships; role maps, table axes, and object-reference bindings remain unexamined",
+      "observations": 2,
+      "example_locations": [
+        "/old/issues/322/reason",
+        "/new/issues/487/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unresolved content: overlapping or mixed structure memberships require additional views",
+      "observations": 125,
+      "example_locations": [
+        "/old/issues/143/reason",
+        "/old/issues/145/reason",
+        "/old/issues/147/reason",
+        "/old/issues/149/reason"
+      ]
+    },
+    {
+      "stage": "acquisition",
+      "reason": "unsupported feature: structure object-reference binding is not implemented",
+      "observations": 340,
+      "example_locations": [
+        "/old/issues/144/reason",
+        "/old/issues/146/reason",
+        "/old/issues/148/reason",
+        "/old/issues/150/reason"
+      ]
+    },
+    {
+      "stage": "scope",
+      "reason": "typed relationships have endpoints without established relationship-compatible correspondences",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/relation_unresolved/0"
+      ]
+    },
+    {
+      "stage": "retrieval",
+      "reason": "candidates exhaustive=false",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/scopes/0/result/candidates/exhaustive"
+      ]
+    },
+    {
+      "stage": "retrieval",
+      "reason": "text candidate enumeration is incomplete",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/scopes/0/result/unresolved/1"
+      ]
+    },
+    {
+      "stage": "retrieval",
+      "reason": "text_search exhaustive=false",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/scopes/0/result/text_search/exhaustive"
+      ]
+    },
+    {
+      "stage": "retrieval",
+      "reason": "visual candidate enumeration is incomplete",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/scopes/0/result/unresolved/0"
+      ]
+    },
+    {
+      "stage": "retrieval",
+      "reason": "visual_search exhaustive=false",
+      "observations": 1,
+      "example_locations": [
+        "/comparison/scopes/0/result/visual_search/exhaustive"
+      ]
+    },
+    {
+      "stage": "counterpart_decision",
+      "reason": "a correspondence conflict component has competing optima",
+      "observations": 4,
+      "example_locations": [
+        "/comparison/scopes/0/result/unresolved/2",
+        "/comparison/scopes/0/result/unresolved/3",
+        "/comparison/scopes/0/result/unresolved/4",
+        "/comparison/scopes/0/result/unresolved/5"
+      ]
+    },
+    {
+      "stage": "counterpart_decision",
+      "reason": "resolved_rivals",
+      "observations": 14,
+      "example_locations": [
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/0/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/1/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/2/missing/0",
+        "/comparison/scopes/0/result/counterpart_decisions/unresolved/3/missing/0"
+      ]
+    }
+  ]
+}

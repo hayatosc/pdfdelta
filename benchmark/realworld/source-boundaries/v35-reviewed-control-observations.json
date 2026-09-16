@@ -1,0 +1,3191 @@
+{
+  "version": 1,
+  "capture": {
+    "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/runs.json",
+    "sha256": "398ca9a3af4d01cb8a9abf6cd5d4bc185cd65b12ddc96af06274e3898738b6a4"
+  },
+  "reports": [
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-plain-native.json",
+        "sha256": "8bb9e1d47b6922598a0839be0de59fb5c5b1f7e3ba5c4dc9a480726804653ac9"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-plain-text.json",
+        "sha256": "defd578d64ebe1f61126fa5903e270436912a827dcf7e81ec767c06f2036ae36"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-plain-all.json",
+        "sha256": "5582aa211116e3b90c0d1c3a08cf95d2c92d3a089241959fa968f55d90a92637"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-wrap-native.json",
+        "sha256": "13c16e26a474f6ccdda074fe82b192b3c41d7ed0d20c1dd83c31b51c6951c7da"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-wrap-text.json",
+        "sha256": "dfdba062bd83734ee853627b6cc3a560afd541eeb83557eece79e8a6a8428e58"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-wrap-all.json",
+        "sha256": "3b8793248c97545e5fa202fed9d4448861f5baef9a486bd62ddb40add4e8229f"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-page_break-native.json",
+        "sha256": "aea8bbdea10b99566994b334ced6c2d1f4c648fc0e22777728ac33f71e0ee914"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-page_break-text.json",
+        "sha256": "9b048efec2ef67084a668aee1f7650c3c7664512ecd579da5286374dea02fc6d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-page_break-all.json",
+        "sha256": "119da91f0fa3fc8f8ba15e5e8625e01a37e92628f09cf95cc0e65be8a4a8dad5"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-font_size-native.json",
+        "sha256": "76091fffcdec8272a74aa269626d0d591312fd3aa553c0d342f39d64e17e081c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-font_size-text.json",
+        "sha256": "fd781e365941abe3f2d9915e1d3b27b5af2ebf3c7852f57b82fef6e7eb9bc525"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-font_size-all.json",
+        "sha256": "02a3e8558df240f83ba1ad7ed96feb93aa6ba644c18f82193936c47392c5bdb3"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-columns-native.json",
+        "sha256": "67d0e70a61b24380132925fadd896957797c092c11427861cc02589057d35d0e"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-columns-text.json",
+        "sha256": "d5c086b39d0814d42078bc469b8505d1b43ad6a6de3dab88e9555ac80fe5f217"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-columns-all.json",
+        "sha256": "0554fb31114ac3fef32f76d2bedc50a2309174c90266a8690706f7cec328c451"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-paint_order-native.json",
+        "sha256": "4b778fdbc9919d9ffa5caaa07039cc0564d1fbfa9f6acd9fbad7adf2fb090145"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-paint_order-text.json",
+        "sha256": "f5ce510ef336f9d695389fc5ec595b03ac7e38d52efc619cfc1ebfe98745d1a5"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unchanged-paint_order-all.json",
+        "sha256": "6473042d1cf76a6b796a0d35b1fdaeef68729158023b355e86759110531b0a72"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-plain-native.json",
+        "sha256": "523463d09184279bf04fcbb7d04c9f57a33299406a62566ad4f42f59ae259d36"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-plain-text.json",
+        "sha256": "3569965aba4f97d9d5aa64f838f3cc1105b2f2a2d52e9ccaa567059c4826b7b0"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-plain-all.json",
+        "sha256": "d8be1d34ea7721f53c3088477e525543219d9caea28dd1b74674273fc024dfa9"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-wrap-native.json",
+        "sha256": "7771d20e7d35c0230ad13967739acf17aafa9a2e3f19561d099c6327ae2b0b42"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-wrap-text.json",
+        "sha256": "2e9642116964ead616f39a587a84610f4782455fc2c690c372ddba464df114f6"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-wrap-all.json",
+        "sha256": "772dd509b4308aab458f2eb07ac777ad23f4d593fb18929ea7d011f5de12df19"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-page_break-native.json",
+        "sha256": "aca1b50cfe0d0a52f5c6c9957907b3aebf507273f2d785214c52e0d7d970e7b4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-page_break-text.json",
+        "sha256": "c747e135605b2d6bcbbef3eec25732dee0c9faf02947303c9d91db83f69bfeb3"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-page_break-all.json",
+        "sha256": "9ebf0c5091fc960925cd75b2a713633640b7c9800f80e58eff4b28f25a24111f"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-font_size-native.json",
+        "sha256": "d1128a8b1f31e15ac8d58cc6b2e951463d66f7ee06316c3647d244197a539d98"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-font_size-text.json",
+        "sha256": "2b34f72d7691be93f4432954907e94c37659e70f2d9061c9d8a0d851b8cd4586"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-font_size-all.json",
+        "sha256": "83658c0de7a79e4edc37dc64fcd5de7f18aa3b3237c7e10f96fa1e6f2b631627"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-columns-native.json",
+        "sha256": "2c6ef81a64a7306d77bb2333bd946c53725c3b4394caac693cd8752e410769e5"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-columns-text.json",
+        "sha256": "4f0295d570a1f956f41299166c59f55c87f4e382789d819905894bf38a66068b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-columns-all.json",
+        "sha256": "d20e126a77831565c20aad1a097fa1daf09f244b686ba5ce103cd509a9bcc8e0"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-paint_order-native.json",
+        "sha256": "10081fbffbdc4cacd27d6efb26d16a35986ea5d9c00ee17e6ab3814bc5a12a7b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-paint_order-text.json",
+        "sha256": "382c0e5a15b9ffc981c64bda82f1cb3c8963584a258d1ca73cec49e3d157d67a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-number-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-number-paint_order-all.json",
+        "sha256": "cce29046a314e0c831544d3d9a04f542a7bbebff605df0eb01c1b258ac461c9d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-plain-native.json",
+        "sha256": "dc55a3e82ad9a5df80de65996ee37974b41e3c5762238bac53fa975684162779"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-plain-text.json",
+        "sha256": "29c26dbb53968ba3d9ff87ada1707f1cd7eda23b5bd2537e9854f1d978954be3"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-plain-all.json",
+        "sha256": "5802de00affd3a980bf53cab20d5eeaae4253e3cbb33f39e0f1447c0687a3185"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-wrap-native.json",
+        "sha256": "aa4259bc369e92d81c486e27f08400e52aab356e71d5c0ab8dc62ad92985d0f4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-wrap-text.json",
+        "sha256": "6dfd36b36fc2fb4156e8f70a426a74763bf12c5bf2a0a11cbb8226baf8dcca83"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-wrap-all.json",
+        "sha256": "d877cd0ad3737b6cda815977a813cdfe822efccf4c2f7b779b76e8cad839f153"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-page_break-native.json",
+        "sha256": "5295d7558fbf435f80959e38c1a9586715e8b90116adb1184c3cc5b156147fd6"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-page_break-text.json",
+        "sha256": "f5eb288e045e94932b8047cd3923169c728ee8e0876a417c4516de5dc19dca20"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-page_break-all.json",
+        "sha256": "f7b219b1b66708121b432abe4b4a029b1faa991b9e3a39647e00aecdfe54f398"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-font_size-native.json",
+        "sha256": "be982ab6e17cc68a8d3e8d762ee78ceaea5ead8830968c4712eb5830900fab7a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-font_size-text.json",
+        "sha256": "cfb410e20c00357d88b1b56b2edc01e3acbf6e3148f7d98ca15c33d9a4f41c53"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-font_size-all.json",
+        "sha256": "ea23689d0c6a4f09566a6d2ac51cc6c7aaec2a637964a7e14b10cfcc7ebf69a9"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-columns-native.json",
+        "sha256": "e08b4f9e1f0ee65ded5e6b6b2f5abed9d6677e6583c91c2186e85cba3ccb7677"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-columns-text.json",
+        "sha256": "8e3e93314e99e6a2747d08ee2ef96f723b642566210e1bb6f92331ec53646fe8"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-columns-all.json",
+        "sha256": "8852f478597da714311e8180c66042581e9c3b9d4ebd33f4bd8cfc9cc944fed4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-paint_order-native.json",
+        "sha256": "128306d4986f37ccdf5392e3738c0610c9b1b3def48fa95ef6bc68607114616d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-paint_order-text.json",
+        "sha256": "cd5f5534b77a4377ef1878d8e3bca69e23a5b07e98a26ad3302be3ff5652fb96"
+      }
+    },
+    {
+      "pair": "lopdf-tj-unit-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-unit-paint_order-all.json",
+        "sha256": "e950bfff51b234b0031a23b9efdff63f89eb04fa94260150e82c7f1d03f288de"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-plain-native.json",
+        "sha256": "5fc38792eb81390acb086b6c4a68bd8c896f1d0cc109acc2710cd19f64d5c728"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-plain-text.json",
+        "sha256": "f72fc322f61a54423947b962c8c9815e66d02103f7507dfd9ea251ded24830d1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-plain-all.json",
+        "sha256": "1cbd7153eef9196721d423be8ac883bd0d0823f67e8463668b99dd8a8fe2103d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-wrap-native.json",
+        "sha256": "be2894220faa737fa0fe94e5550c4adeb7a0ae9cbfffbd769f7c74f1fd59be76"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-wrap-text.json",
+        "sha256": "9a774c271c83281fadcd1e1d2a9a6d4d01d15f97badb318c8c575feab7b190a4"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-wrap-all.json",
+        "sha256": "07c3c1e485a5c4202ed8b22f2ee5b094ce25807f1d17b3de67a4e67d4efa425d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-page_break-native.json",
+        "sha256": "3f5547d73ffc81468fdf3e493ed4ee6ef0d68aa0850439dbf82ee3f489d06a1a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-page_break-text.json",
+        "sha256": "5a98abd1146717e645372640ecb19bbf4310020edc31535fea4f7c9e46499505"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-page_break-all.json",
+        "sha256": "07c5a3620f858032da4b9eec9c6b051bda746b9801673bd94f586c29a4fca7b8"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-font_size-native.json",
+        "sha256": "c8bd44b4b94ea364f1815aabedac9921a48265df64a6f6b16537da62efddc1c1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-font_size-text.json",
+        "sha256": "9a3448e02d97d28f06ba058cc82c26c7b529f8f30f604c209fbad0e4f2971246"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-font_size-all.json",
+        "sha256": "0b5fa206ed5a52051dc989fd266836cb5e22f7965dcc54310fa260d22264f866"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-columns-native.json",
+        "sha256": "06d0829e54822d3b1ccad2ffb4ef9ca696f80969d2b7611b150da40bc7645ecc"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-columns-text.json",
+        "sha256": "8df2c84a1159044987befbf8cb51b1666e6e4cf2eb6c9bb7668c2d4c9b97813b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-columns-all.json",
+        "sha256": "2c05a4d68f9f36dfe1b22a8ff4b0b458a0c5d2dc97e4e7dbf75498b4011dd0da"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-paint_order-native.json",
+        "sha256": "6458ac962f489971ac7814972b6c2459b3f83b07c057085c47dc21d4931f700c"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-paint_order-text.json",
+        "sha256": "c4e6d2f02350ba8ce42603dc25ef5138d44edc35542a9ee46d68852a5c39b91a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-negation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-negation-paint_order-all.json",
+        "sha256": "15c1d40bf8717958e013b842cb235b32b2d89bac60243fde36a7f42391097b47"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-plain-native.json",
+        "sha256": "c6f6e6d5a3e819f057d9ee04a82d602f941568b0d5e58d098981346b052dd685"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-plain-text.json",
+        "sha256": "d8b26950c839569f1a234631b8f03a1a069f2d7d8a7d37622b1cba14ff46d6cb"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-plain-all.json",
+        "sha256": "a71da51869a4251d30844884d7277dd5600dd9ba8f39d5465f55fc85ae2ad33b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-wrap-native.json",
+        "sha256": "85e15c790c40e9e72685cd37a9f112fd73b9950a773795950b0aa7e3e6514cec"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-wrap-text.json",
+        "sha256": "df0745aab46258f92a1b1fa947e6a61d945cb194448d16a2407ef3dd0264cb82"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-wrap-all.json",
+        "sha256": "e5866322b4b71ac025e0767e7a7e437521db05b18d2dec54b061704d32eca7bf"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-page_break-native.json",
+        "sha256": "92e268bd802ca87659439770b01f8876d5b3a77e2d4bc0189eadc337b3dbcc4a"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-page_break-text.json",
+        "sha256": "e75140724208d798996e3c9af7b3db8ed04a4362ef93f0c5fef0caade901ea7b"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-page_break-all.json",
+        "sha256": "613f9861d26648f2c111c48d7f1fb3e01e84c69d93a539759fb616363ba0d1c5"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-font_size-native.json",
+        "sha256": "4fc92d6536e9a30c00c3f3e62420983f11dcb09b8cc2087d6f452a54feff3788"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-font_size-text.json",
+        "sha256": "47d91505461ee48a1399e8a3890e137becfa74345b0d4effdfd7c80cac5f0da5"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-font_size-all.json",
+        "sha256": "388aa21f3a575a160af543637d2478bfdaa73c1d444a34afe44c53ef8d21b361"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-columns-native.json",
+        "sha256": "81d2045ffeed90025a0279bc18ca769240450174e15c88b7ec0837f9817ed3a2"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-columns-text.json",
+        "sha256": "1dbc79bdffad0cd72b9124b893385a19b8a1fbe73d4780274bddb7ca059b4e76"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-columns-all.json",
+        "sha256": "14941caf9cb91062f8c494788287afce01c79a31b8b13e4315dcacde166a72af"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-paint_order-native.json",
+        "sha256": "7cf979eb17ba2f96266a3245d7661f336b6a24d3bd68f9b8f1a35007e665e88d"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-paint_order-text.json",
+        "sha256": "ec404c944bb6ccac8249fe5fdaf52c8a988317c49e298174eebcce0c027beea1"
+      }
+    },
+    {
+      "pair": "lopdf-tj-affiliation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-paint_order-all.json",
+        "sha256": "587fe693c248d5057d5631df2680929e546c913cf738543ac62bb5a4fcd66e1e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-plain-native.json",
+        "sha256": "ecfd5bb34d82c3196cfe31b46183d68c25d47efe106bb08d3d92c2e67d0d7e6b"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-plain-text.json",
+        "sha256": "5a5f245287b9a6e039798c3d8dd65ee5d2909db9ac9a6567872ec7155037cd7c"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-plain-all.json",
+        "sha256": "afb14f576012f1ff4cf1c9afcb6fe9572c38c1cec1a5ac01128bd59738267a28"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-wrap-native.json",
+        "sha256": "f0737f0085ee453a7015b4276e917bbca609423c97968b4ec2d280d60ea4f6dd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-wrap-text.json",
+        "sha256": "6d3437d827e9d98d6e47500ad6ab105314b2c8bc8679242051b28efa52a4bf15"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-wrap-all.json",
+        "sha256": "ab18a77303143ae124ee258c9b16671f65672c77f8373cf0cf675d34c639216d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-page_break-native.json",
+        "sha256": "b4d9c3c3643ed56b227153ba27fc95732d313282972dafaec1f31307e69f5d6a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-page_break-text.json",
+        "sha256": "31c362d54308fd30d3ef5f841825e9984a6c5d0ec58ba42cda0af6f30c684837"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-page_break-all.json",
+        "sha256": "037c1f12225a530fc5bf4d7bbf87ddfe48e1440770acf18536430c386d23f820"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-font_size-native.json",
+        "sha256": "204b5f6aca5bbe91ae6c0feae62e5f471e435b6a07fdb216be82cc70e61464a0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-font_size-text.json",
+        "sha256": "dfe6caca03258af23814c80ce578c2f6c4d4a5a7af216fff9f04fb1e2ecef631"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-font_size-all.json",
+        "sha256": "4f4a2157d0a2d93a2914ee9cfe894c54be3b52d5edf86c8816f44bf5184321ab"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-columns-native.json",
+        "sha256": "eb6a15deaa836638928e322d0f0c340317722e49eec5389123e444564811ee7d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-columns-text.json",
+        "sha256": "57c9b80c2c2da8621cfabbd8925013852bfb6856c043c66ec588a32b5d14a8e0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-columns-all.json",
+        "sha256": "89398486a7215cbc02adb1f2653cac6ad87ffb75be107b00ff3df6d3a93c1c2a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-paint_order-native.json",
+        "sha256": "b47f00b988e6e7cbebb323cad7968ab085a8cfdeedcce05a40d91305cf5c2f80"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-paint_order-text.json",
+        "sha256": "242e7ee1a9610cf116b5ed60b012e637a91643146eb4b07612a9d833b1079de9"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unchanged-paint_order-all.json",
+        "sha256": "5f2074a27b8ea2737a86c7804ee00fd9ff4b634db9f99e173077b65537a49294"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-plain-native.json",
+        "sha256": "65ef568e24329943ca3a1e520bfd70a0ef3744d6db9d50edd5e6b26d19c3731e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-plain-text.json",
+        "sha256": "ef15e3a2759f9e3cec4d7971dea7f3f296df2af974f1b02bb4b76aebd32ec168"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-plain-all.json",
+        "sha256": "a293cd7b93624a8ff4e151eacaba660722464022395bacc4ced2935ec311cf93"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-wrap-native.json",
+        "sha256": "99e987bf163d699f79faa906a53d4fe993167946ba284ab07e882ee631b7e421"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-wrap-text.json",
+        "sha256": "a69b1d4dd751dc2f808a3e04d2553bffbee5373eb22a98a3b377e0771b378201"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-wrap-all.json",
+        "sha256": "d56eb9b40856576b37467d330d0078af6cf963fc12396b9c5537d91fcaca9603"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-page_break-native.json",
+        "sha256": "9370c9a38d4a6574f4ee8590f1c072680d1763966c423543703eaa1543c6ae2f"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-page_break-text.json",
+        "sha256": "df083a4ba604cd79c44ecc0c2d6247299ccf7f4630ffe1de4293fda8f7931af7"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-page_break-all.json",
+        "sha256": "d963fe390ee2d52ca51a8a6ed42a5d3f89aadac2553f85a1fcc723a5909ecd63"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-font_size-native.json",
+        "sha256": "cd68b8b2cadd6865dd1af9857ea13636ec0fee586573f8718e292d44b9b261cd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-font_size-text.json",
+        "sha256": "0037b834dada69d1ccc9f0cfb8d8fc4e75491643b8c58d35a6bcce4239ad192c"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-font_size-all.json",
+        "sha256": "12d7bc7e99fcda1cbba4c5789ae3e513f2272e678318550c700a057bc1317dc0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-columns-native.json",
+        "sha256": "013891464304a9cff18730becb0ab378b3146ae5460121a7cf922220688469b8"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-columns-text.json",
+        "sha256": "d98a9818881e69870e3a336e31011bf955171aec630e90dce097e6952efd0962"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-columns-all.json",
+        "sha256": "e5a3cb1ac0dbac3c7e01d5ad74731d85623c8d44a94481f5fba4ca5762c9bb85"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-paint_order-native.json",
+        "sha256": "d10cdadea3ae355a5865d38994d725a51ce6d8ab623ac3bcfe30b3e14c068b0e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-paint_order-text.json",
+        "sha256": "ca9467435b14c92b7a3c43f6728bd08bd6f398f4a4cab28cfe9f78638a538165"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-number-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-number-paint_order-all.json",
+        "sha256": "d4d9ae9d89b4eb2bdf0f68d05fdfffd7503b568dac8f144cd835096ab1a0effe"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-plain-native.json",
+        "sha256": "b5b9954c94cf364c3dd154b836efac13f22deda33d06034ec3a2a88f0f0548b3"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-plain-text.json",
+        "sha256": "0e9f8988b4d11359ff9058708416d2a305f4a6aad32deb9a77a346594cdd244e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-plain-all.json",
+        "sha256": "a3f184b41133dfc4e634d8cee0d1d13c44af21d7b30e630e46b538c5e3c511e7"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-wrap-native.json",
+        "sha256": "dcfbeb9f49bc95b91f73c646e092d80fd31a3e5ff695daac6a00c3ac3520d5c0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-wrap-text.json",
+        "sha256": "2ad372e8ce46a22d105e7930c7d6398c98366fd806f6d983b3e4a59d4989549a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-wrap-all.json",
+        "sha256": "ddb0c7b97b44b00ec716c396c01ef646de63d30c048d93fce7825b366e644e20"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-page_break-native.json",
+        "sha256": "fde6a9e71c5f69c050c32039ec45a1e97d7a7c5965dda87feda5588b0ab1a5ea"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-page_break-text.json",
+        "sha256": "abfae6573c975eacc179692e6c388da5dfcc159a3e1b961e20cfcbc0247b3934"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-page_break-all.json",
+        "sha256": "cc1e316e0aca9721ae50a83d4e369a9cc4479dfeb03c0ee3ed2dc1a3c4318ff8"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-font_size-native.json",
+        "sha256": "d0a8b8c8286a7c1810c546f039c39a68633b24b6af89fffa79b1e067847a90dc"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-font_size-text.json",
+        "sha256": "a6e106837c6070319b105e18c8fc23a423e5ecdb64612fa7864e08e8dbb8a204"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-font_size-all.json",
+        "sha256": "bc1dd0019a8ecbe7331a571aa01acf666fdf483c2667e4946115708ffe446834"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-columns-native.json",
+        "sha256": "0d8e36756bd47a8f4e8529b6c7df308dd55e2c61f901fd56d4da656d158b3961"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-columns-text.json",
+        "sha256": "b14f5cb8475bce9604dd11c018b1c376acd65e11a0119f8d7c3df016b7ce930e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-columns-all.json",
+        "sha256": "567ef60e47f81b3e0e6f553e30cd72d494ecddc9c60db6fddd4c484edd480279"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-paint_order-native.json",
+        "sha256": "e1c447b8a0ddd7d2d2aba0835665352f9eb91819a4a3e24a5654b251f87e865b"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-paint_order-text.json",
+        "sha256": "69c6de00c800746b837f41827847f96ec197a6ec4b8a90d4d4e6e03462297721"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-unit-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-unit-paint_order-all.json",
+        "sha256": "5a6c884be43e8cf2e02d33b2a7a11fa7966fa99050808493f9fb88ccc96ea352"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-plain-native.json",
+        "sha256": "6b5b0c2730eb6eb02bc92efb5f613a9ee0da92bf672260004e7e9ae6fa833c0d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-plain-text.json",
+        "sha256": "b1a8e61a085b627d759daa32a6ed6f0e770f97ded8129be9b2e905b3a2c253db"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-plain-all.json",
+        "sha256": "f0d37dacdeec6887537c8f4cd12a0d3d3490c153f712471a26e45092cd6cd1e1"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-wrap-native.json",
+        "sha256": "a172c7bbc6a8f3177ae1d34b945bfce3edfd3ca05b6f080141fa04d37d8eb4fb"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-wrap-text.json",
+        "sha256": "57cd3a707546ca871f09e158e129b4c03c23882257d7e4796386e747d87a3776"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-wrap-all.json",
+        "sha256": "f503ceda3b80c9ac6705b9557059dd880756c6e79e71099dbab04b691fdf39af"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-page_break-native.json",
+        "sha256": "a8b312b12a7f2fc7e7102eadf3fab2145458e570dc60aa4fca3b63a8cbdc59df"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-page_break-text.json",
+        "sha256": "62263864484771718027c2aa7fdecffe50894e9428f39a64dd55678eccac0d84"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-page_break-all.json",
+        "sha256": "0e2a9645075add72ef30ed6b1288cdc4d51212d41d63205a8cf2e7c18ab9370e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-font_size-native.json",
+        "sha256": "2550b0df80a2eeb54b1bc4adfdaeb41dee21f2d1d2184db231d21ce5711d3d84"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-font_size-text.json",
+        "sha256": "ef3d1200afaa150653d562177515ad7aa0bd3c7b206e21d00833d484e7ed5f17"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-font_size-all.json",
+        "sha256": "55d1843bcc8c14a7c69c4c8acbe49cc7cf680f8ec4273e361732370fe9f1a7d2"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-columns-native.json",
+        "sha256": "898282b6f3648f025ff747638a6ff2f3169bd9d9dffbb69eb8e168e452583704"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-columns-text.json",
+        "sha256": "2123153357a50002d6db08841d7bf2644575b7095be6d343f5974e543c555129"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-columns-all.json",
+        "sha256": "bab397384635ccee2f5bca2f94324022cf67a6d200400e87904164f9c7b95328"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-paint_order-native.json",
+        "sha256": "783efc9014b21f04e15c61397dc42e5827e7fe71bd7d033ebde59ce57bd39e84"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-paint_order-text.json",
+        "sha256": "1938800074abbe82701cc9259c2d3bd558c61418e92fc2313b7a710e9caf473c"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-negation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-negation-paint_order-all.json",
+        "sha256": "920249bf8f94a84a8ad151f11e34afcdb7dad3ec93c276c645afb9a0777a44f0"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-plain-native.json",
+        "sha256": "b0c65717503c6e37548b5be98f22c4bf2a078b5309c8a426a21d1aeaedbef2fd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-plain-text.json",
+        "sha256": "9e45b13dc443dd2068934655ca2d6434bc5340a7a3e09358a2e6236d911d04b4"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-plain-all.json",
+        "sha256": "39b363edb60eccd4694d293112198175d301ae27b97d4f9f9a356ec58428c969"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-wrap-native.json",
+        "sha256": "23122ef08890fc8741dec669188e7b747cf8984ff44561b9c6f9ba06a8064b5e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-wrap-text.json",
+        "sha256": "ea5d6ac656a49a5cdd421b980965fe10838339a457b61b5760547a70cbf7b4d9"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-wrap-all.json",
+        "sha256": "2998a70e83b9700e14d9406bed764ffed6c652108cc9cb4efdd4ce1c2095d2c4"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-page_break-native.json",
+        "sha256": "5d27c7f199c0b1db06460305945c33347b45d947aa09cd2b86c6e57fa1d0e7b1"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-page_break-text.json",
+        "sha256": "d31888d8bf9ae3974cd864121768fc1d9438e2e3d810b77ed200126aa03be93e"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-page_break-all.json",
+        "sha256": "44af42ca89594dff02bf4b38eddebb4ee4a5f1c43ef47035352b18dbbb5b7ff9"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-font_size-native.json",
+        "sha256": "52b2bd30c80d26be1f98940b5599ba1043333731de20be21071ec52c7c9f327a"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-font_size-text.json",
+        "sha256": "e0994083bead4e61f4e1615377c0407501fd4f30ae55bd34ac3f4af883599a7f"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-font_size-all.json",
+        "sha256": "9a7f56cb148b74a203746b8eb17514276ca1526414bea707db05d3aed11a65e5"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-columns-native.json",
+        "sha256": "9bac656507a2fc51a2ab8e6a1ecbe6c3f586ffc38afe9f8720cbe623b623c1ca"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-columns-text.json",
+        "sha256": "9f0b78c4d3b9e6e11aaa9db7f5fddac961ce962a20914fd1676a30ad4e595ce9"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-columns-all.json",
+        "sha256": "add3c52f0d15ce76629e4e97b5d4cc82fe7edbbea1fa0b94e834ca5cb597f7cd"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-paint_order",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-paint_order-native.json",
+        "sha256": "d67809ac526fc78aebef7c957a40b1abeae718d238c1b92731926f72b94c5edf"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-paint_order",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-paint_order-text.json",
+        "sha256": "88b50f0f1a08b4c92bfdb42181b258066fc5beef66fead6811440ac7248ffd3d"
+      }
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-paint_order",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-paint_order-all.json",
+        "sha256": "42fcf10cdc2e8c0bd3c3949d096dd4b372ad8d68c387b51ccb0ca252c302b46f"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-text.json",
+        "sha256": "71eea8361361ca17e99ca5292d983f2d313503179db620f4a7a70cb908e67040"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-all.json",
+        "sha256": "888123313ac0211d4ab0a9b692f9df9afff6e3a950374adeeb89c37e7bf44e1a"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-text.json",
+        "sha256": "e33a1ce3db3ec8708610df97b5082ea74c3d03decbdabb3e1772de12f8323c9c"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-all.json",
+        "sha256": "54788d833d30c98fa543a0a134e1c07a6edefa24210c2efbe780dd041d4e7092"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "text",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-text.json",
+        "sha256": "27b73ebb78a54e08be04bddab13b275a197f0321b0347a58b050d9eab5b6f05e"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "all",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-all.json",
+        "sha256": "68b96d24550cf0c37349c39a98836b418e69abca8b2301a88fadae507be23fb7"
+      }
+    }
+  ],
+  "adjudications": [
+    {
+      "pair": "lopdf-tj-affiliation-plain",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-plain-native.json",
+        "sha256": "c6f6e6d5a3e819f057d9ee04a82d602f941568b0d5e58d098981346b052dd685"
+      },
+      "event_sha256": "824aca33089dac8f0e47c8719ae60995e8095d4d63dc8948ee19deace359155a",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-plain.json",
+          "sha256": "515ac541b7f99f2a7bc478a7aec682f36b941a032734a8ae70a2867b072203af"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-plain.resolved.json",
+          "sha256": "03c0e13a88f988b9afa875e7cc0f12591510ce34a0991926edeb8d9e60a90633"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "lopdf-tj-affiliation-wrap",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-wrap-native.json",
+        "sha256": "85e15c790c40e9e72685cd37a9f112fd73b9950a773795950b0aa7e3e6514cec"
+      },
+      "event_sha256": "bd3543d5293219def7b24ffb7c9f933ebabdfedeee559157662188d50d3ce429",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-wrap.json",
+          "sha256": "4931d7649319525a23fb2debad7881af81aa143d31ff295b1ac3d5da43440271"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-wrap.resolved.json",
+          "sha256": "802be28d6b11d5eb778ac69d08d89c2cae34bb2bb60264e41369e2c10a3bcb0f"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "lopdf-tj-affiliation-page_break",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-page_break-native.json",
+        "sha256": "92e268bd802ca87659439770b01f8876d5b3a77e2d4bc0189eadc337b3dbcc4a"
+      },
+      "event_sha256": "01bdb4322586e1fabfe2eba019edb6dd6c589ce3a777191e065b046ffc960c74",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-page_break.json",
+          "sha256": "22d5f74e681c151a3460bc69e74dcc74c925b2f255a32ef8baac700efedcaebc"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-page_break.resolved.json",
+          "sha256": "6d39f4b84c35dac3a3d7d80c2f25a2401c9cdc6bb184c5ef655941be1efc8494"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "lopdf-tj-affiliation-font_size",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-font_size-native.json",
+        "sha256": "4fc92d6536e9a30c00c3f3e62420983f11dcb09b8cc2087d6f452a54feff3788"
+      },
+      "event_sha256": "1499b87cd49e6bd4ee10ab83d4f1b48ae114336caa32bad8c3e7e2be0c8b9172",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-font_size.json",
+          "sha256": "c0687376cde9ec1b28a248419e62051b51e17997641c72a9629c365533672f5f"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-font_size.resolved.json",
+          "sha256": "9b4fa6a95bd1f18fa5d2c0cd3377e23b364339a3e98cb397a51ad9cb5c5d4d2e"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/lopdf-tj-affiliation-columns-native.json",
+        "sha256": "81d2045ffeed90025a0279bc18ca769240450174e15c88b7ec0837f9817ed3a2"
+      },
+      "event_sha256": "badbcb658aef36a5303456176182b1862d8454828c245ae1b8f623acff0640f3",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-columns.json",
+          "sha256": "06d4184fa2a2f5ab551da688159fb19c10d7c04fe7f1bf53dd34cdcfe379d009"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/lopdf-tj-affiliation-columns.resolved.json",
+          "sha256": "e0001933492b67688212a357f9770062cec18fd0d54bf8bab97a1178850b6985"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-plain",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-plain-native.json",
+        "sha256": "b0c65717503c6e37548b5be98f22c4bf2a078b5309c8a426a21d1aeaedbef2fd"
+      },
+      "event_sha256": "94b39b92063a7ec749ad66449a9727c16615b09fe803997cd8d9a2d855d652bc",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-plain.json",
+          "sha256": "5360b8cfc960600f4d1a1cd744f30e1c58980e67010f63247d4102b99ce0a671"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-plain.resolved.json",
+          "sha256": "50e4b52f908152f935d0cd0011fb6a49e549597a818a2558c566c4d25b90803d"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-wrap",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-wrap-native.json",
+        "sha256": "23122ef08890fc8741dec669188e7b747cf8984ff44561b9c6f9ba06a8064b5e"
+      },
+      "event_sha256": "c9c9f5392e65dd95204631960c37cb111acf47e313c8fcece535aba933ac454d",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-wrap.json",
+          "sha256": "612277f07ec3458a1f4cc6d8cf5ec8dbc692ca3526edd19bd6bb7a71f7d89870"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-wrap.resolved.json",
+          "sha256": "3642017611c1abe482dac3a480c4906a01497dba6859927704c3ad88ac7015b4"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-page_break",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-page_break-native.json",
+        "sha256": "5d27c7f199c0b1db06460305945c33347b45d947aa09cd2b86c6e57fa1d0e7b1"
+      },
+      "event_sha256": "d19158c235cc2b73f32c1397bc20ca45b52e887052033c54697b6d7d359e188c",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-page_break.json",
+          "sha256": "daed6737972f6deda8a94c3c827c5295e5ecc8be1508fe2acb36729ed12318a0"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-page_break.resolved.json",
+          "sha256": "f67a57c89704356be25ba34fdae550b468e0365b29b8f6435a279b979d23e80b"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-font_size",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-font_size-native.json",
+        "sha256": "52b2bd30c80d26be1f98940b5599ba1043333731de20be21071ec52c7c9f327a"
+      },
+      "event_sha256": "0d59d13a405a3131f8374bafafd3f448e9524167e5bd952d4ecf8d47a2c10f0f",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-font_size.json",
+          "sha256": "d017ea6132558b78c39314a0736e60bf28d0bd8b31ba84132cb353e0b8b92ca4"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-font_size.resolved.json",
+          "sha256": "1820a0e0b5dba741dc6db67384b6df053a5f096dd0ca57c972cac22bde811085"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "route": "native",
+      "pointer": "/changes/0",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/classic-xref-tj-affiliation-columns-native.json",
+        "sha256": "9bac656507a2fc51a2ab8e6a1ecbe6c3f586ffc38afe9f8720cbe623b623c1ca"
+      },
+      "event_sha256": "721c25eb0067b5f25686521aaa7454b6fdffab7e9e85d833e984bbfc4e685f8a",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-columns.json",
+          "sha256": "e12e06a003703cef07b71fb42b9e2fd21048c3f180132251bb342e0567e9f80d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/classic-xref-tj-affiliation-columns.resolved.json",
+          "sha256": "17c4a7253c9f9d20291de6489278d33bc1b519ee56582c4778dc8436278c2f07"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "Orion changes to Lyra; the retained r is unchanged. All claimed source tokens are unmatched in every optimal literal alignment.",
+      "correspondence_rationale": "The preregistered literal selectors identify the same authored paragraph under the presentation mutation."
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "pointer": "/changes/1",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      },
+      "event_sha256": "fb51d54bdb942d97ad87114d56d929183f531326c7aad56de6f32e3a627d12c8",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.json",
+          "sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.resolved.json",
+          "sha256": "ac19d94f441032ec4ce0f880484c204c0488adf6702ef46b051e1f8942867c08"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+          "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+          "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "pointer": "/changes/2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      },
+      "event_sha256": "3724c5b4b98c7092b7e63abae28e407b62165fdbb5cd04098bf2ee339321d67a",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.json",
+          "sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.resolved.json",
+          "sha256": "ac19d94f441032ec4ce0f880484c204c0488adf6702ef46b051e1f8942867c08"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+          "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+          "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "pointer": "/changes/3",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      },
+      "event_sha256": "8ea3deb5f0d80b4413a7cf6bc5e47f5212f07562f94dc46e605714f25bb0968c",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.json",
+          "sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.resolved.json",
+          "sha256": "ac19d94f441032ec4ce0f880484c204c0488adf6702ef46b051e1f8942867c08"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+          "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+          "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "pointer": "/changes/4",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      },
+      "event_sha256": "78af77539ca55e047181deada3d4350ad770a612254a72af1ecf1acbd59e2549",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.json",
+          "sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.resolved.json",
+          "sha256": "ac19d94f441032ec4ce0f880484c204c0488adf6702ef46b051e1f8942867c08"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+          "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+          "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "pointer": "/changes/5",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      },
+      "event_sha256": "e092cc9dfc152d1fea0d2336ce37902171a816115c91f33e081c1808f02990dd",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.json",
+          "sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.resolved.json",
+          "sha256": "ac19d94f441032ec4ce0f880484c204c0488adf6702ef46b051e1f8942867c08"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+          "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+          "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-storage",
+      "route": "native",
+      "pointer": "/changes/6",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-storage-native.json",
+        "sha256": "612805d96383a3716c4fa8d0214d9f7f92aec80acc32e37451c43e197e1d8f66"
+      },
+      "event_sha256": "26ec437fd4b66bfd9b2bec1c5bef3b83fb0fd1087522550c128de4c84e963d1a",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.json",
+          "sha256": "a3caf2327879d10e9b8331447252f1634f0ea5ed0afc700bf6294d5813cdf95d"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-storage.resolved.json",
+          "sha256": "ac19d94f441032ec4ce0f880484c204c0488adf6702ef46b051e1f8942867c08"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/sources.json",
+          "sha256": "e876ad5a1548a3a624bd43e4c735167df4c40215e6dda2d2bdb9225fd9e82176"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/manifest.json",
+          "sha256": "722ff7227ffc15c3051731664703f12b1d124f8a1151de371205a10461aa80b9"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/old-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-storage-control-review/new-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "pointer": "/changes/1",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      },
+      "event_sha256": "8096777847b58accceff67a46ae84eabd20872357c9d7f7c0b1a844ba1806364",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.json",
+          "sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.resolved.json",
+          "sha256": "fcb177402b6f997a12a668e841220ee8a3548a5c1a561edd3549cd32cc59f3a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+          "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+          "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-1.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-1.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-2.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-2.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "pointer": "/changes/2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      },
+      "event_sha256": "af20c794b2edcd1a7822a77d365433540d431ff108a7d9cb9ce3059d7541edb1",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.json",
+          "sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.resolved.json",
+          "sha256": "fcb177402b6f997a12a668e841220ee8a3548a5c1a561edd3549cd32cc59f3a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+          "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+          "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-1.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-1.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-2.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-2.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "pointer": "/changes/3",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      },
+      "event_sha256": "ac69dcad1e093a4a91fd3e2057b392f2b1ff24618fb7d52b06dff13fa7762543",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.json",
+          "sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.resolved.json",
+          "sha256": "fcb177402b6f997a12a668e841220ee8a3548a5c1a561edd3549cd32cc59f3a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+          "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+          "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-1.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-1.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-2.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-2.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "pointer": "/changes/4",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      },
+      "event_sha256": "6289298115d6436c72dec0f957e9fee4b40fcb9c105714604942dc476e6ac7f3",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.json",
+          "sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.resolved.json",
+          "sha256": "fcb177402b6f997a12a668e841220ee8a3548a5c1a561edd3549cd32cc59f3a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+          "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+          "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-1.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-1.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-2.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-2.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "pointer": "/changes/5",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      },
+      "event_sha256": "f5c8e92c260a2f2a12c28afabbecb4a574c629c616d19f7f78d22a1c457bc2b4",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.json",
+          "sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.resolved.json",
+          "sha256": "fcb177402b6f997a12a668e841220ee8a3548a5c1a561edd3549cd32cc59f3a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+          "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+          "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-1.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-1.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-2.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-2.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-prepended_blank_page",
+      "route": "native",
+      "pointer": "/changes/6",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-prepended_blank_page-native.json",
+        "sha256": "dd61857bdff64272d2c374c6d3b5496ac2fb473fcba2484bfca0a0a717f91190"
+      },
+      "event_sha256": "c767725c06908830632f81a7750b253da1b6b43341f72418c00032aaa04a3325",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.json",
+          "sha256": "d3765fda2d5cfe83ffe05977513bcef46fce40b92acdd72246742a6a05e8ce17"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-prepended_blank_page.resolved.json",
+          "sha256": "fcb177402b6f997a12a668e841220ee8a3548a5c1a561edd3549cd32cc59f3a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/sources.json",
+          "sha256": "816443a37bb9203eccd775cafab41bc5275df994744c8242d9cef900023646a2"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/manifest.json",
+          "sha256": "73353f39ed1384dc8877b648da64a6561be76c0c5c86574bc6a45ef002124fb1"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-1.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-1.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/old-region-2.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-prepended_blank_page-control-review/new-region-2.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "pointer": "/changes/1",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      },
+      "event_sha256": "1c92b08a9e9f8a92828116e539b1b9b444ba5bdd89803fef99a840db28ad6bb0",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.json",
+          "sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.resolved.json",
+          "sha256": "02e50c387fa821a698dcf650416000e189af92c8b670b1953d8666bd90bea473"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+          "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+          "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "pointer": "/changes/2",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      },
+      "event_sha256": "c1a8db5efe7ef07846e900e15b4483ece9de100a9cf3fc02042e361b90786f8e",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.json",
+          "sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.resolved.json",
+          "sha256": "02e50c387fa821a698dcf650416000e189af92c8b670b1953d8666bd90bea473"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+          "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+          "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "pointer": "/changes/3",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      },
+      "event_sha256": "787174f48632bb582e369c27b439ae0fd8b276e612bfd6e53ec1105355169603",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.json",
+          "sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.resolved.json",
+          "sha256": "02e50c387fa821a698dcf650416000e189af92c8b670b1953d8666bd90bea473"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+          "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+          "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "pointer": "/changes/4",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      },
+      "event_sha256": "6b78d64dff46d48751f4e8253fd01e8d68294c568f3ee1f076ca167845a1de69",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.json",
+          "sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.resolved.json",
+          "sha256": "02e50c387fa821a698dcf650416000e189af92c8b670b1953d8666bd90bea473"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+          "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+          "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "pointer": "/changes/5",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      },
+      "event_sha256": "d42b5c283d0a1517759e8d7f604593be35b62bb234c8c69e871c407d45b7cad4",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.json",
+          "sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.resolved.json",
+          "sha256": "02e50c387fa821a698dcf650416000e189af92c8b670b1953d8666bd90bea473"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+          "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+          "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    },
+    {
+      "pair": "irs-schedule-c-reverse",
+      "route": "native",
+      "pointer": "/changes/6",
+      "report": {
+        "path": "benchmark/realworld/cache/source-boundaries-v35-formal-controls/irs-schedule-c-reverse-native.json",
+        "sha256": "a3f517b0d7e62e0dec5d766b2c9098fa9b19c0bfe751e0aec8cf2b3a4de01bcf"
+      },
+      "event_sha256": "0527c492c257ec48f3f1dd9f2f8dba59f4d6db96f9a065e379fbc9d492c29c25",
+      "verdict": "source_supported",
+      "source_evidence": [
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.json",
+          "sha256": "774f6495be3b09c030dfd3bf5fa232b67281687c9682fa4234f84db58ac3b022"
+        },
+        {
+          "path": "benchmark/realworld/next/layout-controls/annotations/irs-schedule-c-reverse.resolved.json",
+          "sha256": "02e50c387fa821a698dcf650416000e189af92c8b670b1953d8666bd90bea473"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/sources.json",
+          "sha256": "43c6dde9546267ba3846ee01fa2ed46743e9806b2c73d2d9519d19205d3d8309"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/manifest.json",
+          "sha256": "a27ec087030859a7e7c79d866e31c67a7ca54cfbe33163f86b02f10f7dcdbccb"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-observations.json",
+          "sha256": "83f85507094242b085ede05ac5f22425f040224e4059742df223d39fbb209792"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-page-review.json",
+          "sha256": "8c06f4ca3fb7855bf78512e9b97521cdbfe7889fa4bd98331c69af40b6a7faf8"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-0.png",
+          "sha256": "1def3ef10a59b1b8fd56da4986ac564528e7beec0b9506b6b3c970c38f9509fc"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-0.png",
+          "sha256": "a4a558daf7f3be4d6d231a069e933cb2523f64833d597a463227ba78f6c544c0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/old-region-1.png",
+          "sha256": "e5a43662b4b529b013aaf0d0a11f3a6272b463d219d108c45706e0168b6dc4a0"
+        },
+        {
+          "path": "benchmark/realworld/cache/source-boundaries-native-order-v33/irs-schedule-c-reverse-control-review/new-region-1.png",
+          "sha256": "2b05e959c9d63b5be55b43463c8c68a58eb4d6b4025706728b1b88211498ea20"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-control-source-checks.json",
+          "sha256": "3db53fc3f47d7dc2a737cadc980976c9a2559ffec46bd19819a7486f74065fbe"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/review-v33-controls.py",
+          "sha256": "aa1b98aeabb828926289f1586412782986b5414b24cd43a4d209860d095f3963"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v35-control-identity-replay.json",
+          "sha256": "7662accd9e948f3e78bf81f6ac01d1db3335f9de03442a75725fcde00abfe6a0"
+        },
+        {
+          "path": "benchmark/realworld/source-boundaries/v33-reviewed-control-observations.json",
+          "sha256": "4a336285318515663683a99814fa9026de6bf5d3c6763746672acc57ab133c7c"
+        }
+      ],
+      "source_content_rationale": "The annual form changes 2024/2025 or adds/removes its creation-date footer. Every claimed source token is unmatched in all optimal alignments of the corresponding original passage.",
+      "correspondence_rationale": "The source and page review identify the corresponding question or footer; object renaming, the blank-page shift and reversal retain those same original glyph populations."
+    }
+  ]
+}

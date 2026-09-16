@@ -1,0 +1,383 @@
+{
+  "version": 1,
+  "scope": "Selected development pilot certificates. Passing this structural validation alone is not source adjudication or target recovery. V29 adds independent raw-source/page review and repeated scoring.",
+  "pilots": [
+    {
+      "version": 22,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v22-pilot-observations.json",
+        "sha256": "59697fde9b1217f635f0e2135786720411fbcf49ff3850be50358b2a61bc381f"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "passed",
+          "reported_events": 28
+        }
+      ]
+    },
+    {
+      "version": 23,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v23-pilot-observations.json",
+        "sha256": "f086bdd1d32d67bcf2466c01a5c7901d44b4ac4c3001161a695685a945c2e67a"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "passed",
+          "reported_events": 30
+        }
+      ]
+    },
+    {
+      "version": 24,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v24-pilot-observations.json",
+        "sha256": "b4ae973dfb3487d1899e6e61a9c3c23feb718e36834a3c4219b3d7dfeca5b2da"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 2
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "rejected",
+          "reason": "row endpoints lack distinct native source evidence"
+        }
+      ]
+    },
+    {
+      "version": 25,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v25-pilot-observations.json",
+        "sha256": "8c22c18e087310e5db3c3ba6677f5657b27511b7b3351ef162432190993f4705"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 4
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "rejected",
+          "reason": "row endpoints lack distinct native source evidence"
+        }
+      ]
+    },
+    {
+      "version": 26,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v26-pilot-observations.json",
+        "sha256": "e368aaf64e43fd699107a791f4db7f03541e17c5e33286a23b9c01abd23eb5e5"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 4
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "passed",
+          "reported_events": 30
+        }
+      ]
+    },
+    {
+      "version": 27,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v27-pilot-observations.json",
+        "sha256": "ed6f4ac3ab3bf735e5009b9830ed920a4bf1d715c4f263e7a3fb4dad4e2e75a8"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "passed",
+          "reported_events": 28
+        }
+      ]
+    },
+    {
+      "version": 28,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v28-pilot-observations.json",
+        "sha256": "e468a14509443691da136ff3a887e36e73b52adc532dafe57ca5f37b267c4202"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 4
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "passed",
+          "reported_events": 26
+        }
+      ]
+    },
+    {
+      "version": 29,
+      "observations": {
+        "path": "benchmark/realworld/source-boundaries/v29-pilot-observations.json",
+        "sha256": "82e0e7fdad53e2229d5dd9f9e7f3d0302f445912249262020a623a89b0be6412"
+      },
+      "reports": [
+        {
+          "pair": "edpb-controller-processor-v1-to-v2-1",
+          "source_certificate_validation": "passed",
+          "reported_events": 10
+        },
+        {
+          "pair": "edpb-design-default-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-incident-handling-r2-to-r3",
+          "source_certificate_validation": "passed",
+          "reported_events": 3
+        },
+        {
+          "pair": "nist-ssdf-draft-to-final",
+          "source_certificate_validation": "passed",
+          "reported_events": 4
+        },
+        {
+          "pair": "nist-authentication-63b-to-63b4",
+          "source_certificate_validation": "passed",
+          "reported_events": 0
+        },
+        {
+          "pair": "arxiv-bert-v1-to-v2",
+          "source_certificate_validation": "passed",
+          "reported_events": 11
+        },
+        {
+          "pair": "nist-sha-1803-to-1804",
+          "source_certificate_validation": "passed",
+          "reported_events": 30
+        }
+      ]
+    }
+  ],
+  "findings": [
+    "V22 retained the prior selected identities but did not recover SSDF. V23 changed paint-page discovery position but remained target-negative and displaced prior SHA views.",
+    "V24 and V25 remain diagnostic captures. The current independent checker rejects outer row endpoints entering a compared interval; no validation or recovery gate is claimed for rejected reports.",
+    "V26 restricts compared cuts to the interior of both outer endpoints. A retained negative fixture fails without the guard. Five candidate targets are hit, but four existing SHA raw/content-edge views disappear.",
+    "V27 defers all new paint work until after established comparisons. Every prior selected identity returns, but the SSDF candidate is no longer reached under the shared cap.",
+    "V28 gives new whole paint intervals priority over lexical paint fragments, restoring SSDF. Four existing SHA raw/content-edge views still disappear.",
+    "V29 reuses each standard frame census and projected nodes for an existing whole-node content-edge comparison. It retains all 55 prior selected event identities and adds four SSDF and two SHA reference views. Shared work limits, fixed target extents and original glyph evidence remain unchanged."
+  ],
+  "current_review": {
+    "path": "benchmark/realworld/source-boundaries/v29-adjudications.json",
+    "sha256": "5b45cb026be0170efdc0f4ac679859d1ed3729229fd1a4971de9d8be97afb497"
+  },
+  "current_scores": {
+    "path": "benchmark/realworld/source-boundaries/v29-target-scores.json",
+    "sha256": "3d65abf4f202a77b418570d50b6bd01850d9849e8a69fe4fe12d1c79ad65bc20"
+  },
+  "remaining": "Five reviewed natural pairs from three producers are below the required six. The new unseen and natural segmented/column recovery requirements remain unmet.",
+  "boundary_negative_control": {
+    "mutation": "Temporarily disable the compared-cut interior guard. The scope fixture rejects an outer accepted endpoint entering the compared source range. Production guard restored before v26 and retained in v29.",
+    "observed_exit_code": 101,
+    "log": {
+      "path": "benchmark/realworld/source-boundaries/checks/local-cuts-v26-boundary-regression-red.log",
+      "sha256": "862b0c70ddad21fc6e7f6d04efc6eacf51950f629a9df48647b1384f636d1f81"
+    }
+  }
+}

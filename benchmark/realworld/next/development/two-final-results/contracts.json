@@ -1,0 +1,48 @@
+[
+  {
+    "pair": "edpb-controller-processor-v1-to-v2-1",
+    "route": "native",
+    "byte_identical": true
+  },
+  {
+    "pair": "edpb-controller-processor-v1-to-v2-1",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_sha256": [
+      "c1e4cec376b179ea6fb20638899417e194fd0fb2d053868e6673b13511e9232f",
+      "c1e4cec376b179ea6fb20638899417e194fd0fb2d053868e6673b13511e9232f"
+    ]
+  },
+  {
+    "pair": "edpb-controller-processor-v1-to-v2-1",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_sha256": [
+      "153834e38a3c9a0b190880a00d4c5e9977f7f67f9a7b79b0ba6fe8b99ce27331",
+      "153834e38a3c9a0b190880a00d4c5e9977f7f67f9a7b79b0ba6fe8b99ce27331"
+    ]
+  },
+  {
+    "pair": "nist-sha-1803-to-1804",
+    "route": "native",
+    "byte_identical": true
+  },
+  {
+    "pair": "nist-sha-1803-to-1804",
+    "route": "text",
+    "normalized_existing_contract_equal": true,
+    "canonical_sha256": [
+      "7dfd9d6594410949f9dc2c2dd87efae175b39db76db2173715a0d30db8a91b61",
+      "7dfd9d6594410949f9dc2c2dd87efae175b39db76db2173715a0d30db8a91b61"
+    ]
+  },
+  {
+    "pair": "nist-sha-1803-to-1804",
+    "route": "all",
+    "normalized_existing_contract_equal": true,
+    "canonical_sha256": [
+      "18d8770f12438c54d8e8bc974c1ccb0e57f46e2802b3b4cffe14a6bd3991402d",
+      "18d8770f12438c54d8e8bc974c1ccb0e57f46e2802b3b4cffe14a6bd3991402d"
+    ]
+  }
+]

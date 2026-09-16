@@ -1,0 +1,44 @@
+{
+  "version": 8,
+  "preliminary_results": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-preliminary-results.json",
+    "sha256": "ed6471e8f50d5a4ca8e00c4a9fa0164ab62bc4cfde7ae04ffb8a11606074ea63"
+  },
+  "comparison_attempts": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v8-comparison-attempts.json",
+    "sha256": "0eb43fe58d3c7256752ea02342cf038d581bb20075352ab1bccf52f1f84fe3b5"
+  },
+  "freeze_verification": {
+    "path": "benchmark/realworld/source-boundaries/checks/unseen-v8-corrected-freeze-verification.log",
+    "sha256": "0b451aecdfb009182260381fa944ef68391a51da96a3f56a2c31c9a4bbef3cad"
+  },
+  "metrics": {
+    "current": {
+      "captured": 24,
+      "A": 0,
+      "B": 260,
+      "C": 0,
+      "complete": 0,
+      "wall_seconds": 120.96,
+      "peak_rss_kib_max": 739160,
+      "report_bytes": 124191850,
+      "strict_control_atoms": 0
+    },
+    "historical": {
+      "captured": 24,
+      "A": 0,
+      "B": 80,
+      "C": 0,
+      "complete": 0,
+      "wall_seconds": 122.13,
+      "peak_rss_kib_max": 744916,
+      "report_bytes": 70757746,
+      "strict_control_atoms": 0
+    }
+  },
+  "repeat_event_source_identity_equal": true,
+  "additional_target_pair_upper_bound": 0,
+  "G2_passed": false,
+  "formal_adjudication_complete": false,
+  "interpretation": "Both repetitions on both implementations have zero exact finite target hits. The 10 eligible body targets and two source-only non-eligible targets remain fixed. Outside-target outputs remain unadjudicated; neither recovery nor correctness is claimed for them. The two pre-comparison novelty corrections and original rejected registration remain immutable."
+}

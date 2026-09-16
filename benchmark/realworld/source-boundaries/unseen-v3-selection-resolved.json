@@ -1,0 +1,182 @@
+{
+  "version": 3,
+  "selection_started_utc": "2026-09-13T12:21:00+00:00",
+  "selection_recorded_utc": "2026-09-13T12:22:06.164735+00:00",
+  "comparison_performed": false,
+  "rule": "First twelve post-freeze series selections, with edition availability and source-only targets to resolve before comparison. Retain every acquisition failure or unchanged-prose exclusion. No comparison-output-driven replacement.",
+  "pairs": [
+    {
+      "id": "nist-171-r2-to-r3",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "language": "en",
+      "series": "SP 800-171 protection of controlled unclassified information",
+      "old_revision": "Revision 2",
+      "new_revision": "Revision 3",
+      "old": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-171r2.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-171r3.pdf"
+    },
+    {
+      "id": "nist-82-r2-to-r3",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "language": "en",
+      "series": "SP 800-82 operational technology security",
+      "old_revision": "Revision 2",
+      "new_revision": "Revision 3",
+      "old": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-82r2.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-82r3.pdf"
+    },
+    {
+      "id": "nist-64-r1-to-r2",
+      "family": "nist-guidance",
+      "independent_producer": "NIST",
+      "language": "en",
+      "series": "SP 800-64 security considerations in system development life cycle",
+      "old_revision": "Revision 1",
+      "new_revision": "Revision 2",
+      "old": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-64r1.pdf",
+      "new": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-64r2.pdf"
+    },
+    {
+      "id": "edpb-fines-v1-to-v2-1",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "language": "en",
+      "series": "Guidelines 04/2022 calculation of administrative fines",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2.1",
+      "old": "https://www.edpb.europa.eu/system/files/2022-05/edpb_guidelines_042022_calculationofadministrativefines_en.pdf",
+      "new": "https://www.edpb.europa.eu/system/files/2023-06/edpb_guidelines_042022_calculationofadministrativefines_en.pdf"
+    },
+    {
+      "id": "edpb-breach-examples-v1-to-v2",
+      "family": "edpb-guidelines",
+      "independent_producer": "EDPB",
+      "language": "en",
+      "series": "Guidelines 01/2021 examples regarding data breach notification",
+      "old_revision": "Version 1",
+      "new_revision": "Version 2",
+      "old": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202101_databreachnotificationexamples_v1_en.pdf",
+      "new": "https://www.edpb.europa.eu/system/files/documents/2022-01/edpb_guidelines_012021_pdbnotification_adopted_en.pdf"
+    },
+    {
+      "id": "arxiv-t5-v1-to-v3",
+      "family": "arxiv-research",
+      "independent_producer": "Google Research",
+      "language": "en",
+      "series": "arXiv 1910.10683 T5",
+      "old_revision": "v1",
+      "new_revision": "v3",
+      "old": "https://arxiv.org/pdf/1910.10683v1",
+      "new": "https://arxiv.org/pdf/1910.10683v3"
+    },
+    {
+      "id": "arxiv-albert-v1-to-v6",
+      "family": "arxiv-research",
+      "independent_producer": "Google Research",
+      "language": "en",
+      "series": "arXiv 1909.11942 ALBERT",
+      "old_revision": "v1",
+      "new_revision": "v6",
+      "old": "https://arxiv.org/pdf/1909.11942v1",
+      "new": "https://arxiv.org/pdf/1909.11942v6",
+      "authorship_note": "Google Research/TTIC"
+    },
+    {
+      "id": "faa-electronic-records-78a-to-78b",
+      "family": "faa-advisory",
+      "independent_producer": "FAA",
+      "language": "en",
+      "series": "AC 120-78 electronic signatures recordkeeping and manuals",
+      "old_revision": "Revision A",
+      "new_revision": "Revision B",
+      "old": "https://www.faa.gov/documentlibrary/media/advisory_circular/ac_120-78a.pdf",
+      "new": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_120-78B_FAA_Web.pdf"
+    },
+    {
+      "id": "mext-research-misconduct-2006-to-2014",
+      "family": "japanese-policy",
+      "independent_producer": "MEXT",
+      "language": "ja",
+      "series": "Research misconduct response guidelines",
+      "old_revision": "2006 guidelines",
+      "new_revision": "2014 guidelines",
+      "old": "https://www.mext.go.jp/b_menu/shingi/gijyutu/gijyutu12/houkoku/__icsFiles/afieldfile/2013/05/07/1213547_001.pdf",
+      "new": "https://www.mext.go.jp/b_menu/houdou/26/08/__icsFiles/afieldfile/2014/08/26/1351568_02_1.pdf"
+    },
+    {
+      "id": "ietf-json-4627-to-8259",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "language": "en",
+      "series": "JavaScript Object Notation JSON data interchange format",
+      "old_revision": "RFC 4627",
+      "new_revision": "RFC 8259",
+      "old": "https://www.ietf.org/ietf-ftp/rfc/rfc4627.txt.pdf",
+      "new": "https://www.ietf.org/ietf-ftp/rfc/rfc8259.txt.pdf"
+    },
+    {
+      "id": "ietf-uri-2396-to-3986",
+      "family": "ietf-rfc",
+      "independent_producer": "IETF",
+      "language": "en",
+      "series": "Uniform Resource Identifier URI generic syntax",
+      "old_revision": "RFC 2396",
+      "new_revision": "RFC 3986",
+      "old": "https://www.ietf.org/ietf-ftp/rfc/rfc2396.txt.pdf",
+      "new": "https://www.ietf.org/ietf-ftp/rfc/rfc3986.txt.pdf"
+    },
+    {
+      "id": "arxiv-xlnet-v1-to-v2",
+      "family": "arxiv-research",
+      "independent_producer": "Google Research",
+      "language": "en",
+      "series": "arXiv 1906.08237 XLNet",
+      "old_revision": "v1",
+      "new_revision": "v2",
+      "old": "https://arxiv.org/pdf/1906.08237v1",
+      "new": "https://arxiv.org/pdf/1906.08237v2",
+      "selected_utc": "2026-09-13T12:28:47.924947+00:00",
+      "selection_reason": "Source-only replacement for an unresolvable literal target; no current or historical comparison output inspected.",
+      "authorship_note": "CMU/Google Brain"
+    }
+  ],
+  "source_discovery_notes": [
+    "Post-freeze primary searches began after writing unseen-v3-intent.json. The start time is a conservative timestamp between that write and the first search.",
+    "HTTP semantics was considered but excluded before selection because HTTP is already exposed.",
+    "MEXT public research funding administration appeared in search results but was not selected."
+  ],
+  "acquisition_retirements": [
+    {
+      "id": "arxiv-reformer-v1-to-v2",
+      "family": "arxiv-research",
+      "independent_producer": "Google Research",
+      "language": "en",
+      "series": "arXiv 2001.04451 Reformer",
+      "old_revision": "v1",
+      "new_revision": "v2",
+      "old": "https://arxiv.org/pdf/2001.04451v1",
+      "new": "https://arxiv.org/pdf/2001.04451v2",
+      "retirement_reason": "Source-only inspection: abstract and introduction are unchanged. The first changed prose paragraph in Section 3 contains five unmapped mathematical glyphs on each side. The literal ID-free annotation contract rejects a range crossing unmapped evidence; omitted symbols cannot be treated as empty text. No comparison was run.",
+      "retirement_utc": "2026-09-13T12:28:47.924940+00:00",
+      "first_changed_source_ranges": {
+        "old": [
+          15233,
+          15385
+        ],
+        "new": [
+          15233,
+          15465
+        ]
+      },
+      "unmapped_old_ids": [
+        15292,
+        15293,
+        15374,
+        15375,
+        15376
+      ]
+    }
+  ]
+}

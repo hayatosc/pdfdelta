@@ -1,7 +1,0 @@
-{
-  "pair": "khronos-data-format-1-3-to-1-4",
-  "set": "dev",
-  "annotation": "none",
-  "status": "not_run",
-  "reason": "prioritized crash-fixed annotated comparison after all 12 original annotated pairs completed"
-}

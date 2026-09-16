@@ -1,0 +1,52 @@
+    Checking pdfdelta-core v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-core)
+error: used `unwrap()` on a `Result` value
+    --> crates/pdfdelta-core/src/diff/assessment/claims.rs:1241:13
+     |
+1241 | /             literal_claims(
+1242 | |                 &old,
+1243 | |                 &new,
+1244 | |                 &source,
+...    |
+1250 | |             .unwrap()
+     | |_____________________^
+     |
+     = note: if this value is an `Err`, it will panic
+     = help: consider using `expect()` to provide a better panic message
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#unwrap_used
+     = note: requested on the command line with `-D clippy::unwrap-used`
+
+error: used `unwrap()` on a `Result` value
+    --> crates/pdfdelta-core/src/diff/assessment/claims.rs:1256:13
+     |
+1256 | /             literal_claims_retaining_unspent_grid_work(
+1257 | |                 &old,
+1258 | |                 &new,
+1259 | |                 &source,
+...    |
+1265 | |             .unwrap()
+     | |_____________________^
+     |
+     = note: if this value is an `Err`, it will panic
+     = help: consider using `expect()` to provide a better panic message
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#unwrap_used
+
+error: used `unwrap()` on a `Result` value
+    --> crates/pdfdelta-core/src/diff/assessment/claims.rs:1272:22
+     |
+1272 |           let claims = literal_claims_retaining_unspent_grid_work(
+     |  ______________________^
+1273 | |             &old,
+1274 | |             &new,
+1275 | |             &source,
+...    |
+1281 | |         .unwrap()
+     | |_________________^
+     |
+     = note: if this value is an `Err`, it will panic
+     = help: consider using `expect()` to provide a better panic message
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#unwrap_used
+
+    Checking pdfdelta-bench v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-bench)
+    Checking pdfdelta-cli v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-cli)
+error: could not compile `pdfdelta-core` (lib test) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...

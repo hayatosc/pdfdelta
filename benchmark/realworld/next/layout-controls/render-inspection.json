@@ -1,0 +1,396 @@
+{
+  "version": 1,
+  "profile": "default hayro worker; white RGB; 72 dpi; default optional content; annotations enabled",
+  "visual_inspection_complete": true,
+  "records": [
+    {
+      "pair": "lopdf-tj-unchanged-plain",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "dddb2a142981fb65944c9d680e2707bedc17658e9a356213b130634c8a853329",
+      "worker_response_sha256": "9b82e9a4b1c62eba5b17a417fd545bd94c59d86df99084492ef72cbb55324037",
+      "image": "lopdf-tj-unchanged-plain-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unchanged-wrap",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "ec5ed8e29186b6882cd5f74772faf8368eaa4234aa6943bb6aeee55c0d589c4b",
+      "worker_response_sha256": "1a14adfcfbd4151e210bce2105a5daed07e2fb4ec0bddd885e796b5b29cd1f7d",
+      "image": "lopdf-tj-unchanged-wrap-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "95493aa01e417b5a9151066bb2c773b862f876eb42c3b974992308c588a09157",
+      "worker_response_sha256": "9bf8364a3918e50f6569e103b06eb21c335afa41865ca65e3c588165b88364f9",
+      "image": "lopdf-tj-unchanged-page_break-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unchanged-page_break",
+      "side": "new",
+      "page": 1,
+      "object": [
+        8,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "95493aa01e417b5a9151066bb2c773b862f876eb42c3b974992308c588a09157",
+      "worker_response_sha256": "68e2d3c7d12a9147a594cd3edeb204c328252e4f24726a14ba32776bdd4f162b",
+      "image": "lopdf-tj-unchanged-page_break-page-1.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unchanged-font_size",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "4b84697c9b47a2ff6bb7a194344c5b8ed3b5722f73ea5cdadee6b6ca7f49daa7",
+      "worker_response_sha256": "e48767d021e2ed5c6ac8e660ea6209a3138252cab3cf5bc3f97356bb24d69af1",
+      "image": "lopdf-tj-unchanged-font_size-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unchanged-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "b293f2b8d3e8a2a99199e817014a07b32296f60407af073cdb53a46d3499ad84",
+      "worker_response_sha256": "0fa339963033954a4b5ef0d949e100c3f23d45adcc5c1ba5dfcf9772dfbba0d0",
+      "image": "lopdf-tj-unchanged-columns-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unchanged-paint_order",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "62bd318d1040213b0fb6952d919e005b580e62a4c50d4c6193bef53a2e1e9e04",
+      "worker_response_sha256": "9b82e9a4b1c62eba5b17a417fd545bd94c59d86df99084492ef72cbb55324037",
+      "image": "lopdf-tj-unchanged-paint_order-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-number-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "6a003b8da2d61dad528e544b113e11ee2c833777d6d1c4f12197ed08b57ddec8",
+      "worker_response_sha256": "46a1564676044eca63f5f40e738181339f95a6e7c564580966391f91ed25277a",
+      "image": "lopdf-tj-number-columns-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-unit-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "da794b21374ea45cc111fdbaf5916bc13ebc25bdb8d5ace94f9e4eb69b837d8b",
+      "worker_response_sha256": "f1f9817c0ed1058ddc1521f394c1cc9d23907db013dc35cf6c4546c367ae4c43",
+      "image": "lopdf-tj-unit-columns-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-negation-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "4323ffb5a7d6db0ee2173feb93233904ddf5927c465f2535dd5d29217968f260",
+      "worker_response_sha256": "82c01d4419e28f700ce488306cc51b57c8160226e338ebb67e8b191bfb7cdf00",
+      "image": "lopdf-tj-negation-columns-page-0.ppm"
+    },
+    {
+      "pair": "lopdf-tj-affiliation-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        6,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "5b360e52b78269cc20d80539b15d64d2c4baee32015fdb528760624b54854702",
+      "worker_response_sha256": "173cdf2de9923356754678506ca5edf3aec6b288c140e3ca390e2694bf45e7f4",
+      "image": "lopdf-tj-affiliation-columns-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-plain",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "3741ccaa5c9b00316cc10aa5018e55627a81b99df0596ca72f66dcaee5bb79bf",
+      "worker_response_sha256": "9b82e9a4b1c62eba5b17a417fd545bd94c59d86df99084492ef72cbb55324037",
+      "image": "classic-xref-tj-unchanged-plain-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-wrap",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "81d84c9d6ac96bb966c9010f8e44e531fb7de94703ab3053084c4df639cfa0ff",
+      "worker_response_sha256": "1a14adfcfbd4151e210bce2105a5daed07e2fb4ec0bddd885e796b5b29cd1f7d",
+      "image": "classic-xref-tj-unchanged-wrap-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "ab1dc88e02670fd55d3f83165590a89d3e5b75afd1fcb935a8c296234b83193b",
+      "worker_response_sha256": "9bf8364a3918e50f6569e103b06eb21c335afa41865ca65e3c588165b88364f9",
+      "image": "classic-xref-tj-unchanged-page_break-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-page_break",
+      "side": "new",
+      "page": 1,
+      "object": [
+        7,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "ab1dc88e02670fd55d3f83165590a89d3e5b75afd1fcb935a8c296234b83193b",
+      "worker_response_sha256": "68e2d3c7d12a9147a594cd3edeb204c328252e4f24726a14ba32776bdd4f162b",
+      "image": "classic-xref-tj-unchanged-page_break-page-1.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-font_size",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "57ba26c8cff7484a3038f5871a17bf176a935cad8d3c2ea11ef271bc076bc1f2",
+      "worker_response_sha256": "e48767d021e2ed5c6ac8e660ea6209a3138252cab3cf5bc3f97356bb24d69af1",
+      "image": "classic-xref-tj-unchanged-font_size-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "4e04dfb913f0219bef7be6763ab320ec61ba7bda90e4f09a99b5ca8834decd0f",
+      "worker_response_sha256": "0fa339963033954a4b5ef0d949e100c3f23d45adcc5c1ba5dfcf9772dfbba0d0",
+      "image": "classic-xref-tj-unchanged-columns-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unchanged-paint_order",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "2074076e1a375ea84864538630e1943abe4320370d683746cf47e22336d78333",
+      "worker_response_sha256": "9b82e9a4b1c62eba5b17a417fd545bd94c59d86df99084492ef72cbb55324037",
+      "image": "classic-xref-tj-unchanged-paint_order-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-number-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "3a94201f3ec22afd8077b8bd288bb22b8e1ef9b72a11d049d6a8866372691c62",
+      "worker_response_sha256": "46a1564676044eca63f5f40e738181339f95a6e7c564580966391f91ed25277a",
+      "image": "classic-xref-tj-number-columns-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-unit-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "f066b57b844a47de08932dd1ab03422dffd342b2ec1c1f581241254c3d4d1a0f",
+      "worker_response_sha256": "f1f9817c0ed1058ddc1521f394c1cc9d23907db013dc35cf6c4546c367ae4c43",
+      "image": "classic-xref-tj-unit-columns-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-negation-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "4684ed9be365c61893c9da7ba7704111df8a889e9859851c123d120c9c933b93",
+      "worker_response_sha256": "82c01d4419e28f700ce488306cc51b57c8160226e338ebb67e8b191bfb7cdf00",
+      "image": "classic-xref-tj-negation-columns-page-0.ppm"
+    },
+    {
+      "pair": "classic-xref-tj-affiliation-columns",
+      "side": "new",
+      "page": 0,
+      "object": [
+        5,
+        0
+      ],
+      "width": 612,
+      "height": 792,
+      "warning_flag": 0,
+      "pdf_sha256": "a4f0810fe93b54ece90ca0504bbde299cba4d0288077f594e103b628e8ec1179",
+      "worker_response_sha256": "173cdf2de9923356754678506ca5edf3aec6b288c140e3ca390e2694bf45e7f4",
+      "image": "classic-xref-tj-affiliation-columns-page-0.ppm"
+    }
+  ],
+  "visual_inspection": "Viewed top 180-pixel source regions for all 11 layout/content combinations, and a full two-column page. Corresponding renders from the second producer have identical complete worker responses. The two columns, cross-page split, line wrap, size change, stable visual order and four content changes are visible.",
+  "identical_cross_producer_renders": [
+    [
+      "lopdf-tj-unchanged-plain",
+      "classic-xref-tj-unchanged-plain",
+      0
+    ],
+    [
+      "lopdf-tj-unchanged-wrap",
+      "classic-xref-tj-unchanged-wrap",
+      0
+    ],
+    [
+      "lopdf-tj-unchanged-page_break",
+      "classic-xref-tj-unchanged-page_break",
+      0
+    ],
+    [
+      "lopdf-tj-unchanged-page_break",
+      "classic-xref-tj-unchanged-page_break",
+      1
+    ],
+    [
+      "lopdf-tj-unchanged-font_size",
+      "classic-xref-tj-unchanged-font_size",
+      0
+    ],
+    [
+      "lopdf-tj-unchanged-columns",
+      "classic-xref-tj-unchanged-columns",
+      0
+    ],
+    [
+      "lopdf-tj-unchanged-paint_order",
+      "classic-xref-tj-unchanged-paint_order",
+      0
+    ],
+    [
+      "lopdf-tj-number-columns",
+      "classic-xref-tj-number-columns",
+      0
+    ],
+    [
+      "lopdf-tj-unit-columns",
+      "classic-xref-tj-unit-columns",
+      0
+    ],
+    [
+      "lopdf-tj-negation-columns",
+      "classic-xref-tj-negation-columns",
+      0
+    ],
+    [
+      "lopdf-tj-affiliation-columns",
+      "classic-xref-tj-affiliation-columns",
+      0
+    ]
+  ],
+  "compiler_binary_sha256": "a74bf90539c7c1591e2fee3e858d0fa9694781fb299e6d978341d72b1d655efd"
+}

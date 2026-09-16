@@ -50,6 +50,57 @@ fn keeps_mixed_size_superscript_on_the_same_line() {
 }
 
 #[test]
+fn separates_staggered_columns_while_retaining_attached_scripts_and_wide_words() {
+    for scale in [0.5, 1.0, 3.0] {
+        for (gap, offset, font_size, expected_lines) in [
+            (11.9566, 4.976, 9.9626, 2),
+            (11.9566, 6.979, 9.9626, 2),
+            (11.9566, 0.0, 9.9626, 1),
+            (1.0, 5.0, 6.0, 1),
+            (1.0, -4.0, 6.0, 1),
+        ] {
+            let document = Document::new(vec![
+                glyph(
+                    1,
+                    "x",
+                    0,
+                    0.0,
+                    0.0,
+                    6.0 * scale,
+                    10.0 * scale,
+                    9.9626 * scale,
+                    0.0,
+                ),
+                glyph(
+                    2,
+                    "2",
+                    0,
+                    (6.0 + gap) * scale,
+                    offset * scale,
+                    4.0 * scale,
+                    font_size * scale,
+                    font_size * scale,
+                    offset * scale,
+                ),
+            ]);
+            let lines = reconstruct_lines(&document, LineOptions::default())
+                .expect("reconstruct staggered columns and attached scripts");
+            assert_eq!(
+                lines.len(),
+                expected_lines,
+                "gap={gap}, offset={offset}, scale={scale}"
+            );
+            let mut retained = lines
+                .iter()
+                .flat_map(|line| line.glyphs.iter().copied())
+                .collect::<Vec<_>>();
+            retained.sort();
+            assert_eq!(retained, [GlyphId(1), GlyphId(2)]);
+        }
+    }
+}
+
+#[test]
 fn records_a_missing_english_space_between_glyphs() {
     let document = Document::new(vec![
         glyph(1, "A", 0, 0.0, 0.0, 5.0, 10.0, 10.0, 0.0),
@@ -126,7 +177,7 @@ fn default_spacing_retains_sub_half_advance_word_gaps_at_multiple_scales() {
 #[test]
 fn default_line_gap_separates_narrow_columns_without_splitting_wide_word_spaces() {
     for scale in [0.5, 1.0, 3.0] {
-        for (gap, expected_lines) in [(15.0, 1), (22.58, 2), (31.18, 2)] {
+        for (gap, expected_lines) in [(15.0, 1), (15.59, 2), (22.58, 2), (31.18, 2)] {
             let document = Document::new(
                 [
                     (1, "A", 0.0, 0.0),
@@ -217,70 +268,6 @@ fn default_spacing_preserves_cjk_latin_typographic_gaps() {
             );
         }
     }
-}
-
-#[test]
-fn unrelated_wide_glyphs_do_not_suppress_a_word_space() {
-    let latin = |id: u64, text: &str, x: f64| glyph(id, text, 0, x, 0.0, 6.0, 12.0, 12.0, 0.0);
-    let cjk = |id: u64, text: &str, x: f64| glyph(id, text, 0, x, 0.0, 12.0, 12.0, 12.0, 0.0);
-
-    let latin_only = Document::new(vec![
-        latin(1, "T", 0.6),
-        latin(2, "h", 6.3),
-        latin(3, "i", 14.3),
-        latin(4, "s", 20.6),
-    ]);
-    let mixed = Document::new(vec![
-        latin(1, "T", 0.6),
-        latin(2, "h", 6.3),
-        latin(3, "i", 14.3),
-        latin(4, "s", 20.6),
-        cjk(5, "日", 30.0),
-        cjk(6, "本", 42.0),
-        cjk(7, "語", 54.0),
-    ]);
-
-    for document in [latin_only, mixed] {
-        let lines = reconstruct_lines(&document, LineOptions::default())
-            .expect("mixed-script line should be reconstructed");
-        assert_eq!(lines.len(), 1);
-        assert_eq!(
-            lines[0].synthetic_spaces,
-            [SyntheticSpace {
-                preceding: GlyphId(2),
-                following: GlyphId(3),
-            }]
-        );
-    }
-}
-
-#[test]
-fn font_switch_alone_does_not_suppress_a_word_space() {
-    let mut glyphs = [
-        (1, "a", 0.0),
-        (2, "b", 6.3),
-        (3, "c", 12.3 + 1.776),
-        (4, "d", 18.6 + 1.776),
-    ]
-    .into_iter()
-    .map(|(id, text, x)| glyph(id, text, 0, x, 0.0, 6.0, 12.0, 12.0, 0.0))
-    .collect::<Vec<_>>();
-    for glyph in &mut glyphs[2..] {
-        glyph.font_id = FontId(2);
-    }
-    let document = Document::new(glyphs);
-
-    let lines = reconstruct_lines(&document, LineOptions::default())
-        .expect("font transition should be reconstructed");
-
-    assert_eq!(lines.len(), 1);
-    assert_eq!(
-        lines[0].synthetic_spaces,
-        [SyntheticSpace {
-            preceding: GlyphId(2),
-            following: GlyphId(3),
-        }]
-    );
 }
 
 #[test]

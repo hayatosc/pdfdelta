@@ -1,0 +1,26 @@
+{
+  "checks": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/padded-equal-domain-v2/workspace.log",
+      "sha256": "99f25a5dac57e1a41c7de6d618c4d9c9f404955d325acd852fe6668f6d652030"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/padded-equal-domain-v2/tests.log",
+      "sha256": "a3b4e4ee78c4637ea3295bef202a4300f49272e71f9eb1cdfc87f7ebf430d480"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/padded-equal-domain-v2/clippy.log",
+      "sha256": "54c6f89922c1c6cdcb03bff130a916af47e13cab5e766fec054e280b67b2ff5e"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/padded-equal-domain-v2/fixtures.log",
+      "sha256": "c9b5723f5e75775de195736d5c13f2adb3bb919a31274011423d1f0d501b66ed"
+    }
+  ],
+  "workspace_passed": 2509,
+  "workspace_ignored": 2,
+  "final_affected_tests_passed": 89,
+  "final_generated_passed": 48,
+  "final_clippy": "passed",
+  "scope": "The full workspace ran before the final endpoint lookup work charge. The affected suite, generated fixtures and Clippy ran after it."
+}

@@ -1,0 +1,427 @@
+{
+  "comparison_performed": false,
+  "checks": [
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "body-old-1",
+      "page": 10,
+      "range": [
+        16,
+        127
+      ],
+      "glyph_count": 111,
+      "first_glyph": {
+        "id": 16059,
+        "text": "g",
+        "bbox": [
+          443.23199999999997,
+          662.5680000000001,
+          449.23199999999997,
+          675.8520000000001
+        ],
+        "baseline": [
+          443.23199999999997,
+          665.1600000000001
+        ],
+        "render": 16739,
+        "start": 16,
+        "end": 17
+      },
+      "last_glyph": {
+        "id": 16169,
+        "text": " ",
+        "bbox": [
+          539.6328000000002,
+          607.3680000000003,
+          542.6328000000002,
+          620.6520000000003
+        ],
+        "baseline": [
+          539.6328000000002,
+          609.9600000000003
+        ],
+        "render": 16849,
+        "start": 126,
+        "end": 127
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "body-old-2",
+      "page": 10,
+      "range": [
+        1382,
+        1784
+      ],
+      "glyph_count": 402,
+      "first_glyph": {
+        "id": 17425,
+        "text": "T",
+        "bbox": [
+          71.99999999999989,
+          662.5680000000001,
+          79.33199999999988,
+          675.8520000000001
+        ],
+        "baseline": [
+          71.99999999999989,
+          665.1600000000001
+        ],
+        "render": 18105,
+        "start": 1382,
+        "end": 1383
+      },
+      "last_glyph": {
+        "id": 17826,
+        "text": ".",
+        "bbox": [
+          362.6519999999999,
+          593.5680000000003,
+          365.6519999999999,
+          606.8520000000003
+        ],
+        "baseline": [
+          362.6519999999999,
+          596.1600000000003
+        ],
+        "render": 18506,
+        "start": 1783,
+        "end": 1784
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "control-old",
+      "page": 10,
+      "range": [
+        2558,
+        2575
+      ],
+      "glyph_count": 17,
+      "first_glyph": {
+        "id": 18601,
+        "text": "P",
+        "bbox": [
+          107.99999999999989,
+          376.24800000000045,
+          115.33199999999988,
+          389.53200000000044
+        ],
+        "baseline": [
+          107.99999999999989,
+          378.84000000000043
+        ],
+        "render": 19281,
+        "start": 2558,
+        "end": 2559
+      },
+      "last_glyph": {
+        "id": 18617,
+        "text": "e",
+        "bbox": [
+          199.9991999999999,
+          376.24800000000045,
+          205.3271999999999,
+          389.53200000000044
+        ],
+        "baseline": [
+          199.9991999999999,
+          378.84000000000043
+        ],
+        "render": 19297,
+        "start": 2574,
+        "end": 2575
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "side": "old",
+      "visible_paragraph_census_complete": true,
+      "body_glyph_count": 513,
+      "render_order_fragments": [
+        [
+          16,
+          127
+        ],
+        [
+          1382,
+          1784
+        ]
+      ],
+      "all_original_line_endings_retained": true
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "body-new-1",
+      "page": 8,
+      "range": [
+        142,
+        820
+      ],
+      "glyph_count": 678,
+      "first_glyph": {
+        "id": 11531,
+        "text": "I",
+        "bbox": [
+          72.0,
+          667.1759999999999,
+          75.024,
+          683.232
+        ],
+        "baseline": [
+          72.0,
+          670.92
+        ],
+        "render": 11531,
+        "start": 142,
+        "end": 143
+      },
+      "last_glyph": {
+        "id": 12208,
+        "text": ".",
+        "bbox": [
+          266.03999999999996,
+          564.696,
+          269.06399999999996,
+          580.7520000000001
+        ],
+        "baseline": [
+          266.03999999999996,
+          568.44
+        ],
+        "render": 12208,
+        "start": 819,
+        "end": 820
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "nist-55-r1-to-v1",
+      "selector": "control-new",
+      "page": 8,
+      "range": [
+        828,
+        845
+      ],
+      "glyph_count": 17,
+      "first_glyph": {
+        "id": 12217,
+        "text": "P",
+        "bbox": [
+          93.96,
+          529.5720000000001,
+          100.344,
+          546.2280000000001
+        ],
+        "baseline": [
+          93.96,
+          533.7600000000001
+        ],
+        "render": 12217,
+        "start": 828,
+        "end": 829
+      },
+      "last_glyph": {
+        "id": 12233,
+        "text": "e",
+        "bbox": [
+          182.75879999999995,
+          529.5720000000001,
+          188.79479999999995,
+          546.2280000000001
+        ],
+        "baseline": [
+          182.75879999999995,
+          533.7600000000001
+        ],
+        "render": 12233,
+        "start": 844,
+        "end": 845
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "body-old-1",
+      "page": 0,
+      "range": [
+        622,
+        886
+      ],
+      "glyph_count": 264,
+      "first_glyph": {
+        "id": 622,
+        "text": "T",
+        "bbox": [
+          98.0,
+          489.43,
+          104.0,
+          497.29
+        ],
+        "baseline": [
+          98.0,
+          491.0
+        ],
+        "render": 622,
+        "start": 622,
+        "end": 623
+      },
+      "last_glyph": {
+        "id": 885,
+        "text": ".",
+        "bbox": [
+          434.0,
+          456.43,
+          440.0,
+          464.29
+        ],
+        "baseline": [
+          434.0,
+          458.0
+        ],
+        "render": 885,
+        "start": 885,
+        "end": 886
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "control-old",
+      "page": 0,
+      "range": [
+        611,
+        619
+      ],
+      "glyph_count": 8,
+      "first_glyph": {
+        "id": 611,
+        "text": "A",
+        "bbox": [
+          80.0,
+          511.43,
+          86.0,
+          519.29
+        ],
+        "baseline": [
+          80.0,
+          513.0
+        ],
+        "render": 611,
+        "start": 611,
+        "end": 612
+      },
+      "last_glyph": {
+        "id": 618,
+        "text": "t",
+        "bbox": [
+          122.0,
+          511.43,
+          128.0,
+          519.29
+        ],
+        "baseline": [
+          122.0,
+          513.0
+        ],
+        "render": 618,
+        "start": 618,
+        "end": 619
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "body-new-1",
+      "page": 0,
+      "range": [
+        52,
+        636
+      ],
+      "glyph_count": 584,
+      "first_glyph": {
+        "id": 52,
+        "text": "T",
+        "bbox": [
+          65.90625,
+          530.587883289172,
+          72.03610034156699,
+          544.1875512574121
+        ],
+        "baseline": [
+          65.90625,
+          533.5078120000001
+        ],
+        "render": 52,
+        "start": 52,
+        "end": 53
+      },
+      "last_glyph": {
+        "id": 635,
+        "text": ".",
+        "bbox": [
+          104.90529785009998,
+          425.3925820804782,
+          107.40523681484999,
+          438.9922500487182
+        ],
+        "baseline": [
+          104.90529785009998,
+          428.3125107913062
+        ],
+        "render": 635,
+        "start": 635,
+        "end": 636
+      },
+      "unmapped_inside": false
+    },
+    {
+      "pair": "ietf-sctp-4960-to-9260",
+      "selector": "control-new",
+      "page": 0,
+      "range": [
+        44,
+        52
+      ],
+      "glyph_count": 8,
+      "first_glyph": {
+        "id": 44,
+        "text": "A",
+        "bbox": [
+          65.90625,
+          550.9553135052399,
+          76.74955958409,
+          570.5395114260399
+        ],
+        "baseline": [
+          65.90625,
+          555.1601559999999
+        ],
+        "render": 44,
+        "start": 44,
+        "end": 45
+      },
+      "last_glyph": {
+        "id": 51,
+        "text": "t",
+        "bbox": [
+          122.15321844017997,
+          550.9553135052399,
+          127.98527737982997,
+          570.5395114260399
+        ],
+        "baseline": [
+          122.15321844017997,
+          555.1601559999999
+        ],
+        "render": 51,
+        "start": 51,
+        "end": 52
+      },
+      "unmapped_inside": false
+    }
+  ]
+}

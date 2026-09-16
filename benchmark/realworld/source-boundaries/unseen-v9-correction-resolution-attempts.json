@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary": "target/debug/pdfbench",
+  "binary_sha256": "2f39e696b1e17a11f94d2499405fac166c02b61878ce533b663442d4051e511a",
+  "attempts": [
+    {
+      "pair": "edpb-objection-v1-to-v2",
+      "started_utc": "2026-09-14T05:59:43.906089+00:00",
+      "elapsed_seconds": 1.9877652859977388,
+      "exit_code": 0,
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/target/debug/pdfbench",
+        "validate-literal-selectors",
+        "--annotation",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/source-boundaries/unseen-v9/annotations/edpb-objection-v1-to-v2.json",
+        "--old",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v9/edpb-objection-v1-to-v2-old.pdf",
+        "--new",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v9/edpb-objection-v1-to-v2-new.pdf"
+      ],
+      "annotation_sha256": "1ff8ffeac854aa3af5dce8607043bf33f983e5ed593c26e0d177f1d31cdece45",
+      "resolution_sha256": "77e65e4c5dba4b612ad4221b4d9a742ded68ae9f6c301f017b89c3d02b5cc39f",
+      "stderr": ""
+    }
+  ]
+}

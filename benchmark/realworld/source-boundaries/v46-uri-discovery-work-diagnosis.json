@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "diagnostic_only": true,
+  "command": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/trace-v46-uri/command.json",
+    "sha256": "b9b78d389eb5de92bd90c69aeaf139f4c9b12714379feb5e133f54ab6d59d46b"
+  },
+  "trace": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/trace-v46-uri/trace.log",
+    "sha256": "899630caf6794e002d6257f7912535de0273f6ac7a707daedf7a6a2390bdcad5"
+  },
+  "instrumented_source": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/trace-v46-uri/instrumented-cuts.rs",
+    "sha256": "4b6b26cf9d3c80314f36ab612d7c2f79594105140880ab093e16d83f15c9f887"
+  },
+  "report": {
+    "path": "benchmark/realworld/cache/source-boundaries-unseen-v3/trace-v46-uri/report.json",
+    "sha256": "011b4d74729b2e2f179311710bde17ee0f7ec14de874b71f61150b42de064ed2"
+  },
+  "measurement": "Explicit work-counter and row-count instrumentation, not a timing profile; debug and release complete event identities are checked equal.",
+  "finding": "Each of the two page-edge discovery attempts generated 40 old and 26 new rows and spent 93052 work units on row construction. Cartesian literal pair checks account for 30174 charged units; only 5251 of these concern equal-length rows. Candidate-only outer-side pruning and length-bucket lookup can remove work without shrinking the complete raw occurrence census.",
+  "production_logging_removed": true
+}

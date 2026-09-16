@@ -1,0 +1,141 @@
+{
+  "status": "direct_library_mapping_integration_rejected_by_counterexamples",
+  "previous_turn_classification": "progress: native font evidence demonstrated an explicit internal Encoding mapping",
+  "baseline": {
+    "path": "benchmark/realworld/remaining/remaining-body-boundary-diagnosis.json",
+    "sha256": "c42cd78d398aa8e53710194f2e6d26b964f8003baf04f869c00a3a204b060670"
+  },
+  "fixed_panel_denominator": 36,
+  "production_changed": false,
+  "dependencies_added": false,
+  "new_recovery_claimed": false,
+  "finding": "read-fonts 0.39.2 returns code 43 as plus after malformed assignment syntax and after a later valid-shape assignment to a missing glyph name. A successful Type1Font parse and a resolved glyph id do not prove a complete source Encoding interpretation.",
+  "cases": [
+    {
+      "case": "original",
+      "expected": "source_mapping_plus",
+      "declaration": "dup 43 /plus put",
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/original.pfa",
+        "sha256": "5d5ea0385600ee76b202ca00c8f90adba96b2f00c21f005715ba679673ba866a"
+      },
+      "exit_code": 0,
+      "stdout": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "stderr": ""
+    },
+    {
+      "case": "arithmetic-selector",
+      "expected": "reject_non_literal_selector",
+      "declaration": "dup 43 /plus put\ndup 42 1 add /parenleft put",
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/arithmetic-selector.pfa",
+        "sha256": "dbca3cd24423db03771394888d098ad91b2b8b606a4aa06bdba71da8bc1a6474"
+      },
+      "exit_code": 0,
+      "stdout": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "stderr": ""
+    },
+    {
+      "case": "missing-character",
+      "expected": "unmapped_missing_outline_name",
+      "declaration": "dup 43 /plus put\ndup 43 /MissingGlyph put",
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/missing-character.pfa",
+        "sha256": "159897747c8611ed1642632643a781d9c17d7ae5ecb44678eba51fb5a7231452"
+      },
+      "exit_code": 0,
+      "stdout": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "stderr": ""
+    },
+    {
+      "case": "missing-put",
+      "expected": "reject_incomplete_assignment",
+      "declaration": "dup 43 /plus",
+      "input": {
+        "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/missing-put.pfa",
+        "sha256": "6d8adb2c8a453497d8010936320ebeaa65ab8579da6220578a8d2d56cfdbf01d"
+      },
+      "exit_code": 0,
+      "stdout": "{\"code\":43,\"glyph_name\":\"plus\",\"glyph_id\":4,\"font_glyphs\":30}\n",
+      "stderr": ""
+    }
+  ],
+  "source_explanation": {
+    "arithmetic-selector": "The computed index is outside the supported Type1 literal assignment grammar. It must be rejected for exact source decoding, rather than ignored while retaining the preceding plus assignment.",
+    "missing-character": "The later literal assignment names MissingGlyph, absent from CharStrings. The reader skips unresolved names and retains the earlier plus mapping. That stale name cannot establish Unicode for the final selector.",
+    "missing-put": "The reader accepts an incomplete dup/index/name sequence without requiring put. This is not a certificate of a conforming assignment."
+  },
+  "primary_reference": {
+    "title": "Adobe Type 1 Font Format",
+    "url": "https://www.adobe.com/content/dam/acom/en/devnet/font/pdfs/T1_SPEC.pdf",
+    "printed_pages": [
+      83,
+      84,
+      85
+    ],
+    "relevant_rule": "Simplified parsers inspect top-level tokens; custom Encoding assignments use repeated dup/integer/name/put sequences terminated by def or readonly. Computed simple values do not conform."
+  },
+  "library_source": {
+    "path": "/home/hayato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/read-fonts-0.39.2/src/ps/type1.rs",
+    "sha256": "9cbfe57589e4bf94e7b45c775ca8f3f7b8b2c44ee29d41510097d24ab8d9fbbc",
+    "functions": [
+      "Parser::read_encoding",
+      "Parser::read_sparse_encoding",
+      "Parser::read_dense_encoding"
+    ],
+    "finding": "The sparse scanner skips unrelated tokens and invokes a callback for integer/name pairs without requiring dup or put. The callback updates only when a glyph name resolves, retaining any prior mapping otherwise. Encoding callers also discard the scanner result."
+  },
+  "required_integration_contract": [
+    "Use a complete top-level token validation of the supported Type1 declaration form; reject arithmetic, procedures, unsupported mutation and incomplete assignments rather than skip them.",
+    "Preserve the last declared selector name, including missing names; never keep an earlier Unicode value after a later unresolved assignment.",
+    "Verify referenced names against retained CharStrings and reuse the existing Adobe glyph-name conversion only after source validation.",
+    "Preserve explicit PDF Encoding and ToUnicode precedence, including explicitly unmapped ToUnicode entries.",
+    "Charge decoded embedded-program bytes together with ToUnicode and font identity work under existing aggregate extraction limits; keep malformed, unsupported and resource-limit results distinct.",
+    "Demonstrate the guard on the original source and all three counterexamples before real-panel adoption."
+  ],
+  "next_action": "Implement or select a strict bounded Type1 declaration reader that can expose validation status and raw selector names. The general font library may still supply outline/name lookup after that check, but its current Encoding result alone must not be promoted to exact text.",
+  "checks": {
+    "probe_compiled": true,
+    "original_and_three_counterexamples_executed": true,
+    "production_source_hashes_unchanged": true,
+    "full_workspace_checks": "not rerun: diagnostic artifacts and documentation only"
+  },
+  "artifacts": [
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/probe.rs",
+      "sha256": "a70f285eea1dd79d96245f9f27aefa9ed7bc699ee1107fa217dd45abca8b0da0"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/probe",
+      "sha256": "f90f530e4dc93f7633c8be4ad37acab6b186d80432fedf39119477ada5209e28"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/check.py",
+      "sha256": "0b52c9905995235fc672b4590e5f546b4141ad54c426d39f085a6fe3c2bc69ea"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/check.log",
+      "sha256": "9fb8d147e8c8b1f9fe9110c4749d20b35d493132e72f1dec7275a136cfd72856"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/cases.json",
+      "sha256": "8ccfe4ae1de200d04c12c50bebb98dfaab7af1fb38c6fe37aafef8a6a6430a8a"
+    },
+    {
+      "path": "benchmark/realworld/cache/remaining-glyph-atoms/type1-encoding-contract/retain.py",
+      "sha256": "98088199ee8c2495335c7a71abfebf970b1eddec265c5ce47a96ed1e97d1f6dd"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/pdf/font/simple.rs",
+      "sha256": "964159eadbd9e5f619db466e15578dfdf6e8189bef6a4b5d77e1a73177402a20"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/pdf/font/decoder.rs",
+      "sha256": "0141eac7b832d7e5eaf478e2ee9e48ee22b173fda09f893aca2f015fa5df5634"
+    },
+    {
+      "path": "crates/pdfdelta-core/src/pdf/font/common.rs",
+      "sha256": "49b9808809ef8aaaa4276fdbc93f0310a7493f19edd7cd034db896dd87744ef9"
+    }
+  ]
+}

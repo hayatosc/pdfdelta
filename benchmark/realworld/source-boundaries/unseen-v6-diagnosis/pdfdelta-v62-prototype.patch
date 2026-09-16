@@ -1,0 +1,123 @@
+diff --git a/crates/pdfdelta-core/src/document/text_scopes/native.rs b/crates/pdfdelta-core/src/document/text_scopes/native.rs
+index c0a2466..ea9036f 100644
+--- a/crates/pdfdelta-core/src/document/text_scopes/native.rs
++++ b/crates/pdfdelta-core/src/document/text_scopes/native.rs
+@@ -154,6 +154,21 @@ pub(super) fn runs<'a>(
+         if edge.basis != ViewBasis::NativeLayout {
+             blocked.extend([edge.from, edge.to]);
+         } else if nodes.contains_key(&edge.from) && nodes.contains_key(&edge.to) {
++            if spend(remaining, 4).is_none() {
++                return Ok(Vec::new());
++            }
++            // Native layout edges can jump between columns. Endpoint hulls
++            // only split candidate runs; every interval still requires the
++            // complete source and paint census, including intermediate glyphs.
++            if let (Some((a_page, a)), Some((b_page, b))) = (
++                sources.endpoint_bounds(nodes[&edge.from]),
++                sources.endpoint_bounds(nodes[&edge.to]),
++            ) && a_page == b_page
++                && (a.max.x < b.min.x || b.max.x < a.min.x)
++                && (a.max.y < b.min.y || b.max.y < a.min.y)
++            {
++                continue;
++            }
+             if let Some(page) = paint_rows::reverse_row(sources, nodes[&edge.from], nodes[&edge.to])
+             {
+                 paint_pages.insert(page);
+@@ -210,6 +225,14 @@ pub(super) fn runs<'a>(
+     if rows {
+         let _ = hanging::attach(sources, &mut runs, &connected, remaining);
+     }
++    if std::env::var_os("PDFDELTA_DIAG_RUNS").is_some() {
++        for run in &runs {
++            eprintln!(
++                "DIAG_RUN {:?}",
++                run.iter().map(|n| n.id).collect::<Vec<_>>()
++            );
++        }
++    }
+     Ok(runs)
+ }
+ 
+@@ -229,6 +252,39 @@ struct NodeGeometry {
+ }
+ 
+ impl<'a> Sources<'a> {
++    fn endpoint_bounds(&self, node: &GraphNode) -> Option<(PageId, Rect)> {
++        let [page] = node.pages.as_slice() else {
++            return None;
++        };
++        let glyph = |source: &SourceRef| {
++            let SourceRef::Native { glyph } = source else {
++                return None;
++            };
++            self.glyphs.get(glyph).copied()
++        };
++        let first = glyph(node.sources.first()?)?;
++        let last = glyph(node.sources.last()?)?;
++        if [first, last]
++            .iter()
++            .any(|glyph| glyph.page != *page || glyph.direction != (Vec2 { x: 1.0, y: 0.0 }))
++        {
++            return None;
++        }
++        Some((
++            *page,
++            Rect {
++                min: Vec2 {
++                    x: first.bbox.min.x.min(last.bbox.min.x),
++                    y: first.bbox.min.y.min(last.bbox.min.y),
++                },
++                max: Vec2 {
++                    x: first.bbox.max.x.max(last.bbox.max.x),
++                    y: first.bbox.max.y.max(last.bbox.max.y),
++                },
++            },
++        ))
++    }
++
+     pub(super) fn page_sources_match(
+         &self,
+         page: PageId,
+diff --git a/crates/pdfdelta-core/tests/document_text_scopes_fixture.rs b/crates/pdfdelta-core/tests/document_text_scopes_fixture.rs
+index ee152c8..c48cf2b 100644
+--- a/crates/pdfdelta-core/tests/document_text_scopes_fixture.rs
++++ b/crates/pdfdelta-core/tests/document_text_scopes_fixture.rs
+@@ -827,6 +827,37 @@ fn unresolved_opening_rows_remain_inside_the_enclosing_source_interval() {
+     }
+ }
+ 
++#[test]
++fn native_layout_edges_across_columns_do_not_displace_local_boundaries() {
++    let mut old = fixture_rows(&["BEGIN", "old body", "old side", "END", "TAIL"]);
++    let mut new = fixture_rows(&["BEGIN", "new body", "new side", "END", "TAIL"]);
++    for fixture in [&mut old, &mut new] {
++        let side = &fixture.1.nodes[3].sources;
++        let mut glyphs = fixture.0.native.items().to_vec();
++        for glyph in &mut glyphs {
++            if side.contains(&SourceRef::Native { glyph: glyph.id }) {
++                glyph.baseline.x += 1000.0;
++                glyph.bbox.min.x += 1000.0;
++                glyph.bbox.max.x += 1000.0;
++            }
++        }
++        fixture.0.native = Document::new(glyphs);
++    }
++    for (old, new) in [(&old, &new), (&new, &old)] {
++        let result = compare(old, new);
++        assert!(
++            result.scopes[0]
++                .result
++                .text_scope_reviews
++                .iter()
++                .any(|review| {
++                    review.old_sources == old.1.nodes[2].sources
++                        && review.new_sources == new.1.nodes[2].sources
++                })
++        );
++    }
++}
++
+ #[test]
+ fn native_interval_survives_unrelated_pages_storage_order_and_reversal() {
+     let mut old = fixture("a");

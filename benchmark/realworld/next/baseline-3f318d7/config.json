@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "3f318d7fd5cb0911e78f47fe05ea4460ae54c633",
+  "limit_scale": 1,
+  "timeout_seconds": 180,
+  "timing_unit": "seconds",
+  "peak_rss_unit": "KiB",
+  "routes": [
+    "native",
+    "text",
+    "all"
+  ],
+  "annotation_scoring": false,
+  "summary_input_limit_bytes": 134217728
+}

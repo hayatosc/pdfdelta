@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "parent_commit": "84decd2",
+  "build": "cargo build --release -p pdfdelta-bench --example render_observer",
+  "binary_sha256": "7cff0b00ace84aadb2b9754610b5044d343d8fb3fb3bd348a6cb26dea1c068a4",
+  "example_sha256": "f098cc2e3602ab19a47b7f1387a8dcb270e57776ca6e818cf2fde19e5453bc90",
+  "report_sha256": "5973c8a7b70f484275d36a8075cb0f84fb5c3fd987ad5567807fd01e61781009",
+  "report_bytes": 7260,
+  "api_sources_sha256": {
+    "hayro-0.7.1/src/lib.rs": "63c6d07b66988530ff9fc0167a78875fc982364a5b1abb8aee909df8f2ae6c32",
+    "hayro-0.7.1/src/renderer.rs": "141d0ee24e2d6cb62c7e96c8902a99dc0d7edc89dbf090b14e2996888f679a98",
+    "hayro-interpret-0.7.0/src/device.rs": "42c4be26b0a62ef7851c709f11c40c5c630a869646cca340592c86fc7fcc7f91",
+    "hayro-interpret-0.7.0/src/font/mod.rs": "c7c16f3e6661d089f3a9d695f2f3e404e4d6234532e1b707e88e3d4c98d2a959",
+    "hayro-interpret-0.7.0/src/types.rs": "0e66569b8a7dc243b0a384cf1d3615ca62bf660b5324236f2594609bdfddfd46",
+    "hayro-interpret-0.7.0/src/interpret/mod.rs": "049ea089fe180e5990530f5b3514dcd8e1af47233635108f72ee793462d521dd",
+    "hayro-interpret-0.7.0/src/x_object.rs": "580275008f1cc38239ea6a9fdc4a20ab5e7a7005c14411477c0218a342199b2d"
+  },
+  "sample_count": 1,
+  "wall_seconds_including_time_wrapper": 0.004633192998880986,
+  "peak_rss_kib": 6784,
+  "exit_code": 0,
+  "generated_input_only": true,
+  "adoption": "Defer production observer/source binding and coarse-feature optimization; retain executed API and pixel-collision experiment.",
+  "limitations": [
+    "No public pass-through renderer hook; only independent observation noninterference tested.",
+    "No raw-code/operator/Form-invocation identity in glyph callbacks.",
+    "No real-PDF latency or retrieval improvement established."
+  ]
+}

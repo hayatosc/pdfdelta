@@ -114,6 +114,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -741,8 +747,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lopdf"
-version = "0.44.0"
-source = "git+https://github.com/J-F-Liu/lopdf?rev=1e3d646ca249ebf1a6ff479278c07e9c0f9377a8#1e3d646ca249ebf1a6ff479278c07e9c0f9377a8"
+version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfffda0fe1ab0157e1a13c14bebd3f28671f2fccb7922f0722ec53926e6922d3"
 dependencies = [
  "aes",
  "bitflags",
@@ -836,6 +843,7 @@ name = "pdfdelta-bench"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hayro",
  "lopdf",
  "pdfdelta-core",
  "serde",
@@ -848,11 +856,14 @@ dependencies = [
 name = "pdfdelta-cli"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "clap",
  "clap_complete",
+ "flate2",
  "hayro",
  "lopdf",
  "pdfdelta-core",
+ "png",
  "rayon",
  "rustix",
  "serde",
@@ -864,6 +875,7 @@ dependencies = [
 name = "pdfdelta-core"
 version = "0.1.0"
 dependencies = [
+ "hayro-cmap",
  "lopdf",
  "proptest",
  "rayon",

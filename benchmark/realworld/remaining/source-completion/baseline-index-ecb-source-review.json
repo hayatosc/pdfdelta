@@ -1,0 +1,39 @@
+{
+  "report": {
+    "path": "benchmark/realworld/cache/source-completion/baseline-index-v1/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+    "sha256": "686542f07f1a65573f477fdf8aa8828474fbc35e2dfdb95d6f8b3e4a891c81f9"
+  },
+  "prior": {
+    "path": "benchmark/realworld/cache/source-completion/joined-stroke-v1/ecb-annual-2023-to-2024-1/ecb-annual-2023-to-2024-text.json",
+    "sha256": "5a1bc946258415f71f3108d0d3ab512158754dc82689d4d29dcb6e49b8bc3a2e"
+  },
+  "native": [
+    {
+      "path": "benchmark/realworld/cache/source-completion/native-interval-v1/old-native-response.json",
+      "sha256": "495552dca6cfc4faba07da63a55f6030834801ddfd15a67763897d75d92da91f"
+    },
+    {
+      "path": "benchmark/realworld/cache/source-completion/native-interval-v1/new-native-response.json",
+      "sha256": "be0106c909a94e029bc5137798e3501c86f26bfa0e56feb993e5b7442ac5b74d"
+    }
+  ],
+  "sides": {
+    "old": {
+      "text": "2.4 Notes on the balance sheet ",
+      "owned_sources": 31,
+      "changed_positions": [
+        11
+      ]
+    },
+    "new": {
+      "text": "2.4 Notes to the balance sheet ",
+      "owned_sources": 31,
+      "changed_positions": [
+        10
+      ]
+    }
+  },
+  "minimal_edit_cost": 2,
+  "verified": "raw readings, unique owned glyph IDs and all-optimal literal edit masks",
+  "limitations": "Does not certify boundary correspondence, paint closure, complete inventory or target recovery."
+}

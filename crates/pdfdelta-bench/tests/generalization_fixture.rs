@@ -30,6 +30,8 @@ fn fixture(values: [&str; 2], reverse: bool) -> (EvidenceStore, DocumentGraph) {
         rendered: Vec::new(),
         structured: Vec::new(),
         inventories: Vec::new(),
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
         issues: Vec::new(),
     };
     let mut graph = DocumentGraph::default();
@@ -151,6 +153,7 @@ fn successful_form_comparison_cannot_hide_uncompared_visual_evidence() {
     for extraction_issue in [false, true] {
         if extraction_issue {
             evidence.issues.push(EvidenceIssue {
+                boundary: None,
                 page: Some(PageId(0)),
                 channel: Channel::Visual,
                 sources: Vec::new(),

@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "pair": "arxiv-vit-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Whentrainedonmid-sizeddatasetssuchasImageNet,suchmodelsyieldmodestaccuraciesofafewpercentagepointsbelowResNetsofcomparablesize.Thisseeminglydiscouragingoutcomemaybeexpected:TransformerslacksomeoftheinductivebiasesinherenttoCNNs,suchastranslation",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-old-2",
+      "side": "old",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "equivarianceandlocality,andthereforedonotgeneralizewellwhentrainedoninsufﬁcientamountsofdata.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ABSTRACT",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "Whentrainedonmid-sizeddatasetssuchasImageNetwithoutstrongregularization,thesemod-elsyieldmodestaccuraciesofafewpercentagepointsbelowResNetsofcomparablesize.Thisseeminglydiscouragingoutcomemaybeexpected:Transformerslacksomeoftheinductivebiases",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-2",
+      "side": "new",
+      "locator": {
+        "page": 1
+      },
+      "literal_quote": "inherenttoCNNs,suchastranslationequivarianceandlocality,andthereforedonotgeneralizewellwhentrainedoninsufﬁcientamountsofdata.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0
+      },
+      "literal_quote": "ABSTRACT",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "d33feb34fcf7aea256439a7f487197dcbb896e31a9d86e30e37d252672c4da78",
+  "new_sha256": "8ce7b83971a14508ca711a27c875c9b6914c4f6767cf3150fb1ca6c07aa056d6"
+}

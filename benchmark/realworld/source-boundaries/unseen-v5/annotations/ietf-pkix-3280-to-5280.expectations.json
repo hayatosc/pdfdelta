@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "ietf-pkix-3280-to-5280",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "eb50748223228b0eeafc81d0dbe77eaec64d996c78a110bc778420e51a806d68",
+  "body_eligible": true,
+  "reason": "The complete abstract changes grammar and CRL extension guidance. All original internal indentation spaces remain in the literal source extent."
+}

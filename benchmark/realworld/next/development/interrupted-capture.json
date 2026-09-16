@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "reason": "Execution environment transition removed temporary process handles and /tmp artifacts. No active comparison process or original raw run directory remains accessible.",
+  "lost_raw_directories": [
+    "/tmp/pdfdelta-dev-nine-9093cab",
+    "/tmp/pdfdelta-dev-nine-3f318d7"
+  ],
+  "last_observed_record_count_per_revision": 20,
+  "last_observed_pair": "nasa-buckling-8007-1968-to-2020",
+  "last_observed_route": "text",
+  "retained_committed_or_worktree_batches": [
+    "irs-results",
+    "nist-edpb-results"
+  ],
+  "replay_scope": "Only nine pairs whose raw capture and run metadata were not yet retained. Source annotations remain frozen and are not changed after the first comparison."
+}

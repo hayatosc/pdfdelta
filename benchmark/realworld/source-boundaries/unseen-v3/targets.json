@@ -1,0 +1,533 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "pair": "nist-171-r2-to-r3",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes the scope and security requirements for controlled unclassified information, including a new assessment-procedures sentence.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-171-r2-to-r3.json",
+          "sha256": "73895ac44575a0c870b6ff57353778a22e8a1db0e783f6fa58dfb24ffe85718b"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-171-r2-to-r3.resolved.json",
+          "sha256": "26d7a8b3d91e3a5c8bc62f61c8da12636a04a2193f36c15c6c860a073c9ed46e"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-171-r2-to-r3.expectations.json",
+          "sha256": "c363552b259264e2bc8886665c79e6db62a0e9af4e843a247a9a44820c5e6874"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-82-r2-to-r3",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract expands industrial control systems to operational technology and adds definitions and examples.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-82-r2-to-r3.json",
+          "sha256": "5089b2e07a05b39dbbf7deb2fa48a0bd3323e74e7cf07a3eb6239bb0e8b5889e"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-82-r2-to-r3.resolved.json",
+          "sha256": "83598d4ce939457571f69f569a76513ef52507ecbf030e8aa2d823504af486fd"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-82-r2-to-r3.expectations.json",
+          "sha256": "a16031449dd238391facf5f2fb76fdfc31be08d43ed3c2b63c6e98126d6bb4b4"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "nist-64-r1-to-r2",
+      "publisher": "NIST",
+      "body_eligible": true,
+      "eligibility_reason": "The first Executive Summary paragraph changes the publication purpose and intended use. The older edition has no Abstract.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-64-r1-to-r2.json",
+          "sha256": "aa777ce51612a8609715de6d00e5634cde7875609dd6b62cdcc1748b6af44f65"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-64-r1-to-r2.resolved.json",
+          "sha256": "2dfedd3bdc609a8cd8fe084e814b578912886e8ffdb6f09fcfe73493d28fed8b"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/nist-64-r1-to-r2.expectations.json",
+          "sha256": "888bed1a007f24b779156e8e966f111413b520dedc189cf3186f5e90213cd89a"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "NIST"
+    },
+    {
+      "pair": "edpb-fines-v1-to-v2-1",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "The first Introduction body paragraph adds a sentence on the fundamental right to protection of personal data. The unchanged Executive Summary and the separate introductory legal recitals are outside the target.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/edpb-fines-v1-to-v2-1.json",
+          "sha256": "5368a8e7b396edc13676c2da1344e52dafd1a3b0e4c26fc6c000e94d66f41db7"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/edpb-fines-v1-to-v2-1.resolved.json",
+          "sha256": "525a54bb0e4847b28bb2759759172906077715bab37ff8acb5794e166f262358"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/edpb-fines-v1-to-v2-1.expectations.json",
+          "sha256": "9b5462ec4f46f87c6c5d4ae59ad26d45aebb9e388257d68c063a8019686ed4dd"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "edpb-breach-examples-v1-to-v2",
+      "publisher": "EDPB",
+      "body_eligible": true,
+      "eligibility_reason": "The first Introduction paragraph moves the in-certain-cases qualification from communication to individuals to notification of the authority.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/edpb-breach-examples-v1-to-v2.json",
+          "sha256": "5e0a75646cbd818b0e60b19dcc1f5a986e600585f48b88f66d83a17b199ee702"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/edpb-breach-examples-v1-to-v2.resolved.json",
+          "sha256": "0aa4fa2c8db6e6d3cc785f197495917d76dcdaf45d7493408cee30f05157820d"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/edpb-breach-examples-v1-to-v2.expectations.json",
+          "sha256": "20f5b2a9c569208e391d19be72100387a9b9195061dfed0f4d11fc87dd04669e"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "EDPB"
+    },
+    {
+      "pair": "arxiv-t5-v1-to-v3",
+      "publisher": "Google Research",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract changes every language problem to all text-based language problems. Both raw terminal footnote markers are retained; the new Keywords paragraph is excluded.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-t5-v1-to-v3.json",
+          "sha256": "7b07b9ea4e3c99a0a15e1bb6ea0e75b1495a7fe2337611e722a9f1bfb37d3d3e"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-t5-v1-to-v3.resolved.json",
+          "sha256": "6fc9edca6b5ec5caf4f9e75f897d94eb9f55bf35eb6d9e79eaf4d23ff047eb0b"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-t5-v1-to-v3.expectations.json",
+          "sha256": "92a45e9d5e270ae3d97c55be143a6a59e726d673361eec7b228ba524ba217385"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Google Research"
+    },
+    {
+      "pair": "arxiv-albert-v1-to-v6",
+      "publisher": "Google Research",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract removes unexpected model degradation and adds the source-code and pretrained-model release sentence.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-albert-v1-to-v6.json",
+          "sha256": "9e413c78972e46ea8e9722d178ceb8d43fc723a0eb17a9facc6163794513e92a"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-albert-v1-to-v6.resolved.json",
+          "sha256": "9f9e564183754795eaaa5e3a817c260ff9428686bc64b83d9b26d98c6adcc5a5"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-albert-v1-to-v6.expectations.json",
+          "sha256": "7dc6f71b9562d2474a824a22bc38ddcbd01c09844b5e7ab38453c31c8cf701a8"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Google Research"
+    },
+    {
+      "pair": "faa-electronic-records-78a-to-78b",
+      "publisher": "FAA",
+      "body_eligible": true,
+      "eligibility_reason": "The complete opening scope paragraph changes electronic-record authorization, applicability and legal-effect guidance. Signatures and agency mastheads remain outside the body.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/faa-electronic-records-78a-to-78b.json",
+          "sha256": "57d0ff1e80ec0a915942e70aea851d0bc2dce0ed8a8e51b071ef42b03443c8cf"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/faa-electronic-records-78a-to-78b.resolved.json",
+          "sha256": "d11255486344575f491fc10cb59e0781fd8f354bfb6c3c9aa7043d9e7691aea0"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/faa-electronic-records-78a-to-78b.expectations.json",
+          "sha256": "33bcb497b19d27a9c766bba7b56a6f039a909b03c25408164ebec7bd9c6ae81e"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "FAA"
+    },
+    {
+      "pair": "mext-research-misconduct-2006-to-2014",
+      "publisher": "MEXT",
+      "body_eligible": true,
+      "eligibility_reason": "The corresponding research-results-publication paragraph changes researcher community to scientific community and revises the explanation of the mutual-checking system. Earlier old introductory pages have no extracted glyphs and remain unresolved; the first common fully available named subsection is used. Original paragraph boundaries are retained.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/mext-research-misconduct-2006-to-2014.json",
+          "sha256": "473b6ffc9c5004466219a82f3400b80927b77340144b1a65ccfbcb21dcc101ae"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/mext-research-misconduct-2006-to-2014.resolved.json",
+          "sha256": "3545d1f86bf9e81beb6167ba8569bf8bc68be49b6c5a6cde48abc90d934b291d"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/mext-research-misconduct-2006-to-2014.expectations.json",
+          "sha256": "619304ef9eb64d3f1871d14aa3bd0ae9577340b6755faf6eaa47729869ae7f34"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "MEXT"
+    },
+    {
+      "pair": "ietf-json-4627-to-8259",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "The Unicode-string definition paragraph adds substantive guidance about referencing the latest Unicode version and future syntax compatibility. The inserted abstract paragraph has no old counterpart, and the first Introduction paragraph changes only a citation label; neither is used to replace this prose target.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/ietf-json-4627-to-8259.json",
+          "sha256": "b4df8d20674c31d6b60ba4da3d539d39beadedb1ec56188431e7449d45955e36"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/ietf-json-4627-to-8259.resolved.json",
+          "sha256": "0fdf43b458030858cb25c6f70c237ce87e12773387214f48a2af1257ca3b3fd5"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/ietf-json-4627-to-8259.expectations.json",
+          "sha256": "9f80889499796c119c3443412ab633da6768d75a899a461ec99a894e56e4b362"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    },
+    {
+      "pair": "ietf-uri-2396-to-3986",
+      "publisher": "IETF",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract reorganizes two old paragraphs into one new paragraph and changes URI definitions, reference resolution and security considerations. Both old paragraphs are retained at their full raw extent.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/ietf-uri-2396-to-3986.json",
+          "sha256": "5d2a9618a315b415458067d871b1c8f841d7b492dc6a5f9b40e48e1ee8b6f09b"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/ietf-uri-2396-to-3986.resolved.json",
+          "sha256": "0b6da3b26729d0c6b7c3008188c07b3ae3bcc1262941ef614d0e4160b631e596"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/ietf-uri-2396-to-3986.expectations.json",
+          "sha256": "f9a384ad8e5d182536fb725f5a1a82b73487da6eda0f594faaff268ae9bfb604"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "IETF"
+    },
+    {
+      "pair": "arxiv-xlnet-v1-to-v2",
+      "publisher": "Google Research",
+      "body_eligible": true,
+      "eligibility_reason": "The complete abstract qualifies the experimental settings and removes the state-of-the-art-on-eighteen-tasks claim. Original terminal punctuation and the footnote marker are retained.",
+      "references": {
+        "annotation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-xlnet-v1-to-v2.json",
+          "sha256": "ce227b3e3280e350757038a10f7d1092dedaef0530e04537dc1104f239530d44"
+        },
+        "resolution": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-xlnet-v1-to-v2.resolved.json",
+          "sha256": "0c32896e5342e5a261d2001645afd4a294ccc9bb4ddcc65846967df118505e5a"
+        },
+        "expectation": {
+          "path": "benchmark/realworld/source-boundaries/unseen-v3/annotations/arxiv-xlnet-v1-to-v2.expectations.json",
+          "sha256": "6b97424b238210e2842dc60e1b216c5f8c40b533ee85eeeb99a47c507e8e1505"
+        }
+      },
+      "core_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "permissible_extent_selectors": {
+        "old": [
+          "body-old-1"
+        ],
+        "new": [
+          "body-new-1"
+        ]
+      },
+      "unchanged_control_selectors": [
+        "control-old",
+        "control-new"
+      ],
+      "source_resolution_complete": true,
+      "strict_event_gold": null,
+      "strict_changed_position_gold": null,
+      "independent_producer": "Google Research"
+    }
+  ]
+}

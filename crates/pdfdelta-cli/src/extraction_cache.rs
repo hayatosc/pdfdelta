@@ -15,7 +15,7 @@ use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
 /// key or the cached payload shape.
-const CACHE_FORMAT_VERSION: u32 = 5;
+const CACHE_FORMAT_VERSION: u32 = 17;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during
@@ -71,6 +71,10 @@ impl ExtractionCache {
         // bypasses `ExtractionIssue::new`.
         if cached.document.items().len() > limits.max_glyphs
             || cached.document.vector_lines().len() > limits.max_vector_lines
+            || cached
+                .document
+                .non_text_paint_bounds()
+                .is_some_and(|paints| paints.len() > limits.max_operators)
         {
             return None;
         }
@@ -404,8 +408,15 @@ mod tests {
 
     fn fixture_outcome() -> ExtractionOutcome {
         ExtractionOutcome::complete(
-            Document::new(vec![glyph(1)])
-                .with_last_non_text_paint(std::collections::BTreeMap::from([(PageId(0), 0)])),
+            Document::new(vec![glyph(1)]).with_non_text_paint_bounds(vec![
+                pdfdelta_core::model::NonTextPaint {
+                    page: PageId(0),
+                    render_order: 0,
+                    bounds: Some(glyph(1).bbox),
+                    content_stream: glyph(1).provenance.content_stream,
+                    operator_index: 0,
+                },
+            ]),
         )
     }
 
@@ -430,10 +441,7 @@ mod tests {
         let loaded = cache
             .load(&key, &extraction_limits)
             .expect("stored extraction should load from the cache");
-        assert_eq!(
-            loaded.document().items(),
-            fixture_outcome().document().items()
-        );
+        assert_eq!(loaded.document(), fixture_outcome().document());
 
         let _ = fs::remove_dir_all(&dir);
     }

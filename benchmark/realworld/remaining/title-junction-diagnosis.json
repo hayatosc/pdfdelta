@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "status": "diagnosed_not_adopted",
+  "pair": "arxiv-faster-rcnn-v1-to-v3",
+  "scope": "Retained page-zero title subgraphs only; this is not a whole-document recovery experiment.",
+  "input": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-region-diagnostic/title-input.json",
+    "sha256": "3b8f66780848978e5c9f5509ecc899de92a6045d607667b56f23690116dde73f"
+  },
+  "probe": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-title-spacing-diagnostic/junction_probe.rs",
+    "sha256": "f620e231ee464f3f38fac64f5a50d5f9c3008441da6279cbd19c9aacb27b3047"
+  },
+  "result": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-title-spacing-diagnostic/junction-result.json",
+    "sha256": "b43569413318989f6bfc64903dde3fb181d309eae2b268ab346f734944d32adc"
+  },
+  "log": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/faster-title-spacing-diagnostic/junction.log",
+    "sha256": "6b2d72024c58c1e6abb6e816266c21e6c0a0898833480d775060bcebc4b93791"
+  },
+  "unchanged_production_binary": {
+    "path": "benchmark/realworld/cache/remaining-glyph-atoms/group-deferred-after/pdfdelta",
+    "sha256": "3739ca0a1a19afb8bde5915cc8de4c127fffb5bd77dd44ac86ef0eb640b93d9c"
+  },
+  "observation": {
+    "old_nodes": [
+      11,
+      12
+    ],
+    "new_nodes": [
+      16
+    ],
+    "old_sources": 69,
+    "new_sources": 69,
+    "old_tokens": 77,
+    "new_tokens": 78,
+    "unbacked_junction_space_index": 48,
+    "original_candidates": 0,
+    "original_enumeration_exhaustive": true,
+    "original_local_changed_source_bounds": [
+      0,
+      0
+    ],
+    "diagnostic_edited_candidates": 1,
+    "diagnostic_local_changed_source_bounds": [
+      0,
+      0
+    ]
+  },
+  "counterfactual_contract": "Only the diagnostic clone removes the new title token, its origin entry and backing flag at index 48. Raw input and production evidence are unchanged. The edited candidate cannot count as source recovery.",
+  "related_whole_page_evidence": {
+    "path": "benchmark/realworld/remaining/centered-block-trial-result.json",
+    "sha256": "5ee32e7d0ff7cc613e8f255f2eddf8d9438c678d288253fc05d03d63b85288b2"
+  },
+  "decision": "Do not relax LiteralContent or adopt title-token deletion. A prior whole-PDF trial already accepted the title but retained disconnected page paths and recovered no fixed Faster target. Diagnose complete boundary-to-target paths before adding a new junction-spacing correspondence premise.",
+  "coverage_gain": 0,
+  "strict_coverage_gain": 0,
+  "gate_gain": 0,
+  "production_files_changed": [],
+  "checks": [
+    "Original title inputs untouched; exact input hash retained.",
+    "Unmodified and diagnostic local comparisons are compared with no operation or unresolved reason and exact zero changed-source bounds.",
+    "Original candidate enumeration is exhaustive with zero proposals; one diagnostic junction removal yields the retained-order group.",
+    "Current release executable equals the last adopted group-boundary executable."
+  ],
+  "limitations": [
+    "No new native acquisition or whole-document run was performed.",
+    "This diagnostic does not establish correspondence uniqueness in the complete page graph.",
+    "No new A/B result or complete document is claimed."
+  ]
+}

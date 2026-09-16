@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-deceptive-patterns-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "97b0af3796bc7df76a0208206510f10cba0ca7e6feab85c8d3cf9530a5d83f83",
+  "body_eligible": true,
+  "reason": "Executive Summary, complete opening paragraph"
+}

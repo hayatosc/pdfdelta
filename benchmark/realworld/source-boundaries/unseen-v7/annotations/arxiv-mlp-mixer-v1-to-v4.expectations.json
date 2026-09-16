@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-mlp-mixer-v1-to-v4",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "d49bd3939e48d8796889db4ec84923aa55022ced9f94bdedf2211075ba9cd4f1",
+  "body_eligible": true,
+  "reason": "Introduction, complete second paragraph. Abstract and first introduction paragraph are unchanged. The inline word non-linearities changes to nonlinearities; the original hyphen is visibly internal to a line, not a line-wrap artifact. The full paragraph remains the extent."
+}

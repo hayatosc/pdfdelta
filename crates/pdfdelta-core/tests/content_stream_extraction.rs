@@ -678,20 +678,500 @@ fn recognizes_single_line_built_rectangular_clips() -> Result<()> {
 }
 
 #[test]
-fn rejects_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
+fn convex_quadrilateral_clips_classify_glyphs_without_box_substitution() -> Result<()> {
+    for (path, rule) in [
+        ("40 80 m 100 20 l 160 80 l 100 140 l h", "W"),
+        ("100 140 m 160 80 l 100 20 l 40 80 l", "W*"),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "q {path} {rule} n BT /F1 10 Tf 1 0 0 1 95 80 Tm (I) Tj 1 0 0 1 153 80 Tm (P) Tj 1 0 0 1 45 25 Tm (O) Tj ET Q BT /F1 10 Tf 1 0 0 1 45 25 Tm (C) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete());
+        let glyphs = outcome.document().items();
+        assert_eq!(mapped_text(glyphs), "IPOC");
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>(),
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::PartiallyOutside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Unclipped,
+            ]
+        );
+        assert_eq!(glyphs[2].raw_code, b"O");
+        assert_close(glyphs[2].baseline.x, 45.0);
+        assert_eq!(glyphs[2].provenance.content_stream.object_number, content.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn convex_clip_classification_has_a_shared_extraction_work_limit() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"40 80 m 100 20 l 160 80 l 100 140 l h W n BT /F1 10 Tf 1 0 0 1 80 80 Tm (Repeated) Tj ET"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+    assert!(matches!(
+        extract(
+            pdf,
+            ExtractionLimits {
+                max_operators: 50,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded {
+            resource: "convex clipping work",
+            limit: 50
+        })
+    ));
+}
+
+#[test]
+fn sheared_form_clip_intersects_caller_and_restores_after_invocation() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 40.into(), 40.into()],
+            "Matrix" => vec![1.into(), 1.into(), 0.into(), 1.into(), 0.into(), 0.into()],
+        },
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (I) Tj 1 0 0 1 30 20 Tm (O) Tj ET".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 0 0 20 100 re W n /X Do Q BT /F1 10 Tf 1 0 0 1 50 20 Tm (C) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert_eq!(mapped_text(outcome.document().items()), "IOC");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|g| g.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Unclipped,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn ext_gstate_rejects_invalid_widths_and_retains_hairline_uncertainty() -> Result<()> {
+    for width in [
+        Object::Integer(-1),
+        Object::Name(b"invalid".to_vec()),
+        Object::Integer(0),
+    ] {
+        let hairline = width == Object::Integer(0);
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"/G gs 20 100 m 80 100 l S".to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "ExtGState" => dictionary! { "G" => dictionary! { "LW" => width } },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert_eq!(outcome.is_complete(), hairline);
+        if hairline {
+            let paints = outcome
+                .document()
+                .non_text_paint_bounds()
+                .expect("retained hairline");
+            assert_eq!(paints.len(), 1);
+            assert!(paints[0].bounds.is_none());
+        } else {
+            assert!(outcome.document().vector_lines().is_empty());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn ext_gstate_line_width_survives_cache_hits_and_graphics_state_restore() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let width = pdf.add_object(Object::Integer(30));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"2 w 20 100 m 80 100 l S q /G gs 20 120 m 80 120 l S Q 20 140 m 80 140 l S 7 w /G gs 20 160 m 80 160 l S /Empty gs 20 180 m 80 180 l S".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "ExtGState" => dictionary! {
+                "G" => dictionary! { "LW" => width },
+                "Empty" => dictionary! {},
+            }
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let document = outcome.document();
+    let widths: Vec<_> = document
+        .vector_lines()
+        .iter()
+        .map(|line| line.width)
+        .collect();
+    assert_eq!(widths, [2.0, 30.0, 2.0, 30.0, 30.0]);
+    let paints = document
+        .non_text_paint_bounds()
+        .expect("complete paint inventory");
+    assert_eq!(paints.len(), 5);
+    for (index, width) in widths.iter().enumerate() {
+        let bounds = paints[index].bounds.expect("bounded straight stroke");
+        let y = 100.0 + index as f64 * 20.0;
+        assert!(bounds.min.y <= y - width / 2.0);
+        assert!(bounds.max.y >= y + width / 2.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn opaque_form_paints_retain_the_outward_form_bound_without_leaking_it() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![10.into(), 20.into(), 30.into(), 40.into()],
+            "Matrix" => vec![1.into(), 1.into(), 0.into(), 1.into(), 0.into(), 0.into()],
+        },
+        b"-100 -100 m 0 200 200 0 100 100 c f".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 1 0 0 1 50 60 cm /X Do Q -100 -100 m 0 200 200 0 100 100 c f".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let paints = outcome
+        .document()
+        .non_text_paint_bounds()
+        .expect("paint records");
+    assert_eq!(paints.len(), 2);
+    let bounds = paints[0].bounds.expect("Form clips its opaque curve");
+    for (actual, expected, lower) in [
+        (bounds.min.x, 60.0, true),
+        (bounds.min.y, 90.0, true),
+        (bounds.max.x, 80.0, false),
+        (bounds.max.y, 130.0, false),
+    ] {
+        assert!((actual - expected).abs() < 1e-9);
+        assert!(if lower {
+            actual <= expected
+        } else {
+            actual >= expected
+        });
+    }
+    assert_eq!(paints[0].content_stream.object_number, form.0);
+    let outside = paints[1].bounds.expect("independent curve control hull");
+    assert!(outside.min.x <= -100.0 && outside.min.y <= -100.0);
+    assert!(outside.max.x >= 200.0 && outside.max.y >= 200.0);
+    Ok(())
+}
+
+#[test]
+fn joined_stroke_bounds_follow_miter_state_and_reject_device_adjustment() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let path = "0 0 m 20 0 l 20 20 l S";
+    let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+        "2 w {path} q 3 M {path} Q {path} /G gs {path} 3 M /G gs {path} q /Adjust gs {path} Q {path}"
+    ).into_bytes()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "ExtGState" => dictionary! {
+                "G" => dictionary! { "ML" => 40 },
+                "Adjust" => dictionary! { "SA" => true },
+            }
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let paints = outcome
+        .document()
+        .non_text_paint_bounds()
+        .expect("paint inventory");
+    assert_eq!(paints.len(), 7);
+    for (paint, radius) in paints.iter().zip([
+        Some(20.0),
+        Some(6.0),
+        Some(20.0),
+        Some(80.0),
+        Some(80.0),
+        None,
+        Some(80.0),
+    ]) {
+        if let Some(radius) = radius {
+            let bounds = paint.bounds.expect("bounded joined stroke");
+            for (actual, expected) in [
+                (bounds.min.x, -radius),
+                (bounds.min.y, -radius),
+                (bounds.max.x, 20.0 + radius),
+                (bounds.max.y, 20.0 + radius),
+            ] {
+                assert!((actual - expected).abs() < 1e-8);
+            }
+            assert!(bounds.min.x <= -radius && bounds.max.x >= 20.0 + radius);
+        } else {
+            assert!(paint.bounds.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn curved_paints_retain_outward_control_hulls_and_stroke_enclosures() -> Result<()> {
+    for (path, expected) in [
+        ("0 0 m 20 40 60 -20 80 10 c", [0.0, -20.0, 80.0, 40.0]),
+        ("0 0 m 60 -20 80 10 v", [0.0, -20.0, 80.0, 10.0]),
+        ("0 0 m 20 40 80 10 y", [0.0, 0.0, 80.0, 40.0]),
+        (
+            "2 0 1 3 10 20 cm 0 0 m 20 40 60 -20 80 10 c",
+            [10.0, -40.0, 180.0, 140.0],
+        ),
+        (
+            "0 0 m 20 40 60 -20 80 10 c 90 30 l",
+            [0.0, -20.0, 90.0, 40.0],
+        ),
+    ] {
+        for operator in ["f", "f*", "S", "B"] {
+            let mut pdf = LopdfDocument::with_version("1.7");
+            let content = pdf.add_object(Stream::new(
+                dictionary! {},
+                format!("{path} {operator}").into_bytes(),
+            ));
+            install_page(
+                &mut pdf,
+                content.into(),
+                Object::Dictionary(dictionary! {}),
+                None,
+                None,
+            );
+            let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+            assert!(outcome.is_complete());
+            assert!(outcome.document().vector_lines().is_empty());
+            let paints = outcome
+                .document()
+                .non_text_paint_bounds()
+                .expect("paint retained");
+            assert_eq!(paints.len(), 1);
+            if matches!(operator, "S" | "B") {
+                let bounds = paints[0].bounds.expect("bounded positive-width curve");
+                assert!(bounds.min.x <= expected[0] && bounds.min.y <= expected[1]);
+                assert!(bounds.max.x >= expected[2] && bounds.max.y >= expected[3]);
+                continue;
+            }
+            let bounds = paints[0].bounds.expect("curve fill control hull");
+            let actual = [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y];
+            for (index, (&actual, &expected)) in actual.iter().zip(&expected).enumerate() {
+                assert!(
+                    (actual - expected).abs() < 1e-9,
+                    "{path}: {actual} != {expected}"
+                );
+                assert!(if index < 2 {
+                    actual <= expected
+                } else {
+                    actual >= expected
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn restores_text_after_an_unsupported_graphics_only_clip() -> Result<()> {
+    for path in [
+        "40 40 m 40 120 140 120 140 40 c h",
+        "40 40 m 140 40 l 90 120 l h",
+        "40 40 100 80 re 50 50 10 10 re",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "BT /F1 10 Tf 20 180 Td (before) Tj ET q {path} W n 50 50 10 10 re f Q BT /F1 10 Tf 20 160 Td (after) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(
+            outcome.is_complete(),
+            "path: {path}; issues: {:?}",
+            outcome.issues()
+        );
+        assert_eq!(mapped_text(outcome.document().items()), "beforeafter");
+        assert!(
+            outcome
+                .document()
+                .items()
+                .iter()
+                .all(|glyph| glyph.path_clip_status == GlyphPathClipStatus::Unclipped)
+        );
+        assert_eq!(
+            outcome
+                .document()
+                .non_text_paint_bounds()
+                .expect("opaque paint retained")
+                .len(),
+            1
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn unsupported_clip_uncertainty_survives_nested_saves_and_intersections() -> Result<()> {
+    for suffix in [
+        "",
+        "q Q",
+        "0 0 200 200 re W n",
+        "0 100 m 100 0 l 200 100 l 100 200 l h W n",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "40 40 m 40 120 140 120 140 40 c h W n {suffix} BT /F1 10 Tf 60 80 Td (uncertain) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(!outcome.is_complete(), "suffix: {suffix}");
+        assert!(outcome.document().items().is_empty());
+        assert!(
+            outcome
+                .issues()
+                .iter()
+                .any(|issue| issue.description().contains("curved clipping path"))
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn graphics_only_form_clips_do_not_hide_outer_text_or_admit_uncertain_lines() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(dictionary! {
+        "Type" => "XObject", "Subtype" => "Form", "BBox" => vec![0.into(), 0.into(), 200.into(), 200.into()],
+    }, b"40 40 m 40 120 140 120 140 40 c h W n 60 60 m 100 60 l S".to_vec()));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/X Do 60 20 m 100 20 l S BT /F1 10 Tf 20 160 Td (after) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert_eq!(mapped_text(outcome.document().items()), "after");
+    assert_eq!(outcome.document().vector_lines().len(), 1);
+    assert_close(outcome.document().vector_lines()[0].from.y, 20.0);
+    assert_eq!(
+        outcome
+            .document()
+            .non_text_paint_bounds()
+            .expect("both paints retained")
+            .len(),
+        2
+    );
+    Ok(())
+}
+
+#[test]
+fn rejects_text_with_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
     for path in [
         "40 40 m 140 40 l 90 120 l h",
         "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
     ] {
         let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
         let content = pdf.add_object(Stream::new(
             dictionary! {},
-            format!("{path} W n").into_bytes(),
+            format!("{path} W n BT /F1 10 Tf 60 80 Td (uncertain) Tj ET").into_bytes(),
         ));
         install_page(
             &mut pdf,
             content.into(),
-            Object::Dictionary(dictionary! {}),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
             None,
             None,
         );
@@ -1033,6 +1513,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
             StructureLimits::default(),
         )?;
         assert_eq!(tags.elements.len(), 3);
+        assert!(tags.key_inventory.complete);
         if mcid == 0 {
             let limited = extract_structure_evidence(
                 parsed.as_ref(),
@@ -1045,6 +1526,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                 },
             )?;
             assert_eq!(limited.elements.len(), 1);
+            assert!(!limited.key_inventory.complete);
             assert!(limited.issues.iter().any(|issue| issue.kind
                 == pdfdelta_core::document::EvidenceFailure::ResourceLimit
                 && issue.reason.contains("structure nesting depth")));
@@ -1056,6 +1538,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
         store.structured = tags.elements;
         store.issues.extend(tags.issues);
         store.inventories.push(tags.inventory);
+        store.key_inventories.push(tags.key_inventory);
         let graph = DocumentGraph::from_evidence(
             &store,
             PipelineOptions::default(),
@@ -1087,6 +1570,47 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                     .count(),
                 11
             );
+            // A tag spanning pages has no single page in the evidence store.
+            // Its glyph membership still establishes all contributing pages.
+            let mut glyphs = store.native.items().to_vec();
+            let mut extra = glyphs[0].clone();
+            extra.id = pdfdelta_core::model::GlyphId(1000);
+            extra.page = pdfdelta_core::model::PageId(1);
+            let extra_id = extra.id;
+            glyphs.push(extra);
+            store.native = pdfdelta_core::model::Document::new(glyphs);
+            store.pages.push(PageEvidence {
+                page: pdfdelta_core::model::PageId(1),
+                bounds: None,
+            });
+            let StructuredValue::StructureElement {
+                glyphs, content, ..
+            } = &mut store.structured[2].value
+            else {
+                unreachable!()
+            };
+            // This constructed replacement has no acquired marked-content inventory.
+            *content = None;
+            glyphs.push(extra_id);
+            store.structured[2].page = None;
+            let graph = DocumentGraph::from_evidence(
+                &store,
+                PipelineOptions::default(),
+                EvidenceLimits::default(),
+                GraphLimits::default(),
+            )?;
+            let cell = graph
+                .nodes
+                .iter()
+                .find(|node| node.kind == NodeKind::Cell)
+                .expect("tagged cell view");
+            assert_eq!(
+                cell.pages,
+                vec![
+                    pdfdelta_core::model::PageId(0),
+                    pdfdelta_core::model::PageId(1)
+                ]
+            );
         } else {
             assert!(
                 store
@@ -1095,8 +1619,341 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
                     .any(|issue| issue.reason.contains("marked content was not extracted"))
             );
         }
-        assert_eq!(mapped_text(store.native.items()), "Tagged note");
+        assert_eq!(
+            mapped_text(store.native.items()),
+            if mcid == 0 {
+                "Tagged noteT"
+            } else {
+                "Tagged note"
+            }
+        );
         assert!(!store.inventory_complete(None, Channel::Relations));
+    }
+    Ok(())
+}
+
+#[test]
+fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Result<()> {
+    use pdfdelta_core::document::{
+        BackendIdentity, BackendKind, Channel, EvidenceLimits, EvidenceStore, NativeStructureKid,
+        PageEvidence, StructureLimits, StructuredValue, extract_structure_evidence,
+    };
+    for fault in [
+        "none",
+        "duplicate",
+        "object",
+        "parent",
+        "mcid",
+        "depth",
+        "malformed",
+        "annotation",
+        "annotation-page",
+        "parents-duplicate",
+        "parents-limits",
+        "parents-cycle",
+        "parents-budget",
+        "parents-container",
+        "parents-owner",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let first = pdf.add_object(Stream::new(dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm /P << /MCID 0 >> BDC (A) Tj EMC /Span << /MCID 1 >> BDC (B) Tj EMC ET".to_vec()));
+        let second = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm /P << /MCID 0 >> BDC (C) Tj EMC ET".to_vec(),
+        ));
+        install_plain_pages(
+            &mut pdf,
+            &[first.into(), second.into()],
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        );
+        let pages = pdf.get_pages();
+        let root = pdf.new_object_id();
+        let parent = pdf.new_object_id();
+        let child = pdf.add_object(dictionary! {
+            "S" => "Span", "P" => if fault == "parent" { root } else { parent },
+            "K" => if fault == "mcid" { 99 } else { 1 },
+        });
+        let cross_page = Object::Dictionary(dictionary! {
+            "Type" => "MCR", "Pg" => pages[&2], "MCID" => 0,
+        });
+        let mut kids = vec![Object::Integer(0), child.into(), cross_page.clone()];
+        if fault == "duplicate" {
+            kids.push(cross_page);
+        }
+        if fault == "malformed" {
+            kids.insert(2, Object::Dictionary(dictionary! { "Type" => "MCR" }));
+        }
+        if fault == "object" {
+            kids.push(Object::Dictionary(dictionary! { "Type" => "OBJR" }));
+        }
+        let annotation = pdf.add_object(dictionary! {
+            "Type" => "Annot", "Subtype" => "Link", "P" => pages[&1],
+        });
+        if matches!(fault, "annotation" | "annotation-page") {
+            kids.push(Object::Dictionary(dictionary! {
+                "Type" => "OBJR", "Obj" => annotation,
+                "Pg" => if fault == "annotation-page" { pages[&2] } else { pages[&1] },
+            }));
+        }
+        pdf.objects.insert(
+            parent,
+            Object::Dictionary(dictionary! {
+                "S" => "P", "P" => root, "Pg" => pages[&1], "K" => kids,
+            }),
+        );
+        pdf.objects.insert(
+            root,
+            Object::Dictionary(dictionary! { "Type" => "StructTreeRoot", "K" => parent }),
+        );
+        for (number, page) in &pages {
+            pdf.get_object_mut(*page)
+                .expect("fixture page")
+                .as_dict_mut()
+                .expect("page dictionary")
+                .set(
+                    "StructParents",
+                    if fault == "parents-container" {
+                        0
+                    } else {
+                        i64::from(*number) - 1
+                    },
+                );
+        }
+        let first_parents = pdf.add_object(dictionary! {
+            "Limits" => vec![Object::Integer(0), Object::Integer(if fault == "parents-limits" { 1 } else { 0 })],
+            "Nums" => vec![Object::Integer(0), Object::Array(vec![
+                if fault == "parents-owner" { root.into() } else { parent.into() }, child.into(),
+            ])],
+        });
+        let second_key = if fault == "parents-duplicate" { 0 } else { 1 };
+        let second_parents = pdf.add_object(dictionary! {
+            "Limits" => vec![Object::Integer(second_key), Object::Integer(second_key)],
+            "Nums" => vec![Object::Integer(second_key), Object::Array(vec![parent.into()])],
+        });
+        let parent_tree = pdf.new_object_id();
+        pdf.objects.insert(parent_tree, Object::Dictionary(dictionary! {
+            "Kids" => if fault == "parents-cycle" { vec![Object::Reference(parent_tree)] }
+                else { vec![Object::Reference(first_parents), Object::Reference(second_parents)] },
+        }));
+        pdf.get_object_mut(root)
+            .expect("structure root")
+            .as_dict_mut()
+            .expect("root dictionary")
+            .set("ParentTree", parent_tree);
+        let catalog = pdf
+            .trailer
+            .get(b"Root")
+            .expect("fixture catalog")
+            .as_reference()
+            .expect("catalog reference");
+        pdf.get_object_mut(catalog)
+            .expect("fixture catalog object")
+            .as_dict_mut()
+            .expect("fixture catalog dictionary")
+            .set("StructTreeRoot", root);
+        let mut bytes = Vec::new();
+        pdf.save_to(&mut bytes).expect("mixed fixture bytes");
+        let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+        let outcome = ContentStreamGlyphExtractor
+            .extract_outcome(parsed.as_ref(), ExtractionLimits::default())?;
+        let mut store = EvidenceStore::from_native(
+            "mixed-tags".into(),
+            BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "mixed-tags".into(),
+                model: None,
+            },
+            (0..2)
+                .map(|page| PageEvidence {
+                    page: PageId(page),
+                    bounds: None,
+                })
+                .collect(),
+            outcome,
+            EvidenceLimits::default(),
+        )?;
+        let tags = extract_structure_evidence(
+            parsed.as_ref(),
+            &store.native,
+            0,
+            37,
+            StructureLimits {
+                max_depth: if fault == "depth" { 0 } else { 64 },
+                max_nodes: if fault == "parents-budget" {
+                    10
+                } else {
+                    100_000
+                },
+                ..StructureLimits::default()
+            },
+        )?;
+        let StructuredValue::StructureElement {
+            glyphs,
+            content: Some(content),
+            ..
+        } = &tags.elements[0].value
+        else {
+            panic!("retained mixed content")
+        };
+        // The legacy flat view remains unproved; ordered raw membership survives.
+        assert!(glyphs.is_empty());
+        assert_eq!(
+            content[0],
+            NativeStructureKid::MarkedContent { sequence: 0 }
+        );
+        assert_eq!(
+            content[if fault == "malformed" { 3 } else { 2 }],
+            NativeStructureKid::MarkedContent { sequence: 2 }
+        );
+        if fault == "malformed" {
+            assert_eq!(content[2], NativeStructureKid::Unresolved);
+        }
+        assert_eq!(
+            content[1],
+            if matches!(fault, "parent" | "depth") {
+                NativeStructureKid::Unresolved
+            } else {
+                NativeStructureKid::Element { element: 38 }
+            }
+        );
+        if fault == "duplicate" {
+            assert_eq!(content[3], content[2]);
+        }
+        if fault == "object" {
+            assert_eq!(content[3], NativeStructureKid::Unresolved);
+        }
+        if fault == "annotation-page" {
+            assert_eq!(content[3], NativeStructureKid::Unresolved);
+        }
+        if fault == "annotation" {
+            assert_eq!(
+                content[3],
+                NativeStructureKid::Annotation {
+                    object: pdfdelta_core::pdf::ObjectRef {
+                        object_number: annotation.0,
+                        generation: annotation.1
+                    },
+                    page: PageId(0),
+                }
+            );
+        }
+        if fault == "mcid" {
+            let StructuredValue::StructureElement {
+                content: Some(content),
+                ..
+            } = &tags.elements[1].value
+            else {
+                panic!("failed binding")
+            };
+            assert_eq!(content, &[NativeStructureKid::Unresolved]);
+        }
+        assert_eq!(
+            tags.native_inventory.complete,
+            !matches!(
+                fault,
+                "object" | "parent" | "mcid" | "depth" | "malformed" | "annotation-page"
+            ),
+            "{fault}"
+        );
+        if matches!(
+            fault,
+            "parents-duplicate"
+                | "parents-limits"
+                | "parents-cycle"
+                | "parents-budget"
+                | "parents-container"
+                | "depth"
+        ) {
+            assert!(tags.native_inventory.parents.is_none(), "{fault}");
+        } else {
+            let bindings = tags
+                .native_inventory
+                .parents
+                .as_ref()
+                .expect("closed parent lookup");
+            assert_eq!(bindings.len(), 3);
+            assert_eq!(bindings[0].sequence, 0);
+            assert_eq!(
+                bindings[0].owner.object_number,
+                if fault == "parents-owner" {
+                    root.0
+                } else {
+                    parent.0
+                }
+            );
+            assert_eq!(bindings[1].owner.object_number, child.0);
+            assert_eq!(bindings[2].owner.object_number, parent.0);
+        }
+        store.native_structures.push(tags.native_inventory);
+        store.structured = tags.elements;
+        store.issues.extend(tags.issues);
+        store.inventories.push(tags.inventory);
+        store.key_inventories.push(tags.key_inventory);
+        store.validate(EvidenceLimits::default())?;
+        assert!(!store.inventory_complete(None, Channel::Relations));
+        let restored: EvidenceStore =
+            serde_json::from_slice(&serde_json::to_vec(&store).expect("serialize mixed evidence"))
+                .expect("deserialize mixed evidence");
+        assert_eq!(store, restored);
+        if fault == "none" {
+            for mutation in [
+                "missing-root",
+                "repeated-root",
+                "repeated-parent",
+                "parent-sequence",
+            ] {
+                let mut bad = store.clone();
+                let inventory = &mut bad.native_structures[0];
+                match mutation {
+                    "missing-root" => inventory.roots.clear(),
+                    "repeated-root" => inventory.roots.push(inventory.roots[0]),
+                    "repeated-parent" => {
+                        let parents = inventory.parents.as_mut().expect("parent bindings");
+                        parents.push(parents[0].clone());
+                    }
+                    "parent-sequence" => {
+                        inventory.parents.as_mut().expect("parent bindings")[0].sequence =
+                            usize::MAX;
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    bad.validate(EvidenceLimits::default()).is_err(),
+                    "{mutation}"
+                );
+            }
+            for mutation in ["sequence", "omission", "order", "child", "flat"] {
+                let mut bad = store.clone();
+                let StructuredValue::StructureElement {
+                    content: Some(content),
+                    glyphs,
+                    ..
+                } = &mut bad.structured[0].value
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    "sequence" => {
+                        content[0] = NativeStructureKid::MarkedContent {
+                            sequence: usize::MAX,
+                        }
+                    }
+                    "omission" => content[1] = NativeStructureKid::Unresolved,
+                    "order" => content.swap(0, 1),
+                    "child" => content[1] = NativeStructureKid::Element { element: u64::MAX },
+                    "flat" => glyphs.push(bad.native.items()[0].id),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    bad.validate(EvidenceLimits::default()).is_err(),
+                    "{mutation}"
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -1122,6 +1979,83 @@ fn incomplete_marked_content_preserves_native_glyphs() -> Result<()> {
         assert_eq!(document.marked_content()[0].glyph_range, 0..4);
         assert!(!document.marked_content()[0].complete);
     }
+    Ok(())
+}
+
+#[test]
+fn form_marked_content_uses_its_own_structural_parent_key() -> Result<()> {
+    use pdfdelta_core::document::{
+        NativeStructureKid, StructuredValue, extract_structure_evidence,
+    };
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form", "StructParents" => 7,
+            "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+            "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
+        },
+        b"/Span << /MCID 0 >> BDC BT /F1 10 Tf (A) Tj ET EMC".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"/X Do".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    let root = pdf.new_object_id();
+    let owner = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page,
+        "K" => dictionary! { "Type" => "MCR", "Stm" => form, "MCID" => 0 },
+    });
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => owner,
+            "ParentTree" => dictionary! { "Nums" => vec![
+                Object::Integer(7), Object::Array(vec![owner.into()]),
+            ] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("form fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    assert_eq!(mapped_text(native.items()), "A");
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    assert!(tags.native_inventory.complete);
+    let parents = tags.native_inventory.parents.expect("form parent lookup");
+    assert_eq!(parents.len(), 1);
+    assert_eq!(parents[0].sequence, 0);
+    assert_eq!(parents[0].owner.object_number, owner.0);
+    let StructuredValue::StructureElement {
+        content: Some(content),
+        ..
+    } = &tags.elements[0].value
+    else {
+        panic!("form membership")
+    };
+    assert_eq!(
+        content,
+        &[NativeStructureKid::MarkedContent { sequence: 0 }]
+    );
     Ok(())
 }
 
@@ -1163,6 +2097,166 @@ fn repeated_form_marked_content_retains_each_invocation() -> Result<()> {
     assert_eq!(sequences[2].form, sequences[1].form);
     assert_eq!(sequences[2].glyph_range, 1..2);
     assert!(sequences.iter().all(|sequence| sequence.complete));
+    Ok(())
+}
+
+#[test]
+fn form_box_intersects_caller_clip_and_preserves_raw_glyphs() -> Result<()> {
+    for (clip, expected) in [
+        (
+            "",
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::PartiallyOutside,
+                GlyphPathClipStatus::Outside,
+            ],
+        ),
+        (
+            "0 0 30 100 re W n",
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Outside,
+            ],
+        ),
+        ("0 0 0 100 re W n", [GlyphPathClipStatus::Outside; 3]),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let form = pdf.add_object(Stream::new(dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![40.into(), 40.into(), 0.into(), 0.into()],
+            "Matrix" => vec![2.into(), 0.into(), 0.into(), 2.into(), 0.into(), 0.into()],
+        }, b"q BT /F1 10 Tf 1 0 0 1 10 20 Tm (I) Tj 1 0 0 1 38 20 Tm (P) Tj 1 0 0 1 50 20 Tm (O) Tj ET Q".to_vec()));
+        let contents = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("q 1 0 0 1 10 20 cm {clip} /X Do Q BT /F1 10 Tf 1 0 0 1 150 20 Tm (C) Tj ET")
+                .into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            contents.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete());
+        let glyphs = outcome.document().items();
+        assert_eq!(mapped_text(glyphs), "IPOC");
+        assert_eq!(
+            glyphs[..3]
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(glyphs[3].path_clip_status, GlyphPathClipStatus::Unclipped);
+        assert_close(glyphs[0].baseline.x, 30.0);
+        assert_close(glyphs[0].baseline.y, 60.0);
+        assert_eq!(glyphs[0].raw_code, b"I");
+        assert_eq!(glyphs[0].provenance.content_stream.object_number, form.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn nested_form_box_cannot_expand_the_enclosing_form_clip() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let inner = pdf.add_object(Stream::new(dictionary! {
+        "Type" => "XObject", "Subtype" => "Form",
+        "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+    }, b"q 0 0 200 200 re W n BT /F1 10 Tf 1 0 0 1 10 20 Tm (I) Tj 1 0 0 1 58 20 Tm (P) Tj 1 0 0 1 80 20 Tm (O) Tj ET Q".to_vec()));
+    let outer = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 60.into(), 80.into()],
+        },
+        b"/Inner Do".to_vec(),
+    ));
+    let contents = pdf.add_object(Stream::new(dictionary! {}, b"/Outer Do /Inner Do".to_vec()));
+    install_page(
+        &mut pdf,
+        contents.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "Inner" => inner, "Outer" => outer },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert_eq!(mapped_text(outcome.document().items()), "IPOIPO");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|g| g.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::PartiallyOutside,
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Inside,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn unsupported_form_boxes_keep_an_extraction_gap() -> Result<()> {
+    for (bbox, matrix) in [
+        (None, [1, 0, 0, 1, 0, 0]),
+        (Some([0, 0, 40, 40]), [1, 1, 1, 1, 0, 0]),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let mut dict = dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "Matrix" => matrix.into_iter().map(Object::Integer).collect::<Vec<_>>(),
+        };
+        if let Some(bbox) = bbox {
+            dict.set(
+                "BBox",
+                bbox.into_iter().map(Object::Integer).collect::<Vec<_>>(),
+            );
+        }
+        let form = pdf.add_object(Stream::new(
+            dict,
+            b"BT /F1 10 Tf 10 20 Td (F) Tj ET".to_vec(),
+        ));
+        let contents = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 10 20 Td (A) Tj ET /X Do BT /F1 10 Tf 20 20 Td (B) Tj ET".to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            contents.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "X" => form },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(!outcome.is_complete());
+        assert_eq!(mapped_text(outcome.document().items()), "AB");
+        assert_eq!(outcome.issues().len(), 1);
+        assert!(matches!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::PageGlyphGap {
+                retained_before: 1,
+                ..
+            }
+        ));
+    }
     Ok(())
 }
 
@@ -1276,6 +2370,85 @@ fn keeps_form_graphics_stack_underflow_unresolved() {
 }
 
 #[test]
+fn failed_form_bounds_use_the_declared_box_and_full_transform() -> Result<()> {
+    for bbox in [Some([10, 20, 30, 40]), None, Some([30, 20, 10, 40])] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let mut dictionary = dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "Matrix" => vec![2.into(), 1.into(), 1.into(), 3.into(), 4.into(), 5.into()],
+        };
+        if let Some(bbox) = bbox {
+            dictionary.set(
+                "BBox",
+                bbox.into_iter().map(Object::Integer).collect::<Vec<_>>(),
+            );
+        }
+        let form = pdf.add_object(Stream::new(
+            dictionary,
+            b"0 0 1 1 re f UnsupportedOperator".to_vec(),
+        ));
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"0 0 2 2 re f BT /F1 10 Tf 10 20 Td (A) Tj ET \
+              q 0 1 -1 0 100 50 cm /X Do Q BT /F1 10 Tf 20 20 Td (B) Tj ET"
+                .to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+                "XObject" => dictionary! { "X" => form },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert_eq!(mapped_text(outcome.document().items()), "AB");
+        let bounded = bbox == Some([10, 20, 30, 40]);
+        assert_eq!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::PageGlyphGap {
+                page: PageId(0),
+                retained_before: 1,
+                paint_index: bounded.then_some(1),
+            }
+        );
+        let paints = outcome
+            .document()
+            .non_text_paint_bounds()
+            .expect("paint inventory");
+        assert_eq!(
+            paints.len(),
+            2,
+            "partial Form paints are replaced by the opaque invocation"
+        );
+        assert_eq!(paints[1].content_stream.object_number, content.0);
+        assert_eq!(paints[1].render_order, 1);
+        if bounded {
+            let bounds = paints[1].bounds.expect("finite transformed Form box");
+            for (actual, expected, lower) in [
+                (bounds.min.x, -55.0, true),
+                (bounds.min.y, 94.0, true),
+                (bounds.max.x, 25.0, false),
+                (bounds.max.y, 154.0, false),
+            ] {
+                assert!((actual - expected).abs() < 1e-9);
+                assert!(if lower {
+                    actual <= expected
+                } else {
+                    actual >= expected
+                });
+            }
+        } else {
+            assert!(paints[1].bounds.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
@@ -1309,9 +2482,131 @@ fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<(
     assert_eq!(outcome.issues().len(), 1);
     assert_eq!(
         outcome.issues()[0].scope(),
-        ExtractionScope::GlyphGap { retained_before: 1 }
+        ExtractionScope::PageGlyphGap {
+            page: PageId(0),
+            retained_before: 1,
+            paint_index: Some(0),
+        }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unresolved);
+    let before = outcome.document().items()[0].id;
+    let after = outcome.document().items()[1].id;
+    let store = pdfdelta_core::document::EvidenceStore::from_native(
+        "failed-form-gap".into(),
+        pdfdelta_core::document::BackendIdentity {
+            kind: pdfdelta_core::document::BackendKind::NativeParser,
+            name: "native".into(),
+            version: "fixture".into(),
+            profile: "raw".into(),
+            model: None,
+        },
+        vec![pdfdelta_core::document::PageEvidence {
+            page: PageId(0),
+            bounds: None,
+        }],
+        outcome,
+        Default::default(),
+    )?;
+    assert_eq!(
+        store.issues[0].boundary,
+        Some(pdfdelta_core::document::EvidenceBoundary::PageGlyphGap {
+            page: PageId(0),
+            retained_before: 1,
+            before: Some(before),
+            after: Some(after),
+            paint_index: Some(0),
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_form_at_a_page_edge_does_not_poison_other_page_inventories() -> Result<()> {
+    use pdfdelta_core::document::{
+        BackendIdentity, BackendKind, Channel, EvidenceBoundary, EvidenceStore, PageEvidence,
+    };
+
+    for prefix in ["", "BT /F1 10 Tf 10 20 Td (A) Tj ET "] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let form = pdf.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject", "Subtype" => "Form",
+                "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+            },
+            b"UnsupportedOperator".to_vec(),
+        ));
+        let failed = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{prefix}/Bad Do").into_bytes(),
+        ));
+        let unaffected = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 10 20 Td (B) Tj ET".to_vec(),
+        ));
+        install_plain_pages(
+            &mut pdf,
+            &[failed.into(), unaffected.into()],
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font }, "XObject" => dictionary! { "Bad" => form },
+            }),
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        let retained_before = usize::from(!prefix.is_empty());
+        assert_eq!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::PageGlyphGap {
+                page: PageId(0),
+                retained_before,
+                paint_index: Some(0),
+            }
+        );
+        let before = retained_before
+            .checked_sub(1)
+            .map(|i| outcome.document().items()[i].id);
+        let after = Some(outcome.document().items()[retained_before].id);
+        let mut store = EvidenceStore::from_native(
+            "page-edge-form".into(),
+            BackendIdentity {
+                kind: BackendKind::NativeParser,
+                name: "fixture".into(),
+                version: "1".into(),
+                profile: "raw".into(),
+                model: None,
+            },
+            vec![
+                PageEvidence {
+                    page: PageId(0),
+                    bounds: None,
+                },
+                PageEvidence {
+                    page: PageId(1),
+                    bounds: None,
+                },
+            ],
+            outcome,
+            Default::default(),
+        )?;
+        assert_eq!(
+            store.issues[0].boundary,
+            Some(EvidenceBoundary::PageGlyphGap {
+                page: PageId(0),
+                retained_before,
+                before,
+                after,
+                paint_index: Some(0),
+            })
+        );
+        assert!(!store.inventory_complete(None, Channel::Text));
+        assert!(!store.inventory_complete(Some(PageId(0)), Channel::Text));
+        assert!(store.inventory_complete(Some(PageId(1)), Channel::Text));
+        let roundtrip: EvidenceStore =
+            serde_json::from_slice(&serde_json::to_vec(&store).expect("serialize"))
+                .expect("deserialize");
+        roundtrip.validate(Default::default())?;
+        store.issues[0].page = Some(PageId(1));
+        assert!(store.validate(Default::default()).is_err());
+    }
     Ok(())
 }
 
@@ -1427,7 +2722,11 @@ fn enclosing_form_failure_discards_nested_gap_and_preserves_page_suffix() -> Res
     assert_eq!(outcome.issues().len(), 1);
     assert_eq!(
         outcome.issues()[0].scope(),
-        ExtractionScope::GlyphGap { retained_before: 1 }
+        ExtractionScope::PageGlyphGap {
+            page: PageId(0),
+            retained_before: 1,
+            paint_index: Some(0),
+        }
     );
     assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
     Ok(())
@@ -2396,6 +3695,125 @@ fn extracts_identity_v_glyphs_with_vertical_geometry_and_tj_adjustments() -> Res
 }
 
 #[test]
+fn extracts_unijis_cid_widths_and_surrogate_provenance() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let descendant = pdf.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "CIDFontType2", "BaseFont" => "FixtureJapan1",
+        "CIDSystemInfo" => dictionary! {
+            "Registry" => Object::string_literal("Adobe"),
+            "Ordering" => Object::string_literal("Japan1"), "Supplement" => 5,
+        },
+        "DW" => 1000,
+        "W" => vec![Object::Integer(34), Object::Array(vec![Object::Integer(500)]),
+                    Object::Integer(3531), Object::Array(vec![Object::Integer(900)])],
+        "FontDescriptor" => dictionary! { "Ascent" => 800, "Descent" => -200 },
+    });
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "Type0", "BaseFont" => "FixtureJapan1",
+        "Encoding" => "UniJIS-UTF16-H", "DescendantFonts" => vec![Object::Reference(descendant)],
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 100 Tm [<00415BCC> -250 <D884DF50>] TJ ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(mapped_text(glyphs), "A富\u{31350}");
+    assert_eq!(glyphs.len(), 3);
+    assert_eq!(glyphs[0].raw_code, [0, 0x41]);
+    assert_eq!(glyphs[1].raw_code, [0x5b, 0xcc]);
+    assert_eq!(glyphs[2].raw_code, [0xd8, 0x84, 0xdf, 0x50]);
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[1].baseline.x, 25.0);
+    assert_close(glyphs[2].baseline.x, 36.5);
+    assert_close(glyphs[2].baseline.y, 100.0);
+    assert_close(glyphs[0].bbox.max.x, 25.0);
+    assert_close(glyphs[1].bbox.max.x, 34.0);
+    Ok(())
+}
+
+#[test]
+fn extracts_per_cid_vertical_origins_and_advances_with_tj_adjustments() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          3 beginbfchar <0001> <0041> <0002> <0042> <0003> <0043> endbfchar"
+            .to_vec(),
+    ));
+    let font = identity_v_font(&mut pdf, cmap);
+    let descendant = pdf.objects[&font]
+        .as_dict()
+        .expect("fixture font")
+        .get(b"DescendantFonts")
+        .expect("fixture descendants")
+        .as_array()
+        .expect("fixture array")[0]
+        .as_reference()
+        .expect("fixture descendant");
+    pdf.objects
+        .get_mut(&descendant)
+        .expect("fixture descendant")
+        .as_dict_mut()
+        .expect("fixture dictionary")
+        .set(
+            "W2",
+            Object::Array(vec![
+                Object::Integer(1),
+                Object::Array(vec![
+                    Object::Integer(-900),
+                    Object::Integer(400),
+                    Object::Integer(850),
+                ]),
+                Object::Integer(2),
+                Object::Integer(2),
+                Object::Integer(-1200),
+                Object::Integer(600),
+                Object::Integer(900),
+            ]),
+        );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 100 Tm [<00010002> -250 <0003>] TJ ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+
+    assert_eq!(mapped_text(glyphs), "ABC");
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[0].baseline.y, 100.0);
+    assert_close(glyphs[1].baseline.y, 91.0);
+    assert_close(glyphs[2].baseline.y, 81.5);
+    assert_close(glyphs[0].direction.x, 0.0);
+    assert_close(glyphs[0].direction.y, -1.0);
+    assert_close(glyphs[0].bbox.min.x, 16.0);
+    assert_close(glyphs[0].bbox.max.x, 26.0);
+    assert_close(glyphs[0].bbox.min.y, 89.71);
+    assert_close(glyphs[0].bbox.max.y, 103.29);
+    assert_close(glyphs[1].bbox.min.x, 14.0);
+    assert_close(glyphs[1].bbox.min.y, 80.21);
+    assert_eq!(glyphs[2].raw_code, [0, 3]);
+    Ok(())
+}
+
+#[test]
 fn preserves_partial_identity_h_tounicode_gaps_with_descendant_font_identity() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap = pdf.add_object(Stream::new(
@@ -2555,6 +3973,68 @@ fn accepts_more_than_256_cid_width_entries() -> Result<()> {
         },
     )?;
     assert_eq!(mapped_text(document.items()), "A");
+    Ok(())
+}
+
+#[test]
+fn charges_shared_cid_widths_once_without_merging_font_mappings_or_provenance() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = |text: &str| {
+        Stream::new(dictionary! {}, format!(
+        "1 begincodespacerange <0000> <FFFF> endcodespacerange 1 beginbfchar <0001> <{text}> endbfchar"
+    ).into_bytes())
+    };
+    let first_map = pdf.add_object(cmap("0041"));
+    let second_map = pdf.add_object(cmap("0042"));
+    let first = identity_h_font(
+        &mut pdf,
+        first_map,
+        vec![Object::Integer(1), Object::Integer(2), Object::Integer(500)],
+    );
+    let mut second = pdf
+        .get_object(first)
+        .expect("fixture font")
+        .as_dict()
+        .expect("font dictionary")
+        .clone();
+    second.set("ToUnicode", second_map);
+    let second = pdf.add_object(second);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0001> Tj /F2 10 Tf <0001> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => first, "F2" => second },
+        }),
+        None,
+        None,
+    );
+    let document = extract(
+        pdf,
+        ExtractionLimits {
+            max_cid_width_entries: 2,
+            ..ExtractionLimits::default()
+        },
+    )?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+    assert_eq!(glyphs[0].text, DecodedText::Mapped("A".into()));
+    assert_eq!(glyphs[1].text, DecodedText::Mapped("B".into()));
+    assert_ne!(glyphs[0].font_id, glyphs[1].font_id);
+    assert_eq!(glyphs[0].raw_code, glyphs[1].raw_code);
+    assert_eq!(glyphs[0].baseline.x, 20.0);
+    assert_eq!(glyphs[1].baseline.x, 25.0);
+    assert_eq!(
+        glyphs[0].provenance.content_stream,
+        glyphs[1].provenance.content_stream
+    );
+    assert_ne!(
+        glyphs[0].provenance.operator_index,
+        glyphs[1].provenance.operator_index
+    );
     Ok(())
 }
 

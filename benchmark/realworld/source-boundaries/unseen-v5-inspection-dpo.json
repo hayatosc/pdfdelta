@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "binary_sha256": "0dd282b50c020ceb5a7bc521ebde97df3a20dc5f209f3e229c90028ddf06e2bf",
+  "attempts": [
+    {
+      "pair": "arxiv-dpo-v1-to-v2",
+      "side": "old",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-intervals-v54/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-old.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T16:22:06.818488+00:00",
+      "exit_code": 0,
+      "input_sha256": "304d57efe53317673ee5e93e1e1d990e3231fb4e24198aedd4829968e2c3cfbb",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-old.glyphs.txt",
+        "sha256": "9f89f9bede9216bfa0af1810a9002890bfcbca380474606ecd136774123c7b08"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-old.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "arxiv-dpo-v1-to-v2",
+      "side": "new",
+      "command": [
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-native-intervals-v54/pdfdelta",
+        "inspect",
+        "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-new.pdf",
+        "--glyphs",
+        "--color",
+        "never"
+      ],
+      "started_utc": "2026-09-13T16:22:07.225149+00:00",
+      "exit_code": 0,
+      "input_sha256": "a280dc33571ceb07c9ede5fc997f81162c5491080c9ef3f2abe13bfd0c713bfd",
+      "output": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-new.glyphs.txt",
+        "sha256": "3e4110994b973bd97e3af4a46a8497d7001f9a26893d4a55b1f526099fc62510"
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/source-boundaries-unseen-v5/arxiv-dpo-v1-to-v2-new.inspect.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}

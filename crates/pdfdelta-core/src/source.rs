@@ -29,6 +29,8 @@ pub struct ExtractionLimits {
     pub max_operand_nodes: usize,
     pub max_fonts: usize,
     pub max_cmap_entries: usize,
+    /// Retained CID metric entries across all fonts. Shared immutable horizontal
+    /// tables are charged once; font-local vertical overrides remain charged.
     pub max_cid_width_entries: usize,
     pub max_string_bytes: usize,
     pub max_vector_lines: usize,
@@ -177,6 +179,17 @@ pub enum ExtractionScope {
     GlyphGap {
         retained_before: usize,
     },
+    /// A failed invocation on a known page, retaining its extraction boundary.
+    /// Unlike [`Self::Page`], other glyphs on this page may remain available.
+    /// The page comes from the extractor, not from the neighboring glyphs.
+    PageGlyphGap {
+        page: PageId,
+        retained_before: usize,
+        /// Index of the opaque invocation's finite paint bound, when available.
+        /// This local bound does not make the page inventory complete.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        paint_index: Option<usize>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -283,6 +296,20 @@ impl ExtractionOutcome {
     pub fn new(document: Document<Glyph>, issues: Vec<ExtractionIssue>) -> Result<Self> {
         let mut pages = HashSet::with_capacity(issues.len());
         for issue in &issues {
+            if let ExtractionScope::PageGlyphGap {
+                page,
+                paint_index: Some(index),
+                ..
+            } = issue.scope()
+                && !document
+                    .non_text_paint_bounds()
+                    .and_then(|paints| paints.get(index))
+                    .is_some_and(|paint| paint.page == page && paint.bounds.is_some())
+            {
+                return Err(Error::InvalidConfiguration(
+                    "extraction gap references a missing or unbounded paint operation".into(),
+                ));
+            }
             match issue.scope() {
                 ExtractionScope::Document => {}
                 ExtractionScope::Page(page) if !pages.insert(page) => {
@@ -294,14 +321,15 @@ impl ExtractionOutcome {
                 ExtractionScope::Page(_) => {}
                 ExtractionScope::PageGap { .. } => {}
                 ExtractionScope::GlyphGap { retained_before }
-                    if retained_before > document.items().len() =>
-                {
+                | ExtractionScope::PageGlyphGap {
+                    retained_before, ..
+                } if retained_before > document.items().len() => {
                     return Err(Error::InvalidConfiguration(format!(
                         "extraction glyph gap boundary {retained_before} exceeds the retained glyph count {}",
                         document.items().len()
                     )));
                 }
-                ExtractionScope::GlyphGap { .. } => {}
+                ExtractionScope::GlyphGap { .. } | ExtractionScope::PageGlyphGap { .. } => {}
             }
         }
         if let Some(glyph) = document

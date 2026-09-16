@@ -1,7 +1,0 @@
-{
-  "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
-  "set": "holdout",
-  "annotation": "none",
-  "status": "not_run",
-  "reason": "prioritized crash-fixed annotated comparison after all 12 original annotated pairs completed"
-}

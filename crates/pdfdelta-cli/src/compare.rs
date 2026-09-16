@@ -117,6 +117,12 @@ fn compare_documents_inner<W: Write>(
     let report_output = command.options.output_path;
     let json_output = command.options.json_path;
     let trace_output = command.trace_path;
+    if let Some(directory) = command.options.review_dir {
+        crate::review::validate_destination(
+            directory,
+            &[json_output, report_output, trace_output],
+        )?;
+    }
     for (left, right, label, left_noun, right_noun) in [
         (
             trace_output,

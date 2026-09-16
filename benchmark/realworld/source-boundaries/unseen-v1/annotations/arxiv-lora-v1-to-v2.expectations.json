@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "arxiv-lora-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "b5d7b431e2b58d773f5146330c9374c258bb8db806936b0f7e0222b82ab5d273",
+  "body_eligible": true,
+  "reason": "The abstract revises dominant/important, conventional/full fine-tuning, hardware/GPU requirements, supported models and released implementations."
+}

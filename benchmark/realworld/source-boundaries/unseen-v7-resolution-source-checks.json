@@ -1,0 +1,294 @@
+{
+  "version": 1,
+  "comparison_performed": false,
+  "checks": [
+    {
+      "pair": "nist-107-original-to-r1",
+      "selector": "body-old-1",
+      "glyph_count": 582,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-107-original-to-r1",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-107-original-to-r1",
+      "selector": "body-new-1",
+      "glyph_count": 551,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-107-original-to-r1",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "selector": "body-old-1",
+      "glyph_count": 229,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "selector": "body-new-1",
+      "glyph_count": 253,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-108-original-to-r1",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "selector": "body-old-1",
+      "glyph_count": 476,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "selector": "control-old",
+      "glyph_count": 12,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "selector": "body-new-1",
+      "glyph_count": 452,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "nist-133-r1-to-r2",
+      "selector": "control-new",
+      "glyph_count": 12,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "selector": "body-old-1",
+      "glyph_count": 814,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "selector": "control-old",
+      "glyph_count": 12,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "selector": "body-new-1",
+      "glyph_count": 681,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-eprivacy-scope-v1-to-v2",
+      "selector": "control-new",
+      "glyph_count": 12,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "selector": "body-old-1",
+      "glyph_count": 345,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "selector": "control-old",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "selector": "body-new-1",
+      "glyph_count": 344,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "edpb-facial-recognition-v1-to-v2",
+      "selector": "control-new",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "selector": "body-old-1",
+      "glyph_count": 617,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "selector": "body-new-1",
+      "glyph_count": 606,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-efficientnet-v1-to-v5",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "selector": "body-old-1",
+      "glyph_count": 1411,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "selector": "control-old",
+      "glyph_count": 18,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "selector": "body-new-1",
+      "glyph_count": 1414,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-convnext-v1-to-v2",
+      "selector": "control-new",
+      "glyph_count": 18,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "selector": "body-old-1",
+      "glyph_count": 420,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "selector": "body-new-1",
+      "glyph_count": 419,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "arxiv-mlp-mixer-v1-to-v4",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "selector": "body-old-1",
+      "glyph_count": 213,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "selector": "control-old",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "selector": "body-new-1",
+      "glyph_count": 275,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "faa-fsb-53b-to-53c",
+      "selector": "control-new",
+      "glyph_count": 17,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "selector": "body-old-1",
+      "glyph_count": 89,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "selector": "control-old",
+      "glyph_count": 5,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "selector": "body-new-1",
+      "glyph_count": 80,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "mhlw-working-time-2001-to-2017",
+      "selector": "control-new",
+      "glyph_count": 5,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "selector": "body-old-1",
+      "glyph_count": 400,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "selector": "body-new-1",
+      "glyph_count": 484,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-message-format-2822-to-5322",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "selector": "body-old-1",
+      "glyph_count": 554,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "selector": "control-old",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "selector": "body-new-1",
+      "glyph_count": 445,
+      "raw_glyph_order_matches": true
+    },
+    {
+      "pair": "ietf-dhcp-1541-to-2131",
+      "selector": "control-new",
+      "glyph_count": 8,
+      "raw_glyph_order_matches": true
+    }
+  ]
+}

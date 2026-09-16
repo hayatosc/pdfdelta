@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "prior_input_manifests": [
+    {
+      "path": "benchmark/realworld/next/development/inputs.json",
+      "sha256": "ccfc3fab3fe4659f90259c1a05f29e05a1f20ee48b677db63de25958a84d2f60"
+    },
+    {
+      "path": "benchmark/realworld/next/blind/inputs.json",
+      "sha256": "336016da05111d39ac42000e6d57806d2b2e45550ffa283c445d2ab274f57cc6"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v1/inputs.json",
+      "sha256": "8d1f6a711d6b630a3e20f4c7954d8d94207ce1ba5f97e37df04872d1bc9babc5"
+    },
+    {
+      "path": "benchmark/realworld/source-boundaries/unseen-v2/inputs.json",
+      "sha256": "23a3351a458fc9380a50945d0cf9a39fa82bbd20cf0c5c819aa9fde0a24ed41d"
+    }
+  ],
+  "current_inputs": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v3/inputs.json",
+    "sha256": "2899be8dfc75b21cbee4c78fcdb9611ea1d317be2125f227c1e122244f1349fe"
+  },
+  "producer_grouping": {
+    "path": "benchmark/realworld/source-boundaries/unseen-v3-producer-grouping.json",
+    "sha256": "cd369c698ac9729cd965cfe6f374b1e03cffcd4a9c9ff87b41aa7219db5d992f"
+  },
+  "duplicate_prior_ids_or_pdf_hashes": false,
+  "all_target_literal_references_and_extents_unchanged_after_grouping": true,
+  "initial_registration_commit": "5af5e3a",
+  "final_registration_commit": "5ee8958",
+  "limitations": "Series/edition/translation equivalence is additionally reviewed in the registration manifests and intent exclusion ledger; distinct hashes alone do not prove novelty."
+}

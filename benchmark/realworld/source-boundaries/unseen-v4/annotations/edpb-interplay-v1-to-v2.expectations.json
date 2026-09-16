@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "edpb-interplay-v1-to-v2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "e585848c4f91735f967b069cab2ef2415c8e89df74bc6cbbd300d24cafe0b64d",
+  "body_eligible": true,
+  "reason": "The second Introduction paragraph changes the explanation of protection outside the EU and adds international organisations. The first body paragraph has no substantive prose change. Old raw numbering is retained; the new visible numbering has no glyph in this raw contiguous text range and is not certified absent."
+}

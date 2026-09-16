@@ -2875,6 +2875,7 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
 
         let changed = directory.join("changed-image.pdf");
         let changed_report = directory.join("changed-image.json");
+        let review = directory.join("image-review");
         pdf.get_object_mut(image)
             .expect("image object")
             .as_stream_mut()
@@ -2887,6 +2888,8 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
             .arg(&changed)
             .arg("--json")
             .arg(&changed_report)
+            .arg("--review")
+            .arg(&review)
             .output()
             .expect("visual comparison");
         assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
@@ -2896,10 +2899,40 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
         assert_eq!(report["old"]["native_glyphs"], 0);
         assert_eq!(report["inferred_changes"], 1, "{report}");
         assert_eq!(report["typed_changes"], 0);
-        let pair = &report["comparison"]["scopes"][0]["result"]["comparisons"][0];
-        assert_eq!(pair["operation"]["kind"], "page_rendering_changed");
-        assert_eq!(pair["pixel_mask"]["changed_pixels"], 72 * 72);
-        assert!(pair["text_mask"].is_null());
+        let pair = &report["image_diff"]["comparison"]["changes"][0];
+        assert_eq!(pair["kind"], "changed");
+        assert_eq!(report["image_diff"]["old"]["images"][0]["width"], 1);
+        assert_ne!(
+            report["image_diff"]["old"]["images"][0]["sha256"],
+            report["image_diff"]["new"]["images"][0]["sha256"]
+        );
+        assert!(pair.get("pixel_mask").is_none());
+        let html = fs::read_to_string(review.join("index.html")).expect("visual review");
+        assert!(html.contains("category category-c"));
+        assert!(!html.contains("category category-a"));
+        assert_review_pointers(&html, &report);
+        for (side, color) in [("old", [255, 0, 0]), ("new", [0, 0, 255])] {
+            let png = fs::read(review.join(format!("{side}-region-0.png"))).expect("page preview");
+            let mut decoder = png::Decoder::new(std::io::Cursor::new(png))
+                .read_info()
+                .expect("PNG header");
+            let mut pixels = vec![
+                0;
+                decoder
+                    .output_buffer_size()
+                    .expect("bounded PNG dimensions")
+            ];
+            let info = decoder.next_frame(&mut pixels).expect("PNG samples");
+            assert_eq!((info.width, info.height), (72, 72));
+            assert_eq!(info.color_type, png::ColorType::Rgb);
+            assert!(
+                pixels[..info.buffer_size()]
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .all(|pixel| *pixel == color)
+            );
+        }
 
         // Equal dimensions and page counts cannot substitute for source identity.
         let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
@@ -3162,6 +3195,7 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
     let old = directory.join("old-forms.pdf");
     let new = directory.join("new-forms.pdf");
     let report = directory.join("forms.json");
+    let review = directory.join("forms-review");
     fn fields(path: &Path, values: &[(&str, &str)]) {
         write_pdf(
             path,
@@ -3189,6 +3223,8 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
         .arg(&new)
         .args(["--channels", "forms", "--json"])
         .arg(&report)
+        .arg("--review")
+        .arg(&review)
         .output()
         .expect("typed form comparison");
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
@@ -3210,7 +3246,7 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
     );
     assert_eq!(
         report["comparison"]["scopes"][0]["result"]["candidates"]["examined_pairs"],
-        4
+        2
     );
     assert_eq!(
         report["comparison"]["scopes"][0]["result"]["matching"]["channels"]["text"],
@@ -3223,6 +3259,76 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
     assert_eq!(pairs[0]["operation"]["new"]["value"], "20");
     assert_eq!(pairs[1]["operation"]["old"]["value"], "20");
     assert_eq!(pairs[1]["operation"]["new"]["value"], "100");
+    let html = fs::read_to_string(review.join("index.html")).expect("field review");
+    assert_eq!(html.matches("category category-a").count(), 2);
+    assert!(html.contains("no retained page locator"));
+    assert_review_pointers(&html, &report);
+}
+
+#[test]
+fn native_field_presence_reaches_cli_counts_and_coverage_without_character_masks() {
+    let directory = TestDirectory::new();
+    let old = directory.join("empty-fields.pdf");
+    let new = directory.join("added-field.pdf");
+    for (path, added) in [(&old, false), (&new, true)] {
+        write_pdf(path, &["Retained background"]);
+        let mut pdf = Document::load(path).expect("background");
+        let fields = if added {
+            vec![Object::Reference(pdf.add_object(dictionary! { "FT" => "Tx", "T" => Object::string_literal("added"), "V" => Object::string_literal("Stored value") }))]
+        } else {
+            Vec::new()
+        };
+        let root = pdf
+            .trailer
+            .get(b"Root")
+            .and_then(Object::as_reference)
+            .expect("root");
+        pdf.get_object_mut(root)
+            .and_then(Object::as_dict_mut)
+            .expect("catalog")
+            .set("AcroForm", dictionary! { "Fields" => fields });
+        pdf.save(path).expect("form PDF");
+    }
+    for (old, new, kind, presence) in [
+        (&old, &new, "inserted", "new_presence_sources"),
+        (&new, &old, "removed", "old_presence_sources"),
+    ] {
+        let report_path = directory.join(&format!("presence-{kind}.json"));
+        let review = directory.join(&format!("presence-{kind}-review"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .arg(old)
+            .arg(new)
+            .args(["--channels", "forms", "--json"])
+            .arg(&report_path)
+            .arg("--review")
+            .arg(&review)
+            .output()
+            .expect("field presence CLI");
+        assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("Keyed Field"), "{text}");
+        assert!(text.contains("no character mask"), "{text}");
+        assert!(!text.contains("Mandatory changed positions:"), "{text}");
+        let report: Value =
+            serde_json::from_slice(&fs::read(&report_path).expect("report")).expect("JSON");
+        assert_eq!(report["comparison_complete"], true);
+        assert_eq!(report["typed_changes"], 1);
+        assert_eq!(report["coverage"][0][presence], 1);
+        let operations = report["comparison"]["key_presence"]["scoped"]["operations"]
+            .as_array()
+            .expect("operations");
+        assert_eq!(operations.len(), 1);
+        assert_eq!(operations[0]["kind"], kind);
+        let html = fs::read_to_string(review.join("index.html")).expect("membership review");
+        assert!(html.contains("Only identity evidence is owned"));
+        assert_review_pointers(&html, &report);
+        assert!(
+            report["comparison"]["scopes"][0]["result"]["comparisons"]
+                .as_array()
+                .expect("comparisons")
+                .is_empty()
+        );
+    }
 }
 
 #[test]
@@ -3535,12 +3641,15 @@ fn form_widget_pixels_and_saved_values_compare_independently() {
         };
         for channels in ["forms", "forms,visual"] {
             let report_path = directory.join(&format!("widget-{index}-{channels}.json"));
+            let review = directory.join(&format!("widget-review-{index}-{channels}"));
             let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
                 .args(["--channels", channels])
                 .arg(baseline)
                 .arg(input)
                 .arg("--json")
                 .arg(&report_path)
+                .arg("--review")
+                .arg(&review)
                 .output()
                 .expect("widget comparison");
             assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
@@ -3556,6 +3665,11 @@ fn form_widget_pixels_and_saved_values_compare_independently() {
                 "{report}"
             );
             assert_eq!(report["inferred_changes"], 0, "{report}");
+            if matches!(index, 1 | 2 | 3 | 9) {
+                let html = fs::read_to_string(review.join("index.html")).expect("widget review");
+                assert!(html.contains("old.pdf#page=1") && html.contains("new.pdf#page=1"));
+                assert_review_pointers(&html, &report);
+            }
             assert!(
                 !report["old"]["form_fields"][0]["value"]["widgets"][0]["crop"].is_null(),
                 "{report}"
@@ -3669,6 +3783,159 @@ fn inspect(document: &Path, extra_arguments: &[&str]) -> Output {
         .expect("pdfdelta inspect should run")
 }
 
+fn assert_review_pointers(html: &str, report: &Value) {
+    let mut count = 0;
+    for suffix in html.split("comparison.json pointer: <code>").skip(1) {
+        let pointer = suffix.split("</code>").next().expect("evidence pointer");
+        assert!(
+            report.pointer(pointer).is_some(),
+            "missing report pointer {pointer}"
+        );
+        count += 1;
+    }
+    assert!(count > 0, "review should contain evidence-backed units");
+}
+
+#[test]
+fn static_review_keeps_ambiguous_ranges_nonowning_and_preserves_source_bytes() {
+    use sha2::{Digest, Sha256};
+    use std::io::Write as _;
+
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["Start boundary.", "a", "End boundary."]);
+    write_pdf(&new, &["Start boundary.", "aa", "End boundary."]);
+    let baseline = directory.join("baseline.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&old)
+        .arg(&new)
+        .args(["--channels", "text", "--quiet", "--json"])
+        .arg(&baseline)
+        .output()
+        .expect("baseline comparison");
+    let baseline_exit = output.status.code();
+    assert!(
+        matches!(baseline_exit, Some(0 | 1 | 3)),
+        "{}",
+        stderr(&output)
+    );
+
+    let old_bytes = fs::read(&old).expect("source bytes");
+    let review = directory.join("review");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("-")
+        .arg(&new)
+        .args(["--channels", "text", "--quiet", "--review"])
+        .arg(&review)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("review from stdin");
+    child
+        .stdin
+        .take()
+        .expect("input pipe")
+        .write_all(&old_bytes)
+        .expect("PDF input");
+    let output = child.wait_with_output().expect("review process");
+    assert_eq!(output.status.code(), baseline_exit, "{}", stderr(&output));
+    assert_eq!(
+        fs::read(review.join("old.pdf")).expect("old copy"),
+        old_bytes
+    );
+    assert_eq!(
+        fs::read(review.join("new.pdf")).expect("new copy"),
+        fs::read(&new).expect("new source")
+    );
+    let mut actual: Value = serde_json::from_slice(
+        &fs::read(review.join("comparison.json")).expect("comparison artifact"),
+    )
+    .expect("comparison JSON");
+    let html = fs::read_to_string(review.join("index.html")).expect("HTML");
+    assert_review_pointers(&html, &actual);
+    assert_eq!(actual["scope_content_changes"], 1);
+    assert!(html.contains("category category-b"));
+    assert!(
+        !html.contains("<mark"),
+        "a to aa has no uniquely changed position"
+    );
+    assert!(html.contains("old.pdf#page=1") && html.contains("new.pdf#page=1"));
+    let mut expected: Value = serde_json::from_slice(&fs::read(baseline).expect("baseline report"))
+        .expect("baseline JSON");
+    actual
+        .as_object_mut()
+        .expect("object")
+        .remove("comparison_wall_time_ms");
+    expected
+        .as_object_mut()
+        .expect("object")
+        .remove("comparison_wall_time_ms");
+    assert_eq!(
+        actual, expected,
+        "review generation must preserve all comparison contracts"
+    );
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(review.join("manifest.json")).expect("manifest"))
+            .expect("manifest JSON");
+    for file in manifest["files"].as_array().expect("artifacts") {
+        let bytes = fs::read(review.join(file["name"].as_str().expect("filename")))
+            .expect("artifact bytes");
+        assert_eq!(file["bytes"].as_u64(), Some(bytes.len() as u64));
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        assert_eq!(file["sha256"], hash);
+    }
+    let sources: Value =
+        serde_json::from_slice(&fs::read(review.join("sources.json")).expect("sources"))
+            .expect("source JSON");
+    assert_eq!(
+        sources["old"]["summary"]["revision"],
+        actual["old"]["revision"]
+    );
+    assert!(
+        sources["old"]["native"]["items"][0]
+            .get("provenance")
+            .is_some()
+    );
+}
+
+#[test]
+fn static_review_refuses_existing_destinations_and_nested_report_collisions() {
+    let directory = TestDirectory::new();
+    let input = directory.join("source.pdf");
+    write_pdf(&input, &["Retained source"]);
+    let original = fs::read(&input).expect("source");
+    let review = directory.join("review");
+    let nested = review.join("comparison.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&input)
+        .arg(&input)
+        .arg("--review")
+        .arg(&review)
+        .arg("--json")
+        .arg(&nested)
+        .output()
+        .expect("collision check");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(!review.exists());
+    for destination in [&input, &directory.0] {
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .arg(&input)
+            .arg(&input)
+            .arg("--review")
+            .arg(destination)
+            .output()
+            .expect("existing destination check");
+        assert_eq!(output.status.code(), Some(2));
+        assert!(stderr(&output).contains("refusing existing review directory"));
+    }
+    assert_eq!(fs::read(&input).expect("preserved input"), original);
+}
+
 fn write_pdf(path: &Path, lines: &[&str]) {
     write_pdf_pages(path, &[lines], 30);
 }
@@ -3676,35 +3943,38 @@ fn write_pdf(path: &Path, lines: &[&str]) {
 #[test]
 fn selected_text_does_not_prove_absence_of_outlined_text() {
     let directory = TestDirectory::new();
-    let input = directory.join("outlined.pdf");
-    write_pdf(&input, &["temporary native content"]);
-    let mut pdf = Document::load(&input).expect("load fixture");
-    let page = pdf.get_pages()[&1];
-    let content = pdf.add_object(Stream::new(
-        dictionary! {},
-        b"20 20 m 30 25 l 30 70 l 20 70 l 40 70 l S".to_vec(),
-    ));
-    pdf.get_object_mut(page)
-        .expect("page")
-        .as_dict_mut()
-        .expect("page dictionary")
-        .set("Contents", content);
-    pdf.save(&input).expect("save outlined fixture");
-    let report_path = directory.join("outlined.json");
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .args(["--channels", "text"])
-        .arg(&input)
-        .arg(&input)
-        .arg("--json")
-        .arg(&report_path)
-        .output()
-        .expect("selected-text comparison");
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let report: Value =
-        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
-    assert_eq!(report["old"]["native_glyphs"], 0);
-    assert_eq!(report["comparison_complete"], false);
-    assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
+    for artifact in [false, true] {
+        let input = directory.join(&format!("outlined-{artifact}.pdf"));
+        write_pdf(&input, &["temporary native content"]);
+        let mut pdf = Document::load(&input).expect("load fixture");
+        let page = pdf.get_pages()[&1];
+        let mut program = b"20 20 m 30 25 l 30 70 l 20 70 l 40 70 l S".to_vec();
+        if artifact {
+            program = [b"/Artifact BMC ".as_slice(), &program, b" EMC"].concat();
+        }
+        let content = pdf.add_object(Stream::new(dictionary! {}, program));
+        pdf.get_object_mut(page)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary")
+            .set("Contents", content);
+        pdf.save(&input).expect("save outlined fixture");
+        let report_path = directory.join(&format!("outlined-{artifact}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", "text"])
+            .arg(&input)
+            .arg(&input)
+            .arg("--json")
+            .arg(&report_path)
+            .output()
+            .expect("selected-text comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report: Value =
+            serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
+        assert_eq!(report["old"]["native_glyphs"], 0);
+        assert_eq!(report["comparison_complete"], false);
+        assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
+    }
 
     let old = directory.join("mixed-old.pdf");
     let new = directory.join("mixed-new.pdf");

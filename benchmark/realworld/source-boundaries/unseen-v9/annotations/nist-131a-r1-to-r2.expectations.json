@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "pair": "nist-131a-r1-to-r2",
+  "frozen_before_comparison": true,
+  "annotation_status": "resolved",
+  "annotation_sha256": "636e343a4802aef79f264245aa54e267c60c2c2ece3dc589b76e4a04844314a3",
+  "body_eligible": true,
+  "reason": "Complete Abstract; the referenced key-management publication title is added and the Revision 1 qualifier removed. All source spaces and line-end punctuation remain."
+}

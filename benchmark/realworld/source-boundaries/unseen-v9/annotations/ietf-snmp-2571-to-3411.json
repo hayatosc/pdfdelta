@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pair": "ietf-snmp-2571-to-3411",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1065,
+          "end": 1529
+        }
+      },
+      "literal_quote": "This document describes an architecture for describing SNMP   Management Frameworks.  The architecture is designed to be modular to   allow the evolution of the SNMP protocol standards over time.  The   major portions of the architecture are an SNMP engine containing a   Message Processing Subsystem, a Security Subsystem and an Access   Control Subsystem, and possibly multiple SNMP applications which   provide specific functional processing of management data.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1054,
+          "end": 1062
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1083,
+          "end": 1621
+        }
+      },
+      "literal_quote": "This document describes an architecture for describing Simple Network   Management Protocol (SNMP) Management Frameworks.  The architecture   is designed to be modular to allow the evolution of the SNMP protocol   standards over time.  The major portions of the architecture are an   SNMP engine containing a Message Processing Subsystem, a Security   Subsystem and an Access Control Subsystem, and possibly multiple SNMP   applications which provide specific functional processing of   management data.  This document obsoletes RFC 2571.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 0,
+        "block": 0,
+        "range": {
+          "start": 1072,
+          "end": 1080
+        }
+      },
+      "literal_quote": "Abstract",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "56a24a53052e7bd353671eee3f5ec27ba616ef02157f2ba639243123e6bbeae6",
+  "new_sha256": "c70f4e50e3be53fddef62a284c6e0e7a835be2b51375e376898fedc828dff3a3"
+}

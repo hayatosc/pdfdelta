@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "pair": "edpb-codes-transfers-v1-to-v2",
+  "source_view": "paint_order_raw",
+  "normalization": "none",
+  "selectors": [
+    {
+      "id": "body-old-1",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "2.These guidelines should further act as a clear reference for all SAs, the Board and assist the Commissionin evaluating codes in a consistent manner and to streamline the procedures involved in theassessment process. They should also provide greater transparency, ensuring that code owners whointend to seek approval for a code of conduct intended to be used as a tool for transfers (“code(s)intended for transfers” hereafter) are fully aware of the process and understand the formalrequirements and the appropriate thresholds required for setting up such a code of conduct.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-old",
+      "side": "old",
+      "locator": {
+        "page": 2
+      },
+      "literal_quote": "AIM OF THE GUIDELINES",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "body-new-1",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "2. These guidelines should further act as a clear reference for all SAs, the Board and assist the European Commission (hereinafter “Commission”) in evaluating codes in a consistent manner and to streamline the procedures involved in the assessment process. They should also provide greater transparency, ensuring that code owners who intend to seek approval for a code of conduct intended to be used as a tool for transfers (“code(s) intended for transfers” hereafter) are fully aware of the process and understand the formal requirements and the appropriate thresholds required for setting up such a code of conduct.",
+      "position_unit": "unicode_scalar"
+    },
+    {
+      "id": "control-new",
+      "side": "new",
+      "locator": {
+        "page": 4
+      },
+      "literal_quote": "AIM OF THE GUIDELINES",
+      "position_unit": "unicode_scalar"
+    }
+  ],
+  "old_sha256": "05c0ea4f52e11ba570054559074f24a80beed6f16d8f45ca3028bee27dc3fb5b",
+  "new_sha256": "7fe8c52088c7ce0abd0d569e6e9702d3769582cc24ab4bb626f3318378d61ffe"
+}
