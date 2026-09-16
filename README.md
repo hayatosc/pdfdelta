@@ -12,7 +12,7 @@ That noise is especially costly when reviewing contracts, policies, reports, and
 
 ## Status
 
-The default command now selects text, visual, form, and relationship channels and writes version 2 JSON reports. A missing or unexamined channel keeps the comparison incomplete, including image-only PDFs with no native text. On Linux, the CLI retains page rasters using the Rust hayro renderer and compares them through the common graph and solver. OCR is not implemented. Saved AcroForm text, choice, and button values are extracted through the neutral PDF facade and compared by field name; malformed values remain unresolved with their available raw evidence. General stored-value/display agreement and XFA remain unresolved.
+The default command now selects text, visual, form, and relationship channels and writes version 2 JSON reports. A missing or unexamined channel keeps the comparison incomplete, including image-only PDFs with no native text. The CLI compares embedded images using decoded pixel hashes and retains page rasters for review and form appearances. Production OCR is not implemented; an isolated multilingual OCR experiment remains under the benchmark tools. Saved AcroForm text, choice, and button values are extracted through the neutral PDF facade and compared by field name; malformed values remain unresolved with their available raw evidence. General stored-value/display agreement and XFA remain unresolved.
 
 Button fields retain declared widget appearance-state names and widget object references alongside their saved values in the JSON `form_fields` evidence. Without an export-option mapping, a saved selection that disagrees with the declared active widget states produces a field-local unresolved issue; independent fields still compare. Radio groups may contain inactive `Off` widgets. Missing, invalid, or over-budget states remain unknown. This checks PDF declarations, not rendered appearance: export-option interpretation and state-selected appearance rendering remain pending. The [W3C form-field example](https://www.w3.org/WAI/WCAG22/Techniques/pdf/PDF12) illustrates the separate field-value and widget-appearance declarations.
 
@@ -87,9 +87,9 @@ does not establish arbitrary table semantics, merged-cell interpretation, or
 complete relationship coverage; a first-row/first-column header interpretation
 can still be wrong even when the grid geometry is clear.
 
-The implementation uses Rust and makes no external analysis API calls. Rendering runs in a child of the same executable, with a 2 GiB address-space limit, five-second page deadline, thirty-second document deadline, eight-million-pixel page limit, and 256 MiB retained RGB budget per input. Pages render at 72 dpi against white; backend identity and rendering profile are retained. Native and rendered page object identities, page counts, and dimensions must agree. Other platforms and password-assisted rendering currently remain unsupported. Renderer warnings, incomplete annotation support, and unknown content-region interpretation keep visual coverage incomplete even when pixels are available. Pixel changes are inferred page-rendering differences, not recognized text or established content changes.
+The implementation uses Rust and makes no external analysis API calls. Rendering runs in a child of the same executable, with a 2 GiB address-space limit, five-second page deadline, thirty-second document deadline, eight-million-pixel page limit, and 256 MiB retained RGB budget per input. Pages render at 72 dpi against white; backend identity and rendering profile are retained. Native and rendered page object identities, page counts, and dimensions must agree. The bounded workers support Linux and macOS; other platforms and password-assisted rendering currently remain unsupported. Renderer warnings, incomplete annotation support, and unknown content-region interpretation keep visual coverage incomplete even when pixels are available. Page rasters are review context; the CLI no longer emits full-page pixel masks as a second diff of native text. Form appearance comparisons retain their existing region masks.
 
-Image-only and scanned pages retain rendered pixels for visual comparison. The CLI does not recognize their text, load recognition models, or check rendered text against saved form values. Their text coverage remains incomplete. Native PDF text and stored form values continue to compare independently.
+Image-only and scanned pages retain rendered pixels for review and expose coarse image changes through pixel hashes. The CLI does not recognize their text, load recognition models, or check rendered text against saved form values. Their text coverage remains incomplete. Native PDF text and stored form values continue to compare independently.
 
 Unkeyed paragraphs and other ordered text roles can now propose nonidentical one-to-one correspondences using literal trigram similarity. These correspondences remain inferred even when their local character masks are exact. The source-only optimum protects mandatory source matches before inferred candidates are enumerated; existing inferred tie-breaks cannot freeze a source alignment. Text-search truncation retains independent field changes and protected literal anchors. General nonexact split/merge discovery remains pending.
 
@@ -103,7 +103,37 @@ The CLI imports bounded native structure trees, with roles, parent membership, d
 
 The native graph and retained text adapter share a one-sided catalog/form footer provider. It proposes source-backed terminal-line views, including geometry-supported joins of split blocks; page numbers are metadata rather than identity keys. Footer candidates enter the common solver alongside other providers. This bounded document-family rule does not establish general footer recognition.
 
-Rendered regions with the same rendering profile and sample grid can propose visual correspondences regardless of page number. Their similarity scores select candidates only: resulting pixel changes are reported separately as `inferred_changes`, do not identify changed characters, and do not establish complete visual coverage. The versioned solver objective prioritizes source-backed scoped identities, then literal content, then inferred supplier scores. Literal fragments cannot displace a competing keyed item merely by matching more unchanged pieces. Repeated images may remain ambiguous. If visual candidate search stops at its resource limit, independent field comparisons can still proceed.
+The core API retains same-grid rendered-region comparison for programmatic callers. The CLI visual channel instead reports coarse embedded-image changes as described below. The versioned solver objective prioritizes source-backed scoped identities, then literal content, then inferred supplier scores. Literal fragments cannot displace a competing keyed item merely by matching more unchanged pieces. Repeated images may remain ambiguous. If visual candidate search stops at its resource limit, independent field comparisons can still proceed.
+
+### Coarse image diff
+
+The default comparison and `--channels text,visual` report image changes alongside
+native text changes. Use `--channels visual` to select image comparison alone.
+Images are decoded at their original resolution and hashed with SHA-256 over
+width, height and normalized RGBA8 samples. Lossless compression or PDF object
+renumbering alone does not change the hash. Lossy recompression can change it.
+
+Equal hashes are matched as an occurrence multiset, independent of page and draw
+order. Remaining images at a unique identical page/placement are reported as
+`changed`; this correspondence is inferred. Residual images become `added` or
+`removed` only when both acquired image inventories are complete and no unmatched
+rival remains. Ambiguous replacements and decoding failures stay unresolved.
+
+JSON `image_diff` contains old/new image inventories, object references when
+available, page placements, hashes, unchanged counts, change indices and unresolved
+indices. Its `comparison.complete` describes only this intrinsic-image contract,
+not full visual or text coverage. Image changes contribute to `inferred_changes`
+and appear in terminal, text and static review reports without pixel masks or OCR.
+The existing document completeness and exit-code contract remains unchanged.
+
+The hayro image interpreter runs in a bounded child process: 2 GiB address space,
+25 CPU seconds, 30 seconds wall time, 10,000 occurrences, eight million pixels per
+image, 64 million base-image pixels per input and an 8 MiB response ceiling. Failed
+workers do not turn missing images into additions/deletions. The initial provider
+supports raster images, including Form XObjects and intrinsic alpha masks; stencil
+images, pattern/Type3 image discovery, annotation images and graphics soft masks
+remain unresolved. Placement changes, clipping, blend effects and vector graphics
+are outside intrinsic pixel equality. Image text remains unrecognized.
 
 The default human-readable report includes changed values/text, field or region labels, page numbers, inferred correspondence labels, mask counts, and unresolved reasons. Long values and report entry counts are bounded with explicit truncation markers; control characters are escaped for terminal output. Full values, masks, and dependency records remain in JSON.
 

@@ -143,6 +143,9 @@ impl From<ComparisonChannel> for pdfdelta_core::document::Channel {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Internal bounded image-hashing process; consumes PDF bytes on standard input.
+    #[command(hide = true)]
+    HashImages,
     /// Internal bounded native acquisition process; consumes framed PDF bytes.
     #[command(hide = true)]
     AcquireNative,

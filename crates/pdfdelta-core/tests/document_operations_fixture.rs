@@ -632,6 +632,7 @@ mod visual_supplier {
                 DocumentComparisonLimits {
                     visual: VisualCandidateLimits {
                         max_pixel_comparisons: 0,
+                        ..VisualCandidateLimits::default()
                     },
                     ..DocumentComparisonLimits::default()
                 },

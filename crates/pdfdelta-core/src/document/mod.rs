@@ -15,6 +15,7 @@ mod form_readings;
 mod forms;
 mod graph;
 mod groups;
+pub mod image_diff;
 mod key_presence;
 mod matching;
 mod native;

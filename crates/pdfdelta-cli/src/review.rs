@@ -143,6 +143,7 @@ pub(super) fn write(
     directory: &Path,
     report: &impl Serialize,
     comparison: &DocumentViewComparison,
+    images: Option<&crate::evidence_compare::ImageReport>,
     complete: bool,
     old: Input<'_>,
     new: Input<'_>,
@@ -225,7 +226,7 @@ pub(super) fn write(
             })).map_err(io::Error::other)
         })?;
         file(directory, "index.html", &mut remaining, |out| {
-            html::write(out, comparison, complete, &old, &new)
+            html::write(out, comparison, images, complete, &old, &new)
         })?;
         Ok(())
     })();

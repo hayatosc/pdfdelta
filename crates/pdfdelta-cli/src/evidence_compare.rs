@@ -1,5 +1,6 @@
 use std::{collections::BTreeSet, io::Write as _, path::Path, sync::Arc};
 
+use pdfdelta_core::document::image_diff::{ImageDiff, ImageInventory, compare_images};
 use pdfdelta_core::{
     document::{
         BackendIdentity, Channel, ChannelCoverage, ComparisonContract, CorrespondenceScope,
@@ -120,6 +121,8 @@ struct DocumentReport<'a> {
     comparison_complete: bool,
     typed_changes: usize,
     inferred_changes: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_diff: Option<ImageReport>,
     /// Non-owning range content changes, separate from strict typed changes.
     scope_content_changes: usize,
     inferred_scope_changes: usize,
@@ -128,6 +131,13 @@ struct DocumentReport<'a> {
     new: EvidenceSummary<'a>,
     table_refinements: TableRefinements,
     comparison: DocumentViewComparison,
+}
+
+#[derive(Serialize)]
+pub(super) struct ImageReport {
+    pub old: ImageInventory,
+    pub new: ImageInventory,
+    pub comparison: ImageDiff,
 }
 
 pub fn compare(
@@ -140,12 +150,30 @@ pub fn compare(
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
     let started = std::time::Instant::now();
-    let (old, old_bytes) = collect(old_input, cache_dir, options, output.review_dir.is_some())?;
-    let (new, new_bytes) = collect(new_input, cache_dir, options, output.review_dir.is_some())?;
+    let (old, old_bytes, old_images) =
+        collect(old_input, cache_dir, options, output.review_dir.is_some())?;
+    let (new, new_bytes, new_images) =
+        collect(new_input, cache_dir, options, output.review_dir.is_some())?;
+    let image_diff = match (old_images, new_images) {
+        (Some(old), Some(new)) => {
+            let comparison = compare_images(&old, &new).map_err(|error| error.to_string())?;
+            Some(ImageReport {
+                old,
+                new,
+                comparison,
+            })
+        }
+        _ => None,
+    };
     let limits = DocumentComparisonLimits {
         matching: MatchingLimits {
             channels: MatchingChannels::from(&options.channels),
             ..MatchingLimits::default()
+        },
+        // Page rasters remain review context, not a second diff of native text.
+        visual: pdfdelta_core::document::VisualCandidateLimits {
+            include_composited_pages: false,
+            ..Default::default()
         },
         ..DocumentComparisonLimits::default()
     };
@@ -235,12 +263,15 @@ pub fn compare(
             })
             .count()
         + comparison.keyed_element_operations().count();
-    let inferred_changes = comparison
-        .comparisons()
-        .filter(|pair| {
-            pair.operation.is_some() && pair.interpretation == InterpretationStatus::Inferred
-        })
-        .count()
+    let inferred_changes = image_diff
+        .as_ref()
+        .map_or(0, |images| images.comparison.changes.len())
+        + comparison
+            .comparisons()
+            .filter(|pair| {
+                pair.operation.is_some() && pair.interpretation == InterpretationStatus::Inferred
+            })
+            .count()
         + comparison
             .relations()
             .filter(|relation| {
@@ -267,6 +298,7 @@ pub fn compare(
         comparison_complete: complete,
         typed_changes: changes,
         inferred_changes,
+        image_diff,
         scope_content_changes,
         inferred_scope_changes,
         coverage,
@@ -289,6 +321,7 @@ pub fn compare(
             directory,
             &report,
             &report.comparison,
+            report.image_diff.as_ref(),
             complete,
             crate::review::Input {
                 view: DocumentView {
@@ -344,6 +377,58 @@ pub fn compare(
         &old.issues,
         &new.issues,
     );
+    if let Some(images) = &report.image_diff {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            text,
+            "Image diff (pixel hashes): {} unchanged, {} changes; {}",
+            images.comparison.unchanged,
+            images.comparison.changes.len(),
+            if images.comparison.complete {
+                "image inventory compared"
+            } else {
+                "unresolved images or acquisition"
+            }
+        );
+        for change in images.comparison.changes.iter().take(200) {
+            let location = |inventory: &ImageInventory, index: Option<usize>| {
+                index.map_or_else(
+                    || "absent".into(),
+                    |i| {
+                        format!(
+                            "page {} image {}",
+                            inventory.images[i].page.0 + 1,
+                            inventory.images[i].occurrence + 1
+                        )
+                    },
+                )
+            };
+            let _ = writeln!(
+                text,
+                "  Image {:?}: {} -> {}",
+                change.kind,
+                location(&images.old, change.old),
+                location(&images.new, change.new)
+            );
+        }
+        if images.comparison.changes.len() > 200 {
+            let _ = writeln!(
+                text,
+                "  Image change list truncated; full results are in JSON."
+            );
+        }
+        let _ = writeln!(
+            text,
+            "  Unresolved image occurrences: old {}, new {}. Placement, clipping and vector graphics are outside pixel-hash comparison.",
+            images.comparison.unresolved_old.len(),
+            images.comparison.unresolved_new.len()
+        );
+        for (side, inventory) in [("old", &images.old), ("new", &images.new)] {
+            for reason in inventory.issues.iter().take(20) {
+                let _ = writeln!(text, "  {side}: {reason}");
+            }
+        }
+    }
     if let Some(path) = output.output_path {
         write_text_report_atomically(path, &text)?;
     } else if !output.quiet {
@@ -373,7 +458,7 @@ pub fn compare(
     ))
 }
 
-type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>);
+type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>, Option<ImageInventory>);
 
 fn collect(
     input: ComparisonInput<'_>,
@@ -393,6 +478,21 @@ fn collect(
         cache_dir,
         &options.channels,
     )?;
+    let mut images = options
+        .channels
+        .contains(&Channel::Visual)
+        .then(|| crate::image_hashes::collect(&bytes, &page_refs, password.is_some()));
+    if let Some(images) = &mut images
+        && store
+            .issues
+            .iter()
+            .any(|issue| issue.channel == Channel::Text)
+    {
+        images.complete = false;
+        images.issues.push(
+            "native acquisition has unresolved content; image discovery is not certified".into(),
+        );
+    }
     if options.channels.contains(&Channel::Text)
         || options.channels.contains(&Channel::Visual)
         || options.channels.contains(&Channel::Presentation)
@@ -417,5 +517,5 @@ fn collect(
         }
     }
     store.validate(limits).map_err(|error| error.to_string())?;
-    Ok((store, retain_input.then_some(bytes)))
+    Ok((store, retain_input.then_some(bytes), images))
 }

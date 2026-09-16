@@ -11,6 +11,7 @@ mod evidence_compare;
 mod evidence_text;
 mod extraction_cache;
 mod fs;
+mod image_hashes;
 mod inspect;
 mod native_worker;
 mod render;
@@ -29,6 +30,10 @@ fn main() -> ExitCode {
     let mut stderr = stderr.lock();
     let cli = Cli::parse();
     match cli.command {
+        Some(Command::HashImages) => match image_hashes::worker() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(code) => ExitCode::from(code),
+        },
         Some(Command::AcquireNative) => match native_worker::worker() {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),

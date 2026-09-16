@@ -487,6 +487,7 @@ fn pair(
 pub(super) fn write(
     out: &mut dyn Write,
     comparison: &DocumentViewComparison,
+    images: Option<&crate::evidence_compare::ImageReport>,
     complete: bool,
     old_input: &Input<'_>,
     new_input: &Input<'_>,
@@ -508,6 +509,50 @@ pub(super) fn write(
         "</p><nav><ul><li><a href=\"#changes\">All reported changes</a></li><li><a href=\"#uncertainty\">Search and acquisition</a></li><li><a href=\"#sources\">Original files and evidence</a></li></ul></nav></header><main><section id=\"changes\"><h2>Changes and comparison proposals</h2><p>A establishes the shown change or source positions under accepted correspondence. B reports content of a corresponding range without assigning every internal edit. C retains an inferred counterpart. These categories are not added together as strict recall.</p><p>Full excerpts retain whitespace. Control and private-use characters are shown as Unicode escapes so mapping differences remain visible; a literal representation change need not change the visible words in the PDF.</p>"
     )?;
     let mut displayed = 0usize;
+    if let Some(images) = images {
+        for (index, change) in images.comparison.changes.iter().enumerate() {
+            displayed += 1;
+            header(
+                out,
+                &format!("image-change-{index}"),
+                &format!("/image_diff/comparison/changes/{index}"),
+                Category::C,
+            )?;
+            write!(
+                out,
+                "<p>Image {:?}. Decoded pixel hashes are compared; replacement correspondence is inferred from placement. No OCR or pixel mask is used.</p><div class=\"sides\">",
+                change.kind
+            )?;
+            for (side, inventory, selected) in [
+                ("old", &images.old, change.old),
+                ("new", &images.new, change.new),
+            ] {
+                write!(out, "<section><h4>{side}</h4>")?;
+                if let Some(i) = selected {
+                    let image = &inventory.images[i];
+                    write!(
+                        out,
+                        "<p><a href=\"{side}.pdf#page={}\">Page {}, image {}</a> ({} × {} pixels)</p>",
+                        image.page.0 + 1,
+                        image.page.0 + 1,
+                        image.occurrence + 1,
+                        image.width,
+                        image.height
+                    )?;
+                    json(out, "Image hash and placement", image)?;
+                } else {
+                    write!(out, "<p>Absent from the acquired image inventory.</p>")?;
+                }
+                write!(out, "</section>")?;
+            }
+            write!(out, "</div></article>")?;
+        }
+        json(
+            out,
+            "Image inventory, unchanged counts and unresolved occurrences",
+            images,
+        )?;
+    }
     for (scope_index, scope) in comparison.scopes.iter().enumerate() {
         for (index, result) in scope.result.comparisons.iter().enumerate() {
             if result.operation.is_none() && result.compared && result.unresolved.is_empty() {

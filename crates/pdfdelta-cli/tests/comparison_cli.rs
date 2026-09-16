@@ -2678,10 +2678,14 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
         assert_eq!(report["old"]["native_glyphs"], 0);
         assert_eq!(report["inferred_changes"], 1, "{report}");
         assert_eq!(report["typed_changes"], 0);
-        let pair = &report["comparison"]["scopes"][0]["result"]["comparisons"][0];
-        assert_eq!(pair["operation"]["kind"], "page_rendering_changed");
-        assert_eq!(pair["pixel_mask"]["changed_pixels"], 72 * 72);
-        assert!(pair["text_mask"].is_null());
+        let pair = &report["image_diff"]["comparison"]["changes"][0];
+        assert_eq!(pair["kind"], "changed");
+        assert_eq!(report["image_diff"]["old"]["images"][0]["width"], 1);
+        assert_ne!(
+            report["image_diff"]["old"]["images"][0]["sha256"],
+            report["image_diff"]["new"]["images"][0]["sha256"]
+        );
+        assert!(pair.get("pixel_mask").is_none());
         let html = fs::read_to_string(review.join("index.html")).expect("visual review");
         assert!(html.contains("category category-c"));
         assert!(!html.contains("category category-a"));
