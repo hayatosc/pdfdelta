@@ -1,1 +1,11 @@
-{"base":"7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c","stage":"source_exported"}
+{
+  "base": "7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c",
+  "stage": "baseline_attempt_finished",
+  "toolchain": "success",
+  "exit_codes": {
+    "fmt": 0,
+    "clippy": 0,
+    "tests": 0,
+    "release": 0
+  }
+}
