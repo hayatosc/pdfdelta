@@ -1,7 +1,10 @@
 //! Boundary padding can be uncertain without making interior glyphs uncertain.
 //! Such sources stay in the census as optional tokens and cannot enter a claim.
 
-use super::*;
+use super::{
+    BTreeSet, Closure, DocumentView, GlyphPathClipStatus, GraphNode, NodeContent, NodeId, RowOrder,
+    SourceRef, Sources, paint_rows, spend,
+};
 use crate::model::DecodedText;
 
 pub(super) fn checked(

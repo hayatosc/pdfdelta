@@ -54,6 +54,7 @@ impl ScopeMatching {
     /// matching objective or turn its zero-valued unmatched option into proof.
     /// Storage is bounded by the already bounded proposal population; ordered
     /// membership lookups do not launch another assignment search.
+    #[must_use]
     pub fn counterpart_decisions(&self) -> CounterpartDecisions {
         let mut decisions = CounterpartDecisions::default();
         for component in &self.components {

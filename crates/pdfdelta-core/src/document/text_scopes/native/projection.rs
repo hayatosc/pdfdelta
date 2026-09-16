@@ -261,7 +261,7 @@ fn checked_order_impl(
         let matches = |text: &str| {
             view.tokens[start..cursor]
                 .iter()
-                .map(|token| token.as_scalar())
+                .map(crate::normalize::ComparableToken::as_scalar)
                 .eq(text.chars().map(Some))
         };
         if text.is_empty() || (!matches(text) && !matches(&expanded)) {

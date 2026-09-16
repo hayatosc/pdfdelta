@@ -1,7 +1,10 @@
 //! Closed forward declarations and inverse MCID ownership support local runs.
 //! Unknown bindings, non-glyph items and repeated sources separate those runs.
 
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, BackendKind, Cow, DocumentView, GlyphId, Membership, SourceRef,
+    StructuredValue, spend,
+};
 use crate::document::NativeStructureKid;
 
 enum Frame {
@@ -9,12 +12,7 @@ enum Frame {
     Kid(u64, usize),
 }
 
-fn finish<'a>(
-    result: &mut Vec<Membership<'a>>,
-    root: u64,
-    start: usize,
-    glyphs: &mut Vec<GlyphId>,
-) {
+fn finish(result: &mut Vec<Membership<'_>>, root: u64, start: usize, glyphs: &mut Vec<GlyphId>) {
     if !glyphs.is_empty() {
         result.push(Membership {
             structure: SourceRef::Structured { element: root },
@@ -180,7 +178,7 @@ pub(super) fn acquire<'a>(
                             }
                         }
                         NativeStructureKid::Annotation { .. } => {
-                            finish(&mut result, root, start, &mut glyphs)
+                            finish(&mut result, root, start, &mut glyphs);
                         }
                         NativeStructureKid::Unresolved => return None,
                     }

@@ -1,6 +1,11 @@
 //! Revalidated native intervals, independent of paragraph identity.
 
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, CutCorrespondence, CutEvidence, Deserialize, DocumentComparisonLimits,
+    DocumentView, GraphNode, InterpretationStatus, LocalViewComparison, NodeContent, NodeId,
+    ProposalBasis, Result, ScopeViewComparison, Serialize, SourceCut, SourceCutPopulation,
+    SourceCutRange, SourceFragment, SourceRef, TextScopeReview, native, spend,
+};
 use crate::document::TextSourcePartition;
 
 mod source_cuts;
@@ -43,6 +48,7 @@ pub struct NativeTextIntervalComparison {
 
 impl NativeTextIntervalComparison {
     /// Exact local result under the retained boundary premises.
+    #[must_use]
     pub fn comparison(&self) -> &LocalViewComparison {
         &self.comparison
     }

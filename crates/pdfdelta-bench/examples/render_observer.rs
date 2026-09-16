@@ -178,7 +178,7 @@ fn render(pdf: &Pdf) -> (Vec<u8>, Vec<String>) {
         warning_sink: Arc::new(move |warning| {
             sink.lock()
                 .expect("warning sink lock")
-                .push(format!("{warning:?}"))
+                .push(format!("{warning:?}"));
         }),
         ..Default::default()
     };
@@ -211,7 +211,7 @@ fn observe(pdf: &Pdf) -> (Observer, Vec<String>) {
             warning_sink: Arc::new(move |warning| {
                 sink.lock()
                     .expect("warning sink lock")
-                    .push(format!("{warning:?}"))
+                    .push(format!("{warning:?}"));
             }),
             ..Default::default()
         },

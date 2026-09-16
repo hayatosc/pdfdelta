@@ -1,6 +1,9 @@
 //! Explicit CID vertical metrics share the horizontal metric-entry budget.
 
-use super::*;
+use super::{
+    BTreeMap, Error, FontDecoderLimits, ParsedPdf, PdfDict, PdfObject, Result,
+    VerticalGlyphMetrics, finite_number, reserve_widths, resolve_cid, resolve_object, unresolved,
+};
 
 pub(super) fn load(
     pdf: &dyn ParsedPdf,

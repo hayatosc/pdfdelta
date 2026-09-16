@@ -111,10 +111,12 @@ impl<'a> TextSourcePartition<'a> {
         })
     }
 
+    #[must_use]
     pub fn parent(&self) -> &'a GraphNode {
         self.parent
     }
 
+    #[must_use]
     pub fn selected_range(&self) -> Range<usize> {
         self.selected.clone()
     }
@@ -140,6 +142,7 @@ impl<'a> TextSourcePartition<'a> {
 
     /// Both intervals belong to one complement; they need not have disjoint
     /// source projections from each other. Empty intervals remain explicit.
+    #[must_use]
     pub fn remaining_ranges(&self) -> [Range<usize>; 2] {
         [
             0..self.selected.start,
@@ -148,6 +151,7 @@ impl<'a> TextSourcePartition<'a> {
     }
 
     /// Retains the full scalar-to-source multiplicity, including context.
+    #[must_use]
     pub fn selected_origins(&self) -> &'a [Vec<SourceRef>] {
         &self.view.origins[self.selected.clone()]
     }
@@ -251,7 +255,7 @@ mod tests {
                     .cloned()
                     .collect();
                 assert_eq!(reconstructed, view.origins);
-                assert!(std::ptr::eq(partition.parent(), &node));
+                assert!(std::ptr::eq(partition.parent(), &raw const node));
             }
         }
     }

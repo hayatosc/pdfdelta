@@ -243,11 +243,9 @@ pub(super) fn append_details(
                     text,
                     "  - {}\n  + {}",
                     old.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into()),
+                        .map_or_else(|| "(text unresolved)".into(), quoted),
                     new.as_deref()
-                        .map(quoted)
-                        .unwrap_or_else(|| "(text unresolved)".into())
+                        .map_or_else(|| "(text unresolved)".into(), quoted)
                 );
             }
             if let Some(mask) = &pair.text_mask {
@@ -275,24 +273,23 @@ pub(super) fn append_details(
             {
                 continue;
             }
-            let key = match std::str::from_utf8(&claim.key) {
-                Ok(key) => quoted(key),
-                Err(_) => {
-                    let bytes: String = claim
-                        .key
-                        .iter()
-                        .take(64)
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect();
-                    format!(
-                        "bytes {bytes}{}",
-                        if claim.key.len() > 64 {
-                            " [truncated]"
-                        } else {
-                            ""
-                        }
-                    )
-                }
+            let key = if let Ok(key) = std::str::from_utf8(&claim.key) {
+                quoted(key)
+            } else {
+                let bytes: String = claim
+                    .key
+                    .iter()
+                    .take(64)
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect();
+                format!(
+                    "bytes {bytes}{}",
+                    if claim.key.len() > 64 {
+                        " [truncated]"
+                    } else {
+                        ""
+                    }
+                )
             };
             let direction = match claim.side {
                 pdfdelta_core::document::PresenceSide::Old => "removed",

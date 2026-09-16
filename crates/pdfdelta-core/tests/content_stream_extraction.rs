@@ -1722,12 +1722,12 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
                 );
         }
         let first_parents = pdf.add_object(dictionary! {
-            "Limits" => vec![Object::Integer(0), Object::Integer(if fault == "parents-limits" { 1 } else { 0 })],
+            "Limits" => vec![Object::Integer(0), Object::Integer(i64::from(fault == "parents-limits"))],
             "Nums" => vec![Object::Integer(0), Object::Array(vec![
                 if fault == "parents-owner" { root.into() } else { parent.into() }, child.into(),
             ])],
         });
-        let second_key = if fault == "parents-duplicate" { 0 } else { 1 };
+        let second_key = i64::from(fault != "parents-duplicate");
         let second_parents = pdf.add_object(dictionary! {
             "Limits" => vec![Object::Integer(second_key), Object::Integer(second_key)],
             "Nums" => vec![Object::Integer(second_key), Object::Array(vec![parent.into()])],

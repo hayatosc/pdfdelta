@@ -369,7 +369,7 @@ impl<'a> Side<'a> {
                     }
                 }
                 NodeContent::Value { value } => {
-                    serde_json::to_writer(Escaped(out), value).map_err(io::Error::other)?
+                    serde_json::to_writer(Escaped(out), value).map_err(io::Error::other)?;
                 }
                 NodeContent::Visual { .. } => write!(
                     out,
@@ -408,7 +408,7 @@ fn scalar(
             if (ch.is_control() && ch != '\n' && ch != '\t')
                 || matches!(ch, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{e000}'..='\u{f8ff}' | '\u{f0000}'..='\u{ffffd}' | '\u{100000}'..='\u{10fffd}') =>
         {
-            escaped(out, &ch.escape_unicode().to_string())?
+            escaped(out, &ch.escape_unicode().to_string())?;
         }
         Some(ch) => escaped(out, ch.encode_utf8(&mut [0; 4]))?,
     }
@@ -445,26 +445,10 @@ fn pair(
         }
     )?;
     write!(out, "<div class=\"sides\">")?;
-    for (side, ids, mask) in [
-        (
-            old,
-            &result.old,
-            result
-                .text_mask
-                .as_ref()
-                .map(|mask| mask.old.as_slice())
-                .unwrap_or(&[]),
-        ),
-        (
-            new,
-            &result.new,
-            result
-                .text_mask
-                .as_ref()
-                .map(|mask| mask.new.as_slice())
-                .unwrap_or(&[]),
-        ),
-    ] {
+    let text_mask = result.text_mask.as_ref();
+    let old_mask = text_mask.map_or(&[][..], |mask| mask.old.as_slice());
+    let new_mask = text_mask.map_or(&[][..], |mask| mask.new.as_slice());
+    for (side, ids, mask) in [(old, &result.old, old_mask), (new, &result.new, new_mask)] {
         write!(
             out,
             "<section><h4>{}</h4>",

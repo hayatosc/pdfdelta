@@ -161,6 +161,7 @@ impl LiteralAnnotation {
         Ok(annotation)
     }
 
+    #[must_use]
     pub fn preparation(&self) -> RevisionSourceView {
         match self.source_view {
             LiteralView::LayoutRaw => RevisionSourceView::Layout,
@@ -170,6 +171,7 @@ impl LiteralAnnotation {
 
     /// Unique coordinates certify neither counterpart identity nor extraction
     /// completeness. Prepared-source metadata retains acquisition gaps.
+    #[must_use]
     pub fn resolve(
         &self,
         old: &PreparedRevisionSource,
@@ -207,15 +209,12 @@ impl LiteralAnnotation {
 }
 
 fn charge(remaining: &mut usize, amount: usize) -> bool {
-    match remaining.checked_sub(amount) {
-        Some(next) => {
-            *remaining = next;
-            true
-        }
-        None => {
-            *remaining = 0;
-            false
-        }
+    if let Some(next) = remaining.checked_sub(amount) {
+        *remaining = next;
+        true
+    } else {
+        *remaining = 0;
+        false
     }
 }
 

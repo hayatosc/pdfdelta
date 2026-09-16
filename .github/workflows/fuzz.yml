@@ -38,9 +38,8 @@ jobs:
         run: mise exec -- rustup component add clippy rustfmt
       - name: Install nightly Rust
         run: mise exec -- rustup toolchain install nightly --profile minimal
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-fuzz@0.13.2
+      - name: Install cargo-fuzz for the nightly host
+        run: mise exec -- cargo +nightly install cargo-fuzz --version 0.13.2 --locked
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz

@@ -1,7 +1,11 @@
 //! Conditional content edges inside an already compared finite source interval.
 //! Only mandatory literal spaces can move outside the additional local view.
 
-use super::*;
+use super::{
+    Boundary, CutCorrespondence, CutEvidence, CutMaps, GraphNode, NodeContent, OriginalCuts,
+    Position, SourceCut, SourceCutEdgeRefinement, SourceFragment, TextNormalization,
+    original_boundary, slice_sources, spend,
+};
 
 struct Trimmed {
     entry: Position,
@@ -244,7 +248,12 @@ pub(super) fn refine(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{document::NodeKind, model::GlyphId};
+    use crate::{
+        document::text_scopes::cuts::interior,
+        document::{NodeId, NodeKind, SourceRef, TextView, ViewBasis},
+        model::GlyphId,
+        normalize::ComparableToken,
+    };
 
     #[test]
     fn whitespace_only_nodes_share_the_reported_padding_cut() {

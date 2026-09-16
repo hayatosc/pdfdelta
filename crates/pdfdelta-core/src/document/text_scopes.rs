@@ -394,58 +394,57 @@ fn append_pass(
         return Ok(());
     }
     let scope = result.matching.scope;
-    let (left, right, sources) = match (
+    let (left, right, sources) = if let (Some(left), Some(right)) = (
         closed_order(old, scope.old, limits, remaining)?,
         closed_order(new, scope.new, limits, remaining)?,
     ) {
-        (Some(left), Some(right)) => (vec![left], vec![right], None),
-        _ => {
-            let mut old_sources = native::Sources::new(native.0);
-            let mut new_sources = native::Sources::new(native.1);
-            if matches!(discovery, Discovery::NativeStructure) {
-                old_sources.acquire_native_order(old, remaining);
-                new_sources.acquire_native_order(new, remaining);
-            }
-            let mut boundaries = [BTreeSet::new(), BTreeSet::new()];
-            for &index in result
-                .accepted_correspondences
-                .iter()
-                .chain(&result.text_boundary_correspondences)
-            {
-                let proposal = &result.candidates.proposals[index];
-                if spend(
-                    remaining,
-                    proposal.old.len().saturating_add(proposal.new.len()),
-                )
-                .is_none()
-                {
-                    return Ok(());
-                }
-                boundaries[0].extend(&proposal.old);
-                boundaries[1].extend(&proposal.new);
-            }
-            (
-                native::runs(
-                    old,
-                    scope.old,
-                    &old_sources,
-                    limits,
-                    rows,
-                    &boundaries[0],
-                    remaining,
-                )?,
-                native::runs(
-                    new,
-                    scope.new,
-                    &new_sources,
-                    limits,
-                    rows,
-                    &boundaries[1],
-                    remaining,
-                )?,
-                Some((old_sources, new_sources)),
-            )
+        (vec![left], vec![right], None)
+    } else {
+        let mut old_sources = native::Sources::new(native.0);
+        let mut new_sources = native::Sources::new(native.1);
+        if matches!(discovery, Discovery::NativeStructure) {
+            old_sources.acquire_native_order(old, remaining);
+            new_sources.acquire_native_order(new, remaining);
         }
+        let mut boundaries = [BTreeSet::new(), BTreeSet::new()];
+        for &index in result
+            .accepted_correspondences
+            .iter()
+            .chain(&result.text_boundary_correspondences)
+        {
+            let proposal = &result.candidates.proposals[index];
+            if spend(
+                remaining,
+                proposal.old.len().saturating_add(proposal.new.len()),
+            )
+            .is_none()
+            {
+                return Ok(());
+            }
+            boundaries[0].extend(&proposal.old);
+            boundaries[1].extend(&proposal.new);
+        }
+        (
+            native::runs(
+                old,
+                scope.old,
+                &old_sources,
+                limits,
+                rows,
+                &boundaries[0],
+                remaining,
+            )?,
+            native::runs(
+                new,
+                scope.new,
+                &new_sources,
+                limits,
+                rows,
+                &boundaries[1],
+                remaining,
+            )?,
+            Some((old_sources, new_sources)),
+        )
     };
     let native = sources.is_some();
     let mut native_proofs = NativeProofs::new();
@@ -903,12 +902,12 @@ fn append_pass(
                     normalized
                         .0
                         .iter()
-                        .map(|node| node.as_ref())
+                        .map(std::convert::AsRef::as_ref)
                         .collect::<Vec<_>>(),
                     normalized
                         .1
                         .iter()
-                        .map(|node| node.as_ref())
+                        .map(std::convert::AsRef::as_ref)
                         .collect::<Vec<_>>(),
                 );
                 (normalized_refs.0.as_slice(), normalized_refs.1.as_slice())

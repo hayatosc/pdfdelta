@@ -42,6 +42,7 @@ pub struct StageDiagnostics {
 
 impl StageDiagnostics {
     /// A failed read or decode is evidence about reporting, not an empty diff.
+    #[must_use]
     pub fn reporting_failure(reason: String) -> Self {
         Self {
             schema_version: 1,
@@ -116,7 +117,10 @@ pub fn diagnose_report(bytes: &[u8]) -> Result<StageDiagnostics> {
 }
 
 fn shared(bytes: &[u8], findings: &mut Findings) -> Result<()> {
-    use FailureStage::*;
+    use FailureStage::{
+        Acquisition, CounterpartDecision, Localization, Normalization, Optimization, Retrieval,
+        Scope,
+    };
     let report = super::parse_report(bytes)?;
     super::validate_coverage(&report)?;
     for (side, evidence) in [("old", &report.old), ("new", &report.new)] {
@@ -278,7 +282,10 @@ struct NativeRelation {
 }
 
 fn native(bytes: &[u8], findings: &mut Findings) -> Result<()> {
-    use FailureStage::*;
+    use FailureStage::{
+        Acquisition, CounterpartDecision, Localization, Normalization, ReportingEvaluation,
+        Retrieval, Scope,
+    };
     let report: NativeReport = serde_json::from_slice(bytes)
         .map_err(|error| BenchError::InvalidInput(format!("native diagnostics: {error}")))?;
     for (side, complete) in [
