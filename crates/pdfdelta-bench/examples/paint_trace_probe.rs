@@ -21,6 +21,9 @@ type ProbeResult<T> = Result<T, Box<dyn std::error::Error>>;
 const MAX_PAGE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_RESOURCE_VISITS: usize = 100_000;
 
+#[path = "paint_trace_probe/properties.rs"]
+mod properties;
+
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -302,6 +305,7 @@ fn main() -> ProbeResult<()> {
         &json!({
             "version": 1, "input_sha256": input_digest, "certifies_text_inventory": false,
             "parser_issue_count": pdf.issues().len(), "pages": result,
+            "reachable_text_declarations": properties::scan(pdf.as_ref()),
         }),
     )?;
     Ok(())

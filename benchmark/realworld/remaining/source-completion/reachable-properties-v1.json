@@ -1,0 +1,244 @@
+{
+  "goal_complete": false,
+  "new_completions": 0,
+  "binary": {
+    "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+    "sha256": "dec4d2064102fd0f4eea75909a0cd948ceb21749b68336cdbac457c5aa19732d"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/source.tar.gz",
+    "sha256": "c8117e8fc8b0f0e5d1f9e6c983c97744305ce7735b88e534854fca16a42c12d4"
+  },
+  "build": {
+    "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/build.log",
+    "sha256": "36f2a37f16f3a38cc4903f6fcda10891d4f528733f8addb4139ec00ce324d7e9"
+  },
+  "capture": {
+    "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/capture.py",
+    "sha256": "73af07a5bcdad828edaa7ef201e7473aa0629b3820e34d539159fd83ef45d410"
+  },
+  "rows": [
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-old.pdf",
+        "sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff"
+      },
+      "command": [
+        "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "seconds": 0.015921502000310284,
+      "raw": {
+        "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/irs-w9-2018-to-2024-old.json",
+        "sha256": "96f65703accddfc6a5304b891ff152ae133efd1876024809c94cf56702896d84"
+      },
+      "pages": 6,
+      "paints": 155,
+      "artifact_paints": 0,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "inline_actual_text_declarations": 0,
+      "unbalanced_pages": 0,
+      "parser_issues": 0,
+      "reachable_metadata": {
+        "status": "unresolved",
+        "reason": "metadata traversal depth limit",
+        "visited_objects": 242,
+        "charged_bytes": 18693,
+        "declarations": 0,
+        "form_programs": 21,
+        "form_inline_declarations": 0
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-new.pdf",
+        "sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53"
+      },
+      "command": [
+        "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "seconds": 0.012769877999744494,
+      "raw": {
+        "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/irs-w9-2018-to-2024-new.json",
+        "sha256": "87febfac6fe05a9965a4aaedeca9ea3f992d5f3c6605861cd0411881fbb05ed4"
+      },
+      "pages": 6,
+      "paints": 162,
+      "artifact_paints": 160,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "inline_actual_text_declarations": 0,
+      "unbalanced_pages": 0,
+      "parser_issues": 0,
+      "reachable_metadata": {
+        "status": "unresolved",
+        "reason": "metadata traversal depth limit",
+        "visited_objects": 254,
+        "charged_bytes": 20150,
+        "declarations": 0,
+        "form_programs": 24,
+        "form_inline_declarations": 0
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+        "sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6"
+      },
+      "command": [
+        "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "seconds": 0.017948876000446035,
+      "raw": {
+        "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/irs-schedule-c-2024-to-2025-old.json",
+        "sha256": "e4a14e716f5e20d38259676ad1215d2858eb7107ab2d0394dbb1e13e9c1c0a54"
+      },
+      "pages": 2,
+      "paints": 309,
+      "artifact_paints": 304,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "inline_actual_text_declarations": 0,
+      "unbalanced_pages": 0,
+      "parser_issues": 0,
+      "reachable_metadata": {
+        "status": "unresolved",
+        "reason": "metadata traversal depth limit",
+        "visited_objects": 132,
+        "charged_bytes": 13745,
+        "declarations": 0,
+        "form_programs": 43,
+        "form_inline_declarations": 0
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+        "sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716"
+      },
+      "command": [
+        "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "seconds": 0.01797508799973002,
+      "raw": {
+        "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/irs-schedule-c-2024-to-2025-new.json",
+        "sha256": "16d8b6bcefc71d97e47667d6c341a04344f458de32c7cda5721cd591a53ab076"
+      },
+      "pages": 2,
+      "paints": 309,
+      "artifact_paints": 299,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "inline_actual_text_declarations": 0,
+      "unbalanced_pages": 0,
+      "parser_issues": 0,
+      "reachable_metadata": {
+        "status": "unresolved",
+        "reason": "metadata traversal depth limit",
+        "visited_objects": 133,
+        "charged_bytes": 13794,
+        "declarations": 0,
+        "form_programs": 43,
+        "form_inline_declarations": 0
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-old.pdf",
+        "sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0"
+      },
+      "command": [
+        "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "seconds": 0.008766363999711757,
+      "raw": {
+        "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/irs-schedule-se-2024-to-2025-old.json",
+        "sha256": "8b7400c76d27c510994c64fe742eef3fdcb56272cdf210206891bd46f37985ec"
+      },
+      "pages": 2,
+      "paints": 140,
+      "artifact_paints": 133,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "inline_actual_text_declarations": 0,
+      "unbalanced_pages": 0,
+      "parser_issues": 0,
+      "reachable_metadata": {
+        "status": "scanned",
+        "reason": null,
+        "visited_objects": 550,
+        "charged_bytes": 20810,
+        "declarations": 0,
+        "form_programs": 3,
+        "form_inline_declarations": 0
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-new.pdf",
+        "sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347"
+      },
+      "command": [
+        "benchmark/realworld/cache/source-completion/reachable-properties-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "seconds": 0.009395080999638594,
+      "raw": {
+        "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/irs-schedule-se-2024-to-2025-new.json",
+        "sha256": "651e18a6e07d1b662027d6c95b786d8df649cf4421b833bface620585055bddf"
+      },
+      "pages": 2,
+      "paints": 140,
+      "artifact_paints": 133,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "inline_actual_text_declarations": 0,
+      "unbalanced_pages": 0,
+      "parser_issues": 0,
+      "reachable_metadata": {
+        "status": "scanned",
+        "reason": null,
+        "visited_objects": 550,
+        "charged_bytes": 20820,
+        "declarations": 0,
+        "form_programs": 3,
+        "form_inline_declarations": 0
+      }
+    }
+  ],
+  "limitations": [
+    "Page-program syntax observations only; no text-inventory or visibility proof.",
+    "Trailer-reachable dictionaries and declared Form programs are scanned within depth, byte and visit limits. Invocation, visibility and binding to native sources are not established; non-Form stream programs are not decoded.",
+    "Artifact declarations cannot justify removing paint from visible-text obligations.",
+    "Inline ActualText is retained as a declaration, including invalid value types; it is not automatically an exact visual reading."
+  ]
+}
