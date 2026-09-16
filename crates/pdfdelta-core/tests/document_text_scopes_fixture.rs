@@ -5382,3 +5382,43 @@ fn raised_inline_source_preserves_changed_interval_ownership() {
         }
     }
 }
+
+#[test]
+fn tagged_page_regions_retain_disjoint_same_row_prefixes() {
+    let old = fixture_rows(&["BEGIN", "Budget 10.", "Cost 10.", "END"]);
+    let mut new = fixture_rows(&["BEGIN", "Budget 20.", "Cost 20.", "END"]);
+    tagged_page_break(&mut new);
+    let mut glyphs = new.0.native.items().to_vec();
+    let sources = new.1.nodes[2].sources.clone();
+    let top = glyphs[0].baseline.y;
+    let baseline = glyphs
+        .iter()
+        .find(|g| sources.contains(&SourceRef::Native { glyph: g.id }))
+        .expect("second node")
+        .baseline
+        .y;
+    for glyph in &mut glyphs {
+        if sources.contains(&SourceRef::Native { glyph: glyph.id }) {
+            glyph.baseline.y += top - baseline;
+            glyph.bbox.min.y += top - baseline;
+            glyph.bbox.max.y += top - baseline;
+            glyph.baseline.x += 100.0;
+            glyph.bbox.min.x += 100.0;
+            glyph.bbox.max.x += 100.0;
+        }
+    }
+    new.0.native = Document::new(glyphs);
+    let result = compare(&old, &new);
+    assert!(
+        result
+            .scopes
+            .iter()
+            .flat_map(|scope| &scope.result.native_text_intervals)
+            .any(|interval| interval
+                .comparison()
+                .text_mask
+                .as_ref()
+                .is_some_and(|mask| mask.claims.changed_source_lower == 4
+                    && mask.claims.changed_source_upper == 4))
+    );
+}
