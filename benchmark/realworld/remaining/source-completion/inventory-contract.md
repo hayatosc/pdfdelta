@@ -1,6 +1,8 @@
 # Inventory contract decision
 
-Status: proposal only; no completion predicate or acquisition policy changed.
+Status: the user approved adding a separately versioned observation completion
+indicator on 2026-09-16. Implementation is pending; no completion predicate or
+acquisition policy has changed. Existing strict completion remains separate.
 
 ## Established boundary
 
@@ -28,10 +30,10 @@ also does not identify the characters inside an opaque effect. Future independen
 justified acquisition proofs remain possible; this audit does not prove them
 impossible or authorize treating recognition as certain.
 
-## Optional separate observation contract
+## Approved separate observation contract
 
-If explicitly authorized, a separately versioned observation result could retain
-four distinct outcomes for a source-bound region:
+The approved extension will retain four distinct outcomes for a source-bound
+region:
 
 1. Text interpretation and comparison proved under the existing source contract.
 2. Rendering-effect equality proved under an explicit execution profile, with

@@ -1,6 +1,7 @@
 # Remaining recovery evidence
 
-The active execution contract is [the remaining plan](../../../docs/plans/remaining/PLAN.md).
+Historical phase plans have been retired to Git history.
+Current work follows [the source completion plan](../../../docs/plans/source-completion/PLAN.md).
 The fixed 36-pair panel and historical annotations remain unchanged.
 `registration.json` binds their hashes and the two common-text baseline observations.
 The baseline remains 0/36 complete; no new G1, G2 or G3 gain has been demonstrated.

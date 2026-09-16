@@ -206,6 +206,14 @@ crates/pdfdelta-bench  Fixture generation and evaluation tooling
 
 The workspace requires stable Rust with Edition 2024 support.
 
+Development and test builds retain file/line backtraces but omit full type and
+variable debug information. Incremental compilation is disabled to reduce disk
+usage, at the cost of slower rebuilds after edits. For a debugger session that
+needs local variables, use `CARGO_PROFILE_DEV_DEBUG=2 cargo build`.
+To reclaim accumulated debug artifacts after toolchain or build-setting changes,
+run `cargo clean --profile dev` when no builds are running; the next build will
+recompile dependencies.
+
 ```bash
 mise run ci
 mise run pdfdelta -- --help

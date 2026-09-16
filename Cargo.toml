@@ -41,5 +41,11 @@ unimplemented = "deny"
 # invariants and test setup, and its message must explain why failure is impossible.
 unwrap_used = "deny"
 
+[profile.dev]
+# Keep file/line backtraces without full type and variable debug information.
+debug = "line-tables-only"
+# Favor disk usage over faster recompilation; test inherits these settings.
+incremental = false
+
 [profile.release]
 lto = "thin"
