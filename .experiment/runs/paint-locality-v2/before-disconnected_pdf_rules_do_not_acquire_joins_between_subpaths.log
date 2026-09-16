@@ -1,0 +1,23 @@
+    Updating crates.io index
+   Compiling pdfdelta-core v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.28s
+     Running tests/content_stream_extraction.rs (target/debug/deps/content_stream_extraction-09bc35868082f247)
+
+running 1 test
+test disconnected_pdf_rules_do_not_acquire_joins_between_subpaths ... FAILED
+
+failures:
+
+---- disconnected_pdf_rules_do_not_acquire_joins_between_subpaths stdout ----
+
+thread 'disconnected_pdf_rules_do_not_acquire_joins_between_subpaths' (2201) panicked at crates/pdfdelta-core/tests/content_stream_extraction.rs:6098:5:
+assertion failed: bounds.min.x > 18.0 && bounds.min.x <= 19.0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    disconnected_pdf_rules_do_not_acquire_joins_between_subpaths
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 112 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pdfdelta-core --test content_stream_extraction`

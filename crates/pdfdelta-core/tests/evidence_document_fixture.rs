@@ -794,11 +794,7 @@ fn acquired_paint_bounds_enclose_images_fills_caps_and_bounded_joins() {
             ("10 10 20 20 re S", Some((0.0, 0.0, 40.0, 40.0))),
             (
                 "10 10 m 20 10 20 20 10 20 c f",
-                Some(if nested {
-                    (0.0, 0.0, 100.0, 100.0)
-                } else {
-                    (10.0, 10.0, 20.0, 20.0)
-                }),
+                Some((10.0, 10.0, 20.0, 20.0)),
             ),
             ("/Shade sh", None),
         ] {

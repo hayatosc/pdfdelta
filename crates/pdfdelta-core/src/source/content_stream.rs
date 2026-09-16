@@ -33,7 +33,7 @@ mod clipping;
 use clipping::{ClipRegion, Quad};
 
 mod paint_bounds;
-use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
+use paint_bounds::{MatrixBounds, image_paint_bounds, intersect_paint_bounds, path_paint_bounds};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContentStreamGlyphExtractor;
@@ -568,7 +568,10 @@ impl<'a> Extraction<'a> {
                     page,
                     stream,
                     operation,
-                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                    intersect_paint_bounds(
+                        image_paint_bounds(page_geometry, state),
+                        state.graphics.form_paint_bounds,
+                    ),
                 );
             }
             b"sh" => {
@@ -1059,8 +1062,10 @@ impl Extraction<'_> {
                 page,
                 stream,
                 operation,
-                path_paint_bounds(page_geometry, state, stroke)
-                    .or(state.graphics.form_paint_bounds),
+                intersect_paint_bounds(
+                    path_paint_bounds(page_geometry, state, stroke),
+                    state.graphics.form_paint_bounds,
+                ),
             );
         }
 
@@ -1781,7 +1786,10 @@ impl Extraction<'_> {
                 page,
                 stream,
                 operation,
-                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                intersect_paint_bounds(
+                    image_paint_bounds(page_geometry, state),
+                    state.graphics.form_paint_bounds,
+                ),
             );
         }
         let CachedXObjectKind::Form {
@@ -1808,16 +1816,19 @@ impl Extraction<'_> {
             .into());
         }
 
-        let bounds = bbox.and_then(|bbox| {
-            paint_bounds::form_paint_bounds(
-                page_geometry,
-                state
-                    .graphics
-                    .paint_ctm
-                    .then(MatrixBounds::from(*form_matrix)),
-                bbox,
-            )
-        });
+        let bounds = intersect_paint_bounds(
+            bbox.and_then(|bbox| {
+                paint_bounds::form_paint_bounds(
+                    page_geometry,
+                    state
+                        .graphics
+                        .paint_ctm
+                        .then(MatrixBounds::from(*form_matrix)),
+                    bbox,
+                )
+            }),
+            state.graphics.form_paint_bounds,
+        );
 
         let result = (|| {
             let form_resources = local_resources.clone().unwrap_or_else(|| resources.clone());
@@ -1825,7 +1836,7 @@ impl Extraction<'_> {
             form_state.marked_stack.clear();
             form_state.marked_overflow = 0;
             form_state.content_form = Some(reference);
-            form_state.graphics.form_paint_bounds = bounds.or(state.graphics.form_paint_bounds);
+            form_state.graphics.form_paint_bounds = bounds;
             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
             form_state.graphics.paint_ctm = form_state
                 .graphics

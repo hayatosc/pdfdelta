@@ -187,6 +187,36 @@ pub(super) fn form_paint_bounds(
     )
 }
 
+/// Combines two independently conservative bounds of the same paint effect.
+/// `None` means unknown, not empty. A disjoint or merely touching intersection
+/// retains the enclosing bound: absence of visible paint is not certified here.
+/// Every supplied rectangle must already be finite and outward-rounded.
+pub(super) fn intersect_paint_bounds(
+    effect: Option<Rect>,
+    enclosing: Option<Rect>,
+) -> Option<Rect> {
+    match (effect, enclosing) {
+        (Some(effect), Some(enclosing)) => {
+            let intersection = Rect {
+                min: Vec2 {
+                    x: effect.min.x.max(enclosing.min.x),
+                    y: effect.min.y.max(enclosing.min.y),
+                },
+                max: Vec2 {
+                    x: effect.max.x.min(enclosing.max.x),
+                    y: effect.max.y.min(enclosing.max.y),
+                },
+            };
+            if intersection.min.x < intersection.max.x && intersection.min.y < intersection.max.y {
+                Some(intersection)
+            } else {
+                Some(enclosing)
+            }
+        }
+        (effect, enclosing) => effect.or(enclosing),
+    }
+}
+
 pub(super) fn path_paint_bounds(
     frame: PageGeometry,
     state: &InterpreterState,
@@ -194,10 +224,6 @@ pub(super) fn path_paint_bounds(
 ) -> Option<Rect> {
     let path = &state.current_path;
     if path.paint_bounds.unknown || path.drawn_subpaths == 0 {
-        return None;
-    }
-    // Preserve the enclosing Form clip instead of expanding its curve hull.
-    if path.has_unsupported_segments && state.graphics.form_paint_bounds.is_some() {
         return None;
     }
     let bounds = path.paint_bounds.rectangle?;
@@ -217,7 +243,11 @@ pub(super) fn path_paint_bounds(
     // width times the miter limit also covers every permitted join. Transform
     // this displacement with an outward matrix norm, independently of the CTMs
     // under which individual path points were constructed.
-    let join = if path.segments.len() == 1 && !path.has_unsupported_segments {
+    // Separate one-segment subpaths have caps but no joins. Counting segments
+    // across the whole path would apply a miter expansion between unrelated
+    // rules. Curves retain the conservative fallback because they are not
+    // represented by the retained line-segment list.
+    let join = if path.segments.len() == path.drawn_subpaths && !path.has_unsupported_segments {
         1.0
     } else {
         state.graphics.miter_limit
