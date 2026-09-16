@@ -1,0 +1,153 @@
+diff --git a/crates/pdfdelta-core/src/source/content_stream.rs b/crates/pdfdelta-core/src/source/content_stream.rs
+index 55f1fa4..7adc62e 100644
+--- a/crates/pdfdelta-core/src/source/content_stream.rs
++++ b/crates/pdfdelta-core/src/source/content_stream.rs
+@@ -33,7 +33,7 @@ mod clipping;
+ use clipping::{ClipRegion, Quad};
+ 
+ mod paint_bounds;
+-use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
++use paint_bounds::{MatrixBounds, image_paint_bounds, intersect_paint_bounds, path_paint_bounds};
+ 
+ #[derive(Clone, Copy, Debug, Default)]
+ pub struct ContentStreamGlyphExtractor;
+@@ -568,7 +568,10 @@ impl<'a> Extraction<'a> {
+                     page,
+                     stream,
+                     operation,
+-                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
++                    intersect_paint_bounds(
++                        image_paint_bounds(page_geometry, state),
++                        state.graphics.form_paint_bounds,
++                    ),
+                 );
+             }
+             b"sh" => {
+@@ -1059,8 +1062,10 @@ impl Extraction<'_> {
+                 page,
+                 stream,
+                 operation,
+-                path_paint_bounds(page_geometry, state, stroke)
+-                    .or(state.graphics.form_paint_bounds),
++                intersect_paint_bounds(
++                    path_paint_bounds(page_geometry, state, stroke),
++                    state.graphics.form_paint_bounds,
++                ),
+             );
+         }
+ 
+@@ -1781,7 +1786,10 @@ impl Extraction<'_> {
+                 page,
+                 stream,
+                 operation,
+-                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
++                intersect_paint_bounds(
++                    image_paint_bounds(page_geometry, state),
++                    state.graphics.form_paint_bounds,
++                ),
+             );
+         }
+         let CachedXObjectKind::Form {
+@@ -1808,16 +1816,19 @@ impl Extraction<'_> {
+             .into());
+         }
+ 
+-        let bounds = bbox.and_then(|bbox| {
+-            paint_bounds::form_paint_bounds(
+-                page_geometry,
+-                state
+-                    .graphics
+-                    .paint_ctm
+-                    .then(MatrixBounds::from(*form_matrix)),
+-                bbox,
+-            )
+-        });
++        let bounds = intersect_paint_bounds(
++            bbox.and_then(|bbox| {
++                paint_bounds::form_paint_bounds(
++                    page_geometry,
++                    state
++                        .graphics
++                        .paint_ctm
++                        .then(MatrixBounds::from(*form_matrix)),
++                    bbox,
++                )
++            }),
++            state.graphics.form_paint_bounds,
++        );
+ 
+         let result = (|| {
+             let form_resources = local_resources.clone().unwrap_or_else(|| resources.clone());
+@@ -1825,7 +1836,7 @@ impl Extraction<'_> {
+             form_state.marked_stack.clear();
+             form_state.marked_overflow = 0;
+             form_state.content_form = Some(reference);
+-            form_state.graphics.form_paint_bounds = bounds.or(state.graphics.form_paint_bounds);
++            form_state.graphics.form_paint_bounds = bounds;
+             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
+             form_state.graphics.paint_ctm = form_state
+                 .graphics
+ diff --git a/crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs b/crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs
+index 8853d70..00f16c9 100644
+--- a/crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs
++++ b/crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs
+@@ -187,6 +187,35 @@ pub(super) fn form_paint_bounds(
+     )
+ }
+ 
++/// Combines two independently conservative bounds of the same paint effect.
++/// `None` means unknown, not empty. A disjoint or merely touching intersection
++/// retains the enclosing bound: absence of visible paint is not certified here.
++/// Every supplied rectangle must already be finite and outward-rounded.
++pub(super) fn intersect_paint_bounds(effect: Option<Rect>, enclosing: Option<Rect>) -> Option<Rect> {
++    match (effect, enclosing) {
++        (Some(effect), Some(enclosing)) => {
++            let intersection = Rect {
++                min: Vec2 {
++                    x: effect.min.x.max(enclosing.min.x),
++                    y: effect.min.y.max(enclosing.min.y),
++                },
++                max: Vec2 {
++                    x: effect.max.x.min(enclosing.max.x),
++                    y: effect.max.y.min(enclosing.max.y),
++                },
++            };
++            if intersection.min.x < intersection.max.x
++                && intersection.min.y < intersection.max.y
++            {
++                Some(intersection)
++            } else {
++                Some(enclosing)
++            }
++        }
++        (effect, enclosing) => effect.or(enclosing),
++    }
++}
++
+ pub(super) fn path_paint_bounds(
+     frame: PageGeometry,
+     state: &InterpreterState,
+@@ -196,10 +225,6 @@ pub(super) fn path_paint_bounds(
+     if path.paint_bounds.unknown || path.drawn_subpaths == 0 {
+         return None;
+     }
+-    // Preserve the enclosing Form clip instead of expanding its curve hull.
+-    if path.has_unsupported_segments && state.graphics.form_paint_bounds.is_some() {
+-        return None;
+-    }
+     let bounds = path.paint_bounds.rectangle?;
+     if !stroke {
+         return Some(bounds);
+@@ -217,7 +242,11 @@ pub(super) fn path_paint_bounds(
+     // width times the miter limit also covers every permitted join. Transform
+     // this displacement with an outward matrix norm, independently of the CTMs
+     // under which individual path points were constructed.
+-    let join = if path.segments.len() == 1 && !path.has_unsupported_segments {
++    // Separate one-segment subpaths have caps but no joins. Counting segments
++    // across the whole path would apply a miter expansion between unrelated
++    // rules. Curves retain the conservative fallback because they are not
++    // represented by the retained line-segment list.
++    let join = if path.segments.len() == path.drawn_subpaths && !path.has_unsupported_segments {
+         1.0
+     } else {
+         state.graphics.miter_limit
