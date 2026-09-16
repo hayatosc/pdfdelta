@@ -1,0 +1,51 @@
+name: Completion source export
+on:
+  push:
+    branches: [work/strict-completion-20260916]
+    paths: [.github/workflows/completion-export.yml]
+permissions:
+  contents: write
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export bounded inspection chunks
+        shell: bash
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import gzip, hashlib, io, json, pathlib, subprocess, tarfile
+          base = '7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c'
+          out = pathlib.Path('.experiment/inspection')
+          out.mkdir(parents=True, exist_ok=True)
+          paths = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', base], text=True).splitlines()
+          chosen = [p for p in paths if pathlib.Path(p).suffix in {'.rs','.toml','.lock','.md','.sh','.py','.tsv'} or p in {'benchmark/realworld/followup/panel.json','benchmark/realworld/next/development/inputs.json','benchmark/realworld/next/blind/inputs.json'}]
+          data = io.BytesIO()
+          with tarfile.open(fileobj=data, mode='w') as tar:
+              for p in chosen:
+                  b = subprocess.check_output(['git','show',base+':'+p])
+                  info = tarfile.TarInfo(p); info.size = len(b); info.mode = 0o644
+                  tar.addfile(info, io.BytesIO(b))
+          exports = {'source-code.tar.gz': gzip.compress(data.getvalue(), mtime=0)}
+          for name in ['pdfdelta-baseline.gz', 'pdfbench-baseline.gz']:
+              p = pathlib.Path('.experiment/transport') / name
+              if p.exists(): exports[name] = p.read_bytes()
+          records = {}
+          for name, b in exports.items():
+              chunks = []
+              for n, start in enumerate(range(0, len(b), 900000)):
+                  path = out / (name+'.%03d'%n)
+                  block = b[start:start+900000]; path.write_bytes(block)
+                  chunks.append({'path':str(path),'size':len(block),'sha256':hashlib.sha256(block).hexdigest()})
+              records[name] = {'size':len(b),'sha256':hashlib.sha256(b).hexdigest(),'chunks':chunks}
+          (out/'index.json').write_text(json.dumps({'base':base,'files':records},indent=2)+'\n')
+          PY
+          git config user.name 'pdfdelta experiment'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .experiment/inspection
+          git diff --cached --quiet || git commit -m 'chore(experiment): publish bounded inspection chunks [skip ci]'
+          git push origin HEAD:work/strict-completion-20260916
