@@ -1433,6 +1433,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> Opti
                 identifier: None,
                 text: None,
                 glyphs: page_zero_glyphs[..count].to_vec(),
+                content: None,
                 parent: previous_structure,
                 order: None,
             },
