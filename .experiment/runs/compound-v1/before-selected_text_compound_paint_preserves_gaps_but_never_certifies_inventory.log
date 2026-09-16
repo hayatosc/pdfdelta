@@ -1,0 +1,23 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running tests/comparison_cli.rs (target/debug/deps/comparison_cli-3290b2227e1ab239)
+
+running 1 test
+test selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory ... FAILED
+
+failures:
+
+---- selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory stdout ----
+
+thread 'selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory' (2365) panicked at crates/pdfdelta-cli/tests/comparison_cli.rs:4089:17:
+assertion `left == right` failed
+  left: Number(29)
+ right: 39
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 64 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p pdfdelta-cli --test comparison_cli`

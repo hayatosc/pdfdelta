@@ -1,0 +1,31 @@
+   Compiling libc v0.2.189
+   Compiling rustix v1.1.4
+   Compiling serde v1.0.229
+   Compiling getrandom v0.4.3
+   Compiling rand v0.10.2
+   Compiling lopdf v0.45.0
+   Compiling pdfdelta-core v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-core)
+   Compiling pdfdelta-cli v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 27.81s
+     Running tests/comparison_cli.rs (target/debug/deps/comparison_cli-3290b2227e1ab239)
+
+running 1 test
+test selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews ... FAILED
+
+failures:
+
+---- selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews stdout ----
+
+thread 'selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews' (2343) panicked at crates/pdfdelta-cli/tests/comparison_cli.rs:4042:9:
+assertion `left == right` failed: case 0: 
+  left: Some(0)
+ right: Some(1)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 64 filtered out; finished in 0.24s
+
+error: test failed, to rerun pass `-p pdfdelta-cli --test comparison_cli`

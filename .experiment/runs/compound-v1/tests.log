@@ -1,0 +1,741 @@
+   Compiling pdfdelta-core v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-core)
+   Compiling pdfdelta-bench v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-bench)
+   Compiling pdfdelta-cli v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 24s
+     Running unittests src/lib.rs (target/debug/deps/pdfdelta_bench-65113d49b80c18ed)
+
+running 367 tests
+test candidate_eval::tests::block_global_spans_accept_mixed_ascii_and_non_ascii_blocks ... ok
+test candidate_eval::tests::block_global_spans_report_byte_offsets_for_unmapped_blocks ... ok
+test candidate_eval::tests::block_global_spans_use_scalar_coordinates_for_non_ascii_text ... ok
+test candidate_eval::tests::dominant_ngram_df_tie_prefers_larger_document_frequency ... ok
+test candidate_eval::tests::evaluate_candidate_generation_rejects_empty_and_zero_top_k_before_rendering ... ok
+test candidate_eval::tests::candidate_visit_pressure_charges_only_short_blocks_for_the_fallback ... ok
+test candidate_eval::tests::evaluate_candidate_visit_pressure_reports_upper_bound_and_dominance ... ok
+test candidate_eval::tests::healthy_ignores_latency_observations ... ok
+test candidate_eval::tests::healthy_rejects_empty_top_k ... ok
+test candidate_eval::tests::healthy_rejects_top_k_length_mismatch ... ok
+test candidate_eval::tests::healthy_rejects_vector_length_mismatch ... ok
+test candidate_eval::tests::healthy_requires_recall_at_or_above_oracle_at_every_k ... ok
+test candidate_eval::tests::evaluate_minhash_candidate_visit_pressure_measures_deterministic_budget ... ok
+test candidate_eval::tests::summarize_ngram_distribution_is_tie_order_independent ... ok
+test candidate_eval::tests::summarize_ngram_distribution_ranks_contributions_by_visits ... ok
+test candidate_eval::tests::summarize_ngram_distribution_reaches_half_with_ceil_on_odd_total ... ok
+test candidate_eval::tests::summarize_ngram_distribution_reports_zero_without_shared_ngrams ... ok
+test candidate_eval::tests::summarize_ngram_distribution_top_10_excludes_the_smallest_of_11_contributors ... ok
+test candidate_eval::tests::write_candidates_json_creates_new_artifact_and_rejects_existing ... ok
+test candidate_profile::tests::parses_linux_process_memory_in_bytes ... ok
+test candidate_profile::tests::profiles_each_generator_with_complete_identity_recall ... ok
+test candidate_profile::tests::rejects_invalid_profile_options ... ok
+test cases::tests::low_overlap_paragraph_rewrite_has_one_presence_replacement ... ok
+test evaluation::tests::evaluation_keeps_candidates_out_of_accepted_counts_and_failures_in_denominator ... ok
+test evaluation::tests::expected_match_results_serialize_with_the_evaluation_record ... ok
+test evaluation::tests::historical_assessment_without_claim_diagnostics_stays_unavailable ... ok
+test evaluation::tests::known_producer_family_with_unknown_version_has_a_producer_group ... ok
+test evaluation::tests::operational_and_resolution_totals_keep_observed_resource_and_token_states ... ok
+test evaluation::tests::proven_totals_discard_partial_expected_counts_independent_of_order ... ok
+test evaluation::tests::provenance_parser_requires_complete_date_and_tuning_metadata ... ok
+test evaluation::tests::reproducible_artifact_refuses_overwrite ... ok
+test evaluation::tests::split_validation_keeps_known_producer_series_in_one_split ... ok
+test evaluation::tests::split_validation_rejects_series_derivation_byte_and_tuning_contamination ... ok
+test evaluator::tests::canonical_index_rejects_unmapped_and_incompletely_consumed_sources ... ok
+test evaluator::tests::concatenate_projects_across_a_zero_scalar_source_boundary ... ok
+test evaluator::tests::event_matching_uses_a_maximum_cardinality_assignment ... ok
+test evaluator::tests::exact_expectations_reject_unexpected_presence_proofs ... ok
+test evaluator::tests::layout_only_precision_explicitly_requires_zero_content_changes ... ok
+test evaluator::tests::ordinary_expectation_rejects_a_matching_occurrence_with_a_surplus_occurrence ... ok
+test evaluator::tests::precision_counts_unmatched_actual_and_expected_events ... ok
+test evaluator::tests::precision_selects_one_maximum_iou_paragraph_span_variant ... ok
+test evaluator::tests::projection_rejects_a_separator_that_disagrees_with_the_source_boundary ... ok
+test evaluator::tests::proven_region_expectation_requires_one_containing_context_envelope ... ok
+test evaluator::tests::renderer_identity_requires_bounded_printable_ascii ... ok
+test evaluator::tests::token_metrics_are_unavailable_when_any_actual_span_cannot_be_projected ... ok
+test extraction_conformance::tests::preserves_unmapped_font_identity_and_glyph_id ... ok
+test extraction_conformance::tests::rejects_blank_producer_identity_before_extraction ... ok
+test extraction_conformance::tests::rejects_empty_mapped_text ... ok
+test extraction_conformance::tests::rejects_oracle_for_a_different_pdf_before_extraction ... ok
+test extraction_conformance::tests::rejects_unknown_schema_versions_before_extraction ... ok
+test extraction_conformance::tests::rejects_zero_writing_direction ... ok
+test generalization::tests::absent_annotations_are_not_zero_change_expectations ... ok
+test generalization::tests::annotation_payload_counts_toward_the_evaluation_budget ... ok
+test generalization::tests::missing_and_duplicate_reports_are_not_perfect_scores ... ok
+test generalization::tests::relation_alternatives_stay_separate_and_inference_cannot_satisfy_them ... ok
+test generalization::tests::unscoped_expectations_do_not_steal_the_only_match_for_a_scoped_event ... ok
+test generalization_report::report_diagnostics::tests::grouping_bounds_examples_but_keeps_observation_counts ... ok
+test generalization_report::report_diagnostics::tests::malformed_and_unknown_reports_do_not_become_empty_success ... ok
+test generalization_report::report_diagnostics::tests::native_stage_reasons_preserve_unknowns_and_ignore_positive_evidence ... ok
+test generalization_report::report_diagnostics::tests::shared_diagnostics_leave_existing_operational_summary_unchanged ... ok
+test generalization_report::tests::incompatible_inputs_and_inconsistent_coverage_are_rejected ... ok
+test generalization_report::tests::operational_summary_preserves_unknown_coverage_and_timing ... ok
+test generalization_report::tests::unknown_timing_and_incomplete_discovery_survive_a_claimed_complete_report ... ok
+test literal_selectors::tests::byte_locators_must_match_scalar_boundaries_and_exact_quote ... ok
+test literal_selectors::tests::hash_view_and_budget_failures_remain_unresolved ... ok
+test literal_selectors::tests::literal_whitespace_unicode_and_shared_glyphs_survive ... ok
+test literal_selectors::tests::overlapping_and_cross_block_duplicates_do_not_pick_the_first_match ... ok
+test literal_selectors::tests::real_and_synthetic_spaces_keep_distinct_provenance ... ok
+test literal_selectors::tests::unknown_glyphs_and_missing_sources_cannot_be_empty_text ... ok
+test literal_selectors::tests::version_normalization_and_locator_validation_is_explicit ... ok
+test mutation::tests::built_in_case_plans_reproduce_their_canonical_paragraph_spans ... ok
+test mutation::tests::structured_column_change_keeps_surrounding_sections_full_width ... ok
+test mutation::tests::text_replacement_shifts_later_paragraph_spans ... ok
+test renderers::tests::renderer_serialization_matches_name ... ok
+test revisions::assessment_evidence::tests::source_backed_edits_match_contextual_annotations_without_legacy_traces ... ok
+test revisions::exact_range_parent::tests::rejects_inconsistent_candidate_counters_without_overflow ... ok
+test revisions::exact_range_parent::tests::rejects_inconsistent_relation_and_sample_partitions ... ok
+test revisions::exact_range_parent::tests::rejects_missing_stratified_relation_sample ... ok
+test revisions::exact_range_parent::tests::serializes_complete_outcome_and_all_metric_fields ... ok
+test revisions::exact_range_parent::tests::unavailable_outcome_is_atomic_and_agrees_with_section_status ... ok
+test revisions::fragment_review::tests::bundle_contract_rejects_proposal_count_and_stopped_trace_mismatches ... ok
+test revisions::fragment_review::tests::bundle_is_deterministic_and_contains_exact_source_evidence ... ok
+test revisions::fragment_review::tests::bundle_projects_subblock_occurrence_into_multiblock_context ... ok
+test revisions::fragment_review::tests::bundle_reports_deterministic_truncation ... ok
+test revisions::fragment_review::tests::empty_bundle_has_the_exact_nested_schema_key ... ok
+test revisions::fragment_review::tests::invalid_unsampled_trace_fails_closed ... ok
+test revisions::fragment_review::tests::local_fragment_review_rejects_anchored_gap_relation ... ok
+test revisions::fragment_review::tests::sampled_and_unsampled_paths_charge_each_projection_once ... ok
+test revisions::fragment_review::tests::source_bboxes_are_partitioned_by_page ... ok
+test revisions::revision_diagnostics::tests::absence_segmentation_ambiguity_and_caps_fail_closed ... ok
+test revisions::revision_diagnostics::tests::alignment_span_index_charges_each_block_and_rejects_duplicate_membership ... ok
+test revisions::revision_diagnostics::tests::an_outside_objective_mask_is_reported_without_affecting_quality_matching ... ok
+test revisions::revision_diagnostics::tests::candidate_queries_share_one_production_visit_charge_and_fail_closed_at_the_cap ... ok
+test revisions::revision_diagnostics::tests::candidate_recall_counts_hit_miss_and_unavailable_counterparts ... ok
+test revisions::revision_diagnostics::tests::expected_change_cap_bounds_diagnostics_without_touching_quality_inputs ... ok
+test revisions::revision_diagnostics::tests::final_assessment_trace_keeps_candidate_and_parent_rejection_separate_from_generator ... ok
+test revisions::revision_diagnostics::tests::final_assessment_trace_preserves_diagnostic_limits ... ok
+test revisions::revision_diagnostics::tests::fixed_annotations_are_valid_but_outside_literal_minimal_objective ... ok
+test revisions::revision_diagnostics::tests::fragmentation_requires_consecutive_hunks_covering_the_entire_quote ... ok
+test revisions::revision_diagnostics::tests::matcher_state_deduplication_preserves_first_seen_order ... ok
+test revisions::revision_diagnostics::tests::mismatched_unknown_order_spans_report_the_affected_sides ... ok
+test revisions::revision_diagnostics::tests::move_fragmentation_compares_hunk_sets_when_side_order_is_reversed ... ok
+test revisions::revision_diagnostics::tests::occurrence_count_mismatch_ignores_actuals_claimed_by_other_expectations ... ok
+test revisions::revision_diagnostics::tests::occurrence_count_mismatch_precedes_generic_failure_diagnostics ... ok
+test revisions::revision_diagnostics::tests::occurrence_count_mismatch_requires_a_matching_scope ... ok
+test revisions::revision_diagnostics::tests::quote_locator_collapses_unicode_whitespace_and_detects_cross_block_segmentation ... ok
+test revisions::revision_diagnostics::tests::quote_locator_stays_complete_for_adversarial_repeated_prefixes ... ok
+test revisions::revision_diagnostics::tests::quote_locator_treats_unmapped_tokens_as_hard_barriers_and_issues_as_indeterminate ... ok
+test revisions::revision_diagnostics::tests::recalled_counterparts_in_one_unknown_order_span_report_reading_order ... ok
+test revisions::revision_diagnostics::tests::recalled_counterparts_in_separate_alignment_spans_report_a_span_mismatch ... ok
+test revisions::revision_diagnostics::tests::recalled_replacement_with_final_one_sided_owners_reports_alignment_or_candidate ... ok
+test revisions::revision_diagnostics::tests::scope_anchor_ignores_unrelated_uncertain_evidence_but_requires_a_trusted_match ... ok
+test revisions::revision_diagnostics::tests::scope_anchor_keeps_exact_duplicates_ambiguous_despite_uncertainty ... ok
+test revisions::revision_diagnostics::tests::two_sided_unresolved_cause_requires_one_region_covering_both_quotes ... ok
+test revisions::revision_diagnostics::tests::unresolved_evidence_maps_to_specific_failure_reasons ... ok
+test revisions::revision_diagnostics::tests::wrong_kind_diagnostic_does_not_change_quality_matching ... ok
+test revisions::revision_diagnostics::tests::wrong_kind_diagnostic_reports_recovery_context_without_serializing_text ... ok
+test revisions::revision_diagnostics::tests::wrong_kind_diagnostic_selects_the_same_occurrence_as_matching ... ok
+test revisions::revision_diagnostics::tests::wrong_kind_multi_occurrence_limit_publishes_no_partial_count ... ok
+test revisions::revision_diagnostics::tests::wrong_kind_scan_limit_is_typed_and_marks_outer_diagnostics_incomplete ... ok
+test revisions::revision_diagnostics::tests::wrong_kind_unavailable_projection_is_not_reported_as_zero_or_false ... ok
+test revisions::revision_document_report::tests::a_repeated_scalar_in_one_glyph_has_no_unique_source_coordinate ... ok
+test revisions::revision_document_report::tests::exact_masks_require_one_operation_and_inference_never_counts ... ok
+test revisions::revision_document_report::tests::unchanged_source_false_positives_and_unprojectable_masks_remain_distinct ... ok
+test revisions::revision_document_report::tests::unlocalized_changes_prevent_whole_event_recovery_but_keep_token_evidence ... ok
+test revisions::revision_scopes::tests::classification_budget_exhaustion_discards_all_partial_output ... ok
+test revisions::revision_scopes::tests::classifies_only_changes_fully_contained_by_one_scope ... ok
+test revisions::revision_scopes::tests::classifies_proven_regions_only_when_all_sides_share_one_scope ... ok
+test revisions::revision_scopes::tests::classifies_zero_width_sides_within_grouped_blocks ... ok
+test revisions::revision_scopes::tests::empty_middle_blocks_preserve_the_combined_separator_tail ... ok
+test revisions::revision_scopes::tests::evaluation_views_reorder_only_certified_terminal_bands ... ok
+test revisions::revision_scopes::tests::expected_quotes_are_resolved_only_inside_their_referenced_scope ... ok
+test revisions::revision_scopes::tests::projects_reordered_context_only_when_selected_coordinates_are_contiguous ... ok
+test revisions::revision_scopes::tests::reconstructs_group_separator_coordinates_and_rejects_invalid_block_order ... ok
+test revisions::revision_scopes::tests::recovered_token_metrics_use_the_emitted_semantic_hunk ... ok
+test revisions::revision_scopes::tests::rejects_crossing_different_scope_and_mixed_occurrence_changes ... ok
+test revisions::revision_scopes::tests::rejects_reversed_overlapping_and_crossed_scope_order ... ok
+test revisions::revision_scopes::tests::rejects_unavailable_scope_anchors_fail_closed ... ok
+test revisions::revision_scopes::tests::rejects_uncertain_scope_evidence_before_empty_change_metrics ... ok
+test revisions::revision_scopes::tests::rejects_uncertain_scope_evidence_on_absent_quote_sides ... ok
+test revisions::revision_scopes::tests::resolves_unique_scope_anchors_to_document_coordinates ... ok
+test revisions::revision_scopes::tests::scope_resolution_obeys_the_shared_diagnostic_budget ... ok
+test revisions::revision_scopes::tests::scoped_token_metric_budget_exhaustion_fails_the_whole_measurement ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_allow_a_zero_token_replacement_side ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_charge_each_occurrence_before_projection ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_cover_exact_replacement_insertion_and_deletion ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_deduplicate_overlaps_and_keep_sides_distinct ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_define_empty_and_false_positive_denominators ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_exclude_out_of_scope_reported_changes ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_exclude_synthetic_group_separators ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_penalize_overwide_and_underwide_spans ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_preserve_combined_tail_across_empty_blocks ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_preserve_whitespace_spanning_block_boundaries ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_project_collapsed_whitespace_ranges_to_raw_tokens ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_project_crossing_events_to_reviewed_tokens ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_project_ranges_across_virtual_block_whitespace ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_project_ranges_after_collapsed_whitespace ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_reject_empty_and_spanless_changes ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_reject_malformed_reported_projection ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_use_changed_quotes_instead_of_context ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_use_disjoint_context_relative_ranges ... ok
+test revisions::revision_scopes::tests::scoped_token_metrics_use_unicode_whitespace_separator_parity ... ok
+test revisions::revision_scopes::tests::unique_wrapped_expected_quote_is_allowed_but_ambiguous_and_uncertain_quotes_fail_closed ... ok
+test revisions::revision_scopes::tests::virtual_separator_scope_requires_both_source_neighbors ... ok
+test revisions::revision_scopes::tests::whitespace_boundaries_do_not_insert_a_second_separator ... ok
+test revisions::revision_selectors::tests::duplicate_missing_and_sourceless_selectors_are_not_unique ... ok
+test revisions::revision_selectors::tests::expanded_glyph_preserves_three_scalar_coordinates ... ok
+test revisions::revision_selectors::tests::paint_order_has_literal_page_streams_and_stable_sources_under_storage_permutation ... ok
+test revisions::revision_selectors::tests::paint_order_retains_unmapped_glyphs_and_rejects_empty_or_oversized_text ... ok
+test revisions::revision_selectors::tests::unique_scope_excludes_duplicate_quotes_outside_its_boundaries ... ok
+test revisions::section_pairing_review::tests::count_and_view_mismatches_fail_the_contract ... ok
+test revisions::section_pairing_review::tests::distance_exceeded_and_existing_overlap_are_audited ... ok
+test revisions::section_pairing_review::tests::empty_complete_bundle_is_valid_and_deterministic ... ok
+test revisions::section_pairing_review::tests::exact_edit_reports_changed_text_minimal_spans_and_gate ... ok
+test revisions::section_pairing_review::tests::malformed_ownership_ordinal_and_edit_fail_atomically ... ok
+test revisions::section_pairing_review::tests::no_diagnostics_produce_no_bundle ... ok
+test revisions::section_pairing_review::tests::proposal_order_is_deterministic_and_full_evidence_changes_fingerprint ... ok
+test revisions::section_pairing_review::tests::resource_guards_stop_before_unbounded_work ... ok
+test revisions::section_pairing_review::tests::source_provenance_only_mutation_changes_full_fingerprint ... ok
+test revisions::section_pairing_review::tests::truncated_bundle_fingerprint_covers_unsampled_proposals ... ok
+test revisions::section_pairing_review::tests::unavailable_core_reasons_serialize_as_typed_atomic_reports ... ok
+test revisions::section_pairing_review::tests::validator_rejects_tampered_complete_accounting_and_sample ... ok
+test revisions::tests::absent_occurrence_count_keeps_any_occurrence_matching ... ok
+test revisions::tests::actual_occurrence_trace_distinguishes_available_ambiguous_and_untraced ... ok
+test revisions::tests::anchored_gap_evidence_retains_context_without_near_scores ... ok
+test revisions::tests::annotation_modes_validate_scope_references ... ok
+test revisions::tests::assessed_disjoint_masks_match_one_logical_occurrence ... ok
+test revisions::tests::assessment_claim_diagnostics_count_evidence_without_owning_overlapping_bounds ... ok
+test revisions::tests::broad_proven_mismatch_requires_directional_expected_evidence ... ok
+test revisions::tests::change_free_reviewed_scope_has_vacuous_perfect_event_quality ... ok
+test revisions::tests::changed_quotes_match_narrow_output_without_discarding_context ... ok
+test revisions::tests::changed_ranges_do_not_combine_opposite_one_sided_hunks ... ok
+test revisions::tests::changed_ranges_do_not_pair_fragments_from_different_hunks ... ok
+test revisions::tests::changed_ranges_fail_closed_without_semantic_hunk_evidence ... ok
+test revisions::tests::changed_ranges_match_an_ordered_hunk_subset ... ok
+test revisions::tests::changed_ranges_match_one_exact_hunk_and_leave_extra_tokens_for_precision ... ok
+test revisions::tests::changed_ranges_match_paired_and_one_sided_hunks_in_one_event ... ok
+test revisions::tests::changed_ranges_with_an_empty_side_require_a_one_sided_hunk ... ok
+test revisions::tests::collapse_whitespace_normalizes_line_breaks_and_runs ... ok
+test revisions::tests::compare_outcomes_with_metrics_keeps_attempted_charge_on_candidate_limit ... ok
+test revisions::tests::compare_outcomes_with_metrics_preserves_present_all_zero_sentence_metrics ... ok
+test revisions::tests::compare_outcomes_with_metrics_records_candidate_visits_on_success ... ok
+test revisions::tests::compare_outcomes_with_metrics_returns_none_for_pre_alignment_limit ... ok
+test revisions::tests::compare_outcomes_with_metrics_skips_pressure_for_incomplete_extraction ... ok
+test revisions::tests::complete_full_quotes_are_exact_localization_evidence ... ok
+test revisions::tests::converts_and_validates_sentence_edge_filter_metrics ... ok
+test revisions::tests::converts_and_validates_sentence_edge_gate_shadow_metrics ... ok
+test revisions::tests::converts_and_validates_sentence_edge_signature_shadow_metrics ... ok
+test revisions::tests::converts_serializes_and_validates_sentence_edge_signature_direct_shadow_metrics ... ok
+test revisions::tests::converts_serializes_and_validates_sentence_edge_signature_reference_oracle ... ok
+test revisions::tests::diagnostic_json_uses_exact_stable_tags ... ok
+test revisions::tests::duplicate_edges_use_stable_expected_and_actual_order ... ok
+test revisions::tests::empty_changed_quote_requires_zero_token_atomic_evidence ... ok
+test revisions::tests::equal_cardinality_prefers_counted_expectations ... ok
+test revisions::tests::equal_cardinality_prefers_kind_agreement ... ok
+test revisions::tests::evaluation_summary_keeps_unlocalized_changes_separate_from_unresolved_regions ... ok
+test revisions::tests::exact_localization_accepts_absent_side_as_empty_range_set ... ok
+test revisions::tests::exact_localization_ignores_atomic_fragment_boundaries ... ok
+test revisions::tests::exact_localization_maps_collapsed_whitespace_to_scalar_coordinates ... ok
+test revisions::tests::exact_localization_maps_multi_block_space_separator ... ok
+test revisions::tests::exact_localization_recall_rejects_an_overwide_changed_span ... ok
+test revisions::tests::exact_localization_rejects_ambiguous_same_text_location ... ok
+test revisions::tests::exact_localization_rejects_extra_atomic_changed_tokens ... ok
+test revisions::tests::exact_localization_rejects_unmapped_relation_context ... ok
+test revisions::tests::exact_localization_uses_semantic_ranges_across_atomic_equal_islands ... ok
+test revisions::tests::expected_documents_bound_the_number_of_changes ... ok
+test revisions::tests::expected_documents_enforce_version_and_quote_shapes ... ok
+test revisions::tests::expected_documents_validate_optional_occurrence_count ... ok
+test revisions::tests::full_json_v1_schema_excludes_new_diagnostic_fields ... ok
+test revisions::tests::invalid_proven_scope_does_not_invalidate_legacy_scoped_quality ... ok
+test revisions::tests::limit_scale_validation_rejects_lowering_and_nonfinite_values ... ok
+test revisions::tests::local_fragment_signature_depth_handles_maximum_configuration ... ok
+test revisions::tests::long_one_sided_spans_are_not_tiny ... ok
+test revisions::tests::manifest_parser_rejects_malformed_input ... ok
+test revisions::tests::manifest_rows_round_trip_through_the_parser ... ok
+test revisions::tests::matched_atomic_diff_keeps_legacy_hunk_when_normalized_range_is_unavailable ... ok
+test revisions::tests::matched_atomic_diff_provides_exact_hunk_evidence ... ok
+test revisions::tests::matched_atomic_diff_rejects_an_empty_edit_point_outside_the_hunk ... ok
+test revisions::tests::matched_relation_contexts_support_event_shapes_and_fail_closed_on_duplicates ... ok
+test revisions::tests::matching_augmentation_limit_returns_no_partial_outcome ... ok
+test revisions::tests::matching_budget_charges_semantic_hunks_and_their_text ... ok
+test revisions::tests::matching_candidate_edge_limit_returns_no_partial_outcome ... ok
+test revisions::tests::matching_is_one_to_one_and_tracks_kind_agreement ... ok
+test revisions::tests::matching_occurrence_visit_limit_returns_no_partial_outcome ... ok
+test revisions::tests::matching_residual_visit_limit_returns_no_partial_outcome ... ok
+test revisions::tests::matching_text_byte_limit_returns_no_partial_outcome ... ok
+test revisions::tests::maximum_matching_follows_crossing_quote_edges ... ok
+test revisions::tests::maximum_matching_preserves_a_repeated_event_for_the_counted_expectation ... ok
+test revisions::tests::mixed_scope_matching_constrains_only_scoped_expected_changes ... ok
+test revisions::tests::mixed_scope_matching_prioritizes_scoped_expected_changes_deterministically ... ok
+test revisions::tests::move_events_do_not_satisfy_non_move_presence ... ok
+test revisions::tests::normalize_output_destination_resolves_aliases_and_rejects_missing_parents ... ok
+test revisions::tests::occurrence_count_matches_the_exact_number_of_repeated_quotes ... ok
+test revisions::tests::occurrence_count_rejects_a_missing_occurrence ... ok
+test revisions::tests::occurrence_count_rejects_a_surplus_occurrence ... ok
+test revisions::tests::occurrence_count_rejects_one_wrong_quote ... ok
+test revisions::tests::pair_report_json_includes_candidate_visit_fields ... ok
+test revisions::tests::partial_annotations_skip_precision_but_keep_recall ... ok
+test revisions::tests::post_comparison_limit_retains_quality_and_assessment_evidence ... ok
+test revisions::tests::preserves_evaluable_direct_shadow_diagnostic_mismatch_evidence ... ok
+test revisions::tests::proven_evaluation_matches_source_backed_regions_once ... ok
+test revisions::tests::proven_presence_is_one_to_one_and_rejects_repeated_expectations ... ok
+test revisions::tests::provenance_manifest_preserves_metadata_and_validates_split_boundaries ... ok
+test revisions::tests::publish_new_file_exhaustion_reports_truthful_publication_error ... ok
+test revisions::tests::publish_new_file_handles_long_destination_names_without_name_max_overflow ... ok
+test revisions::tests::publish_new_file_refuses_to_overwrite_existing_file_and_handles_temp_collisions_deterministically ... ok
+test revisions::tests::quote_local_report_preserves_nonavailable_mapping_status ... ok
+test revisions::tests::quote_matching_considers_every_occurrence_of_one_semantic_change ... ok
+test revisions::tests::recovered_event_evidence_carries_scores_scopes_and_span_indices ... ok
+test revisions::tests::recovered_evidence_is_not_shared_across_public_events ... ok
+test revisions::tests::recovered_evidence_resource_cap_returns_no_partial_index ... ok
+test revisions::tests::recovered_one_sided_event_rejects_malformed_present_span ... ok
+test revisions::tests::recovery_watch_join_is_ordinal_safe_with_duplicate_and_missing_expected_ids ... ok
+test revisions::tests::recovery_watch_occurrence_report_complements_completion_flags ... ok
+test revisions::tests::recovery_watch_queries_accept_only_kind_appropriate_quote_shapes ... ok
+test revisions::tests::recovery_watch_queries_are_capped_filtered_and_ordered ... ok
+test revisions::tests::recovery_watch_report_serializes_occurrences_pair_evidence_and_stop_state ... ok
+test revisions::tests::recovery_watch_report_serializes_one_sided_veto_evidence ... ok
+test revisions::tests::rejects_invalid_exact_boundary_trie_accounting_and_parity ... ok
+test revisions::tests::rejects_invalid_flat_exact_boundary_accounting_and_parity ... ok
+test revisions::tests::rejects_invalid_global_length_aware_shadow_equations ... ok
+test revisions::tests::rejects_invalid_length_aware_local_fragment_shadow_metrics ... ok
+test revisions::tests::rejects_invalid_length_aware_recheck_accounting_and_parity ... ok
+test revisions::tests::rejects_invalid_local_fragment_shadow_metrics ... ok
+test revisions::tests::rejects_invalid_recheck_reuse_accounting_and_parity ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics_completion_states ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics_explained_work_limits ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics_structural_and_floor_counts ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics_truncated_work ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics_work_deficits ... ok
+test revisions::tests::rejects_invalid_sentence_recovery_metrics_work_partitions ... ok
+test revisions::tests::rejects_nonzero_counters_for_complete_empty_exact_boundary_trie_shadow ... ok
+test revisions::tests::rejects_nonzero_counters_for_complete_empty_flat_exact_boundary_shadow ... ok
+test revisions::tests::rejects_unreachable_flat_exact_boundary_stopped_work ... ok
+test revisions::tests::relation_group_keys_preserve_block_order_and_separator ... ok
+test revisions::tests::repeated_mismatch_evidence_limit_returns_no_partial_outcome ... ok
+test revisions::tests::repeated_occurrences_count_once_semantically_but_all_resolution_failures_count ... ok
+test revisions::tests::repeated_recovered_deletion_preserves_exact_one_sided_evidence ... ok
+test revisions::tests::repeated_recovered_event_fails_closed_on_missing_or_duplicate_trace ... ok
+test revisions::tests::repeated_recovered_event_preserves_occurrences_and_exact_evidence ... ok
+test revisions::tests::repeated_recovered_event_rejects_multi_hunk_trace ... ok
+test revisions::tests::repeated_recovered_event_rejects_twenty_seven_or_twenty_nine_occurrences ... ok
+test revisions::tests::repeated_recovered_event_supports_twenty_eight_ordered_occurrences ... ok
+test revisions::tests::repeated_recovered_insertion_preserves_exact_one_sided_evidence ... ok
+test revisions::tests::resolve_pressure_allows_incomplete_extraction_without_an_attempt ... ok
+test revisions::tests::resolve_pressure_rejects_alignment_without_a_pressure_attempt ... ok
+test revisions::tests::reviewed_recall_dimensions_keep_presence_kind_and_localization_distinct ... ok
+test revisions::tests::reviewed_recall_metrics_are_versioned_summary_fields ... ok
+test revisions::tests::reviewed_recall_reports_none_for_empty_denominators ... ok
+test revisions::tests::same_kind_and_occurrence_count_matching_use_the_shared_predicate ... ok
+test revisions::tests::scaled_options_only_raise_budgets ... ok
+test revisions::tests::scoped_complete_rejects_invalid_scope_syntax ... ok
+test revisions::tests::scoped_complete_uses_exact_tag_and_loads_valid_model ... ok
+test revisions::tests::scoped_event_quality_matches_only_the_same_scope_and_counts_false_positives ... ok
+test revisions::tests::scoped_metrics_are_compact_only_and_omitted_when_unavailable ... ok
+test revisions::tests::segment_diagnostic_enums_use_exact_snake_case_tags ... ok
+test revisions::tests::segment_topology_shadow_statuses_do_not_publish_partial_evidence ... ok
+test revisions::tests::serializes_absent_complete_and_stopped_global_length_aware_shadow ... ok
+test revisions::tests::serializes_absent_complete_and_stopped_length_aware_local_fragment_shadow ... ok
+test revisions::tests::serializes_absent_complete_and_stopped_local_fragment_shadow ... ok
+test revisions::tests::serializes_absent_complete_and_stopped_recheck_reuse_shadow ... ok
+test revisions::tests::serializes_and_validates_exact_boundary_trie_shadow ... ok
+test revisions::tests::serializes_and_validates_flat_exact_boundary_shadow ... ok
+test revisions::tests::serializes_and_validates_length_aware_recheck_shadow ... ok
+test revisions::tests::serializes_and_validates_length_only_candidate_shadow ... ok
+test revisions::tests::serializes_and_validates_recovery_ownership_and_change_origins ... ok
+test revisions::tests::serializes_near_relation_stop_reasons_as_snake_case ... ok
+test revisions::tests::serializes_sentence_edge_filter_stop_reasons_as_snake_case ... ok
+test revisions::tests::serializes_sentence_edge_gate_shadow_stop_reasons_as_snake_case ... ok
+test revisions::tests::serializes_sentence_edge_signature_direct_execution_as_snake_case ... ok
+test revisions::tests::serializes_sentence_edge_signature_direct_shadow_stop_reasons_as_snake_case ... ok
+test revisions::tests::serializes_sentence_edge_signature_reference_oracle_stop_reasons_as_snake_case ... ok
+test revisions::tests::serializes_sentence_edge_signature_shadow_stop_reasons_as_snake_case ... ok
+test revisions::tests::status_summary_reports_healthy_limit_and_failed_totals_accurately ... ok
+test revisions::tests::summary_distinguishes_unavailable_diagnostics_from_completed_empty_diagnostics ... ok
+test revisions::tests::summary_json_exact_key_set_and_nested_schema_equality ... ok
+test revisions::tests::summary_json_is_deterministic_and_excludes_forbidden_keys_and_values ... ok
+test revisions::tests::summary_json_uses_null_for_unavailable_sentence_metrics ... ok
+test revisions::tests::tiny_unmatched_edits_are_counted_as_false_positive_candidates ... ok
+test revisions::tests::unresolvable_spans_are_excluded_from_matching_and_counted ... ok
+test revisions::tests::unresolvable_spans_never_count_as_suspicious_tiny_edits ... ok
+test revisions::tests::validate_visit_metrics_accepts_complete_absent_and_unavailable_required ... ok
+test revisions::tests::validate_visit_metrics_rejects_component_sum_mismatch ... ok
+test revisions::tests::validate_visit_metrics_rejects_every_partial_direction ... ok
+test revisions::tests::validates_and_keeps_discarded_fallback_work_separate ... ok
+test revisions::tests::validates_change_origin_proposal_metrics ... ok
+test revisions::tests::validates_direct_shadow_stopped_by_downstream_production_limit_without_shadow_deficits ... ok
+test revisions::tests::validates_each_direct_shadow_resource_stop_against_unfinished_work ... ok
+test revisions::tests::validates_exact_tail_recovery_metrics_contract ... ok
+test revisions::tests::validates_global_parent_scoped_fingerprint_parity ... ok
+test revisions::tests::validates_known_span_sentence_shadow_invariants ... ok
+test revisions::tests::validates_length_aware_local_fragment_counter_overflow_work ... ok
+test revisions::tests::validates_length_only_candidate_accounting_and_observable_parity ... ok
+test revisions::tests::validates_reference_oracle_typed_stops_and_partial_evidence ... ok
+test revisions::tests::validates_section_pairing_shadow_atomic_contract ... ok
+test revisions::tests::validates_sentence_edge_signature_direct_execution_provenance ... ok
+test revisions::tests::validates_sequence_relation_shadow_contract ... ok
+test revisions::tests::validates_structural_container_shadow_atomic_contract ... ok
+test revisions::tests::validates_uneven_depth_flat_exact_boundary_active_visit_bounds ... ok
+test revisions::tests::validates_zero_and_populated_sentence_recovery_metrics ... ok
+test revisions::tests::whitespace_collapsing_allows_quotes_across_wrapped_blocks ... ok
+test revisions::tests::wrong_kind_matching_requires_kind_specific_semantic_hunks ... ok
+test revisions::tests::wrong_kind_matching_uses_atomic_fragments_not_presentation_spans ... ok
+test sensitivity::tests::matrix_covers_layout_matching_and_budget_perturbations ... ok
+test sensitivity::tests::report_serialization_is_stable_and_versioned ... ok
+test candidate_eval::tests::high_df_ngram_upper_bound_exceeds_the_budget ... ok
+
+test result: ok. 367 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.50s
+
+     Running unittests src/main.rs (target/debug/deps/pdfbench-d62abad9f7b69a88)
+
+running 11 tests
+test tests::candidate_report_line_displays_generator_latency_observations ... ok
+test tests::candidate_report_line_marks_recall_mismatch_instead_of_truncating ... ok
+test tests::generated_precision_summary_is_unavailable_when_evaluation_is_incomplete ... ok
+test tests::generated_precision_summary_prints_complete_metrics ... ok
+test tests::parse_top_k_accepts_comma_separated_values_in_order ... ok
+test tests::parse_top_k_rejects_empty_zero_duplicate_and_non_numeric_values ... ok
+test tests::revision_report_line_displays_candidate_visits_contract ... ok
+test tests::revision_report_line_displays_pressure_when_present ... ok
+test tests::revisions_rejects_identical_and_aliased_json_and_summary_output_paths ... ok
+test tests::yaml_mutation_commands_map_to_the_supported_library_mutations ... ok
+test tests::parses_evaluate_yaml_with_a_nested_mutation ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bench_matrix.rs (target/debug/deps/bench_matrix-5ae420177b94e09f)
+
+running 29 tests
+test bench_errors_preserve_core_error_taxonomy ... ok
+test both_renderers_produce_parseable_extractable_multipage_pdfs ... ok
+test ambiguous_inline_cases_use_candidate_policy_without_strict_promotion ... ok
+test candidate_profile_runs_generators_in_isolated_workers_and_writes_json ... ok
+test built_in_matrix_passes_all_forty_eight_cells ... ok
+test candidates_command_rejects_invalid_top_k ... ok
+test candidates_command_prints_records_and_summary ... ok
+test canonical_documents_reject_invalid_input ... ok
+test classic_xref_renderer_uses_positioned_words_without_space_glyphs ... ok
+test column_change_boundary_preserves_complete_zero_diff_comparison ... ok
+test column_change_is_complete_and_preserves_column_major_order ... ok
+test double_line_wrap_exercises_one_to_three_block_alignment ... ok
+test evaluator_distinguishes_duplicate_paragraph_occurrences ... ok
+test evaluator_rejects_same_kind_change_at_the_wrong_span ... ok
+test font_size_change_alters_layout_without_content_diff ... ok
+test global_expectation_survives_merged_normalized_blocks ... ok
+test help_lists_benchmark_commands ... ok
+test line_height_change_alters_layout_without_content_diff ... ok
+test line_wrap_exercises_one_to_two_block_alignment ... ok
+test margin_change_alters_layout_without_content_diff ... ok
+test merged_block_paragraph_deletion_matches_a_separator_variant ... ok
+test merged_block_paragraph_insertion_matches_a_separator_variant ... ok
+test mutations_reject_invalid_input_without_panicking ... ok
+test page_size_change_alters_layout_without_content_diff ... ok
+test paragraph_separator_variants_still_require_exact_changes ... ok
+test right_column_replacement_stays_out_of_the_left_column ... ok
+test semantic_mutations_record_independent_expected_canonical_spans ... ok
+test candidates_command_writes_a_create_new_json_artifact ... ok
+test verify_command_prints_a_passing_forty_eight_cell_matrix ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.71s
+
+     Running tests/block_reconstruction.rs (target/debug/deps/block_reconstruction-eb5826fa253b95e0)
+
+running 1 test
+test block_reconstruction_matrix_covers_supported_prose_cases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/candidate_eval.rs (target/debug/deps/candidate_eval-a16cd972a318fedb)
+
+running 6 tests
+test built_in_fixture_counterpart_denominators_match_mutation_semantics ... ok
+test candidate_evaluation_serializes_latency_observations_as_unsigned_integers ... ok
+test inverted_index_prunes_candidates_without_losing_recall ... ok
+test built_in_fixtures_recover_true_counterparts_at_top_k ... ok
+test paragraph_move_counterpart_is_recovered_in_top_k ... ok
+test minhash_lsh_recovers_counterparts_and_bounds_candidates ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/canonical_yaml.rs (target/debug/deps/canonical_yaml-de312333a83dc222)
+
+running 29 tests
+test canonical_yaml_preserves_document_order ... ok
+test canonical_yaml_rejects_input_and_render_line_limit_overruns ... ok
+test canonical_yaml_rejects_invalid_structure_and_fields ... ok
+test canonical_yaml_renders_through_each_project_renderer ... ok
+test canonical_mutation_evaluates_vendored_typst_output ... ok
+test evaluate_rendered_yaml_command_reports_vendored_typst_result ... ok
+test evaluate_yaml_command_rejects_invalid_mutation_inputs ... ok
+test cross_section_paragraph_move_preserves_structure_and_feeds_the_evaluator ... ok
+test evaluate_yaml_command_reports_a_passing_record_for_each_renderer ... ok
+test evaluate_yaml_command_runs_cross_section_paragraph_move_for_each_renderer ... ok
+test evaluate_yaml_command_runs_each_global_rendering_mutation ... ok
+test evaluate_yaml_command_runs_multi_section_column_change_for_each_renderer ... ok
+test evaluate_yaml_command_runs_paragraph_line_wrap_for_each_renderer ... ok
+test evaluate_yaml_command_runs_paragraph_page_break_for_each_renderer ... ok
+test evaluate_yaml_command_runs_section_local_paragraph_insertion_for_each_renderer ... ok
+test generated_metadata_ids_do_not_shadow_source_paragraph_ids ... ok
+test evaluate_yaml_command_runs_same_section_paragraph_move_for_each_renderer ... ok
+test multi_section_column_change_preserves_surrounding_sections_and_feeds_the_evaluator ... ok
+test paragraph_deletion_preserves_its_section_and_feeds_the_evaluator ... ok
+test global_rendering_mutations_preserve_content_and_feed_the_evaluator ... ok
+test paragraph_line_wrap_preserves_metadata_and_feeds_the_evaluator ... ok
+test paragraph_page_break_preserves_metadata_order_and_feeds_the_evaluator ... ok
+test paragraph_text_mutations_feed_the_evaluator_without_dropping_metadata ... ok
+test same_section_paragraph_move_preserves_structure_and_feeds_the_evaluator ... ok
+test section_local_paragraph_insertion_preserves_structure_and_feeds_the_evaluator ... ok
+test section_local_paragraph_insertion_reserves_generated_metadata_ids ... ok
+test single_section_column_change_preserves_metadata_and_feeds_the_evaluator ... ok
+test structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_changes ... ok
+test render_command_publishes_a_new_pdf_without_overwriting ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+
+     Running tests/extraction_conformance.rs (target/debug/deps/extraction_conformance-d419f59ba7412c27)
+
+running 7 tests
+test command_accepts_a_matching_versioned_external_snapshot ... ok
+test command_does_not_create_a_mismatch_svg_for_a_match ... ok
+test command_refuses_to_overwrite_an_existing_mismatch_svg ... ok
+test command_returns_one_for_a_geometry_mismatch ... ok
+test command_returns_two_for_missing_producer_identity ... ok
+test curated_pdf_oxide_snapshot_matches_typst_fixture ... ok
+test command_writes_a_mismatch_svg_without_changing_the_failure_contract ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/generalization_fixture.rs (target/debug/deps/generalization_fixture-24fcd6f2e9b0ffd6)
+
+running 3 tests
+test date_review_ranges_do_not_inflate_changed_character_scores ... ok
+test successful_form_comparison_cannot_hide_uncompared_visual_evidence ... ok
+test stored_value_mutations_cross_storage_order_through_common_solver ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/issue20_source_domains.rs (target/debug/deps/issue20_source_domains-ef43d2acac44e7fd)
+
+running 1 test
+test captured_rotated_stamp_preserves_exact_changed_glyphs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/line_reconstruction.rs (target/debug/deps/line_reconstruction-7d9d02fad8b891ee)
+
+running 1 test
+test line_reconstruction_matrix_covers_supported_prose_cases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/local_comparison_metamorphic.rs (target/debug/deps/local_comparison_metamorphic-1bede666a79667d2)
+
+running 3 tests
+test ambiguous_neighbor_does_not_invalidate_an_independent_edit ... ok
+test content_edit_survives_wrap_soft_block_split_and_page_break ... ok
+test independent_stream_interleaving_preserves_evidence_and_content_edits ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/metamorphic.rs (target/debug/deps/metamorphic-95682b481b51d5b4)
+
+running 2 tests
+test content_mutation_remains_one_exact_event_under_both_renderers ... ok
+test layout_only_mutations_preserve_the_content_result ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/revision_benchmark.rs (target/debug/deps/revision_benchmark-287449306e4072e1)
+
+running 13 tests
+test checksums_only_mode_verifies_provenance_without_comparing ... ok
+test checksum_mismatch_fails_one_pair_without_aborting_the_rest ... ok
+test destination_normalization_detects_aliases_and_symlinks ... ok
+test existing_expected_revision_files_remain_valid ... ok
+test checksums_only_summary_records_uncompared_null_metrics ... ok
+test mismatched_expected_pair_identity_fails_instead_of_reporting_foreign_metrics ... ok
+test nist_toolkit_footnote_range_is_the_removed_comma ... ok
+test reviewed_synthetic_pair_achieves_perfect_recall_precision_and_fragmentation ... ok
+test full_and_summary_outputs_work_together_and_reject_identical_paths ... ok
+test scoped_complete_requires_resolved_scopes_before_evaluation ... ok
+test set_filters_apply_and_header_only_manifests_are_rejected ... ok
+test set_and_pair_filtering_preserves_manifest_order_in_summary ... ok
+test summary_json_output_writes_compact_schema_and_preserves_metrics ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+
+     Running tests/source_backed_local_comparison.rs (target/debug/deps/source_backed_local_comparison-c0f834780d116114)
+
+running 1 test
+test fips_introduction_edits_keep_their_original_source_glyphs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.41s
+
+     Running unittests examples/opaque_effect_probe.rs (target/debug/examples/opaque_effect_probe-55ef557c10a3fd53)
+
+running 3 tests
+test fixtures::tests::rounded_operands_cannot_replace_exact_command_bytes ... ok
+test fixtures::tests::unchanged_commands_cannot_hide_changed_image_bytes ... ok
+test fixtures::tests::complete_positive_and_each_independent_dependency_mutation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests examples/render_observer.rs (target/debug/examples/render_observer-4a081aa9ea4404d7)
+
+running 1 test
+test generated_observer_and_tiny_feature_counterexamples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/debug/deps/pdfdelta-9aa83e3f135fae96)
+
+running 71 tests
+test args::tests::parses_backend_and_glyph_inspection ... ok
+test args::tests::parses_backend_info_inspection ... ok
+test args::tests::color_defaults_to_auto_and_accepts_explicit_choices ... ok
+test args::tests::parses_completions_subcommand ... ok
+test args::tests::parses_glyph_inspection ... ok
+test args::tests::parses_inspection_password_and_font_identity_inputs ... ok
+test args::tests::parses_objects_inspection ... ok
+test args::tests::parses_side_specific_password_and_font_identity_inputs ... ok
+test args::tests::parses_output_and_quiet_flags ... ok
+test args::tests::parses_svg_inspection ... ok
+test args::tests::parses_strict_comparison_mode ... ok
+test args::tests::parses_valid_limit_scale_and_rejects_lower_values ... ok
+test compare::tests::extraction_diagnostic_flush_failure_returns_contextual_error ... ok
+test compare::tests::extraction_diagnostic_write_failure_returns_contextual_error ... ok
+test compare::tests::final_error_diagnostic_ignores_writer_failure ... ok
+test args::tests::strict_mode_requires_a_new_document ... ok
+test evidence_text::tests::field_displays_preserve_value_types_and_raw_names ... ok
+test evidence_text::tests::detail_limits_leave_the_full_comparison_intact ... ok
+test evidence_text::tests::previews_escape_terminal_controls_and_bound_unicode_input ... ok
+test extraction_cache::tests::key_covers_all_extraction_determining_inputs ... ok
+test extraction_cache::tests::missing_entries_and_corrupt_payloads_degrade_to_none ... ok
+test extraction_cache::tests::serialization_ceiling_charges_bytes_written_by_partial_writers ... ok
+test extraction_cache::tests::oversized_entries_are_never_stored_and_marker_skips_later_stores ... ok
+test fs::tests::classifies_input_size_limits_separately_from_io_failures ... ok
+test fs::tests::temporary_json_report_has_private_permissions ... ok
+test inspect::tests::formats_glyph_evidence_stably ... ok
+test inspect::tests::formats_pdf_objects_and_dictionaries ... ok
+test inspect::tests::inspection_write_failure_returns_contextual_error ... ok
+test native_worker::tests::compact_transport_preserves_raw_glyphs_and_auxiliary_evidence_within_byte_budget ... ok
+test native_worker::tests::inconsistent_workers_do_not_attach_content_to_different_pages ... ok
+test native_worker::tests::responses_cannot_forge_input_page_or_acquisition_scope ... ok
+test native_worker::wire::tests::atom_table_saturation_preserves_inline_values_and_existing_references ... ok
+test native_worker::wire::tests::compressed_document_still_rejects_missing_initial_context ... ok
+test native_worker::wire::tests::expansion_checks_shared_and_inline_bytes_before_cloning ... ok
+test native_worker::wire::tests::glyph_compression_rejects_corruption_lengths_counts_and_trailing_members ... ok
+test native_worker::wire::tests::inventory_expansion_rejects_overflow_empty_runs_and_aggregate_limit ... ok
+test native_worker::wire::tests::inventory_runs_preserve_order_gaps_duplicates_and_mixed_sources ... ok
+test native_worker::wire::tests::missing_atoms_and_oversized_tables_are_rejected ... ok
+test native_worker::wire::tests::paint_transport_preserves_unknown_bounds_and_absent_census ... ok
+test extraction_cache::tests::store_then_load_round_trips_the_outcome ... ok
+test render::tests::worker_address_space_limit_rejects_excess_reservation ... ok
+test render::tests::worker_output_limit_does_not_return_a_truncated_success ... ok
+test review::html::tests::malicious_markup_and_private_use_remain_literal_text ... ok
+test review::tests::output_budget_rejects_excess_without_partial_chunk_or_charge ... ok
+test trace::tests::bounds_error_messages_at_utf8_boundaries ... ok
+test trace::tests::flattens_complete_sentence_edge_signature_reference_oracle_metrics ... ok
+test trace::tests::flattens_direct_execution_provenance_as_one_hot ... ok
+test trace::tests::flattens_each_near_relation_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_each_run_signature_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_each_sentence_edge_filter_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_each_sentence_edge_gate_shadow_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_each_sentence_edge_signature_direct_shadow_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_each_sentence_edge_signature_reference_oracle_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_each_sentence_edge_signature_shadow_stop_reason_as_one_hot ... ok
+test trace::tests::flattens_every_sentence_edge_filter_metric ... ok
+test trace::tests::flattens_every_sentence_edge_gate_shadow_metric ... ok
+test trace::tests::flattens_every_sentence_edge_signature_direct_shadow_metric ... ok
+test trace::tests::flattens_every_sentence_edge_signature_shadow_metric ... ok
+test trace::tests::flattens_sentence_recovery_metrics_including_real_zeros ... ok
+test trace::tests::omits_sentence_edge_gate_shadow_metrics_when_unavailable ... ok
+test trace::tests::omits_sentence_edge_signature_shadow_metrics_when_unavailable ... ok
+test trace::tests::omits_sentence_recovery_metrics_when_unavailable ... ok
+test trace::tests::preserves_direct_shadow_zeros_and_omits_unavailable_metrics ... ok
+test trace::tests::preserves_direct_watch_probe_counter_deficits ... ok
+test trace::tests::preserves_sentence_edge_filter_zeros_and_false ... ok
+test trace::tests::preserves_sentence_edge_gate_shadow_zeros_and_false ... ok
+test trace::tests::preserves_sentence_edge_signature_shadow_zeros_and_false ... ok
+test trace::tests::preserves_signature_fragment_veto_counter_deficits_and_omits_absent_oracle ... ok
+test trace::tests::serializes_presence_only_exact_diff_metrics ... ok
+test trace::tests::trace_schema_version_covers_proven_changed_region_metrics ... ok
+test render::tests::worker_deadline_releases_blocked_input ... ok
+
+test result: ok. 71 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/comparison_cli.rs (target/debug/deps/comparison_cli-c2f08d5249d9cfad)
+
+running 65 tests
+test accepts_genuinely_distinct_missing_output_paths ... ok
+test button_appearance_state_disagreement_keeps_independent_field_changes ... ok
+test color_always_colorizes_piped_output_and_never_disables_it ... ok
+test completions_subcommand_generates_shell_scripts ... ok
+test comparison_limit_scale_is_available_and_never_lowers_defaults ... ok
+test concurrent_extraction_matches_sequential_phases_when_the_old_side_fails ... ok
+test default_report_displays_inferred_text_changes_and_exact_mask_counts ... ok
+test encrypted_comparison_accepts_password_files_without_leaking_secrets ... ok
+test encrypted_comparison_reports_a_wrong_password_as_unsupported_without_leaking_it ... ok
+test default_contract_retains_image_evidence_without_claiming_complete_coverage ... ok
+test externally_rendered_typst_case3_revision_pair_reports_exact_replacement ... ok
+test external_vertical_text_preserves_evidence_across_page_moves_and_edits ... ok
+test externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_content_changes ... ok
+test externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero_content_changes ... ok
+test externally_rendered_typst_japanese_revision_pair_reports_exact_replacement ... ok
+test externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_insertion_and_deletion ... ok
+test form_values_follow_field_names_when_values_and_field_order_are_swapped ... ok
+test extraction_cache_produces_identical_reports_cold_and_warm ... ok
+test handles_a_missing_report_path_when_the_trace_already_exists ... ok
+test identical_documents_exit_zero ... ok
+test insertion_and_deletion_render_single_sided_hunks ... ok
+test inspect_objects_prints_structural_summary ... ok
+test inspect_with_svg_flag_renders_valid_svg_file ... ok
+test inspect_without_flags_prints_backend_summary ... ok
+test line_wrap_only_exits_zero ... ok
+test localized_page_tree_gap_preserves_known_change_and_reports_boundary ... ok
+test malformed_old_document_exits_two_with_context ... ok
+test malformed_type0_extraction_reports_without_false_changes ... ok
+test native_field_presence_reaches_cli_counts_and_coverage_without_character_masks ... ok
+test native_structure_ids_preserve_cell_identity_when_values_are_swapped ... ok
+test native_worker_limit_preserves_independent_stored_field_changes ... ok
+test native_worker_preserves_encrypted_cache_results_without_exposing_passwords ... ok
+test native_worker_rejects_malformed_and_oversized_request_frames ... ok
+test output_aliasing_with_input_is_rejected ... ok
+test output_flag_writes_text_report_to_file ... ok
+test page_break_only_exits_zero ... ok
+test paragraph_deletion_exits_one_with_one_change ... ok
+test paragraph_insertion_exits_one_with_one_change ... ok
+test preserves_existing_json_report_on_publish_collision ... ok
+test quiet_flag_suppresses_stdout_report ... ok
+test rejects_absolute_and_relative_aliases_of_a_missing_report ... ok
+test rejects_json_output_that_aliases_an_input ... ok
+test rejects_lexical_aliases_of_a_missing_leaf_in_an_existing_subdirectory ... ok
+test rejects_lexical_aliases_of_a_missing_report_leaf ... ok
+test rejects_oversized_password_files ... ok
+test rejects_trace_and_report_output_aliases_before_processing ... ok
+test render_process_rejects_oversized_output_before_reading_input ... ok
+test replacement_exits_one ... ok
+test replacement_report_renders_a_unified_diff_hunk ... ok
+test selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory ... ok
+test selected_text_does_not_prove_absence_of_outlined_text ... ok
+test selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews ... FAILED
+test static_review_keeps_ambiguous_ranges_nonowning_and_preserves_source_bytes ... ok
+test static_review_refuses_existing_destinations_and_nested_report_collisions ... ok
+test stdin_collision_fails_with_informative_error ... ok
+test stdin_supports_reading_old_pdf ... ok
+test still_rejects_existing_symlink_output_aliases ... ok
+test strict_unique_numeric_replacement_exits_one ... ok
+test strict_unresolved_comparison_exits_three ... ok
+test trace_records_candidate_visit_metrics_on_the_alignment_phase ... ok
+test traces_incomplete_extraction_without_calling_it_a_fatal_failure ... ok
+test writes_complete_phase_trace_separately_from_the_report ... ok
+test writes_failure_trace_when_pdf_parsing_stops_the_pipeline ... ok
+test writes_json_report_atomically ... ok
+test form_widget_pixels_and_saved_values_compare_independently ... ok
+
+failures:
+
+---- selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews stdout ----
+
+thread 'selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews' (5519) panicked at crates/pdfdelta-cli/tests/comparison_cli.rs:4059:9:
+assertion `left == right` failed
+  left: Number(1)
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews
+
+test result: FAILED. 64 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.13s
+
+error: test failed, to rerun pass `-p pdfdelta-cli --test comparison_cli`

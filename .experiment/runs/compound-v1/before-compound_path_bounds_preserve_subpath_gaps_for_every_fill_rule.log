@@ -1,0 +1,25 @@
+    Updating crates.io index
+   Compiling pdfdelta-core v0.1.0 (/home/runner/work/pdfdelta/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.73s
+     Running tests/content_stream_extraction.rs (target/debug/deps/content_stream_extraction-09bc35868082f247)
+
+running 1 test
+test compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule ... FAILED
+
+failures:
+
+---- compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule stdout ----
+
+thread 'compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule' (2145) panicked at crates/pdfdelta-core/tests/content_stream_extraction.rs:6268:9:
+assertion `left == right` failed: 10 10 30 2 re 10 100 30 2 re f
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 115 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pdfdelta-core --test content_stream_extraction`

@@ -2,10 +2,107 @@
   "base": "7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c",
   "iteration": "compound-v1",
   "strict_contract_changed": false,
-  "quality": {},
-  "regression_before": {},
+  "quality": {
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.318,
+      "log": ".experiment/runs/compound-v1/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 26.397,
+      "log": ".experiment/runs/compound-v1/clippy.log",
+      "sha256": "5d4490b85ae0a5caec39ac8317238ec27a141960f635488a954fd188d5078cdc"
+    },
+    "tests": {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 101,
+      "seconds": 103.604,
+      "log": ".experiment/runs/compound-v1/tests.log",
+      "sha256": "d86e98e4b582c54c46abf7cdfd0f4a0c0fe2374179176d6cd60f8435f8eb34eb"
+    }
+  },
+  "regression_before": {
+    "compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 21.79,
+      "log": ".experiment/runs/compound-v1/before-compound_path_bounds_preserve_subpath_gaps_for_every_fill_rule.log",
+      "sha256": "dad3f8de4c2acd10e3abeffd69105ad8fa182387386dfb81921ab0670291b6bd"
+    },
+    "selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-cli",
+        "--test",
+        "comparison_cli",
+        "selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 28.122,
+      "log": ".experiment/runs/compound-v1/before-selected_text_exit_code_counts_live_owned_interval_changes_without_relabeling_reviews.log",
+      "sha256": "9aa896516cc028fe323123c3f25882b34f8723816d4a3cf1d7731aea0bfafddb"
+    },
+    "selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-cli",
+        "--test",
+        "comparison_cli",
+        "selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 0.214,
+      "log": ".experiment/runs/compound-v1/before-selected_text_compound_paint_preserves_gaps_but_never_certifies_inventory.log",
+      "sha256": "0867ad33a2db8458ef90977efc79acdfedecd713080566195a67bbeeff11e548"
+    }
+  },
   "pairs": [],
-  "stage": "started",
+  "stage": "failed",
   "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
   "previous_full_results": {
     "uncompressed_sha256": "6912720171e9909beacb2f6c4285724704bbbb3ea46ce6cca84385c0ba53a946",
@@ -15,5 +112,6 @@
         "sha256": "711ddecac3a6da6e8f04e2b73fb0d5f5431c62243df3014e37806fb3c6903be9"
       }
     ]
-  }
+  },
+  "exception": "Traceback (most recent call last):\n  File \"/home/runner/work/pdfdelta/pdfdelta/.experiment/next_iteration.py\", line 145, in <module>\n    quality()\n  File \"/home/runner/work/pdfdelta/pdfdelta/.experiment/next_iteration.py\", line 91, in quality\n    raise RuntimeError('quality gate failed: '+name)\nRuntimeError: quality gate failed: tests\n"
 }
