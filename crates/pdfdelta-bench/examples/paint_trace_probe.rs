@@ -125,7 +125,11 @@ fn trace(bytes: &[u8], include_program: bool) -> ProbeResult<Value> {
     let mut tags = BTreeMap::new();
     let mut retained = Vec::new();
     let mut text_clip = false;
-    for operation in &content.operations {
+    let mut marked_stack = Vec::new();
+    let mut declarations = Vec::new();
+    let mut paint_properties = Vec::new();
+    let mut unbalanced_markers = false;
+    for (index, operation) in content.operations.iter().enumerate() {
         *counts.entry(operation.operator.as_str()).or_insert(0_u32) += 1;
         if operation.operator == "Tr" {
             text_clip |= operation
@@ -135,8 +139,42 @@ fn trace(bytes: &[u8], include_program: bool) -> ProbeResult<Value> {
                 .is_none_or(|mode| !(0..4).contains(&mode));
         }
         if matches!(operation.operator.as_str(), "BMC" | "BDC") {
+            if marked_stack.len() >= 64 {
+                return Err("marked-content depth limit".into());
+            }
             let tag = operation.operands.first().map(|value| format!("{value:?}"));
             *tags.entry(tag.unwrap_or_default()).or_insert(0_u32) += 1;
+            let artifact = matches!(operation.operands.first(), Some(lopdf::Object::Name(name)) if name == b"Artifact");
+            let property = operation.operands.get(1);
+            let named = matches!(property, Some(lopdf::Object::Name(_)));
+            let actual = match property {
+                Some(lopdf::Object::Dictionary(dictionary)) => dictionary.get(b"ActualText").ok(),
+                _ => None,
+            };
+            let declaration = actual.map(|value| {
+                let position = declarations.len();
+                declarations.push(json!({
+                    "operator_index": index,
+                    "value": format!("{value:?}"),
+                    "string_value": matches!(value, lopdf::Object::String(_, _)),
+                }));
+                position
+            });
+            marked_stack.push((artifact, named, declaration));
+        } else if operation.operator == "EMC" && marked_stack.pop().is_none() {
+            unbalanced_markers = true;
+        }
+        if matches!(
+            operation.operator.as_str(),
+            "S" | "s" | "f" | "F" | "f*" | "B" | "B*" | "b" | "b*" | "sh" | "Do" | "BI"
+        ) {
+            paint_properties.push(json!({
+                "operator_index": index,
+                "operator": operation.operator,
+                "artifact_tag": marked_stack.iter().any(|frame| frame.0),
+                "named_property_unresolved": marked_stack.iter().any(|frame| frame.1),
+                "inline_actual_text_declarations": marked_stack.iter().filter_map(|frame| frame.2).collect::<Vec<_>>(),
+            }));
         }
         if !matches!(
             operation.operator.as_str(),
@@ -173,6 +211,10 @@ fn trace(bytes: &[u8], include_program: bool) -> ProbeResult<Value> {
     let mut result = json!({
         "operation_counts": counts,
         "marked_content_tags": tags,
+        "inline_actual_text_declarations": declarations,
+        "paint_marked_properties": paint_properties,
+        "unbalanced_marked_content": unbalanced_markers || !marked_stack.is_empty(),
+        "marked_property_scope": "page-program-only; named properties, structure dictionaries and invoked Form programs are not resolved",
         "text_clip_or_invalid_mode_seen": text_clip,
         "without_text_operators_sha256": digest(&encoded),
         "without_text_operators_bytes": encoded.len(),
@@ -286,5 +328,43 @@ mod tests {
             trace(b"7 Tr BT (clip) Tj ET", false).unwrap()["text_clip_or_invalid_mode_seen"],
             true
         );
+    }
+    #[test]
+    fn paint_markers_retain_declarations_without_interpreting_their_meaning() {
+        let observed = trace(b"/Artifact BMC 0 0 1 1 re f EMC /Span << /ActualText (minus) >> BDC 0 0 m 1 0 l S EMC /Span /P1 BDC /Im1 Do EMC", false).unwrap();
+        assert_eq!(
+            observed["inline_actual_text_declarations"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            observed["inline_actual_text_declarations"][0]["string_value"],
+            true
+        );
+        let paints = observed["paint_marked_properties"].as_array().unwrap();
+        assert_eq!(paints.len(), 3);
+        assert_eq!(paints[0]["artifact_tag"], true);
+        assert_eq!(
+            paints[0]["inline_actual_text_declarations"],
+            serde_json::json!([])
+        );
+        assert_eq!(
+            paints[1]["inline_actual_text_declarations"],
+            serde_json::json!([0])
+        );
+        assert_eq!(paints[2]["named_property_unresolved"], true);
+        assert_eq!(observed["unbalanced_marked_content"], false);
+        assert_eq!(
+            trace(b"EMC /Span BMC", false).unwrap()["unbalanced_marked_content"],
+            true
+        );
+        assert_eq!(
+            trace(b"/Span << /ActualText 42 >> BDC 0 0 1 1 re f EMC", false).unwrap()["inline_actual_text_declarations"]
+                [0]["string_value"],
+            false
+        );
+        assert!(trace(&b"/Span BMC ".repeat(65), false).is_err());
     }
 }

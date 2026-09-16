@@ -3640,35 +3640,38 @@ fn write_pdf(path: &Path, lines: &[&str]) {
 #[test]
 fn selected_text_does_not_prove_absence_of_outlined_text() {
     let directory = TestDirectory::new();
-    let input = directory.join("outlined.pdf");
-    write_pdf(&input, &["temporary native content"]);
-    let mut pdf = Document::load(&input).expect("load fixture");
-    let page = pdf.get_pages()[&1];
-    let content = pdf.add_object(Stream::new(
-        dictionary! {},
-        b"20 20 m 30 25 l 30 70 l 20 70 l 40 70 l S".to_vec(),
-    ));
-    pdf.get_object_mut(page)
-        .expect("page")
-        .as_dict_mut()
-        .expect("page dictionary")
-        .set("Contents", content);
-    pdf.save(&input).expect("save outlined fixture");
-    let report_path = directory.join("outlined.json");
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .args(["--channels", "text"])
-        .arg(&input)
-        .arg(&input)
-        .arg("--json")
-        .arg(&report_path)
-        .output()
-        .expect("selected-text comparison");
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let report: Value =
-        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
-    assert_eq!(report["old"]["native_glyphs"], 0);
-    assert_eq!(report["comparison_complete"], false);
-    assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
+    for artifact in [false, true] {
+        let input = directory.join(&format!("outlined-{artifact}.pdf"));
+        write_pdf(&input, &["temporary native content"]);
+        let mut pdf = Document::load(&input).expect("load fixture");
+        let page = pdf.get_pages()[&1];
+        let mut program = b"20 20 m 30 25 l 30 70 l 20 70 l 40 70 l S".to_vec();
+        if artifact {
+            program = [b"/Artifact BMC ".as_slice(), &program, b" EMC"].concat();
+        }
+        let content = pdf.add_object(Stream::new(dictionary! {}, program));
+        pdf.get_object_mut(page)
+            .expect("page")
+            .as_dict_mut()
+            .expect("page dictionary")
+            .set("Contents", content);
+        pdf.save(&input).expect("save outlined fixture");
+        let report_path = directory.join(&format!("outlined-{artifact}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .args(["--channels", "text"])
+            .arg(&input)
+            .arg(&input)
+            .arg("--json")
+            .arg(&report_path)
+            .output()
+            .expect("selected-text comparison");
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let report: Value =
+            serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
+        assert_eq!(report["old"]["native_glyphs"], 0);
+        assert_eq!(report["comparison_complete"], false);
+        assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
+    }
 
     let old = directory.join("mixed-old.pdf");
     let new = directory.join("mixed-new.pdf");
