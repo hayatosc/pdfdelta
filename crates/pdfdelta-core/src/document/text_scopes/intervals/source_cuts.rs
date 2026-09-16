@@ -60,7 +60,7 @@ impl Population {
         };
         let mut population = BTreeSet::new();
         for node in path {
-            let (projected, map) = native.project_census(node, &[], false, remaining)?;
+            let (projected, map) = native.project_interval(node, remaining)?;
             let view = text(&projected)?;
             let partition =
                 TextSourcePartition::new(&projected, 0..view.tokens.len(), remaining).ok()?;

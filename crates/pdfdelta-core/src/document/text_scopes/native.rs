@@ -414,8 +414,27 @@ impl<'a> Sources<'a> {
         paint_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
+        self.project_census_order(node, padding, paint_order, false, remaining)
+    }
+
+    pub(super) fn project_interval(
+        &self,
+        node: &GraphNode,
+        remaining: &mut usize,
+    ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
+        self.project_census_order(node, &[], false, true, remaining)
+    }
+
+    fn project_census_order(
+        &self,
+        node: &GraphNode,
+        padding: &[SourceRef],
+        paint_order: bool,
+        inline_order: bool,
+        remaining: &mut usize,
+    ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
         let (mut projected, boundaries) =
-            projection::expanded(node, self.glyphs, remaining, paint_order)?;
+            projection::expanded(node, self.glyphs, remaining, paint_order, inline_order)?;
         if !padding.is_empty() {
             let NodeContent::Text { view } = &mut projected.content else {
                 return None;
@@ -461,7 +480,7 @@ impl<'a> Sources<'a> {
         paint_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Vec<std::ops::Range<usize>>)> {
-        projection::checked_order(node, self.glyphs, remaining, paint_order)
+        projection::physical_rows(node, self.glyphs, remaining, paint_order)
     }
 
     /// Returns physical row boundaries for an exact, fully backed projection.

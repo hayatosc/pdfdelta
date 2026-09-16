@@ -5319,27 +5319,66 @@ fn whole_cut_fallback_rejects_an_accepted_counterpart_from_outside() {
 
 #[test]
 fn raised_inline_source_preserves_changed_interval_ownership() {
-    let old = fixture_rows(&["First boundary.", "Income1 was 10.", "Last boundary."]);
-    let new = fixture_rows(&["First boundary.", "Income1 was 20.", "Last boundary."]);
-    for raised in [false, true] {
+    let old = fixture_rows(&["First boundary.", "Income1x was 10.", "Last boundary."]);
+    let new = fixture_rows(&["First boundary.", "Income1x was 20.", "Last boundary."]);
+    for (rise, shift, narrow_tail, accepted) in [
+        (0.0, 0.0, false, true),
+        (3.0, 0.0, false, true),
+        (13.0, 0.0, false, false),
+        (3.0, -10.0, false, false),
+        (3.0, 0.0, true, false),
+    ] {
         let mut old = old.clone();
         let mut new = new.clone();
-        if raised {
+        if rise != 0.0 {
             for fixture in [&mut old, &mut new] {
                 let SourceRef::Native { glyph: id } = fixture.1.nodes[2].sources[6] else {
                     unreachable!()
                 };
                 let mut glyphs = fixture.0.native.items().to_vec();
-                let glyph = glyphs.iter_mut().find(|glyph| glyph.id == id).unwrap();
-                glyph.baseline.y += 3.0;
-                glyph.bbox.min.y += 3.0;
+                let glyph = glyphs
+                    .iter_mut()
+                    .find(|glyph| glyph.id == id)
+                    .expect("fixture glyph");
+                glyph.baseline.y += rise;
+                glyph.baseline.x += shift;
+                glyph.bbox.min.x += shift;
+                glyph.bbox.max.x += shift;
+                glyph.bbox.min.y += rise;
                 glyph.bbox.max.y = glyph.bbox.min.y + 7.0;
                 glyph.font_size = 7.0;
+                if narrow_tail {
+                    let SourceRef::Native { glyph: tail } = fixture.1.nodes[2].sources[9] else {
+                        unreachable!()
+                    };
+                    let tail = glyphs
+                        .iter_mut()
+                        .find(|glyph| glyph.id == tail)
+                        .expect("tail glyph");
+                    tail.bbox.max.y = tail.bbox.min.y + 2.0;
+                }
                 fixture.0.native = Document::new(glyphs);
             }
         }
         let compared = compare(&old, &new);
         let result = &compared.scopes[0].result;
-        assert_eq!(result.native_text_intervals.len(), 1, "raised={raised}");
+        assert_eq!(
+            result.native_text_intervals.len(),
+            usize::from(accepted),
+            "rise={rise}, shift={shift}, narrow_tail={narrow_tail}"
+        );
+        if accepted {
+            let mask = result.native_text_intervals[0]
+                .comparison()
+                .text_mask
+                .as_ref()
+                .expect("exact mask");
+            assert_eq!(mask.claims.changed_source_lower, 2);
+            assert_eq!(mask.claims.changed_source_upper, 2);
+            assert_eq!(mask.old.len(), 1);
+            assert_eq!(mask.new.len(), 1);
+            assert_eq!(mask.old[0].sources, [old.1.nodes[2].sources[13]]);
+            assert_eq!(mask.new[0].sources, [new.1.nodes[2].sources[13]]);
+        }
     }
 }

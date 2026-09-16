@@ -96,6 +96,7 @@ pub(super) fn expanded(
     glyphs: &BTreeMap<GlyphId, &Glyph>,
     remaining: &mut usize,
     paint_order: bool,
+    inline_order: bool,
 ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
     let NodeContent::Text { view } = &node.content else {
         return None;
@@ -106,7 +107,8 @@ pub(super) fn expanded(
         .zip(&view.source_backed)
         .any(|(origins, backed)| *backed && origins.len() > 1)
     {
-        return checked_order(node, glyphs, remaining, paint_order).map(|(node, _)| (node, None));
+        return checked_order_impl(node, glyphs, remaining, paint_order, inline_order)
+            .map(|(node, _)| (node, None));
     }
     spend(
         remaining,
@@ -162,7 +164,7 @@ pub(super) fn expanded(
     if !optional.is_empty() {
         out.bind_optional_positions(optional);
     }
-    checked_order(&projected, glyphs, remaining, paint_order)
+    checked_order_impl(&projected, glyphs, remaining, paint_order, inline_order)
         .map(|(node, _)| (node, Some(boundaries)))
 }
 
@@ -174,14 +176,26 @@ pub(super) fn checked(
     glyphs: &BTreeMap<GlyphId, &Glyph>,
     remaining: &mut usize,
 ) -> Option<(GraphNode, Vec<Range<usize>>)> {
-    checked_order(node, glyphs, remaining, false)
+    checked_order_impl(node, glyphs, remaining, false, false)
 }
 
-pub(super) fn checked_order(
+/// Enumerate physical cut rows without interpreting mixed baselines as one row.
+/// Local source order alone does not establish a new fragment boundary census.
+pub(super) fn physical_rows(
     node: &GraphNode,
     glyphs: &BTreeMap<GlyphId, &Glyph>,
     remaining: &mut usize,
     paint_order: bool,
+) -> Option<(GraphNode, Vec<Range<usize>>)> {
+    checked_order_impl(node, glyphs, remaining, paint_order, false)
+}
+
+fn checked_order_impl(
+    node: &GraphNode,
+    glyphs: &BTreeMap<GlyphId, &Glyph>,
+    remaining: &mut usize,
+    paint_order: bool,
+    inline_order: bool,
 ) -> Option<(GraphNode, Vec<Range<usize>>)> {
     let NodeContent::Text { view } = &node.content else {
         return None;
@@ -200,6 +214,11 @@ pub(super) fn checked_order(
         return None;
     }
     let mut groups: Vec<(Range<usize>, &Glyph)> = Vec::new();
+    let mut same_rows = Vec::new();
+    let mut requires_inline_order = false;
+    let mut inline_bands_valid = true;
+    let mut row_has_inline = false;
+    let mut row_band: Option<(f64, f64)> = None;
     let mut seen = BTreeSet::new();
     let mut cursor = 0;
     while cursor < view.tokens.len() {
@@ -248,19 +267,60 @@ pub(super) fn checked_order(
         if text.is_empty() || (!matches(text) && !matches(&expanded)) {
             return None;
         }
-        if groups.last().is_some_and(|(_, previous)| {
-            previous.page != glyph.page
-                || (previous.baseline.y < glyph.baseline.y
-                    && !(paint_order
-                        && super::paint_rows::same_baseline(previous.baseline.y, glyph.baseline.y)))
+        let current_band = (glyph.bbox.min.y.is_finite()
+            && glyph.bbox.max.y.is_finite()
+            && glyph.bbox.min.y < glyph.bbox.max.y)
+            .then_some((glyph.bbox.min.y, glyph.bbox.max.y));
+        let shared_band = row_band
+            .zip(current_band)
+            .map(|(a, b)| (a.0.max(b.0), a.1.min(b.1)));
+        if let Some((_, previous)) = groups.last() {
+            // A raised inline glyph keeps its original coordinates and reading.
+            // Every glyph in the row must share a vertical bounding-box band. Mixed
+            // baselines additionally need disjoint left-to-right bounds and forward
+            // paint order, so stacked text cannot acquire an inline order here.
+            let has_ink_text = |glyph: &Glyph| {
+                matches!(&glyph.text,
+                DecodedText::Mapped(text) if text.chars().any(|c| !c.is_whitespace()))
+            };
+            let inline = inline_order
+                && previous.baseline.y != glyph.baseline.y
+                && has_ink_text(previous)
+                && has_ink_text(glyph)
+                && shared_band.is_some_and(|(low, high)| low < high)
+                && previous.direction == (crate::model::Vec2 { x: 1.0, y: 0.0 })
+                && glyph.direction == previous.direction
+                && previous.bbox.max.x.is_finite()
+                && glyph.bbox.min.x.is_finite()
+                && previous.bbox.max.x <= glyph.bbox.min.x
+                && previous.render_order < glyph.render_order;
+            let original_same_row = previous.baseline.y == glyph.baseline.y
+                || (paint_order
+                    && super::paint_rows::same_baseline(previous.baseline.y, glyph.baseline.y));
+            let same_row = original_same_row || inline;
+            requires_inline_order |= previous.baseline.y < glyph.baseline.y && !original_same_row;
+            if previous.page != glyph.page
+                || (previous.baseline.y < glyph.baseline.y && !same_row)
                 || (paint_order && previous.render_order >= glyph.render_order)
                 || (!paint_order
                     && previous.baseline.y == glyph.baseline.y
                     && previous.baseline.x >= glyph.baseline.x)
-        }) {
-            return None;
+            {
+                return None;
+            }
+            row_has_inline = same_row && (row_has_inline || !original_same_row);
+            if row_has_inline && !shared_band.is_some_and(|(low, high)| low < high) {
+                inline_bands_valid = false;
+            }
+            same_rows.push((original_same_row, same_row));
+            row_band = if same_row { shared_band } else { current_band };
+        } else {
+            row_band = current_band;
         }
         groups.push((start..cursor, glyph));
+    }
+    if requires_inline_order && !inline_bands_valid {
+        return None;
     }
     let source_set: BTreeSet<_> = node.sources.iter().copied().collect();
     if source_set.len() != node.sources.len()
@@ -282,7 +342,13 @@ pub(super) fn checked_order(
     if first.start != 0 || last.end != view.tokens.len() {
         return None;
     }
-    for pair in groups.windows(2) {
+    // Preserve the existing row projection whenever its order was already valid.
+    for (pair, (original_same_row, inline_same_row)) in groups.windows(2).zip(same_rows) {
+        let same_row = if requires_inline_order {
+            inline_same_row
+        } else {
+            original_same_row
+        };
         let [(left, a), (right, b)] = pair else {
             unreachable!()
         };
@@ -306,9 +372,7 @@ pub(super) fn checked_order(
             }
             *is_optional = true;
         }
-        if a.baseline.y != b.baseline.y
-            && !(paint_order && super::paint_rows::same_baseline(a.baseline.y, b.baseline.y))
-        {
+        if !same_row {
             rows.push(row_start..right.start);
             row_start = right.start;
             if left.len() == 1 && view.tokens[left.start].as_scalar() == Some('-') {
@@ -532,7 +596,7 @@ mod tests {
         view.source_backed = vec![true, true];
         let map = glyphs.iter().map(|glyph| (glyph.id, glyph)).collect();
         let (projected, boundaries) =
-            expanded(&node, &map, &mut 10_000, false).expect("literal source spaces");
+            expanded(&node, &map, &mut 10_000, false, false).expect("literal source spaces");
         assert_eq!(boundaries, Some(vec![Some(0), Some(1), None, Some(2)]));
         let NodeContent::Text { view } = projected.content else {
             unreachable!()
@@ -540,6 +604,6 @@ mod tests {
         assert_eq!(view.display_text().as_deref(), Some("x  "));
         glyphs[1].text = DecodedText::Mapped("y".into());
         let map = glyphs.iter().map(|glyph| (glyph.id, glyph)).collect();
-        assert!(expanded(&node, &map, &mut 10_000, false).is_none());
+        assert!(expanded(&node, &map, &mut 10_000, false, false).is_none());
     }
 }

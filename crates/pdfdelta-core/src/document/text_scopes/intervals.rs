@@ -119,7 +119,7 @@ fn project(
         for id in ids {
             spend(remaining, 1)?;
             let node = *nodes.get(id)?;
-            let (checked, _) = native.project_census(node, &[], false, remaining)?;
+            let (checked, _) = native.project_interval(node, remaining)?;
             let NodeContent::Text { view: text } = &checked.content else {
                 return None;
             };
