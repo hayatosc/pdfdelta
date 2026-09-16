@@ -1,0 +1,187 @@
+--- a/crates/pdfdelta-core/src/source/content_stream.rs
++++ b/crates/pdfdelta-core/src/source/content_stream.rs
+@@ -324,6 +324,7 @@
+     }
+ 
+     fn append_rectangle(&mut self, corners: [Vec2; 4], clip_rectangle: Option<Rect>) {
++        self.paint_bounds.mark_drawn();
+         let was_empty = self.drawn_subpaths == 0 && !self.has_unsupported_segments;
+         self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
+         self.current_subpath_has_segment = true;
+@@ -396,6 +397,7 @@
+     }
+ 
+     fn mark_current_subpath_drawn(&mut self) {
++        self.paint_bounds.mark_drawn();
+         if !self.current_subpath_has_segment {
+             self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
+             self.current_subpath_has_segment = true;
+@@ -687,6 +689,7 @@
+             }
+             b"m" => {
+                 let [x, y] = number_operands(operation)?;
++                state.current_path.paint_bounds.begin_subpath();
+                 state
+                     .current_path
+                     .paint_bounds
+@@ -766,6 +769,7 @@
+             }
+             b"re" => {
+                 let [x, y, width, height] = number_operands(operation)?;
++                state.current_path.paint_bounds.begin_subpath();
+                 state
+                     .current_path
+                     .paint_bounds
+@@ -1029,7 +1033,9 @@
+         operation: &Operation,
+         bounds: Option<Rect>,
+     ) {
+-        // Every record is charged by the existing global operator budget.
++        // Components consume distinct subpath-construction operators; other
++        // effects consume one paint operator. The global operator budget bounds
++        // the retained count even when one paint operation has several records.
+         self.non_text_paint_bounds.push(NonTextPaint {
+             page,
+             render_order: self.render_order,
+@@ -1058,15 +1064,28 @@
+         }
+ 
+         if operation.operator != b"n" && state.current_path.drawn_subpaths != 0 {
+-            self.record_non_text_paint(
+-                page,
+-                stream,
+-                operation,
+-                intersect_paint_bounds(
+-                    path_paint_bounds(page_geometry, state, stroke),
+-                    state.graphics.form_paint_bounds,
+-                ),
+-            );
++            if let Some(components) =
++                paint_bounds::path_paint_components(page_geometry, state, stroke)
++            {
++                for component in components {
++                    self.record_non_text_paint(
++                        page,
++                        stream,
++                        operation,
++                        intersect_paint_bounds(Some(component), state.graphics.form_paint_bounds),
++                    );
++                }
++            } else {
++                self.record_non_text_paint(
++                    page,
++                    stream,
++                    operation,
++                    intersect_paint_bounds(
++                        path_paint_bounds(page_geometry, state, stroke),
++                        state.graphics.form_paint_bounds,
++                    ),
++                );
++            }
+         }
+ 
+         let clip_update = if state.current_path.clip_pending {
+--- a/crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs
++++ b/crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs
+@@ -122,6 +122,10 @@
+ pub(super) struct Bounds {
+     rectangle: Option<Rect>,
+     unknown: bool,
++    completed: Vec<Rect>,
++    current: Option<Rect>,
++    current_drawn: bool,
++    components_exhausted: bool,
+ }
+ 
+ impl Bounds {
+@@ -130,7 +134,7 @@
+             self.unknown = true;
+             return;
+         };
+-        self.rectangle = Some(match self.rectangle {
++        let enclose = |current: Option<Rect>| match current {
+             None => rectangle,
+             Some(current) => Rect {
+                 min: Vec2 {
+@@ -142,7 +146,46 @@
+                     y: current.max.y.max(rectangle.max.y),
+                 },
+             },
+-        });
++        };
++        self.rectangle = Some(enclose(self.rectangle));
++        self.current = Some(enclose(self.current));
++    }
++
++    /// Start a distinct PDF subpath; no edge connects it to its predecessor.
++    /// The finite component budget falls back atomically to the whole envelope.
++    pub(super) fn begin_subpath(&mut self) {
++        const MAX_COMPONENTS: usize = 64;
++        if self.current_drawn && !self.components_exhausted {
++            if self.completed.len() + 1 >= MAX_COMPONENTS {
++                self.components_exhausted = true;
++                self.completed.clear();
++            } else if let Some(bounds) = self.current {
++                self.completed.push(bounds);
++            } else {
++                self.unknown = true;
++            }
++        }
++        self.current = None;
++        self.current_drawn = false;
++    }
++
++    pub(super) fn mark_drawn(&mut self) {
++        self.current_drawn = true;
++    }
++
++    fn components(&self, expected: usize) -> Option<Vec<Rect>> {
++        if self.unknown
++            || self.components_exhausted
++            || expected < 2
++            || expected != self.completed.len() + usize::from(self.current_drawn)
++        {
++            return None;
++        }
++        let mut result = self.completed.clone();
++        if self.current_drawn {
++            result.push(self.current?);
++        }
++        Some(result)
+     }
+ }
+ 
+@@ -225,7 +268,32 @@
+     if path.paint_bounds.unknown || path.drawn_subpaths == 0 {
+         return None;
+     }
+-    let bounds = path.paint_bounds.rectangle?;
++    expand_path_bounds(frame, state, stroke, path.paint_bounds.rectangle?)
++}
++
++/// A union of complete subpath envelopes contains the same painted effect.
++/// Every component must have finite bounds. Unknown arithmetic, device-dependent
++/// strokes or incomplete component acquisition retain the whole-path fallback.
++pub(super) fn path_paint_components(
++    frame: PageGeometry,
++    state: &InterpreterState,
++    stroke: bool,
++) -> Option<Vec<Rect>> {
++    let path = &state.current_path;
++    path.paint_bounds
++        .components(path.drawn_subpaths)?
++        .into_iter()
++        .map(|bounds| expand_path_bounds(frame, state, stroke, bounds))
++        .collect()
++}
++
++fn expand_path_bounds(
++    frame: PageGeometry,
++    state: &InterpreterState,
++    stroke: bool,
++    bounds: Rect,
++) -> Option<Rect> {
++    let path = &state.current_path;
+     if !stroke {
+         return Some(bounds);
+     }

@@ -1,0 +1,44 @@
+--- a/crates/pdfdelta-core/src/document/text_scopes/intervals.rs
++++ b/crates/pdfdelta-core/src/document/text_scopes/intervals.rs
+@@ -45,6 +45,18 @@
+     /// Exact local result under the retained boundary premises.
+     pub fn comparison(&self) -> &LocalViewComparison {
+         &self.comparison
++    }
++
++    /// Whether live validation proves a content difference in this owned interval.
++    /// This proves neither paragraph identity nor complete document coverage.
++    /// Deserialized observations carry no proof authority and always return false.
++    pub fn proves_content_change(&self) -> bool {
++        self.verified
++            && self.comparison.compared
++            && self.comparison.interpretation == InterpretationStatus::ConditionalOnCorrespondence
++            && self.comparison.text_mask.as_ref().is_some_and(|mask| {
++                mask.claims.changed_source_lower > 0
++            })
+     }
+ 
+     pub(crate) fn sources(&self, old: bool) -> &[SourceRef] {
+--- a/crates/pdfdelta-cli/src/evidence_compare.rs
++++ b/crates/pdfdelta-cli/src/evidence_compare.rs
+@@ -257,6 +257,11 @@
+     };
+     let scope_content_changes = scope_changes(InterpretationStatus::ConditionalOnCorrespondence);
+     let inferred_scope_changes = scope_changes(InterpretationStatus::Inferred);
++    // Live source-owning interval proofs can establish a difference without
++    // promoting their non-owning reviews into the typed event count.
++    let native_interval_content_changed = comparison.scopes.iter().any(|scope| {
++        scope.result.native_text_intervals.iter().any(|interval| interval.proves_content_change())
++    });
+     let report = DocumentReport {
+         schema_version: 2,
+         comparison_wall_time_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+@@ -364,7 +369,7 @@
+     Ok((
+         if !complete {
+             3
+-        } else if changes > 0 {
++        } else if changes > 0 || native_interval_content_changed {
+             1
+         } else {
+             0
