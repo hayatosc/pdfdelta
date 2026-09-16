@@ -1,0 +1,118 @@
+{
+  "base": "7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c",
+  "files": {
+    "source-code.tar.gz": {
+      "size": 2215304,
+      "sha256": "e95ffa990885e296388da02df07117ffef873a453b49c49f0b30f7d54a645c9b",
+      "chunks": [
+        {
+          "path": ".experiment/inspection/source-code.tar.gz.000",
+          "size": 900000,
+          "sha256": "8a45a971ecb9ec2775b2a9c2749591279c8208ce5edbd4789b6770241cd19f6a"
+        },
+        {
+          "path": ".experiment/inspection/source-code.tar.gz.001",
+          "size": 900000,
+          "sha256": "f5803de5bb4971a1406ca0c5d4577707a6cb98d250ed635f2c506d6d9d58d4ec"
+        },
+        {
+          "path": ".experiment/inspection/source-code.tar.gz.002",
+          "size": 415304,
+          "sha256": "e0600df95701438e076b43eb898cd5f5e6ad7b887d8c51bd15e479094d3e367d"
+        }
+      ]
+    },
+    "pdfdelta-baseline.gz": {
+      "size": 7542897,
+      "sha256": "308ecfd26bdefd9f387f98673ac6f39abc9edde1ee087f567de3f64f421966cc",
+      "chunks": [
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.000",
+          "size": 900000,
+          "sha256": "e16c97c1b5fd10e3b7cbef2ac9ded8a948d8ec3810d46125b4111bdee4250823"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.001",
+          "size": 900000,
+          "sha256": "af95148e406fe4e64ba0e8b3825fec9640a09096d6c9d15f2903fcee7ae46fe7"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.002",
+          "size": 900000,
+          "sha256": "1e283de5a0af4c129528df7759c8454ca2414bdecadedc6023539d2b1492bb55"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.003",
+          "size": 900000,
+          "sha256": "8eeac1c5d4f6759e59e376934bd8607a78eeb5bba07eb074e2063c784e9b4dea"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.004",
+          "size": 900000,
+          "sha256": "a934cf90276c69dcc7d5f3996bf740b7bbcb7e14ee0b8c6dc2c511d7685314c3"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.005",
+          "size": 900000,
+          "sha256": "43b89b630101ad5ef675d149535b27173f4cf0095998f695071ee7c09860f40b"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.006",
+          "size": 900000,
+          "sha256": "e29373d15e79d27bd1c8c49485b9588ffc1090daa49b92e4820990c961efb8a1"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.007",
+          "size": 900000,
+          "sha256": "80b45ed11a2e808d55a08c5686b96667e69ed3e3cb1470c1861b8660fde14741"
+        },
+        {
+          "path": ".experiment/inspection/pdfdelta-baseline.gz.008",
+          "size": 342897,
+          "sha256": "b81d01cf3526c2ed4a0ee1a1c8176f00e2f1aa434b171d5561720252863f1ac8"
+        }
+      ]
+    },
+    "pdfbench-baseline.gz": {
+      "size": 5455175,
+      "sha256": "cc734c9c4e12a1becf4aae7287129a5ac2f00fd433ef5662030125ffdfc2dac5",
+      "chunks": [
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.000",
+          "size": 900000,
+          "sha256": "76502a8ede8593aa34c2996505f1989834879376fcee451e9c46dd896b76f849"
+        },
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.001",
+          "size": 900000,
+          "sha256": "b2efcdf3300c1a66006d91a226497ec55dc7dd8440993b8346f2c25ccc73f926"
+        },
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.002",
+          "size": 900000,
+          "sha256": "37233c491aa00e76162b40a22f985cde1012746336b389819e6a2fa93a675491"
+        },
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.003",
+          "size": 900000,
+          "sha256": "8201d0511002f5b08f3a3ea5e168d674a23a26ce7773da957b94f280e75bdd48"
+        },
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.004",
+          "size": 900000,
+          "sha256": "bfbfca6775769120050abb15b5ceacd33abb6ef8e9d099d63319c61d17400627"
+        },
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.005",
+          "size": 900000,
+          "sha256": "f9801c9f02306c9f5039c13dd1188de5d8d7aab2bd816141d09bfa6f85fef95a"
+        },
+        {
+          "path": ".experiment/inspection/pdfbench-baseline.gz.006",
+          "size": 55175,
+          "sha256": "972f73438f0e8438e644716726277f6305398c4bf99f25daa9773a8f367aba9a"
+        }
+      ]
+    }
+  }
+}
