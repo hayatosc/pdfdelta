@@ -1,0 +1,61 @@
+name: Fixed natural panel capture
+on:
+  push:
+    branches: [work/strict-completion-20260916]
+    paths: [.github/workflows/completion-panel.yml, .experiment/panel_capture.py, .experiment/panel-request.json]
+permissions:
+  contents: write
+concurrency:
+  group: fixed-natural-panel
+  cancel-in-progress: false
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore the quality-gated frozen executable
+        shell: bash
+        run: |
+          set -eu
+          gzip -dc .experiment/transport/pdfdelta-baseline.gz > /tmp/pdfdelta-baseline
+          chmod +x /tmp/pdfdelta-baseline
+          sha256sum /tmp/pdfdelta-baseline
+          /tmp/pdfdelta-baseline --version
+      - uses: actions/cache@v4
+        with:
+          path: .experiment/pdf-cache
+          key: fixed-panel-v1-${{ matrix.shard }}
+      - name: Capture verified natural inputs through the unchanged driver
+        run: python3 .experiment/panel_capture.py --binary /tmp/pdfdelta-baseline --label baseline --shard ${{ matrix.shard }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fixed-panel-baseline-${{ matrix.shard }}
+          path: |
+            .experiment/raw
+            .experiment/panel
+          retention-days: 7
+      - name: Publish measured summaries without external PDFs
+        if: always()
+        shell: bash
+        run: |
+          set -eu
+          git config user.name 'pdfdelta experiment'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          test -d .experiment/panel || exit 0
+          git add .experiment/panel
+          git diff --cached --quiet && exit 0
+          git commit -m 'test(experiment): retain fixed panel baseline shard ${{ matrix.shard }} [skip ci]'
+          for attempt in 1 2 3 4 5; do
+            git fetch origin work/strict-completion-20260916
+            git rebase FETCH_HEAD
+            if git push origin HEAD:work/strict-completion-20260916; then exit 0; fi
+            sleep 2
+          done
+          exit 1
