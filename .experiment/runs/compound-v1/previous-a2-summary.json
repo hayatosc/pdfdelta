@@ -1,0 +1,1521 @@
+{
+  "base": "7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c",
+  "iteration": "paint-locality-v2",
+  "strict_contract_changed": false,
+  "quality": {
+    "format_apply": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all"
+      ],
+      "exit_code": 0,
+      "seconds": 3.426,
+      "log": ".experiment/runs/paint-locality-v2/format-apply.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 3.326,
+      "log": ".experiment/runs/paint-locality-v2/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "clippy": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 37.472,
+      "log": ".experiment/runs/paint-locality-v2/clippy.log",
+      "sha256": "8e6ea095470a23673fd56c192da628e17973727bf526d7463c2ee32833886cb5"
+    },
+    "tests": {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "seconds": 178.41,
+      "log": ".experiment/runs/paint-locality-v2/tests.log",
+      "sha256": "761b8e660915390d7e8751e587d2c8debb0b79361c1eef4fac4ff16b4ef6826f"
+    },
+    "verify": {
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "exit_code": 0,
+      "seconds": 44.782,
+      "log": ".experiment/runs/paint-locality-v2/verify.log",
+      "sha256": "f41a16a602c191fa0c5f945d1033a452376f4b3edf692a7b3a7e11ebf43ed77f"
+    },
+    "release": {
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "-p",
+        "pdfdelta-cli"
+      ],
+      "exit_code": 0,
+      "seconds": 301.582,
+      "log": ".experiment/runs/paint-locality-v2/release.log",
+      "sha256": "2c5c0a1dcf45fb41148e762ce4ef785da4ba46419263b2f68f771d078119cdaa"
+    }
+  },
+  "regression_before": {
+    "disconnected_pdf_rules_do_not_acquire_joins_between_subpaths": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "disconnected_pdf_rules_do_not_acquire_joins_between_subpaths",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 29.333,
+      "log": ".experiment/runs/paint-locality-v2/before-disconnected_pdf_rules_do_not_acquire_joins_between_subpaths.log",
+      "sha256": "de2dfe5c23347cb153ae84dc974132d3e2d02de9d3fe1a03bd3d761c848b35e2"
+    },
+    "small_curve_in_large_form_retains_local_bounds_and_native_text": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "small_curve_in_large_form_retains_local_bounds_and_native_text",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 0.114,
+      "log": ".experiment/runs/paint-locality-v2/before-small_curve_in_large_form_retains_local_bounds_and_native_text.log",
+      "sha256": "03c1808a2b8c58402515b1592823d30db95704835694956f631ec7cefdce7a77"
+    },
+    "failed_nested_pdf_form_keeps_outer_bounds_and_the_extraction_gap": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "pdfdelta-core",
+        "--test",
+        "content_stream_extraction",
+        "failed_nested_pdf_form_keeps_outer_bounds_and_the_extraction_gap",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "seconds": 0.114,
+      "log": ".experiment/runs/paint-locality-v2/before-failed_nested_pdf_form_keeps_outer_bounds_and_the_extraction_gap.log",
+      "sha256": "5e53fe66e4fde377652d38c21bde2b31a941641e3b78d58f153c557cf7e93451"
+    }
+  },
+  "pairs": [
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "inputs": {
+        "old": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0",
+        "new": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347"
+      },
+      "runs": {
+        "baseline": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/pdfdelta-baseline",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-se-2024-to-2025-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-se-2024-to-2025-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/irs-schedule-se-2024-to-2025/report.json",
+            "--review",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/irs-schedule-se-2024-to-2025/review"
+          ],
+          "exit_code": 3,
+          "seconds": 0.459,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 5158,
+              "new_discovered_sources": 5175,
+              "old_compared_sources": 4348,
+              "new_compared_sources": 4363,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 810,
+              "new_uncompared_sources": 812,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 1,
+          "native_intervals": 1,
+          "native_domains": 0,
+          "comparison_sha256": "0f0f38d38e8462b830990f92ff0bc118801e62a9ec7461046441fdc3748a656b",
+          "report_sha256": "45c60302e661c860d2e855561b3788f58a1a8d94eeae843be4e16ee4c02a977a",
+          "report_export": {
+            "uncompressed_sha256": "45c60302e661c860d2e855561b3788f58a1a8d94eeae843be4e16ee4c02a977a",
+            "chunks": [
+              {
+                "path": ".experiment/runs/paint-locality-v2/baseline-se-report.gz.000",
+                "sha256": "799592fb5170cb6648b6ef8c81ddbc02ae842be4b93bfdd7815ee5cf2663aab5"
+              }
+            ]
+          },
+          "sources_export": {
+            "uncompressed_sha256": "c2059e7a66047feda55f466c6ac052b7a4fb57f043ac29c0e1cd831525876574",
+            "chunks": [
+              {
+                "path": ".experiment/runs/paint-locality-v2/baseline-se-sources.gz.000",
+                "sha256": "94a05952264452871b6b2692b300fdc0a35dd09a99c246e92f33d5fbc9293859"
+              }
+            ]
+          },
+          "inventory_issue_counts": {
+            "old": 34,
+            "new": 34
+          }
+        },
+        "candidate": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/target/release/pdfdelta",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-se-2024-to-2025-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-se-2024-to-2025-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/irs-schedule-se-2024-to-2025/report.json",
+            "--review",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/irs-schedule-se-2024-to-2025/review"
+          ],
+          "exit_code": 3,
+          "seconds": 0.468,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 5158,
+              "new_discovered_sources": 5175,
+              "old_compared_sources": 4348,
+              "new_compared_sources": 4363,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 810,
+              "new_uncompared_sources": 812,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 1,
+          "native_intervals": 1,
+          "native_domains": 0,
+          "comparison_sha256": "0f0f38d38e8462b830990f92ff0bc118801e62a9ec7461046441fdc3748a656b",
+          "report_sha256": "7c4cfddf3418ab94864568aabf2bf3039764936ee041a4508a78428b314344fb",
+          "report_export": {
+            "uncompressed_sha256": "7c4cfddf3418ab94864568aabf2bf3039764936ee041a4508a78428b314344fb",
+            "chunks": [
+              {
+                "path": ".experiment/runs/paint-locality-v2/candidate-se-report.gz.000",
+                "sha256": "475510f544ab1ad73b706cdb979859babfde391fdc2019c07deb4964ed04fc70"
+              }
+            ]
+          },
+          "sources_export": {
+            "uncompressed_sha256": "c2059e7a66047feda55f466c6ac052b7a4fb57f043ac29c0e1cd831525876574",
+            "chunks": [
+              {
+                "path": ".experiment/runs/paint-locality-v2/candidate-se-sources.gz.000",
+                "sha256": "94a05952264452871b6b2692b300fdc0a35dd09a99c246e92f33d5fbc9293859"
+              }
+            ]
+          },
+          "inventory_issue_counts": {
+            "old": 34,
+            "new": 34
+          }
+        }
+      },
+      "status": "compared"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "inputs": {
+        "old": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+        "new": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716"
+      },
+      "runs": {
+        "baseline": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/pdfdelta-baseline",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-c-2024-to-2025-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-c-2024-to-2025-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/irs-schedule-c-2024-to-2025/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 0.437,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 6310,
+              "new_discovered_sources": 6316,
+              "old_compared_sources": 5070,
+              "new_compared_sources": 5085,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 1240,
+              "new_uncompared_sources": 1231,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 2,
+          "native_intervals": 2,
+          "native_domains": 0,
+          "comparison_sha256": "0024507cd1924112944be1e24e599952d05392e71212a5e59d32df9961ea90df",
+          "report_sha256": "22f797c02bdf7464e3235694d781c7c6b791e8a2b293458fb5b4a60c08f44b8e",
+          "inventory_issue_counts": {
+            "old": 146,
+            "new": 146
+          }
+        },
+        "candidate": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/target/release/pdfdelta",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-c-2024-to-2025-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-schedule-c-2024-to-2025-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/irs-schedule-c-2024-to-2025/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 0.441,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 6310,
+              "new_discovered_sources": 6316,
+              "old_compared_sources": 5070,
+              "new_compared_sources": 5085,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 1240,
+              "new_uncompared_sources": 1231,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 2,
+          "native_intervals": 2,
+          "native_domains": 0,
+          "comparison_sha256": "0024507cd1924112944be1e24e599952d05392e71212a5e59d32df9961ea90df",
+          "report_sha256": "1ac9e42d31aeccffbb948d3b176e65e02f3373c9eb557764a4c271090672550b",
+          "inventory_issue_counts": {
+            "old": 146,
+            "new": 146
+          }
+        }
+      },
+      "status": "compared"
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "inputs": {
+        "old": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff",
+        "new": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53"
+      },
+      "runs": {
+        "baseline": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/pdfdelta-baseline",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-w9-2018-to-2024-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-w9-2018-to-2024-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/irs-w9-2018-to-2024/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 1.493,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 34858,
+              "new_discovered_sources": 37452,
+              "old_compared_sources": 14976,
+              "new_compared_sources": 14951,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 19882,
+              "new_uncompared_sources": 22501,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 34,
+          "native_intervals": 17,
+          "native_domains": 1,
+          "comparison_sha256": "efea2b704c11de46e0ecf76aba1bc8b99bf69dcabd43111f6502085c8cce0fbf",
+          "report_sha256": "dabd743d72ea640db0be65a891a35f1bf88e4c8e9fbc2580f02511d370bced1d",
+          "inventory_issue_counts": {
+            "old": 29,
+            "new": 45
+          }
+        },
+        "candidate": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/target/release/pdfdelta",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-w9-2018-to-2024-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/irs-w9-2018-to-2024-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/irs-w9-2018-to-2024/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 1.514,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 34858,
+              "new_discovered_sources": 37452,
+              "old_compared_sources": 14976,
+              "new_compared_sources": 14951,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 19882,
+              "new_uncompared_sources": 22501,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 34,
+          "native_intervals": 17,
+          "native_domains": 1,
+          "comparison_sha256": "efea2b704c11de46e0ecf76aba1bc8b99bf69dcabd43111f6502085c8cce0fbf",
+          "report_sha256": "718fa769e09ab1ef1c4573b0c184411fc6fc0c02ca05fc44289cf0a0b3d5e1fa",
+          "inventory_issue_counts": {
+            "old": 29,
+            "new": 45
+          }
+        }
+      },
+      "status": "compared"
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "inputs": {
+        "old": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+        "new": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22"
+      },
+      "runs": {
+        "baseline": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/pdfdelta-baseline",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/edpb-controller-processor-v1-to-v2-1-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/edpb-controller-processor-v1-to-v2-1-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/edpb-controller-processor-v1-to-v2-1/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 9.209,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 135788,
+              "new_discovered_sources": 176992,
+              "old_compared_sources": 2240,
+              "new_compared_sources": 2266,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 133548,
+              "new_uncompared_sources": 174726,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 52,
+          "native_intervals": 0,
+          "native_domains": 70,
+          "comparison_sha256": "1a18fa121d87c0918c5f9c5128b2c9bbe45f624f7fb0fb9f5cacf3e14c875d2d",
+          "report_sha256": "05654702915d2f91a02f8f9b504e1ae0ecbf4ab9dd24a5cac15083c053854fef",
+          "inventory_issue_counts": {
+            "old": 48,
+            "new": 363
+          }
+        },
+        "candidate": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/target/release/pdfdelta",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/edpb-controller-processor-v1-to-v2-1-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/edpb-controller-processor-v1-to-v2-1-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/edpb-controller-processor-v1-to-v2-1/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 9.152,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 135788,
+              "new_discovered_sources": 176992,
+              "old_compared_sources": 2240,
+              "new_compared_sources": 2266,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 133548,
+              "new_uncompared_sources": 174726,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 52,
+          "native_intervals": 0,
+          "native_domains": 70,
+          "comparison_sha256": "1a18fa121d87c0918c5f9c5128b2c9bbe45f624f7fb0fb9f5cacf3e14c875d2d",
+          "report_sha256": "f2fb7ac9266d998dad2d15629d5b77cb20430f01e5d1d585234bd523d2810b11",
+          "inventory_issue_counts": {
+            "old": 48,
+            "new": 363
+          }
+        }
+      },
+      "status": "compared"
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "inputs": {
+        "old": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e",
+        "new": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22"
+      },
+      "runs": {
+        "baseline": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/pdfdelta-baseline",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/nist-ssdf-draft-to-final-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/nist-ssdf-draft-to-final-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/nist-ssdf-draft-to-final/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 4.824,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 92494,
+              "new_discovered_sources": 105512,
+              "old_compared_sources": 24739,
+              "new_compared_sources": 24811,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 67755,
+              "new_uncompared_sources": 80701,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 27,
+          "native_intervals": 8,
+          "native_domains": 1,
+          "comparison_sha256": "2035b306c56d14c5ad11cb6ee4d3896ff568afa09e9529094520be7b7019d0a8",
+          "report_sha256": "1cfeca96360f78d69e63b4bff5701c48947596395e26b153a9d5ea49f6d9a969",
+          "inventory_issue_counts": {
+            "old": 569,
+            "new": 661
+          }
+        },
+        "candidate": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/target/release/pdfdelta",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/nist-ssdf-draft-to-final-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/nist-ssdf-draft-to-final-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/nist-ssdf-draft-to-final/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 4.686,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 92494,
+              "new_discovered_sources": 105512,
+              "old_compared_sources": 24739,
+              "new_compared_sources": 24811,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 67755,
+              "new_uncompared_sources": 80701,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 27,
+          "native_intervals": 8,
+          "native_domains": 1,
+          "comparison_sha256": "2035b306c56d14c5ad11cb6ee4d3896ff568afa09e9529094520be7b7019d0a8",
+          "report_sha256": "9a800199b6b124bf7ffbb748fd080d7a51340a05acfaecb109101f52632d2162",
+          "inventory_issue_counts": {
+            "old": 569,
+            "new": 661
+          }
+        }
+      },
+      "status": "compared"
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "inputs": {
+        "old": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80",
+        "new": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91"
+      },
+      "runs": {
+        "baseline": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/pdfdelta-baseline",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/arxiv-llama2-v1-to-v2-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/arxiv-llama2-v1-to-v2-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/baseline/arxiv-llama2-v1-to-v2/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 16.876,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 220758,
+              "new_discovered_sources": 221261,
+              "old_compared_sources": 102450,
+              "new_compared_sources": 102450,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 118308,
+              "new_uncompared_sources": 118811,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 2,
+          "native_intervals": 26,
+          "native_domains": 0,
+          "comparison_sha256": "84a5c8caed524465d744752d76165d9f1e14d686037c5d270ec5541b3c2db8b6",
+          "report_sha256": "dea2aefd19afc3264c810a40d73906ea2b59e823e576c41810b274d88b2fdb14",
+          "inventory_issue_counts": {
+            "old": 76,
+            "new": 77
+          }
+        },
+        "candidate": {
+          "command": [
+            "/home/runner/work/pdfdelta/pdfdelta/target/release/pdfdelta",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/arxiv-llama2-v1-to-v2-old.pdf",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/inputs/arxiv-llama2-v1-to-v2-new.pdf",
+            "--channels",
+            "text",
+            "--limit-scale",
+            "1",
+            "--quiet",
+            "--json",
+            "/home/runner/work/pdfdelta/pdfdelta/.experiment/cache/comparisons/candidate/arxiv-llama2-v1-to-v2/report.json"
+          ],
+          "exit_code": 3,
+          "seconds": 16.863,
+          "comparison_complete": false,
+          "coverage": [
+            {
+              "channel": "text",
+              "old_inventory_complete": false,
+              "new_inventory_complete": false,
+              "old_discovered_sources": 220758,
+              "new_discovered_sources": 221261,
+              "old_compared_sources": 102450,
+              "new_compared_sources": 102450,
+              "old_presence_sources": 0,
+              "new_presence_sources": 0,
+              "old_uncompared_sources": 118308,
+              "new_uncompared_sources": 118811,
+              "complete": false
+            }
+          ],
+          "typed_changes": 0,
+          "inferred_changes": 0,
+          "scope_content_changes": 2,
+          "native_intervals": 26,
+          "native_domains": 0,
+          "comparison_sha256": "84a5c8caed524465d744752d76165d9f1e14d686037c5d270ec5541b3c2db8b6",
+          "report_sha256": "6bed53b41473f76faf710e297298500c244b4e47275e5031afe9dc469951b7aa",
+          "inventory_issue_counts": {
+            "old": 76,
+            "new": 77
+          }
+        }
+      },
+      "status": "compared"
+    }
+  ],
+  "stage": "finished_pilot",
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "registered_pair_count": 36,
+  "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "tested_sources": {
+    "crates/pdfdelta-core/src/source/content_stream.rs": "e9609ad1c3cb88bc8dc8740009bd60d59e15e2f9caa2b86de50f2118c14a990c",
+    "crates/pdfdelta-core/src/source/content_stream/paint_bounds.rs": "ed217b7b7af8b711fbbfce59c86fe84df7e6ab4ec1134a89472352b18393e410",
+    "crates/pdfdelta-core/tests/content_stream_extraction.rs": "45df3da5a19a065c0855f3fe42fbf333b2c00a62c625bebd8346b31439a6c165",
+    "crates/pdfdelta-cli/src/extraction_cache.rs": "a423cb425e13b282ab23f61ac495870b74593e92f914d58644b0a857fc314d55",
+    "crates/pdfdelta-core/tests/evidence_document_fixture.rs": "2029d2e605302aa848d095041c66ec7d63625c83a729f8c8f48522981cc5aad5"
+  },
+  "test_totals": {
+    "passed": 2522,
+    "failed": 0,
+    "ignored": 2
+  },
+  "tested_commit": "59325486fadf60547e0079ee3209f16482556354",
+  "binaries": {
+    "baseline": "0ea7b6c559159b05c601f78109528f1c0182b3d29c4a89247d6bfd4d32617d15",
+    "candidate": "979c3c80f87e314fd8f7c816fc6f5b7cd0b5dabd8b650d93cb8a18198f10209f"
+  },
+  "acquisition": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "old",
+      "expected_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202007_controllerprocessor_en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f",
+      "bytes": 634684,
+      "status": "verified_download"
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "new",
+      "expected_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "url": "https://www.edpb.europa.eu/system/files/documents/2023-10/EDPB_guidelines_202007_controllerprocessor_final_en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22",
+      "bytes": 859797,
+      "status": "verified_download"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "old",
+      "expected_sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202010_article23_en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728",
+      "bytes": 202951,
+      "status": "verified_download"
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "new",
+      "expected_sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986",
+      "url": "https://www.edpb.europa.eu/system/files/2026-04/edpb_guidelines202010_on_art23_adopted_after_consultation_en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986",
+      "bytes": 502861,
+      "status": "verified_download"
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "expected_sha256": "3b090f638c33deb118a639f1a6af4ce928977dfe5ab3ada5253c36a55d42d76b",
+      "url": "https://www.edpb.europa.eu/sites/default/files/consultation/edpb_guidelines_201904_dataprotection_by_design_and_by_default.pdf",
+      "exit_code": 22,
+      "status": "download_failed",
+      "stderr": "curl: (22) The requested URL returned error: 429\n"
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "new",
+      "expected_sha256": "179c669a3aac9a2c6cd9b5765d262a2150347eec88e1b73e4e6cf3eb6dfb46ac",
+      "url": "https://www.edpb.europa.eu/sites/default/files/files/file1/edpb_guidelines_201904_dataprotection_by_design_and_by_default_v2.0_en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "179c669a3aac9a2c6cd9b5765d262a2150347eec88e1b73e4e6cf3eb6dfb46ac",
+      "bytes": 312717,
+      "status": "verified_download"
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "expected_sha256": "e231944e40d3741d22d54712eb434d4044edef54ddbd254c18c9742077f37ab7",
+      "url": "https://www.edpb.europa.eu/system/files/consultation/edpb_guidelines_202008_onthetargetingofsocialmediausers_en.pdf",
+      "exit_code": 22,
+      "status": "download_failed",
+      "stderr": "curl: (22) The requested URL returned error: 429\n"
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "new",
+      "expected_sha256": "1752ccea30a6fbeff0907c0be261c05e40fa5d6a5d512da483894ebd4060bbed",
+      "url": "https://www.edpb.europa.eu/system/files/2021-04/edpb_guidelines_082020_on_the_targeting_of_social_media_users_en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "1752ccea30a6fbeff0907c0be261c05e40fa5d6a5d512da483894ebd4060bbed",
+      "bytes": 476549,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "old",
+      "expected_sha256": "b1c5ead0632dcfb979c59d8c462b094ad2465ddaf62d5c246289d6d9b4419df1",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r2.pdf",
+      "exit_code": 0,
+      "actual_sha256": "b1c5ead0632dcfb979c59d8c462b094ad2465ddaf62d5c246289d6d9b4419df1",
+      "bytes": 1744473,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "new",
+      "expected_sha256": "e5593d6bb85daecec7e8d9549400c7b3473bcc3f06e469c82218073afa7fba2d",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r3.pdf",
+      "exit_code": 0,
+      "actual_sha256": "e5593d6bb85daecec7e8d9549400c7b3473bcc3f06e469c82218073afa7fba2d",
+      "bytes": 1040566,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "old",
+      "expected_sha256": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218-draft.pdf",
+      "exit_code": 0,
+      "actual_sha256": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e",
+      "bytes": 867009,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "new",
+      "expected_sha256": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218.pdf",
+      "exit_code": 0,
+      "actual_sha256": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22",
+      "bytes": 739891,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "old",
+      "expected_sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000",
+      "url": "https://www.nist.gov/system/files/documents/2022/08/18/AI_RMF_2nd_draft.pdf",
+      "exit_code": 0,
+      "actual_sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000",
+      "bytes": 1748696,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "new",
+      "expected_sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf",
+      "exit_code": 0,
+      "actual_sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1",
+      "bytes": 1946127,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "old",
+      "expected_sha256": "ccfce7510a1267933f912d023306c6e7d485f21be63d271108b61aad6139127e",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63b.pdf",
+      "exit_code": 0,
+      "actual_sha256": "ccfce7510a1267933f912d023306c6e7d485f21be63d271108b61aad6139127e",
+      "bytes": 1480377,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "new",
+      "expected_sha256": "d9ab89576b5ae2cfb3ba37781110788dea27a85a5079496dbfc1a79834670afd",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-63B-4.pdf",
+      "exit_code": 0,
+      "actual_sha256": "d9ab89576b5ae2cfb3ba37781110788dea27a85a5079496dbfc1a79834670afd",
+      "bytes": 993734,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "old",
+      "expected_sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff",
+      "url": "https://www.irs.gov/pub/irs-prior/fw9--2018.pdf",
+      "exit_code": 0,
+      "actual_sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff",
+      "bytes": 132144,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "new",
+      "expected_sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53",
+      "url": "https://www.irs.gov/pub/irs-prior/fw9--2024.pdf",
+      "exit_code": 0,
+      "actual_sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53",
+      "bytes": 140815,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "old",
+      "expected_sha256": "e60e3af7512073bffbd7ef3c4f3a2fc9593d2aed2e420718d4ccf17659e2c3ed",
+      "url": "https://www.irs.gov/pub/irs-prior/fw4--2024.pdf",
+      "exit_code": 0,
+      "actual_sha256": "e60e3af7512073bffbd7ef3c4f3a2fc9593d2aed2e420718d4ccf17659e2c3ed",
+      "bytes": 189925,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "new",
+      "expected_sha256": "94fa236f26c1a6dbbdeb40b8bd8870793e7a5be0f74ead3c2799d2b0961be68a",
+      "url": "https://www.irs.gov/pub/irs-prior/fw4--2025.pdf",
+      "exit_code": 0,
+      "actual_sha256": "94fa236f26c1a6dbbdeb40b8bd8870793e7a5be0f74ead3c2799d2b0961be68a",
+      "bytes": 192528,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "expected_sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sc--2024.pdf",
+      "exit_code": 0,
+      "actual_sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+      "bytes": 122304,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "expected_sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sc--2025.pdf",
+      "exit_code": 0,
+      "actual_sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716",
+      "bytes": 122589,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "expected_sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sse--2024.pdf",
+      "exit_code": 0,
+      "actual_sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0",
+      "bytes": 80296,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "expected_sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347",
+      "url": "https://www.irs.gov/pub/irs-prior/f1040sse--2025.pdf",
+      "exit_code": 0,
+      "actual_sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347",
+      "bytes": 80290,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "old",
+      "expected_sha256": "58534a3c000cbcc60ed64e999a2d9ed839edc2d9894e4449e9d79e1118b5e5ba",
+      "url": "https://arxiv.org/pdf/1810.04805v1",
+      "exit_code": 0,
+      "actual_sha256": "58534a3c000cbcc60ed64e999a2d9ed839edc2d9894e4449e9d79e1118b5e5ba",
+      "bytes": 592173,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "new",
+      "expected_sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e",
+      "url": "https://arxiv.org/pdf/1810.04805v2",
+      "exit_code": 0,
+      "actual_sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e",
+      "bytes": 775166,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "old",
+      "expected_sha256": "f756a2d3e23c2770a3e8c4354965e98d37411c18aab91556df0c335675dec396",
+      "url": "https://arxiv.org/pdf/2005.14165v1",
+      "exit_code": 0,
+      "actual_sha256": "f756a2d3e23c2770a3e8c4354965e98d37411c18aab91556df0c335675dec396",
+      "bytes": 6754784,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "new",
+      "expected_sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83",
+      "url": "https://arxiv.org/pdf/2005.14165v4",
+      "exit_code": 0,
+      "actual_sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83",
+      "bytes": 6768044,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "old",
+      "expected_sha256": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2010/12/28/1231931_02.pdf",
+      "exit_code": 0,
+      "actual_sha256": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57",
+      "bytes": 925552,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "new",
+      "expected_sha256": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e",
+      "url": "https://www.mext.go.jp/content/20220606-mxt_kyoiku02-100002607_002.pdf",
+      "exit_code": 0,
+      "actual_sha256": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e",
+      "bytes": 6804103,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "old",
+      "expected_sha256": "793600d98c5de56971d5cd617ae84bc9661fadd92471c626a175741a02e52c99",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2014/04/15/1234912_2_1.pdf",
+      "exit_code": 0,
+      "actual_sha256": "793600d98c5de56971d5cd617ae84bc9661fadd92471c626a175741a02e52c99",
+      "bytes": 751534,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "new",
+      "expected_sha256": "d56fb8ec65d401abc7bd8b2cfeae445f8b67be0851cd6173045bf0c4f18ec576",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2019/03/18/1387018_002.pdf",
+      "exit_code": 0,
+      "actual_sha256": "d56fb8ec65d401abc7bd8b2cfeae445f8b67be0851cd6173045bf0c4f18ec576",
+      "bytes": 8099206,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "old",
+      "expected_sha256": "c510378d787991b7da6b253bdd7bb32f00b39746e60dbcfb49cf2249e16830a5",
+      "url": "https://www.mext.go.jp/component/a_menu/education/micro_detail/__icsFiles/afieldfile/2010/12/28/1282000_02.pdf",
+      "exit_code": 0,
+      "actual_sha256": "c510378d787991b7da6b253bdd7bb32f00b39746e60dbcfb49cf2249e16830a5",
+      "bytes": 817500,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "new",
+      "expected_sha256": "012b3fe4e8c72f92d8c1879ffb02dbf53f27ab31cd09766ccf5da384470ed224",
+      "url": "https://www.mext.go.jp/content/20250410-mxt_kyoiku01-100002620_02.pdf",
+      "exit_code": 0,
+      "actual_sha256": "012b3fe4e8c72f92d8c1879ffb02dbf53f27ab31cd09766ccf5da384470ed224",
+      "bytes": 2090327,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "old",
+      "expected_sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe",
+      "url": "https://www.jaccw.or.jp/kenkyu-R01_kaigono_tokutei_ginou_20201006.pdf",
+      "exit_code": 0,
+      "actual_sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe",
+      "bytes": 39736711,
+      "status": "verified_download"
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "new",
+      "expected_sha256": "2fa47d80d4167c5173e9f24c93178d90fdcf5e6cc45ca574360364f9820325af",
+      "url": "https://www.mhlw.go.jp/content/12000000/001471473.pdf",
+      "exit_code": 0,
+      "actual_sha256": "2fa47d80d4167c5173e9f24c93178d90fdcf5e6cc45ca574360364f9820325af",
+      "bytes": 20912846,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "old",
+      "expected_sha256": "6eb451ac9dadf2c0605d343398e6b92175c2d96fda5afaceee118583cc2a5e9c",
+      "url": "https://ntrs.nasa.gov/api/citations/19690013955/downloads/19690013955.pdf",
+      "exit_code": 0,
+      "actual_sha256": "6eb451ac9dadf2c0605d343398e6b92175c2d96fda5afaceee118583cc2a5e9c",
+      "bytes": 1821074,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "new",
+      "expected_sha256": "299dfb8807862f174768356353f39c6bf6993596cb6f5933dd4fd23181e8837b",
+      "url": "https://ntrs.nasa.gov/api/citations/20205011530/downloads/20205011530%20Rev%202FINALa%201-2023.pdf",
+      "exit_code": 0,
+      "actual_sha256": "299dfb8807862f174768356353f39c6bf6993596cb6f5933dd4fd23181e8837b",
+      "bytes": 4025433,
+      "status": "verified_download"
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "old",
+      "expected_sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c",
+      "url": "https://www.ipcc.ch/site/assets/uploads/2018/05/SYR_AR5_FINAL_full_wcover.pdf",
+      "exit_code": 0,
+      "actual_sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c",
+      "bytes": 11723732,
+      "status": "verified_download"
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "new",
+      "expected_sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6",
+      "url": "https://www.ipcc.ch/report/ar6/syr/downloads/report/IPCC_AR6_SYR_FullVolume.pdf",
+      "exit_code": 0,
+      "actual_sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6",
+      "bytes": 4913496,
+      "status": "verified_download"
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "old",
+      "expected_sha256": "8d241acc31e76042d46640355c7539c0bacacf75effca4b51292fcd7b1bd65dd",
+      "url": "https://www.ecb.europa.eu/pub/pdf/annrep/ecb.ar2023~d033c21ac2.en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "8d241acc31e76042d46640355c7539c0bacacf75effca4b51292fcd7b1bd65dd",
+      "bytes": 3264682,
+      "status": "verified_download"
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "new",
+      "expected_sha256": "9b1fa8402e6a50c318dba51c8158a14a54319dab92b3f25e0dfbc4a0e4ab43cc",
+      "url": "https://www.ecb.europa.eu/pub/pdf/annrep/ecb.ar2024~8402d8191f.en.pdf",
+      "exit_code": 0,
+      "actual_sha256": "9b1fa8402e6a50c318dba51c8158a14a54319dab92b3f25e0dfbc4a0e4ab43cc",
+      "bytes": 4170011,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "old",
+      "expected_sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d",
+      "url": "https://csrc.nist.gov/CSRC/media/Publications/fips/180/3/archive/2008-10-31/documents/fips180-3_final.pdf",
+      "exit_code": 0,
+      "actual_sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d",
+      "bytes": 276776,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "new",
+      "expected_sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+      "url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf",
+      "exit_code": 0,
+      "actual_sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+      "bytes": 833315,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "expected_sha256": "4bd69fcbb4a9e794d38424d187b91d7e958461f5eaaa14cf2a578a2b6aac71be",
+      "url": "https://arxiv.org/pdf/2006.11239v1",
+      "exit_code": 0,
+      "actual_sha256": "4bd69fcbb4a9e794d38424d187b91d7e958461f5eaaa14cf2a578a2b6aac71be",
+      "bytes": 10255958,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "expected_sha256": "aee5e07a802e8dfd2a386374c94fd61d1d056cb7e1e0fec4f28e8120ff5d8505",
+      "url": "https://arxiv.org/pdf/2006.11239v2",
+      "exit_code": 0,
+      "actual_sha256": "aee5e07a802e8dfd2a386374c94fd61d1d056cb7e1e0fec4f28e8120ff5d8505",
+      "bytes": 10267274,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "old",
+      "expected_sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80",
+      "url": "https://arxiv.org/pdf/2307.09288v1",
+      "exit_code": 0,
+      "actual_sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80",
+      "bytes": 13658713,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "new",
+      "expected_sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91",
+      "url": "https://arxiv.org/pdf/2307.09288v2",
+      "exit_code": 0,
+      "actual_sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91",
+      "bytes": 13661300,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "old",
+      "expected_sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-37r1.pdf",
+      "exit_code": 0,
+      "actual_sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198",
+      "bytes": 1591735,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "new",
+      "expected_sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-37r2.pdf",
+      "exit_code": 0,
+      "actual_sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d",
+      "bytes": 2270327,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "old",
+      "expected_sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08",
+      "url": "https://www.irs.gov/pub/irs-prior/f1099msc--2024.pdf",
+      "exit_code": 0,
+      "actual_sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08",
+      "bytes": 537923,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "new",
+      "expected_sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be",
+      "url": "https://www.irs.gov/pub/irs-prior/f1099msc--2025.pdf",
+      "exit_code": 0,
+      "actual_sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be",
+      "bytes": 545480,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "old",
+      "expected_sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526",
+      "url": "https://www.irs.gov/pub/irs-prior/fw2--2024.pdf",
+      "exit_code": 0,
+      "actual_sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526",
+      "bytes": 1341097,
+      "status": "verified_download"
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "new",
+      "expected_sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96",
+      "url": "https://www.irs.gov/pub/irs-prior/fw2--2025.pdf",
+      "exit_code": 0,
+      "actual_sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96",
+      "bytes": 1343180,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "expected_sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602",
+      "url": "https://arxiv.org/pdf/1703.06870v1",
+      "exit_code": 0,
+      "actual_sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602",
+      "bytes": 6639424,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "expected_sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8",
+      "url": "https://arxiv.org/pdf/1703.06870v3",
+      "exit_code": 0,
+      "actual_sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8",
+      "bytes": 7723886,
+      "status": "verified_download"
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "old",
+      "expected_sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890",
+      "url": "https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/kijun/sanko/koyobun/pdf/yoryo_ver02.pdf",
+      "exit_code": 0,
+      "actual_sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890",
+      "bytes": 240091,
+      "status": "verified_download"
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "expected_sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9",
+      "url": "https://www.bunka.go.jp/seisaku/bunkashingikai/kokugo/hokoku/pdf/93731901_01.pdf",
+      "exit_code": 0,
+      "actual_sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9",
+      "bytes": 2256467,
+      "status": "verified_download"
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "old",
+      "expected_sha256": "f4ccfc41b97f113e4d26abf8e46fd7c59796eee477d1990cf990eedc2f730b8e",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_00-24B.pdf",
+      "exit_code": 0,
+      "actual_sha256": "f4ccfc41b97f113e4d26abf8e46fd7c59796eee477d1990cf990eedc2f730b8e",
+      "bytes": 1097708,
+      "status": "verified_download"
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "new",
+      "expected_sha256": "c46c75a25a87f078d1ae425c77c4e9937489382817c9724f1e8c6c76ccd134cc",
+      "url": "https://www.faa.gov/documentlibrary/media/advisory_circular/ac%2000-24c.pdf",
+      "exit_code": 0,
+      "actual_sha256": "c46c75a25a87f078d1ae425c77c4e9937489382817c9724f1e8c6c76ccd134cc",
+      "bytes": 219358,
+      "status": "verified_download"
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "old",
+      "expected_sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC43-9C.pdf",
+      "exit_code": 0,
+      "actual_sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273",
+      "bytes": 948181,
+      "status": "verified_download"
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "new",
+      "expected_sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd",
+      "url": "https://www.faa.gov/documentLibrary/media/Advisory_Circular/AC_43-9D.pdf",
+      "exit_code": 0,
+      "actual_sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd",
+      "bytes": 518959,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "old",
+      "expected_sha256": "9d72de197c6c8e76f32602fc447406d6a43f37b5b019933dd4d873463061a6ef",
+      "url": "https://arxiv.org/pdf/1506.01497v1",
+      "exit_code": 0,
+      "actual_sha256": "9d72de197c6c8e76f32602fc447406d6a43f37b5b019933dd4d873463061a6ef",
+      "bytes": 2368067,
+      "status": "verified_download"
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "new",
+      "expected_sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1",
+      "url": "https://arxiv.org/pdf/1506.01497v3",
+      "exit_code": 0,
+      "actual_sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1",
+      "bytes": 6913803,
+      "status": "verified_download"
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "old",
+      "expected_sha256": "3cb630da029ed53867ee7ff3e1f50aa3bb8419716b7b3864dcf2e778cd912999",
+      "url": "https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/sisaku/enkaku/pdf/01_097.pdf",
+      "exit_code": 0,
+      "actual_sha256": "3cb630da029ed53867ee7ff3e1f50aa3bb8419716b7b3864dcf2e778cd912999",
+      "bytes": 758687,
+      "status": "verified_download"
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "new",
+      "expected_sha256": "da79514967608d2c384fb72bb121e5c57951b2c1fb9a634f66e0eb2f8a98b601",
+      "url": "https://www.bunka.go.jp/kokugo_nihongo/sisaku/joho/joho/kijun/naikaku/gendaikana/pdf/94380801_01.pdf",
+      "exit_code": 0,
+      "actual_sha256": "da79514967608d2c384fb72bb121e5c57951b2c1fb9a634f66e0eb2f8a98b601",
+      "bytes": 1153680,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "old",
+      "expected_sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r4.pdf",
+      "exit_code": 0,
+      "actual_sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e",
+      "bytes": 5301858,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "new",
+      "expected_sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf",
+      "exit_code": 0,
+      "actual_sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6",
+      "bytes": 6073678,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "old",
+      "expected_sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30.pdf",
+      "exit_code": 0,
+      "actual_sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef",
+      "bytes": 3181701,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "new",
+      "expected_sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-30r1.pdf",
+      "exit_code": 0,
+      "actual_sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04",
+      "bytes": 826897,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "old",
+      "expected_sha256": "1838f48f555d8fd8d54a6212024d138224307acfb4f86eea88fdf03c96d02a19",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-34.pdf",
+      "exit_code": 0,
+      "actual_sha256": "1838f48f555d8fd8d54a6212024d138224307acfb4f86eea88fdf03c96d02a19",
+      "bytes": 7012380,
+      "status": "verified_download"
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "new",
+      "expected_sha256": "476f04d4c60b0770c1ac8b2720551972074ce78e936a3e7a535048416111d0df",
+      "url": "https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-34r1.pdf",
+      "exit_code": 0,
+      "actual_sha256": "476f04d4c60b0770c1ac8b2720551972074ce78e936a3e7a535048416111d0df",
+      "bytes": 952921,
+      "status": "verified_download"
+    }
+  ],
+  "strict_complete": {
+    "baseline": 0,
+    "candidate": 0
+  },
+  "evaluated_pair_count": 6,
+  "scope": "six-pair ablation; not a full-panel rerun"
+}

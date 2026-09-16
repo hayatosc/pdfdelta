@@ -1,0 +1,19 @@
+{
+  "base": "7bf6b0ad646da55fbef6bbaa04c1664ffb773a4c",
+  "iteration": "compound-v1",
+  "strict_contract_changed": false,
+  "quality": {},
+  "regression_before": {},
+  "pairs": [],
+  "stage": "started",
+  "toolchain": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "previous_full_results": {
+    "uncompressed_sha256": "6912720171e9909beacb2f6c4285724704bbbb3ea46ce6cca84385c0ba53a946",
+    "chunks": [
+      {
+        "path": ".experiment/runs/compound-v1/previous-a2-results.gz.000",
+        "sha256": "711ddecac3a6da6e8f04e2b73fb0d5f5431c62243df3014e37806fb3c6903be9"
+      }
+    ]
+  }
+}
