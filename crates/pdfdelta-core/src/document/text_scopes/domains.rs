@@ -17,6 +17,11 @@ pub struct NativeTextDomainEquality {
     new: SourceFragment,
     old_complement: Vec<SourceRef>,
     new_complement: Vec<SourceRef>,
+    /// Source-side row conventions are descriptive, not deserializable proof authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    old_row_order: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    new_row_order: Option<String>,
     /// Reports describe this proof but cannot recreate its in-process validation.
     #[serde(skip)]
     verified: bool,
@@ -79,11 +84,34 @@ fn partition<'a>(node: &'a GraphNode, remaining: &mut usize) -> Option<TextSourc
 fn validated_partition<'a>(
     node: &'a GraphNode,
     sources: &native::Sources<'_>,
+    view: DocumentView<'_>,
+    root: NodeId,
     remaining: &mut usize,
-) -> Option<TextSourcePartition<'a>> {
+) -> Option<(TextSourcePartition<'a>, Option<native::RowOrder>)> {
     // Expand contracted native spaces to validate every complete glyph and
     // its order. Expansion outside the body does not change the owned interval.
-    let (projected, _) = sources.project_census(node, &[], false, remaining)?;
+    let (projected, row_order) = match sources.project_census(node, &[], false, remaining) {
+        Some((projected, _)) => (projected, None),
+        None => {
+            // A tiny ascending baseline step can defeat the spatial projection.
+            // Reusing the paint convention requires its complete source census,
+            // including glyphs just outside the exact baseline band. Merely
+            // relaxing the projection would miss those neighboring sources.
+            if !sources.boundary_roundoff(&[node], remaining)? {
+                return None;
+            }
+            let (_, padding, Some(native::RowOrder::Paint)) =
+                sources.census(view, root, &[node], remaining, false, true)?
+            else {
+                return None;
+            };
+            if !padding.is_empty() {
+                return None;
+            }
+            let (projected, _) = sources.project_census(node, &[], true, remaining)?;
+            (projected, Some(native::RowOrder::Paint))
+        }
+    };
     let checked = partition(&projected, remaining)?;
     let original = partition(node, remaining)?;
     let (NodeContent::Text { view: a }, NodeContent::Text { view: b }) =
@@ -95,7 +123,7 @@ fn validated_partition<'a>(
     if a.tokens[original.selected_range()] != b.tokens[checked.selected_range()] {
         return None;
     }
-    Some(original)
+    Some((original, row_order))
 }
 
 pub(super) fn append(
@@ -155,10 +183,22 @@ pub(super) fn append(
         // Closure checks the population and visibility band, not the text
         // projection. Validate full glyph readings and source order before a
         // view can discharge any of that population's source obligations.
-        let Some(a) = validated_partition(a, &old_sources, &mut remaining) else {
+        let Some((a, old_row_order)) = validated_partition(
+            a,
+            &old_sources,
+            old,
+            result.matching.scope.old,
+            &mut remaining,
+        ) else {
             continue;
         };
-        let Some(b) = validated_partition(b, &new_sources, &mut remaining) else {
+        let Some((b, new_row_order)) = validated_partition(
+            b,
+            &new_sources,
+            new,
+            result.matching.scope.new,
+            &mut remaining,
+        ) else {
             continue;
         };
         let (Ok(left), Ok(right)) = (a.selected_node(), b.selected_node()) else {
@@ -197,6 +237,8 @@ pub(super) fn append(
             new: fragment(&b),
             old_complement: a.remaining_sources().collect(),
             new_complement: b.remaining_sources().collect(),
+            old_row_order: old_row_order.map(|order| order.convention().to_owned()),
+            new_row_order: new_row_order.map(|order| order.convention().to_owned()),
             verified: true,
         });
     }
