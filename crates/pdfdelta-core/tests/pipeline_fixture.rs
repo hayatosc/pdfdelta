@@ -1256,7 +1256,7 @@ fn single_leaf_inferred_order_allows_an_independently_anchored_change() -> Resul
 }
 
 #[test]
-fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement() -> Result<()> {
+fn partial_render_order_uncertainty_locally_proves_an_unchanged_single_line() -> Result<()> {
     let old = document(&[
         line("Opening anchor remains stable", 0, 148.0),
         line_at("Boundary anchor remains stable", 0, 20.0, 124.0),
@@ -1318,39 +1318,15 @@ fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement(
             .map(|span| (span.blocks.clone(), span.comparable_range)),
         Some((vec![BlockId(3)], TokenRange { start: 8, end: 9 }))
     );
-    assert_eq!(comparison.unresolved_regions.len(), 1);
-    assert_eq!(
-        comparison.unresolved_regions[0].evidence,
-        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
-    );
-    assert_eq!(
-        comparison.unresolved_regions[0]
-            .old_span
-            .as_ref()
-            .expect("uncertain middle evidence should remain on the old side")
-            .blocks,
-        [BlockId(1)]
-    );
-    assert_eq!(
-        comparison.unresolved_regions[0]
-            .new_span
-            .as_ref()
-            .expect("uncertain middle evidence should remain on the new side")
-            .blocks,
-        [BlockId(1)]
-    );
-    assert!(
-        comparison
-            .old_coverage
-            .ratio
-            .is_some_and(|ratio| ratio < 1.0)
-    );
-    assert!(
-        comparison
-            .new_coverage
-            .ratio
-            .is_some_and(|ratio| ratio < 1.0)
-    );
+    // The unchanged single-line block is source-bounded and its whole view is
+    // one independently unique anchor, so its local equality is proven even
+    // though its position in the render order stays uncertain. The reading
+    // order evidence therefore no longer leaves an unresolved region, and the
+    // pair completes with the single proven replacement change.
+    assert!(comparison.unresolved_regions.is_empty());
+    assert!(comparison.change_candidates.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
     Ok(())
 }
 

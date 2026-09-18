@@ -37,6 +37,20 @@ struct View {
     block_indices: Vec<usize>,
     group: GroupText,
     source_bounded: bool,
+    /// Every source position signature describes horizontal left-to-right text.
+    /// A source-bounded whole-view anchor may only close its own domain for
+    /// such text; vertical or tilted blocks stay unresolved.
+    horizontal_text: bool,
+    /// Exact per-token source positions of a source-bounded view. A whole-view
+    /// anchor only closes its own domain when both sides carry the same
+    /// positions on the same page, so a moved singleton keeps its move or
+    /// order obligation. Each entry is the first source glyph of one canonical
+    /// token, not the full glyph geometry of the block.
+    position_signatures: Vec<crate::normalize::PositionSignature>,
+    /// Single source page of a source-bounded view. A whole-view anchor only
+    /// closes its own domain between views on the same page; page
+    /// correspondence beyond that stays unresolved.
+    page: Option<u32>,
 }
 
 #[derive(Clone, Copy)]
@@ -271,7 +285,8 @@ pub(super) fn discover(
         if !charge(remaining_work, source_references) {
             return Ok(Discovery::default());
         }
-        let Some(domain) = close_domain(&old_views, &new_views, &mut anchors) else {
+        let Some(domain) = close_domain(&old_views, &new_views, &mut anchors, remaining_work)
+        else {
             continue;
         };
         let separated =
@@ -471,6 +486,9 @@ fn build_views(
             block_indices,
             group,
             source_bounded: false,
+            horizontal_text: false,
+            position_signatures: Vec::new(),
+            page: None,
         });
     }
 
@@ -483,12 +501,38 @@ fn build_views(
         if !charge_group(remaining_work, &group) {
             return Ok(None);
         }
+        let source_bounded = source_bounded_block(&side.blocks[block_index], remaining_work);
+        let mut horizontal_text = false;
+        let mut position_signatures = Vec::new();
+        let mut page = None;
+        if source_bounded {
+            let block = &side.blocks[block_index];
+            let Some(signatures) = block.position_signatures.as_deref() else {
+                // `source_bounded_block` guarantees signatures; fail closed.
+                *remaining_work = 0;
+                return Ok(None);
+            };
+            if !charge(remaining_work, signatures.len()) {
+                return Ok(None);
+            }
+            horizontal_text = signatures.iter().all(horizontal_direction);
+            // One first-source position per canonical token, on one page.
+            if signatures.len() == block.canonical.text.chars().count()
+                && let [page_number] = block.pages.as_slice()
+            {
+                position_signatures = signatures.to_vec();
+                page = Some(*page_number);
+            }
+        }
         views.push(View {
             kind: ViewKind::Untrusted(block_index),
             source_order: block_index,
             block_indices: vec![block_index],
             group,
-            source_bounded: source_bounded_block(&side.blocks[block_index], remaining_work),
+            source_bounded,
+            horizontal_text,
+            position_signatures,
+            page,
         });
     }
     views.sort_unstable_by_key(|view| {
@@ -510,6 +554,25 @@ fn complete_run(members: &[RunMember]) -> bool {
             pair[0].interval.end == pair[1].interval.start
                 && pair[0].interval.end > pair[0].interval.start
         })
+}
+
+/// Matches the layout's axis-alignment tolerance for a single normalized
+/// direction component without importing the layout constant.
+const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
+
+fn horizontal_direction(signature: &crate::normalize::PositionSignature) -> bool {
+    let direction = signature.direction();
+    if !direction.x.is_finite() || !direction.y.is_finite() {
+        return false;
+    }
+    let length_squared = direction.x * direction.x + direction.y * direction.y;
+    if !length_squared.is_finite() || length_squared <= f64::EPSILON {
+        return false;
+    }
+    let normalized_y = direction.y / length_squared.sqrt();
+    normalized_y.is_finite()
+        && normalized_y.abs() <= HORIZONTAL_DIRECTION_TOLERANCE
+        && direction.x > 0.0
 }
 
 fn view_is_anchorable(view: &View) -> bool {
@@ -551,9 +614,14 @@ fn add_source_end_anchors(
         }
         let old_start = old.group.tokens.len() - length;
         let new_start = new.group.tokens.len() - length;
-        if !hits
-            .iter()
-            .any(|hit| hit.old_end <= old_start && hit.new_end <= new_start)
+        // A source-bounded view whose entire content is a common suffix needs
+        // no preceding anchor: the suffix itself is the whole view, and the
+        // unique-occurrence search below still proves that occurrence.
+        let whole_view = old_start == 0 && new_start == 0;
+        if !whole_view
+            && !hits
+                .iter()
+                .any(|hit| hit.old_end <= old_start && hit.new_end <= new_start)
         {
             continue;
         }
@@ -979,6 +1047,7 @@ fn close_domain(
     old_views: &[View],
     new_views: &[View],
     anchors: &mut Vec<AnchorHit>,
+    remaining: &mut usize,
 ) -> Option<LocalDomain> {
     anchors.sort_unstable_by_key(|anchor| {
         (
@@ -996,10 +1065,30 @@ fn close_domain(
     if anchors.len() == 1 {
         let anchor = anchors[0];
         if old_view.source_bounded || new_view.source_bounded {
-            return None;
+            // A single anchor cannot close the unanchored remainder of a
+            // source-bounded view. When the anchor covers the whole view there
+            // is no remainder, and the anchor's unique source range already
+            // proves the view's equality.
+            let signatures = old_view.position_signatures.len();
+            let covers_whole_view = anchor.old_start == 0
+                && anchor.old_end == old_view.group.tokens.len()
+                && anchor.new_start == 0
+                && anchor.new_end == new_view.group.tokens.len()
+                && old_view.horizontal_text
+                && new_view.horizontal_text
+                && !old_view.position_signatures.is_empty()
+                && old_view.page.is_some()
+                && old_view.page == new_view.page
+                && (charge(remaining, signatures)
+                    && old_view.position_signatures == new_view.position_signatures);
+            if !covers_whole_view {
+                return None;
+            }
         }
         // One independently unique anchor proves only its own equal source
-        // range. It cannot close either adjacent gap or the rest of the run.
+        // range. It cannot close either adjacent gap or the rest of the run;
+        // a source-bounded view is admitted only when the anchor is that whole
+        // view, so no unanchored remainder exists.
         return Some(LocalDomain {
             old_span: old_view.group.span(anchor.old_start, anchor.old_end),
             new_span: new_view.group.span(anchor.new_start, anchor.new_end),
