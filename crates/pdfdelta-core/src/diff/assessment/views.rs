@@ -1249,6 +1249,103 @@ mod tests {
     }
 
     #[test]
+    fn source_bounded_whole_view_anchor_closes_its_own_domain() {
+        let old_blocks = [sourced_block(1, "Identical whole line evidence.")];
+        let new_blocks = [sourced_block(101, "Identical whole line evidence.")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 12;
+
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)
+            .expect("whole-view anchor search stays within budget");
+
+        assert_eq!(domains.len(), 1);
+        assert_eq!(
+            super::super::span_tokens(&old, &domains[0].old_span).expect("old tokens"),
+            old_blocks[0]
+                .canonical
+                .comparable_tokens()
+                .expect("old source")
+        );
+        assert_eq!(
+            super::super::span_tokens(&new, &domains[0].new_span).expect("new tokens"),
+            new_blocks[0]
+                .canonical
+                .comparable_tokens()
+                .expect("new source")
+        );
+    }
+
+    #[test]
+    fn source_bounded_whole_view_anchor_requires_equal_positions() {
+        let old_blocks = [sourced_block(1, "Identical whole line evidence.")];
+        let mut moved = sourced_block(101, "Identical whole line evidence.");
+        let position = PositionSignature::new(Vec2 { x: 0.0, y: 20.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid moved position");
+        moved.position_signatures = Some(vec![position; moved.canonical.text.chars().count()]);
+        let new_blocks = [moved];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 12;
+
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)
+            .expect("moved whole-view search stays within budget");
+
+        assert!(
+            domains.is_empty(),
+            "a moved singleton must keep its move or order obligation"
+        );
+    }
+
+    #[test]
+    fn source_bounded_whole_view_anchor_requires_the_same_page() {
+        let old_blocks = [sourced_block(1, "Identical whole line evidence.")];
+        let mut moved = sourced_block(101, "Identical whole line evidence.");
+        moved.pages = vec![1];
+        let new_blocks = [moved];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 12;
+
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)
+            .expect("cross-page whole-view search stays within budget");
+
+        assert!(
+            domains.is_empty(),
+            "a same-coordinate singleton on another page must keep an obligation"
+        );
+    }
+
+    #[test]
+    fn source_bounded_partial_anchor_does_not_close_a_domain() {
+        let old_blocks = [sourced_block(1, "ABCDEFGHxxxxx")];
+        let new_blocks = [sourced_block(101, "ABCDEFGHyyyyy")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 8;
+
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)
+            .expect("partial anchor search stays within budget");
+
+        assert!(
+            domains.is_empty(),
+            "a partial source-bounded anchor leaves an unanchored remainder"
+        );
+    }
+
+    #[test]
     fn source_bounded_views_do_not_bridge_a_line_wrap() {
         let old_blocks = [sourced_block(1, "stable"), sourced_block(2, "suffix")];
         let new_blocks = [sourced_block(101, "stable suffix")];

@@ -1673,6 +1673,152 @@ fn recovered_unknown_line_does_not_mark_an_independent_cross_page_block() -> Res
 }
 
 #[test]
+fn whole_view_singletons_swapped_between_sides_keep_an_obligation() -> Result<()> {
+    let old = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta singleton alpha unique", 0, 162.0),
+        line("Eta singleton beta unique", 0, 126.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta singleton alpha unique", 0, 126.0),
+        line("Eta singleton beta unique", 0, 162.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    let zero_obligation = comparison.changes.is_empty()
+        && comparison.change_candidates.is_empty()
+        && comparison.unresolved_regions.is_empty();
+    assert!(
+        !zero_obligation,
+        "swapped singletons must keep a move or order obligation"
+    );
+    Ok(())
+}
+
+#[test]
+fn whole_view_singletons_moved_across_pages_keep_an_obligation() -> Result<()> {
+    let old = document(&[
+        line("Alpha page zero context stable", 0, 180.0),
+        line("Beta page zero context stable", 0, 144.0),
+        line("Gamma page zero context stable", 0, 108.0),
+        line("Zeta singleton alpha unique", 0, 162.0),
+        line("Alpha page one context stable", 1, 180.0),
+        line("Beta page one context stable", 1, 144.0),
+        line("Gamma page one context stable", 1, 108.0),
+        line("Eta singleton beta unique", 1, 162.0),
+    ]);
+    let new = document(&[
+        line("Alpha page zero context stable", 0, 180.0),
+        line("Beta page zero context stable", 0, 144.0),
+        line("Gamma page zero context stable", 0, 108.0),
+        line("Eta singleton beta unique", 0, 162.0),
+        line("Alpha page one context stable", 1, 180.0),
+        line("Beta page one context stable", 1, 144.0),
+        line("Gamma page one context stable", 1, 108.0),
+        line("Zeta singleton alpha unique", 1, 162.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    let zero_obligation = comparison.changes.is_empty()
+        && comparison.change_candidates.is_empty()
+        && comparison.unresolved_regions.is_empty();
+    assert!(
+        !zero_obligation,
+        "a same-coordinate singleton moved to another page must keep an obligation"
+    );
+    Ok(())
+}
+
+#[test]
+fn whole_view_singletons_unchanged_stay_comparable() -> Result<()> {
+    let old = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta singleton alpha unique", 0, 162.0),
+        line("Eta singleton beta unique", 0, 126.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta singleton alpha unique", 0, 162.0),
+        line("Eta singleton beta unique", 0, 126.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    // Position-equal source-bounded singletons close their own local domains:
+    // the unchanged pair has no obligation left.
+    assert!(comparison.changes.is_empty());
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
+fn whole_view_singletons_with_repeated_text_stay_ambiguous() -> Result<()> {
+    let old = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Repeated singleton text remains unique", 0, 162.0),
+        line("Repeated singleton text remains unique", 0, 126.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Repeated singleton text remains unique", 0, 162.0),
+        line("Repeated singleton text remains unique", 0, 126.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    let zero_obligation = comparison.changes.is_empty()
+        && comparison.change_candidates.is_empty()
+        && comparison.unresolved_regions.is_empty();
+    assert!(
+        !zero_obligation,
+        "repeated singleton text must not be treated as one unique local equality"
+    );
+    Ok(())
+}
+
+#[test]
 fn reports_one_generic_paragraph_insertion() -> Result<()> {
     let old = paragraphs(&[
         "Opening paragraph remains stable",
