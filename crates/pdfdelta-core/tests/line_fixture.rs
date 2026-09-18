@@ -14,6 +14,7 @@ fn options() -> LineOptions {
         min_cross_axis_overlap_ratio: 0.25,
         min_direction_similarity: 0.98,
         max_inline_gap_font_size_ratio: 4.0,
+        max_script_font_size_ratio: 2.0,
         space_gap_font_size_ratio: 0.2,
         space_gap_advance_ratio: 0.5,
     }
@@ -47,6 +48,20 @@ fn keeps_mixed_size_superscript_on_the_same_line() {
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0].glyphs, [GlyphId(1), GlyphId(2)]);
     assert!(lines[0].baseline.y.abs() < f64::EPSILON);
+}
+
+#[test]
+fn keeps_same_baseline_mixed_size_text_on_one_line() {
+    let document = Document::new(vec![
+        glyph(1, "2", 0, 0.0, 0.0, 12.0, 20.0, 20.0, 0.0),
+        glyph(2, "x", 0, 13.0, 0.0, 5.0, 7.0, 7.0, 0.0),
+    ]);
+
+    let lines = reconstruct_lines(&document, LineOptions::default())
+        .expect("same-baseline mixed sizes should share a line");
+
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].glyphs, [GlyphId(1), GlyphId(2)]);
 }
 
 #[test]

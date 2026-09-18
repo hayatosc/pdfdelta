@@ -60,6 +60,14 @@ pub struct LineOptions {
     pub min_cross_axis_overlap_ratio: f64,
     pub min_direction_similarity: f64,
     pub max_inline_gap_font_size_ratio: f64,
+    /// Relative upper bound on the font-size factor between a glyph outside
+    /// the baseline tolerance and the line it may still join. It admits
+    /// off-baseline attachments whose size stays comparable to the line and
+    /// keeps clearly different sizes from interleaving two overlapping
+    /// strings. It is a conservative grouping bound, not a typographic
+    /// classification: a glyph outside this factor starts a new line instead
+    /// of joining one.
+    pub max_script_font_size_ratio: f64,
     /// Minimum inferred word gap relative to font size. Font transitions use
     /// twice this threshold; CJK boundaries use four times it to allow justified
     /// typographic spacing in scripts without mandatory word separators.
@@ -76,6 +84,7 @@ impl Default for LineOptions {
             min_cross_axis_overlap_ratio: 0.25,
             min_direction_similarity: 0.98,
             max_inline_gap_font_size_ratio: 1.5,
+            max_script_font_size_ratio: 2.0,
             // Justification can shrink word gaps below half a glyph advance.
             // Both relative metrics remain above small kerning offsets.
             space_gap_font_size_ratio: 0.125,
@@ -97,6 +106,10 @@ pub(crate) fn validate_line_options(options: LineOptions) -> Result<()> {
     validate_non_negative(
         "max_inline_gap_font_size_ratio",
         options.max_inline_gap_font_size_ratio,
+    )?;
+    validate_non_negative(
+        "max_script_font_size_ratio",
+        options.max_script_font_size_ratio,
     )?;
     validate_non_negative(
         "space_gap_font_size_ratio",
@@ -330,6 +343,18 @@ impl<'a> WorkingLine<'a> {
         // columns can overlap vertically even when their text belongs to different rows.
         if !baseline_close && inline_gap > options.max_baseline_distance_ratio * gap_scale {
             return None;
+        }
+        // A glyph outside the baseline tolerance may only join as an
+        // off-baseline attachment when its size stays comparable to the line.
+        // Overlapping runs drawn at clearly different sizes are independent
+        // text: joining them would order both strings by x-center and
+        // interleave their characters. The bound is deliberately conservative.
+        if !baseline_close {
+            let smaller = glyph.font_size.min(median_font_size);
+            let larger = glyph.font_size.max(median_font_size);
+            if larger > options.max_script_font_size_ratio * smaller {
+                return None;
+            }
         }
 
         Some(

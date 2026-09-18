@@ -2691,6 +2691,16 @@ fn partial_outcomes_reject_every_invalid_pipeline_option_group() -> Result<()> {
         ),
         (
             PipelineOptions {
+                line: LineOptions {
+                    max_script_font_size_ratio: -1.0,
+                    ..LineOptions::default()
+                },
+                ..PipelineOptions::default()
+            },
+            "max_script_font_size_ratio",
+        ),
+        (
+            PipelineOptions {
                 block: BlockOptions {
                     repeated_min_pages: 1,
                     ..BlockOptions::default()
