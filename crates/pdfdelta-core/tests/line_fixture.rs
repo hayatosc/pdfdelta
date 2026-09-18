@@ -50,6 +50,44 @@ fn keeps_mixed_size_superscript_on_the_same_line() {
 }
 
 #[test]
+fn separates_an_overlapping_independent_run_from_a_larger_baseline() {
+    // Schedule SE geometry: the 20pt year field is painted before the 7pt
+    // "Attachment" label and overlaps it in space, but they are independent
+    // text runs with different baselines and sizes. Merging them interleaves
+    // the two strings by x-center and hides the year change.
+    let document = Document::new(vec![
+        glyph(1, "2", 0, 506.8, 721.3, 12.6, 25.3, 20.0, 726.72),
+        glyph(2, "0", 0, 519.4, 721.3, 12.7, 25.3, 20.0, 726.72),
+        glyph(3, "2", 0, 532.1, 722.1, 13.3, 23.7, 20.0, 726.72),
+        glyph(4, "4", 0, 545.4, 722.1, 13.4, 23.7, 20.0, 726.72),
+        glyph(5, "A", 0, 501.6, 717.5, 4.5, 8.2, 7.0, 719.0),
+        glyph(6, "t", 0, 506.1, 717.5, 2.2, 8.2, 7.0, 719.0),
+        glyph(7, "t", 0, 508.3, 717.5, 2.2, 8.2, 7.0, 719.0),
+        glyph(8, "a", 0, 510.5, 717.5, 3.8, 8.2, 7.0, 719.0),
+        glyph(9, "c", 0, 514.3, 717.5, 3.8, 8.2, 7.0, 719.0),
+        glyph(10, "h", 0, 518.1, 717.5, 3.9, 8.2, 7.0, 719.0),
+        glyph(11, "m", 0, 522.0, 717.5, 5.9, 8.2, 7.0, 719.0),
+        glyph(12, "e", 0, 527.9, 717.5, 3.8, 8.2, 7.0, 719.0),
+        glyph(13, "n", 0, 531.7, 717.5, 3.9, 8.2, 7.0, 719.0),
+        glyph(14, "t", 0, 535.6, 717.5, 2.2, 8.2, 7.0, 719.0),
+    ]);
+
+    let lines = reconstruct_lines(&document, LineOptions::default())
+        .expect("independent overlapping runs should separate");
+
+    assert_eq!(lines.len(), 2);
+    let mut groups = lines
+        .iter()
+        .map(|line| line.glyphs.iter().map(|id| id.0).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    groups.sort();
+    assert_eq!(
+        groups,
+        vec![vec![1, 2, 3, 4], vec![5, 6, 7, 8, 9, 10, 11, 12, 13, 14],]
+    );
+}
+
+#[test]
 fn separates_staggered_columns_while_retaining_attached_scripts_and_wide_words() {
     for scale in [0.5, 1.0, 3.0] {
         for (gap, offset, font_size, expected_lines) in [
