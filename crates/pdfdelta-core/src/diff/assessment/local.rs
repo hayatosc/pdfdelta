@@ -714,4 +714,118 @@ mod tests {
         );
         Ok(())
     }
+
+    fn closed_domain_alignment() -> Alignment {
+        Alignment {
+            spans: vec![
+                AlignmentSpan {
+                    kind: AlignmentKind::Match,
+                    old: vec![BlockId(1)],
+                    new: vec![BlockId(101)],
+                    score: 1.0,
+                    canonical_similarity: 1.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: vec![AlignmentEvidence::ExactCanonical],
+                    old_separator: Some(BlockSeparator::Space),
+                    new_separator: Some(BlockSeparator::Space),
+                },
+                AlignmentSpan {
+                    kind: AlignmentKind::Unresolved,
+                    old: vec![BlockId(2), BlockId(3)],
+                    new: vec![BlockId(102), BlockId(103)],
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::Low,
+                    evidence: vec![
+                        AlignmentEvidence::TextSimilarity,
+                        AlignmentEvidence::CandidateCompetition,
+                    ],
+                    old_separator: Some(BlockSeparator::Space),
+                    new_separator: Some(BlockSeparator::Space),
+                },
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+    fn block_len(block: &BlockText) -> usize {
+        block.canonical.comparable_tokens().expect("tokens").len()
+    }
+    fn fixture_block_range(blocks: &[BlockText], index: usize) -> std::ops::Range<usize> {
+        let mut start = 0;
+        for block in &blocks[..index] {
+            start += block_len(block) + 1;
+        }
+        start..start + block_len(&blocks[index])
+    }
+    fn fixture_key(old_blocks: &[BlockText], new_blocks: &[BlockText]) -> super::super::DomainKey {
+        super::super::DomainKey {
+            local: None,
+            old: 0..old_blocks.len(),
+            new: 0..new_blocks.len(),
+            old_separator: BlockSeparator::Space,
+            new_separator: BlockSeparator::Space,
+        }
+    }
+    fn fixture_blocks() -> ([BlockText; 3], [BlockText; 3]) {
+        (
+            [
+                sourced_block(1, "Alpha value 10"),
+                sourced_block(2, "Beta amount 100"),
+                sourced_block(3, "Gamma stable text"),
+            ],
+            [
+                sourced_block(101, "Alpha value 20"),
+                sourced_block(102, "Beta amount 200"),
+                sourced_block(103, "Gamma stable text"),
+            ],
+        )
+    }
+    #[test]
+    fn closed_domain_recovery_reaches_the_public_comparison() -> Result<()> {
+        use super::super::ProposedComparison;
+        use crate::diff::{ChangeEvent, ChangeKind, ChangeOccurrence};
+
+        let (old_blocks, new_blocks) = fixture_blocks();
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = closed_domain_alignment();
+        let key = fixture_key(&old_blocks, &new_blocks);
+        let groups = super::super::proof_groups([&old, &new], &key)?;
+        let block1 = fixture_block_range(&old_blocks, 0);
+        let proposed = ProposedComparison {
+            changes: vec![ChangeEvent {
+                kind: ChangeKind::Replacement,
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(groups[0].span(block1.start, block1.end)),
+                    new_span: Some(groups[1].span(block1.start, block1.end)),
+                }],
+                confidence: Confidence::High,
+                tags: Vec::new(),
+            }],
+            proven_changed_regions: Vec::new(),
+            formatting_changes: Vec::new(),
+            unresolved_regions: Vec::new(),
+        };
+        let comparison = super::super::finish(
+            [&old, &new],
+            &alignment,
+            None,
+            None,
+            proposed,
+            DiffOptions::default(),
+        )?;
+        assert_eq!(comparison.changes.len(), 2, "{:?}", comparison.changes);
+        assert!(comparison.change_candidates.is_empty());
+        assert!(
+            comparison.unresolved_regions.is_empty(),
+            "{:?}",
+            comparison.unresolved_regions
+        );
+        assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+        assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+        Ok(())
+    }
 }
