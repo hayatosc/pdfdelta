@@ -664,6 +664,247 @@ impl Assessor<'_, '_> {
         Ok(())
     }
 
+    /// Discovers whole single-block members of trusted runs that sit still
+    /// and are carried by an independently established stationary neighbour.
+    ///
+    /// The pass runs only after the ordinary local and bracketed recovery has
+    /// reached its fixpoint, so it never spends work the earlier passes still
+    /// need. Candidates whose projected source intervals intersect the
+    /// accepted or changed ownership at all are held; a fully owned candidate
+    /// is skipped. Every candidate is checked into a buffer first and the
+    /// append is charged once, so a mid-budget cut or output limit never
+    /// leaves a partial domain or assumption behind.
+    pub(super) fn discover_stationary_members(&mut self, ownership: &[Ownership; 2]) -> Result<()> {
+        if self.remaining_work == 0
+            || self.output_stop.is_some()
+            || self.local_domains.len() >= self.options.max_assessment_ranges
+            || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1)
+        {
+            return Ok(());
+        }
+        let Some(recovery) = self.recovery else {
+            return Ok(());
+        };
+        let Some(established) = self.collect_established_blocks(ownership)? else {
+            return Ok(());
+        };
+        if established.is_empty() {
+            return Ok(());
+        }
+        let Some(mask) = self.stationary_candidate_mask(ownership)? else {
+            return Ok(());
+        };
+        if !mask[0].iter().any(|&eligible| eligible) || !mask[1].iter().any(|&eligible| eligible) {
+            return Ok(());
+        }
+        let domains = super::views::discover_stationary_members_masked(
+            self.sides,
+            recovery,
+            &established,
+            &mut self.remaining_work,
+            self.options.max_assessment_ranges,
+            &mask,
+        )?;
+        if domains.is_empty() {
+            return Ok(());
+        }
+        let mut accepted = Vec::new();
+        for domain in domains {
+            if self.local_domains.len() + accepted.len() >= self.options.max_assessment_ranges {
+                break;
+            }
+            let duplicate_work = self.local_domains.len().saturating_add(accepted.len());
+            if !self.charge(duplicate_work) {
+                return Ok(());
+            }
+            if self.local_domains.contains(&domain) || accepted.contains(&domain) {
+                continue;
+            }
+            match self.stationary_candidate_is_clear(ownership, &domain)? {
+                None => return Ok(()),
+                Some(false) => {}
+                Some(true) => accepted.push(domain),
+            }
+        }
+        if accepted.is_empty() {
+            return Ok(());
+        }
+        if !self.charge(
+            accepted
+                .len()
+                .saturating_mul(self.local_domains.len().saturating_add(accepted.len())),
+        ) {
+            return Ok(());
+        }
+        self.local_domains
+            .try_reserve(accepted.len())
+            .map_err(|_| super::allocation_error("stationary local domains"))?;
+        self.stationary_members
+            .try_reserve(accepted.len())
+            .map_err(|_| super::allocation_error("stationary member assumptions"))?;
+        for domain in accepted {
+            self.stationary_members
+                .push((domain.old_span.clone(), domain.new_span.clone()));
+            self.local_domains.push(domain);
+        }
+        Ok(())
+    }
+
+    /// Proves only the stationary members queued by this pass through the
+    /// ordinary local recovery, leaving the already processed queue and the
+    /// translation discovery untouched. Returns whether the recovery was
+    /// truncated by a stop, work limit or output limit.
+    pub(super) fn recover_stationary_members(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        changes: &mut Vec<ChangeEvent>,
+        candidates: &mut Vec<ChangeCandidate>,
+    ) -> Result<bool> {
+        if self.remaining_work == 0 || self.output_stop.is_some() {
+            return Ok(false);
+        }
+        let start = self.local_domains.len();
+        self.discover_stationary_members(ownership)?;
+        if self.local_domains.len() <= start {
+            return Ok(false);
+        }
+        let mut truncated = false;
+        for index in start..self.local_domains.len() {
+            if self.remaining_work == 0 || self.output_stop.is_some() {
+                truncated = true;
+                break;
+            }
+            if let LocalRecoveryStep::Stop { truncated: stopped } =
+                self.recover_local_domain(index, ownership, changes, candidates)?
+            {
+                truncated = stopped;
+                break;
+            }
+        }
+        Ok(truncated)
+    }
+
+    /// Reject-only eligibility mask over whole original blocks per side.
+    ///
+    /// A block is eligible when its whole source projection is non-empty and
+    /// intersects neither the accepted nor the changed ownership. The mask is
+    /// computed once per pass from the current ownership and only removes
+    /// candidates; view populations and reference sets are never reduced.
+    /// `None` means the shared budget ran out while projecting or scanning.
+    fn stationary_candidate_mask(
+        &mut self,
+        ownership: &[Ownership; 2],
+    ) -> Result<Option<[Vec<bool>; 2]>> {
+        let mut mask: [Vec<bool>; 2] = [Vec::new(), Vec::new()];
+        for side in 0..2 {
+            let blocks = self.sides[side].blocks;
+            if !self.charge(blocks.len()) {
+                return Ok(None);
+            }
+            let mut side_mask = Vec::new();
+            side_mask
+                .try_reserve_exact(blocks.len())
+                .map_err(|_| super::allocation_error("stationary candidate mask"))?;
+            for block in blocks {
+                let block_index = self.sides[side].index[&block.block];
+                let comparable_end = self.sides[side].canonical[block_index].len();
+                let scalar_end = comparable_end.saturating_sub(block.canonical.unmapped.len());
+                let span = super::TextSpan {
+                    blocks: vec![block.block],
+                    separator: None,
+                    canonical_range: crate::normalize::ScalarRange {
+                        start: 0,
+                        end: scalar_end,
+                    },
+                    comparable_range: crate::diff::TokenRange {
+                        start: 0,
+                        end: comparable_end,
+                    },
+                };
+                if !self.charge(span.blocks.len()) {
+                    return Ok(None);
+                }
+                let intervals = super::project(self.sides[side], &span)?;
+                if intervals.is_empty() {
+                    side_mask.push(false);
+                    continue;
+                }
+                if !self.charge(
+                    intervals.len().saturating_mul(
+                        ownership[side]
+                            .accepted
+                            .len()
+                            .saturating_add(ownership[side].changed.len()),
+                    ),
+                ) {
+                    return Ok(None);
+                }
+                let eligible = !intervals.iter().any(|interval| {
+                    ownership[side].changed.iter().any(|changed| {
+                        changed.block_index == interval.block_index
+                            && changed.start < interval.end
+                            && interval.start < changed.end
+                    }) || ownership[side].accepted.iter().any(|accepted| {
+                        accepted.block_index == interval.block_index
+                            && accepted.start < interval.end
+                            && interval.start < accepted.end
+                    })
+                });
+                side_mask.push(eligible);
+            }
+            mask[side] = side_mask;
+        }
+        Ok(Some(mask))
+    }
+
+    /// Whether a stationary candidate may be added: `Some(true)` is clear,
+    /// `Some(false)` means fully owned (skip) or an accepted/changed
+    /// intersection (hold), and `None` means the shared budget ran out while
+    /// projecting or scanning ownership.
+    fn stationary_candidate_is_clear(
+        &mut self,
+        ownership: &[Ownership; 2],
+        domain: &super::views::LocalDomain,
+    ) -> Result<Option<bool>> {
+        let mut clear = true;
+        for (side, span) in [&domain.old_span, &domain.new_span].into_iter().enumerate() {
+            if !self.charge(span.blocks.len()) {
+                return Ok(None);
+            }
+            let intervals = super::project(self.sides[side], span)?;
+            if intervals.is_empty() {
+                return Ok(Some(false));
+            }
+            if !self.charge(
+                intervals.len().saturating_mul(
+                    ownership[side]
+                        .accepted
+                        .len()
+                        .saturating_add(ownership[side].changed.len()),
+                ),
+            ) {
+                return Ok(None);
+            }
+            for interval in intervals {
+                if ownership[side].changed.iter().any(|changed| {
+                    changed.block_index == interval.block_index
+                        && changed.start < interval.end
+                        && interval.start < changed.end
+                }) {
+                    return Ok(Some(false));
+                }
+                if ownership[side].accepted.iter().any(|accepted| {
+                    accepted.block_index == interval.block_index
+                        && accepted.start < interval.end
+                        && interval.start < accepted.end
+                }) {
+                    clear = false;
+                }
+            }
+        }
+        Ok(Some(clear))
+    }
+
     /// Collects every whole single-block established correspondence from the
     /// downstream domain proofs, not only the local domains: a block inside a
     /// multi-block domain can still carry its own established relation, and
@@ -1672,6 +1913,445 @@ mod tests {
         })
     }
 
+    struct StationaryRecovery {
+        truncated: bool,
+        work_used: usize,
+        stationary: usize,
+        accepted: [usize; 2],
+        records_stationary: usize,
+        empty_projection: Option<bool>,
+    }
+
+    fn stationary_recovery_fixture() -> (Vec<BlockText>, Vec<BlockText>) {
+        let old_blocks = vec![
+            spread_block(1, "Upper boundary line", 300.0, 700.0, 5.0),
+            spread_block(2, "Filing year statement", 300.0, 680.0, 5.0),
+            spread_block(3, "Lower boundary line", 300.0, 660.0, 5.0),
+        ];
+        let new_blocks = vec![
+            spread_block(101, "Upper boundary line", 300.0, 700.0, 5.0),
+            spread_block(102, "Filing year statement", 300.0, 680.0, 5.0),
+            spread_block(103, "Lower boundary line", 300.0, 660.0, 5.0),
+        ];
+        (old_blocks, new_blocks)
+    }
+    #[derive(Default, Clone, Copy)]
+    struct StationaryControls {
+        partial_accept: Option<(usize, usize)>,
+        full_accept: bool,
+        changed: Option<(usize, usize, usize)>,
+        probe_empty: bool,
+        budget: Option<usize>,
+        repeat: bool,
+    }
+
+    fn run_stationary_recovery(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        controls: StationaryControls,
+        options: DiffOptions,
+    ) -> Result<StationaryRecovery> {
+        use crate::layout::{TrustedRunId, TrustedRunInterval};
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let alignment = unresolved_alignment(
+            &old_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            &new_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+        );
+        let interval = |run: u64, start: usize, end: usize| {
+            Some(TrustedRunInterval {
+                run_id: TrustedRunId(run),
+                start,
+                end,
+            })
+        };
+        let old_intervals = vec![interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = vec![interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let recovery = crate::diff::SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, Some(recovery), options)?;
+        if let Some(budget) = controls.budget {
+            assessor.remaining_work = budget;
+        }
+        let tokens = |blocks: &[BlockText], index: usize| {
+            blocks[index]
+                .canonical
+                .comparable_tokens()
+                .expect("fixture tokens")
+                .len()
+        };
+        let upper = tokens(old_blocks, 0);
+        let lower = tokens(old_blocks, 2);
+        assessor.local_anchors = vec![
+            LocalDomain {
+                old_span: span(1, upper),
+                new_span: span(101, upper),
+                source_bounded: true,
+            },
+            LocalDomain {
+                old_span: span(3, lower),
+                new_span: span(103, lower),
+                source_bounded: true,
+            },
+        ];
+        for (old_block, new_block, count) in [(1_u64, 101_u64, upper), (3_u64, 103_u64, lower)] {
+            let proposal = super::super::ProposedRelation {
+                old: Some(span(old_block, count)),
+                new: Some(span(new_block, count)),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            assessor.prove_domain(&key)?;
+        }
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        ownership[0].accept(&old, &span(1, upper), 64)?;
+        ownership[1].accept(&new, &span(101, upper), 64)?;
+        ownership[0].accept(&old, &span(3, lower), 64)?;
+        ownership[1].accept(&new, &span(103, lower), 64)?;
+        if controls.full_accept {
+            ownership[0].accept(&old, &span(2, tokens(old_blocks, 1)), 64)?;
+            ownership[1].accept(&new, &span(102, tokens(new_blocks, 1)), 64)?;
+        }
+        if let Some((side, count)) = controls.partial_accept {
+            let block = if side == 0 { BlockId(2) } else { BlockId(102) };
+            let source = if side == 0 { &old } else { &new };
+            ownership[side].accept(source, &span(block.0, count), 64)?;
+        }
+        if let Some((side, block_index, count)) = controls.changed {
+            ownership[side].changed.push(super::SourceInterval {
+                block_index,
+                start: 0,
+                end: count,
+            });
+        }
+        let empty_projection = if controls.probe_empty {
+            let mut empty = span(1, 0);
+            empty.blocks.clear();
+            assessor.stationary_candidate_is_clear(
+                &ownership,
+                &LocalDomain {
+                    old_span: empty.clone(),
+                    new_span: empty,
+                    source_bounded: true,
+                },
+            )?
+        } else {
+            None
+        };
+        let work_before = assessor.remaining_work;
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        let mut truncated =
+            assessor.recover_stationary_members(&mut ownership, &mut changes, &mut candidates)?;
+        if controls.repeat {
+            truncated |= assessor.recover_stationary_members(
+                &mut ownership,
+                &mut changes,
+                &mut candidates,
+            )?;
+        }
+        let records_stationary = assessor
+            .records
+            .iter()
+            .filter(|record| {
+                record
+                    .assumptions
+                    .contains(&crate::diff::ComparisonAssumption::StationaryNeighbour)
+                    && record.outcome == super::RelationOutcome::Established
+                    && record.search == super::SearchCompleteness::Complete
+            })
+            .count();
+        Ok(StationaryRecovery {
+            truncated,
+            work_used: work_before.saturating_sub(assessor.remaining_work),
+            stationary: assessor.stationary_members.len(),
+            accepted: [ownership[0].accepted.len(), ownership[1].accepted.len()],
+            records_stationary,
+            empty_projection,
+        })
+    }
+
+    #[test]
+    fn stationary_pass_closes_a_stationary_member_through_the_real_caller() -> Result<()> {
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: None,
+                full_accept: false,
+                changed: None,
+                probe_empty: true,
+                budget: None,
+                repeat: false,
+            },
+            DiffOptions::default(),
+        )?;
+        assert!(!recovery.truncated);
+        assert_eq!(
+            recovery.stationary, 1,
+            "the stationary member must be recorded once"
+        );
+        assert!(
+            recovery.records_stationary >= 1,
+            "an established complete relation must carry the stationary assumption"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [3, 3],
+            "the candidate range joins the two boundary ranges per side"
+        );
+        assert_eq!(
+            recovery.empty_projection,
+            Some(false),
+            "an empty projection must hold instead of adopting the candidate"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_holds_a_partially_accepted_candidate() -> Result<()> {
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: Some((0, 5)),
+                full_accept: false,
+                changed: None,
+                probe_empty: false,
+                budget: None,
+                repeat: false,
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.stationary, 0);
+        assert_eq!(recovery.records_stationary, 0);
+        assert_eq!(recovery.accepted, [3, 2]);
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_holds_a_changed_overlap() -> Result<()> {
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let new_side = side(&new_blocks);
+        let new_index = new_side.index[&BlockId(102)];
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: None,
+                full_accept: false,
+                changed: Some((1, new_index, 5)),
+                probe_empty: false,
+                budget: None,
+                repeat: false,
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.stationary, 0);
+        assert_eq!(recovery.records_stationary, 0);
+        assert_eq!(recovery.accepted, [2, 2]);
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_skips_heavy_search_when_every_candidate_is_owned() -> Result<()> {
+        // Every whole candidate block is already accepted, so the reject-only
+        // mask leaves no eligible candidate and the pass returns before any
+        // view or reference exploration.
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                full_accept: true,
+                ..StationaryControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.stationary, 0);
+        assert_eq!(recovery.records_stationary, 0);
+        assert_eq!(recovery.accepted, [3, 3]);
+        assert!(
+            recovery.work_used < 10_000,
+            "an all-owned pass must not explore views: {} work used",
+            recovery.work_used
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_holds_a_partially_accepted_candidate_on_the_new_side() -> Result<()> {
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: Some((1, 5)),
+                full_accept: false,
+                changed: None,
+                probe_empty: false,
+                budget: None,
+                repeat: false,
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.stationary, 0);
+        assert_eq!(recovery.records_stationary, 0);
+        assert_eq!(recovery.accepted, [2, 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_does_not_repeat_a_rediscovered_domain() -> Result<()> {
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: None,
+                full_accept: false,
+                changed: None,
+                probe_empty: false,
+                budget: None,
+                repeat: true,
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(
+            recovery.stationary, 1,
+            "the same domain must not be queued or assumed twice"
+        );
+        assert_eq!(recovery.accepted, [3, 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_does_not_queue_at_the_output_sentinel() -> Result<()> {
+        // Two boundary relations already fill max-1 records, so the sentinel
+        // slot is reserved and no new queue or assumption may be added.
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let options = DiffOptions {
+            max_assessment_ranges: 3,
+            ..DiffOptions::default()
+        };
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: None,
+                full_accept: false,
+                changed: None,
+                probe_empty: false,
+                budget: None,
+                repeat: false,
+            },
+            options,
+        )?;
+        assert_eq!(recovery.stationary, 0);
+        assert_eq!(recovery.records_stationary, 0);
+        assert_eq!(recovery.accepted, [2, 2]);
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_yields_nothing_when_discovery_is_cut() -> Result<()> {
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let recovery = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls {
+                partial_accept: None,
+                full_accept: false,
+                changed: None,
+                probe_empty: false,
+                budget: Some(1),
+                repeat: false,
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.stationary, 0);
+        assert_eq!(recovery.records_stationary, 0);
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "a discovery cut must not queue, assume or own anything"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_pass_keeps_confirmed_members_and_holds_unconfirmed_ones() -> Result<()> {
+        // Find the smallest budget that queues the stationary member, then
+        // look for a budget just above it where the queued member is not yet
+        // proven. The confirmed part must be kept; the unconfirmed member must
+        // stay unowned and without an established relation.
+        let (old_blocks, new_blocks) = stationary_recovery_fixture();
+        let mut low = 0;
+        let mut high = 100_000;
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            let recovery = run_stationary_recovery(
+                &old_blocks,
+                &new_blocks,
+                StationaryControls {
+                    budget: Some(mid),
+                    ..StationaryControls::default()
+                },
+                DiffOptions::default(),
+            )?;
+            if recovery.stationary == 0 {
+                low = mid;
+            } else {
+                high = mid;
+            }
+        }
+        let queued = high;
+        let mut unproven = None;
+        for budget in queued..queued.saturating_add(64) {
+            let recovery = run_stationary_recovery(
+                &old_blocks,
+                &new_blocks,
+                StationaryControls {
+                    budget: Some(budget),
+                    ..StationaryControls::default()
+                },
+                DiffOptions::default(),
+            )?;
+            if recovery.stationary == 1 && recovery.records_stationary == 0 {
+                unproven = Some((budget, recovery));
+                break;
+            }
+        }
+        let (budget, recovery) = unproven.expect("a processing cut window must exist");
+        assert!(recovery.truncated, "budget {budget} must report a cut");
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "an unconfirmed member must not be owned"
+        );
+        Ok(())
+    }
+
     fn bracketed_recovery_fixture() -> (Vec<BlockText>, Vec<BlockText>) {
         let old_blocks = vec![
             spread_block(1, "Upper boundary line", 300.0, 700.0, 5.0),
@@ -2531,6 +3211,7 @@ mod tests {
         let comparison = super::super::finish(
             [&old, &new],
             &alignment,
+            None,
             None,
             None,
             proposed,

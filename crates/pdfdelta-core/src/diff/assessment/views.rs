@@ -1139,6 +1139,10 @@ fn translated_occurrences(
 struct EstablishedNeighbour {
     old_index: usize,
     new_index: usize,
+    /// Member ordinal of the reference inside its own old view.
+    old_member: usize,
+    /// Member ordinal of the reference inside its own new view.
+    new_member: usize,
     old_view: usize,
     new_view: usize,
     old_range: std::ops::Range<usize>,
@@ -1441,6 +1445,57 @@ fn band_nearest(
     Some(true)
 }
 
+/// Which raw displacement key one whole-block equality is proven from.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TranslationMode {
+    /// One whole-view candidate moved by one non-zero uniform translation.
+    NonzeroSingleton,
+    /// One whole original block member sits still and is supported by an
+    /// independently established stationary neighbour.
+    StationaryMember,
+}
+
+/// Whether one member range covers the whole original block on this side.
+fn whole_original_member(side: &Side<'_>, view: &View, member: usize) -> bool {
+    let Some(&index) = view.block_indices.get(member) else {
+        return false;
+    };
+    let Some(range) = view.block_ranges.get(member) else {
+        return false;
+    };
+    side.canonical
+        .get(index)
+        .is_some_and(|tokens| tokens.len() == range.len())
+}
+
+/// Whether the candidate's own pair carries the mode's required raw key.
+fn mode_key_matches(
+    mode: TranslationMode,
+    old_view: &View,
+    old_range: &std::ops::Range<usize>,
+    new_view: &View,
+    new_range: &std::ops::Range<usize>,
+    key: crate::model::Vec2,
+) -> bool {
+    match mode {
+        TranslationMode::NonzeroSingleton => {
+            exact_translation(old_view, old_range, new_view, new_range) == Some(key)
+        }
+        TranslationMode::StationaryMember => {
+            finite_translation(old_view, old_range, new_view, new_range) == Some(key)
+        }
+    }
+}
+
+/// Whether one adjacent established translation may support the mode's key.
+fn mode_supports(mode: TranslationMode, translation: crate::model::Vec2) -> bool {
+    let stationary = translation.x == 0.0 && translation.y == 0.0;
+    match mode {
+        TranslationMode::NonzeroSingleton => !stationary,
+        TranslationMode::StationaryMember => stationary,
+    }
+}
+
 /// Discovers whole single-block lines whose content is equal on both sides and
 /// whose positions differ by one exact translation carried by an independently
 /// established neighbour block.
@@ -1478,6 +1533,70 @@ pub(super) fn discover_translations(
     established: &[EstablishedBlock],
     remaining_work: &mut usize,
     max_ranges: usize,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::NonzeroSingleton,
+        None,
+    )
+}
+
+#[cfg(test)]
+pub(super) fn discover_stationary_members(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::StationaryMember,
+        None,
+    )
+}
+
+/// Stationary-member discovery with a reject-only candidate mask.
+///
+/// `candidate_mask[side][block_index] == false` removes that whole original
+/// block from candidacy on that side. The mask never shrinks the view
+/// population or the reference set: masked blocks still support anchors, stay
+/// in every reference check and still compete as occurrences.
+pub(super) fn discover_stationary_members_masked(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    candidate_mask: &[Vec<bool>; 2],
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::StationaryMember,
+        Some(candidate_mask),
+    )
+}
+
+fn discover_translations_mode(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    mode: TranslationMode,
+    candidate_mask: Option<&[Vec<bool>; 2]>,
 ) -> Result<Vec<LocalDomain>> {
     if max_ranges == 0
         || *remaining_work == 0
@@ -1597,6 +1716,8 @@ pub(super) fn discover_translations(
         neighbours.push(EstablishedNeighbour {
             old_index,
             new_index,
+            old_member: old_block,
+            new_member: new_block,
             old_view: old_view_index,
             new_view: new_view_index,
             old_range,
@@ -1611,19 +1732,30 @@ pub(super) fn discover_translations(
     }
     let mut domains = Vec::new();
     'views: for (old_view_index, old_view) in old_views.iter().enumerate() {
-        if !matches!(old_view.kind, ViewKind::Untrusted(_)) || !old_view.source_bounded {
+        if mode == TranslationMode::NonzeroSingleton
+            && (!matches!(old_view.kind, ViewKind::Untrusted(_)) || !old_view.source_bounded)
+        {
             continue;
         }
         for block in 0..old_view.block_ranges.len() {
             if !positioned_block(old_view, block) {
                 continue;
             }
-            if old_view.block_indices.len() != 1 {
-                continue;
-            }
             let old_range = old_view.block_ranges[block].clone();
-            if old_range.start != 0 || old_range.end != old_view.group.tokens.len() {
-                continue;
+            match mode {
+                TranslationMode::NonzeroSingleton => {
+                    if old_view.block_indices.len() != 1
+                        || old_range.start != 0
+                        || old_range.end != old_view.group.tokens.len()
+                    {
+                        continue;
+                    }
+                }
+                TranslationMode::StationaryMember => {
+                    if !whole_original_member(sides[0], old_view, block) {
+                        continue;
+                    }
+                }
             }
             if !charge(remaining_work, old_range.len().saturating_add(1)) {
                 return Ok(Vec::new());
@@ -1640,7 +1772,13 @@ pub(super) fn discover_translations(
             if domains.len() >= max_ranges {
                 break 'views;
             }
-            let candidate_index = old_view.block_indices[0];
+            let candidate_index = old_view.block_indices[block];
+            if mode == TranslationMode::StationaryMember
+                && candidate_mask
+                    .is_some_and(|mask| !mask[0].get(candidate_index).copied().unwrap_or(false))
+            {
+                continue;
+            }
             let Some(candidate_page) = single_page(old_view, &old_range) else {
                 continue;
             };
@@ -1742,9 +1880,7 @@ pub(super) fn discover_translations(
                     // A non-uniform transform is a reference only.
                     continue;
                 };
-                if translation.x == 0.0 && translation.y == 0.0 {
-                    // A stationary anchor is a reference; it never competes
-                    // for the translation key.
+                if !mode_supports(mode, translation) {
                     continue;
                 }
                 match old_adjacent_key {
@@ -1762,9 +1898,7 @@ pub(super) fn discover_translations(
             let Some(old_adjacent_key) = old_adjacent_key else {
                 continue;
             };
-            if old_adjacent_key.x == 0.0 && old_adjacent_key.y == 0.0 {
-                // A stationary candidate is the exact-position path's case,
-                // never a translation proof.
+            if !mode_supports(mode, old_adjacent_key) {
                 continue;
             }
             let key = old_adjacent_key;
@@ -1780,29 +1914,47 @@ pub(super) fn discover_translations(
             if supporting.is_empty() {
                 continue;
             }
-            let Some(old_occurrences) = translated_occurrences(
-                &old_views,
-                old_view,
-                &old_range,
-                old_view_index,
-                crate::model::Vec2 { x: 0.0, y: 0.0 },
-                remaining_work,
-            )?
-            else {
+            let old_occurrences = match mode {
+                TranslationMode::NonzeroSingleton => translated_occurrences(
+                    &old_views,
+                    old_view,
+                    &old_range,
+                    old_view_index,
+                    crate::model::Vec2 { x: 0.0, y: 0.0 },
+                    remaining_work,
+                )?,
+                TranslationMode::StationaryMember => positioned_occurrences(
+                    &old_views,
+                    old_view,
+                    &old_range,
+                    old_view_index,
+                    remaining_work,
+                )?,
+            };
+            let Some(old_occurrences) = old_occurrences else {
                 return Ok(Vec::new());
             };
             if old_occurrences.same != 0 || old_occurrences.unknown {
                 continue;
             }
-            let Some(new_occurrences) = translated_occurrences(
-                &new_views,
-                old_view,
-                &old_range,
-                usize::MAX,
-                key,
-                remaining_work,
-            )?
-            else {
+            let new_occurrences = match mode {
+                TranslationMode::NonzeroSingleton => translated_occurrences(
+                    &new_views,
+                    old_view,
+                    &old_range,
+                    usize::MAX,
+                    key,
+                    remaining_work,
+                )?,
+                TranslationMode::StationaryMember => positioned_occurrences(
+                    &new_views,
+                    old_view,
+                    &old_range,
+                    usize::MAX,
+                    remaining_work,
+                )?,
+            };
+            let Some(new_occurrences) = new_occurrences else {
                 return Ok(Vec::new());
             };
             if new_occurrences.same != 1 || new_occurrences.unknown {
@@ -1812,8 +1964,27 @@ pub(super) fn discover_translations(
                 continue;
             };
             let new_view = &new_views[new_view_index];
-            if new_view.block_indices.len() != 1 || !new_view.source_bounded {
+            if mode == TranslationMode::NonzeroSingleton && !new_view.source_bounded {
                 continue;
+            }
+            match mode {
+                TranslationMode::NonzeroSingleton => {
+                    if new_view.block_indices.len() != 1 {
+                        continue;
+                    }
+                }
+                TranslationMode::StationaryMember => {
+                    let Some(member) = new_view
+                        .block_ranges
+                        .iter()
+                        .position(|range| *range == new_range)
+                    else {
+                        continue;
+                    };
+                    if !whole_original_member(sides[1], new_view, member) {
+                        continue;
+                    }
+                }
             }
             // Re-verify the whole-block translation immediately before the
             // domain is added: full token sequence and one raw finite non-zero
@@ -1831,7 +2002,7 @@ pub(super) fn discover_translations(
             ) {
                 return Ok(Vec::new());
             }
-            if exact_translation(old_view, &old_range, new_view, &new_range) != Some(key) {
+            if !mode_key_matches(mode, old_view, &old_range, new_view, &new_range, key) {
                 continue;
             }
             let Some(candidate_new_bounds) = baseline_bounds(new_view, &new_range, remaining_work)
@@ -1843,7 +2014,24 @@ pub(super) fn discover_translations(
             // entry must be adjacent on both sides with that key. Two
             // different adjacent translations on either side hold the
             // candidate, so the proof is symmetric under a side swap.
-            let new_candidate_index = new_view.block_indices[0];
+            let Some(new_candidate_member) = new_view
+                .block_ranges
+                .iter()
+                .position(|range| *range == new_range)
+            else {
+                continue;
+            };
+            let Some(new_candidate_index) =
+                new_view.block_indices.get(new_candidate_member).copied()
+            else {
+                continue;
+            };
+            if mode == TranslationMode::StationaryMember
+                && candidate_mask
+                    .is_some_and(|mask| !mask[1].get(new_candidate_index).copied().unwrap_or(false))
+            {
+                continue;
+            }
             let Some(new_candidate_page) = single_page(new_view, &new_range) else {
                 continue;
             };
@@ -1934,9 +2122,7 @@ pub(super) fn discover_translations(
                 let Some(translation) = neighbour.translation else {
                     continue;
                 };
-                if translation.x == 0.0 && translation.y == 0.0 {
-                    // A stationary anchor is a reference; it never competes
-                    // for the translation key.
+                if !mode_supports(mode, translation) {
                     continue;
                 }
                 match new_adjacent_key {
@@ -2031,6 +2217,19 @@ pub(super) fn discover_translations(
                     neighbour_valid = false;
                     break;
                 };
+                if reference.old_view == old_view_index
+                    && reference.new_view == new_view_index
+                    && reference.old_member.cmp(&block)
+                        != reference.new_member.cmp(&new_candidate_member)
+                {
+                    // The candidate and the reference are members of one and
+                    // the same view on both sides, so their member order is
+                    // fixed by that view. A reversed order means the run's
+                    // own order contract is violated and the candidate is
+                    // held, whatever the raw coordinates say.
+                    neighbour_valid = false;
+                    break;
+                }
                 if !same_relative_geometry(
                     candidate_old_bounds,
                     reference_old_bounds,
@@ -2063,6 +2262,11 @@ pub(super) fn discover_translations(
                 source_bounded: true,
             });
         }
+    }
+    if mode == TranslationMode::StationaryMember && *remaining_work == 0 {
+        // A cut anywhere in this pass drops every domain it found, so a
+        // mid-budget exhaustion never leaves a partial stationary proof.
+        return Ok(Vec::new());
     }
     Ok(domains)
 }
@@ -4971,6 +5175,744 @@ mod tests {
         assert!(
             domains.is_empty(),
             "two different anchors must not be stitched into one proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_closes_a_whole_block_supported_by_a_stationary_neighbour() -> Result<()> {
+        // Both sides group three blocks into one trusted run. The middle block
+        // sits still: its token positions are identical on both sides and its
+        // member range covers the whole original block. The head block is an
+        // independently established correspondence that is stationary and
+        // adjacent to the candidate on both sides. The tail filler differs
+        // between the sides, so the closure cannot rely on a view-wide
+        // equality. An established reference on another page must be skipped
+        // rather than held.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+            spread_block(4, "Other page line", 10.0, 500.0, 1, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler tail line", 10.0, 660.0, 0, 1.5),
+            spread_block(104, "Other page line", 10.0, 500.0, 1, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            None,
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            None,
+        ];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+        ];
+
+        let moved = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            moved.is_empty(),
+            "the non-zero discovery must not close a stationary member: {moved:?}"
+        );
+
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert_eq!(
+            domains.len(),
+            1,
+            "only the supported stationary member may close: {domains:?}"
+        );
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "the stationary member must close as one whole original block: {domains:?}"
+        );
+
+        // The same fixture proves the symmetric direction: swap the sides and
+        // their trusted runs; the candidate is now the old-side member.
+        let swapped = discover_stationary_members(
+            [&new, &old],
+            recovery(&new_intervals, &old_intervals),
+            &[EstablishedBlock {
+                old_block: BlockId(101),
+                new_block: BlockId(1),
+            }],
+            &mut 100_000,
+            100,
+        )?;
+        assert_eq!(
+            swapped.len(),
+            1,
+            "the swap must close symmetrically: {swapped:?}"
+        );
+        assert!(
+            block_positioned_domain(&swapped, &new, &old, BlockId(102), BlockId(2), 22)?,
+            "the swapped candidate must close as one whole original block: {swapped:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_closes_a_whole_view_block_against_a_run_member() -> Result<()> {
+        // The old side keeps both blocks in plain untrusted views; only the
+        // new side groups them into a trusted run with an extra filler. The
+        // still candidate is a whole original block on both sides and the
+        // established head anchor is adjacent to it on both sides, so the
+        // run membership on one side must not block the proof.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [None, None];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert_eq!(
+            domains.len(),
+            1,
+            "the whole-view candidate must close against the run member: {domains:?}"
+        );
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "the candidate must close as one whole original block: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_when_trusted_run_order_is_reversed() -> Result<()> {
+        // Candidate and reference are members of the same trusted run on both
+        // sides, but their order inside the run is reversed: the candidate is
+        // before the reference on the old side and after it on the new side.
+        // The run's order contract is therefore violated and the member must
+        // be held.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Stationary reference line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(103, "Stationary reference line", 10.0, 660.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a reversed trusted-run order must hold the member: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_when_the_support_is_not_adjacent_on_one_side() -> Result<()> {
+        // The support is index-adjacent to the candidate on the old side only.
+        // On the new side a different source block sits in the same band
+        // between them, so neither the index adjacency nor the band nearest
+        // relation finds the support next to the candidate.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(104, "Middle filler line", 10.0, 690.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a support that is not adjacent on one side must not close the member: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_rejects_the_candidates_own_correspondence() -> Result<()> {
+        // The only established entry is the candidate's own pair. A
+        // correspondence cannot prove its own stillness, so nothing closes.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(2),
+            new_block: BlockId(102),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "the candidate must not support itself: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_when_the_candidate_direction_is_reversed() -> Result<()> {
+        // The new-side candidate keeps the same start point and token count
+        // but advances in the opposite direction, so its per-token
+        // displacement is not one uniform zero translation.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let mut new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let tokens = new_blocks[1]
+            .canonical
+            .comparable_tokens()
+            .expect("fixture tokens")
+            .len();
+        new_blocks[1].position_signatures = Some(
+            (0..tokens)
+                .map(|index| {
+                    PositionSignature::new(
+                        Vec2 {
+                            x: 10.0 - index as f64 * 1.5,
+                            y: 680.0,
+                        },
+                        Vec2 { x: 1.0, y: 0.0 },
+                    )
+                    .expect("valid position")
+                })
+                .collect(),
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a reversed candidate direction must not close as stationary: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_mask_only_removes_candidates() -> Result<()> {
+        // Masking the candidate itself must remove it, while masking the
+        // established support block must change nothing: the mask never
+        // shrinks the reference set.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler tail line", 10.0, 660.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let masked_candidate = [vec![true, false, true], vec![true, false, true]];
+        let domains = discover_stationary_members_masked(
+            [&old, &new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &masked_candidate,
+        )?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a masked candidate must not close: {domains:?}"
+        );
+        let masked_support = [vec![false, true, true], vec![false, true, true]];
+        let domains = discover_stationary_members_masked(
+            [&old, &new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &masked_support,
+        )?;
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a masked support must still carry the reference: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_mask_keeps_masked_occurrences_competing() -> Result<()> {
+        // The duplicated still position stays a competitor even when its
+        // block is masked: the mask only removes candidacy.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+            spread_block(104, "Stationary member line", 10.0, 680.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let mask = [vec![true, true, true], vec![true, true, true, false]];
+        let domains = discover_stationary_members_masked(
+            [&old, &new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &mask,
+        )?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a masked duplicate must still compete: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_requires_an_independent_stationary_support() -> Result<()> {
+        // Same trusted runs as the positive fixture, but nothing is
+        // established: no correspondence proves the stillness, so neither
+        // discovery may close anything.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let domains = discover_stationary_members([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "an unsupported stationary member must not close: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_requires_stillness_in_the_candidate_itself() -> Result<()> {
+        // The candidate's whole block moved by one raw unit on the new side
+        // while its supporting neighbour stays still. The stillness key is
+        // absent, so the stationary discovery must not close it.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 681.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a moved candidate must not close as a stationary member: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_when_the_candidate_metadata_is_unknown() -> Result<()> {
+        // The new-side candidate keeps its source evidence but loses every
+        // position signature. Its geometry cannot be verified, so the
+        // candidate is held instead of being closed on the support alone.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let mut new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        new_blocks[1].position_signatures = None;
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "unknown candidate geometry must hold the member: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_when_the_same_position_is_duplicated() -> Result<()> {
+        // A second new-side block repeats the candidate's whole text at the
+        // identical position, so the still candidate has two competing
+        // occurrences and cannot be pinned to one block.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+            spread_block(104, "Stationary member line", 10.0, 680.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a duplicated still position must not close one arbitrary copy: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_skips_an_other_page_support() -> Result<()> {
+        // The established anchor repeats the candidate's neighbour text and
+        // geometry on another page. It cannot support a same-page stillness,
+        // so the candidate stays open.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 1, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "an other-page anchor must not support the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_on_an_unknown_page_support() -> Result<()> {
+        // The established anchor keeps its positions but loses its page. An
+        // unknown page is not silently treated as a matching page, so the
+        // candidate is held.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        let mut new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower filler line", 10.0, 660.0, 0, 1.5),
+        ];
+        new_blocks[0].pages = Vec::new();
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "an unknown-page anchor must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_holds_when_an_established_reference_crosses_the_candidate() -> Result<()> {
+        // Candidate and support both sit still. A third established
+        // correspondence moves from below the candidate to above it, so the
+        // candidate crosses an already decided reference and must be held.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Moving reference line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Moving reference line", 10.0, 720.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a crossed moving reference must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_closes_when_a_moving_reference_stays_on_its_side() -> Result<()> {
+        // The same fixture, but the moving reference stays below the
+        // candidate on both sides, so the established order relation is kept
+        // and the candidate closes.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Moving reference line", 10.0, 660.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Moving reference line", 10.0, 640.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ];
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 22)?,
+            "a moving reference on its own side must not block the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stationary_member_never_emits_a_partial_domain_on_budget_exhaustion() -> Result<()> {
+        // Two independently supported stationary candidates. The smallest
+        // budget that closes both is found first; one unit below it the pass
+        // must return nothing at all instead of the candidate that happened
+        // to be found first. The cut phase is not asserted beyond this
+        // observation.
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "Lower anchor line", 10.0, 620.0, 0, 1.5),
+            spread_block(4, "Second member line", 10.0, 600.0, 0, 1.5),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+            spread_block(103, "Lower anchor line", 10.0, 620.0, 0, 1.5),
+            spread_block(104, "Second member line", 10.0, 600.0, 0, 1.5),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ];
+        let mut low = 0;
+        let mut high = 100_000;
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            let mut remaining = mid;
+            let domains = discover_stationary_members(
+                [&old, &new],
+                input,
+                &established,
+                &mut remaining,
+                100,
+            )?;
+            if domains.len() == 2 {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+        let required = high;
+        assert!(required > 0, "the fixture cannot be free");
+        let mut below = required - 1;
+        let domains =
+            discover_stationary_members([&old, &new], input, &established, &mut below, 100)?;
+        assert!(
+            domains.is_empty(),
+            "exhausting the budget below {required} must not emit a partial domain: {domains:?}"
         );
         Ok(())
     }

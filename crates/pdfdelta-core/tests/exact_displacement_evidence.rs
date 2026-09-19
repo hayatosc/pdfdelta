@@ -1017,6 +1017,85 @@ fn two_line_domain_proves_the_se_line_through_its_boundary() -> Result<()> {
     Ok(())
 }
 
+fn stationary_run_pair() -> Result<(Document<Glyph>, Document<Glyph>)> {
+    // Three lines in one run. The top and middle lines sit still and are
+    // equal on both sides; the bottom line changes its year at the same
+    // position. The middle line is the stationary candidate: it is a member
+    // of the run, so no whole-view equality closes it, and only the
+    // independently established top line can carry its stillness.
+    let widths = se_widths();
+    let top = "Form 1040 header line";
+    let middle = "Filing status single line";
+    let bottom_old = "Filing year 2024 statement";
+    let bottom_new = "Filing year 2025 statement";
+    let old_text = format!(
+        "BT /T1 1 Tf 7 0 0 7 100.0 232.003 Tm ({}) Tj 0 -4.5 Td ({}) Tj 0 -4.5 Td ({}) Tj ET",
+        escape(top),
+        escape(middle),
+        escape(bottom_old)
+    );
+    let new_text = format!(
+        "BT /T1 1 Tf 7 0 0 7 100.0 232.003 Tm ({}) Tj 0 -4.5 Td ({}) Tj 0 -4.5 Td ({}) Tj ET",
+        escape(top),
+        escape(middle),
+        escape(bottom_new)
+    );
+    let mut old_document = LopdfDocument::with_version("1.7");
+    let old_font = se_font(&mut old_document, &widths);
+    let old_contents = old_document.add_object(Stream::new(dictionary! {}, old_text.into_bytes()));
+    install_se_page(&mut old_document, old_contents, old_font);
+    let mut new_document = LopdfDocument::with_version("1.7");
+    let new_font = se_font(&mut new_document, &widths);
+    let new_contents = new_document.add_object(Stream::new(dictionary! {}, new_text.into_bytes()));
+    install_se_page(&mut new_document, new_contents, new_font);
+    Ok((
+        extract_document(old_document)?,
+        extract_document(new_document)?,
+    ))
+}
+
+fn document_text(document: &Document<Glyph>) -> String {
+    document
+        .items()
+        .iter()
+        .filter_map(|glyph| match &glyph.text {
+            pdfdelta_core::model::DecodedText::Mapped(text) => Some(text.as_str()),
+            pdfdelta_core::model::DecodedText::Unmapped { .. } => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_stationary_run_member_closes_through_its_established_neighbour() -> Result<()> {
+    let (old, new) = stationary_run_pair()?;
+    let old_text = document_text(&old);
+    let new_text = document_text(&new);
+    assert!(
+        old_text.contains("2024") && !old_text.contains("2025"),
+        "the old extraction must carry the old year: {old_text}"
+    );
+    assert!(
+        new_text.contains("2025") && !new_text.contains("2024"),
+        "the new extraction must carry the new year: {new_text}"
+    );
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    let summary = pdfdelta_core::report::summarize(
+        &comparison,
+        &pdfdelta_core::report::ExtractionStatus::default(),
+    )?;
+    assert!(
+        summary.comparison_complete,
+        "the stationary run member must close through its established neighbour: {summary:#?}"
+    );
+    assert_eq!(summary.unresolved_regions, 0, "{summary:#?}");
+    assert_eq!(summary.comparison_coverage, Some(1.0), "{summary:#?}");
+    assert!(
+        !comparison.changes.is_empty(),
+        "the year change must stay an exact change: {comparison:#?}"
+    );
+    Ok(())
+}
+
 fn two_line_pair_with(top_old: &str, top_new: &str) -> Result<(Document<Glyph>, Document<Glyph>)> {
     let widths = se_widths();
     let old_text = format!(

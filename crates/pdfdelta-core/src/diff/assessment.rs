@@ -118,6 +118,10 @@ pub enum ComparisonAssumption {
     /// correspondence closure is independent; only the edit location is
     /// proven by the exact displacement.
     ExactTextDisplacement,
+    /// The candidate sits still and is proven by an independently
+    /// established stationary neighbour correspondence; raw coordinates are
+    /// never used to adopt the move.
+    StationaryNeighbour,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -2032,6 +2036,10 @@ pub(super) fn finish(
     candidates_truncated |=
         assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
     assessor.recover_closed_domains(&mut ownership, &mut changes, &candidates)?;
+    if assessor.output_stop.is_none() {
+        candidates_truncated |=
+            assessor.recover_stationary_members(&mut ownership, &mut changes, &mut candidates)?;
+    }
     for formatting in proposed.formatting_changes {
         for &index in &accepted {
             let relation = &assessor.records[index];
@@ -2287,6 +2295,9 @@ struct Assessor<'a, 'document> {
     /// pass, recorded so the proven relation carries the move as an explicit
     /// assumption.
     anchored_translations: Vec<(TextSpan, TextSpan)>,
+    /// Whole old/new spans proven stationary through an established
+    /// neighbour correspondence, kept for report assumptions.
+    stationary_members: Vec<(TextSpan, TextSpan)>,
     /// Spans of local domains discovered by the bracketed-region pass,
     /// recorded so the proven relation carries the geometric boundaries as an
     /// explicit assumption.
@@ -2917,6 +2928,15 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }) {
             domain_assumptions.push(ComparisonAssumption::BracketedRegion);
         }
+        if key.local.as_ref().is_some_and(|(old, new)| {
+            self.stationary_members
+                .iter()
+                .any(|(stationary_old, stationary_new)| {
+                    stationary_old == old && stationary_new == new
+                })
+        }) {
+            domain_assumptions.push(ComparisonAssumption::StationaryNeighbour);
+        }
         if exact_displacement_proof
             || key.local.as_ref().is_some_and(|(old, new)| {
                 self.exact_displacements
@@ -3531,6 +3551,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             local_domains: Vec::new(),
             local_anchors: Vec::new(),
             anchored_translations: Vec::new(),
+            stationary_members: Vec::new(),
             bracketed_domains: Vec::new(),
             exact_displacements: Vec::new(),
             footer_domains: Vec::new(),
