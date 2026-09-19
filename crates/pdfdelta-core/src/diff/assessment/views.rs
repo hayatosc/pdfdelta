@@ -4018,6 +4018,116 @@ mod tests {
         })
     }
 
+    fn positioned_view(
+        text: &str,
+        positions: Vec<Option<f64>>,
+        pages: Vec<Option<u32>>,
+        candidate: bool,
+    ) -> View {
+        let tokens = text
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let len = tokens.len();
+        let group = GroupText::try_new(vec![BlockId(1)], None, tokens, None, None, None, None)
+            .expect("fixture group");
+        View {
+            kind: ViewKind::Untrusted(0),
+            source_order: 0,
+            block_indices: vec![0],
+            group,
+            source_bounded: true,
+            horizontal_text: true,
+            position_signatures: Vec::new(),
+            page: None,
+            block_ranges: std::iter::once(0..len).collect(),
+            block_candidates: vec![candidate],
+            token_positions: positions
+                .into_iter()
+                .map(|position| {
+                    position.map(|x| {
+                        PositionSignature::new(Vec2 { x, y: 0.0 }, Vec2 { x: 1.0, y: 0.0 })
+                            .expect("valid position")
+                    })
+                })
+                .collect(),
+            token_pages: pages,
+        }
+    }
+
+    #[test]
+    fn positioned_occurrences_separates_definitive_mismatches_from_unknowns() -> Result<()> {
+        let needle = positioned_view(
+            "ABC",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            true,
+        );
+        // A proven different position must not be vetoed by a later offset
+        // without metadata.
+        let views = [positioned_view(
+            "ABC",
+            vec![Some(10.0), None, Some(12.0)],
+            vec![Some(0), None, Some(0)],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(
+            result.same, 0,
+            "a proven different position does not compete"
+        );
+        assert!(
+            !result.unknown,
+            "a definitive mismatch must not become unknown through later missing metadata"
+        );
+        // Missing metadata before the mismatch must not hide the mismatch.
+        let views = [positioned_view(
+            "ABC",
+            vec![None, Some(11.0), Some(12.0)],
+            vec![None, Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            !result.unknown,
+            "a later definitive mismatch must still be found"
+        );
+        // An occurrence that is only unverifiable still vetoes.
+        let views = [positioned_view(
+            "ABC",
+            vec![None, Some(1.0), Some(2.0)],
+            vec![None, Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert!(result.unknown, "unverifiable metadata still vetoes");
+        // A complete same-position duplicate still competes.
+        let views = [positioned_view(
+            "ABC",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 1);
+        assert!(!result.unknown);
+        // An exhausted budget yields no partial proof.
+        let mut budget = 0;
+        assert!(
+            positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?.is_none()
+        );
+        Ok(())
+    }
+
     #[test]
     fn positioned_equality_closes_a_line_repeated_inside_a_longer_view() -> Result<()> {
         let old_blocks = [
@@ -7043,6 +7153,7 @@ mod tests {
                 &alignment,
                 Some(recovery(&intervals, &intervals)),
                 None,
+                None,
                 super::super::ProposedComparison {
                     changes: vec![change.clone()],
                     proven_changed_regions: Vec::new(),
@@ -7103,6 +7214,7 @@ mod tests {
             [&old, &new],
             &alignment,
             Some(recovery(&intervals, &intervals)),
+            None,
             None,
             super::super::ProposedComparison {
                 changes: Vec::new(),
@@ -7292,6 +7404,7 @@ mod tests {
             &alignment,
             None,
             None,
+            None,
             proposed(),
             DiffOptions::default(),
         )
@@ -7312,6 +7425,7 @@ mod tests {
             [&old, &new],
             &alignment,
             Some(recovery(&intervals, &intervals)),
+            None,
             None,
             proposed(),
             DiffOptions {
@@ -7376,6 +7490,7 @@ mod tests {
             [&old, &new],
             &alignment,
             Some(input),
+            None,
             None,
             super::super::ProposedComparison {
                 changes: Vec::new(),
