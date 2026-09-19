@@ -106,6 +106,12 @@ pub enum ComparisonAssumption {
     /// The move itself is part of the evidence; no reading-order relaxation
     /// and no pixel tolerance is involved.
     RigidTranslation,
+    /// A whole source-bounded line is the unique source block between two
+    /// independently established correspondences in the same column band on
+    /// both sides. The region correspondence is proven by the boundaries; the
+    /// tokens are still compared with the strict minimal-edit uniqueness and
+    /// the global reading order is not promoted.
+    BracketedRegion,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -2207,6 +2213,10 @@ struct Assessor<'a, 'document> {
     /// pass, recorded so the proven relation carries the move as an explicit
     /// assumption.
     anchored_translations: Vec<(TextSpan, TextSpan)>,
+    /// Spans of local domains discovered by the bracketed-region pass,
+    /// recorded so the proven relation carries the geometric boundaries as an
+    /// explicit assumption.
+    bracketed_domains: Vec<(TextSpan, TextSpan)>,
     footer_domains: Vec<views::LocalDomain>,
     localized_edits: Vec<LocalizedEditScript>,
     localized_edit_count: usize,
@@ -2805,6 +2815,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }) {
             domain_assumptions.push(ComparisonAssumption::RigidTranslation);
         }
+        if key.local.as_ref().is_some_and(|(old, new)| {
+            self.bracketed_domains
+                .iter()
+                .any(|(bracketed_old, bracketed_new)| bracketed_old == old && bracketed_new == new)
+        }) {
+            domain_assumptions.push(ComparisonAssumption::BracketedRegion);
+        }
         let relation = self.record(RelationAssessment {
             old_span: nonempty_span(&old),
             new_span: nonempty_span(&new),
@@ -3070,6 +3087,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             local_domains: Vec::new(),
             local_anchors: Vec::new(),
             anchored_translations: Vec::new(),
+            bracketed_domains: Vec::new(),
             footer_domains: Vec::new(),
             localized_edits: Vec::new(),
             localized_edit_count: 0,

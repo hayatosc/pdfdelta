@@ -2,7 +2,8 @@ use pdfdelta_core::{
     Error, Result,
     alignment::AlignmentOptions,
     diff::{
-        ChangeKind, ChangeTag, Comparison, Confidence, DiffOptions, FormattingReason, TokenRange,
+        ChangeKind, ChangeTag, Comparison, ComparisonAssumption, Confidence, DiffOptions,
+        FormattingReason, RelationOutcome, TokenRange,
     },
     layout::{
         BlockId, BlockOptions, LineOptions, LineTextDirection, reconstruct_blocks,
@@ -1877,7 +1878,9 @@ fn rigid_translation_of_an_uncertain_line_follows_an_established_neighbour() -> 
 fn rigid_translation_with_a_different_neighbour_transform_keeps_an_obligation() -> Result<()> {
     // The target line moves by -0.5 while both established neighbours keep
     // their positions, so no established neighbour carries the same raw
-    // translation and the move stays open.
+    // translation. The target sits in its own column band with no established
+    // boundary above or below, so the bracketed-region proof cannot close it
+    // either and the move stays open.
     let target = BlockId(4);
     let old = document(&[
         line("Alpha anchor remains stable", 0, 396.0),
@@ -1887,7 +1890,7 @@ fn rigid_translation_with_a_different_neighbour_transform_keeps_an_obligation() 
         line("Zeta anchor remains stable", 0, 198.0),
         line("Eta anchor remains stable", 0, 162.0),
         line("Left uncertain line stays unique", 0, 324.0),
-        line("Target uncertain line stays unique", 0, 270.0),
+        line_at("Target uncertain line stays unique", 0, 300.0, 270.0),
         line("Right uncertain line stays unique", 0, 234.0),
     ]);
     let new = document(&[
@@ -1898,7 +1901,7 @@ fn rigid_translation_with_a_different_neighbour_transform_keeps_an_obligation() 
         line("Zeta anchor remains stable", 0, 198.0),
         line("Eta anchor remains stable", 0, 162.0),
         line("Left uncertain line stays unique", 0, 324.0),
-        line("Target uncertain line stays unique", 0, 269.5),
+        line_at("Target uncertain line stays unique", 0, 300.0, 269.5),
         line("Right uncertain line stays unique", 0, 234.0),
     ]);
     let outcome = compare_extraction_outcomes(
@@ -1974,6 +1977,120 @@ fn bracketed_region_closes_a_single_token_replacement() -> Result<()> {
     assert!(
         !target_open,
         "the bracketed target must close: {comparison:#?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn bracketed_region_closes_the_original_translated_uncertain_line() -> Result<()> {
+    // Original input of the band-outside negative: the target moves by -0.5
+    // while both neighbours keep their positions, so no rigid translation
+    // supports it. It is still the unique line between the two established
+    // neighbours in its column band, so the bracketed proof closes it and the
+    // relation must record exactly that assumption.
+    let target = BlockId(4);
+    let old = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 270.0),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 269.5),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    let target_open = comparison.unresolved_regions.iter().any(|region| {
+        [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|span| span.blocks.contains(&target))
+    });
+    assert!(
+        !target_open,
+        "the bracketed target must close: {comparison:#?}"
+    );
+    let assessment = comparison.assessment.as_ref().expect("assessment");
+    let target_relations = assessment
+        .relations
+        .iter()
+        .filter(|relation| {
+            relation
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [target])
+                && relation
+                    .new_span
+                    .as_ref()
+                    .is_some_and(|span| span.blocks == [target])
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        target_relations.iter().any(|relation| {
+            relation.outcome == RelationOutcome::Established
+                && relation
+                    .assumptions
+                    .contains(&ComparisonAssumption::BracketedRegion)
+        }),
+        "an established relation must record the bracketed proof: {target_relations:#?}"
+    );
+    assert!(
+        target_relations.iter().all(|relation| {
+            !relation
+                .assumptions
+                .contains(&ComparisonAssumption::RigidTranslation)
+        }),
+        "the move must not be attributed to a rigid translation: {target_relations:#?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn bracketed_region_requires_an_independent_boundary() -> Result<()> {
+    // The original input without the two bracketing neighbours: the target has
+    // no independent boundary above or below it, so the region proof cannot
+    // run and the target stays open.
+    let target = BlockId(3);
+    let old = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 270.0),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 269.5),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    let target_open = comparison.unresolved_regions.iter().any(|region| {
+        [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|span| span.blocks.contains(&target))
+    });
+    assert!(
+        target_open,
+        "without independent boundaries the target must stay open: {comparison:#?}"
     );
     Ok(())
 }

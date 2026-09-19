@@ -9,6 +9,15 @@ use crate::{
     diff::{Confidence, Side},
 };
 
+/// Outcome of processing one local domain during recovery.
+enum LocalRecoveryStep {
+    /// The domain was processed; the caller may continue.
+    Continue,
+    /// The caller must stop; `truncated` reports whether output limits cut
+    /// the recovery short.
+    Stop { truncated: bool },
+}
+
 impl Assessor<'_, '_> {
     /// Known input order also closes gaps between verified global anchors.
     /// These gaps can cross soft block or page boundaries even when the
@@ -616,13 +625,59 @@ impl Assessor<'_, '_> {
         let Some(recovery) = self.recovery else {
             return Ok(());
         };
-        // Collect every whole single-block established correspondence from the
-        // downstream domain proofs, not only the local domains: a block inside
-        // a multi-block domain can still carry its own established relation,
-        // and the proof must be established with a complete search, carry no
-        // reasons and already own its accepted source intervals.
-        if !self.charge(self.domains.len()) {
+        let Some(established) = self.collect_established_blocks(ownership)? else {
             return Ok(());
+        };
+        if established.is_empty() {
+            return Ok(());
+        }
+        let domains = super::views::discover_translations(
+            self.sides,
+            recovery,
+            &established,
+            &mut self.remaining_work,
+            self.options.max_assessment_ranges,
+        )?;
+        if domains.is_empty() {
+            return Ok(());
+        }
+        // Charge the duplicate check and the append for every discovered
+        // domain first: a mid-budget cut commits none of them, so the pass
+        // never leaves a partial translation proof behind.
+        if !self.charge(
+            domains
+                .len()
+                .saturating_mul(self.local_domains.len().saturating_add(1)),
+        ) {
+            return Ok(());
+        }
+        for domain in domains {
+            if self.local_domains.len() >= self.options.max_assessment_ranges {
+                break;
+            }
+            self.anchored_translations
+                .push((domain.old_span.clone(), domain.new_span.clone()));
+            if !self.local_domains.contains(&domain) {
+                self.local_domains.push(domain);
+            }
+        }
+        Ok(())
+    }
+
+    /// Collects every whole single-block established correspondence from the
+    /// downstream domain proofs, not only the local domains: a block inside a
+    /// multi-block domain can still carry its own established relation, and
+    /// the proof must be established with a complete search, carry no reasons
+    /// and already own its accepted source intervals. The set is sorted by a
+    /// complete source-side key with the sort charged, duplicates are removed
+    /// from the sorted order, and the result is `None` when the shared budget
+    /// is exhausted.
+    fn collect_established_blocks(
+        &mut self,
+        ownership: &[Ownership; 2],
+    ) -> Result<Option<Vec<super::views::EstablishedBlock>>> {
+        if !self.charge(self.domains.len()) {
+            return Ok(None);
         }
         let mut candidates = Vec::new();
         for proof in self.domains.values() {
@@ -641,15 +696,12 @@ impl Assessor<'_, '_> {
             }
             candidates.push((old_span.clone(), new_span.clone()));
         }
-        // A stable source-side total order keeps the evidence set, the
-        // supporting-anchor choice and the budget-arrival order independent of
-        // the hash-map iteration order.
         if !self.charge(
             candidates
                 .len()
                 .saturating_mul(candidates.len().checked_ilog2().unwrap_or(0) as usize + 1),
         ) {
-            return Ok(());
+            return Ok(None);
         }
         candidates.sort_unstable_by_key(|(old_span, new_span)| {
             (
@@ -690,13 +742,13 @@ impl Assessor<'_, '_> {
                 continue;
             }
             let Some(old_owned) = self.ownership_contains(ownership, 0, &old_span)? else {
-                return Ok(());
+                return Ok(None);
             };
             if !old_owned {
                 continue;
             }
             let Some(new_owned) = self.ownership_contains(ownership, 1, &new_span)? else {
-                return Ok(());
+                return Ok(None);
             };
             if !new_owned {
                 continue;
@@ -706,10 +758,30 @@ impl Assessor<'_, '_> {
                 new_block: *new_block,
             });
         }
+        Ok(Some(established))
+    }
+
+    /// Discovers local domains for whole source-bounded lines that are the
+    /// unique source block between two independently established boundaries
+    /// in the same column band. The domains are proven by the ordinary local
+    /// assessment with the strict minimal-edit uniqueness; the bracketed
+    /// geometry is recorded as an explicit assumption.
+    fn discover_bracketed_domains(&mut self, ownership: &[Ownership; 2]) -> Result<()> {
+        if self.remaining_work == 0
+            || self.local_domains.len() >= self.options.max_assessment_ranges
+        {
+            return Ok(());
+        }
+        let Some(recovery) = self.recovery else {
+            return Ok(());
+        };
+        let Some(established) = self.collect_established_blocks(ownership)? else {
+            return Ok(());
+        };
         if established.is_empty() {
             return Ok(());
         }
-        let domains = super::views::discover_translations(
+        let domains = super::views::discover_bracketed_domains(
             self.sides,
             recovery,
             &established,
@@ -719,9 +791,6 @@ impl Assessor<'_, '_> {
         if domains.is_empty() {
             return Ok(());
         }
-        // Charge the duplicate check and the append for every discovered
-        // domain first: a mid-budget cut commits none of them, so the pass
-        // never leaves a partial translation proof behind.
         if !self.charge(
             domains
                 .len()
@@ -733,11 +802,14 @@ impl Assessor<'_, '_> {
             if self.local_domains.len() >= self.options.max_assessment_ranges {
                 break;
             }
-            self.anchored_translations
-                .push((domain.old_span.clone(), domain.new_span.clone()));
-            if !self.local_domains.contains(&domain) {
-                self.local_domains.push(domain);
+            if self.local_domains.contains(&domain) {
+                // The round loop re-discovers domains that are already
+                // queued; the assumption list must not grow per round.
+                continue;
             }
+            self.bracketed_domains
+                .push((domain.old_span.clone(), domain.new_span.clone()));
+            self.local_domains.push(domain);
         }
         Ok(())
     }
@@ -782,321 +854,357 @@ impl Assessor<'_, '_> {
         candidates: &mut Vec<ChangeCandidate>,
     ) -> Result<bool> {
         self.discover_anchored_translations(ownership)?;
-        let mut order = (0..self.local_domains.len()).collect::<Vec<_>>();
-        if !self.charge(
-            order
-                .len()
-                .saturating_mul(order.len().checked_ilog2().unwrap_or(0) as usize + 1),
-        ) {
-            return Ok(false);
-        }
-        order.sort_unstable_by_key(|&index| {
-            let domain = &self.local_domains[index];
-            (
-                domain
-                    .old_span
-                    .comparable_range
-                    .end
-                    .saturating_sub(domain.old_span.comparable_range.start)
-                    .saturating_add(
-                        domain
-                            .new_span
-                            .comparable_range
-                            .end
-                            .saturating_sub(domain.new_span.comparable_range.start),
-                    ),
-                index,
-            )
-        });
-        for index in order {
-            if self.remaining_work == 0 || self.output_stop.is_some() {
-                break;
+        let mut processed = 0usize;
+        loop {
+            let mut order = (processed..self.local_domains.len()).collect::<Vec<_>>();
+            if !self.charge(
+                order
+                    .len()
+                    .saturating_mul(order.len().checked_ilog2().unwrap_or(0) as usize + 1),
+            ) {
+                return Ok(false);
             }
-            let domain = self.local_domains[index].clone();
-            let spans = [&domain.old_span, &domain.new_span];
-            if !self.charge(spans.iter().map(|span| span.blocks.len()).sum()) {
-                break;
-            }
-            let accepted = [
-                project(self.sides[0], spans[0])?,
-                project(self.sides[1], spans[1])?,
-            ];
-            let mut conflict = false;
-            for side in 0..2 {
-                let Some(overlap) = overlaps(
-                    &accepted[side],
-                    &ownership[side].changed,
-                    &mut self.remaining_work,
-                ) else {
-                    return Ok(false);
-                };
-                conflict |= overlap;
-            }
-            if conflict {
-                continue;
-            }
-            let span_indices = occurrence_indices(self.alignment, [Some(spans[0]), Some(spans[1])]);
-            let proposal = ProposedRelation {
-                old: Some(domain.old_span),
-                new: Some(domain.new_span),
-                span_indices,
-                exact_recovery: false,
-            };
-            let relation = self.assess(&proposal)?;
-            if self.records[relation].outcome != RelationOutcome::Established {
-                continue;
-            }
-            let key = self.domain_key(&proposal)?;
-            let groups = proof_groups(self.sides, &key)?;
-            let proof = &self.domains[&key];
-            if proof.edits.is_empty() {
-                // Only complete source-bounded singleton domains may publish
-                // an equal range without an edit script. Trusted-run fragments,
-                // ordered and footer domains keep their existing obligations.
-                if !domain.source_bounded
-                    || self.records[relation].search != super::SearchCompleteness::Complete
-                {
-                    continue;
-                }
-                // Protect tentative candidates: an accepted equality must not
-                // swallow source ranges a candidate still claims.
-                let mut candidate_conflict = false;
-                for candidate in candidates.iter() {
-                    for occurrence in &candidate.change.occurrences {
-                        for (side, span) in
-                            [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
-                                .into_iter()
-                                .enumerate()
-                        {
-                            let Some(span) = span else {
-                                continue;
-                            };
-                            if !self.charge(span.blocks.len()) {
-                                self.mark_local_work_limit(relation);
-                                return Ok(false);
-                            }
-                            let source = project(self.sides[side], span)?;
-                            let Some(overlap) =
-                                overlaps(&source, &accepted[side], &mut self.remaining_work)
-                            else {
-                                self.mark_local_work_limit(relation);
-                                return Ok(false);
-                            };
-                            candidate_conflict |= overlap;
-                        }
-                    }
-                }
-                if candidate_conflict {
-                    continue;
-                }
-                let limit = self.options.max_assessment_ranges;
-                let fits = (0..2).all(|side| {
-                    ownership[side]
-                        .accepted
-                        .len()
-                        .saturating_add(accepted[side].len())
-                        <= limit
-                });
-                if !fits {
-                    continue;
-                }
-                for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
-                    super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
-                    owner.accepted.extend(accepted_side.iter().copied());
-                }
-                continue;
-            }
-            let mut local_changes = Vec::new();
-            let cost = groups
-                .iter()
-                .map(|group| group.tokens.len().saturating_add(group.blocks.len()))
-                .sum();
-            let complete = visit_domain_hunks(&groups[0], &groups[1], &proof.edits, |hunk, _| {
-                if local_changes.len() >= self.options.max_assessment_ranges
-                    || !charge(&mut self.remaining_work, cost)
-                {
-                    return false;
-                }
-                super::super::append_semantic_hunk(
-                    &groups[0],
-                    &groups[1],
-                    &proof.edits,
-                    hunk,
-                    Confidence::High,
-                    &mut local_changes,
-                );
-                true
+            order.sort_unstable_by_key(|&index| {
+                let domain = &self.local_domains[index];
+                (
+                    domain
+                        .old_span
+                        .comparable_range
+                        .end
+                        .saturating_sub(domain.old_span.comparable_range.start)
+                        .saturating_add(
+                            domain
+                                .new_span
+                                .comparable_range
+                                .end
+                                .saturating_sub(domain.new_span.comparable_range.start),
+                        ),
+                    index,
+                )
             });
-            if !complete {
-                let output_limit = self.remaining_work > 0;
-                self.records[relation].outcome = RelationOutcome::Tentative;
-                self.records[relation].search = super::SearchCompleteness::Incomplete;
-                self.records[relation].reasons.push(if output_limit {
-                    super::AssessmentReason::OutputLimit
-                } else {
-                    super::AssessmentReason::WorkLimit
-                });
-                return Ok(output_limit);
-            }
-            if !self.validate_semantic_emission(relation, &local_changes)? {
-                continue;
-            }
-            // A content operation must name at least one source-backed range on
-            // every side it claims. Synthetic inter-block separators project to
-            // no source block, so a separator-only edit is a structural
-            // difference and must stay unresolved instead of becoming an
-            // established content change.
-            let mut backed_changes = Vec::new();
-            let mut changed = [Vec::new(), Vec::new()];
-            for mut change in local_changes {
-                let mut backed_occurrences = Vec::new();
-                for occurrence in std::mem::take(&mut change.occurrences) {
-                    let mut projections = [Vec::new(), Vec::new()];
-                    let mut backed = true;
-                    for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
-                        .into_iter()
-                        .enumerate()
-                    {
-                        if let Some(span) = span {
-                            if !self.charge(span.blocks.len()) {
-                                self.mark_local_work_limit(relation);
-                                return Ok(false);
-                            }
-                            let projected = project(self.sides[side], span)?;
-                            // A zero-width span is a valid empty side of a
-                            // replacement; only a span that claims source
-                            // tokens yet projects to no block is unbacked.
-                            if projected.is_empty()
-                                && span.comparable_range.start != span.comparable_range.end
-                            {
-                                backed = false;
-                            }
-                            projections[side].extend(projected);
-                        }
-                    }
-                    if backed {
-                        for side in 0..2 {
-                            changed[side].extend(projections[side].iter().copied());
-                        }
-                        backed_occurrences.push(occurrence);
-                    }
-                }
-                if backed_occurrences.is_empty() {
-                    continue;
-                }
-                change.occurrences = backed_occurrences;
-                backed_changes.push(change);
-            }
-            if backed_changes.is_empty() {
-                continue;
-            }
-            let local_changes = backed_changes;
-            for side in 0..2 {
-                let Some(overlap) = overlaps(
-                    &changed[side],
-                    &ownership[side].accepted,
-                    &mut self.remaining_work,
-                ) else {
-                    self.mark_local_work_limit(relation);
+            for index in order {
+                if self.remaining_work == 0 || self.output_stop.is_some() {
                     return Ok(false);
-                };
-                conflict |= overlap;
+                }
+                match self.recover_local_domain(index, ownership, changes, candidates)? {
+                    LocalRecoveryStep::Continue => {}
+                    // A stop is final: the original contract returns from the
+                    // whole recovery at once, so no further domain is proven
+                    // and no ownership is updated after it.
+                    LocalRecoveryStep::Stop { truncated } => {
+                        return Ok(truncated);
+                    }
+                }
             }
-            if conflict {
-                continue;
+            processed = self.local_domains.len();
+            if self.remaining_work == 0 || self.output_stop.is_some() {
+                return Ok(false);
             }
-            let mut superseded = Vec::new();
-            for (index, candidate) in candidates.iter().enumerate() {
-                let mut overlaps_domain = false;
+            let before = self.local_domains.len();
+            self.discover_bracketed_domains(ownership)?;
+            if self.local_domains.len() == before {
+                break;
+            }
+        }
+        Ok(false)
+    }
+
+    /// Processes one discovered local domain: proves it, protects tentative
+    /// candidates and commits either an equal range or a localized edit
+    /// script. `Stop` tells the caller not to continue; `truncated` reports
+    /// whether output limits cut the recovery short.
+    fn recover_local_domain(
+        &mut self,
+        index: usize,
+        ownership: &mut [Ownership; 2],
+        changes: &mut Vec<ChangeEvent>,
+        candidates: &mut Vec<ChangeCandidate>,
+    ) -> Result<LocalRecoveryStep> {
+        let domain = self.local_domains[index].clone();
+        let spans = [&domain.old_span, &domain.new_span];
+        if !self.charge(spans.iter().map(|span| span.blocks.len()).sum()) {
+            return Ok(LocalRecoveryStep::Stop { truncated: false });
+        }
+        let accepted = [
+            project(self.sides[0], spans[0])?,
+            project(self.sides[1], spans[1])?,
+        ];
+        let mut conflict = false;
+        for side in 0..2 {
+            let Some(overlap) = overlaps(
+                &accepted[side],
+                &ownership[side].changed,
+                &mut self.remaining_work,
+            ) else {
+                return Ok(LocalRecoveryStep::Stop { truncated: false });
+            };
+            conflict |= overlap;
+        }
+        if conflict {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        let span_indices = occurrence_indices(self.alignment, [Some(spans[0]), Some(spans[1])]);
+        let proposal = ProposedRelation {
+            old: Some(domain.old_span),
+            new: Some(domain.new_span),
+            span_indices,
+            exact_recovery: false,
+        };
+        let relation = self.assess(&proposal)?;
+        if self.records[relation].outcome != RelationOutcome::Established {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        let key = self.domain_key(&proposal)?;
+        let groups = proof_groups(self.sides, &key)?;
+        let proof = &self.domains[&key];
+        if proof.edits.is_empty() {
+            // Only complete source-bounded singleton domains may publish
+            // an equal range without an edit script. Trusted-run fragments,
+            // ordered and footer domains keep their existing obligations.
+            if !domain.source_bounded
+                || self.records[relation].search != super::SearchCompleteness::Complete
+            {
+                return Ok(LocalRecoveryStep::Continue);
+            }
+            // Protect tentative candidates: an accepted equality must not
+            // swallow source ranges a candidate still claims.
+            let mut candidate_conflict = false;
+            for candidate in candidates.iter() {
                 for occurrence in &candidate.change.occurrences {
                     for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
                         .into_iter()
                         .enumerate()
                     {
-                        if let Some(span) = span {
-                            if !self.charge(span.blocks.len()) {
-                                self.mark_local_work_limit(relation);
-                                return Ok(false);
-                            }
-                            let source = project(self.sides[side], span)?;
-                            let Some(overlap) =
-                                overlaps(&source, &accepted[side], &mut self.remaining_work)
-                            else {
-                                self.mark_local_work_limit(relation);
-                                return Ok(false);
-                            };
-                            overlaps_domain |= overlap;
+                        let Some(span) = span else {
+                            continue;
+                        };
+                        if !self.charge(span.blocks.len()) {
+                            self.mark_local_work_limit(relation);
+                            return Ok(LocalRecoveryStep::Stop { truncated: false });
                         }
+                        let source = project(self.sides[side], span)?;
+                        let Some(overlap) =
+                            overlaps(&source, &accepted[side], &mut self.remaining_work)
+                        else {
+                            self.mark_local_work_limit(relation);
+                            return Ok(LocalRecoveryStep::Stop { truncated: false });
+                        };
+                        candidate_conflict |= overlap;
                     }
                 }
-                if overlaps_domain {
-                    superseded.push(index);
-                }
+            }
+            if candidate_conflict {
+                return Ok(LocalRecoveryStep::Continue);
             }
             let limit = self.options.max_assessment_ranges;
-            let edit_count = self.domains[&key].edits.len();
-            let fits = changes.len().saturating_add(local_changes.len()) <= limit
-                && self.localized_edit_count.saturating_add(edit_count) <= limit
-                && self.localized_edits.len() < limit
-                && (0..2).all(|side| {
-                    ownership[side]
-                        .accepted
-                        .len()
-                        .saturating_add(accepted[side].len())
-                        <= limit
-                        && ownership[side]
-                            .changed
-                            .len()
-                            .saturating_add(changed[side].len())
-                            <= limit
-                });
-            if !fits {
-                self.records[relation].outcome = RelationOutcome::Tentative;
-                self.records[relation].search = super::SearchCompleteness::Incomplete;
-                self.records[relation]
-                    .reasons
-                    .push(super::AssessmentReason::OutputLimit);
-                return Ok(true);
-            }
-            if !self.charge(edit_count) {
-                self.mark_local_work_limit(relation);
-                return Ok(false);
-            }
-            let mut edits = Vec::new();
-            edits
-                .try_reserve_exact(edit_count)
-                .map_err(|_| super::allocation_error("localized edit witness"))?;
-            edits.extend_from_slice(&self.domains[&key].edits);
-            super::reserve_ranges(&mut self.localized_edits, 1, limit)?;
-            let changed_events = changes.len()..changes.len() + local_changes.len();
-            for side in 0..2 {
-                super::reserve_ranges(&mut ownership[side].accepted, accepted[side].len(), limit)?;
-                super::reserve_ranges(&mut ownership[side].changed, changed[side].len(), limit)?;
-            }
-            super::reserve_ranges(changes, local_changes.len(), limit)?;
-            for ((owner, accepted), changed) in ownership.iter_mut().zip(accepted).zip(changed) {
-                owner.accepted.extend(accepted);
-                owner.changed.extend(changed);
-            }
-            changes.extend(local_changes);
-            self.localized_edit_count += edit_count;
-            self.localized_edits.push(super::LocalizedEditScript {
-                relation,
-                changes: changed_events,
-                edits,
+            let fits = (0..2).all(|side| {
+                ownership[side]
+                    .accepted
+                    .len()
+                    .saturating_add(accepted[side].len())
+                    <= limit
             });
-            let mut next = superseded.into_iter().peekable();
-            let mut index = 0;
-            candidates.retain(|_| {
-                let retain = next.peek() != Some(&index);
-                if !retain {
-                    next.next();
-                }
-                index += 1;
-                retain
+            if !fits {
+                return Ok(LocalRecoveryStep::Continue);
+            }
+            for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
+                super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
+                owner.accepted.extend(accepted_side.iter().copied());
+            }
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        let mut local_changes = Vec::new();
+        let cost = groups
+            .iter()
+            .map(|group| group.tokens.len().saturating_add(group.blocks.len()))
+            .sum();
+        let complete = visit_domain_hunks(&groups[0], &groups[1], &proof.edits, |hunk, _| {
+            if local_changes.len() >= self.options.max_assessment_ranges
+                || !charge(&mut self.remaining_work, cost)
+            {
+                return false;
+            }
+            super::super::append_semantic_hunk(
+                &groups[0],
+                &groups[1],
+                &proof.edits,
+                hunk,
+                Confidence::High,
+                &mut local_changes,
+            );
+            true
+        });
+        if !complete {
+            let output_limit = self.remaining_work > 0;
+            self.records[relation].outcome = RelationOutcome::Tentative;
+            self.records[relation].search = super::SearchCompleteness::Incomplete;
+            self.records[relation].reasons.push(if output_limit {
+                super::AssessmentReason::OutputLimit
+            } else {
+                super::AssessmentReason::WorkLimit
+            });
+            return Ok(LocalRecoveryStep::Stop {
+                truncated: output_limit,
             });
         }
-        Ok(false)
+        if !self.validate_semantic_emission(relation, &local_changes)? {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        // A content operation must name at least one source-backed range on
+        // every side it claims. Synthetic inter-block separators project to
+        // no source block, so a separator-only edit is a structural
+        // difference and must stay unresolved instead of becoming an
+        // established content change.
+        let mut backed_changes = Vec::new();
+        let mut changed = [Vec::new(), Vec::new()];
+        for mut change in local_changes {
+            let mut backed_occurrences = Vec::new();
+            for occurrence in std::mem::take(&mut change.occurrences) {
+                let mut projections = [Vec::new(), Vec::new()];
+                let mut backed = true;
+                for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                    .into_iter()
+                    .enumerate()
+                {
+                    if let Some(span) = span {
+                        if !self.charge(span.blocks.len()) {
+                            self.mark_local_work_limit(relation);
+                            return Ok(LocalRecoveryStep::Stop { truncated: false });
+                        }
+                        let projected = project(self.sides[side], span)?;
+                        // A zero-width span is a valid empty side of a
+                        // replacement; only a span that claims source
+                        // tokens yet projects to no block is unbacked.
+                        if projected.is_empty()
+                            && span.comparable_range.start != span.comparable_range.end
+                        {
+                            backed = false;
+                        }
+                        projections[side].extend(projected);
+                    }
+                }
+                if backed {
+                    for side in 0..2 {
+                        changed[side].extend(projections[side].iter().copied());
+                    }
+                    backed_occurrences.push(occurrence);
+                }
+            }
+            if backed_occurrences.is_empty() {
+                continue;
+            }
+            change.occurrences = backed_occurrences;
+            backed_changes.push(change);
+        }
+        if backed_changes.is_empty() {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        let local_changes = backed_changes;
+        for side in 0..2 {
+            let Some(overlap) = overlaps(
+                &changed[side],
+                &ownership[side].accepted,
+                &mut self.remaining_work,
+            ) else {
+                self.mark_local_work_limit(relation);
+                return Ok(LocalRecoveryStep::Stop { truncated: false });
+            };
+            conflict |= overlap;
+        }
+        if conflict {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        let mut superseded = Vec::new();
+        for (index, candidate) in candidates.iter().enumerate() {
+            let mut overlaps_domain = false;
+            for occurrence in &candidate.change.occurrences {
+                for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                    .into_iter()
+                    .enumerate()
+                {
+                    if let Some(span) = span {
+                        if !self.charge(span.blocks.len()) {
+                            self.mark_local_work_limit(relation);
+                            return Ok(LocalRecoveryStep::Stop { truncated: false });
+                        }
+                        let source = project(self.sides[side], span)?;
+                        let Some(overlap) =
+                            overlaps(&source, &accepted[side], &mut self.remaining_work)
+                        else {
+                            self.mark_local_work_limit(relation);
+                            return Ok(LocalRecoveryStep::Stop { truncated: false });
+                        };
+                        overlaps_domain |= overlap;
+                    }
+                }
+            }
+            if overlaps_domain {
+                superseded.push(index);
+            }
+        }
+        let limit = self.options.max_assessment_ranges;
+        let edit_count = self.domains[&key].edits.len();
+        let fits = changes.len().saturating_add(local_changes.len()) <= limit
+            && self.localized_edit_count.saturating_add(edit_count) <= limit
+            && self.localized_edits.len() < limit
+            && (0..2).all(|side| {
+                ownership[side]
+                    .accepted
+                    .len()
+                    .saturating_add(accepted[side].len())
+                    <= limit
+                    && ownership[side]
+                        .changed
+                        .len()
+                        .saturating_add(changed[side].len())
+                        <= limit
+            });
+        if !fits {
+            self.records[relation].outcome = RelationOutcome::Tentative;
+            self.records[relation].search = super::SearchCompleteness::Incomplete;
+            self.records[relation]
+                .reasons
+                .push(super::AssessmentReason::OutputLimit);
+            return Ok(LocalRecoveryStep::Stop { truncated: true });
+        }
+        if !self.charge(edit_count) {
+            self.mark_local_work_limit(relation);
+            return Ok(LocalRecoveryStep::Stop { truncated: false });
+        }
+        let mut edits = Vec::new();
+        edits
+            .try_reserve_exact(edit_count)
+            .map_err(|_| super::allocation_error("localized edit witness"))?;
+        edits.extend_from_slice(&self.domains[&key].edits);
+        super::reserve_ranges(&mut self.localized_edits, 1, limit)?;
+        let changed_events = changes.len()..changes.len() + local_changes.len();
+        for side in 0..2 {
+            super::reserve_ranges(&mut ownership[side].accepted, accepted[side].len(), limit)?;
+            super::reserve_ranges(&mut ownership[side].changed, changed[side].len(), limit)?;
+        }
+        super::reserve_ranges(changes, local_changes.len(), limit)?;
+        for ((owner, accepted), changed) in ownership.iter_mut().zip(accepted).zip(changed) {
+            owner.accepted.extend(accepted);
+            owner.changed.extend(changed);
+        }
+        changes.extend(local_changes);
+        self.localized_edit_count += edit_count;
+        self.localized_edits.push(super::LocalizedEditScript {
+            relation,
+            changes: changed_events,
+            edits,
+        });
+        let mut next = superseded.into_iter().peekable();
+        let mut index = 0;
+        candidates.retain(|_| {
+            let retain = next.peek() != Some(&index);
+            if !retain {
+                next.next();
+            }
+            index += 1;
+            retain
+        });
+        Ok(LocalRecoveryStep::Continue)
     }
 }
 
@@ -1427,6 +1535,225 @@ mod tests {
         assert_eq!(
             domains, 3,
             "an uncrossed reference must not hold the candidate"
+        );
+        Ok(())
+    }
+
+    /// A source-backed block whose tokens advance along x, so its baseline
+    /// geometry is an interval and a positive-width column band exists.
+    fn spread_block(id: u64, text: &str, x: f64, y: f64, advance: f64) -> BlockText {
+        let mut block = sourced_block(id, text);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        let signatures = (0..tokens)
+            .map(|index| {
+                PositionSignature::new(
+                    Vec2 {
+                        x: x + index as f64 * advance,
+                        y,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("valid position")
+            })
+            .collect::<Vec<_>>();
+        block.position_signatures = Some(signatures);
+        block
+    }
+
+    /// Observable state of one bracketed recovery run through the real
+    /// `recover_local` caller.
+    struct BracketedRecovery {
+        truncated: bool,
+        domains: usize,
+        assumptions: usize,
+        accepted: [usize; 2],
+        changes: usize,
+    }
+
+    /// Runs `recover_local` over a bracketed fixture: two established
+    /// boundaries (blocks 1/101 above and 3/103 below) and, optionally, one
+    /// pre-existing local domain.
+    fn run_bracketed_recovery(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        preexisting: &[LocalDomain],
+        options: DiffOptions,
+        extra_accepts: usize,
+    ) -> Result<BracketedRecovery> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let alignment = unresolved_alignment(
+            &old_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            &new_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+        );
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let recovery = crate::diff::SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, Some(recovery), options)?;
+        let upper_tokens = old_blocks[0]
+            .canonical
+            .comparable_tokens()
+            .expect("upper tokens")
+            .len();
+        let lower_tokens = old_blocks[2]
+            .canonical
+            .comparable_tokens()
+            .expect("lower tokens")
+            .len();
+        // The two boundaries are discovered local anchors: their relation keys
+        // carry the local domain, so the reading-order barrier is removed and
+        // the proofs are established exactly as in the real caller.
+        assessor.local_anchors = vec![
+            LocalDomain {
+                old_span: span(1, upper_tokens),
+                new_span: span(101, upper_tokens),
+                source_bounded: true,
+            },
+            LocalDomain {
+                old_span: span(3, lower_tokens),
+                new_span: span(103, lower_tokens),
+                source_bounded: true,
+            },
+        ];
+        for (old_block, new_block, tokens) in [
+            (1_u64, 101_u64, upper_tokens),
+            (3_u64, 103_u64, lower_tokens),
+        ] {
+            let proposal = super::super::ProposedRelation {
+                old: Some(span(old_block, tokens)),
+                new: Some(span(new_block, tokens)),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            assessor.prove_domain(&key)?;
+        }
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        ownership[0].accept(&old, &span(1, upper_tokens), 64)?;
+        ownership[1].accept(&new, &span(101, upper_tokens), 64)?;
+        ownership[0].accept(&old, &span(3, lower_tokens), 64)?;
+        ownership[1].accept(&new, &span(103, lower_tokens), 64)?;
+        for _ in 0..extra_accepts {
+            ownership[0].accept(&old, &span(1, upper_tokens), 64)?;
+            ownership[1].accept(&new, &span(101, upper_tokens), 64)?;
+        }
+        assessor.local_domains = preexisting.to_vec();
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        let truncated = assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        Ok(BracketedRecovery {
+            truncated,
+            domains: assessor.local_domains.len(),
+            assumptions: assessor.bracketed_domains.len(),
+            accepted: [ownership[0].accepted.len(), ownership[1].accepted.len()],
+            changes: changes.len(),
+        })
+    }
+
+    fn bracketed_recovery_fixture() -> (Vec<BlockText>, Vec<BlockText>) {
+        let old_blocks = vec![
+            spread_block(1, "Upper boundary line", 300.0, 700.0, 5.0),
+            spread_block(2, "Filing year 2024 statement", 300.0, 680.0, 5.0),
+            spread_block(3, "Lower boundary line", 300.0, 660.0, 5.0),
+        ];
+        let new_blocks = vec![
+            spread_block(101, "Upper boundary line", 300.0, 700.0, 5.0),
+            spread_block(102, "Filing year 2025 statement", 300.0, 680.0, 5.0),
+            spread_block(103, "Lower boundary line", 300.0, 660.0, 5.0),
+        ];
+        (old_blocks, new_blocks)
+    }
+
+    #[test]
+    fn bracketed_pass_closes_a_bracketed_replacement_once() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_recovery_fixture();
+        let recovery =
+            run_bracketed_recovery(&old_blocks, &new_blocks, &[], DiffOptions::default(), 0)?;
+        assert!(!recovery.truncated);
+        assert_eq!(
+            recovery.domains, 1,
+            "only the bracketed candidate may be discovered"
+        );
+        assert_eq!(
+            recovery.assumptions, 1,
+            "the assumption list must not repeat a queued domain across rounds"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [3, 3],
+            "the candidate range joins the two boundary ranges per side"
+        );
+        assert_eq!(recovery.changes, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_pass_stops_without_further_proof_after_an_output_limit() -> Result<()> {
+        // The pre-existing edit domain hits the range output limit, so the
+        // recovery stops at once: the bracketed candidate is never queued,
+        // proven or accepted.
+        let (old_blocks, new_blocks) = bracketed_recovery_fixture();
+        let candidate_tokens = old_blocks[1]
+            .canonical
+            .comparable_tokens()
+            .expect("candidate tokens")
+            .len();
+        let preexisting = [LocalDomain {
+            old_span: span(2, candidate_tokens),
+            new_span: span(102, candidate_tokens),
+            source_bounded: true,
+        }];
+        // The range limit leaves room for the relation records but the
+        // already accepted ownership makes the edit domain exceed it, so the
+        // recovery stops with an output limit while the work budget remains.
+        let options = DiffOptions {
+            max_assessment_ranges: 6,
+            ..DiffOptions::default()
+        };
+        let recovery = run_bracketed_recovery(&old_blocks, &new_blocks, &preexisting, options, 5)?;
+        assert!(
+            recovery.truncated,
+            "the output limit must be reported: domains={} assumptions={} accepted={:?} changes={}",
+            recovery.domains, recovery.assumptions, recovery.accepted, recovery.changes
+        );
+        assert_eq!(
+            recovery.domains, 1,
+            "no bracketed domain may be added after the stop"
+        );
+        assert_eq!(
+            recovery.assumptions, 0,
+            "no bracketed assumption may be recorded after the stop"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [7, 7],
+            "no ownership may be accepted after the stop"
+        );
+        assert_eq!(
+            recovery.changes, 0,
+            "no change may be committed after the stop"
         );
         Ok(())
     }

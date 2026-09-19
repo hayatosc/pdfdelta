@@ -735,6 +735,7 @@ pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
         }
         ComparisonAssumption::CatalogFooterCorrespondence => "catalog_footer_correspondence",
         ComparisonAssumption::RigidTranslation => "rigid_translation",
+        ComparisonAssumption::BracketedRegion => "bracketed_region",
     }
 }
 

@@ -2055,6 +2055,756 @@ pub(super) fn discover_translations(
     Ok(domains)
 }
 
+/// One resolved established correspondence used as a bracket boundary.
+struct BracketAnchor {
+    old_index: usize,
+    new_index: usize,
+    old_view: usize,
+    new_view: usize,
+    old_range: std::ops::Range<usize>,
+    new_range: std::ops::Range<usize>,
+    old_pages: Vec<u32>,
+    new_pages: Vec<u32>,
+}
+
+/// One side's block geometry: the source side, its views and the block-to-view
+/// and block-to-range maps built once per pass.
+#[derive(Clone, Copy)]
+struct SideGeometry<'a> {
+    side: &'a Side<'a>,
+    views: &'a [View],
+    view_of_block: &'a [usize],
+    range_of_block: &'a [Option<std::ops::Range<usize>>],
+    page: u32,
+}
+
+/// Whether exactly one source block lies strictly inside one bracket region.
+///
+/// The two boundary blocks themselves are excluded explicitly. Every other
+/// source block on the candidate's page is classified: a block provably on
+/// another page is skipped; an empty or page-ambiguous block holds; a block
+/// without geometry holds; a block whose baseline x-interval does not overlap
+/// the band is ignored; a block whose baseline y-interval does not intersect
+/// the open vertical region is ignored, so touching a boundary from outside is
+/// not inside. A block that intersects the region and is fully contained is an
+/// additional candidate, so a second one holds; a block that straddles either
+/// boundary holds because the region's source closure does not hold.
+/// `Some(None)` reports that the region is not unique or cannot be proven;
+/// `None` reports an exhausted shared work budget.
+fn region_unique(
+    geometry: SideGeometry<'_>,
+    boundaries: [usize; 2],
+    band: (f64, f64),
+    region: (f64, f64),
+    remaining: &mut usize,
+) -> Option<Option<usize>> {
+    let side = geometry.side;
+    let views = geometry.views;
+    let view_of_block = geometry.view_of_block;
+    let range_of_block = geometry.range_of_block;
+    let candidate_page = geometry.page;
+    if !charge(remaining, side.blocks.len()) {
+        return None;
+    }
+    let mut unique = None;
+    for (index, block) in side.blocks.iter().enumerate() {
+        if boundaries.contains(&index) {
+            continue;
+        }
+        if block.pages.is_empty()
+            || (block.pages.len() > 1 && block.pages.contains(&candidate_page))
+        {
+            return Some(None);
+        }
+        if !block.pages.contains(&candidate_page) {
+            continue;
+        }
+        let view_index = view_of_block[index];
+        let Some(range) = range_of_block[index].as_ref() else {
+            // No view carries this same-page block; the region cannot be
+            // proven.
+            return Some(None);
+        };
+        if view_index == usize::MAX {
+            return Some(None);
+        }
+        let view = &views[view_index];
+        let Some(bounds) = reference_bounds(side, view, range, index, remaining)? else {
+            // No geometry at all for this same-page block; the region cannot
+            // be proven.
+            return Some(None);
+        };
+        if bounds.0.max(band.0) > bounds.2.min(band.1) {
+            continue;
+        }
+        // The open vertical interval excludes both boundary lines: a block
+        // that only touches a boundary from outside does not intersect it.
+        if bounds.3 <= region.0 || bounds.1 >= region.1 {
+            continue;
+        }
+        if bounds.1 <= region.0 || bounds.3 >= region.1 {
+            // The block straddles a boundary, so the source closure of the
+            // region does not hold.
+            return Some(None);
+        }
+        if unique.is_some() {
+            return Some(None);
+        }
+        unique = Some(index);
+    }
+    Some(unique)
+}
+
+/// Whether another whole source-bounded line on `page` has the same token
+/// sequence as the candidate or as its new counterpart.
+///
+/// The bracketed proof pins the region geometrically and never selects by
+/// text, but a duplicate whole line elsewhere on the page could make the
+/// region mirror a different physical line. The guard is deliberately
+/// conservative and only withholds the candidate; it never picks one. The
+/// token construction and comparison are charged by token length, not by
+/// block count. `None` reports an exhausted shared work budget.
+fn bracketed_tokens_duplicated(
+    sides: [&Side<'_>; 2],
+    page: u32,
+    old_index: usize,
+    new_index: usize,
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    remaining: &mut usize,
+) -> Option<bool> {
+    if !charge(
+        remaining,
+        old_tokens
+            .len()
+            .saturating_add(new_tokens.len())
+            .saturating_add(2),
+    ) {
+        return None;
+    }
+    for (side_index, tokens, excluded) in [
+        (0usize, old_tokens, old_index),
+        (1usize, new_tokens, new_index),
+    ] {
+        if !charge(remaining, sides[side_index].blocks.len()) {
+            return None;
+        }
+        for (index, block) in sides[side_index].blocks.iter().enumerate() {
+            if index == excluded || block.pages.len() != 1 || block.pages[0] != page {
+                continue;
+            }
+            if !source_bounded_block(block, remaining) {
+                continue;
+            }
+            let Ok(block_tokens) = block.canonical.comparable_tokens() else {
+                continue;
+            };
+            if !charge(
+                remaining,
+                block_tokens
+                    .len()
+                    .saturating_add(tokens.len())
+                    .saturating_add(1),
+            ) {
+                return None;
+            }
+            if block_tokens.as_slice() == tokens {
+                return Some(true);
+            }
+        }
+    }
+    Some(false)
+}
+
+/// The nearest established boundary above or below a candidate in one band,
+/// together with whether a second boundary sits at the same distance.
+struct NearestBoundary {
+    index: usize,
+    y: f64,
+    tied: bool,
+}
+
+/// Updates a nearest-boundary slot with one strictly above or below anchor.
+///
+/// `above` selects the smallest facing edge, the boundary closest above the
+/// candidate; otherwise the largest facing edge, the boundary closest below
+/// it. A second anchor with a bit-identical facing edge makes the choice
+/// ambiguous and the proof is withheld instead of depending on the evidence
+/// order.
+fn update_nearest(slot: &mut Option<NearestBoundary>, index: usize, y: f64, above: bool) {
+    match slot {
+        None => {
+            *slot = Some(NearestBoundary {
+                index,
+                y,
+                tied: false,
+            });
+        }
+        Some(nearest) if y == nearest.y => nearest.tied = true,
+        Some(nearest) if (above && y < nearest.y) || (!above && y > nearest.y) => {
+            *slot = Some(NearestBoundary {
+                index,
+                y,
+                tied: false,
+            });
+        }
+        Some(_) => {}
+    }
+}
+
+/// The nearest established boundary above and below a candidate on one side.
+///
+/// Every established reference on the candidate's page whose baseline
+/// x-interval overlaps the candidate's x-interval competes. The nearest above
+/// is the one with the smallest facing edge and the nearest below the one with
+/// the largest facing edge; a second reference at the same facing edge makes
+/// the choice ambiguous. The same function, the same x-overlap criterion and
+/// the same tie condition run on both sides, and the caller requires one and
+/// the same reference to win on both. A reference provably on another page is
+/// skipped; an unknown page relation or missing reference geometry holds the
+/// proof instead of dropping the reference. `None` reports an exhausted
+/// budget; `Some(None)` reports that the nearest boundaries cannot be
+/// established; `Some(Some((above, below)))` returns the anchor indices.
+fn nearest_boundaries(
+    geometry: SideGeometry<'_>,
+    side_index: usize,
+    anchors: &[BracketAnchor],
+    candidate_index: usize,
+    candidate_bounds: (f64, f64, f64, f64),
+    remaining: &mut usize,
+) -> Option<Option<(usize, usize)>> {
+    let side = geometry.side;
+    let views = geometry.views;
+    let view_of_block = geometry.view_of_block;
+    let range_of_block = geometry.range_of_block;
+    let candidate_page = geometry.page;
+    let mut above: Option<NearestBoundary> = None;
+    let mut below: Option<NearestBoundary> = None;
+    if !charge(remaining, anchors.len()) {
+        return None;
+    }
+    for (index, anchor) in anchors.iter().enumerate() {
+        let anchor_index = if side_index == 0 {
+            anchor.old_index
+        } else {
+            anchor.new_index
+        };
+        if anchor_index == candidate_index {
+            continue;
+        }
+        match reference_page(&anchor.old_pages, &anchor.new_pages, candidate_page) {
+            ReferencePage::Same => {}
+            ReferencePage::Other => continue,
+            ReferencePage::Unknown => return Some(None),
+        }
+        let view_index = view_of_block[anchor_index];
+        let Some(range) = range_of_block[anchor_index].as_ref() else {
+            return Some(None);
+        };
+        if view_index == usize::MAX {
+            return Some(None);
+        }
+        let Some(anchor_bounds) =
+            reference_bounds(side, &views[view_index], range, anchor_index, remaining)?
+        else {
+            // No geometry at all for this established reference; the nearest
+            // boundary cannot be chosen from an incomplete inspection set.
+            return Some(None);
+        };
+        if candidate_bounds.0.max(anchor_bounds.0) > candidate_bounds.2.min(anchor_bounds.2) {
+            continue;
+        }
+        if anchor_bounds.1 > candidate_bounds.3 {
+            update_nearest(&mut above, index, anchor_bounds.1, true);
+        } else if anchor_bounds.3 < candidate_bounds.1 {
+            update_nearest(&mut below, index, anchor_bounds.3, false);
+        }
+    }
+    let (Some(above), Some(below)) = (above, below) else {
+        return Some(None);
+    };
+    if above.tied || below.tied {
+        return Some(None);
+    }
+    Some(Some((above.index, below.index)))
+}
+
+/// Discovers a local domain for a whole source-bounded line that is the unique
+/// source block between two independently established correspondences in the
+/// same column band.
+///
+/// The candidate must be a whole source-bounded untrusted singleton with
+/// horizontal text, one page and complete per-token metadata. The nearest
+/// established whole-block correspondence strictly above and strictly below it
+/// in the same baseline x-band, on the candidate's page and with a complete
+/// source geometry, define a region; the same selection function with the same
+/// x-overlap criterion and tie condition must pick one and the same boundary
+/// correspondence on both sides, and an equal-distance second boundary
+/// withholds the proof instead of resolving by evidence order. On each side
+/// every source block whose baseline x-interval overlaps the anchors' band and
+/// whose baseline y-interval intersects the open anchors' interval must be
+/// exactly one fully contained block, and the new side's unique block must
+/// itself be a whole source-bounded singleton on the same page. Missing
+/// geometry, an empty or page-ambiguous block, an additional candidate or
+/// point obstacle, a boundary that straddles the region, a boundary order
+/// change, a crossing of any other established reference, a whole-line token
+/// duplicate elsewhere on the page or a non-unique region holds the proof.
+///
+/// The tokens are not compared here and no text similarity is used: the
+/// boundaries prove the region correspondence, and the ordinary local
+/// assessment compares the tokens with the strict minimal-edit uniqueness.
+/// The anchors are independently established before this pass, so the proof
+/// never depends on the candidate, and the global reading order is not
+/// promoted. Every established reference stays in the inspection set even
+/// when it cannot support a boundary; a reference whose page or geometry
+/// cannot be proven holds the candidate. `None` is never returned; an
+/// exhausted budget drops only this pass's additions.
+pub(super) fn discover_bracketed_domains(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+) -> Result<Vec<LocalDomain>> {
+    if max_ranges == 0
+        || *remaining_work == 0
+        || established.is_empty()
+        || sides.iter().any(|side| side.blocks.is_empty())
+    {
+        return Ok(Vec::new());
+    }
+    if recovery.old_trusted_run_intervals.len() != sides[0].blocks.len()
+        || recovery.new_trusted_run_intervals.len() != sides[1].blocks.len()
+    {
+        return Err(super::invalid(
+            "trusted run interval metadata must match normalized blocks",
+        ));
+    }
+    let old_descriptors = recovery
+        .old_trusted_run_evidence
+        .map(|evidence| evidence.descriptors);
+    let new_descriptors = recovery
+        .new_trusted_run_evidence
+        .map(|evidence| evidence.descriptors);
+    let Some(old_views) = build_views(
+        sides[0],
+        recovery.old_trusted_run_intervals,
+        old_descriptors,
+        remaining_work,
+    )?
+    else {
+        return Ok(Vec::new());
+    };
+    let Some(new_views) = build_views(
+        sides[1],
+        recovery.new_trusted_run_intervals,
+        new_descriptors,
+        remaining_work,
+    )?
+    else {
+        return Ok(Vec::new());
+    };
+    if old_views.is_empty() || new_views.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !charge(
+        remaining_work,
+        sides[0].blocks.len().saturating_add(sides[1].blocks.len()),
+    ) {
+        return Ok(Vec::new());
+    }
+    // Block-to-view and block-to-range maps are built once so the per-block
+    // classification never scans the view list; the build itself is charged.
+    let mut view_of_block = [
+        vec![usize::MAX; sides[0].blocks.len()],
+        vec![usize::MAX; sides[1].blocks.len()],
+    ];
+    let mut range_of_block: [Vec<Option<std::ops::Range<usize>>>; 2] = [
+        vec![None; sides[0].blocks.len()],
+        vec![None; sides[1].blocks.len()],
+    ];
+    for (side, side_views) in [&old_views, &new_views].into_iter().enumerate() {
+        for (view_index, view) in side_views.iter().enumerate() {
+            for (position, &block_index) in view.block_indices.iter().enumerate() {
+                if let Some(slot) = view_of_block[side].get_mut(block_index) {
+                    *slot = view_index;
+                }
+                if let Some(slot) = range_of_block[side].get_mut(block_index) {
+                    *slot = Some(view.block_ranges[position].clone());
+                }
+            }
+        }
+    }
+    // Resolve every established reference to its views, ranges and source
+    // pages. A reference that cannot be resolved is never dropped silently:
+    // the pass holds every candidate instead of proving with an incomplete
+    // inspection set.
+    let mut anchors = Vec::new();
+    let mut reference_unresolved = false;
+    for neighbour in established {
+        if !charge(remaining_work, 1) {
+            return Ok(Vec::new());
+        }
+        let Some(&old_index) = sides[0].index.get(&neighbour.old_block) else {
+            reference_unresolved = true;
+            continue;
+        };
+        let Some(&new_index) = sides[1].index.get(&neighbour.new_block) else {
+            reference_unresolved = true;
+            continue;
+        };
+        let old_view_index = view_of_block[0][old_index];
+        let new_view_index = view_of_block[1][new_index];
+        if old_view_index == usize::MAX || new_view_index == usize::MAX {
+            reference_unresolved = true;
+            continue;
+        }
+        if !charge(
+            remaining_work,
+            old_views[old_view_index]
+                .block_indices
+                .len()
+                .saturating_add(new_views[new_view_index].block_indices.len()),
+        ) {
+            return Ok(Vec::new());
+        }
+        let (Some(old_range), Some(new_range)) = (
+            range_of_block[0][old_index].clone(),
+            range_of_block[1][new_index].clone(),
+        ) else {
+            reference_unresolved = true;
+            continue;
+        };
+        anchors.push(BracketAnchor {
+            old_index,
+            new_index,
+            old_view: old_view_index,
+            new_view: new_view_index,
+            old_range,
+            new_range,
+            old_pages: sides[0].blocks[old_index].pages.clone(),
+            new_pages: sides[1].blocks[new_index].pages.clone(),
+        });
+    }
+    if reference_unresolved || anchors.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut domains = Vec::new();
+    'views: for old_view in &old_views {
+        if !matches!(old_view.kind, ViewKind::Untrusted(_)) || !old_view.source_bounded {
+            continue;
+        }
+        for block in 0..old_view.block_ranges.len() {
+            if !positioned_block(old_view, block) {
+                continue;
+            }
+            if old_view.block_indices.len() != 1 {
+                continue;
+            }
+            let old_range = old_view.block_ranges[block].clone();
+            if old_range.start != 0 || old_range.end != old_view.group.tokens.len() {
+                continue;
+            }
+            if !charge(remaining_work, old_range.len().saturating_add(1)) {
+                return Ok(Vec::new());
+            }
+            if old_view.token_positions[old_range.clone()]
+                .iter()
+                .any(Option::is_none)
+                || old_view.token_pages[old_range.clone()]
+                    .iter()
+                    .any(Option::is_none)
+            {
+                continue;
+            }
+            if domains.len() >= max_ranges {
+                break 'views;
+            }
+            let candidate_index = old_view.block_indices[0];
+            let Some(candidate_page) = single_page(old_view, &old_range) else {
+                continue;
+            };
+            let Some(candidate_bounds) = baseline_bounds(old_view, &old_range, remaining_work)
+            else {
+                return Ok(Vec::new());
+            };
+            // The nearest established boundary strictly above and below the
+            // candidate on this side, chosen by the same function, the same
+            // x-overlap criterion and the same tie condition as the new side.
+            let Some(old_nearest) = nearest_boundaries(
+                SideGeometry {
+                    side: sides[0],
+                    views: &old_views,
+                    view_of_block: &view_of_block[0],
+                    range_of_block: &range_of_block[0],
+                    page: candidate_page,
+                },
+                0,
+                &anchors,
+                candidate_index,
+                candidate_bounds,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let Some((above_index, below_index)) = old_nearest else {
+                continue;
+            };
+            let above_anchor = &anchors[above_index];
+            let below_anchor = &anchors[below_index];
+            // Both boundaries need complete geometry on both sides and must
+            // keep their relative order on the new side.
+            let Some(above_old) = reference_bounds(
+                sides[0],
+                &old_views[above_anchor.old_view],
+                &above_anchor.old_range,
+                above_anchor.old_index,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let Some(below_old) = reference_bounds(
+                sides[0],
+                &old_views[below_anchor.old_view],
+                &below_anchor.old_range,
+                below_anchor.old_index,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let Some(above_new) = reference_bounds(
+                sides[1],
+                &new_views[above_anchor.new_view],
+                &above_anchor.new_range,
+                above_anchor.new_index,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let Some(below_new) = reference_bounds(
+                sides[1],
+                &new_views[below_anchor.new_view],
+                &below_anchor.new_range,
+                below_anchor.new_index,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let (Some(above_old), Some(below_old), Some(above_new), Some(below_new)) =
+                (above_old, below_old, above_new, below_new)
+            else {
+                continue;
+            };
+            if above_old.1 <= below_old.3 || above_new.1 <= below_new.3 {
+                continue;
+            }
+            let old_band = (above_old.0.max(below_old.0), above_old.2.min(below_old.2));
+            let new_band = (above_new.0.max(below_new.0), above_new.2.min(below_new.2));
+            if old_band.0 >= old_band.1 || new_band.0 >= new_band.1 {
+                continue;
+            }
+            let old_region = (below_old.3, above_old.1);
+            let new_region = (below_new.3, above_new.1);
+            // The candidate must lie strictly inside its own region and band.
+            if candidate_bounds.0.max(old_band.0) > candidate_bounds.2.min(old_band.1)
+                || candidate_bounds.1 <= old_region.0
+                || candidate_bounds.3 >= old_region.1
+            {
+                continue;
+            }
+            let Some(old_unique) = region_unique(
+                SideGeometry {
+                    side: sides[0],
+                    views: &old_views,
+                    view_of_block: &view_of_block[0],
+                    range_of_block: &range_of_block[0],
+                    page: candidate_page,
+                },
+                [above_anchor.old_index, below_anchor.old_index],
+                old_band,
+                old_region,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            if old_unique != Some(candidate_index) {
+                continue;
+            }
+            let Some(new_unique) = region_unique(
+                SideGeometry {
+                    side: sides[1],
+                    views: &new_views,
+                    view_of_block: &view_of_block[1],
+                    range_of_block: &range_of_block[1],
+                    page: candidate_page,
+                },
+                [above_anchor.new_index, below_anchor.new_index],
+                new_band,
+                new_region,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let Some(new_index) = new_unique else {
+                continue;
+            };
+            let new_view_index = view_of_block[1][new_index];
+            if new_view_index == usize::MAX {
+                continue;
+            }
+            let new_view = &new_views[new_view_index];
+            if !matches!(new_view.kind, ViewKind::Untrusted(_)) || !new_view.source_bounded {
+                continue;
+            }
+            if new_view.block_indices.len() != 1 || new_view.block_indices[0] != new_index {
+                continue;
+            }
+            if !positioned_block(new_view, 0) {
+                continue;
+            }
+            let new_range = new_view.block_ranges[0].clone();
+            if new_range.start != 0 || new_range.end != new_view.group.tokens.len() {
+                continue;
+            }
+            if !charge(
+                remaining_work,
+                new_range.len().saturating_mul(2).saturating_add(1),
+            ) {
+                return Ok(Vec::new());
+            }
+            if new_view.token_positions[new_range.clone()]
+                .iter()
+                .any(Option::is_none)
+                || new_view.token_pages[new_range.clone()]
+                    .iter()
+                    .any(Option::is_none)
+            {
+                continue;
+            }
+            if single_page(new_view, &new_range) != Some(candidate_page) {
+                continue;
+            }
+            let Some(new_candidate_bounds) = baseline_bounds(new_view, &new_range, remaining_work)
+            else {
+                return Ok(Vec::new());
+            };
+            // The new candidate must lie strictly inside the new region and
+            // band, so the same boundary pair brackets it on both sides.
+            if new_candidate_bounds.0.max(new_band.0) > new_candidate_bounds.2.min(new_band.1)
+                || new_candidate_bounds.1 <= new_region.0
+                || new_candidate_bounds.3 >= new_region.1
+            {
+                continue;
+            }
+            // The same selection function must pick one and the same
+            // boundary correspondence on the new side; a different or
+            // ambiguous nearest boundary withholds the proof.
+            let Some(new_nearest) = nearest_boundaries(
+                SideGeometry {
+                    side: sides[1],
+                    views: &new_views,
+                    view_of_block: &view_of_block[1],
+                    range_of_block: &range_of_block[1],
+                    page: candidate_page,
+                },
+                1,
+                &anchors,
+                new_index,
+                new_candidate_bounds,
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            if new_nearest != Some((above_index, below_index)) {
+                continue;
+            }
+            // Every established reference, including ones that cannot support
+            // a boundary, is checked for a relative-geometry change against
+            // the candidate and against both boundaries; a missing page or
+            // geometry holds the candidate instead of being dropped.
+            let mut reference_valid = true;
+            if !charge(remaining_work, anchors.len()) {
+                return Ok(Vec::new());
+            }
+            for reference in &anchors {
+                match reference_page(&reference.old_pages, &reference.new_pages, candidate_page) {
+                    ReferencePage::Same => {}
+                    ReferencePage::Other => continue,
+                    ReferencePage::Unknown => {
+                        reference_valid = false;
+                        break;
+                    }
+                }
+                let Some(reference_old) = reference_bounds(
+                    sides[0],
+                    &old_views[reference.old_view],
+                    &reference.old_range,
+                    reference.old_index,
+                    remaining_work,
+                ) else {
+                    return Ok(Vec::new());
+                };
+                let Some(reference_new) = reference_bounds(
+                    sides[1],
+                    &new_views[reference.new_view],
+                    &reference.new_range,
+                    reference.new_index,
+                    remaining_work,
+                ) else {
+                    return Ok(Vec::new());
+                };
+                let (Some(reference_old), Some(reference_new)) = (reference_old, reference_new)
+                else {
+                    reference_valid = false;
+                    break;
+                };
+                if !same_relative_geometry(
+                    candidate_bounds,
+                    reference_old,
+                    new_candidate_bounds,
+                    reference_new,
+                ) || !same_relative_geometry(above_old, reference_old, above_new, reference_new)
+                    || !same_relative_geometry(below_old, reference_old, below_new, reference_new)
+                {
+                    reference_valid = false;
+                    break;
+                }
+            }
+            if !reference_valid {
+                continue;
+            }
+            let Some(duplicated) = bracketed_tokens_duplicated(
+                sides,
+                candidate_page,
+                candidate_index,
+                new_index,
+                &old_view.group.tokens[old_range.clone()],
+                &new_view.group.tokens[new_range.clone()],
+                remaining_work,
+            ) else {
+                return Ok(Vec::new());
+            };
+            if duplicated {
+                continue;
+            }
+            let old_span = old_view.group.span(old_range.start, old_range.end);
+            let new_span = new_view.group.span(new_range.start, new_range.end);
+            if !compatible_roles(sides, [&old_span, &new_span], remaining_work)?
+                || super::span_has_source_issues(sides[0], &old_span, remaining_work)?
+                || super::span_has_source_issues(sides[1], &new_span, remaining_work)?
+            {
+                continue;
+            }
+            domains.push(LocalDomain {
+                old_span,
+                new_span,
+                source_bounded: true,
+            });
+        }
+    }
+    Ok(domains)
+}
+
 fn split_at_barriers(
     sides: [&Side<'_>; 2],
     views: [&View; 2],
@@ -5133,6 +5883,772 @@ mod tests {
         }];
         let mut budget = 1;
         let domains = discover_translations([&old, &new], input, &established, &mut budget, 100)?;
+        assert!(domains.is_empty());
+        assert_eq!(budget, 0);
+        Ok(())
+    }
+
+    fn bracketed_fixture(
+        candidate_old: &str,
+        candidate_new: &str,
+        extra_old: &[crate::normalize::BlockText],
+        extra_new: &[crate::normalize::BlockText],
+    ) -> (
+        Vec<crate::normalize::BlockText>,
+        Vec<crate::normalize::BlockText>,
+    ) {
+        let mut old_blocks = vec![
+            spread_block(1, "Upper boundary line", 10.0, 700.0, 0, 5.0),
+            spread_block(2, candidate_old, 10.0, 680.0, 0, 5.0),
+            spread_block(3, "Lower boundary line", 10.0, 660.0, 0, 5.0),
+        ];
+        let mut new_blocks = vec![
+            spread_block(101, "Upper boundary line", 10.0, 700.0, 0, 5.0),
+            spread_block(102, candidate_new, 10.0, 680.0, 0, 5.0),
+            spread_block(103, "Lower boundary line", 10.0, 660.0, 0, 5.0),
+        ];
+        old_blocks.extend_from_slice(extra_old);
+        new_blocks.extend_from_slice(extra_new);
+        (old_blocks, new_blocks)
+    }
+
+    fn bracketed_anchors() -> [EstablishedBlock; 2] {
+        [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ]
+    }
+
+    /// A source-backed block whose tokens span a raw vertical interval at one
+    /// x, so its baseline geometry crosses a horizontal boundary instead of
+    /// touching it as a point.
+    fn interval_block(
+        id: u64,
+        text: &str,
+        x: f64,
+        y_min: f64,
+        y_max: f64,
+        page: u32,
+    ) -> crate::normalize::BlockText {
+        let mut block = sourced_block(id, text);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        let last = (tokens.saturating_sub(1)).max(1) as f64;
+        let signatures = (0..tokens)
+            .map(|index| {
+                let ratio = index as f64 / last;
+                PositionSignature::new(
+                    Vec2 {
+                        x: x + index as f64,
+                        y: y_min + (y_max - y_min) * ratio,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("valid position")
+            })
+            .collect::<Vec<_>>();
+        block.position_signatures = Some(signatures);
+        block.pages = vec![page];
+        block
+    }
+
+    fn bracketed_domains(
+        old_blocks: &[crate::normalize::BlockText],
+        new_blocks: &[crate::normalize::BlockText],
+        established: &[EstablishedBlock],
+    ) -> Result<Vec<LocalDomain>> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let input = recovery(&intervals, &new_intervals);
+        discover_bracketed_domains([&old, &new], input, established, &mut 100_000, 100)
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_block_straddles_the_upper_boundary() -> Result<()> {
+        // The obstacle's baseline interval starts inside the region and ends
+        // above the upper boundary, so the region's source closure does not
+        // hold even though its text differs from the candidate.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[interval_block(
+                4,
+                "Upper straddle line",
+                10.0,
+                690.0,
+                710.0,
+                0,
+            )],
+            &[interval_block(
+                104,
+                "Upper straddle line",
+                10.0,
+                690.0,
+                710.0,
+                0,
+            )],
+        );
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &bracketed_anchors())?;
+        assert!(
+            domains.is_empty(),
+            "a block straddling the upper boundary must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_block_straddles_the_lower_boundary() -> Result<()> {
+        // The obstacle's baseline interval starts below the lower boundary and
+        // ends inside the region, so the region's source closure does not hold.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[interval_block(
+                4,
+                "Lower straddle line",
+                10.0,
+                650.0,
+                670.0,
+                0,
+            )],
+            &[interval_block(
+                104,
+                "Lower straddle line",
+                10.0,
+                650.0,
+                670.0,
+                0,
+            )],
+        );
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &bracketed_anchors())?;
+        assert!(
+            domains.is_empty(),
+            "a block straddling the lower boundary must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_block_straddles_both_boundaries() -> Result<()> {
+        // The obstacle spans the whole region and crosses both boundaries.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[interval_block(
+                4,
+                "Full straddle line",
+                10.0,
+                640.0,
+                710.0,
+                0,
+            )],
+            &[interval_block(
+                104,
+                "Full straddle line",
+                10.0,
+                640.0,
+                710.0,
+                0,
+            )],
+        );
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &bracketed_anchors())?;
+        assert!(
+            domains.is_empty(),
+            "a block straddling both boundaries must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_only_one_side_has_a_straddling_block() -> Result<()> {
+        // The straddling block exists only on the old side, so the two sides
+        // do not agree on the region's source closure.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[interval_block(
+                4,
+                "Upper straddle line",
+                10.0,
+                690.0,
+                710.0,
+                0,
+            )],
+            &[],
+        );
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &bracketed_anchors())?;
+        assert!(
+            domains.is_empty(),
+            "a one-sided straddling block must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_ignores_a_point_touching_the_upper_boundary() -> Result<()> {
+        // A zero-width block exactly on the upper boundary's line does not
+        // intersect the open region, so the candidate stays unique.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[positioned_block(4, "Touch line", 10.0, 700.0, 0)],
+            &[positioned_block(104, "Touch line", 10.0, 700.0, 0)],
+        );
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &bracketed_anchors())?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 1, 1),
+            "a point touching the boundary must not hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_reference_ties_with_the_upper_boundary() -> Result<()> {
+        // A second established line shares the upper boundary's baseline y, so
+        // the nearest boundary is ambiguous and the proof must not depend on
+        // the evidence order.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[spread_block(4, "Tied reference line", 10.0, 700.0, 0, 5.0)],
+            &[spread_block(
+                104,
+                "Tied reference line",
+                10.0,
+                700.0,
+                0,
+                5.0,
+            )],
+        );
+        let mut established = bracketed_anchors().to_vec();
+        established.push(EstablishedBlock {
+            old_block: BlockId(4),
+            new_block: BlockId(104),
+        });
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &established)?;
+        assert!(
+            domains.is_empty(),
+            "an equal-distance boundary must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_reference_crosses_the_candidate() -> Result<()> {
+        // The distant established line is above the candidate on the old side
+        // and below it on the new side, so the candidate crosses an
+        // independently established correspondence even though the bracketed
+        // cell itself is unique on both sides.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[spread_block(
+                4,
+                "Distant reference line",
+                10.0,
+                900.0,
+                0,
+                5.0,
+            )],
+            &[spread_block(
+                104,
+                "Distant reference line",
+                10.0,
+                500.0,
+                0,
+                5.0,
+            )],
+        );
+        let mut established = bracketed_anchors().to_vec();
+        established.push(EstablishedBlock {
+            old_block: BlockId(4),
+            new_block: BlockId(104),
+        });
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &established)?;
+        assert!(
+            domains.is_empty(),
+            "a crossed established reference must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_reference_lacks_geometry() -> Result<()> {
+        // The extra established correspondence has no position signatures at
+        // all, so its relation cannot be checked; the candidate is held
+        // instead of dropping the reference from the inspection set.
+        let mut old_reference = spread_block(4, "Geometry-free reference", 10.0, 900.0, 0, 5.0);
+        old_reference.position_signatures = None;
+        let mut new_reference = spread_block(104, "Geometry-free reference", 10.0, 900.0, 0, 5.0);
+        new_reference.position_signatures = None;
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[old_reference],
+            &[new_reference],
+        );
+        let mut established = bracketed_anchors().to_vec();
+        established.push(EstablishedBlock {
+            old_block: BlockId(4),
+            new_block: BlockId(104),
+        });
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &established)?;
+        assert!(
+            domains.is_empty(),
+            "a reference without geometry must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_reference_page_is_unknown() -> Result<()> {
+        // The extra established correspondence spans two pages on both sides,
+        // so it cannot be proven to be on the candidate's page or on another
+        // one; the candidate is held instead of comparing unrelated
+        // coordinates.
+        let mut old_reference = spread_block(4, "Unknown page reference", 10.0, 900.0, 0, 5.0);
+        old_reference.pages = vec![0, 1];
+        old_reference.page_breaks = Some(vec![1]);
+        let mut new_reference = spread_block(104, "Unknown page reference", 10.0, 900.0, 0, 5.0);
+        new_reference.pages = vec![0, 1];
+        new_reference.page_breaks = Some(vec![1]);
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[old_reference],
+            &[new_reference],
+        );
+        let mut established = bracketed_anchors().to_vec();
+        established.push(EstablishedBlock {
+            old_block: BlockId(4),
+            new_block: BlockId(104),
+        });
+        let domains = bracketed_domains(&old_blocks, &new_blocks, &established)?;
+        assert!(
+            domains.is_empty(),
+            "an unknown reference page must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_is_independent_of_evidence_order() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[],
+            &[],
+        );
+        let forward = bracketed_anchors();
+        let reversed = [forward[1], forward[0]];
+        let domains_forward = bracketed_domains(&old_blocks, &new_blocks, &forward)?;
+        let domains_reversed = bracketed_domains(&old_blocks, &new_blocks, &reversed)?;
+        assert!(
+            whole_view_positioned_domain(&domains_forward, &old_blocks, &new_blocks, 1, 1),
+            "the positive fixture must close in both orders: {domains_forward:?}"
+        );
+        assert_eq!(
+            domains_forward, domains_reversed,
+            "the evidence order must not change the decision"
+        );
+        // The ambiguous tie holds in both orders as well.
+        let (tied_old, tied_new) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[spread_block(4, "Tied reference line", 10.0, 700.0, 0, 5.0)],
+            &[spread_block(
+                104,
+                "Tied reference line",
+                10.0,
+                700.0,
+                0,
+                5.0,
+            )],
+        );
+        let mut established = bracketed_anchors().to_vec();
+        established.push(EstablishedBlock {
+            old_block: BlockId(4),
+            new_block: BlockId(104),
+        });
+        let tied_forward = bracketed_domains(&tied_old, &tied_new, &established)?;
+        let established_reversed = established.iter().rev().copied().collect::<Vec<_>>();
+        let tied_reversed = bracketed_domains(&tied_old, &tied_new, &established_reversed)?;
+        assert!(
+            tied_forward.is_empty() && tied_reversed.is_empty(),
+            "an ambiguous tie must hold in both orders: {tied_forward:?} {tied_reversed:?}"
+        );
+        Ok(())
+    }
+
+    /// A source-backed block whose tokens span an explicit baseline box, so
+    /// its bounds are exactly the requested x and y intervals.
+    fn box_block(
+        id: u64,
+        text: &str,
+        x_min: f64,
+        x_max: f64,
+        y_min: f64,
+        y_max: f64,
+        page: u32,
+    ) -> crate::normalize::BlockText {
+        let mut block = sourced_block(id, text);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        let last = (tokens.saturating_sub(1)).max(1) as f64;
+        let signatures = (0..tokens)
+            .map(|index| {
+                let ratio = index as f64 / last;
+                PositionSignature::new(
+                    Vec2 {
+                        x: x_min + (x_max - x_min) * ratio,
+                        y: y_min + (y_max - y_min) * ratio,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("valid position")
+            })
+            .collect::<Vec<_>>();
+        block.position_signatures = Some(signatures);
+        block.pages = vec![page];
+        block
+    }
+
+    /// The asymmetric nearest-boundary fixture: the upper anchor A and the
+    /// third reference C share a facing edge on the new side but not on the
+    /// old side, while C stays outside the boundaries' common band.
+    fn asymmetric_nearest_fixture() -> (
+        Vec<crate::normalize::BlockText>,
+        Vec<crate::normalize::BlockText>,
+    ) {
+        let old_blocks = vec![
+            box_block(1, "Upper anchor line", 0.0, 60.0, 700.0, 720.0, 0),
+            box_block(2, "Lower anchor line", 40.0, 100.0, 600.0, 600.0, 0),
+            box_block(3, "Outer reference line", 70.0, 100.0, 705.0, 725.0, 0),
+            box_block(4, "Filing year 2024 statement", 0.0, 100.0, 650.0, 650.0, 0),
+        ];
+        let new_blocks = vec![
+            box_block(101, "Upper anchor line", 0.0, 60.0, 700.0, 720.0, 0),
+            box_block(102, "Lower anchor line", 40.0, 100.0, 600.0, 600.0, 0),
+            box_block(103, "Outer reference line", 70.0, 100.0, 700.0, 725.0, 0),
+            box_block(
+                104,
+                "Filing year 2025 statement",
+                0.0,
+                100.0,
+                650.0,
+                650.0,
+                0,
+            ),
+        ];
+        (old_blocks, new_blocks)
+    }
+
+    fn asymmetric_anchors() -> [EstablishedBlock; 3] {
+        [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ]
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_the_nearest_boundary_differs_between_sides() -> Result<()> {
+        // A and C share the facing edge 700 on the new side, so the nearest
+        // upper boundary is ambiguous there; C stays outside the boundaries'
+        // common band. The same decision must come out in both directions and
+        // in both evidence orders.
+        let (old_blocks, new_blocks) = asymmetric_nearest_fixture();
+        let established = asymmetric_anchors();
+        let forward = bracketed_domains(&old_blocks, &new_blocks, &established)?;
+        let established_reversed = established.iter().rev().copied().collect::<Vec<_>>();
+        let forward_reversed = bracketed_domains(&old_blocks, &new_blocks, &established_reversed)?;
+        let swapped = [
+            EstablishedBlock {
+                old_block: BlockId(101),
+                new_block: BlockId(1),
+            },
+            EstablishedBlock {
+                old_block: BlockId(102),
+                new_block: BlockId(2),
+            },
+            EstablishedBlock {
+                old_block: BlockId(103),
+                new_block: BlockId(3),
+            },
+        ];
+        let reverse = bracketed_domains(&new_blocks, &old_blocks, &swapped)?;
+        assert!(
+            forward.is_empty(),
+            "the ambiguous new-side boundary must hold forward: {forward:?}"
+        );
+        assert!(
+            forward_reversed.is_empty(),
+            "the evidence order must not change the hold: {forward_reversed:?}"
+        );
+        assert!(
+            reverse.is_empty(),
+            "the same decision must come out in the other direction: {reverse:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_closes_a_single_token_replacement() -> Result<()> {
+        // The candidate is an untrusted whole source-bounded singleton whose
+        // only difference is a one-token replacement. Two established
+        // correspondences bracket it in the same column band, so the region
+        // correspondence is proven by the boundaries and the ordinary local
+        // assessment can compare the tokens without any text-based selection.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[],
+            &[],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 1, 1),
+            "two established boundaries must close the bracketed replacement: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_requires_both_boundaries() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[],
+            &[],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a single boundary must not prove a region: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_point_obstacle_enters_the_region() -> Result<()> {
+        // A same-band point obstacle strictly between the boundaries means the
+        // region is not unique even though its text differs from the
+        // candidate.
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[positioned_block(4, "Extra uncertain line", 10.0, 670.0, 0)],
+            &[positioned_block(
+                104,
+                "Extra uncertain line",
+                10.0,
+                670.0,
+                0,
+            )],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a point obstacle inside the region must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_a_region_block_lacks_geometry() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[block(4, "Extra line without geometry")],
+            &[block(104, "Extra line without geometry")],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a region block without geometry must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_the_boundaries_swap_order() -> Result<()> {
+        let old_blocks = [
+            spread_block(1, "Upper boundary line", 10.0, 700.0, 0, 5.0),
+            spread_block(2, "Filing year 2024 statement", 10.0, 680.0, 0, 5.0),
+            spread_block(3, "Lower boundary line", 10.0, 660.0, 0, 5.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper boundary line", 10.0, 660.0, 0, 5.0),
+            spread_block(102, "Filing year 2025 statement", 10.0, 680.0, 0, 5.0),
+            spread_block(103, "Lower boundary line", 10.0, 700.0, 0, 5.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "boundaries that swap order must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_skips_a_region_block_on_another_page() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[positioned_block(4, "Other page line", 10.0, 670.0, 1)],
+            &[positioned_block(104, "Other page line", 10.0, 670.0, 1)],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 1, 1),
+            "a provably other-page block must not hold the region: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_holds_when_the_candidate_text_is_duplicated_elsewhere() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[positioned_block(
+                4,
+                "Filing year 2024 statement",
+                10.0,
+                400.0,
+                0,
+            )],
+            &[positioned_block(
+                104,
+                "Filing year 2025 statement",
+                10.0,
+                400.0,
+                0,
+            )],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a whole-line duplicate elsewhere on the page must hold the proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_is_symmetric_under_a_side_swap() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[],
+            &[],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(101),
+                new_block: BlockId(1),
+            },
+            EstablishedBlock {
+                old_block: BlockId(103),
+                new_block: BlockId(3),
+            },
+        ];
+        let domains =
+            discover_bracketed_domains([&new, &old], input, &established, &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &new_blocks, &old_blocks, 1, 1),
+            "the bracketed proof must mirror under a side swap: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bracketed_domain_respects_a_mid_budget_cut() -> Result<()> {
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[],
+            &[],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = bracketed_anchors();
+        let mut budget = 1;
+        let domains =
+            discover_bracketed_domains([&old, &new], input, &established, &mut budget, 100)?;
         assert!(domains.is_empty());
         assert_eq!(budget, 0);
         Ok(())
