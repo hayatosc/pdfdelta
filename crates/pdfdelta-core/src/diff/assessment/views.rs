@@ -2169,6 +2169,81 @@ mod tests {
         Ok(())
     }
 
+    fn block_positioned_domain(
+        domains: &[LocalDomain],
+        old: &super::super::Side<'_>,
+        new: &super::super::Side<'_>,
+        old_block: BlockId,
+        new_block: BlockId,
+        len: usize,
+    ) -> Result<bool> {
+        for domain in domains {
+            if !domain.source_bounded {
+                continue;
+            }
+            let old_intervals = super::super::project(old, &domain.old_span)?;
+            let new_intervals = super::super::project(new, &domain.new_span)?;
+            if old_intervals
+                == [SourceInterval {
+                    block_index: old.index[&old_block],
+                    start: 0,
+                    end: len,
+                }]
+                && new_intervals
+                    == [SourceInterval {
+                        block_index: new.index[&new_block],
+                        start: 0,
+                        end: len,
+                    }]
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    #[test]
+    fn positioned_equality_recovers_a_complete_block_inside_an_equal_run_domain() -> Result<()> {
+        // Unique head and tail anchors chain across the repeated middle, so
+        // the run is one proven equal domain and each repeated middle block is
+        // a complete original block at the same offset on both sides.
+        let old_blocks = [
+            positioned_block(1, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(2, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(3, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(4, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(102, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(103, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(104, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 3;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 18)?
+                && block_positioned_domain(&domains, &old, &new, BlockId(3), BlockId(103), 18)?,
+            "complete blocks inside an equal run domain must close: {domains:?}"
+        );
+        Ok(())
+    }
+
     #[test]
     fn positioned_equality_closes_a_complete_block_in_a_single_block_trusted_run() -> Result<()> {
         // The trusted member's text also occurs at another position, so no
