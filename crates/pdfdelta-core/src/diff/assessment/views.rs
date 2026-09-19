@@ -52,6 +52,13 @@ struct View {
     /// positioned whole-view equality never closes RTL, mixed or
     /// bidi-controlled text whose logical order stays unknown.
     text_left_to_right: bool,
+    /// The view may close a positioned equality as one complete original
+    /// block. This holds for untrusted source-bounded single views and for a
+    /// trusted run whose only member is a complete source-bounded block: the
+    /// whole original block is not a fragment of a longer view, so its exact
+    /// source positions still prove a one-to-one equality while the run-level
+    /// view keeps its trusted veto.
+    positioned_candidate: bool,
     /// Exact per-token source positions of a source-bounded view. A whole-view
     /// anchor only closes its own domain when both sides carry the same
     /// positions on the same page, so a moved singleton keeps its move or
@@ -430,7 +437,7 @@ pub(super) fn discover(
 /// whole-view equality: one source-bounded block, horizontal, left-to-right
 /// (or neutral) text, one page and one exact position per canonical token.
 fn positioned_view(view: &View) -> bool {
-    view.source_bounded
+    view.positioned_candidate
         && view.block_indices.len() == 1
         && view.horizontal_text
         && view.text_left_to_right
@@ -805,6 +812,34 @@ fn build_views(
             .iter()
             .map(|&block_index| source_bounded_block(&side.blocks[block_index], remaining_work))
             .collect::<Vec<_>>();
+        // A trusted run with exactly one complete source-bounded block is the
+        // whole original block, not a fragment of a longer view. It may close
+        // a positioned equality on its own exact source positions; the
+        // run-level view keeps its trusted veto because `source_bounded`
+        // stays false.
+        let positioned_candidate = block_indices.len() == 1 && block_bounded[0];
+        let mut horizontal_text = false;
+        let mut text_left_to_right = false;
+        let mut position_signatures = Vec::new();
+        let mut page = None;
+        if positioned_candidate {
+            let block = &side.blocks[block_indices[0]];
+            text_left_to_right = left_to_right_text(block);
+            let Some(signatures) = block.position_signatures.as_deref() else {
+                *remaining_work = 0;
+                return Ok(None);
+            };
+            if !charge(remaining_work, signatures.len()) {
+                return Ok(None);
+            }
+            horizontal_text = signatures.iter().all(horizontal_direction);
+            if signatures.len() == block.canonical.text.chars().count()
+                && let [page_number] = block.pages.as_slice()
+            {
+                position_signatures = signatures.to_vec();
+                page = Some(*page_number);
+            }
+        }
         let Some((token_positions, token_pages)) = view_token_metadata(
             side,
             &block_indices,
@@ -820,10 +855,11 @@ fn build_views(
             block_indices,
             group,
             source_bounded: false,
-            horizontal_text: false,
-            text_left_to_right: false,
-            position_signatures: Vec::new(),
-            page: None,
+            horizontal_text,
+            text_left_to_right,
+            position_signatures,
+            page,
+            positioned_candidate,
             token_positions,
             token_pages,
         });
@@ -882,6 +918,7 @@ fn build_views(
             text_left_to_right,
             position_signatures,
             page,
+            positioned_candidate: source_bounded,
             token_positions,
             token_pages,
         });
@@ -2155,6 +2192,74 @@ mod tests {
         assert!(
             whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
             "a complete block inside a single-block trusted run must close: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_holds_single_block_trusted_run_boundaries() -> Result<()> {
+        // A moved position, different tokens and a same-position duplicate
+        // from another source all keep the trusted member unresolved.
+        let cases: [(
+            &str,
+            Vec<crate::normalize::BlockText>,
+            Vec<crate::normalize::BlockText>,
+        ); 3] = [
+            (
+                "moved",
+                vec![positioned_block(1, "Trusted member line", 10.0, 700.0, 0)],
+                vec![positioned_block(101, "Trusted member line", 10.0, 680.0, 0)],
+            ),
+            (
+                "different tokens",
+                vec![positioned_block(1, "Trusted member line", 10.0, 700.0, 0)],
+                vec![positioned_block(101, "Other member line", 10.0, 700.0, 0)],
+            ),
+            (
+                "same position duplicate source",
+                vec![
+                    positioned_block(1, "Trusted member line", 10.0, 700.0, 0),
+                    positioned_block(2, "Trusted member line", 10.0, 700.0, 0),
+                ],
+                vec![positioned_block(101, "Trusted member line", 10.0, 700.0, 0)],
+            ),
+        ];
+        for (name, old_blocks, new_blocks) in cases {
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let old_intervals = vec![interval(1, 0, 1); old_blocks.len()];
+            let new_intervals = vec![interval(2, 0, 1); new_blocks.len()];
+            let input = recovery(&old_intervals, &new_intervals);
+            let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+            assert!(
+                !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+                "{name}: {domains:?}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_never_adopts_a_member_of_a_longer_trusted_run() -> Result<()> {
+        // A multi-block trusted run is a longer view: one of its members may
+        // not be treated as a whole block, even with matching positions.
+        let old_blocks = [
+            positioned_block(1, "Trusted member line", 10.0, 700.0, 0),
+            positioned_block(2, "Trusted tail line", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Trusted member line", 10.0, 700.0, 0),
+            positioned_block(102, "Trusted tail line", 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "a member of a longer trusted run must not close as a whole block: {domains:?}"
         );
         Ok(())
     }
