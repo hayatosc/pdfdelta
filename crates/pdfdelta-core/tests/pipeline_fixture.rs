@@ -1860,6 +1860,73 @@ fn source_bounded_equal_prefix_beside_an_accepted_change_is_accepted() -> Result
 }
 
 #[test]
+fn per_proposal_invariance_establishes_a_repeated_line_year_change() -> Result<()> {
+    let old = document(&[
+        line("Alpha anchor line remains stable", 0, 360.0),
+        line("Beta anchor line remains stable", 0, 324.0),
+        line("Gamma anchor line remains stable", 0, 288.0),
+        line("Delta anchor line remains stable", 0, 252.0),
+        line("Epsilon anchor line remains stable", 0, 216.0),
+        line("Schedule SE (Form 1040) 2024 ", 0, 180.0),
+        line("Schedule SE (Form 1040) 2024", 0, 144.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor line remains stable", 0, 360.0),
+        line("Beta anchor line remains stable", 0, 324.0),
+        line("Gamma anchor line remains stable", 0, 288.0),
+        line("Delta anchor line remains stable", 0, 252.0),
+        line("Epsilon anchor line remains stable", 0, 216.0),
+        line("Schedule SE (Form 1040) 2025 Created 5/7/25 ", 0, 180.0),
+        line("Schedule SE (Form 1040) 2025", 0, 144.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    let occurrence = &comparison.changes[0].occurrences[0];
+    assert_eq!(
+        occurrence
+            .old_span
+            .as_ref()
+            .expect("change has an old span")
+            .comparable_range,
+        TokenRange { start: 27, end: 28 }
+    );
+    assert_eq!(
+        occurrence
+            .new_span
+            .as_ref()
+            .expect("change has a new span")
+            .comparable_range,
+        TokenRange { start: 27, end: 28 }
+    );
+    assert_eq!(comparison.change_candidates.len(), 1);
+    let candidate = &comparison.change_candidates[0].change.occurrences[0];
+    assert_eq!(
+        candidate
+            .old_span
+            .as_ref()
+            .expect("candidate has an old span")
+            .comparable_range,
+        TokenRange { start: 27, end: 28 }
+    );
+    assert_eq!(
+        candidate
+            .new_span
+            .as_ref()
+            .expect("candidate has a new span")
+            .comparable_range,
+        TokenRange { start: 27, end: 43 }
+    );
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    Ok(())
+}
+
+#[test]
 fn reports_one_generic_paragraph_insertion() -> Result<()> {
     let old = paragraphs(&[
         "Opening paragraph remains stable",
