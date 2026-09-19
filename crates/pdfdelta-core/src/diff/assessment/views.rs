@@ -47,18 +47,16 @@ struct View {
     /// A source-bounded whole-view anchor may only close its own domain for
     /// such text; vertical or tilted blocks stay unresolved.
     horizontal_text: bool,
-    /// The canonical text has no right-to-left or explicit bidirectional
-    /// content, mirroring the layout's line direction classification. A
-    /// positioned whole-view equality never closes RTL, mixed or
-    /// bidi-controlled text whose logical order stays unknown.
-    text_left_to_right: bool,
-    /// The view may close a positioned equality as one complete original
-    /// block. This holds for untrusted source-bounded single views and for a
-    /// trusted run whose only member is a complete source-bounded block: the
-    /// whole original block is not a fragment of a longer view, so its exact
-    /// source positions still prove a one-to-one equality while the run-level
-    /// view keeps its trusted veto.
-    positioned_candidate: bool,
+    /// Token range of every member block inside this view's group, in member
+    /// order. A positioned equality is adopted per complete original block,
+    /// never per arbitrary substring.
+    block_ranges: Vec<std::ops::Range<usize>>,
+    /// A block may close a positioned equality as one complete original
+    /// block: complete source evidence, horizontal left-to-right text, one
+    /// page and one exact position per token. A trusted run member keeps the
+    /// run-level veto everywhere else but is not a fragment of the view when
+    /// its own whole source block is proven.
+    block_candidates: Vec<bool>,
     /// Exact per-token source positions of a source-bounded view. A whole-view
     /// anchor only closes its own domain when both sides carry the same
     /// positions on the same page, so a moved singleton keeps its move or
@@ -433,47 +431,41 @@ pub(super) fn discover(
     })
 }
 
-/// True when a complete single source-bounded view may close a positioned
-/// whole-view equality: one source-bounded block, horizontal, left-to-right
-/// (or neutral) text, one page and one exact position per canonical token.
-fn positioned_view(view: &View) -> bool {
-    view.positioned_candidate
-        && view.block_indices.len() == 1
-        && view.horizontal_text
-        && view.text_left_to_right
-        && view.page.is_some()
-        && !view.position_signatures.is_empty()
-        && view.position_signatures.len() == view.group.tokens.len()
-        && !view.group.tokens.is_empty()
+/// True when a member block of a view may close a positioned equality: it is
+/// a complete source-bounded original block with horizontal left-to-right
+/// text, one page and one exact position per token.
+fn positioned_block(view: &View, block: usize) -> bool {
+    view.block_candidates.get(block).copied().unwrap_or(false)
 }
 
-/// Occurrences of a positioned candidate's token sequence across every view.
+/// Occurrences of a positioned candidate block's token sequence across every
+/// view.
 struct PositionedOccurrences {
     /// Other occurrences whose complete metadata equals the candidate's key.
     same: usize,
     /// An occurrence whose metadata is incomplete, so its source position
     /// cannot be compared; it vetoes the proof.
     unknown: bool,
-    /// First same-position occurrence, whether it covers that whole view and
-    /// whether it is itself an eligible candidate view. A partial occurrence
-    /// competes but can never be adopted.
-    matched: Option<(usize, bool, bool)>,
+    /// First same-position occurrence, its range and whether it is itself a
+    /// complete eligible block. A partial occurrence competes but can never
+    /// be adopted.
+    matched: Option<(usize, std::ops::Range<usize>, bool)>,
 }
 
 /// Searches every view, including trusted runs and views that cannot close a
-/// domain themselves, for occurrences of the candidate's tokens. An occurrence
-/// only competes when its page and every token position are available and
-/// equal; a different complete position is a different physical line, and an
-/// occurrence without metadata vetoes the proof instead of being ignored.
+/// domain themselves, for occurrences of the candidate block's tokens. An
+/// occurrence only competes when its page and every token position are
+/// available and equal; a different complete position is a different physical
+/// line, and an occurrence without metadata vetoes the proof instead of being
+/// ignored.
 fn positioned_occurrences(
     views: &[View],
-    needle: &[ComparableToken],
-    page: u32,
-    signatures: &[crate::normalize::PositionSignature],
+    needle_view: &View,
+    needle_range: &std::ops::Range<usize>,
     self_view: usize,
-    self_start: usize,
     remaining: &mut usize,
 ) -> Result<Option<PositionedOccurrences>> {
+    let needle = &needle_view.group.tokens[needle_range.clone()];
     let mut result = PositionedOccurrences {
         same: 0,
         unknown: false,
@@ -488,23 +480,33 @@ fn positioned_occurrences(
             return Ok(None);
         }
         for start in 0..=tokens.len() - needle.len() {
+            // A cheap first-token prefilter keeps the optional positioned
+            // search from consuming the shared budget on non-matching starts.
+            if !charge(remaining, 1) {
+                return Ok(None);
+            }
+            if tokens[start] != needle[0] {
+                continue;
+            }
             if !charge(remaining, needle.len().saturating_add(1)) {
                 return Ok(None);
             }
             if &tokens[start..start + needle.len()] != needle {
                 continue;
             }
-            if view_index == self_view && start == self_start {
+            if view_index == self_view && start == needle_range.start {
                 continue;
             }
             let mut same = true;
             let mut complete = true;
-            for (offset, signature) in signatures.iter().enumerate() {
-                if let (Some(position), Some(occurrence_page)) = (
+            for offset in 0..needle.len() {
+                if let (Some(position), Some(page), Some(needle_position), Some(needle_page)) = (
                     view.token_positions[start + offset],
                     view.token_pages[start + offset],
+                    needle_view.token_positions[needle_range.start + offset],
+                    needle_view.token_pages[needle_range.start + offset],
                 ) {
-                    if occurrence_page != page || position != *signature {
+                    if position != needle_position || page != needle_page {
                         same = false;
                     }
                 } else {
@@ -517,8 +519,13 @@ fn positioned_occurrences(
             } else if same {
                 result.same = result.same.saturating_add(1).min(2);
                 if result.matched.is_none() {
-                    let whole_view = start == 0 && needle.len() == tokens.len();
-                    result.matched = Some((view_index, whole_view, positioned_view(view)));
+                    let end = start + needle.len();
+                    let whole = view
+                        .block_ranges
+                        .iter()
+                        .position(|range| range.start == start && range.end == end)
+                        .is_some_and(|block| positioned_block(view, block));
+                    result.matched = Some((view_index, start..end, whole));
                 }
             }
         }
@@ -548,18 +555,38 @@ fn projected_overlap(old: &[SourceInterval], new: &[SourceInterval]) -> bool {
     })
 }
 
-/// Closes complete source-bounded single views whose full canonical token
-/// sequence, page and exact per-token source positions form a one-to-one key.
+/// One completed domain with the view and group range of its first block.
+struct PositionedDomain {
+    old_view: usize,
+    new_view: usize,
+    old_range: std::ops::Range<usize>,
+    new_range: std::ops::Range<usize>,
+    old_projection: Vec<SourceInterval>,
+    new_projection: Vec<SourceInterval>,
+}
+
+/// Closes complete source-bounded original blocks whose canonical tokens,
+/// page and exact per-token source positions form a one-to-one key.
 ///
-/// The key is strictly stronger than content rarity because it includes every
-/// token's exact source position. Uniqueness is checked across every view, not
-/// only eligible candidates: an occurrence inside a trusted run or in a view
-/// without complete metadata is compared through its per-token positions, and
-/// an occurrence whose metadata is incomplete vetoes the proof instead of
-/// being ignored. Repeated keys, one-sided extras, non-horizontal or
-/// right-to-left text, missing positions, different pages and exhausted work
-/// never close a domain. Trusted-run fragments keep their veto because only
-/// complete single source-bounded views participate.
+/// Adoption is per whole original block: the matching occurrence must cover
+/// exactly one complete eligible block on the other side, and the full token,
+/// page and position vectors are re-verified immediately before the domain is
+/// added, so a substring is never expanded. A block is adopted only when it is
+/// a whole single-block view on **both** sides, or when the same equal domain
+/// contains the whole old and new blocks at the same offset. An equal domain
+/// here is an already closed local domain from the anchor flow whose old and
+/// new group tokens are exactly equal over its own ranges; the assessment
+/// stage later confirms it as established, and this pass only relies on the
+/// token equality of the mapping, not on that later confirmation.
+///
+/// Uniqueness is checked across every view with per-token metadata; an
+/// occurrence without comparable metadata vetoes the proof. An addition that
+/// overlaps an existing domain is held unless it is the same block pair or the
+/// equal mapping that contains the block at the same offset on both sides, so
+/// different source shapes cannot evade the conflict and an existing proved
+/// boundary is never broken. A trusted run keeps its veto: only a complete
+/// original block with its own source evidence participates, never an
+/// arbitrary fragment of a longer view.
 fn positioned_equalities(
     sides: [&Side<'_>; 2],
     views: [&[View]; 2],
@@ -567,125 +594,311 @@ fn positioned_equalities(
     domains: &mut Vec<SortedDomain>,
     limit: usize,
 ) -> Result<bool> {
-    // Source projections of the completed domains. An addition is held when
-    // it overlaps any existing domain on either side, so a different blocks
-    // representation cannot evade the source conflict and an existing proved
-    // boundary is never broken.
+    // Map every source block to the view that contains it.
+    let mut view_of_block = [
+        vec![usize::MAX; sides[0].blocks.len()],
+        vec![usize::MAX; sides[1].blocks.len()],
+    ];
+    for (side, side_views) in views.iter().enumerate() {
+        for (view_index, view) in side_views.iter().enumerate() {
+            for &block_index in &view.block_indices {
+                if let Some(slot) = view_of_block[side].get_mut(block_index) {
+                    *slot = view_index;
+                }
+            }
+        }
+    }
     let mut existing = Vec::new();
     for (_, domain) in domains.iter() {
+        let old_view = domain
+            .old_span
+            .blocks
+            .first()
+            .and_then(|block| sides[0].index.get(block))
+            .and_then(|block| view_of_block[0].get(*block))
+            .copied()
+            .unwrap_or(usize::MAX);
+        let new_view = domain
+            .new_span
+            .blocks
+            .first()
+            .and_then(|block| sides[1].index.get(block))
+            .and_then(|block| view_of_block[1].get(*block))
+            .copied()
+            .unwrap_or(usize::MAX);
         let Some(old_projection) = project_span(sides[0], &domain.old_span, remaining)? else {
             return Ok(false);
         };
         let Some(new_projection) = project_span(sides[1], &domain.new_span, remaining)? else {
             return Ok(false);
         };
-        existing.push([old_projection, new_projection]);
+        existing.push(PositionedDomain {
+            old_view,
+            new_view,
+            old_range: domain.old_span.comparable_range.start..domain.old_span.comparable_range.end,
+            new_range: domain.new_span.comparable_range.start..domain.new_span.comparable_range.end,
+            old_projection,
+            new_projection,
+        });
     }
-    let mut additions: Vec<([Vec<SourceInterval>; 2], LocalDomain)> = Vec::new();
-    for (old_index, old) in views[0].iter().enumerate() {
-        if !positioned_view(old) {
+    // Complete blocks inside a proven equal domain are its unpublished
+    // residue: the domain's own mapping is equal at the same offsets, so a
+    // member block may close its own positioned equality. Blocks outside any
+    // equal domain still need to be whole single-block views.
+    let mut equal_domains = Vec::new();
+    for (_, domain) in domains.iter() {
+        let old_view = domain
+            .old_span
+            .blocks
+            .first()
+            .and_then(|block| sides[0].index.get(block))
+            .and_then(|block| view_of_block[0].get(*block))
+            .copied()
+            .unwrap_or(usize::MAX);
+        let new_view = domain
+            .new_span
+            .blocks
+            .first()
+            .and_then(|block| sides[1].index.get(block))
+            .and_then(|block| view_of_block[1].get(*block))
+            .copied()
+            .unwrap_or(usize::MAX);
+        if old_view == usize::MAX || new_view == usize::MAX {
             continue;
         }
-        if domains.len().saturating_add(additions.len()) >= limit {
-            break;
-        }
-        let Some(page) = old.page else {
+        let old_range =
+            domain.old_span.comparable_range.start..domain.old_span.comparable_range.end;
+        let new_range =
+            domain.new_span.comparable_range.start..domain.new_span.comparable_range.end;
+        if old_range.is_empty() || new_range.is_empty() {
             continue;
-        };
+        }
         if !charge(
             remaining,
-            old.group
-                .tokens
+            old_range
                 .len()
-                .saturating_add(old.position_signatures.len()),
+                .saturating_add(new_range.len())
+                .saturating_add(1),
         ) {
             return Ok(false);
         }
-        // The old side must not contain another occurrence at the same
-        // position, and no occurrence with unverifiable metadata.
-        let Some(old_occurrences) = positioned_occurrences(
-            views[0],
-            &old.group.tokens,
-            page,
-            &old.position_signatures,
-            old_index,
-            0,
-            remaining,
-        )?
-        else {
-            return Ok(false);
-        };
-        if old_occurrences.same != 0 || old_occurrences.unknown {
-            continue;
-        }
-        // The new side must contain exactly one same-position occurrence, it
-        // must cover that whole view and it must be an eligible complete view
-        // itself. A substring occurrence competes but is never adopted.
-        let Some(new_occurrences) = positioned_occurrences(
-            views[1],
-            &old.group.tokens,
-            page,
-            &old.position_signatures,
-            usize::MAX,
-            usize::MAX,
-            remaining,
-        )?
-        else {
-            return Ok(false);
-        };
-        if new_occurrences.same != 1 || new_occurrences.unknown {
-            continue;
-        }
-        let Some((new_index, true, true)) = new_occurrences.matched else {
-            continue;
-        };
-        let new = &views[1][new_index];
-        // Re-verify the whole-view equality invariant immediately before the
-        // domain is added: full token sequence, page and every position must
-        // match, and no substring may be expanded to a whole view.
-        if old.group.tokens != new.group.tokens
-            || old.page != new.page
-            || old.position_signatures != new.position_signatures
-            || old.position_signatures.len() != old.group.tokens.len()
-            || new.position_signatures.len() != new.group.tokens.len()
-            || old.group.tokens.is_empty()
+        if views[0][old_view].group.tokens[old_range.clone()]
+            == views[1][new_view].group.tokens[new_range.clone()]
         {
-            continue;
-        }
-        let old_span = old.group.full_span();
-        let new_span = new.group.full_span();
-        let Some(old_projection) = project_span(sides[0], &old_span, remaining)? else {
-            return Ok(false);
-        };
-        let Some(new_projection) = project_span(sides[1], &new_span, remaining)? else {
-            return Ok(false);
-        };
-        // Keep existing domains; hold any addition whose source ranges overlap
-        // one of them or a pending addition on either side.
-        let conflicts = existing
-            .iter()
-            .chain(additions.iter().map(|(projection, _)| projection))
-            .any(|projection| {
-                projected_overlap(&old_projection, &projection[0])
-                    || projected_overlap(&new_projection, &projection[1])
+            equal_domains.push(PositionedDomain {
+                old_view,
+                new_view,
+                old_range,
+                new_range,
+                old_projection: Vec::new(),
+                new_projection: Vec::new(),
             });
-        if conflicts {
-            continue;
         }
-        if !compatible_roles(sides, [&old_span, &new_span], remaining)?
-            || super::span_has_source_issues(sides[0], &old_span, remaining)?
-            || super::span_has_source_issues(sides[1], &new_span, remaining)?
-        {
-            continue;
+    }
+    let mut additions: Vec<(PositionedDomain, LocalDomain)> = Vec::new();
+    'views: for (old_view_index, old_view) in views[0].iter().enumerate() {
+        for block in 0..old_view.block_ranges.len() {
+            if !positioned_block(old_view, block) {
+                continue;
+            }
+            let old_range = old_view.block_ranges[block].clone();
+            let old_whole = old_view.block_indices.len() == 1
+                && old_range.start == 0
+                && old_range.end == old_view.group.tokens.len();
+            if !old_whole && equal_domains.is_empty() {
+                continue;
+            }
+            if old_view.token_positions[old_range.clone()]
+                .iter()
+                .any(Option::is_none)
+                || old_view.token_pages[old_range.clone()]
+                    .iter()
+                    .any(Option::is_none)
+            {
+                continue;
+            }
+            if domains.len().saturating_add(additions.len()) >= limit {
+                break 'views;
+            }
+            if !charge(remaining, old_range.len().saturating_add(1)) {
+                return Ok(false);
+            }
+            // The old side must not contain another occurrence at the same
+            // position, and no occurrence with unverifiable metadata.
+            let Some(old_occurrences) =
+                positioned_occurrences(views[0], old_view, &old_range, old_view_index, remaining)?
+            else {
+                return Ok(false);
+            };
+            if old_occurrences.same != 0 || old_occurrences.unknown {
+                continue;
+            }
+            // The new side must contain exactly one same-position occurrence,
+            // it must cover exactly one complete eligible block and that block
+            // must itself be adoptable. A substring occurrence competes but is
+            // never adopted.
+            let Some(new_occurrences) =
+                positioned_occurrences(views[1], old_view, &old_range, usize::MAX, remaining)?
+            else {
+                return Ok(false);
+            };
+            if new_occurrences.same != 1 || new_occurrences.unknown {
+                continue;
+            }
+            let Some((new_view_index, new_range, true)) = new_occurrences.matched else {
+                continue;
+            };
+            let new_view = &views[1][new_view_index];
+            // Re-verify the whole-block equality invariant immediately before
+            // the domain is added: full token sequence, page and every
+            // position must match, and no substring may be expanded.
+            let whole_block_equal = old_view.group.tokens[old_range.clone()]
+                == new_view.group.tokens[new_range.clone()]
+                && (0..old_range.len()).all(|offset| {
+                    old_view.token_positions[old_range.start + offset]
+                        == new_view.token_positions[new_range.start + offset]
+                        && old_view.token_pages[old_range.start + offset]
+                            == new_view.token_pages[new_range.start + offset]
+                });
+            if !whole_block_equal {
+                continue;
+            }
+            let new_whole = new_view.block_indices.len() == 1
+                && new_range.start == 0
+                && new_range.end == new_view.group.tokens.len();
+            // A residue block must be contained in the same equal domain on
+            // both sides at the same offset; containment on one side or a
+            // shifted correspondence is not the same mapping. The scan is
+            // charged per examined domain and skipped entirely when both sides
+            // are already whole views.
+            let residue = if old_whole && new_whole {
+                false
+            } else {
+                if !charge(remaining, equal_domains.len().saturating_add(1)) {
+                    return Ok(false);
+                }
+                equal_domains.iter().any(|domain| {
+                    domain.old_view == old_view_index
+                        && domain.new_view == new_view_index
+                        && domain.old_range.start <= old_range.start
+                        && old_range.end <= domain.old_range.end
+                        && domain.new_range.start <= new_range.start
+                        && new_range.end <= domain.new_range.end
+                        && (old_range.start - domain.old_range.start)
+                            == (new_range.start - domain.new_range.start)
+                })
+            };
+            // Adoption requires a whole view on both sides or the same equal
+            // mapping; a member of a longer view on one side alone is never
+            // expanded into a whole-view equality.
+            if !((old_whole && new_whole) || residue) {
+                continue;
+            }
+            let old_span = old_view.group.span(old_range.start, old_range.end);
+            let new_span = new_view.group.span(new_range.start, new_range.end);
+            let Some(old_projection) = project_span(sides[0], &old_span, remaining)? else {
+                return Ok(false);
+            };
+            let Some(new_projection) = project_span(sides[1], &new_span, remaining)? else {
+                return Ok(false);
+            };
+            // Keep existing domains; hold any addition whose source ranges
+            // overlap one of them or a pending addition unless the overlap is
+            // the same block pair or a proven equal mapping containing it at
+            // the same offset on both sides.
+            let mut conflict = false;
+            for other in existing
+                .iter()
+                .chain(additions.iter().map(|(existing, _)| existing))
+            {
+                // Charge the interval combination the overlap check performs.
+                if !charge(
+                    remaining,
+                    other
+                        .old_projection
+                        .len()
+                        .saturating_mul(old_projection.len())
+                        .saturating_add(
+                            other
+                                .new_projection
+                                .len()
+                                .saturating_mul(new_projection.len()),
+                        )
+                        .saturating_add(1),
+                ) {
+                    return Ok(false);
+                }
+                if !(projected_overlap(&old_projection, &other.old_projection)
+                    || projected_overlap(&new_projection, &other.new_projection))
+                {
+                    continue;
+                }
+                let same_pair = other.old_view == old_view_index
+                    && other.old_range == old_range
+                    && other.new_view == new_view_index
+                    && other.new_range == new_range;
+                let redundant = !same_pair
+                    && other.old_view == old_view_index
+                    && other.new_view == new_view_index
+                    && other.old_range.start <= old_range.start
+                    && old_range.end <= other.old_range.end
+                    && other.new_range.start <= new_range.start
+                    && new_range.end <= other.new_range.end
+                    && (old_range.start - other.old_range.start)
+                        == (new_range.start - other.new_range.start)
+                    && {
+                        if !charge(
+                            remaining,
+                            other
+                                .old_range
+                                .len()
+                                .saturating_add(other.new_range.len())
+                                .saturating_add(1),
+                        ) {
+                            return Ok(false);
+                        }
+                        old_view.group.tokens[other.old_range.clone()]
+                            == new_view.group.tokens[other.new_range.clone()]
+                    };
+                if same_pair {
+                    // The exact block pair is already present.
+                    conflict = true;
+                    break;
+                }
+                if redundant {
+                    // A proven equal mapping contains this block at the same
+                    // offset on both sides: the overlap is the same
+                    // correspondence, so the addition is compatible.
+                    continue;
+                }
+                conflict = true;
+                break;
+            }
+            if conflict {
+                continue;
+            }
+            if !compatible_roles(sides, [&old_span, &new_span], remaining)?
+                || super::span_has_source_issues(sides[0], &old_span, remaining)?
+                || super::span_has_source_issues(sides[1], &new_span, remaining)?
+            {
+                continue;
+            }
+            additions.push((
+                PositionedDomain {
+                    old_view: old_view_index,
+                    new_view: new_view_index,
+                    old_range,
+                    new_range,
+                    old_projection,
+                    new_projection,
+                },
+                LocalDomain {
+                    old_span,
+                    new_span,
+                    source_bounded: true,
+                },
+            ));
         }
-        additions.push((
-            [old_projection, new_projection],
-            LocalDomain {
-                old_span,
-                new_span,
-                source_bounded: true,
-            },
-        ));
     }
     for (_, domain) in additions {
         let old_index = domain
@@ -812,35 +1025,15 @@ fn build_views(
             .iter()
             .map(|&block_index| source_bounded_block(&side.blocks[block_index], remaining_work))
             .collect::<Vec<_>>();
-        // A trusted run with exactly one complete source-bounded block is the
-        // whole original block, not a fragment of a longer view. It may close
-        // a positioned equality on its own exact source positions; the
-        // run-level view keeps its trusted veto because `source_bounded`
-        // stays false.
-        let positioned_candidate = block_indices.len() == 1 && block_bounded[0];
-        let mut horizontal_text = false;
-        let mut text_left_to_right = false;
-        let mut position_signatures = Vec::new();
-        let mut page = None;
-        if positioned_candidate {
-            let block = &side.blocks[block_indices[0]];
-            text_left_to_right = left_to_right_text(block);
-            let Some(signatures) = block.position_signatures.as_deref() else {
-                *remaining_work = 0;
+        let mut block_candidates = Vec::with_capacity(block_indices.len());
+        for (&block_index, &bounded) in block_indices.iter().zip(&block_bounded) {
+            let Some(candidate) = block_candidate(side, block_index, bounded, remaining_work)
+            else {
                 return Ok(None);
             };
-            if !charge(remaining_work, signatures.len()) {
-                return Ok(None);
-            }
-            horizontal_text = signatures.iter().all(horizontal_direction);
-            if signatures.len() == block.canonical.text.chars().count()
-                && let [page_number] = block.pages.as_slice()
-            {
-                position_signatures = signatures.to_vec();
-                page = Some(*page_number);
-            }
+            block_candidates.push(candidate);
         }
-        let Some((token_positions, token_pages)) = view_token_metadata(
+        let Some((token_positions, token_pages, block_ranges)) = view_token_metadata(
             side,
             &block_indices,
             &block_bounded,
@@ -855,11 +1048,11 @@ fn build_views(
             block_indices,
             group,
             source_bounded: false,
-            horizontal_text,
-            text_left_to_right,
-            position_signatures,
-            page,
-            positioned_candidate,
+            horizontal_text: false,
+            position_signatures: Vec::new(),
+            page: None,
+            block_ranges,
+            block_candidates,
             token_positions,
             token_pages,
         });
@@ -876,11 +1069,9 @@ fn build_views(
         }
         let source_bounded = source_bounded_block(&side.blocks[block_index], remaining_work);
         let mut horizontal_text = false;
-        let mut text_left_to_right = false;
         let mut position_signatures = Vec::new();
         let mut page = None;
         if source_bounded {
-            text_left_to_right = left_to_right_text(&side.blocks[block_index]);
             let block = &side.blocks[block_index];
             let Some(signatures) = block.position_signatures.as_deref() else {
                 // `source_bounded_block` guarantees signatures; fail closed.
@@ -899,7 +1090,12 @@ fn build_views(
                 page = Some(*page_number);
             }
         }
-        let Some((token_positions, token_pages)) = view_token_metadata(
+        let Some(block_candidate) =
+            block_candidate(side, block_index, source_bounded, remaining_work)
+        else {
+            return Ok(None);
+        };
+        let Some((token_positions, token_pages, block_ranges)) = view_token_metadata(
             side,
             &[block_index],
             &[source_bounded],
@@ -915,10 +1111,10 @@ fn build_views(
             group,
             source_bounded,
             horizontal_text,
-            text_left_to_right,
             position_signatures,
             page,
-            positioned_candidate: source_bounded,
+            block_ranges,
+            block_candidates: vec![block_candidate],
             token_positions,
             token_pages,
         });
@@ -953,6 +1149,7 @@ const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
 type ViewTokenMetadata = (
     Vec<Option<crate::normalize::PositionSignature>>,
     Vec<Option<u32>>,
+    Vec<std::ops::Range<usize>>,
 );
 
 /// Exact per-token source metadata of one view, mirroring the separator
@@ -973,6 +1170,7 @@ fn view_token_metadata(
 ) -> Option<ViewTokenMetadata> {
     let mut positions = Vec::new();
     let mut pages = Vec::new();
+    let mut block_ranges = Vec::new();
     let mut preceding_space = false;
     for (position, (&block_index, &bounded)) in block_indices.iter().zip(bounded).enumerate() {
         let block = &side.blocks[block_index];
@@ -998,6 +1196,7 @@ fn view_token_metadata(
         let page = bounded
             .then_some((block.pages.len() == 1).then(|| block.pages[0]))
             .flatten();
+        block_ranges.push(positions.len()..positions.len() + tokens.len());
         for index in 0..tokens.len() {
             positions.push(signatures.map(|signatures| signatures[index]));
             pages.push(page);
@@ -1006,7 +1205,36 @@ fn view_token_metadata(
             .last()
             .map_or(insert_space || preceding_space, super::space_token);
     }
-    Some((positions, pages))
+    Some((positions, pages, block_ranges))
+}
+
+/// A complete source-bounded original block with horizontal left-to-right
+/// text, one page and one exact position per canonical token may close a
+/// positioned equality. `None` reports an exhausted shared work budget.
+fn block_candidate(
+    side: &Side<'_>,
+    block_index: usize,
+    bounded: bool,
+    remaining: &mut usize,
+) -> Option<bool> {
+    if !bounded {
+        return Some(false);
+    }
+    let block = &side.blocks[block_index];
+    if block.canonical.text.is_empty() || !left_to_right_text(block) || block.pages.len() != 1 {
+        return Some(false);
+    }
+    let tokens = &side.canonical[block_index];
+    let Some(signatures) = block.position_signatures.as_deref() else {
+        return Some(false);
+    };
+    if signatures.len() != tokens.len() {
+        return Some(false);
+    }
+    if !charge(remaining, signatures.len()) {
+        return None;
+    }
+    Some(signatures.iter().all(horizontal_direction))
 }
 
 /// True when the canonical text has no right-to-left or explicit
@@ -2095,7 +2323,7 @@ mod tests {
         for separator in [BlockSeparator::Space, BlockSeparator::Concatenate] {
             let group = source.canonical_group(&ids, Some(separator));
             let bounded = vec![true; blocks.len()];
-            let (positions, pages) = view_token_metadata(
+            let (positions, pages, block_ranges) = view_token_metadata(
                 &source,
                 &[0, 1, 2, 3, 4],
                 &bounded,
@@ -2103,6 +2331,7 @@ mod tests {
                 &mut 100_000,
             )
             .expect("metadata fits its budget");
+            assert_eq!(block_ranges.len(), blocks.len(), "{separator:?}");
             assert_eq!(positions.len(), group.tokens.len(), "{separator:?}");
             assert_eq!(pages.len(), group.tokens.len(), "{separator:?}");
             for (block_index, block) in blocks.iter().enumerate() {
@@ -2149,7 +2378,7 @@ mod tests {
         let ids = [BlockId(1), BlockId(2), BlockId(3)];
         let group = source.canonical_group(&ids, Some(BlockSeparator::Space));
         let bounded = vec![true; blocks.len()];
-        let (positions, pages) = view_token_metadata(
+        let (positions, pages, block_ranges) = view_token_metadata(
             &source,
             &[0, 1, 2],
             &bounded,
@@ -2157,6 +2386,7 @@ mod tests {
             &mut 100_000,
         )
         .expect("metadata fits its budget");
+        assert_eq!(block_ranges.len(), blocks.len());
         assert_eq!(positions.len(), group.tokens.len());
         assert_eq!(pages.len(), group.tokens.len());
         assert_eq!(
@@ -2203,6 +2433,44 @@ mod tests {
     }
 
     #[test]
+    fn positioned_equality_requires_both_whole_views_without_an_equal_mapping() -> Result<()> {
+        // Old is one whole line; new is a trusted run of that line plus a
+        // tail. The leading line matches by position, but the new side is a
+        // member of a longer view and no equal mapping ties the blocks, so
+        // neither direction may close.
+        let line_blocks = [positioned_block(1, "Short line", 10.0, 700.0, 0)];
+        let run_blocks = [
+            positioned_block(101, "Short line", 10.0, 700.0, 0),
+            positioned_block(102, "Tail line", 10.0, 680.0, 0),
+        ];
+        let old = side(&line_blocks);
+        let new = side(&run_blocks);
+        let old_intervals = [None];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2)];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 12;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(1), BlockId(101), 10)?,
+            "a member of a longer new view must not close without an equal mapping: {domains:?}"
+        );
+
+        // Reverse: old is the run, new is the single line.
+        let old = side(&run_blocks);
+        let new = side(&line_blocks);
+        let old_intervals = [interval(2, 0, 1), interval(2, 1, 2)];
+        let new_intervals = [None];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 12;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(101), BlockId(1), 10)?,
+            "a member of a longer old view must not close without an equal mapping: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn positioned_equality_recovers_a_complete_block_inside_an_equal_run_domain() -> Result<()> {
         // Unique head and tail anchors chain across the repeated middle, so
         // the run is one proven equal domain and each repeated middle block is
@@ -2240,6 +2508,126 @@ mod tests {
             block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 18)?
                 && block_positioned_domain(&domains, &old, &new, BlockId(3), BlockId(103), 18)?,
             "complete blocks inside an equal run domain must close: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_holds_residue_boundaries() -> Result<()> {
+        // The repeated middle blocks swap positions: the run is still equal,
+        // but the matching occurrence sits at a different offset, so the
+        // residue is not the same mapping.
+        let old_blocks = [
+            positioned_block(1, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(2, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(3, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(4, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(102, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(103, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(104, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 3;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 18)?
+                && !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(103), 18)?
+                && !block_positioned_domain(&domains, &old, &new, BlockId(3), BlockId(102), 18)?
+                && !block_positioned_domain(&domains, &old, &new, BlockId(3), BlockId(103), 18)?,
+            "a shifted correspondence must not close: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_holds_residue_duplicates_and_missing_metadata() -> Result<()> {
+        // A same-position duplicate inside the equal run vetoes the residue.
+        let duplicate_old = [
+            positioned_block(1, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(2, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(3, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(4, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let duplicate_new = [
+            positioned_block(101, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(102, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(103, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(104, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let old = side(&duplicate_old);
+        let new = side(&duplicate_new);
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 3;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 18)?,
+            "a same-position duplicate must veto the residue: {domains:?}"
+        );
+
+        // One member lacks position evidence, so its occurrence cannot be
+        // compared and vetoes the residue instead of being ignored.
+        let mut incomplete = positioned_block(2, "Repeat middle line", 10.0, 740.0, 0);
+        incomplete.position_signatures = None;
+        let old_blocks = [
+            positioned_block(1, "Unique head line", 10.0, 760.0, 0),
+            incomplete,
+            positioned_block(3, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(4, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(102, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(103, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(104, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let input = recovery(&old_intervals, &new_intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !block_positioned_domain(&domains, &old, &new, BlockId(3), BlockId(103), 18)?,
+            "missing metadata must veto the residue: {domains:?}"
         );
         Ok(())
     }
@@ -2391,63 +2779,81 @@ mod tests {
 
     #[test]
     fn positioned_pass_exhaustion_keeps_completed_anchor_domains() -> Result<()> {
-        // One content-unique line closes through the anchor flow; many
-        // positioned candidates make the optional positioned pass expensive.
-        let mut old_blocks = vec![positioned_block(1, "Unique anchor line", 10.0, 700.0, 0)];
-        let mut new_blocks = vec![positioned_block(101, "Unique anchor line", 10.0, 700.0, 0)];
-        for index in 0..30u64 {
-            let y = 600.0 - index as f64;
-            old_blocks.push(positioned_block(
-                index + 2,
-                "Positioned candidate line",
-                10.0,
-                y,
-                0,
-            ));
-            new_blocks.push(positioned_block(
-                index + 102,
-                "Positioned candidate line",
-                10.0,
-                y,
-                0,
-            ));
-        }
+        // Unique head and tail anchors chain across the repeated middle, so
+        // the run closes as one source-bounded false anchor domain and the
+        // middle blocks are residue candidates. A positive budget one unit
+        // short must keep the anchor domain and commit none of the pending
+        // residue additions.
+        let old_blocks = [
+            positioned_block(1, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(2, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(3, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(4, "Unique tail line", 10.0, 700.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Unique head line", 10.0, 760.0, 0),
+            positioned_block(102, "Repeat middle line", 10.0, 740.0, 0),
+            positioned_block(103, "Repeat middle line", 10.0, 720.0, 0),
+            positioned_block(104, "Unique tail line", 10.0, 700.0, 0),
+        ];
         let old = side(&old_blocks);
         let new = side(&new_blocks);
-        let old_intervals = vec![None; old_blocks.len()];
-        let new_intervals = vec![None; new_blocks.len()];
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+        ];
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 3;
         let mut full_budget = usize::MAX;
-        let full = discover(
-            [&old, &new],
-            recovery(&old_intervals, &new_intervals),
-            &[],
-            &mut full_budget,
-            100,
-        )?;
+        let full = discover([&old, &new], input, &[], &mut full_budget, 100)?;
         let used = usize::MAX - full_budget;
         assert!(used > 1);
         assert!(
-            full.iter()
-                .any(|domain| domain.old_span.blocks == [BlockId(1)]),
-            "the anchor fixture must close its own domain: {full:?}"
+            full.iter().any(|domain| !domain.source_bounded)
+                && full.iter().any(|domain| domain.source_bounded),
+            "the fixture must produce an anchor domain and residue additions: {full:?}"
         );
-        // A positive budget one unit short cuts the optional positioned pass;
-        // the completed anchor domain must survive.
+        // The wide anchor domain (comparable range 9..57 over all four
+        // blocks) is the equal domain that makes the middle blocks residue
+        // candidates; it must survive the exhausted pass unchanged.
+        let anchor = full
+            .iter()
+            .find(|domain| {
+                !domain.source_bounded
+                    && domain.old_span.blocks == [BlockId(1), BlockId(2), BlockId(3), BlockId(4)]
+                    && domain.old_span.comparable_range
+                        == crate::diff::TokenRange { start: 9, end: 57 }
+            })
+            .expect("the fixture must close its wide anchor domain");
         let mut budget = used - 1;
-        let retained = discover(
-            [&old, &new],
-            recovery(&old_intervals, &new_intervals),
-            &[],
-            &mut budget,
-            100,
-        )?;
-        assert!(
-            retained
-                .iter()
-                .any(|domain| domain.old_span.blocks == [BlockId(1)]),
-            "an exhausted positioned pass must keep completed anchor domains: {retained:?}"
-        );
+        let mut input = recovery(&old_intervals, &new_intervals);
+        input.min_tokens = 3;
+        let retained = discover([&old, &new], input, &[], &mut budget, 100)?;
         assert_eq!(budget, 0);
+        assert!(
+            !retained.is_empty(),
+            "an exhausted positioned pass must keep the completed anchor domain: {retained:?}"
+        );
+        assert!(
+            retained.iter().all(|domain| !domain.source_bounded),
+            "an exhausted positioned pass must not commit pending additions: {retained:?}"
+        );
+        assert!(
+            retained.len() < full.len(),
+            "the exhausted run must drop every pending addition: {retained:?}"
+        );
+        assert!(
+            retained.contains(anchor),
+            "an exhausted positioned pass must keep the completed anchor domain: {retained:?}"
+        );
         Ok(())
     }
 
