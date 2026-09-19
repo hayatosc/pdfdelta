@@ -76,6 +76,12 @@ struct View {
     /// not candidates themselves.
     token_positions: Vec<Option<crate::normalize::PositionSignature>>,
     token_pages: Vec<Option<u32>>,
+    /// Deny-only per-token position evidence for views without complete
+    /// source-bounded metadata. A signature here may only reject an
+    /// occurrence whose position provably differs; it never confirms a match
+    /// and never feeds translation, support or reference checks.
+    deny_positions: Vec<Option<crate::normalize::PositionSignature>>,
+    deny_pages: Vec<Option<u32>>,
 }
 
 #[derive(Clone, Copy)]
@@ -440,6 +446,7 @@ fn positioned_block(view: &View, block: usize) -> bool {
 
 /// Occurrences of a positioned candidate block's token sequence across every
 /// view.
+#[derive(Debug)]
 struct PositionedOccurrences {
     /// Other occurrences whose complete metadata equals the candidate's key.
     same: usize,
@@ -508,17 +515,43 @@ fn positioned_occurrences(
             let mut complete = true;
             let mut different = false;
             for offset in 0..needle.len() {
-                if let (Some(position), Some(page), Some(needle_position), Some(needle_page)) = (
+                let needle_position = needle_view.token_positions[needle_range.start + offset];
+                let needle_page = needle_view.token_pages[needle_range.start + offset];
+                if let (Some(position), Some(page)) = (
                     view.token_positions[start + offset],
                     view.token_pages[start + offset],
-                    needle_view.token_positions[needle_range.start + offset],
-                    needle_view.token_pages[needle_range.start + offset],
                 ) {
-                    if position != needle_position || page != needle_page {
+                    if let (Some(needle_position), Some(needle_page)) =
+                        (needle_position, needle_page)
+                    {
+                        if position != needle_position || page != needle_page {
+                            same = false;
+                            different = true;
+                            break;
+                        }
+                    } else {
+                        complete = false;
+                    }
+                } else if let (
+                    Some(deny_position),
+                    Some(deny_page),
+                    Some(needle_position),
+                    Some(needle_page),
+                ) = (
+                    view.deny_positions.get(start + offset).copied().flatten(),
+                    view.deny_pages.get(start + offset).copied().flatten(),
+                    needle_position,
+                    needle_page,
+                ) {
+                    // Deny-only evidence: a proven difference rejects the
+                    // occurrence, a match stays unverifiable and never
+                    // promotes the occurrence to a confirmed one.
+                    if deny_position != needle_position || deny_page != needle_page {
                         same = false;
                         different = true;
                         break;
                     }
+                    complete = false;
                 } else {
                     complete = false;
                 }
@@ -3126,13 +3159,15 @@ fn build_views(
             };
             block_candidates.push(candidate);
         }
-        let Some((token_positions, token_pages, block_ranges)) = view_token_metadata(
-            side,
-            &block_indices,
-            &block_bounded,
-            Some(BlockSeparator::Space),
-            remaining_work,
-        ) else {
+        let Some((token_positions, token_pages, block_ranges, deny_positions, deny_pages)) =
+            view_token_metadata(
+                side,
+                &block_indices,
+                &block_bounded,
+                Some(BlockSeparator::Space),
+                remaining_work,
+            )
+        else {
             return Ok(None);
         };
         views.push(View {
@@ -3148,6 +3183,8 @@ fn build_views(
             block_candidates,
             token_positions,
             token_pages,
+            deny_positions,
+            deny_pages,
         });
     }
 
@@ -3188,13 +3225,15 @@ fn build_views(
         else {
             return Ok(None);
         };
-        let Some((token_positions, token_pages, block_ranges)) = view_token_metadata(
-            side,
-            &[block_index],
-            &[source_bounded],
-            None,
-            remaining_work,
-        ) else {
+        let Some((token_positions, token_pages, block_ranges, deny_positions, deny_pages)) =
+            view_token_metadata(
+                side,
+                &[block_index],
+                &[source_bounded],
+                None,
+                remaining_work,
+            )
+        else {
             return Ok(None);
         };
         views.push(View {
@@ -3210,6 +3249,8 @@ fn build_views(
             block_candidates: vec![block_candidate],
             token_positions,
             token_pages,
+            deny_positions,
+            deny_pages,
         });
     }
     views.sort_unstable_by_key(|view| {
@@ -3239,11 +3280,280 @@ const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
 
 /// Exact per-token source metadata of one view: position signature and page
 /// per canonical token.
+type DenyMetadata = (
+    Vec<Option<crate::normalize::PositionSignature>>,
+    Vec<Option<u32>>,
+);
+
 type ViewTokenMetadata = (
     Vec<Option<crate::normalize::PositionSignature>>,
     Vec<Option<u32>>,
     Vec<std::ops::Range<usize>>,
+    Vec<Option<crate::normalize::PositionSignature>>,
+    Vec<Option<u32>>,
 );
+
+/// Deny-only per-token position evidence for one block.
+///
+/// A token carries a signature only when the block has one page, its canonical
+/// scalar count equals the comparable token count, every canonical source
+/// entry covers exactly one scalar and is backed by a single glyph that no
+/// other canonical entry, normalization event or issue shares (directly or
+/// through a synthetic-space or line-break neighbour), the raw source map has
+/// exactly one valid single-glyph entry for that glyph at its raw scalar
+/// offset whose scalar equals the canonical scalar, and neither side has
+/// unmapped tokens or inconsistent source ranges. The evidence can only
+/// reject an occurrence whose position provably differs; it never confirms a
+/// match. `None` reports an exhausted shared work budget or a failed
+/// allocation, and the caller holds the whole build instead of keeping
+/// partial metadata.
+fn deny_token_metadata(
+    block: &crate::normalize::BlockText,
+    tokens: &[ComparableToken],
+    remaining: &mut usize,
+) -> Option<DenyMetadata> {
+    use crate::normalize::{TextSource, TextSourceAtom};
+    // Charge every scan and allocation upper bound before touching the
+    // sources: text collection, entry validation, atom scans, the per-token
+    // event and issue range comparisons and the raw lookup.
+    if !charge(
+        remaining,
+        block
+            .canonical
+            .source_map
+            .len()
+            .saturating_add(block.raw.source_map.len())
+            .saturating_add(block.normalization_events.len())
+            .saturating_add(block.issues.len()),
+    ) {
+        return None;
+    }
+    let atom_upper = block
+        .canonical
+        .source_map
+        .iter()
+        .chain(block.raw.source_map.iter())
+        .map(|entry| entry.source.atoms.len().saturating_add(1))
+        .fold(0usize, usize::saturating_add)
+        .saturating_add(
+            block
+                .normalization_events
+                .iter()
+                .map(|event| event.source.atoms.len().saturating_add(1))
+                .chain(
+                    block
+                        .issues
+                        .iter()
+                        .map(|issue| issue.source.atoms.len().saturating_add(1)),
+                )
+                .fold(0usize, usize::saturating_add),
+        );
+    let scan_work = block
+        .canonical
+        .text
+        .len()
+        .saturating_add(block.raw.text.len())
+        .saturating_add(atom_upper)
+        .saturating_add(
+            tokens.len().saturating_mul(
+                block
+                    .normalization_events
+                    .len()
+                    .saturating_add(block.issues.len())
+                    .saturating_add(1),
+            ),
+        )
+        .saturating_add(tokens.len().saturating_add(1));
+    if !charge(remaining, scan_work) {
+        return None;
+    }
+    let mut positions = Vec::new();
+    let mut pages = Vec::new();
+    positions.try_reserve_exact(tokens.len()).ok()?;
+    pages.try_reserve_exact(tokens.len()).ok()?;
+    let held = |positions: &mut Vec<_>, pages: &mut Vec<_>| {
+        positions.resize(tokens.len(), None);
+        pages.resize(tokens.len(), None);
+        Some((std::mem::take(positions), std::mem::take(pages)))
+    };
+    let signatures = block
+        .position_signatures
+        .as_deref()
+        .filter(|signatures| signatures.len() == tokens.len());
+    let page = (block.pages.len() == 1).then(|| block.pages[0]);
+    let mut canonical_chars = Vec::new();
+    canonical_chars
+        .try_reserve_exact(block.canonical.text.len())
+        .ok()?;
+    canonical_chars.extend(block.canonical.text.chars());
+    let mut raw_chars = Vec::new();
+    raw_chars.try_reserve_exact(block.raw.text.len()).ok()?;
+    raw_chars.extend(block.raw.text.chars());
+    let eligible = canonical_chars.len() == tokens.len()
+        && block.canonical.unmapped.is_empty()
+        && block.raw.unmapped.is_empty()
+        && tokens
+            .iter()
+            .all(|token| matches!(token, ComparableToken::Scalar(_)));
+    // Source maps must be ordered, non-overlapping and in bounds; an invalid
+    // map holds the whole block instead of guessing.
+    let validate = |map: &[crate::normalize::SourceMapEntry], len: usize| {
+        let mut previous_end = 0usize;
+        for entry in map {
+            let range = entry.output_range;
+            if range.start > range.end
+                || range.end > len
+                || range.start < previous_end
+                || range.end > range.start.saturating_add(1)
+            {
+                return false;
+            }
+            previous_end = range.end;
+        }
+        true
+    };
+    if !validate(&block.canonical.source_map, canonical_chars.len())
+        || !validate(&block.raw.source_map, raw_chars.len())
+        || block.normalization_events.iter().any(|event| {
+            !valid_range(event.canonical_range, canonical_chars.len())
+                || !valid_range(event.raw_range, raw_chars.len())
+        })
+        || block
+            .issues
+            .iter()
+            .any(|issue| !valid_range(issue.raw_range, raw_chars.len()))
+    {
+        return held(&mut positions, &mut pages);
+    }
+    if !eligible {
+        return held(&mut positions, &mut pages);
+    }
+    // A multi-atom source contributes up to two referenced glyphs per atom,
+    // so the reservation bound must cover twice the atom upper bound.
+    let forbidden_upper = atom_upper
+        .saturating_mul(2)
+        .saturating_add(block.canonical.source_map.len())
+        .saturating_add(block.raw.source_map.len());
+    if !charge(remaining, forbidden_upper) {
+        return None;
+    }
+    let mut forbidden = std::collections::HashSet::new();
+    forbidden.try_reserve(forbidden_upper).ok()?;
+    let referenced = |source: &TextSource, forbidden: &mut std::collections::HashSet<_>| {
+        for atom in &source.atoms {
+            match atom {
+                TextSourceAtom::Glyph(id) => {
+                    forbidden.insert(*id);
+                }
+                TextSourceAtom::SyntheticSpace {
+                    preceding,
+                    following,
+                }
+                | TextSourceAtom::LineBreak {
+                    preceding,
+                    following,
+                } => {
+                    forbidden.insert(*preceding);
+                    forbidden.insert(*following);
+                }
+            }
+        }
+    };
+    for source in block
+        .normalization_events
+        .iter()
+        .map(|event| &event.source)
+        .chain(block.issues.iter().map(|issue| &issue.source))
+    {
+        referenced(source, &mut forbidden);
+    }
+    // Canonical glyph occurrences: a glyph seen twice, seen in a multi-atom
+    // entry or seen through a neighbour reference is ineligible.
+    let mut canonical_glyphs: Vec<Option<crate::model::GlyphId>> = Vec::new();
+    canonical_glyphs
+        .try_reserve_exact(canonical_chars.len())
+        .ok()?;
+    canonical_glyphs.resize(canonical_chars.len(), None);
+    let mut seen = std::collections::HashSet::new();
+    seen.try_reserve(block.canonical.source_map.len()).ok()?;
+    for entry in &block.canonical.source_map {
+        let single = matches!(entry.source.atoms.as_slice(), [TextSourceAtom::Glyph(_)]);
+        if let [TextSourceAtom::Glyph(glyph)] = entry.source.atoms.as_slice() {
+            if !seen.insert(*glyph) {
+                forbidden.insert(*glyph);
+            }
+            if single && entry.output_range.end == entry.output_range.start + 1 {
+                canonical_glyphs[entry.output_range.start] = Some(*glyph);
+            }
+        } else {
+            referenced(&entry.source, &mut forbidden);
+        }
+    }
+    // Raw glyph table keyed by raw scalar offset, with invalid and shared
+    // entries marking the glyph ineligible.
+    let mut raw_scalars: std::collections::HashMap<crate::model::GlyphId, usize> =
+        std::collections::HashMap::new();
+    raw_scalars.try_reserve(block.raw.source_map.len()).ok()?;
+    let mut raw_seen = std::collections::HashSet::new();
+    raw_seen.try_reserve(block.raw.source_map.len()).ok()?;
+    for entry in &block.raw.source_map {
+        if let [TextSourceAtom::Glyph(glyph)] = entry.source.atoms.as_slice() {
+            if !raw_seen.insert(*glyph)
+                || raw_scalars
+                    .insert(*glyph, entry.output_range.start)
+                    .is_some()
+            {
+                forbidden.insert(*glyph);
+            }
+            if entry.output_range.end != entry.output_range.start + 1 {
+                forbidden.insert(*glyph);
+            }
+        } else {
+            referenced(&entry.source, &mut forbidden);
+        }
+    }
+    for (index, glyph) in canonical_glyphs.iter().enumerate() {
+        let Some(glyph) = *glyph else {
+            positions.push(None);
+            pages.push(None);
+            continue;
+        };
+        let Some(&raw_position) = raw_scalars.get(&glyph) else {
+            positions.push(None);
+            pages.push(None);
+            continue;
+        };
+        let overlaps_event = block.normalization_events.iter().any(|event| {
+            (event.canonical_range.start <= index && index < event.canonical_range.end)
+                || (event.raw_range.start <= raw_position && raw_position < event.raw_range.end)
+        });
+        let overlaps_issue = block.issues.iter().any(|issue| {
+            issue.raw_range.start <= raw_position && raw_position < issue.raw_range.end
+        });
+        let raw_ok = canonical_chars.get(index) == raw_chars.get(raw_position);
+        if forbidden.contains(&glyph) || overlaps_event || overlaps_issue || !raw_ok {
+            positions.push(None);
+            pages.push(None);
+            continue;
+        }
+        if let (Some(signature), Some(page)) = (
+            signatures.and_then(|signatures| signatures.get(index)),
+            page,
+        ) {
+            positions.push(Some(*signature));
+            pages.push(Some(page));
+        } else {
+            positions.push(None);
+            pages.push(None);
+        }
+    }
+    Some((positions, pages))
+}
+
+/// Whether one normalization range is consistent and inside the text.
+fn valid_range(range: crate::normalize::ScalarRange, len: usize) -> bool {
+    range.start <= range.end && range.end <= len
+}
 
 /// Exact per-token source metadata of one view, mirroring the separator
 /// insertion of `canonical_group`: the first source glyph's position signature
@@ -3264,6 +3574,8 @@ fn view_token_metadata(
     let mut positions = Vec::new();
     let mut pages = Vec::new();
     let mut block_ranges = Vec::new();
+    let mut deny_positions = Vec::new();
+    let mut deny_pages = Vec::new();
     let mut preceding_space = false;
     for (position, (&block_index, &bounded)) in block_indices.iter().zip(bounded).enumerate() {
         let block = &side.blocks[block_index];
@@ -3277,6 +3589,8 @@ fn view_token_metadata(
             if insert_space {
                 positions.push(None);
                 pages.push(None);
+                deny_positions.push(None);
+                deny_pages.push(None);
             }
         }
         if !charge(remaining, tokens.len().saturating_add(1)) {
@@ -3289,16 +3603,25 @@ fn view_token_metadata(
         let page = bounded
             .then_some((block.pages.len() == 1).then(|| block.pages[0]))
             .flatten();
+        // Deny evidence is only consulted where the bounded metadata is
+        // missing, so a bounded block never pays its scan.
+        let (block_deny_positions, block_deny_pages) = if bounded {
+            (Vec::new(), Vec::new())
+        } else {
+            deny_token_metadata(block, tokens, remaining)?
+        };
         block_ranges.push(positions.len()..positions.len() + tokens.len());
         for index in 0..tokens.len() {
             positions.push(signatures.map(|signatures| signatures[index]));
             pages.push(page);
+            deny_positions.push(block_deny_positions.get(index).copied().flatten());
+            deny_pages.push(block_deny_pages.get(index).copied().flatten());
         }
         preceding_space = tokens
             .last()
             .map_or(insert_space || preceding_space, super::space_token);
     }
-    Some((positions, pages, block_ranges))
+    Some((positions, pages, block_ranges, deny_positions, deny_pages))
 }
 
 /// A complete source-bounded original block with horizontal left-to-right
@@ -4234,6 +4557,672 @@ mod tests {
         })
     }
 
+    fn deny_metadata_for(
+        text: &str,
+        mutate: impl FnOnce(&mut crate::normalize::BlockText),
+        budget: &mut usize,
+    ) -> Option<DenyMetadata> {
+        let mut block = sourced_block(1, text);
+        mutate(&mut block);
+        let tokens = block.canonical.comparable_tokens().expect("fixture tokens");
+        deny_token_metadata(&block, &tokens, budget)
+    }
+
+    #[test]
+    fn deny_metadata_holds_anything_but_strict_single_glyph_sources() {
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for("AB", |_| {}, &mut budget).expect("clean sources");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            2,
+            "clean single-glyph sources carry deny evidence"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                block.canonical.source_map[1].source = block.canonical.source_map[0].source.clone();
+            },
+            &mut budget,
+        )
+        .expect("shared glyph");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            0,
+            "a shared glyph must hold both scalars"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                block.canonical.source_map[0].source = crate::normalize::TextSource {
+                    atoms: vec![crate::normalize::TextSourceAtom::SyntheticSpace {
+                        preceding: crate::model::GlyphId(1),
+                        following: crate::model::GlyphId(2),
+                    }]
+                    .into(),
+                };
+            },
+            &mut budget,
+        )
+        .expect("synthetic source");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            1,
+            "a synthetic-space scalar is held"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                block.issues.push(crate::normalize::NormalizationIssue {
+                    kind: crate::normalize::NormalizationIssueKind::AmbiguousLineBreak,
+                    raw_range: crate::normalize::ScalarRange { start: 1, end: 2 },
+                    source: crate::normalize::TextSource {
+                        atoms: vec![crate::normalize::TextSourceAtom::LineBreak {
+                            preceding: crate::model::GlyphId(1),
+                            following: crate::model::GlyphId(2),
+                        }]
+                        .into(),
+                    },
+                });
+            },
+            &mut budget,
+        )
+        .expect("issue overlap");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            1,
+            "a scalar inside an issue range is held"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                block
+                    .canonical
+                    .unmapped
+                    .push(crate::normalize::UnmappedToken {
+                        scalar_index: 0,
+                        font_hash: crate::model::FontProgramHash(Vec::new()),
+                        glyph_id: 1,
+                        source: block.canonical.source_map[0].source.clone(),
+                    });
+            },
+            &mut budget,
+        )
+        .expect("unmapped token");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            0,
+            "unmapped tokens hold the whole block"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                block.position_signatures = Some(vec![
+                    block.position_signatures.as_ref().expect("signatures")[0],
+                ]);
+            },
+            &mut budget,
+        )
+        .expect("signature mismatch");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            0,
+            "a signature length mismatch holds every scalar"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for("AB", |block| block.pages = Vec::new(), &mut budget)
+            .expect("unknown page");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            0,
+            "an unknown page holds every scalar"
+        );
+
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                let entry = block.raw.source_map[0].clone();
+                block.raw.source_map.push(entry);
+            },
+            &mut budget,
+        )
+        .expect("duplicate raw source");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            0,
+            "a duplicated raw glyph holds the block"
+        );
+
+        let mut budget = 3;
+        assert!(
+            deny_metadata_for("AB", |_| {}, &mut budget).is_none(),
+            "a mid-budget cut must hold the build instead of returning partial metadata"
+        );
+
+        // A line-break neighbour shares the referenced glyphs.
+        let mut budget = 100_000;
+        let (positions, _) = deny_metadata_for(
+            "AB",
+            |block| {
+                block.canonical.source_map[0].source = crate::normalize::TextSource {
+                    atoms: vec![crate::normalize::TextSourceAtom::LineBreak {
+                        preceding: crate::model::GlyphId(1001),
+                        following: crate::model::GlyphId(1002),
+                    }]
+                    .into(),
+                };
+            },
+            &mut budget,
+        )
+        .expect("line break source");
+        assert_eq!(
+            positions
+                .iter()
+                .filter(|position| position.is_some())
+                .count(),
+            0,
+            "a line-break neighbour must hold the referenced glyphs"
+        );
+
+        // The cut threshold is data dependent, not a fixed small constant.
+        let mut low = 0usize;
+        let mut high = 100_000usize;
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            let mut budget = mid;
+            if deny_metadata_for("AB", |_| {}, &mut budget).is_some() {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+        assert!(high > 3, "the threshold must exceed the trivial charge");
+        let mut below = high - 1;
+        assert!(
+            deny_metadata_for("AB", |_| {}, &mut below).is_none(),
+            "one work unit below the threshold must hold the build"
+        );
+    }
+
+    #[test]
+    fn bounded_views_skip_the_deny_scan() {
+        let blocks = [sourced_block(1, "AB")];
+        let source = side(&blocks);
+        let mut budget = 5;
+        assert!(
+            view_token_metadata(&source, &[0], &[true], None, &mut budget).is_some(),
+            "a bounded view must not pay for deny metadata it never consults"
+        );
+    }
+
+    fn line_break_block() -> crate::normalize::BlockText {
+        line_break_block_with(1, 1000)
+    }
+
+    fn line_break_block_with(block: u64, base: u64) -> crate::normalize::BlockText {
+        use crate::normalize::{
+            MappedText, ScalarRange, SourceMapEntry, TextSource, TextSourceAtom,
+        };
+        let glyph = |id: u64| TextSourceAtom::Glyph(crate::model::GlyphId(id));
+        let break_source = TextSource {
+            atoms: vec![TextSourceAtom::LineBreak {
+                preceding: crate::model::GlyphId(base + 2),
+                following: crate::model::GlyphId(base + 3),
+            }]
+            .into(),
+        };
+        let source_map = vec![
+            SourceMapEntry {
+                output_range: ScalarRange { start: 0, end: 1 },
+                source: TextSource {
+                    atoms: vec![glyph(base + 1)].into(),
+                },
+            },
+            SourceMapEntry {
+                output_range: ScalarRange { start: 1, end: 2 },
+                source: TextSource {
+                    atoms: vec![glyph(base + 2)].into(),
+                },
+            },
+            SourceMapEntry {
+                output_range: ScalarRange { start: 2, end: 3 },
+                source: break_source.clone(),
+            },
+            SourceMapEntry {
+                output_range: ScalarRange { start: 3, end: 4 },
+                source: TextSource {
+                    atoms: vec![glyph(base + 3)].into(),
+                },
+            },
+        ];
+        let canonical = MappedText {
+            text: "AB C".to_owned(),
+            source_map: source_map.clone(),
+            unmapped: Vec::new(),
+        };
+        let raw = MappedText {
+            text: "AB\nC".to_owned(),
+            source_map,
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("fixture tokens");
+        let position = |x: f64| {
+            PositionSignature::new(Vec2 { x, y: 0.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position")
+        };
+        crate::normalize::BlockText {
+            block: BlockId(block),
+            role: BlockRole::Body,
+            raw,
+            canonical,
+            matching: "AB C".to_owned(),
+            matching_tokens: tokens.clone(),
+            numeric_mask_applied: false,
+            normalization_events: vec![crate::normalize::NormalizationEvent {
+                kind: crate::normalize::NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 2, end: 3 },
+                canonical_range: ScalarRange { start: 2, end: 3 },
+                source: break_source.clone(),
+            }],
+            issues: vec![crate::normalize::NormalizationIssue {
+                kind: crate::normalize::NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 2, end: 3 },
+                source: break_source,
+            }],
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: Some(vec![
+                position(10.0),
+                position(11.0),
+                position(12.0),
+                position(13.0),
+            ]),
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    #[test]
+    fn deny_metadata_rejects_a_distant_occurrence_through_view_build() -> Result<()> {
+        let blocks = [line_break_block()];
+        let source = side(&blocks);
+        let views = build_views(&source, &[None], None, &mut 100_000)
+            .expect("valid source views")
+            .expect("view construction fits its budget");
+        assert!(
+            !views[0].block_candidates[0],
+            "the line-break block must stay unbounded"
+        );
+        assert!(
+            views[0].token_positions.iter().all(Option::is_none),
+            "an unbounded view carries no bounded positions"
+        );
+        assert!(
+            views[0].deny_positions[0].is_some(),
+            "the single A glyph must carry deny evidence"
+        );
+
+        let far = positioned_view(
+            "AB",
+            vec![Some(20.0), Some(21.0)],
+            vec![Some(0), Some(0)],
+            true,
+        );
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &far, &(0..2), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            !result.unknown,
+            "the deny evidence must reject the distant occurrence"
+        );
+
+        let same = positioned_view(
+            "AB",
+            vec![Some(10.0), Some(11.0)],
+            vec![Some(0), Some(0)],
+            true,
+        );
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &same, &(0..2), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            result.unknown,
+            "a matching A stays unverifiable: {result:?}"
+        );
+        assert!(
+            result.matched.is_none(),
+            "the occurrence must never be adopted"
+        );
+        Ok(())
+    }
+
+    fn text_block(
+        canonical_text: &str,
+        raw_text: &str,
+        canonical_map: Vec<(usize, usize, Vec<crate::model::GlyphId>)>,
+        raw_map: Vec<(usize, usize, Vec<crate::model::GlyphId>)>,
+    ) -> crate::normalize::BlockText {
+        let entry = |(start, end, glyphs): (usize, usize, Vec<crate::model::GlyphId>)| {
+            crate::normalize::SourceMapEntry {
+                output_range: crate::normalize::ScalarRange { start, end },
+                source: crate::normalize::TextSource {
+                    atoms: glyphs
+                        .into_iter()
+                        .map(crate::normalize::TextSourceAtom::Glyph)
+                        .collect::<Vec<_>>()
+                        .into(),
+                },
+            }
+        };
+        let canonical = crate::normalize::MappedText {
+            text: canonical_text.to_owned(),
+            source_map: canonical_map.into_iter().map(entry).collect(),
+            unmapped: Vec::new(),
+        };
+        let raw = crate::normalize::MappedText {
+            text: raw_text.to_owned(),
+            source_map: raw_map.into_iter().map(entry).collect(),
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("tokens");
+        let position = PositionSignature::new(Vec2 { x: 1.0, y: 0.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("position");
+        crate::normalize::BlockText {
+            block: BlockId(1),
+            role: BlockRole::Body,
+            raw,
+            canonical,
+            matching: canonical_text.to_owned(),
+            matching_tokens: tokens.clone(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: Some(vec![position; tokens.len()]),
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    fn deny_for(block: &crate::normalize::BlockText, budget: &mut usize) -> Option<DenyMetadata> {
+        let tokens = block.canonical.comparable_tokens().expect("tokens");
+        deny_token_metadata(block, &tokens, budget)
+    }
+
+    #[test]
+    fn deny_metadata_uses_raw_scalar_offsets_and_rejects_shared_reoccurrence() {
+        let glyph = |id: u64| crate::model::GlyphId(id);
+        // The raw entry ordinal differs from the raw scalar offset.
+        let block = text_block(
+            "A",
+            "xA",
+            vec![(0, 1, vec![glyph(7)])],
+            vec![(1, 2, vec![glyph(7)])],
+        );
+        let mut budget = 100_000;
+        assert!(
+            deny_for(&block, &mut budget).expect("valid block").0[0].is_some(),
+            "the raw scalar offset, not the entry ordinal, carries the evidence"
+        );
+        // The same ordinal 0 would compare the wrong raw scalar.
+        let block = text_block(
+            "A",
+            "Ax",
+            vec![(0, 1, vec![glyph(7)])],
+            vec![(1, 2, vec![glyph(7)])],
+        );
+        let mut budget = 100_000;
+        assert!(
+            deny_for(&block, &mut budget).expect("valid block").0[0].is_none(),
+            "a mismatched raw scalar must hold the token"
+        );
+        // A valid single-glyph entry plus a multi-source reoccurrence.
+        let block = text_block(
+            "A",
+            "AA",
+            vec![(0, 1, vec![glyph(7)])],
+            vec![(0, 1, vec![glyph(7)]), (1, 2, vec![glyph(7), glyph(8)])],
+        );
+        let mut budget = 100_000;
+        assert!(
+            deny_for(&block, &mut budget).expect("valid block").0[0].is_none(),
+            "a glyph in a multi-source entry must hold the token"
+        );
+    }
+
+    #[test]
+    fn deny_metadata_holds_inconsistent_normalization_ranges() {
+        let glyph = |id: u64| crate::model::GlyphId(id);
+        let base = || {
+            text_block(
+                "A",
+                "A",
+                vec![(0, 1, vec![glyph(7)])],
+                vec![(0, 1, vec![glyph(7)])],
+            )
+        };
+        let empty = crate::normalize::TextSource {
+            atoms: Vec::new().into(),
+        };
+        for (canonical_range, raw_range, expected) in [
+            (0..1, 0..0, false),
+            (0..0, 0..1, false),
+            (0..99, 0..0, false),
+            (std::ops::Range { start: 2, end: 1 }, 0..0, false),
+        ] {
+            let mut block = base();
+            block
+                .normalization_events
+                .push(crate::normalize::NormalizationEvent {
+                    kind: crate::normalize::NormalizationKind::SoftLineBreak,
+                    raw_range: crate::normalize::ScalarRange {
+                        start: raw_range.start,
+                        end: raw_range.end,
+                    },
+                    canonical_range: crate::normalize::ScalarRange {
+                        start: canonical_range.start,
+                        end: canonical_range.end,
+                    },
+                    source: empty.clone(),
+                });
+            let mut budget = 100_000;
+            let evidence = deny_for(&block, &mut budget).expect("valid block").0[0].is_some();
+            assert_eq!(
+                evidence, expected,
+                "range {canonical_range:?}/{raw_range:?} must hold the token"
+            );
+        }
+    }
+
+    #[test]
+    fn deny_metadata_build_holds_the_whole_pass_on_a_late_cut() {
+        let one = [line_break_block()];
+        let one_source = side(&one);
+        let two = [line_break_block(), line_break_block_with(2, 2000)];
+        let two_source = side(&two);
+        let minimum =
+            |source: &Side<'_>, intervals: &[Option<TrustedRunInterval>], count: usize| {
+                let mut low = 0usize;
+                let mut high = 1_000_000usize;
+                while high - low > 1 {
+                    let mid = low + (high - low) / 2;
+                    let mut remaining = mid;
+                    let result = build_views(source, intervals, None, &mut remaining)
+                        .expect("valid source views");
+                    if result.is_some_and(|views| views.len() == count) {
+                        high = mid;
+                    } else {
+                        low = mid;
+                    }
+                }
+                high
+            };
+        let single_minimum = minimum(&one_source, &[None], 1);
+        let both_minimum = minimum(&two_source, &[None, None], 2);
+        assert!(
+            single_minimum < both_minimum,
+            "one block must build before the two-block build does"
+        );
+        // One budget unit below the two-block minimum the single block still
+        // fits while the whole build must be withheld: the cut happens inside
+        // the pass, not at its start. The exact phase is not asserted.
+        let mut remaining = both_minimum - 1;
+        let result = build_views(&two_source, &[None, None], None, &mut remaining)
+            .expect("valid source views");
+        assert!(
+            result.is_none(),
+            "a cut inside the second block must hold the whole build"
+        );
+    }
+
+    fn positioned_view_with_deny(
+        text: &str,
+        positions: Vec<Option<f64>>,
+        pages: Vec<Option<u32>>,
+        deny: Vec<Option<f64>>,
+        deny_pages: Vec<Option<u32>>,
+        candidate: bool,
+    ) -> View {
+        let mut view = positioned_view(text, positions, pages, candidate);
+        view.deny_positions = deny
+            .into_iter()
+            .map(|position| {
+                position.map(|x| {
+                    PositionSignature::new(Vec2 { x, y: 0.0 }, Vec2 { x: 1.0, y: 0.0 })
+                        .expect("valid deny position")
+                })
+            })
+            .collect();
+        view.deny_pages = deny_pages;
+        view
+    }
+
+    #[test]
+    fn deny_only_positions_reject_distant_occurrences_and_never_confirm() -> Result<()> {
+        // A competitor whose whole-token metadata is unknown but whose single
+        // known glyph sits far away is rejected; the same position stays
+        // unverifiable and never becomes a confirmed occurrence.
+        let needle = positioned_view(
+            "ABC",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            true,
+        );
+        let views = [positioned_view_with_deny(
+            "ABC",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![Some(9.0), None, None],
+            vec![Some(0), None, None],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            !result.unknown,
+            "a deny-only mismatch must not become unknown"
+        );
+
+        let views = [positioned_view_with_deny(
+            "ABC",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![Some(0.0), None, None],
+            vec![Some(0), None, None],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            result.unknown,
+            "a matching deny-only position must stay unverifiable"
+        );
+
+        let views = [positioned_view_with_deny(
+            "ABC",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![Some(0.0), None, None],
+            vec![Some(7), None, None],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            !result.unknown,
+            "a different deny-only page must reject the occurrence"
+        );
+
+        // An unknown offset before a later mismatch must not hide it.
+        let views = [positioned_view_with_deny(
+            "ABC",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![None, Some(9.0), None],
+            vec![None, Some(0), None],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result = positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?
+            .expect("the search completes");
+        assert_eq!(result.same, 0);
+        assert!(
+            !result.unknown,
+            "a later deny mismatch must still reject after an unknown offset"
+        );
+
+        let mut budget = 0;
+        assert!(
+            positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut budget)?.is_none(),
+            "a budget cut must stay a cut"
+        );
+        Ok(())
+    }
+
     fn positioned_view(
         text: &str,
         positions: Vec<Option<f64>>,
@@ -4268,6 +5257,8 @@ mod tests {
                 })
                 .collect(),
             token_pages: pages,
+            deny_positions: Vec::new(),
+            deny_pages: Vec::new(),
         }
     }
 
@@ -4559,14 +5550,15 @@ mod tests {
         for separator in [BlockSeparator::Space, BlockSeparator::Concatenate] {
             let group = source.canonical_group(&ids, Some(separator));
             let bounded = vec![true; blocks.len()];
-            let (positions, pages, block_ranges) = view_token_metadata(
-                &source,
-                &[0, 1, 2, 3, 4],
-                &bounded,
-                Some(separator),
-                &mut 100_000,
-            )
-            .expect("metadata fits its budget");
+            let (positions, pages, block_ranges, _deny_positions, _deny_pages) =
+                view_token_metadata(
+                    &source,
+                    &[0, 1, 2, 3, 4],
+                    &bounded,
+                    Some(separator),
+                    &mut 100_000,
+                )
+                .expect("metadata fits its budget");
             assert_eq!(block_ranges.len(), blocks.len(), "{separator:?}");
             assert_eq!(positions.len(), group.tokens.len(), "{separator:?}");
             assert_eq!(pages.len(), group.tokens.len(), "{separator:?}");
@@ -4614,7 +5606,7 @@ mod tests {
         let ids = [BlockId(1), BlockId(2), BlockId(3)];
         let group = source.canonical_group(&ids, Some(BlockSeparator::Space));
         let bounded = vec![true; blocks.len()];
-        let (positions, pages, block_ranges) = view_token_metadata(
+        let (positions, pages, block_ranges, _deny_positions, _deny_pages) = view_token_metadata(
             &source,
             &[0, 1, 2],
             &bounded,
@@ -8246,7 +9238,7 @@ mod tests {
         ] {
             let blocks = [block(1, &text)];
             let source = side(&blocks);
-            let views = build_views(&source, &[None], None, &mut 30_000)
+            let views = build_views(&source, &[None], None, &mut 120_000)
                 .expect("valid source views")
                 .expect("view construction fits its budget");
             let needle = anchor
