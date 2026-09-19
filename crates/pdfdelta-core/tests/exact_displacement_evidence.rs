@@ -1017,12 +1017,13 @@ fn two_line_domain_proves_the_se_line_through_its_boundary() -> Result<()> {
     Ok(())
 }
 
-fn stationary_run_pair() -> Result<(Document<Glyph>, Document<Glyph>)> {
-    // Three lines in one run. The top and middle lines sit still and are
-    // equal on both sides; the bottom line changes its year at the same
-    // position. The middle line is the stationary candidate: it is a member
-    // of the run, so no whole-view equality closes it, and only the
-    // independently established top line can carry its stillness.
+fn single_bt_multi_line_year_pair() -> Result<(Document<Glyph>, Document<Glyph>)> {
+    // Three lines inside one BT block with in-page line moves. The top and
+    // middle lines are equal on both sides and the bottom line changes its
+    // year at the same position, so the fixture keeps the year change and
+    // exercises a multi-line single-run document. This fixture also passes at
+    // 7797a46; it is a pipeline guard for that shape, not a red test for the
+    // stationary-member proof (the caller unit tests carry that evidence).
     let widths = se_widths();
     let top = "Form 1040 header line";
     let middle = "Filing status single line";
@@ -1066,8 +1067,8 @@ fn document_text(document: &Document<Glyph>) -> String {
 }
 
 #[test]
-fn a_stationary_run_member_closes_through_its_established_neighbour() -> Result<()> {
-    let (old, new) = stationary_run_pair()?;
+fn a_single_bt_multi_line_document_keeps_the_year_change() -> Result<()> {
+    let (old, new) = single_bt_multi_line_year_pair()?;
     let old_text = document_text(&old);
     let new_text = document_text(&new);
     assert!(
@@ -1090,8 +1091,11 @@ fn a_stationary_run_member_closes_through_its_established_neighbour() -> Result<
     assert_eq!(summary.unresolved_regions, 0, "{summary:#?}");
     assert_eq!(summary.comparison_coverage, Some(1.0), "{summary:#?}");
     assert!(
-        !comparison.changes.is_empty(),
-        "the year change must stay an exact change: {comparison:#?}"
+        comparison
+            .changes
+            .iter()
+            .any(|change| change.kind == ChangeKind::Replacement),
+        "the year change must stay an exact replacement: {comparison:#?}"
     );
     Ok(())
 }
