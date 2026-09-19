@@ -2001,6 +2001,7 @@ pub(super) fn finish(
     let mut formatting_changes = Vec::new();
     candidates_truncated |=
         assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+    assessor.recover_closed_domains(&mut ownership, &mut changes, &candidates)?;
     for formatting in proposed.formatting_changes {
         for &index in &accepted {
             let relation = &assessor.records[index];
