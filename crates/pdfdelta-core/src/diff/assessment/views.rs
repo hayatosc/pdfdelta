@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::super::{GroupText, SentenceRecoveryInput, Side, TextSpan};
-use super::charge;
+use super::{SourceInterval, charge};
 
 mod anchors;
 
@@ -21,6 +21,9 @@ pub(super) struct LocalDomain {
     /// these domains may publish an equal range without an edit script.
     pub(super) source_bounded: bool,
 }
+
+/// Source-ordered local domain keyed by view order and span starts.
+type SortedDomain = ((usize, usize, usize, usize), LocalDomain);
 
 #[derive(Default)]
 pub(super) struct Discovery {
@@ -44,6 +47,11 @@ struct View {
     /// A source-bounded whole-view anchor may only close its own domain for
     /// such text; vertical or tilted blocks stay unresolved.
     horizontal_text: bool,
+    /// The canonical text has no right-to-left or explicit bidirectional
+    /// content, mirroring the layout's line direction classification. A
+    /// positioned whole-view equality never closes RTL, mixed or
+    /// bidi-controlled text whose logical order stays unknown.
+    text_left_to_right: bool,
     /// Exact per-token source positions of a source-bounded view. A whole-view
     /// anchor only closes its own domain when both sides carry the same
     /// positions on the same page, so a moved singleton keeps its move or
@@ -54,6 +62,15 @@ struct View {
     /// closes its own domain between views on the same page; page
     /// correspondence beyond that stays unresolved.
     page: Option<u32>,
+    /// Exact per-token source metadata of the whole view, including trusted
+    /// runs and views that cannot close a domain themselves: the first source
+    /// glyph's position signature and single page of each canonical token, or
+    /// `None` where the token has no source, no complete signature or spans
+    /// multiple pages. The positioned-equality veto compares occurrences in
+    /// every view through this metadata instead of excluding views that are
+    /// not candidates themselves.
+    token_positions: Vec<Option<crate::normalize::PositionSignature>>,
+    token_pages: Vec<Option<u32>>,
 }
 
 #[derive(Clone, Copy)]
@@ -390,12 +407,305 @@ pub(super) fn discover(
             ));
         }
     }
+    // The positioned pass is optional and runs after the anchor flow. An
+    // exhausted budget drops only its own unproven additions; the completed
+    // anchor domains and exact anchors are kept, and the caller records the
+    // work limit from the shared budget.
+    let _positioned_complete = positioned_equalities(
+        sides,
+        [&old_views, &new_views],
+        remaining_work,
+        &mut localized,
+        max_ranges,
+    )?;
     localized.sort_unstable_by_key(|(key, _)| *key);
     localized.truncate(max_ranges);
     Ok(Discovery {
         domains: localized.into_iter().map(|(_, domain)| domain).collect(),
         anchors: exact_domains,
     })
+}
+
+/// True when a complete single source-bounded view may close a positioned
+/// whole-view equality: one source-bounded block, horizontal, left-to-right
+/// (or neutral) text, one page and one exact position per canonical token.
+fn positioned_view(view: &View) -> bool {
+    view.source_bounded
+        && view.block_indices.len() == 1
+        && view.horizontal_text
+        && view.text_left_to_right
+        && view.page.is_some()
+        && !view.position_signatures.is_empty()
+        && view.position_signatures.len() == view.group.tokens.len()
+        && !view.group.tokens.is_empty()
+}
+
+/// Occurrences of a positioned candidate's token sequence across every view.
+struct PositionedOccurrences {
+    /// Other occurrences whose complete metadata equals the candidate's key.
+    same: usize,
+    /// An occurrence whose metadata is incomplete, so its source position
+    /// cannot be compared; it vetoes the proof.
+    unknown: bool,
+    /// First same-position occurrence, whether it covers that whole view and
+    /// whether it is itself an eligible candidate view. A partial occurrence
+    /// competes but can never be adopted.
+    matched: Option<(usize, bool, bool)>,
+}
+
+/// Searches every view, including trusted runs and views that cannot close a
+/// domain themselves, for occurrences of the candidate's tokens. An occurrence
+/// only competes when its page and every token position are available and
+/// equal; a different complete position is a different physical line, and an
+/// occurrence without metadata vetoes the proof instead of being ignored.
+fn positioned_occurrences(
+    views: &[View],
+    needle: &[ComparableToken],
+    page: u32,
+    signatures: &[crate::normalize::PositionSignature],
+    self_view: usize,
+    self_start: usize,
+    remaining: &mut usize,
+) -> Result<Option<PositionedOccurrences>> {
+    let mut result = PositionedOccurrences {
+        same: 0,
+        unknown: false,
+        matched: None,
+    };
+    for (view_index, view) in views.iter().enumerate() {
+        let tokens = &view.group.tokens;
+        if needle.len() > tokens.len() {
+            continue;
+        }
+        if !charge(remaining, needle.len()) {
+            return Ok(None);
+        }
+        for start in 0..=tokens.len() - needle.len() {
+            if !charge(remaining, needle.len().saturating_add(1)) {
+                return Ok(None);
+            }
+            if &tokens[start..start + needle.len()] != needle {
+                continue;
+            }
+            if view_index == self_view && start == self_start {
+                continue;
+            }
+            let mut same = true;
+            let mut complete = true;
+            for (offset, signature) in signatures.iter().enumerate() {
+                if let (Some(position), Some(occurrence_page)) = (
+                    view.token_positions[start + offset],
+                    view.token_pages[start + offset],
+                ) {
+                    if occurrence_page != page || position != *signature {
+                        same = false;
+                    }
+                } else {
+                    complete = false;
+                    break;
+                }
+            }
+            if !complete {
+                result.unknown = true;
+            } else if same {
+                result.same = result.same.saturating_add(1).min(2);
+                if result.matched.is_none() {
+                    let whole_view = start == 0 && needle.len() == tokens.len();
+                    result.matched = Some((view_index, whole_view, positioned_view(view)));
+                }
+            }
+        }
+    }
+    Ok(Some(result))
+}
+
+/// Projects a span to source intervals with a conservative work check.
+fn project_span(
+    side: &Side<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+) -> Result<Option<Vec<SourceInterval>>> {
+    if !charge(remaining, span.blocks.len().saturating_add(1)) {
+        return Ok(None);
+    }
+    Ok(Some(super::project(side, span)?))
+}
+
+/// Source intervals of two ranges overlap on the same block. Different block
+/// vector shapes that point at the same source range are still compared.
+fn projected_overlap(old: &[SourceInterval], new: &[SourceInterval]) -> bool {
+    old.iter().any(|old| {
+        new.iter().any(|new| {
+            old.block_index == new.block_index && old.start < new.end && new.start < old.end
+        })
+    })
+}
+
+/// Closes complete source-bounded single views whose full canonical token
+/// sequence, page and exact per-token source positions form a one-to-one key.
+///
+/// The key is strictly stronger than content rarity because it includes every
+/// token's exact source position. Uniqueness is checked across every view, not
+/// only eligible candidates: an occurrence inside a trusted run or in a view
+/// without complete metadata is compared through its per-token positions, and
+/// an occurrence whose metadata is incomplete vetoes the proof instead of
+/// being ignored. Repeated keys, one-sided extras, non-horizontal or
+/// right-to-left text, missing positions, different pages and exhausted work
+/// never close a domain. Trusted-run fragments keep their veto because only
+/// complete single source-bounded views participate.
+fn positioned_equalities(
+    sides: [&Side<'_>; 2],
+    views: [&[View]; 2],
+    remaining: &mut usize,
+    domains: &mut Vec<SortedDomain>,
+    limit: usize,
+) -> Result<bool> {
+    // Source projections of the completed domains. An addition is held when
+    // it overlaps any existing domain on either side, so a different blocks
+    // representation cannot evade the source conflict and an existing proved
+    // boundary is never broken.
+    let mut existing = Vec::new();
+    for (_, domain) in domains.iter() {
+        let Some(old_projection) = project_span(sides[0], &domain.old_span, remaining)? else {
+            return Ok(false);
+        };
+        let Some(new_projection) = project_span(sides[1], &domain.new_span, remaining)? else {
+            return Ok(false);
+        };
+        existing.push([old_projection, new_projection]);
+    }
+    let mut additions: Vec<([Vec<SourceInterval>; 2], LocalDomain)> = Vec::new();
+    for (old_index, old) in views[0].iter().enumerate() {
+        if !positioned_view(old) {
+            continue;
+        }
+        if domains.len().saturating_add(additions.len()) >= limit {
+            break;
+        }
+        let Some(page) = old.page else {
+            continue;
+        };
+        if !charge(
+            remaining,
+            old.group
+                .tokens
+                .len()
+                .saturating_add(old.position_signatures.len()),
+        ) {
+            return Ok(false);
+        }
+        // The old side must not contain another occurrence at the same
+        // position, and no occurrence with unverifiable metadata.
+        let Some(old_occurrences) = positioned_occurrences(
+            views[0],
+            &old.group.tokens,
+            page,
+            &old.position_signatures,
+            old_index,
+            0,
+            remaining,
+        )?
+        else {
+            return Ok(false);
+        };
+        if old_occurrences.same != 0 || old_occurrences.unknown {
+            continue;
+        }
+        // The new side must contain exactly one same-position occurrence, it
+        // must cover that whole view and it must be an eligible complete view
+        // itself. A substring occurrence competes but is never adopted.
+        let Some(new_occurrences) = positioned_occurrences(
+            views[1],
+            &old.group.tokens,
+            page,
+            &old.position_signatures,
+            usize::MAX,
+            usize::MAX,
+            remaining,
+        )?
+        else {
+            return Ok(false);
+        };
+        if new_occurrences.same != 1 || new_occurrences.unknown {
+            continue;
+        }
+        let Some((new_index, true, true)) = new_occurrences.matched else {
+            continue;
+        };
+        let new = &views[1][new_index];
+        // Re-verify the whole-view equality invariant immediately before the
+        // domain is added: full token sequence, page and every position must
+        // match, and no substring may be expanded to a whole view.
+        if old.group.tokens != new.group.tokens
+            || old.page != new.page
+            || old.position_signatures != new.position_signatures
+            || old.position_signatures.len() != old.group.tokens.len()
+            || new.position_signatures.len() != new.group.tokens.len()
+            || old.group.tokens.is_empty()
+        {
+            continue;
+        }
+        let old_span = old.group.full_span();
+        let new_span = new.group.full_span();
+        let Some(old_projection) = project_span(sides[0], &old_span, remaining)? else {
+            return Ok(false);
+        };
+        let Some(new_projection) = project_span(sides[1], &new_span, remaining)? else {
+            return Ok(false);
+        };
+        // Keep existing domains; hold any addition whose source ranges overlap
+        // one of them or a pending addition on either side.
+        let conflicts = existing
+            .iter()
+            .chain(additions.iter().map(|(projection, _)| projection))
+            .any(|projection| {
+                projected_overlap(&old_projection, &projection[0])
+                    || projected_overlap(&new_projection, &projection[1])
+            });
+        if conflicts {
+            continue;
+        }
+        if !compatible_roles(sides, [&old_span, &new_span], remaining)?
+            || super::span_has_source_issues(sides[0], &old_span, remaining)?
+            || super::span_has_source_issues(sides[1], &new_span, remaining)?
+        {
+            continue;
+        }
+        additions.push((
+            [old_projection, new_projection],
+            LocalDomain {
+                old_span,
+                new_span,
+                source_bounded: true,
+            },
+        ));
+    }
+    for (_, domain) in additions {
+        let old_index = domain
+            .old_span
+            .blocks
+            .first()
+            .and_then(|block| sides[0].index.get(block))
+            .copied()
+            .unwrap_or(usize::MAX);
+        let new_index = domain
+            .new_span
+            .blocks
+            .first()
+            .and_then(|block| sides[1].index.get(block))
+            .copied()
+            .unwrap_or(usize::MAX);
+        domains.push((
+            (
+                old_index,
+                new_index,
+                domain.old_span.comparable_range.start,
+                domain.new_span.comparable_range.start,
+            ),
+            domain,
+        ));
+    }
+    Ok(true)
 }
 
 fn split_at_barriers(
@@ -491,6 +801,19 @@ fn build_views(
         if !charge_group(remaining_work, &group) {
             return Ok(None);
         }
+        let block_bounded = block_indices
+            .iter()
+            .map(|&block_index| source_bounded_block(&side.blocks[block_index], remaining_work))
+            .collect::<Vec<_>>();
+        let Some((token_positions, token_pages)) = view_token_metadata(
+            side,
+            &block_indices,
+            &block_bounded,
+            Some(BlockSeparator::Space),
+            remaining_work,
+        ) else {
+            return Ok(None);
+        };
         views.push(View {
             kind: ViewKind::Trusted(run_id),
             source_order: block_indices.iter().copied().min().unwrap_or(usize::MAX),
@@ -498,8 +821,11 @@ fn build_views(
             group,
             source_bounded: false,
             horizontal_text: false,
+            text_left_to_right: false,
             position_signatures: Vec::new(),
             page: None,
+            token_positions,
+            token_pages,
         });
     }
 
@@ -514,9 +840,11 @@ fn build_views(
         }
         let source_bounded = source_bounded_block(&side.blocks[block_index], remaining_work);
         let mut horizontal_text = false;
+        let mut text_left_to_right = false;
         let mut position_signatures = Vec::new();
         let mut page = None;
         if source_bounded {
+            text_left_to_right = left_to_right_text(&side.blocks[block_index]);
             let block = &side.blocks[block_index];
             let Some(signatures) = block.position_signatures.as_deref() else {
                 // `source_bounded_block` guarantees signatures; fail closed.
@@ -535,6 +863,15 @@ fn build_views(
                 page = Some(*page_number);
             }
         }
+        let Some((token_positions, token_pages)) = view_token_metadata(
+            side,
+            &[block_index],
+            &[source_bounded],
+            None,
+            remaining_work,
+        ) else {
+            return Ok(None);
+        };
         views.push(View {
             kind: ViewKind::Untrusted(block_index),
             source_order: block_index,
@@ -542,8 +879,11 @@ fn build_views(
             group,
             source_bounded,
             horizontal_text,
+            text_left_to_right,
             position_signatures,
             page,
+            token_positions,
+            token_pages,
         });
     }
     views.sort_unstable_by_key(|view| {
@@ -570,6 +910,91 @@ fn complete_run(members: &[RunMember]) -> bool {
 /// Matches the layout's axis-alignment tolerance for a single normalized
 /// direction component without importing the layout constant.
 const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
+
+/// Exact per-token source metadata of one view: position signature and page
+/// per canonical token.
+type ViewTokenMetadata = (
+    Vec<Option<crate::normalize::PositionSignature>>,
+    Vec<Option<u32>>,
+);
+
+/// Exact per-token source metadata of one view, mirroring the separator
+/// insertion of `canonical_group`: the first source glyph's position signature
+/// and single page behind every canonical token. A token reports `None` when
+/// its block lacks complete source evidence (issues, unmapped characters,
+/// non-whitespace normalization, line or page breaks, multiple pages, missing
+/// signatures), so an occurrence whose source attribution cannot be proven is
+/// never compared as if its position were known. Separator tokens inserted
+/// between blocks carry no metadata. `None` reports an exhausted shared work
+/// budget.
+fn view_token_metadata(
+    side: &Side<'_>,
+    block_indices: &[usize],
+    bounded: &[bool],
+    separator: Option<BlockSeparator>,
+    remaining: &mut usize,
+) -> Option<ViewTokenMetadata> {
+    let mut positions = Vec::new();
+    let mut pages = Vec::new();
+    let mut preceding_space = false;
+    for (position, (&block_index, &bounded)) in block_indices.iter().zip(bounded).enumerate() {
+        let block = &side.blocks[block_index];
+        let tokens = &side.canonical[block_index];
+        let mut insert_space = false;
+        if position > 0 {
+            insert_space = separator.map(|separator| separator.at(position - 1))
+                == Some(BlockSeparator::Space)
+                && !preceding_space
+                && !tokens.first().is_some_and(super::space_token);
+            if insert_space {
+                positions.push(None);
+                pages.push(None);
+            }
+        }
+        if !charge(remaining, tokens.len().saturating_add(1)) {
+            return None;
+        }
+        let signatures = bounded
+            .then_some(block.position_signatures.as_deref())
+            .flatten()
+            .filter(|signatures| signatures.len() == tokens.len());
+        let page = bounded
+            .then_some((block.pages.len() == 1).then(|| block.pages[0]))
+            .flatten();
+        for index in 0..tokens.len() {
+            positions.push(signatures.map(|signatures| signatures[index]));
+            pages.push(page);
+        }
+        preceding_space = tokens
+            .last()
+            .map_or(insert_space || preceding_space, super::space_token);
+    }
+    Some((positions, pages))
+}
+
+/// True when the canonical text has no right-to-left or explicit
+/// bidirectional content, mirroring the layout's line direction classification.
+/// Neutral text such as bare digits stays eligible; RTL, mixed and
+/// bidi-controlled text does not.
+fn left_to_right_text(block: &BlockText) -> bool {
+    use unicode_bidi::BidiClass;
+    block.canonical.text.chars().all(|character| {
+        !matches!(
+            unicode_bidi::bidi_class(character),
+            BidiClass::R
+                | BidiClass::AL
+                | BidiClass::LRE
+                | BidiClass::LRI
+                | BidiClass::LRO
+                | BidiClass::RLE
+                | BidiClass::RLI
+                | BidiClass::RLO
+                | BidiClass::FSI
+                | BidiClass::PDI
+                | BidiClass::PDF
+        )
+    })
+}
 
 fn horizontal_direction(signature: &crate::normalize::PositionSignature) -> bool {
     let direction = signature.direction();
@@ -1326,9 +1751,29 @@ mod tests {
             let domains = discover([&old, &new], input, &[], &mut 100_000, 100)
                 .expect("bounded source ending search");
             if repeated_ending {
+                // The changed line (alpha versus beta) still cannot close: no
+                // independent unique ending anchor exists. The identical
+                // repeated line is a complete source-bounded view whose
+                // tokens, page and exact per-token positions match on both
+                // sides, so it closes by the positioned key rather than by
+                // text-only uniqueness.
+                assert_eq!(domains.len(), 1, "{domains:?}");
+                assert_eq!(
+                    super::super::span_tokens(&old, &domains[0].old_span).expect("old tokens"),
+                    old_blocks[1]
+                        .canonical
+                        .comparable_tokens()
+                        .expect("old source")
+                );
                 assert!(
-                    domains.is_empty(),
-                    "a repeated ending cannot close the changed line"
+                    domains.iter().all(|domain| {
+                        super::super::span_tokens(&old, &domain.old_span).expect("old tokens")
+                            != old_blocks[0]
+                                .canonical
+                                .comparable_tokens()
+                                .expect("old source")
+                    }),
+                    "the changed line must not close"
                 );
             } else {
                 assert_eq!(domains.len(), 1);
@@ -1348,6 +1793,470 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn positioned_block(
+        id: u64,
+        text: &str,
+        x: f64,
+        y: f64,
+        page: u32,
+    ) -> crate::normalize::BlockText {
+        let mut block = sourced_block(id, text);
+        let position =
+            PositionSignature::new(Vec2 { x, y }, Vec2 { x: 1.0, y: 0.0 }).expect("valid position");
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        block.position_signatures = Some(vec![position; tokens]);
+        block.pages = vec![page];
+        block
+    }
+
+    fn whole_view_positioned_domain(
+        domains: &[LocalDomain],
+        old_blocks: &[crate::normalize::BlockText],
+        new_blocks: &[crate::normalize::BlockText],
+        old_index: usize,
+        new_index: usize,
+    ) -> bool {
+        let old_len = old_blocks[old_index]
+            .canonical
+            .comparable_tokens()
+            .expect("old tokens")
+            .len();
+        let new_len = new_blocks[new_index]
+            .canonical
+            .comparable_tokens()
+            .expect("new tokens")
+            .len();
+        domains.iter().any(|domain| {
+            domain.source_bounded
+                && domain.old_span.blocks == [old_blocks[old_index].block]
+                && domain.new_span.blocks == [new_blocks[new_index].block]
+                && domain.old_span.comparable_range.start == 0
+                && domain.old_span.comparable_range.end == old_len
+                && domain.new_span.comparable_range.start == 0
+                && domain.new_span.comparable_range.end == new_len
+        })
+    }
+
+    #[test]
+    fn positioned_equality_closes_a_line_repeated_inside_a_longer_view() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Self-Employment Tax", 10.0, 700.0, 0),
+            positioned_block(2, "Total Self-Employment Tax and credits", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Self-Employment Tax", 10.0, 700.0, 0),
+            positioned_block(102, "Total Self-Employment Tax and credits", 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = vec![None; 2];
+        let mut input = recovery(&intervals, &intervals);
+        input.min_tokens = 12;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "the repeated short line must close by its exact positioned key: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_rejects_repeated_and_one_sided_keys() -> Result<()> {
+        let text = "Repeated positioned line";
+        for (old_count, new_count) in [(2usize, 1usize), (1, 2)] {
+            let mut old_blocks = vec![positioned_block(1, text, 10.0, 700.0, 0)];
+            let mut new_blocks = vec![positioned_block(101, text, 10.0, 700.0, 0)];
+            for index in 1..old_count {
+                old_blocks.push(positioned_block(index as u64 + 1, text, 10.0, 700.0, 0));
+            }
+            for index in 1..new_count {
+                new_blocks.push(positioned_block(index as u64 + 101, text, 10.0, 700.0, 0));
+            }
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let intervals = vec![None; old_blocks.len()];
+            let new_intervals = vec![None; new_blocks.len()];
+            let input = recovery(&intervals, &new_intervals);
+            let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+            assert!(
+                !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+                "a repeated or one-sided positioned key must not close: {domains:?}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_rejects_swaps_pages_moves_and_token_mismatches() -> Result<()> {
+        let cases: [(
+            &str,
+            Vec<crate::normalize::BlockText>,
+            Vec<crate::normalize::BlockText>,
+        ); 4] = [
+            (
+                "position swap",
+                vec![
+                    positioned_block(1, "Alpha line", 10.0, 700.0, 0),
+                    positioned_block(2, "Beta line", 10.0, 680.0, 0),
+                ],
+                vec![
+                    positioned_block(101, "Alpha line", 10.0, 680.0, 0),
+                    positioned_block(102, "Beta line", 10.0, 700.0, 0),
+                ],
+            ),
+            (
+                "cross page",
+                vec![positioned_block(1, "Alpha line", 10.0, 700.0, 0)],
+                vec![positioned_block(101, "Alpha line", 10.0, 700.0, 1)],
+            ),
+            (
+                "moved line",
+                vec![positioned_block(1, "Alpha line", 10.0, 700.0, 0)],
+                vec![positioned_block(101, "Alpha line", 10.0, 680.0, 0)],
+            ),
+            (
+                "same position different tokens",
+                vec![positioned_block(1, "Alpha line", 10.0, 700.0, 0)],
+                vec![positioned_block(101, "Beta line", 10.0, 700.0, 0)],
+            ),
+        ];
+        for (name, old_blocks, new_blocks) in cases {
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let intervals = vec![None; old_blocks.len()];
+            let new_intervals = vec![None; new_blocks.len()];
+            let input = recovery(&intervals, &new_intervals);
+            let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+            assert!(
+                !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+                "{name}: {domains:?}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_rejects_non_horizontal_and_incomplete_evidence() -> Result<()> {
+        // A vertical direction is not eligible even with matching tokens.
+        let mut vertical = positioned_block(1, "Vertical line", 10.0, 700.0, 0);
+        let direction = PositionSignature::new(Vec2 { x: 10.0, y: 700.0 }, Vec2 { x: 0.0, y: 1.0 })
+            .expect("valid position");
+        let tokens = vertical
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        vertical.position_signatures = Some(vec![direction; tokens]);
+        let mut vertical_new = positioned_block(101, "Vertical line", 10.0, 700.0, 0);
+        vertical_new.position_signatures = Some(vec![direction; tokens]);
+        let old_blocks = [vertical];
+        let new_blocks = [vertical_new];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = vec![None; 1];
+        let input = recovery(&intervals, &intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "vertical text must not close: {domains:?}"
+        );
+
+        // An incomplete source map is not source-bounded.
+        let mut incomplete = positioned_block(1, "Alpha line", 10.0, 700.0, 0);
+        incomplete.canonical.source_map.pop();
+        let complete = positioned_block(101, "Alpha line", 10.0, 700.0, 0);
+        let old_blocks = [incomplete];
+        let new_blocks = [complete];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = vec![None; 1];
+        let input = recovery(&intervals, &intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "incomplete source evidence must not close: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_never_adopts_a_substring_occurrence() -> Result<()> {
+        // A short line whose tokens are a prefix of a longer line at the same
+        // position must not expand the longer view into a whole-view equality.
+        let old_blocks = [positioned_block(1, "Alpha", 10.0, 700.0, 0)];
+        let new_blocks = [positioned_block(101, "Alpha extra", 10.0, 700.0, 0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None];
+        let mut input = recovery(&intervals, &intervals);
+        input.min_tokens = 12;
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a substring occurrence must not close a whole view: {domains:?}"
+        );
+
+        // Two short lines whose concatenation is one longer line with aligned
+        // positions: both partial occurrences compete and neither closes.
+        let old_blocks = [
+            positioned_block(1, "Alpha", 10.0, 700.0, 0),
+            positioned_block(2, "Beta", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [positioned_block(101, "Alpha Beta", 10.0, 700.0, 0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let new_intervals = [None];
+        let input = recovery(&intervals, &new_intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        // Exact anchor sub-ranges may close, but neither short line may adopt
+        // the longer view as a whole-view positioned equality.
+        assert!(
+            !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0)
+                && !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 1, 0),
+            "concatenated short lines must not close against one long view: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn projected_overlap_compares_source_ranges_across_block_shapes() -> Result<()> {
+        let blocks = [sourced_block(1, "Alpha"), sourced_block(2, "")];
+        let side = side(&blocks);
+        let single = side.canonical_group(&[BlockId(1)], None).full_span();
+        let multi = side
+            .canonical_group(&[BlockId(1), BlockId(2)], Some(BlockSeparator::Space))
+            .full_span();
+        let mut budget = 100_000;
+        let single_projection = project_span(&side, &single, &mut budget)?.expect("projection");
+        let multi_projection = project_span(&side, &multi, &mut budget)?.expect("projection");
+        assert!(
+            projected_overlap(&single_projection, &multi_projection),
+            "different block shapes over the same source range must overlap: \
+             {single_projection:?} {multi_projection:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn view_token_metadata_matches_group_tokens_around_empty_blocks() -> Result<()> {
+        let blocks = [
+            sourced_block(1, ""),
+            positioned_block(2, "Alpha ", 10.0, 700.0, 0),
+            sourced_block(3, ""),
+            positioned_block(4, "Beta", 20.0, 680.0, 0),
+            sourced_block(5, ""),
+        ];
+        let source = side(&blocks);
+        let ids = [BlockId(1), BlockId(2), BlockId(3), BlockId(4), BlockId(5)];
+        for separator in [BlockSeparator::Space, BlockSeparator::Concatenate] {
+            let group = source.canonical_group(&ids, Some(separator));
+            let bounded = vec![true; blocks.len()];
+            let (positions, pages) = view_token_metadata(
+                &source,
+                &[0, 1, 2, 3, 4],
+                &bounded,
+                Some(separator),
+                &mut 100_000,
+            )
+            .expect("metadata fits its budget");
+            assert_eq!(positions.len(), group.tokens.len(), "{separator:?}");
+            assert_eq!(pages.len(), group.tokens.len(), "{separator:?}");
+            for (block_index, block) in blocks.iter().enumerate() {
+                let tokens = block
+                    .canonical
+                    .comparable_tokens()
+                    .expect("source-backed fixture tokens");
+                if tokens.is_empty() {
+                    continue;
+                }
+                let offset = group
+                    .tokens
+                    .windows(tokens.len())
+                    .position(|window| window == tokens.as_slice())
+                    .unwrap_or_else(|| panic!("{separator:?} block {block_index} is in the group"));
+                for (index, signature) in block
+                    .position_signatures
+                    .as_deref()
+                    .expect("fixture signatures")
+                    .iter()
+                    .enumerate()
+                {
+                    assert_eq!(
+                        positions[offset + index],
+                        Some(*signature),
+                        "{separator:?} block {block_index} token {index}"
+                    );
+                    assert_eq!(
+                        pages[offset + index],
+                        Some(block.pages[0]),
+                        "{separator:?} block {block_index} token {index}"
+                    );
+                }
+            }
+        }
+        // A trailing space followed by an empty block must not add a separator
+        // after the empty block: the state update mirrors `project`.
+        let blocks = [
+            positioned_block(1, "Alpha ", 10.0, 700.0, 0),
+            sourced_block(2, ""),
+            positioned_block(3, "Beta", 20.0, 680.0, 0),
+        ];
+        let source = side(&blocks);
+        let ids = [BlockId(1), BlockId(2), BlockId(3)];
+        let group = source.canonical_group(&ids, Some(BlockSeparator::Space));
+        let bounded = vec![true; blocks.len()];
+        let (positions, pages) = view_token_metadata(
+            &source,
+            &[0, 1, 2],
+            &bounded,
+            Some(BlockSeparator::Space),
+            &mut 100_000,
+        )
+        .expect("metadata fits its budget");
+        assert_eq!(positions.len(), group.tokens.len());
+        assert_eq!(pages.len(), group.tokens.len());
+        assert_eq!(
+            group.tokens,
+            "Alpha Beta"
+                .chars()
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_vetoes_a_same_position_duplicate_inside_a_trusted_view() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Self-Employment Tax", 10.0, 700.0, 0),
+            positioned_block(2, "Self-Employment Tax", 10.0, 700.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Self-Employment Tax", 10.0, 700.0, 0),
+            positioned_block(102, "Self-Employment Tax", 10.0, 700.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        // The duplicate lives inside a complete single-block trusted run: it
+        // cannot close a domain itself, but it still competes by exact
+        // position, so the eligible line must not close.
+        let old_intervals = [None, interval(1, 0, 1)];
+        let new_intervals = [None, interval(2, 0, 1)];
+        let input = recovery(&old_intervals, &new_intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "a same-position duplicate inside a trusted view must veto: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_vetoes_an_unknown_metadata_duplicate() -> Result<()> {
+        let mut duplicate = positioned_block(2, "Self-Employment Tax", 10.0, 700.0, 0);
+        duplicate.position_signatures = None;
+        let old_blocks = [
+            positioned_block(1, "Self-Employment Tax", 10.0, 700.0, 0),
+            duplicate.clone(),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Self-Employment Tax", 10.0, 700.0, 0),
+            duplicate,
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            !whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "a duplicate without comparable metadata must veto: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_pass_exhaustion_keeps_completed_anchor_domains() -> Result<()> {
+        // One content-unique line closes through the anchor flow; many
+        // positioned candidates make the optional positioned pass expensive.
+        let mut old_blocks = vec![positioned_block(1, "Unique anchor line", 10.0, 700.0, 0)];
+        let mut new_blocks = vec![positioned_block(101, "Unique anchor line", 10.0, 700.0, 0)];
+        for index in 0..30u64 {
+            let y = 600.0 - index as f64;
+            old_blocks.push(positioned_block(
+                index + 2,
+                "Positioned candidate line",
+                10.0,
+                y,
+                0,
+            ));
+            new_blocks.push(positioned_block(
+                index + 102,
+                "Positioned candidate line",
+                10.0,
+                y,
+                0,
+            ));
+        }
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let mut full_budget = usize::MAX;
+        let full = discover(
+            [&old, &new],
+            recovery(&old_intervals, &new_intervals),
+            &[],
+            &mut full_budget,
+            100,
+        )?;
+        let used = usize::MAX - full_budget;
+        assert!(used > 1);
+        assert!(
+            full.iter()
+                .any(|domain| domain.old_span.blocks == [BlockId(1)]),
+            "the anchor fixture must close its own domain: {full:?}"
+        );
+        // A positive budget one unit short cuts the optional positioned pass;
+        // the completed anchor domain must survive.
+        let mut budget = used - 1;
+        let retained = discover(
+            [&old, &new],
+            recovery(&old_intervals, &new_intervals),
+            &[],
+            &mut budget,
+            100,
+        )?;
+        assert!(
+            retained
+                .iter()
+                .any(|domain| domain.old_span.blocks == [BlockId(1)]),
+            "an exhausted positioned pass must keep completed anchor domains: {retained:?}"
+        );
+        assert_eq!(budget, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equality_respects_the_work_budget() -> Result<()> {
+        let old_blocks = [positioned_block(1, "Budgeted line", 10.0, 700.0, 0)];
+        let new_blocks = [positioned_block(101, "Budgeted line", 10.0, 700.0, 0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = vec![None; 1];
+        let input = recovery(&intervals, &intervals);
+        let mut budget = 0;
+        let domains = discover([&old, &new], input, &[], &mut budget, 100)?;
+        assert!(domains.is_empty());
+        assert_eq!(budget, 0);
+        Ok(())
     }
 
     #[test]
