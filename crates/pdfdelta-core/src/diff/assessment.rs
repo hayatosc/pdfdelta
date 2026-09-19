@@ -101,6 +101,11 @@ pub enum ComparisonAssumption {
     /// keys and source context to the common ownership solver. Page ordinals
     /// are evidence attributes, not identity keys.
     CatalogFooterCorrespondence,
+    /// A closed single-block line is related by one raw rigid translation
+    /// shared with an independently established neighbour correspondence.
+    /// The move itself is part of the evidence; no reading-order relaxation
+    /// and no pixel tolerance is involved.
+    RigidTranslation,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -2198,6 +2203,10 @@ struct Assessor<'a, 'document> {
     semantic_acceptance: HashMap<usize, DomainKey>,
     local_domains: Vec<views::LocalDomain>,
     local_anchors: Vec<views::LocalDomain>,
+    /// Spans of local domains discovered by the anchored rigid translation
+    /// pass, recorded so the proven relation carries the move as an explicit
+    /// assumption.
+    anchored_translations: Vec<(TextSpan, TextSpan)>,
     footer_domains: Vec<views::LocalDomain>,
     localized_edits: Vec<LocalizedEditScript>,
     localized_edit_count: usize,
@@ -2789,6 +2798,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }) {
             domain_assumptions.push(ComparisonAssumption::CatalogFooterCorrespondence);
         }
+        if key.local.as_ref().is_some_and(|(old, new)| {
+            self.anchored_translations
+                .iter()
+                .any(|(anchored_old, anchored_new)| anchored_old == old && anchored_new == new)
+        }) {
+            domain_assumptions.push(ComparisonAssumption::RigidTranslation);
+        }
         let relation = self.record(RelationAssessment {
             old_span: nonempty_span(&old),
             new_span: nonempty_span(&new),
@@ -3053,6 +3069,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             semantic_acceptance: HashMap::new(),
             local_domains: Vec::new(),
             local_anchors: Vec::new(),
+            anchored_translations: Vec::new(),
             footer_domains: Vec::new(),
             localized_edits: Vec::new(),
             localized_edit_count: 0,

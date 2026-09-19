@@ -1,6 +1,7 @@
 use super::{
     Assessor, ChangeCandidate, ChangeEvent, Ownership, ProposedRelation, RelationOutcome,
-    SourceInterval, charge, occurrence_indices, project, proof_groups, visit_domain_hunks,
+    SearchCompleteness, SourceInterval, TextSpan, charge, occurrence_indices, project,
+    proof_groups, visit_domain_hunks,
 };
 use crate::{
     Result,
@@ -596,6 +597,162 @@ impl Assessor<'_, '_> {
         Ok(())
     }
 
+    /// Discovers local domains for closed single-block lines whose whole
+    /// content is equal and whose exact rigid translation is carried by an
+    /// independently established neighbour correspondence.
+    ///
+    /// The neighbour evidence is the downstream established state: the local
+    /// relation must be established with a complete search and no reasons, its
+    /// whole single-block source intervals must already be accepted by the
+    /// comparison ownership, and the candidate must not overlap changed
+    /// ownership. A domain discovered here is proven by the ordinary local
+    /// path, and the rigid translation is recorded as an explicit assumption.
+    fn discover_anchored_translations(&mut self, ownership: &[Ownership; 2]) -> Result<()> {
+        if self.remaining_work == 0
+            || self.local_domains.len() >= self.options.max_assessment_ranges
+        {
+            return Ok(());
+        }
+        let Some(recovery) = self.recovery else {
+            return Ok(());
+        };
+        // Collecting the neighbour evidence and resolving each local key walks
+        // the local domain list; charge that work before any proof runs.
+        if !self.charge(
+            self.local_domains
+                .len()
+                .saturating_mul(self.local_domains.len().saturating_add(2)),
+        ) {
+            return Ok(());
+        }
+        let local = self
+            .local_domains
+            .iter()
+            .filter(|domain| domain.old_span.blocks.len() == 1 && domain.new_span.blocks.len() == 1)
+            .map(|domain| (domain.old_span.clone(), domain.new_span.clone()))
+            .collect::<Vec<_>>();
+        let mut established = Vec::new();
+        for (old_span, new_span) in local {
+            let proposal = ProposedRelation {
+                old: Some(old_span.clone()),
+                new: Some(new_span.clone()),
+                span_indices: occurrence_indices(
+                    self.alignment,
+                    [Some(&old_span), Some(&new_span)],
+                ),
+                exact_recovery: false,
+            };
+            let key = self.domain_key(&proposal)?;
+            self.prove_domain(&key)?;
+            let proof = &self.domains[&key];
+            let record = &self.records[proof.relation];
+            if record.outcome != RelationOutcome::Established
+                || record.search != SearchCompleteness::Complete
+                || !record.reasons.is_empty()
+            {
+                continue;
+            }
+            let (Some(old_block), Some(new_block)) =
+                (old_span.blocks.first(), new_span.blocks.first())
+            else {
+                continue;
+            };
+            let Some(&old_index) = self.sides[0].index.get(old_block) else {
+                continue;
+            };
+            let Some(&new_index) = self.sides[1].index.get(new_block) else {
+                continue;
+            };
+            if old_span.comparable_range.start != 0
+                || old_span.comparable_range.end != self.sides[0].canonical[old_index].len()
+                || new_span.comparable_range.start != 0
+                || new_span.comparable_range.end != self.sides[1].canonical[new_index].len()
+            {
+                continue;
+            }
+            let Some(old_owned) = self.ownership_contains(ownership, 0, &old_span)? else {
+                return Ok(());
+            };
+            if !old_owned {
+                continue;
+            }
+            let Some(new_owned) = self.ownership_contains(ownership, 1, &new_span)? else {
+                return Ok(());
+            };
+            if !new_owned {
+                continue;
+            }
+            established.push(super::views::EstablishedBlock {
+                old_block: *old_block,
+                new_block: *new_block,
+            });
+        }
+        if established.is_empty() {
+            return Ok(());
+        }
+        let domains = super::views::discover_translations(
+            self.sides,
+            recovery,
+            &established,
+            &mut self.remaining_work,
+            self.options.max_assessment_ranges,
+        )?;
+        if domains.is_empty() {
+            return Ok(());
+        }
+        // Charge the duplicate check and the append for every discovered
+        // domain first: a mid-budget cut commits none of them, so the pass
+        // never leaves a partial translation proof behind.
+        if !self.charge(
+            domains
+                .len()
+                .saturating_mul(self.local_domains.len().saturating_add(1)),
+        ) {
+            return Ok(());
+        }
+        for domain in domains {
+            if self.local_domains.len() >= self.options.max_assessment_ranges {
+                break;
+            }
+            self.anchored_translations
+                .push((domain.old_span.clone(), domain.new_span.clone()));
+            if !self.local_domains.contains(&domain) {
+                self.local_domains.push(domain);
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether every projected interval of a span is already accepted by the
+    /// comparison ownership on one side. `None` reports an exhausted shared
+    /// work budget; the caller then drops the whole pass without committing a
+    /// partial proof.
+    fn ownership_contains(
+        &mut self,
+        ownership: &[Ownership; 2],
+        side: usize,
+        span: &TextSpan,
+    ) -> Result<Option<bool>> {
+        let projected = project(self.sides[side], span)?;
+        // Charge the projection scan and the interval-by-interval ownership
+        // comparison the check performs.
+        if !self.charge(
+            projected
+                .len()
+                .saturating_mul(ownership[side].accepted.len())
+                .saturating_add(projected.len()),
+        ) {
+            return Ok(None);
+        }
+        Ok(Some(projected.iter().all(|interval| {
+            ownership[side].accepted.iter().any(|accepted| {
+                accepted.block_index == interval.block_index
+                    && accepted.start <= interval.start
+                    && interval.end <= accepted.end
+            })
+        })))
+    }
+
     /// Commits a completed local comparison after ordinary result emission.
     /// A tentative candidate may be superseded; an established source result
     /// is never removed to fund or make room for optional recovery.
@@ -605,6 +762,7 @@ impl Assessor<'_, '_> {
         changes: &mut Vec<ChangeEvent>,
         candidates: &mut Vec<ChangeCandidate>,
     ) -> Result<bool> {
+        self.discover_anchored_translations(ownership)?;
         let mut order = (0..self.local_domains.len()).collect::<Vec<_>>();
         if !self.charge(
             order

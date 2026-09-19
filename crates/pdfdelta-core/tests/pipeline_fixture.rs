@@ -1874,6 +1874,53 @@ fn rigid_translation_of_an_uncertain_line_follows_an_established_neighbour() -> 
 }
 
 #[test]
+fn rigid_translation_with_a_different_neighbour_transform_keeps_an_obligation() -> Result<()> {
+    // The target line moves by -0.5 while both established neighbours keep
+    // their positions, so no established neighbour carries the same raw
+    // translation and the move stays open.
+    let target = BlockId(4);
+    let old = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 270.0),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 269.5),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    let target_open = comparison.unresolved_regions.iter().any(|region| {
+        [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|span| span.blocks.contains(&target))
+    });
+    assert!(
+        target_open,
+        "a translated line whose neighbours keep their transform must stay open: {outcome:#?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn established_equal_local_domain_is_accepted_into_coverage() -> Result<()> {
     let old = document(&[
         line("Alpha anchor line remains stable", 0, 180.0),

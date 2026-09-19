@@ -734,6 +734,7 @@ pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
             "alternative_line_break_normalization"
         }
         ComparisonAssumption::CatalogFooterCorrespondence => "catalog_footer_correspondence",
+        ComparisonAssumption::RigidTranslation => "rigid_translation",
     }
 }
 
