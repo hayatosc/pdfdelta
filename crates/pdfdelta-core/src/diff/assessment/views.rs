@@ -1135,9 +1135,6 @@ struct EstablishedNeighbour {
     /// means the transform is not uniform (or a position is missing); such an
     /// entry can never support a move but stays an order reference.
     translation: Option<crate::model::Vec2>,
-    /// Every token carries a position on both sides, so the whole-block raw
-    /// geometry can be compared.
-    geometry_complete: bool,
     /// Pages covered by the old block's lines, taken from the source side
     /// independently of the view metadata.
     old_pages: Vec<u32>,
@@ -1179,23 +1176,6 @@ fn reference_page(old_pages: &[u32], new_pages: &[u32], candidate_page: u32) -> 
         return ReferencePage::Other;
     }
     ReferencePage::Unknown
-}
-
-/// Whether every token of a view range carries a source position. `None`
-/// reports an exhausted shared work budget.
-fn position_metadata_complete(
-    view: &View,
-    range: &std::ops::Range<usize>,
-    remaining: &mut usize,
-) -> Option<bool> {
-    if !charge(remaining, range.len().saturating_add(1)) {
-        return None;
-    }
-    Some(
-        range
-            .clone()
-            .all(|offset| view.token_positions[offset].is_some()),
-    )
 }
 
 /// Raw baseline bounding box of a view range, or `None` when any token lacks
@@ -1247,6 +1227,208 @@ fn same_relative_geometry(
         && right(candidate_old, neighbour_old) == right(candidate_new, neighbour_new)
 }
 
+/// Raw baseline bounds of an established reference block.
+///
+/// The view metadata is preferred; when it is missing (for example a
+/// paragraph whose normalization keeps a soft line break, so the block is not
+/// a complete single-line view) the block's own source position signatures
+/// are used. `Some(None)` reports that no geometry is available at all and
+/// the caller must hold; `None` reports an exhausted shared work budget.
+fn reference_bounds(
+    side: &Side<'_>,
+    view: &View,
+    range: &std::ops::Range<usize>,
+    block_index: usize,
+    remaining: &mut usize,
+) -> Option<Option<(f64, f64, f64, f64)>> {
+    if !charge(remaining, range.len().saturating_add(1)) {
+        return None;
+    }
+    if range
+        .clone()
+        .all(|offset| view.token_positions[offset].is_some())
+    {
+        return baseline_bounds(view, range, remaining).map(Some);
+    }
+    let block = &side.blocks[block_index];
+    let Some(signatures) = block.position_signatures.as_deref() else {
+        return Some(None);
+    };
+    if signatures.len() != side.canonical[block_index].len() {
+        return Some(None);
+    }
+    if !charge(remaining, signatures.len().saturating_add(1)) {
+        return None;
+    }
+    let mut bounds: Option<(f64, f64, f64, f64)> = None;
+    for signature in signatures {
+        let baseline = signature.baseline();
+        bounds = Some(match bounds {
+            None => (baseline.x, baseline.y, baseline.x, baseline.y),
+            Some((min_x, min_y, max_x, max_y)) => (
+                min_x.min(baseline.x),
+                min_y.min(baseline.y),
+                max_x.max(baseline.x),
+                max_y.max(baseline.y),
+            ),
+        });
+    }
+    Some(bounds)
+}
+
+/// Whether every token of a reference block has a horizontal text direction,
+/// using the view metadata or the block's own source signatures.
+fn reference_horizontal(
+    side: &Side<'_>,
+    view: &View,
+    range: &std::ops::Range<usize>,
+    block_index: usize,
+    remaining: &mut usize,
+) -> Option<bool> {
+    if !charge(remaining, range.len().saturating_add(1)) {
+        return None;
+    }
+    if range
+        .clone()
+        .all(|offset| view.token_positions[offset].is_some())
+    {
+        return Some(range.clone().all(|offset| {
+            view.token_positions[offset].is_some_and(|position| horizontal_direction(&position))
+        }));
+    }
+    let Some(signatures) = side.blocks[block_index].position_signatures.as_deref() else {
+        return Some(false);
+    };
+    if signatures.len() != side.canonical[block_index].len() {
+        return Some(false);
+    }
+    if !charge(remaining, signatures.len().saturating_add(1)) {
+        return None;
+    }
+    Some(signatures.iter().all(horizontal_direction))
+}
+
+/// One side of a band adjacency check: the source side, the whole-block view,
+/// its token range and its block index.
+#[derive(Clone, Copy)]
+struct BandSide<'a> {
+    side: &'a Side<'a>,
+    view: &'a View,
+    range: &'a std::ops::Range<usize>,
+    block: usize,
+    page: u32,
+}
+
+/// Whether the neighbour is the nearest source boundary of the candidate in
+/// the same column band on one side.
+///
+/// The band is the strict positive overlap of the two baseline x-intervals;
+/// the neighbour must be strictly below or above the candidate on the
+/// orthogonal axis, and no other source block of that side whose baseline
+/// x-interval overlaps the band may intersect the gap between them. Every
+/// source block is inspected, including blocks with normalization issues, and
+/// a block whose geometry is missing vetoes the proof instead of being
+/// ignored. `None` reports an exhausted shared work budget.
+fn band_nearest(
+    candidate: BandSide<'_>,
+    candidate_bounds: (f64, f64, f64, f64),
+    neighbour: BandSide<'_>,
+    neighbour_bounds: (f64, f64, f64, f64),
+    remaining: &mut usize,
+) -> Option<bool> {
+    if !reference_horizontal(
+        candidate.side,
+        candidate.view,
+        candidate.range,
+        candidate.block,
+        remaining,
+    )? || !reference_horizontal(
+        neighbour.side,
+        neighbour.view,
+        neighbour.range,
+        neighbour.block,
+        remaining,
+    )? {
+        return Some(false);
+    }
+    let band_min = candidate_bounds.0.max(neighbour_bounds.0);
+    let band_max = candidate_bounds.2.min(neighbour_bounds.2);
+    if band_min >= band_max {
+        return Some(false);
+    }
+    let gap = if neighbour_bounds.3 < candidate_bounds.1 {
+        (neighbour_bounds.3, candidate_bounds.1)
+    } else if candidate_bounds.3 < neighbour_bounds.1 {
+        (candidate_bounds.3, neighbour_bounds.1)
+    } else {
+        return Some(false);
+    };
+    if !charge(remaining, candidate.side.blocks.len()) {
+        return None;
+    }
+    for (index, block) in candidate.side.blocks.iter().enumerate() {
+        if index == candidate.block || index == neighbour.block {
+            continue;
+        }
+        // Only a block provably on the candidate's page is compared by raw
+        // coordinates; a block provably on another page is not order
+        // evidence, and an empty or page-ambiguous block holds the proof.
+        if block.pages.is_empty()
+            || (block.pages.len() > 1 && block.pages.contains(&candidate.page))
+        {
+            return Some(false);
+        }
+        if !block.pages.contains(&candidate.page) {
+            continue;
+        }
+        // A block is empty only when it has no comparable tokens, no source
+        // map entries and no raw or canonical text. An opaque or unmapped
+        // token, or a retained source origin, keeps it an obstacle even when
+        // its display text is empty.
+        let no_tokens = candidate.side.canonical[index].is_empty();
+        let no_source = block.raw.source_map.is_empty() && block.canonical.source_map.is_empty();
+        if no_tokens && no_source && block.raw.text.is_empty() && block.canonical.text.is_empty() {
+            continue;
+        }
+        let Some(signatures) = block.position_signatures.as_deref() else {
+            // The obstacle relation cannot be proven without geometry.
+            return Some(false);
+        };
+        if signatures.len() != candidate.side.canonical[index].len() {
+            return Some(false);
+        }
+        if !charge(remaining, signatures.len().saturating_add(1)) {
+            return None;
+        }
+        let mut bounds: Option<(f64, f64, f64, f64)> = None;
+        for signature in signatures {
+            let baseline = signature.baseline();
+            bounds = Some(match bounds {
+                None => (baseline.x, baseline.y, baseline.x, baseline.y),
+                Some((min_x, min_y, max_x, max_y)) => (
+                    min_x.min(baseline.x),
+                    min_y.min(baseline.y),
+                    max_x.max(baseline.x),
+                    max_y.max(baseline.y),
+                ),
+            });
+        }
+        let Some(obstacle) = bounds else {
+            // A non-empty source block without geometry cannot be cleared.
+            return Some(false);
+        };
+        // Closed-interval semantics: a zero-width (point) obstacle inside the
+        // band still blocks the gap.
+        if obstacle.0.max(band_min) > obstacle.2.min(band_max) {
+            continue;
+        }
+        if obstacle.1.max(gap.0) <= obstacle.3.min(gap.1) {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
 /// Discovers whole single-block lines whose content is equal on both sides and
 /// whose positions differ by one exact translation carried by an independently
 /// established neighbour block.
@@ -1256,15 +1438,28 @@ fn same_relative_geometry(
 /// per token. Every token's raw baseline difference must be the same finite
 /// non-zero vector (bit-exact) and the directions must be bit-identical. One
 /// and the same established neighbour must support the move on both sides: it
-/// must be adjacent in source order, on the same page, with disjoint sources
-/// and the same raw translation, and the candidate's whole-block order and
-/// intersection relation to that neighbour must be unchanged between the two
-/// sides. The new side must contain exactly one occurrence under the
-/// translation key and the old side no same-position duplicate; an occurrence
-/// without comparable metadata vetoes. The move itself is the evidence: the
-/// caller records it as an assumption, and nothing is adopted on proximity or
-/// tolerance. `None` is never returned; an exhausted budget drops only this
-/// pass's additions.
+/// must be adjacent in source order or the proven nearest source boundary in
+/// the same column band, on the same page, with disjoint sources and the same
+/// raw translation, and the candidate's whole-block order and intersection
+/// relation to that neighbour must be unchanged between the two sides. The new
+/// side must contain exactly one occurrence under the translation key and the
+/// old side no same-position duplicate; an occurrence without comparable
+/// metadata vetoes.
+///
+/// Stationary (zero-translation) anchors can never support a move, because the
+/// candidate's own translation is non-zero and bit-exact, but they always stay
+/// in the reference set: their whole-block order and intersection relation to
+/// the candidate and the supporting anchor is checked like every other
+/// established correspondence. A stationary anchor adjacent on one side only
+/// is therefore harmless and handled symmetrically: it contributes no key on
+/// either side, and the reference check still sees it on both sides.
+///
+/// A reference whose view metadata lacks positions is still checked from its
+/// own source position signatures when they are available; only a reference
+/// with no geometry at all holds the candidate, and it is never dropped
+/// silently. The move itself is the evidence: the caller records it as an
+/// assumption, and nothing is adopted on proximity or tolerance. `None` is
+/// never returned; an exhausted budget drops only this pass's additions.
 pub(super) fn discover_translations(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -1387,15 +1582,6 @@ pub(super) fn discover_translations(
         // whole-block geometry is complete, and only a uniform entry may
         // support a move.
         let translation = finite_translation(old_view, &old_range, new_view, &new_range);
-        let Some(old_complete) = position_metadata_complete(old_view, &old_range, remaining_work)
-        else {
-            return Ok(Vec::new());
-        };
-        let Some(new_complete) = position_metadata_complete(new_view, &new_range, remaining_work)
-        else {
-            return Ok(Vec::new());
-        };
-        let geometry_complete = old_complete && new_complete;
         neighbours.push(EstablishedNeighbour {
             old_index,
             new_index,
@@ -1404,7 +1590,6 @@ pub(super) fn discover_translations(
             old_range,
             new_range,
             translation,
-            geometry_complete,
             old_pages: sides[0].blocks[old_index].pages.clone(),
             new_pages: sides[1].blocks[new_index].pages.clone(),
         });
@@ -1455,10 +1640,15 @@ pub(super) fn discover_translations(
             else {
                 return Ok(Vec::new());
             };
-            // The old side collects every adjacent established anchor,
-            // including stationary ones, and requires their translations to
-            // agree. A candidate with no adjacent anchor or with two different
-            // adjacent translations stays unresolved.
+            let Some(candidate_old_bounds) = baseline_bounds(old_view, &old_range, remaining_work)
+            else {
+                return Ok(Vec::new());
+            };
+            // The old side collects the adjacent established anchors that
+            // carry a non-zero uniform support key; stationary entries remain
+            // references and never compete for the key. A candidate with no
+            // adjacent support key or with two different adjacent support keys
+            // stays unresolved.
             if !charge(remaining_work, neighbours.len()) {
                 return Ok(Vec::new());
             }
@@ -1477,13 +1667,50 @@ pub(super) fn discover_translations(
                         continue;
                     }
                 }
-                if neighbour.old_index.abs_diff(candidate_index) != 1 {
-                    continue;
-                }
-                if !neighbour.geometry_complete {
-                    // The relation to this adjacent established correspondence
-                    // cannot be checked; never drop it silently.
+                let Some(neighbour_bounds) = reference_bounds(
+                    sides[0],
+                    &old_views[neighbour.old_view],
+                    &neighbour.old_range,
+                    neighbour.old_index,
+                    remaining_work,
+                ) else {
+                    return Ok(Vec::new());
+                };
+                let Some(neighbour_bounds) = neighbour_bounds else {
+                    // The relation to this adjacent established
+                    // correspondence cannot be checked; never drop it
+                    // silently.
                     old_geometry_unknown = true;
+                    continue;
+                };
+                let index_adjacent = neighbour.old_index.abs_diff(candidate_index) == 1;
+                let geometric_adjacent = if index_adjacent {
+                    true
+                } else {
+                    match band_nearest(
+                        BandSide {
+                            side: sides[0],
+                            view: old_view,
+                            range: &old_range,
+                            block: candidate_index,
+                            page: candidate_page,
+                        },
+                        candidate_old_bounds,
+                        BandSide {
+                            side: sides[0],
+                            view: &old_views[neighbour.old_view],
+                            range: &neighbour.old_range,
+                            block: neighbour.old_index,
+                            page: candidate_page,
+                        },
+                        neighbour_bounds,
+                        remaining_work,
+                    ) {
+                        Some(value) => value,
+                        None => return Ok(Vec::new()),
+                    }
+                };
+                if !geometric_adjacent {
                     continue;
                 }
                 let Some(neighbour_projection) = project_span(
@@ -1503,6 +1730,11 @@ pub(super) fn discover_translations(
                     // A non-uniform transform is a reference only.
                     continue;
                 };
+                if translation.x == 0.0 && translation.y == 0.0 {
+                    // A stationary anchor is a reference; it never competes
+                    // for the translation key.
+                    continue;
+                }
                 match old_adjacent_key {
                     None => old_adjacent_key = Some(translation),
                     Some(previous) if !same_translation(previous, translation) => {
@@ -1590,6 +1822,10 @@ pub(super) fn discover_translations(
             if exact_translation(old_view, &old_range, new_view, &new_range) != Some(key) {
                 continue;
             }
+            let Some(candidate_new_bounds) = baseline_bounds(new_view, &new_range, remaining_work)
+            else {
+                return Ok(Vec::new());
+            };
             // The new side must agree on the same unique translation among
             // its adjacent established anchors, and one and the same anchor
             // entry must be adjacent on both sides with that key. Two
@@ -1627,11 +1863,47 @@ pub(super) fn discover_translations(
                         continue;
                     }
                 }
-                if neighbour.new_index.abs_diff(new_candidate_index) != 1 {
-                    continue;
-                }
-                if !neighbour.geometry_complete {
+                let Some(neighbour_bounds) = reference_bounds(
+                    sides[1],
+                    &new_views[neighbour.new_view],
+                    &neighbour.new_range,
+                    neighbour.new_index,
+                    remaining_work,
+                ) else {
+                    return Ok(Vec::new());
+                };
+                let Some(neighbour_bounds) = neighbour_bounds else {
                     new_geometry_unknown = true;
+                    continue;
+                };
+                let index_adjacent = neighbour.new_index.abs_diff(new_candidate_index) == 1;
+                let geometric_adjacent = if index_adjacent {
+                    true
+                } else {
+                    match band_nearest(
+                        BandSide {
+                            side: sides[1],
+                            view: new_view,
+                            range: &new_range,
+                            block: new_candidate_index,
+                            page: new_candidate_page,
+                        },
+                        candidate_new_bounds,
+                        BandSide {
+                            side: sides[1],
+                            view: &new_views[neighbour.new_view],
+                            range: &neighbour.new_range,
+                            block: neighbour.new_index,
+                            page: new_candidate_page,
+                        },
+                        neighbour_bounds,
+                        remaining_work,
+                    ) {
+                        Some(value) => value,
+                        None => return Ok(Vec::new()),
+                    }
+                };
+                if !geometric_adjacent {
                     continue;
                 }
                 let Some(neighbour_projection) = project_span(
@@ -1650,6 +1922,11 @@ pub(super) fn discover_translations(
                 let Some(translation) = neighbour.translation else {
                     continue;
                 };
+                if translation.x == 0.0 && translation.y == 0.0 {
+                    // A stationary anchor is a reference; it never competes
+                    // for the translation key.
+                    continue;
+                }
                 match new_adjacent_key {
                     None => new_adjacent_key = Some(translation),
                     Some(previous) if !same_translation(previous, translation) => {
@@ -1681,14 +1958,6 @@ pub(super) fn discover_translations(
             // cannot see. Global reading-order uncertainty is never lifted
             // here: any order change relative to an established correspondence
             // holds the candidate.
-            let Some(candidate_old_bounds) = baseline_bounds(old_view, &old_range, remaining_work)
-            else {
-                return Ok(Vec::new());
-            };
-            let Some(candidate_new_bounds) = baseline_bounds(new_view, &new_range, remaining_work)
-            else {
-                return Ok(Vec::new());
-            };
             let support = &neighbours[support_index];
             let Some(support_old_bounds) = baseline_bounds(
                 &old_views[support.old_view],
@@ -1723,26 +1992,32 @@ pub(super) fn discover_translations(
                         break;
                     }
                 }
-                if !reference.geometry_complete {
-                    // The relation to this same-page established
-                    // correspondence cannot be checked; never drop it
-                    // silently and accept the candidate.
-                    neighbour_valid = false;
-                    break;
-                }
-                let Some(reference_old_bounds) = baseline_bounds(
+                let Some(reference_old_bounds) = reference_bounds(
+                    sides[0],
                     &old_views[reference.old_view],
                     &reference.old_range,
+                    reference.old_index,
                     remaining_work,
                 ) else {
                     return Ok(Vec::new());
                 };
-                let Some(reference_new_bounds) = baseline_bounds(
+                let Some(reference_new_bounds) = reference_bounds(
+                    sides[1],
                     &new_views[reference.new_view],
                     &reference.new_range,
+                    reference.new_index,
                     remaining_work,
                 ) else {
                     return Ok(Vec::new());
+                };
+                let (Some(reference_old_bounds), Some(reference_new_bounds)) =
+                    (reference_old_bounds, reference_new_bounds)
+                else {
+                    // No geometry at all for this same-page established
+                    // correspondence; never drop it silently and accept the
+                    // candidate.
+                    neighbour_valid = false;
+                    break;
                 };
                 if !same_relative_geometry(
                     candidate_old_bounds,
@@ -4374,6 +4649,361 @@ mod tests {
         assert!(
             domains.is_empty(),
             "a one-sided geometric adjacency must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_follows_a_same_band_neighbour_under_a_side_swap() -> Result<()> {
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+        ];
+        let forward = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert_eq!(forward.len(), 1, "{forward:?}");
+        let swapped_established = [
+            EstablishedBlock {
+                old_block: BlockId(102),
+                new_block: BlockId(2),
+            },
+            EstablishedBlock {
+                old_block: BlockId(103),
+                new_block: BlockId(3),
+            },
+            EstablishedBlock {
+                old_block: BlockId(104),
+                new_block: BlockId(4),
+            },
+        ];
+        let swapped =
+            discover_translations([&new, &old], input, &swapped_established, &mut 100_000, 100)?;
+        assert_eq!(swapped.len(), 1, "{swapped:?}");
+        assert_eq!(swapped[0].old_span.blocks, [BlockId(101)]);
+        assert_eq!(swapped[0].new_span.blocks, [BlockId(1)]);
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_respects_a_mid_budget_cut_with_a_band_neighbour() -> Result<()> {
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+        ];
+        let mut full_budget = usize::MAX;
+        let full = discover_translations([&old, &new], input, &established, &mut full_budget, 100)?;
+        let used = usize::MAX - full_budget;
+        assert_eq!(full.len(), 1, "{full:?}");
+        assert!(used > 1);
+        let mut budget = used - 1;
+        let domains = discover_translations([&old, &new], input, &established, &mut budget, 100)?;
+        assert!(domains.is_empty(), "{domains:?}");
+        assert_eq!(budget, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_checks_a_reference_without_view_geometry() -> Result<()> {
+        // The stationary reference keeps its source position signatures but is
+        // not a complete single-line view (a soft line break), so the view
+        // metadata carries no positions. Its own signatures must still catch
+        // the crossing instead of the reference disappearing.
+        let mut stationary = spread_block(3, "Stationary established line", 300.0, 200.0, 0, 6.0);
+        stationary.line_breaks = Some(vec![1]);
+        let old_blocks = [
+            spread_block(1, "Support anchor line", 300.0, 300.0, 0, 6.0),
+            spread_block(2, "Moved target line", 300.0, 290.0, 0, 6.0),
+            stationary,
+        ];
+        let new_blocks = [
+            spread_block(101, "Support anchor line", 300.0, 100.0, 0, 6.0),
+            spread_block(102, "Moved target line", 300.0, 90.0, 0, 6.0),
+            spread_block(103, "Stationary established line", 300.0, 200.0, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+        ];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a reference without view geometry must still catch the crossing: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_is_independent_of_evidence_order() -> Result<()> {
+        // The same logical evidence set in a different order must give the
+        // same result.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let ascending = [
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+        ];
+        let descending = [
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+        ];
+        let first = discover_translations([&old, &new], input, &ascending, &mut 100_000, 100)?;
+        let second = discover_translations([&old, &new], input, &descending, &mut 100_000, 100)?;
+        assert_eq!(first, second, "evidence order must not change the result");
+        assert_eq!(first.len(), 1, "{first:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_treats_a_one_sided_stationary_anchor_symmetrically() -> Result<()> {
+        // A stationary anchor is adjacent to the target on the new side only.
+        // It never competes for the translation key and its order relation is
+        // checked as a reference, so the clean band support still closes.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "Support right column line", 300.0, 670.0, 0, 6.0),
+            spread_block(5, "Stationary right column line", 300.0, 650.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(105, "Stationary right column line", 300.0, 650.0, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+            EstablishedBlock {
+                old_block: BlockId(5),
+                new_block: BlockId(105),
+            },
+        ];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert_eq!(domains.len(), 1, "{domains:?}");
+        assert_eq!(domains[0].old_span.blocks, [BlockId(1)]);
+        assert_eq!(domains[0].new_span.blocks, [BlockId(101)]);
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_skips_an_obstacle_on_another_page() -> Result<()> {
+        // The block at the band's gap coordinates provably lives on another
+        // page, so its raw coordinates are not order evidence and it must not
+        // hold the candidate.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "X", 350.0, 685.0, 1, 6.0),
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "X", 350.0, 685.0, 1, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "an obstacle provably on another page must not hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_holds_when_an_obstacle_page_is_unknown() -> Result<()> {
+        // The block at the band's gap coordinates has no page evidence, so it
+        // cannot be proven to be on another page and the candidate is held.
+        let mut obstacle = spread_block(4, "X", 350.0, 685.0, 0, 6.0);
+        obstacle.pages = Vec::new();
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            obstacle,
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "X", 350.0, 685.0, 0, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "an obstacle without page evidence must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_holds_when_an_obstacle_keeps_source_without_text() -> Result<()> {
+        // The block keeps its source map but has no comparable tokens or
+        // geometry, so it is still a source obstacle and cannot be cleared.
+        let mut obstacle = spread_block(4, "X", 350.0, 685.0, 0, 6.0);
+        obstacle.canonical.text = String::new();
+        obstacle.raw.text = String::new();
+        obstacle.matching = String::new();
+        obstacle.matching_tokens = Vec::new();
+        obstacle.position_signatures = Some(Vec::new());
+        obstacle.font_size_signatures = Some(Vec::new());
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            obstacle,
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "X", 350.0, 685.0, 0, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a source block without text or geometry must hold the candidate: {domains:?}"
         );
         Ok(())
     }

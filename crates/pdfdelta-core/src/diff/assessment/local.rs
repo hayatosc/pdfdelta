@@ -616,35 +616,16 @@ impl Assessor<'_, '_> {
         let Some(recovery) = self.recovery else {
             return Ok(());
         };
-        // Collecting the neighbour evidence and resolving each local key walks
-        // the local domain list; charge that work before any proof runs.
-        if !self.charge(
-            self.local_domains
-                .len()
-                .saturating_mul(self.local_domains.len().saturating_add(2)),
-        ) {
+        // Collect every whole single-block established correspondence from the
+        // downstream domain proofs, not only the local domains: a block inside
+        // a multi-block domain can still carry its own established relation,
+        // and the proof must be established with a complete search, carry no
+        // reasons and already own its accepted source intervals.
+        if !self.charge(self.domains.len()) {
             return Ok(());
         }
-        let local = self
-            .local_domains
-            .iter()
-            .filter(|domain| domain.old_span.blocks.len() == 1 && domain.new_span.blocks.len() == 1)
-            .map(|domain| (domain.old_span.clone(), domain.new_span.clone()))
-            .collect::<Vec<_>>();
-        let mut established = Vec::new();
-        for (old_span, new_span) in local {
-            let proposal = ProposedRelation {
-                old: Some(old_span.clone()),
-                new: Some(new_span.clone()),
-                span_indices: occurrence_indices(
-                    self.alignment,
-                    [Some(&old_span), Some(&new_span)],
-                ),
-                exact_recovery: false,
-            };
-            let key = self.domain_key(&proposal)?;
-            self.prove_domain(&key)?;
-            let proof = &self.domains[&key];
+        let mut candidates = Vec::new();
+        for proof in self.domains.values() {
             let record = &self.records[proof.relation];
             if record.outcome != RelationOutcome::Established
                 || record.search != SearchCompleteness::Complete
@@ -652,11 +633,49 @@ impl Assessor<'_, '_> {
             {
                 continue;
             }
+            let (Some(old_span), Some(new_span)) = (&record.old_span, &record.new_span) else {
+                continue;
+            };
+            if old_span.blocks.len() != 1 || new_span.blocks.len() != 1 {
+                continue;
+            }
+            candidates.push((old_span.clone(), new_span.clone()));
+        }
+        // A stable source-side total order keeps the evidence set, the
+        // supporting-anchor choice and the budget-arrival order independent of
+        // the hash-map iteration order.
+        if !self.charge(
+            candidates
+                .len()
+                .saturating_mul(candidates.len().checked_ilog2().unwrap_or(0) as usize + 1),
+        ) {
+            return Ok(());
+        }
+        candidates.sort_unstable_by_key(|(old_span, new_span)| {
+            (
+                old_span.blocks.first().map(|block| block.0),
+                new_span.blocks.first().map(|block| block.0),
+                old_span.comparable_range.start,
+                old_span.comparable_range.end,
+                new_span.comparable_range.start,
+                new_span.comparable_range.end,
+            )
+        });
+        let mut established: Vec<super::views::EstablishedBlock> = Vec::new();
+        for (old_span, new_span) in candidates {
             let (Some(old_block), Some(new_block)) =
                 (old_span.blocks.first(), new_span.blocks.first())
             else {
                 continue;
             };
+            // The sort key starts with the block pair, so duplicates are
+            // adjacent and the dedupe stays linear.
+            if established
+                .last()
+                .is_some_and(|entry| entry.old_block == *old_block && entry.new_block == *new_block)
+            {
+                continue;
+            }
             let Some(&old_index) = self.sides[0].index.get(old_block) else {
                 continue;
             };
@@ -1279,6 +1298,137 @@ mod tests {
             main_anchors: Vec::new(),
             move_candidates: Vec::new(),
         }
+    }
+
+    fn positioned_block(id: u64, text: &str, x: f64, y: f64) -> BlockText {
+        let mut block = sourced_block(id, text);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        let position =
+            PositionSignature::new(Vec2 { x, y }, Vec2 { x: 1.0, y: 0.0 }).expect("valid position");
+        block.position_signatures = Some(vec![position; tokens]);
+        block
+    }
+
+    fn anchored_fixture(paragraph_y: f64) -> (Vec<BlockText>, Vec<BlockText>) {
+        let old_blocks = vec![
+            positioned_block(1, "Support anchor line", 300.0, 300.0),
+            positioned_block(2, "Moved target line", 300.0, 290.0),
+            {
+                let mut paragraph =
+                    positioned_block(3, "Paragraph reference line", 300.0, paragraph_y);
+                paragraph.line_breaks = Some(vec![1]);
+                paragraph
+            },
+        ];
+        let new_blocks = vec![
+            positioned_block(101, "Support anchor line", 300.0, 100.0),
+            positioned_block(102, "Moved target line", 300.0, 90.0),
+            positioned_block(103, "Paragraph reference line", 300.0, paragraph_y),
+        ];
+        (old_blocks, new_blocks)
+    }
+
+    fn run_anchored_pass(old_blocks: &[BlockText], new_blocks: &[BlockText]) -> Result<usize> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let alignment = unresolved_alignment(
+            &old_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            &new_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+        );
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let recovery = crate::diff::SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut assessor = super::super::Assessor::new(
+            [&old, &new],
+            &alignment,
+            Some(recovery),
+            DiffOptions::default(),
+        )?;
+        let support_tokens = old_blocks[0]
+            .canonical
+            .comparable_tokens()
+            .expect("support tokens")
+            .len();
+        let reference_tokens = old_blocks[2]
+            .canonical
+            .comparable_tokens()
+            .expect("reference tokens")
+            .len();
+        assessor.local_domains = vec![
+            LocalDomain {
+                old_span: span(1, support_tokens),
+                new_span: span(101, support_tokens),
+                source_bounded: true,
+            },
+            LocalDomain {
+                old_span: span(3, reference_tokens),
+                new_span: span(103, reference_tokens),
+                source_bounded: true,
+            },
+        ];
+        for (old_block, new_block, tokens) in
+            [(1_u64, 101_u64, support_tokens), (3, 103, reference_tokens)]
+        {
+            let proposal = super::super::ProposedRelation {
+                old: Some(span(old_block, tokens)),
+                new: Some(span(new_block, tokens)),
+                span_indices: [None, None],
+                exact_recovery: false,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            assessor.prove_domain(&key)?;
+        }
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        ownership[0].accept(&old, &span(1, support_tokens), 64)?;
+        ownership[1].accept(&new, &span(101, support_tokens), 64)?;
+        ownership[0].accept(&old, &span(3, reference_tokens), 64)?;
+        ownership[1].accept(&new, &span(103, reference_tokens), 64)?;
+        assessor.discover_anchored_translations(&ownership)?;
+        Ok(assessor.local_domains.len())
+    }
+
+    #[test]
+    fn anchored_pass_keeps_a_soft_line_break_reference() -> Result<()> {
+        // The paragraph reference is not a complete single-line view (soft
+        // line break), so the view metadata carries no positions. The caller
+        // must still pass it as a reference and the pass must hold the
+        // crossing candidate instead of dropping the reference.
+        let (old_blocks, new_blocks) = anchored_fixture(200.0);
+        let domains = run_anchored_pass(&old_blocks, &new_blocks)?;
+        assert_eq!(domains, 2, "the crossing reference must hold the candidate");
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_pass_closes_when_the_reference_is_not_crossed() -> Result<()> {
+        let (old_blocks, new_blocks) = anchored_fixture(50.0);
+        let domains = run_anchored_pass(&old_blocks, &new_blocks)?;
+        assert_eq!(
+            domains, 3,
+            "an uncrossed reference must not hold the candidate"
+        );
+        Ok(())
     }
 
     #[test]
