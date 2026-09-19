@@ -112,6 +112,12 @@ pub enum ComparisonAssumption {
     /// tokens are still compared with the strict minimal-edit uniqueness and
     /// the global reading order is not promoted.
     BracketedRegion,
+    /// A closed source-bounded line whose edit location is ambiguous has one
+    /// maximum equal-token matching whose matched tokens keep an exactly equal
+    /// raw displacement from the anchor common to every maximum matching. The
+    /// correspondence closure is independent; only the edit location is
+    /// proven by the exact displacement.
+    ExactTextDisplacement,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -1783,12 +1789,24 @@ fn unresolved_output(
     Ok(output)
 }
 
+/// Optional raw per-glyph displacement evidence for the two sides.
+///
+/// The assessment borrows the sidecars; a comparison without them keeps the
+/// previous behaviour and never runs the exact-displacement rule. The token
+/// mapping is built later from the same shared work budget.
+#[derive(Clone, Copy)]
+pub(crate) struct ExactDisplacementInput<'a> {
+    pub old: &'a [crate::model::GlyphDisplacement],
+    pub new: &'a [crate::model::GlyphDisplacement],
+}
+
 /// The only transition from discovered proposals to public comparison output.
 pub(super) fn finish(
     sides: [&Side<'_>; 2],
     alignment: &Alignment,
     recovery: Option<SentenceRecoveryInput<'_>>,
     recovery_plan: Option<&sentence::SentenceRecoveryPlan>,
+    exact_displacement: Option<ExactDisplacementInput<'_>>,
     proposed: ProposedComparison,
     options: DiffOptions,
 ) -> Result<Comparison> {
@@ -1799,7 +1817,8 @@ pub(super) fn finish(
         &proposed,
         options.max_assessment_ranges,
     )?;
-    let mut assessor = Assessor::new(sides, alignment, recovery, options)?;
+    let mut assessor =
+        Assessor::new_with_evidence(sides, alignment, recovery, options, exact_displacement)?;
     let after_anchors = assessor.remaining_work;
     let mut accepted = Vec::new();
     for proposal in &proposals {
@@ -2171,6 +2190,26 @@ pub(super) fn finish(
     // Optional claims use only the remaining shared budget, so they cannot
     // displace already completed localization or change emission.
     let review_units = review::collect(&mut assessor, [&old_resolution, &new_resolution])?;
+    // The exact-displacement proof is a property of the dependency path: every
+    // relation that depends on a proven domain inherits the assumption, even
+    // when its own spans are only a subspan of the proven domain. Parents
+    // always precede their children, so one forward pass is transitive.
+    for index in 0..assessor.records.len() {
+        let Some(parent) = assessor.records[index].parent else {
+            continue;
+        };
+        let inherited = assessor.records[parent]
+            .assumptions
+            .contains(&ComparisonAssumption::ExactTextDisplacement)
+            && !assessor.records[index]
+                .assumptions
+                .contains(&ComparisonAssumption::ExactTextDisplacement);
+        if inherited {
+            assessor.records[index]
+                .assumptions
+                .push(ComparisonAssumption::ExactTextDisplacement);
+        }
+    }
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,
@@ -2194,11 +2233,46 @@ pub(super) fn finish(
     Ok(comparison)
 }
 
+/// The outcome of the proposal-path boundary proof.
+enum BoundaryDisplacement {
+    /// Every optimal script fixes the proposal's two boundary points with
+    /// no crossing hunk, and the local line resolves uniquely.
+    Proven(Box<BoundaryProof>),
+    /// The all-path check or the local resolution did not prove a cut.
+    NotProven,
+    /// The rule is unavailable for this proposal.
+    Unavailable,
+    /// The shared budget ended before the proof finished.
+    Budget,
+}
+
+/// The independent boundary cut and the local exact-displacement proof.
+struct BoundaryProof {
+    key: DomainKey,
+    edits: Vec<super::AtomicEdit>,
+    events: Vec<ProjectedEvent>,
+}
+
+/// The outcome of one exact-displacement attempt.
+enum ExactDisplacementStep {
+    /// The unique maximum matching produced a charged edit witness and its
+    /// stable event signature.
+    Resolved(Vec<super::AtomicEdit>, Vec<ProjectedEvent>),
+    /// The ordinary semantic path decides.
+    Hold,
+    /// The shared budget ended; the search is incomplete.
+    Budget,
+}
+
 struct Assessor<'a, 'document> {
     sides: [&'a Side<'document>; 2],
     alignment: &'a Alignment,
     recovery: Option<SentenceRecoveryInput<'a>>,
     options: DiffOptions,
+    /// Raw displacement sidecars for the exact-displacement rule.
+    exact_displacement: Option<ExactDisplacementInput<'a>>,
+    /// Glyph-to-record index per side, built once with the shared budget.
+    exact_records: [HashMap<crate::model::GlyphId, usize>; 2],
     remaining_work: usize,
     anchors: Vec<(usize, usize)>,
     domains: HashMap<DomainKey, DomainProof>,
@@ -2217,6 +2291,9 @@ struct Assessor<'a, 'document> {
     /// recorded so the proven relation carries the geometric boundaries as an
     /// explicit assumption.
     bracketed_domains: Vec<(TextSpan, TextSpan)>,
+    /// Spans of closed lines whose edit location was resolved by the exact
+    /// raw displacement rule.
+    exact_displacements: Vec<(TextSpan, TextSpan)>,
     footer_domains: Vec<views::LocalDomain>,
     localized_edits: Vec<LocalizedEditScript>,
     localized_edit_count: usize,
@@ -2723,6 +2800,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let mut stable_events = None;
         let mut edits = Vec::new();
         let mut search = SearchCompleteness::Complete;
+        let mut exact_displacement_proof = false;
         if reasons.is_empty() {
             match exact::check(&old.tokens, &new.tokens, &mut self.remaining_work) {
                 Ok(exact::ExactUniqueness::Unique) => {
@@ -2758,30 +2836,47 @@ impl<'a, 'document> Assessor<'a, 'document> {
                     }
                 }
                 Ok(exact::ExactUniqueness::Ambiguous) => {
-                    let sides = self.sides;
-                    let limit = self.options.max_assessment_ranges;
-                    match semantic::check_hunks(
-                        &old.tokens,
-                        &new.tokens,
-                        &mut self.remaining_work,
-                        |edits, remaining| {
-                            semantic_signature(sides, [&old, &new], edits, remaining, limit)
-                        },
-                    ) {
-                        Ok(semantic::Outcome::Unique {
-                            signature,
-                            edits: witness,
-                        }) => {
+                    match self.try_exact_displacement(&old, &new)? {
+                        ExactDisplacementStep::Resolved(witness, signature) => {
                             unique = true;
                             stable_events = Some(signature);
                             edits = witness;
+                            exact_displacement_proof = true;
+                            self.exact_displacements.push((
+                                old.span(0, old.tokens.len()),
+                                new.span(0, new.tokens.len()),
+                            ));
                         }
-                        Ok(semantic::Outcome::Ambiguous) => {}
-                        Ok(semantic::Outcome::BudgetExceeded)
-                        | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                        ExactDisplacementStep::Budget => {
                             search = SearchCompleteness::Incomplete;
                         }
-                        Err(error) => return Err(error),
+                        ExactDisplacementStep::Hold => {
+                            let sides = self.sides;
+                            let limit = self.options.max_assessment_ranges;
+                            match semantic::check_hunks(
+                                &old.tokens,
+                                &new.tokens,
+                                &mut self.remaining_work,
+                                |edits, remaining| {
+                                    semantic_signature(sides, [&old, &new], edits, remaining, limit)
+                                },
+                            ) {
+                                Ok(semantic::Outcome::Unique {
+                                    signature,
+                                    edits: witness,
+                                }) => {
+                                    unique = true;
+                                    stable_events = Some(signature);
+                                    edits = witness;
+                                }
+                                Ok(semantic::Outcome::Ambiguous) => {}
+                                Ok(semantic::Outcome::BudgetExceeded)
+                                | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                                    search = SearchCompleteness::Incomplete;
+                                }
+                                Err(error) => return Err(error),
+                            }
+                        }
                     }
                 }
                 Ok(exact::ExactUniqueness::BudgetExceeded)
@@ -2822,6 +2917,15 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }) {
             domain_assumptions.push(ComparisonAssumption::BracketedRegion);
         }
+        if exact_displacement_proof
+            || key.local.as_ref().is_some_and(|(old, new)| {
+                self.exact_displacements
+                    .iter()
+                    .any(|(exact_old, exact_new)| exact_old == old && exact_new == new)
+            })
+        {
+            domain_assumptions.push(ComparisonAssumption::ExactTextDisplacement);
+        }
         let relation = self.record(RelationAssessment {
             old_span: nonempty_span(&old),
             new_span: nonempty_span(&new),
@@ -2853,6 +2957,165 @@ impl<'a, 'document> Assessor<'a, 'document> {
             },
         );
         Ok(())
+    }
+
+    /// Attempts the exact raw displacement resolution for one closed whole
+    /// source-bound line.
+    ///
+    /// The projection and every search and arithmetic step are charged to the
+    /// shared budget. A missing sidecar, a non-line domain, an ambiguous or
+    /// duplicated projection and every hold reason fall back to the ordinary
+    /// semantic path; an exhausted budget reports incomplete.
+    fn try_exact_displacement(
+        &mut self,
+        old: &GroupText,
+        new: &GroupText,
+    ) -> Result<ExactDisplacementStep> {
+        let Some(input) = self.exact_displacement else {
+            return Ok(ExactDisplacementStep::Hold);
+        };
+        if old.blocks.len() != 1 || new.blocks.len() != 1 {
+            return Ok(ExactDisplacementStep::Hold);
+        }
+        let (Some(&old_block), Some(&new_block)) = (old.blocks.first(), new.blocks.first()) else {
+            return Ok(ExactDisplacementStep::Hold);
+        };
+        let Some(&old_index) = self.sides[0].index.get(&old_block) else {
+            return Ok(ExactDisplacementStep::Hold);
+        };
+        let Some(&new_index) = self.sides[1].index.get(&new_block) else {
+            return Ok(ExactDisplacementStep::Hold);
+        };
+        if old.tokens.len() != self.sides[0].canonical[old_index].len()
+            || new.tokens.len() != self.sides[1].canonical[new_index].len()
+        {
+            return Ok(ExactDisplacementStep::Hold);
+        }
+        let Some(old_evidence) = self.line_evidence(0, old_index, input.old, old.tokens.len())?
+        else {
+            return Ok(if self.remaining_work == 0 {
+                ExactDisplacementStep::Budget
+            } else {
+                ExactDisplacementStep::Hold
+            });
+        };
+        let Some(new_evidence) = self.line_evidence(1, new_index, input.new, new.tokens.len())?
+        else {
+            return Ok(if self.remaining_work == 0 {
+                ExactDisplacementStep::Budget
+            } else {
+                ExactDisplacementStep::Hold
+            });
+        };
+        match exact_displacement::resolve(
+            &old.tokens,
+            &new.tokens,
+            &old_evidence,
+            &new_evidence,
+            &mut self.remaining_work,
+        ) {
+            exact_displacement::Resolution::Unique(matching) => {
+                let Some(witness) = exact_displacement::edits_from_matching(
+                    &matching,
+                    old.tokens.len(),
+                    new.tokens.len(),
+                    self.options.max_edit_distance,
+                    &mut self.remaining_work,
+                ) else {
+                    return Ok(if self.remaining_work == 0 {
+                        ExactDisplacementStep::Budget
+                    } else {
+                        ExactDisplacementStep::Hold
+                    });
+                };
+                // Reuse the ordinary signature processing so the witness keeps
+                // the same invariants as the semantic path.
+                let sides = self.sides;
+                let limit = self.options.max_assessment_ranges;
+                match semantic_signature(
+                    sides,
+                    [old, new],
+                    &witness,
+                    &mut self.remaining_work,
+                    limit,
+                )? {
+                    Some(signature) => Ok(ExactDisplacementStep::Resolved(witness, signature)),
+                    None if self.remaining_work == 0 => Ok(ExactDisplacementStep::Budget),
+                    None => Ok(ExactDisplacementStep::Hold),
+                }
+            }
+            exact_displacement::Resolution::Hold(exact_displacement::HoldReason::Budget) => {
+                Ok(ExactDisplacementStep::Budget)
+            }
+            exact_displacement::Resolution::Hold(_) => Ok(ExactDisplacementStep::Hold),
+        }
+    }
+
+    /// Projects the raw sidecar onto the canonical tokens of one block.
+    ///
+    /// Only a scalar token whose source is exactly one glyph used by no other
+    /// token gets a record; a synthesized separator, an unmapped token, a
+    /// multi-glyph source, a shared glyph and a missing record stay without
+    /// evidence. `None` reports a projection failure or an exhausted budget.
+    fn line_evidence<'b>(
+        &mut self,
+        side: usize,
+        block_index: usize,
+        records: &'b [crate::model::GlyphDisplacement],
+        token_count: usize,
+    ) -> Result<Option<Vec<Option<&'b crate::model::GlyphDisplacement>>>> {
+        if token_count > 512 {
+            return Ok(None);
+        }
+        let block = &self.sides[side].blocks[block_index];
+        // Charge the shared upper bound before any source is cloned.
+        if !self.charge(crate::normalize::token_source_upper_bound(block)?) {
+            return Ok(None);
+        }
+        let Ok(sources) = block.canonical.comparable_tokens_with_sources() else {
+            return Ok(None);
+        };
+        if sources.len() != token_count {
+            return Ok(None);
+        }
+        // Every glyph source atom counts, so a glyph shared with a multi-source
+        // or unmapped token cannot prove a scalar token either.
+        let mut usage = HashMap::<crate::model::GlyphId, usize>::new();
+        let mut glyphs = Vec::with_capacity(sources.len());
+        for (token, source) in sources {
+            for atom in &source.atoms {
+                if let crate::normalize::TextSourceAtom::Glyph(glyph) = atom {
+                    *usage.entry(*glyph).or_default() += 1;
+                }
+            }
+            let glyph = match token {
+                crate::normalize::ComparableToken::Scalar(_) => {
+                    let mut atoms = source.atoms.iter();
+                    match (atoms.next(), atoms.next()) {
+                        (Some(crate::normalize::TextSourceAtom::Glyph(glyph)), None) => {
+                            Some(*glyph)
+                        }
+                        _ => None,
+                    }
+                }
+                crate::normalize::ComparableToken::Unmapped { .. } => None,
+            };
+            glyphs.push(glyph);
+        }
+        if !self.charge(glyphs.len().saturating_mul(2)) {
+            return Ok(None);
+        }
+        let mapped = glyphs
+            .into_iter()
+            .map(|glyph| {
+                glyph
+                    .filter(|glyph| usage.get(glyph).copied() == Some(1))
+                    .and_then(|glyph| self.exact_records[side].get(&glyph).copied())
+                    .map(|index| &records[index])
+                    .filter(|record| block.pages.is_empty() || block.pages.contains(&record.page.0))
+            })
+            .collect();
+        Ok(Some(mapped))
     }
 
     /// Checks whether the strict changed hunks inside one proposal are the
@@ -2912,6 +3175,117 @@ impl<'a, 'document> Assessor<'a, 'document> {
         })
     }
 
+    /// Proves one whole single-block line independently of its parent domain.
+    ///
+    /// A multi-block parent domain may stay ambiguous while a child line is
+    /// still pinned by every optimal script: when all maximum equal-token
+    /// matchings localize the proposal to the same two boundary points and no
+    /// changed hunk crosses those points, the line correspondence is fixed by
+    /// the parent's boundary evidence alone. Only a unanimous `true` across
+    /// every optimal path counts; a single dissenting path, a mixed signature
+    /// or an exhausted search leaves the line unresolved. The local line then
+    /// resolves through the exact-displacement rule, which is sound because
+    /// the fixed cut makes its maximum matching local to the line.
+    fn boundary_displacement_proof(
+        &mut self,
+        proposal: &ProposedRelation,
+        key: &DomainKey,
+    ) -> Result<BoundaryDisplacement> {
+        if self.exact_displacement.is_none() {
+            return Ok(BoundaryDisplacement::Unavailable);
+        }
+        let (Some(old_span), Some(new_span)) = (proposal.old.as_ref(), proposal.new.as_ref())
+        else {
+            return Ok(BoundaryDisplacement::Unavailable);
+        };
+        let old_extent = block_extent(self.sides[0], old_span)?;
+        let new_extent = block_extent(self.sides[1], new_span)?;
+        if old_extent.len() != 1 || new_extent.len() != 1 {
+            return Ok(BoundaryDisplacement::Unavailable);
+        }
+        let groups = proof_groups(self.sides, key)?;
+        let lengths = [groups[0].tokens.len(), groups[1].tokens.len()];
+        let token_work = lengths[0].saturating_add(lengths[1]);
+        let sides = self.sides;
+        if !charge(&mut self.remaining_work, token_work) {
+            return Ok(BoundaryDisplacement::Budget);
+        }
+        let mut exhausted = false;
+        let target = [proposal.old.as_ref(), proposal.new.as_ref()];
+        let outcome = semantic::check_hunks(
+            &groups[0].tokens,
+            &groups[1].tokens,
+            &mut self.remaining_work,
+            |edits, remaining| {
+                if !charge(remaining, token_work.saturating_add(edits.len())) {
+                    return Ok(None);
+                }
+                let ranges = localize_proposal(sides, target, [&groups[0], &groups[1]], edits)?;
+                let [Some(old_range), Some(new_range)] = ranges else {
+                    return Ok(Some(None));
+                };
+                if !point_on_script([old_range.start, new_range.start], edits, lengths)
+                    || !point_on_script([old_range.end, new_range.end], edits, lengths)
+                {
+                    return Ok(Some(None));
+                }
+                // The signature is the cut itself: every optimal path must
+                // agree on the same two boundary coordinates, while the
+                // internal hunk positions stay free.
+                Ok(Some(
+                    target_hunk_signature(&old_range, &new_range, edits)
+                        .is_some()
+                        .then_some((
+                            (old_range.start, new_range.start),
+                            (old_range.end, new_range.end),
+                        )),
+                ))
+            },
+        )?;
+        let cut = match outcome {
+            semantic::Outcome::Unique {
+                signature: Some(cut),
+                ..
+            } => cut,
+            semantic::Outcome::BudgetExceeded => {
+                exhausted = true;
+                ((0, 0), (0, 0))
+            }
+            semantic::Outcome::Unique {
+                signature: None, ..
+            }
+            | semantic::Outcome::Ambiguous => {
+                return Ok(BoundaryDisplacement::NotProven);
+            }
+        };
+        if exhausted || self.remaining_work == 0 {
+            return Ok(BoundaryDisplacement::Budget);
+        }
+        let ((old_start, new_start), (old_end, new_end)) = cut;
+        if old_start >= old_end || new_start >= new_end {
+            return Ok(BoundaryDisplacement::NotProven);
+        }
+        let local_key = DomainKey {
+            local: Some((old_span.clone(), new_span.clone())),
+            old: old_extent,
+            new: new_extent,
+            old_separator: old_span.separator.unwrap_or(BlockSeparator::Space),
+            new_separator: new_span.separator.unwrap_or(BlockSeparator::Space),
+        };
+        let [old, new] = proof_groups(self.sides, &local_key)?;
+        match self.try_exact_displacement(&old, &new)? {
+            ExactDisplacementStep::Resolved(edits, events) => {
+                Ok(BoundaryDisplacement::Proven(Box::new(BoundaryProof {
+                    key: local_key,
+                    edits,
+                    events,
+                })))
+            }
+            ExactDisplacementStep::Hold => Ok(BoundaryDisplacement::NotProven),
+            ExactDisplacementStep::Budget => Ok(BoundaryDisplacement::Budget),
+        }
+    }
+
     fn assess(&mut self, proposal: &ProposedRelation) -> Result<usize> {
         if let Some(index) = self.output_stop {
             return Ok(index);
@@ -2925,7 +3299,29 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let mut reasons = self.records[parent].reasons.clone();
         let mut search = SearchCompleteness::Complete;
         let mut targeted_invariant = false;
-        if reasons.is_empty() && !proof_unique {
+        let mut exact_local_proof = None;
+        let mut boundary_budget = false;
+        if reasons.is_empty()
+            && !proof_unique
+            && key.local.is_none()
+            && key.old.len() > 1
+            && key.new.len() > 1
+            && proof_search == SearchCompleteness::Complete
+        {
+            match self.boundary_displacement_proof(proposal, &key)? {
+                BoundaryDisplacement::Proven(proof) => {
+                    targeted_invariant = true;
+                    exact_local_proof = Some((proof.key, proof.edits, proof.events));
+                }
+                BoundaryDisplacement::Budget => boundary_budget = true,
+                BoundaryDisplacement::NotProven | BoundaryDisplacement::Unavailable => {}
+            }
+        }
+        if boundary_budget {
+            reasons.push(AssessmentReason::WorkLimit);
+            search = SearchCompleteness::Incomplete;
+        }
+        if reasons.is_empty() && !proof_unique && !targeted_invariant {
             // A specific proposal may still be identical on every optimal path
             // of an otherwise ambiguous domain; only then is it established.
             //
@@ -2988,7 +3384,16 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 _ => reasons.push(AssessmentReason::CompetingCorrespondence),
             }
         }
-        let semantic_proof = reasons.is_empty() && self.domains[&key].stable_events.is_some();
+        let will_stop = self.output_stop.is_some()
+            || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1);
+        let local_proof_applies = exact_local_proof.is_some() && !will_stop;
+        let semantic_proof = !local_proof_applies
+            && reasons.is_empty()
+            && self.domains[&key].stable_events.is_some();
+        let mut assumptions = self.records[parent].assumptions.clone();
+        if local_proof_applies {
+            assumptions.push(ComparisonAssumption::ExactTextDisplacement);
+        }
         let index = self.record(RelationAssessment {
             old_span: proposal.old.clone(),
             new_span: proposal.new.clone(),
@@ -2999,10 +3404,36 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 RelationOutcome::Tentative
             },
             search,
-            assumptions: self.records[parent].assumptions.clone(),
+            assumptions,
             reasons,
         })?;
-        if semantic_proof {
+        if let Some((local_key, edits, events)) = exact_local_proof
+            && local_proof_applies
+        {
+            // The local proof is a separate domain record so dependent
+            // relations can trace the boundary evidence instead of the
+            // ambiguous parent script.
+            self.domains.insert(
+                local_key.clone(),
+                DomainProof {
+                    relation: index,
+                    unique: true,
+                    search: SearchCompleteness::Complete,
+                    edits,
+                    lengths: [
+                        self.records[index].old_span.as_ref().map_or(0, |span| {
+                            span.comparable_range.end - span.comparable_range.start
+                        }),
+                        self.records[index].new_span.as_ref().map_or(0, |span| {
+                            span.comparable_range.end - span.comparable_range.start
+                        }),
+                    ],
+                    strict_unique: false,
+                    stable_events: Some(events),
+                },
+            );
+            self.semantic_acceptance.insert(index, local_key);
+        } else if semantic_proof {
             self.semantic_acceptance.insert(index, key);
         }
         Ok(index)
@@ -3065,17 +3496,30 @@ impl<'a, 'document> Assessor<'a, 'document> {
         Ok(index)
     }
 
+    #[cfg(test)]
     fn new(
         sides: [&'a Side<'document>; 2],
         alignment: &'a Alignment,
         recovery: Option<SentenceRecoveryInput<'a>>,
         options: DiffOptions,
     ) -> Result<Self> {
+        Self::new_with_evidence(sides, alignment, recovery, options, None)
+    }
+
+    fn new_with_evidence(
+        sides: [&'a Side<'document>; 2],
+        alignment: &'a Alignment,
+        recovery: Option<SentenceRecoveryInput<'a>>,
+        options: DiffOptions,
+        exact_displacement: Option<ExactDisplacementInput<'a>>,
+    ) -> Result<Self> {
         let mut assessor = Self {
             sides,
             alignment,
             recovery,
             options,
+            exact_displacement,
+            exact_records: [HashMap::new(), HashMap::new()],
             remaining_work: options.max_assessment_work,
             anchors: Vec::new(),
             domains: HashMap::new(),
@@ -3088,6 +3532,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             local_anchors: Vec::new(),
             anchored_translations: Vec::new(),
             bracketed_domains: Vec::new(),
+            exact_displacements: Vec::new(),
             footer_domains: Vec::new(),
             localized_edits: Vec::new(),
             localized_edit_count: 0,
@@ -3097,6 +3542,21 @@ impl<'a, 'document> Assessor<'a, 'document> {
         };
         assessor.root_reasons = assessor.inspect_source_reasons();
         assessor.anchors = assessor.verified_anchors()?;
+        if let Some(input) = assessor.exact_displacement {
+            let mut complete = true;
+            for (side, side_records) in [input.old, input.new].into_iter().enumerate() {
+                if !assessor.charge(side_records.len()) {
+                    complete = false;
+                    break;
+                }
+                for (index, record) in side_records.iter().enumerate() {
+                    assessor.exact_records[side].insert(record.glyph, index);
+                }
+            }
+            if !complete {
+                assessor.exact_displacement = None;
+            }
+        }
         Ok(assessor)
     }
 
@@ -3447,6 +3907,8 @@ mod proposal_signature_tests {
         );
     }
 }
+
+mod exact_displacement;
 
 #[cfg(test)]
 mod separator_tests {

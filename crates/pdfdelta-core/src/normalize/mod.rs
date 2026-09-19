@@ -1094,6 +1094,178 @@ pub fn normalize_blocks(
     Ok(normalized_blocks)
 }
 
+/// Per-block per-token raw displacement evidence.
+///
+/// Each entry is an index into [`Document::displacements`] for a comparable
+/// token that has provable single-glyph evidence, or `None` when the token is
+/// not a scalar, has no unique glyph source, or the record is missing or
+/// disagrees with the real glyph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockTokenDisplacement {
+    pub block: BlockId,
+    pub tokens: Vec<Option<usize>>,
+}
+
+/// Checked upper bound of the tokens, source entries and atoms one block can
+/// materialize, so the mapping charges before it clones any source.
+pub(crate) fn token_source_upper_bound(block: &BlockText) -> Result<usize> {
+    let canonical = &block.canonical;
+    // The UTF-8 byte length upper-bounds the scalar count without scanning.
+    let mut work = canonical
+        .text
+        .len()
+        .checked_add(canonical.unmapped.len())
+        .and_then(|work| work.checked_add(canonical.source_map.len()))
+        .and_then(|work| work.checked_add(1))
+        .ok_or(Error::LimitExceeded {
+            resource: "token displacement work",
+            limit: usize::MAX,
+        })?;
+    for entry in &canonical.source_map {
+        let atoms = entry.source.atoms.len();
+        let range = entry
+            .output_range
+            .end
+            .saturating_sub(entry.output_range.start);
+        // Each token of the output range clones the entry's source atoms.
+        let clones = range.checked_mul(atoms).ok_or(Error::LimitExceeded {
+            resource: "token displacement source clones",
+            limit: usize::MAX,
+        })?;
+        work = work
+            .checked_add(atoms)
+            .and_then(|work| work.checked_add(clones))
+            .ok_or(Error::LimitExceeded {
+                resource: "token displacement work",
+                limit: usize::MAX,
+            })?;
+    }
+    for token in &canonical.unmapped {
+        work = work
+            .checked_add(token.source.atoms.len())
+            .ok_or(Error::LimitExceeded {
+                resource: "token displacement work",
+                limit: usize::MAX,
+            })?;
+    }
+    Ok(work)
+}
+
+/// Maps the document's raw glyph displacement sidecar onto comparable tokens.
+///
+/// A token gets evidence only when it is a [`ComparableToken::Scalar`] whose
+/// source is exactly one glyph, that glyph is used by no other token source
+/// atom anywhere in the blocks, the sidecar holds exactly one record for it,
+/// and the record agrees with the real glyph's id, page and raw code. A
+/// synthesized separator, an opaque or unmapped token, a multi-glyph source, a
+/// shared glyph, a duplicate or disagreeing record and a malformed source map
+/// all stay without evidence; a malformed source map is an error rather than an
+/// empty success.
+///
+/// The records, blocks and every source atom are charged to `remaining` before
+/// their allocation, so the caller can join the shared assessment work and a
+/// mid-budget cut leaves no partial mapping.
+///
+/// # Errors
+///
+/// Returns [`Error::LimitExceeded`] when the charged work exceeds `remaining`
+/// and [`Error::Unresolved`] when a block's source map is malformed.
+pub fn token_displacements(
+    document: &Document<Glyph>,
+    blocks: &[BlockText],
+    remaining: &mut usize,
+) -> Result<Vec<BlockTokenDisplacement>> {
+    let charge = |remaining: &mut usize, work: usize| -> Result<()> {
+        let Some(left) = remaining.checked_sub(work) else {
+            *remaining = 0;
+            return Err(Error::LimitExceeded {
+                resource: "token displacement work",
+                limit: usize::MAX,
+            });
+        };
+        *remaining = left;
+        Ok(())
+    };
+    let displacements = document.displacements();
+    let mut by_glyph = std::collections::HashMap::new();
+    let mut duplicated = std::collections::HashSet::new();
+    charge(remaining, displacements.len())?;
+    for (index, entry) in displacements.iter().enumerate() {
+        if by_glyph.insert(entry.glyph, index).is_some() {
+            duplicated.insert(entry.glyph);
+        }
+    }
+    let mut glyphs = std::collections::HashMap::new();
+    charge(remaining, document.items().len())?;
+    for glyph in document.items() {
+        glyphs.insert(glyph.id, glyph);
+    }
+    // Count every glyph source atom of every token, so a glyph shared with a
+    // multi-source or unmapped token cannot prove a scalar token either.
+    let mut usage = std::collections::HashMap::<GlyphId, usize>::new();
+    for block in blocks {
+        charge(remaining, token_source_upper_bound(block)?)?;
+        let tokens = block
+            .canonical
+            .comparable_tokens_with_sources()
+            .map_err(|error| {
+                Error::Unresolved(format!("token displacement source map: {error}"))
+            })?;
+        for (_, source) in tokens {
+            for atom in &source.atoms {
+                if let TextSourceAtom::Glyph(glyph) = atom {
+                    *usage.entry(*glyph).or_default() += 1;
+                }
+            }
+        }
+    }
+    let mut result = Vec::with_capacity(blocks.len());
+    for block in blocks {
+        charge(remaining, token_source_upper_bound(block)?)?;
+        let tokens = block
+            .canonical
+            .comparable_tokens_with_sources()
+            .map_err(|error| {
+                Error::Unresolved(format!("token displacement source map: {error}"))
+            })?;
+        let mut mapped = Vec::with_capacity(tokens.len());
+        for (token, source) in tokens {
+            let evidence = single_glyph_source(&token, &source)
+                .filter(|glyph| !duplicated.contains(glyph))
+                .filter(|glyph| usage.get(glyph).copied() == Some(1))
+                .and_then(|glyph| by_glyph.get(&glyph).copied())
+                .filter(|index| {
+                    let entry = &displacements[*index];
+                    let Some(glyph) = glyphs.get(&entry.glyph) else {
+                        return false;
+                    };
+                    entry.glyph == glyph.id
+                        && entry.page == glyph.page
+                        && entry.raw_code == glyph.raw_code
+                        && !entry.raw_code.is_empty()
+                        && (block.pages.is_empty() || block.pages.contains(&entry.page.0))
+                });
+            mapped.push(evidence);
+        }
+        result.push(BlockTokenDisplacement {
+            block: block.block,
+            tokens: mapped,
+        });
+    }
+    Ok(result)
+}
+
+fn single_glyph_source(token: &ComparableToken, source: &TextSource) -> Option<GlyphId> {
+    if !matches!(token, ComparableToken::Scalar(_)) {
+        return None;
+    }
+    let mut atoms = source.atoms.iter();
+    match (atoms.next(), atoms.next()) {
+        (Some(TextSourceAtom::Glyph(glyph)), None) => Some(*glyph),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NormalizationKinds(u8);
 
@@ -2355,4 +2527,107 @@ fn latin_suffix_len_after_break(atoms: &[Atom], break_index: usize) -> usize {
         }
     }
     count
+}
+
+#[cfg(test)]
+mod displacement_bound_tests {
+    use super::{
+        BlockRole, MappedText, ScalarRange, SourceMapEntry, TextSource, TextSourceAtom,
+        token_source_upper_bound,
+    };
+    use crate::layout::BlockId;
+    use crate::model::GlyphId;
+    use crate::normalize::BlockText;
+
+    fn block(
+        text: &str,
+        source_map: Vec<SourceMapEntry>,
+        unmapped: Vec<super::UnmappedToken>,
+    ) -> BlockText {
+        let canonical = MappedText {
+            text: text.to_owned(),
+            source_map,
+            unmapped,
+        };
+        BlockText {
+            block: BlockId(0),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: text.to_owned(),
+            matching_tokens: Vec::new(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    fn entry(range: ScalarRange, atoms: usize) -> SourceMapEntry {
+        SourceMapEntry {
+            output_range: range,
+            source: TextSource {
+                atoms: (0..atoms)
+                    .map(|index| TextSourceAtom::Glyph(GlyphId(index as u64)))
+                    .collect(),
+            },
+        }
+    }
+
+    #[test]
+    fn bound_covers_range_times_atoms() {
+        let block = block(
+            "a",
+            vec![entry(
+                ScalarRange {
+                    start: 0,
+                    end: 1000,
+                },
+                1000,
+            )],
+            Vec::new(),
+        );
+        let bound = token_source_upper_bound(&block).expect("bound fits");
+        assert!(
+            bound >= 1_000_000,
+            "range x atoms clones are charged: {bound}"
+        );
+    }
+
+    #[test]
+    fn bound_covers_unmapped_sources() {
+        let unmapped = super::UnmappedToken {
+            scalar_index: 0,
+            font_hash: crate::model::FontProgramHash(vec![0; 32]),
+            glyph_id: 0,
+            source: TextSource {
+                atoms: (0..1000)
+                    .map(|index| TextSourceAtom::Glyph(GlyphId(index as u64)))
+                    .collect(),
+            },
+        };
+        let block = block("a", Vec::new(), vec![unmapped]);
+        let bound = token_source_upper_bound(&block).expect("bound fits");
+        assert!(bound >= 1000, "unmapped source atoms are charged: {bound}");
+    }
+
+    #[test]
+    fn bound_overflow_is_a_limit() {
+        let block = block(
+            "a",
+            vec![entry(
+                ScalarRange {
+                    start: 0,
+                    end: usize::MAX,
+                },
+                2,
+            )],
+            Vec::new(),
+        );
+        assert!(token_source_upper_bound(&block).is_err());
+    }
 }

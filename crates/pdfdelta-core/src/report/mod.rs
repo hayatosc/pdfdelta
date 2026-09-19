@@ -723,7 +723,9 @@ pub(crate) fn assessment_reason(reason: AssessmentReason) -> &'static str {
     }
 }
 
-pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
+/// Stable report label for one assessment assumption.
+#[must_use]
+pub fn assumption(value: ComparisonAssumption) -> &'static str {
     match value {
         ComparisonAssumption::InputReadingOrder => "input_reading_order",
         ComparisonAssumption::CanonicalNormalization => "canonical_normalization",
@@ -736,6 +738,7 @@ pub(crate) fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::CatalogFooterCorrespondence => "catalog_footer_correspondence",
         ComparisonAssumption::RigidTranslation => "rigid_translation",
         ComparisonAssumption::BracketedRegion => "bracketed_region",
+        ComparisonAssumption::ExactTextDisplacement => "exact_text_displacement",
     }
 }
 

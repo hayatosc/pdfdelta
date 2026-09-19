@@ -6,8 +6,8 @@ use std::{
 use crate::{
     Error, Result,
     model::{
-        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphPathClipStatus, GlyphProvenance, MarkedContent, NonTextPaint, PageId, Rect,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphDisplacement,
+        GlyphId, GlyphPathClipStatus, GlyphProvenance, MarkedContent, NonTextPaint, PageId, Rect,
         TextRenderMode, Vec2, VectorLine, VectorLineId,
     },
     pdf::{
@@ -131,6 +131,7 @@ impl ContentStreamGlyphExtractor {
                 extraction.glyphs.truncate(glyph_start);
                 extraction.vector_lines.truncate(vector_line_start);
                 extraction.marked_content.truncate(marked_start);
+                extraction.displacements.truncate(glyph_start);
                 extraction.issues.truncate(issue_start);
                 extraction.active_forms.clear();
                 issues.push(issue);
@@ -140,6 +141,7 @@ impl ContentStreamGlyphExtractor {
         ExtractionOutcome::new(
             Document::with_vector_lines(extraction.glyphs, extraction.vector_lines)
                 .with_marked_content(extraction.marked_content)
+                .with_displacements(extraction.displacements)
                 .with_non_text_paint_bounds(extraction.non_text_paint_bounds),
             issues,
         )
@@ -177,6 +179,9 @@ struct Extraction<'a> {
     glyphs: Vec<Glyph>,
     vector_lines: Vec<VectorLine>,
     marked_content: Vec<MarkedContent>,
+    displacements: Vec<GlyphDisplacement>,
+    next_run: u32,
+    run_overflow: bool,
     non_text_paint_bounds: Vec<NonTextPaint>,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
@@ -416,6 +421,9 @@ impl<'a> Extraction<'a> {
             glyphs: Vec::new(),
             vector_lines: Vec::new(),
             marked_content: Vec::new(),
+            displacements: Vec::new(),
+            next_run: 1,
+            run_overflow: false,
             non_text_paint_bounds: Vec::new(),
             issues: Vec::new(),
             consumed_glyphs: 0,
@@ -634,6 +642,7 @@ impl<'a> Extraction<'a> {
             }
             b"q" => {
                 no_operands(operation)?;
+                self.start_text_run(state);
                 if state.graphics_stack.len() >= self.limits.max_nesting_depth {
                     return Err(Error::LimitExceeded {
                         resource: "graphics-state stack depth",
@@ -644,12 +653,14 @@ impl<'a> Extraction<'a> {
             }
             b"Q" => {
                 no_operands(operation)?;
+                self.start_text_run(state);
                 state.graphics = state
                     .graphics_stack
                     .pop()
                     .ok_or_else(|| operation_error(operation, "graphics-state stack underflow"))?;
             }
             b"cm" => {
+                self.start_text_run(state);
                 let [a, b, c, d, e, f] = number_operands(operation)?;
                 let matrix = Matrix::new(a, b, c, d, e, f)?;
                 state.graphics.ctm = state.graphics.ctm.concatenate(matrix)?;
@@ -813,6 +824,7 @@ impl<'a> Extraction<'a> {
             }
             b"BT" => {
                 no_operands(operation)?;
+                self.start_text_run(state);
                 if state.in_text {
                     return Err(operation_error(operation, "nested text object"));
                 }
@@ -822,11 +834,15 @@ impl<'a> Extraction<'a> {
             }
             b"ET" => {
                 no_operands(operation)?;
+                self.start_text_run(state);
                 require_text_object(operation, state)?;
                 state.in_text = false;
             }
             b"Tf" => {
                 let (name, size) = name_and_number(operation)?;
+                if size != state.graphics.font_size {
+                    self.start_text_run(state);
+                }
                 if size == 0.0 {
                     return Err(operation_error(operation, "font size must be non-zero"));
                 }
@@ -848,6 +864,7 @@ impl<'a> Extraction<'a> {
             }
             b"Tm" => {
                 require_text_object(operation, state)?;
+                self.start_text_run(state);
                 let [a, b, c, d, e, f] = number_operands(operation)?;
                 let matrix = Matrix::new(a, b, c, d, e, f)?;
                 state.text_matrix = matrix;
@@ -855,17 +872,20 @@ impl<'a> Extraction<'a> {
             }
             b"Td" => {
                 require_text_object(operation, state)?;
+                self.start_text_run(state);
                 let [x, y] = number_operands(operation)?;
                 move_text_line(state, x, y)?;
             }
             b"TD" => {
                 require_text_object(operation, state)?;
+                self.start_text_run(state);
                 let [x, y] = number_operands(operation)?;
                 state.graphics.leading = -y;
                 move_text_line(state, x, y)?;
             }
             b"T*" => {
                 require_text_object(operation, state)?;
+                self.start_text_run(state);
                 no_operands(operation)?;
                 move_text_line(state, 0.0, -state.graphics.leading)?;
             }
@@ -873,21 +893,30 @@ impl<'a> Extraction<'a> {
                 state.graphics.leading = one_number(operation)?;
             }
             b"Tc" => {
+                self.start_text_run(state);
                 state.graphics.character_spacing = one_number(operation)?;
             }
             b"Tw" => {
+                self.start_text_run(state);
                 state.graphics.word_spacing = one_number(operation)?;
             }
             b"Tz" => {
-                state.graphics.horizontal_scale = one_number(operation)? / 100.0;
+                self.start_text_run(state);
+                let percent = one_number(operation)?;
+                state.graphics.horizontal_scale_percent = percent;
+                state.graphics.horizontal_scale = percent / 100.0;
             }
             b"Ts" => {
+                self.start_text_run(state);
                 state.graphics.rise = one_number(operation)?;
             }
             b"Tr" => {
                 state.graphics.render_mode = render_mode(one_number(operation)?, operation)?;
             }
-            b"gs" => self.apply_ext_gstate(operation, resources, state)?,
+            b"gs" => {
+                self.start_text_run(state);
+                self.apply_ext_gstate(operation, resources, state)?;
+            }
             b"Tj" => {
                 require_text_object(operation, state)?;
                 let bytes = one_string(operation)?;
@@ -907,6 +936,7 @@ impl<'a> Extraction<'a> {
             }
             b"'" => {
                 require_text_object(operation, state)?;
+                self.start_text_run(state);
                 let bytes = one_string(operation)?;
                 move_text_line(state, 0.0, -state.graphics.leading)?;
                 self.show_text(
@@ -921,6 +951,7 @@ impl<'a> Extraction<'a> {
             }
             b"\"" => {
                 require_text_object(operation, state)?;
+                self.start_text_run(state);
                 let (word_spacing, character_spacing, bytes) = quote_operands(operation)?;
                 state.graphics.word_spacing = word_spacing;
                 state.graphics.character_spacing = character_spacing;
@@ -937,6 +968,7 @@ impl<'a> Extraction<'a> {
             }
             b"Do" => {
                 let name = one_name(operation)?;
+                self.start_text_run(state);
                 let glyph_start = self.glyphs.len();
                 let vector_line_start = self.vector_lines.len();
                 let marked_start = self.marked_content.len();
@@ -954,7 +986,9 @@ impl<'a> Extraction<'a> {
                     form_depth,
                 );
                 match result {
-                    Ok(()) => {}
+                    Ok(()) => {
+                        self.start_text_run(state);
+                    }
                     Err(XObjectFailure {
                         error: error @ (Error::Unsupported(_) | Error::Unresolved(_)),
                         bounds,
@@ -962,6 +996,7 @@ impl<'a> Extraction<'a> {
                         self.glyphs.truncate(glyph_start);
                         self.vector_lines.truncate(vector_line_start);
                         self.marked_content.truncate(marked_start);
+                        self.displacements.truncate(glyph_start);
                         for index in state.marked_stack.iter().flatten() {
                             self.marked_content[*index].complete = false;
                         }
@@ -970,6 +1005,7 @@ impl<'a> Extraction<'a> {
                         // Partial effects of a failed invocation are replaced by
                         // one opaque operation, retaining its caller provenance.
                         self.non_text_paint_bounds.truncate(paint_start);
+                        self.start_text_run(state);
                         self.record_non_text_paint(page, stream, operation, bounds);
                         self.issues.push(ExtractionIssue::from_error(
                             ExtractionScope::PageGlyphGap {
@@ -1259,6 +1295,9 @@ impl Extraction<'_> {
                     state,
                 )?,
                 Operand::Number(adjustment) if adjustment.is_finite() => {
+                    if *adjustment != 0.0 {
+                        self.start_text_run(state);
+                    }
                     let (offset_x, offset_y) = match writing_mode {
                         WritingMode::Horizontal => (
                             -(adjustment / 1000.0)
@@ -1285,6 +1324,21 @@ impl Extraction<'_> {
         Ok(())
     }
 
+    /// Starts a new continuous text-space run on a reset or an unsupported
+    /// path. A state whose first glyph arrives without a preceding reset (a
+    /// page start or a restored graphics state) receives its run lazily in
+    /// [`Self::emit_glyph`]. Exhausting the run address space is a hard limit
+    /// so no glyph ever reuses a run identifier.
+    fn start_text_run(&mut self, state: &mut InterpreterState) {
+        if self.next_run == u32::MAX {
+            self.run_overflow = true;
+            state.text_run = u32::MAX;
+            return;
+        }
+        state.text_run = self.next_run;
+        self.next_run += 1;
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn emit_glyph(
         &mut self,
@@ -1300,6 +1354,7 @@ impl Extraction<'_> {
         state: &mut InterpreterState,
     ) -> Result<()> {
         let glyph_id = glyph.glyph_id;
+        let is_vertical = glyph.vertical.is_some();
         let text = match glyph.mapping {
             UnicodeMapping::Mapped(text) => DecodedText::Mapped(text),
             UnicodeMapping::Unmapped => DecodedText::Unmapped {
@@ -1414,6 +1469,66 @@ impl Extraction<'_> {
                 0.0,
             )
         };
+        if state.text_run == u32::MAX {
+            if self.next_run == u32::MAX {
+                self.run_overflow = true;
+                return Err(Error::LimitExceeded {
+                    resource: "text run identifiers",
+                    limit: u32::MAX as usize,
+                });
+            }
+            state.text_run = self.next_run;
+            self.next_run += 1;
+        }
+        if self.displacements.len() >= self.limits.max_glyphs {
+            return Err(Error::LimitExceeded {
+                resource: "glyph displacement records",
+                limit: self.limits.max_glyphs,
+            });
+        }
+        let raw_code = self
+            .glyphs
+            .last()
+            .map(|last| last.raw_code.clone())
+            .unwrap_or_default();
+        self.displacements.push(GlyphDisplacement {
+            glyph: id,
+            page,
+            raw_code,
+            width_1000_em: glyph.width_1000_em,
+            font_size: state.graphics.font_size,
+            character_spacing: state.graphics.character_spacing,
+            word_spacing_applied: word_spacing,
+            horizontal_scale_percent: state.graphics.horizontal_scale_percent,
+            horizontal_scale: state.graphics.horizontal_scale,
+            rise: state.graphics.rise,
+            horizontal: !is_vertical,
+            run: state.text_run,
+            text_matrix: [
+                state.text_matrix.a,
+                state.text_matrix.b,
+                state.text_matrix.c,
+                state.text_matrix.d,
+                state.text_matrix.e,
+                state.text_matrix.f,
+            ],
+            ctm: [
+                state.graphics.ctm.a,
+                state.graphics.ctm.b,
+                state.graphics.ctm.c,
+                state.graphics.ctm.d,
+                state.graphics.ctm.e,
+                state.graphics.ctm.f,
+            ],
+            page_transform: [
+                page_geometry.transform.a,
+                page_geometry.transform.b,
+                page_geometry.transform.c,
+                page_geometry.transform.d,
+                page_geometry.transform.e,
+                page_geometry.transform.f,
+            ],
+        });
         state.text_matrix = state
             .text_matrix
             .concatenate(Matrix::translation(advance_x, advance_y)?)?;
@@ -2610,6 +2725,7 @@ struct GraphicsState {
     character_spacing: f64,
     word_spacing: f64,
     horizontal_scale: f64,
+    horizontal_scale_percent: f64,
     leading: f64,
     font: Option<Arc<BoundFont>>,
     font_size: f64,
@@ -2630,6 +2746,7 @@ impl Default for GraphicsState {
             character_spacing: 0.0,
             word_spacing: 0.0,
             horizontal_scale: 1.0,
+            horizontal_scale_percent: 100.0,
             leading: 0.0,
             font: None,
             font_size: 0.0,
@@ -2649,6 +2766,7 @@ struct InterpreterState {
     current_path: CurrentPath,
     text_matrix: Matrix,
     text_line_matrix: Matrix,
+    text_run: u32,
     in_text: bool,
     compatibility_depth: usize,
 }
@@ -2664,6 +2782,7 @@ impl Default for InterpreterState {
             current_path: CurrentPath::default(),
             text_matrix: Matrix::IDENTITY,
             text_line_matrix: Matrix::IDENTITY,
+            text_run: u32::MAX,
             in_text: false,
             compatibility_depth: 0,
         }

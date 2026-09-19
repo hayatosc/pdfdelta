@@ -142,6 +142,39 @@ impl From<&Glyph> for GlyphEvidence {
     }
 }
 
+/// Raw per-glyph text-space evidence retained beside the glyphs.
+///
+/// The values are the exact operands and transforms the interpreter used when
+/// it emitted the glyph, not values reconstructed from the rounded advance or
+/// from baseline differences. A glyph without an entry has no evidence, and a
+/// run boundary means the text-space displacement is not continuous across it.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GlyphDisplacement {
+    pub glyph: GlyphId,
+    pub page: PageId,
+    pub raw_code: Vec<u8>,
+    pub width_1000_em: f64,
+    pub font_size: f64,
+    pub character_spacing: f64,
+    /// The applied word spacing: the raw state value for a space glyph and
+    /// zero for every other glyph.
+    pub word_spacing_applied: f64,
+    /// The raw `Tz` percent operand, 100 by default. The computed scale the
+    /// interpreter used is `horizontal_scale`.
+    pub horizontal_scale_percent: f64,
+    /// The computed horizontal scale, `horizontal_scale_percent / 100`.
+    pub horizontal_scale: f64,
+    pub rise: f64,
+    pub horizontal: bool,
+    /// Continuous text-space run; a reset, a coordinate change or an
+    /// unsupported path starts a new run.
+    pub run: u32,
+    /// Raw text matrix, CTM and page transform at emission, before the advance.
+    pub text_matrix: [f64; 6],
+    pub ctm: [f64; 6],
+    pub page_transform: [f64; 6],
+}
+
 /// A marked-content sequence in page content or one Form `XObject` invocation.
 /// The half-open range indexes the document's primary glyph items. Repeated
 /// invocations remain separate records; an MCID alone is not a unique identity.
@@ -175,6 +208,8 @@ pub struct Document<T> {
     #[serde(default)]
     marked_content: Vec<MarkedContent>,
     #[serde(default)]
+    displacements: Vec<GlyphDisplacement>,
+    #[serde(default)]
     last_non_text_paint: std::collections::BTreeMap<PageId, u32>,
     /// None denotes an older or incomplete paint-bound inventory, not no paint.
     #[serde(default)]
@@ -188,6 +223,7 @@ impl<T> Document<T> {
             items,
             vector_lines: Vec::new(),
             marked_content: Vec::new(),
+            displacements: Vec::new(),
             last_non_text_paint: std::collections::BTreeMap::new(),
             non_text_paint_bounds: None,
         }
@@ -201,6 +237,7 @@ impl<T> Document<T> {
             items,
             vector_lines,
             marked_content: Vec::new(),
+            displacements: Vec::new(),
             last_non_text_paint: std::collections::BTreeMap::new(),
             non_text_paint_bounds: None,
         }
@@ -219,9 +256,19 @@ impl<T> Document<T> {
         &self.marked_content
     }
 
-    /// Records the next render-order index at each page's last non-text paint.
-    /// Earlier glyphs may be covered; later glyphs have no subsequent recorded
-    /// non-text paint. Native glyphs alone cannot classify text in these images
+    /// Attaches the raw per-glyph displacement evidence. Documents without it
+    /// carry no evidence and never satisfy an exact-displacement proof.
+    #[must_use]
+    pub fn with_displacements(mut self, displacements: Vec<GlyphDisplacement>) -> Self {
+        self.displacements = displacements;
+        self
+    }
+
+    #[must_use]
+    pub fn displacements(&self) -> &[GlyphDisplacement] {
+        &self.displacements
+    }
+
     /// or paths. This boundary does not prove recognition or actual visibility.
     #[must_use]
     pub fn with_last_non_text_paint(
@@ -263,12 +310,18 @@ impl<T> Document<T> {
         &self.items
     }
 
-    /// Transforms primary items while retaining all auxiliary source evidence.
+    /// Transforms primary items while retaining the auxiliary source evidence.
+    ///
+    /// The displacement sidecar is dropped: a mapping may change glyph
+    /// identity or raw codes, so the retained records could no longer describe
+    /// the items. Re-attach a validated sidecar explicitly when the items are
+    /// unchanged.
     pub fn map_items<U>(self, map: impl FnMut(T) -> U) -> Document<U> {
         Document {
             items: self.items.into_iter().map(map).collect(),
             vector_lines: self.vector_lines,
             marked_content: self.marked_content,
+            displacements: Vec::new(),
             last_non_text_paint: self.last_non_text_paint,
             non_text_paint_bounds: self.non_text_paint_bounds,
         }
@@ -291,6 +344,65 @@ impl<T> Document<T> {
     #[must_use]
     pub fn into_parts(self) -> (Vec<T>, Vec<VectorLine>) {
         (self.items, self.vector_lines)
+    }
+}
+
+impl Document<Glyph> {
+    /// Rebuilds the displacement sidecar for a filtered glyph sequence.
+    ///
+    /// `keep` indexes the primary items, not the sidecar. Every kept glyph is
+    /// matched to its record by [`GlyphId`] and the record must agree with the
+    /// real glyph's page and raw code; a missing, duplicated or disagreeing
+    /// record leaves that glyph without evidence. Runs are renumbered so two
+    /// kept glyphs stay in one run only when they are adjacent items with the
+    /// same original run; a dropped glyph breaks the continuity. The run
+    /// address space is checked, so the renumbering never wraps or collides.
+    #[must_use]
+    pub fn filtered_displacements(&self, keep: &[bool]) -> Vec<GlyphDisplacement> {
+        let mut by_glyph = std::collections::HashMap::new();
+        let mut duplicated = std::collections::HashSet::new();
+        for entry in &self.displacements {
+            if by_glyph.insert(entry.glyph, entry).is_some() {
+                duplicated.insert(entry.glyph);
+            }
+        }
+        let mut result = Vec::new();
+        let mut previous: Option<(usize, u32, u32)> = None;
+        let mut next_run = 1u32;
+        for (index, glyph) in self.items.iter().enumerate() {
+            if !keep.get(index).copied().unwrap_or(false) {
+                continue;
+            }
+            let Some(entry) = by_glyph.get(&glyph.id) else {
+                continue;
+            };
+            if duplicated.contains(&glyph.id)
+                || entry.page != glyph.page
+                || entry.raw_code != glyph.raw_code
+            {
+                continue;
+            }
+            let run = match previous {
+                Some((previous_index, previous_run, new_run))
+                    if previous_index + 1 == index && previous_run == entry.run =>
+                {
+                    new_run
+                }
+                _ => {
+                    let Some(next) = next_run.checked_add(1) else {
+                        break;
+                    };
+                    next_run = next;
+                    next_run
+                }
+            };
+            let original_run = entry.run;
+            let mut entry = (*entry).clone();
+            entry.run = run;
+            result.push(entry);
+            previous = Some((index, original_run, run));
+        }
+        result
     }
 }
 

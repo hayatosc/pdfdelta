@@ -8,22 +8,26 @@ use crate::{
         validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
-        RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics, RecoveryWatchQuery,
-        SentenceRecoveryInput, SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+        Comparison, DiffOptions, ExactDisplacementInput, MAX_MYERS_EDIT_DISTANCE,
+        MatchedAtomicDiff, RecoveredAtomicDiff, RecoveryOwnershipPartitionAnalysis,
+        RecoveryWatchDiagnostics, RecoveryWatchQuery, SentenceRecoveryInput,
+        SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
         compare_aligned_with_atomic_edits,
         compare_aligned_with_known_span_sentence_shadow_diagnostics,
         compare_aligned_with_recovery_watch_diagnostics,
-        compare_aligned_with_sentence_recovery_metrics,
         compare_aligned_with_sentence_recovery_metrics_and_atomic_edits,
-        enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
+        compare_aligned_with_sentence_recovery_metrics_and_evidence, enforce_diff_raw_token_budget,
+        enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, TrustedRegionEdge, TrustedRunDescriptor,
         TrustedRunInterval, UncertainLineReason, reconstruct_blocks_with_issues, reconstruct_lines,
         validate_block_options, validate_line_options,
     },
-    model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, GlyphPathClipStatus, TextRenderMode},
+    model::{
+        Document, Glyph, GlyphCropStatus, GlyphDisplacement, GlyphEvidence, GlyphPathClipStatus,
+        TextRenderMode,
+    },
     normalize::{BlockText, normalize_blocks},
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
     source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
@@ -830,6 +834,7 @@ fn compare_validated_glyph_documents_inner(
         trusted_run_intervals: old_trusted_run_intervals,
         trusted_run_descriptors: old_trusted_run_descriptors,
         trusted_region_edges: old_trusted_region_edges,
+        displacements: old_displacements,
     } = old_prepared;
     let PreparedDocument {
         blocks: new,
@@ -838,6 +843,7 @@ fn compare_validated_glyph_documents_inner(
         trusted_run_intervals: new_trusted_run_intervals,
         trusted_run_descriptors: new_trusted_run_descriptors,
         trusted_region_edges: new_trusted_region_edges,
+        displacements: new_displacements,
     } = new_prepared;
     let (old_gap_boundaries, old_extraction_uncertain_block_indices) =
         gap_boundaries(old_document, &old, instrumentation.old_issue_boundaries);
@@ -1049,12 +1055,16 @@ fn compare_validated_glyph_documents_inner(
             ))
         })
     } else if instrumentation.enable_sentence_recovery {
-        compare_aligned_with_sentence_recovery_metrics(
+        compare_aligned_with_sentence_recovery_metrics_and_evidence(
             &old,
             &new,
             &alignment,
             options.diff,
             recovery,
+            ExactDisplacementInput {
+                old: &old_displacements,
+                new: &new_displacements,
+            },
         )
         .map(|outcome| {
             (
@@ -1368,6 +1378,12 @@ fn prepare(
     side: DocumentSide,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<PreparedDocument> {
+    let kept = document
+        .items()
+        .iter()
+        .map(is_comparison_visible)
+        .collect::<Vec<_>>();
+    let displacements = document.filtered_displacements(&kept);
     let document = Document::with_vector_lines(
         document
             .items()
@@ -1376,7 +1392,8 @@ fn prepare(
             .cloned()
             .collect(),
         document.vector_lines().to_vec(),
-    );
+    )
+    .with_displacements(displacements);
     let painting_glyphs = document.items().len();
     let lines = phase_result(
         diagnostics,
@@ -1532,6 +1549,7 @@ fn prepare(
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
+        displacements: document.displacements().to_vec(),
     })
 }
 
@@ -1585,6 +1603,9 @@ struct PreparedDocument {
     trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     trusted_run_descriptors: Vec<TrustedRunDescriptor>,
     trusted_region_edges: Vec<TrustedRegionEdge>,
+    /// Raw per-glyph displacement evidence for the comparison-visible glyphs,
+    /// renumbered so dropped glyphs break run continuity.
+    displacements: Vec<GlyphDisplacement>,
 }
 
 fn validate_trusted_run_interval_count(block_count: usize, interval_count: usize) -> Result<()> {

@@ -4,6 +4,7 @@ mod presence;
 mod recovery;
 mod sentence;
 
+pub(crate) use assessment::ExactDisplacementInput;
 pub use assessment::{
     ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AssessmentReason, AssessmentWork, ChangeCandidate,
     ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalTextClaims, LocalTextSide,
@@ -2326,6 +2327,7 @@ pub(crate) struct SentenceRecoveryInput<'a> {
 }
 
 struct CompareAlignedConfig<'a> {
+    exact_displacement: Option<assessment::ExactDisplacementInput<'a>>,
     options: DiffOptions,
     recovery: Option<SentenceRecoveryInput<'a>>,
     watch_queries: Option<&'a [RecoveryWatchQuery<'a>]>,
@@ -2358,6 +2360,7 @@ pub fn compare_aligned(
             watch_queries: None,
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: false,
+            exact_displacement: None,
         },
     )
     .map(|outcome| outcome.comparison)
@@ -2390,6 +2393,7 @@ pub fn compare_aligned_with_atomic_edits(
             watch_queries: None,
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: true,
+            exact_displacement: None,
         },
     )?;
     let matched_atomic_diffs = outcome.matched_atomic_diffs.ok_or_else(|| {
@@ -2421,11 +2425,15 @@ pub(crate) fn compare_aligned_with_sentence_recovery(
             watch_queries: None,
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: false,
+            exact_displacement: None,
         },
     )
     .map(|outcome| outcome.comparison)
 }
 
+/// Kept for callers without raw displacement evidence; the evidence-taking
+/// variant is the pipeline's production path.
+#[allow(dead_code)]
 pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
     old: &[BlockText],
     new: &[BlockText],
@@ -2444,6 +2452,31 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
             watch_queries: None,
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: false,
+            exact_displacement: None,
+        },
+    )
+}
+
+pub(crate) fn compare_aligned_with_sentence_recovery_metrics_and_evidence(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    mut recovery: SentenceRecoveryInput<'_>,
+    exact_displacement: ExactDisplacementInput<'_>,
+) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    recovery.enable_known_span_sentence_shadow = false;
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        CompareAlignedConfig {
+            options,
+            recovery: Some(recovery),
+            watch_queries: None,
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: false,
+            exact_displacement: Some(exact_displacement),
         },
     )
 }
@@ -2466,6 +2499,7 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics_and_atomic_edits(
             watch_queries: None,
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: true,
+            exact_displacement: None,
         },
     )
 }
@@ -2490,6 +2524,7 @@ pub(crate) fn compare_aligned_with_known_span_sentence_shadow_diagnostics(
             watch_queries: Some(watch_queries),
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: true,
+            exact_displacement: None,
         },
     )
 }
@@ -2514,6 +2549,7 @@ pub(crate) fn compare_aligned_with_recovery_watch_diagnostics(
             watch_queries: Some(watch_queries),
             recovery_output_limits: RecoveryOutputLimits::default(),
             retain_atomic_edits: false,
+            exact_displacement: None,
         },
     )
 }
@@ -2530,6 +2566,7 @@ fn compare_aligned_inner(
         watch_queries,
         recovery_output_limits,
         retain_atomic_edits,
+        exact_displacement,
     } = config;
     if let Some(recovery) = recovery {
         validate_sentence_recovery_input(old, new, recovery)?;
@@ -2838,6 +2875,7 @@ fn compare_aligned_inner(
         alignment,
         recovery,
         sentence_recovery.plan.as_ref(),
+        exact_displacement,
         assessment::ProposedComparison {
             changes: changes.clone(),
             proven_changed_regions,
@@ -9756,6 +9794,7 @@ mod tests {
                     max_bytes: usize::MAX,
                 },
                 retain_atomic_edits: false,
+                exact_displacement: None,
             },
         )
         .expect("budget fallback comparison succeeds");
@@ -10843,6 +10882,7 @@ mod tests {
                     max_bytes: usize::MAX,
                 },
                 retain_atomic_edits: false,
+                exact_displacement: None,
             },
         )
         .expect("fallback comparison succeeds");
@@ -10896,6 +10936,7 @@ mod tests {
                     max_bytes: usize::MAX,
                 },
                 retain_atomic_edits: false,
+                exact_displacement: None,
             },
         )
         .expect("exact fallback comparison succeeds");
@@ -10965,6 +11006,7 @@ mod tests {
                     max_bytes: usize::MAX,
                 },
                 retain_atomic_edits: false,
+                exact_displacement: None,
             },
         )
         .expect("cross-span fallback comparison succeeds");
@@ -11272,6 +11314,7 @@ mod tests {
                     max_bytes: usize::MAX,
                 },
                 retain_atomic_edits: false,
+                exact_displacement: None,
             },
         )
         .expect("cross-span replacement fallback comparison succeeds");
@@ -13125,6 +13168,7 @@ mod tests {
                     max_bytes: usize::MAX,
                 },
                 retain_atomic_edits: false,
+                exact_displacement: None,
             },
         )
         .expect("bounded recovery comparison succeeds");
@@ -13919,6 +13963,7 @@ mod tests {
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits::default(),
                 retain_atomic_edits: true,
+                exact_displacement: None,
             },
         )
         .expect("recovery comparison succeeds");
@@ -13975,6 +14020,7 @@ mod tests {
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits::default(),
                 retain_atomic_edits: true,
+                exact_displacement: None,
             },
         )
         .expect("recovery comparison succeeds");
