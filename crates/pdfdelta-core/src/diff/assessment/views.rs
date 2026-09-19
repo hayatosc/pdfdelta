@@ -17,6 +17,9 @@ mod anchors;
 pub(super) struct LocalDomain {
     pub(super) old_span: TextSpan,
     pub(super) new_span: TextSpan,
+    /// Both closing views were complete source-bounded single views. Only
+    /// these domains may publish an equal range without an edit script.
+    pub(super) source_bounded: bool,
 }
 
 #[derive(Default)]
@@ -268,6 +271,7 @@ pub(super) fn discover(
         exact_domains.push(LocalDomain {
             old_span: old.group.span(anchor.old_start, anchor.old_end),
             new_span: new.group.span(anchor.new_start, anchor.new_end),
+            source_bounded: false,
         });
     }
     let Some(chains) = ordered_chains(pair_anchors, remaining_work, max_ranges) else {
@@ -377,7 +381,12 @@ pub(super) fn discover(
                 .span(pair[0].new_start, pair[1].new_end);
             localized.push((
                 (key.0, key.1, pair[0].old_start, pair[0].new_start),
-                LocalDomain { old_span, new_span },
+                LocalDomain {
+                    old_span,
+                    new_span,
+                    source_bounded: old_views[pair[0].old_view].source_bounded
+                        && new_views[pair[0].new_view].source_bounded,
+                },
             ));
         }
     }
@@ -401,6 +410,7 @@ fn split_at_barriers(
         let next = LocalDomain {
             old_span: views[0].group.span(anchor.old_start, anchor.old_end),
             new_span: views[1].group.span(anchor.new_start, anchor.new_end),
+            source_bounded: views[0].source_bounded && views[1].source_bounded,
         };
         if let Some(previous) = current.take() {
             let combined = LocalDomain {
@@ -410,6 +420,7 @@ fn split_at_barriers(
                 new_span: views[1]
                     .group
                     .span(previous.new_span.comparable_range.start, anchor.new_end),
+                source_bounded: views[0].source_bounded && views[1].source_bounded,
             };
             if compatible_roles(sides, [&combined.old_span, &combined.new_span], remaining)?
                 && !super::span_has_source_issues(sides[0], &combined.old_span, remaining)?
@@ -1092,6 +1103,7 @@ fn close_domain(
         return Some(LocalDomain {
             old_span: old_view.group.span(anchor.old_start, anchor.old_end),
             new_span: new_view.group.span(anchor.new_start, anchor.new_end),
+            source_bounded: old_view.source_bounded && new_view.source_bounded,
         });
     }
 
@@ -1109,6 +1121,7 @@ fn close_domain(
     Some(LocalDomain {
         old_span: old_view.group.span(first.old_start, last.old_end),
         new_span: new_view.group.span(first.new_start, last.new_end),
+        source_bounded: old_view.source_bounded && new_view.source_bounded,
     })
 }
 

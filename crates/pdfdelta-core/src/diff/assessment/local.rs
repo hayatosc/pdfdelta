@@ -79,6 +79,7 @@ impl Assessor<'_, '_> {
             let domain = super::views::LocalDomain {
                 old_span: old.full_span(),
                 new_span: new.full_span(),
+                source_bounded: false,
             };
             if !domains.contains(&domain) {
                 super::reserve_ranges(&mut domains, 1, self.options.max_assessment_ranges)?;
@@ -173,6 +174,60 @@ impl Assessor<'_, '_> {
             let groups = proof_groups(self.sides, &key)?;
             let proof = &self.domains[&key];
             if proof.edits.is_empty() {
+                // Only complete source-bounded singleton domains may publish
+                // an equal range without an edit script. Trusted-run fragments,
+                // ordered and footer domains keep their existing obligations.
+                if !domain.source_bounded
+                    || self.records[relation].search != super::SearchCompleteness::Complete
+                {
+                    continue;
+                }
+                // Protect tentative candidates: an accepted equality must not
+                // swallow source ranges a candidate still claims.
+                let mut candidate_conflict = false;
+                for candidate in candidates.iter() {
+                    for occurrence in &candidate.change.occurrences {
+                        for (side, span) in
+                            [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                                .into_iter()
+                                .enumerate()
+                        {
+                            let Some(span) = span else {
+                                continue;
+                            };
+                            if !self.charge(span.blocks.len()) {
+                                self.mark_local_work_limit(relation);
+                                return Ok(false);
+                            }
+                            let source = project(self.sides[side], span)?;
+                            let Some(overlap) =
+                                overlaps(&source, &accepted[side], &mut self.remaining_work)
+                            else {
+                                self.mark_local_work_limit(relation);
+                                return Ok(false);
+                            };
+                            candidate_conflict |= overlap;
+                        }
+                    }
+                }
+                if candidate_conflict {
+                    continue;
+                }
+                let limit = self.options.max_assessment_ranges;
+                let fits = (0..2).all(|side| {
+                    ownership[side]
+                        .accepted
+                        .len()
+                        .saturating_add(accepted[side].len())
+                        <= limit
+                });
+                if !fits {
+                    continue;
+                }
+                for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
+                    super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
+                    owner.accepted.extend(accepted_side.iter().copied());
+                }
                 continue;
             }
             let mut local_changes = Vec::new();
@@ -382,6 +437,7 @@ fn overlaps(old: &[SourceInterval], new: &[SourceInterval], remaining: &mut usiz
         })
     }))
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -496,6 +552,7 @@ mod tests {
         assessor.local_domains = vec![LocalDomain {
             old_span: span(1, tokens),
             new_span: span(101, tokens),
+            source_bounded: true,
         }];
         let mut ownership = [
             super::super::Ownership::new(),

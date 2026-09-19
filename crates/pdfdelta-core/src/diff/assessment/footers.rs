@@ -151,6 +151,7 @@ pub(super) fn discover(
             result.domains.push(LocalDomain {
                 old_span: old[proposal.old[0].0 as usize - 1].span.clone(),
                 new_span: new[proposal.new[0].0 as usize - 1].span.clone(),
+                source_bounded: false,
             });
         }
     }
