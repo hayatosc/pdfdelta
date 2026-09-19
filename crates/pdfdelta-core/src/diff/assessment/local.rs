@@ -516,6 +516,25 @@ mod tests {
         }
     }
 
+    fn matched_alignment(old: &[BlockId], new: &[BlockId]) -> Alignment {
+        Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: old.to_vec(),
+                new: new.to_vec(),
+                score: 1.0,
+                canonical_similarity: 1.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::High,
+                evidence: vec![AlignmentEvidence::ExactCanonical],
+                old_separator: Some(BlockSeparator::Space),
+                new_separator: Some(BlockSeparator::Space),
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
     fn unresolved_alignment(old: &[BlockId], new: &[BlockId]) -> Alignment {
         Alignment {
             spans: vec![AlignmentSpan {
@@ -573,6 +592,125 @@ mod tests {
                     && range.comparable_range.end == tokens
             }),
             "{resolution:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn targeted_proof_exhaustion_records_a_work_limit_child_relation() -> Result<()> {
+        use super::super::{
+            AssessmentReason, ProposedRelation, RelationOutcome, SearchCompleteness,
+        };
+
+        let old_blocks = [
+            sourced_block(1, "Schedule SE 2024"),
+            sourced_block(2, "Schedule SE 2024"),
+        ];
+        let new_blocks = [
+            sourced_block(101, "Schedule SE 2025 Created"),
+            sourced_block(102, "Schedule SE 2025"),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = matched_alignment(&[BlockId(1), BlockId(2)], &[BlockId(101), BlockId(102)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        let proposal = ProposedRelation {
+            old: Some(span(
+                2,
+                old_blocks[1]
+                    .canonical
+                    .comparable_tokens()
+                    .expect("old tokens")
+                    .len(),
+            )),
+            new: Some(span(
+                102,
+                new_blocks[1]
+                    .canonical
+                    .comparable_tokens()
+                    .expect("new tokens")
+                    .len(),
+            )),
+            span_indices: [Some(0), Some(0)],
+            exact_recovery: false,
+        };
+        let key = assessor.domain_key(&proposal)?;
+        assessor.prove_domain(&key)?;
+        assert_eq!(
+            assessor.domains[&key].search,
+            SearchCompleteness::Complete,
+            "domain proof must complete before the targeted proof runs"
+        );
+        assert!(!assessor.domains[&key].unique);
+
+        assessor.remaining_work = 0;
+        let index = assessor.assess(&proposal)?;
+        assert_eq!(
+            assessor.records[index].reasons,
+            [AssessmentReason::WorkLimit]
+        );
+        assert_eq!(
+            assessor.records[index].search,
+            SearchCompleteness::Incomplete
+        );
+        assert_eq!(assessor.records[index].outcome, RelationOutcome::Tentative);
+        assert_eq!(
+            assessor.domains[&key].search,
+            SearchCompleteness::Complete,
+            "the parent domain keeps its completed search"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn targeted_proof_traversal_exhaustion_is_not_a_negative_answer() -> Result<()> {
+        use super::super::{ProposalProof, ProposedRelation};
+
+        let old_blocks = [
+            sourced_block(1, "Schedule SE 2024"),
+            sourced_block(2, "Schedule SE 2024"),
+        ];
+        let new_blocks = [
+            sourced_block(101, "Schedule SE 2025 Created"),
+            sourced_block(102, "Schedule SE 2025"),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = matched_alignment(&[BlockId(1), BlockId(2)], &[BlockId(101), BlockId(102)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        let proposal = ProposedRelation {
+            old: Some(span(
+                2,
+                old_blocks[1]
+                    .canonical
+                    .comparable_tokens()
+                    .expect("old tokens")
+                    .len(),
+            )),
+            new: Some(span(
+                102,
+                new_blocks[1]
+                    .canonical
+                    .comparable_tokens()
+                    .expect("new tokens")
+                    .len(),
+            )),
+            span_indices: [Some(0), Some(0)],
+            exact_recovery: false,
+        };
+        let key = assessor.domain_key(&proposal)?;
+        assessor.prove_domain(&key)?;
+        let [old_group, new_group] = super::super::proof_groups(assessor.sides, &key)?;
+        let token_work = old_group
+            .tokens
+            .len()
+            .saturating_add(new_group.tokens.len());
+        assessor.remaining_work = token_work.saturating_add(1);
+        assert_eq!(
+            assessor.proposal_edits_are_invariant(&proposal, &key)?,
+            ProposalProof::Exhausted
         );
         Ok(())
     }

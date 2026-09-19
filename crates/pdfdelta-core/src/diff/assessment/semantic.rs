@@ -741,6 +741,252 @@ mod tests {
         assert_eq!(equal_calls, 1);
     }
 
+    #[test]
+    fn target_scoped_hunk_callback_matches_independent_matching_oracle() {
+        let words = all_words(3);
+        for old in &words {
+            for new in &words {
+                let lengths = [old.len(), new.len()];
+                for old_start in 0..=old.len() {
+                    for old_end in old_start..=old.len() {
+                        for new_start in 0..=new.len() {
+                            for new_end in new_start..=new.len() {
+                                let target_old = old_start..old_end;
+                                let target_new = new_start..new_end;
+                                let expected =
+                                    expected_target_signatures(old, new, &target_old, &target_new);
+                                let mut budget = usize::MAX;
+                                let actual =
+                                    super::check_hunks(old, new, &mut budget, |edits, _| {
+                                        if !super::super::point_on_script(
+                                            [target_old.start, target_new.start],
+                                            edits,
+                                            lengths,
+                                        ) || !super::super::point_on_script(
+                                            [target_old.end, target_new.end],
+                                            edits,
+                                            lengths,
+                                        ) {
+                                            return Ok(Some(None));
+                                        }
+                                        Ok(Some(super::super::target_hunk_signature(
+                                            &target_old,
+                                            &target_new,
+                                            edits,
+                                        )))
+                                    })
+                                    .expect("target-scoped traversal fits its budget");
+                                match (&expected[..], actual) {
+                                    ([only], Outcome::Unique { signature, .. }) => {
+                                        assert_eq!(
+                                            canonical_signature(&signature),
+                                            *only,
+                                            "old={old:?}, new={new:?}, targets={target_old:?}/{target_new:?}"
+                                        );
+                                    }
+                                    (many, Outcome::Ambiguous) if many.len() > 1 => {}
+                                    (many, actual) => panic!(
+                                        "unexpected outcome for old={old:?}, new={new:?}, \
+                                         targets={target_old:?}/{target_new:?}: \
+                                         {many:?} signatures, {actual:?}"
+                                    ),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn independent_matching_oracle_reports_indel_model_distances() {
+        // The production model matches equal pairs and turns every unmatched
+        // token into a deletion or insertion. `ab` to `cd` has no equal pair,
+        // so its one optimal script is the single hunk 0..2 to 0..2.
+        let expected = expected_target_signatures(b"ab", b"cd", &(0..2), &(0..2));
+        assert_eq!(expected.len(), 1, "{expected:?}");
+        assert_eq!(
+            expected[0],
+            Some((0, 2, 0, 2, vec![(0, 2, 0, 2)])),
+            "{expected:?}"
+        );
+        // `ab` to `ba` has two maximum matchings and therefore two different
+        // whole-target signatures.
+        let swapped = expected_target_signatures(b"ab", b"ba", &(0..2), &(0..2));
+        assert_eq!(swapped.len(), 2, "{swapped:?}");
+        // A target no matching hunk touches stays absent on every path.
+        let absent = expected_target_signatures(b"ab", b"ab", &(1..2), &(1..2));
+        assert_eq!(absent, vec![None], "{absent:?}");
+    }
+
+    #[test]
+    fn repeated_positions_make_a_swap_target_ambiguous() {
+        let mut budget = usize::MAX;
+        let target_old = 0..1;
+        let target_new = 0..1;
+        let actual = super::check_hunks(b"ab", b"ba", &mut budget, |edits, _| {
+            Ok(Some(super::super::target_hunk_signature(
+                &target_old,
+                &target_new,
+                edits,
+            )))
+        })
+        .expect("swap traversal fits its budget");
+        assert_eq!(actual, Outcome::Ambiguous);
+    }
+
+    type CanonicalSignature = Option<(usize, usize, usize, usize, ScriptSignature)>;
+
+    fn canonical_signature(
+        signature: &Option<super::super::ProposalHunkSignature>,
+    ) -> CanonicalSignature {
+        signature.as_ref().map(|(old, new, hunks)| {
+            (
+                old.start,
+                old.end,
+                new.start,
+                new.end,
+                hunks
+                    .iter()
+                    .map(|(old, new)| (old.start, old.end, new.start, new.end))
+                    .collect(),
+            )
+        })
+    }
+
+    /// Independent expected set: enumerate every maximum equal-pair matching,
+    /// derive its changed hunks from the unmatched gaps, and apply the target
+    /// contract (boundary points plus contained strict hunks) without calling
+    /// any production function.
+    fn expected_target_signatures(
+        old: &[u8],
+        new: &[u8],
+        target_old: &std::ops::Range<usize>,
+        target_new: &std::ops::Range<usize>,
+    ) -> Vec<CanonicalSignature> {
+        let mut matchings = Vec::new();
+        enumerate_matchings(old, new, 0, 0, &mut Vec::new(), &mut matchings);
+        let best = matchings
+            .iter()
+            .map(Vec::len)
+            .max()
+            .expect("the empty matching always exists");
+        let lengths = (old.len(), new.len());
+        let mut signatures = matchings
+            .into_iter()
+            .filter(|matching| matching.len() == best)
+            .map(|matching| {
+                let hunks = matching_hunks(old, new, &matching);
+                if !independent_on_script((target_old.start, target_new.start), &hunks, lengths)
+                    || !independent_on_script((target_old.end, target_new.end), &hunks, lengths)
+                {
+                    return None;
+                }
+                independent_signature(&hunks, target_old, target_new)
+            })
+            .collect::<Vec<_>>();
+        signatures.sort();
+        signatures.dedup();
+        signatures
+    }
+
+    fn enumerate_matchings(
+        old: &[u8],
+        new: &[u8],
+        old_index: usize,
+        new_index: usize,
+        path: &mut Vec<(usize, usize)>,
+        output: &mut Vec<Vec<(usize, usize)>>,
+    ) {
+        output.push(path.clone());
+        for i in old_index..old.len() {
+            for j in new_index..new.len() {
+                if old[i] == new[j] {
+                    path.push((i, j));
+                    enumerate_matchings(old, new, i + 1, j + 1, path, output);
+                    path.pop();
+                }
+            }
+        }
+    }
+
+    fn matching_hunks(
+        old: &[u8],
+        new: &[u8],
+        matching: &[(usize, usize)],
+    ) -> Vec<(usize, usize, usize, usize)> {
+        let mut hunks = Vec::new();
+        let mut previous = (0usize, 0usize);
+        for &(old_match, new_match) in matching {
+            if previous.0 < old_match || previous.1 < new_match {
+                hunks.push((previous.0, old_match, previous.1, new_match));
+            }
+            previous = (old_match + 1, new_match + 1);
+        }
+        if previous.0 < old.len() || previous.1 < new.len() {
+            hunks.push((previous.0, old.len(), previous.1, new.len()));
+        }
+        hunks
+    }
+
+    fn independent_on_script(
+        point: (usize, usize),
+        hunks: &[(usize, usize, usize, usize)],
+        lengths: (usize, usize),
+    ) -> bool {
+        let mut cursor = (0usize, 0usize);
+        for &(old_start, old_end, new_start, new_end) in hunks {
+            if point.0 >= cursor.0
+                && point.0 <= old_start
+                && point.1 >= cursor.1
+                && point.1 <= new_start
+                && point.0 - cursor.0 == point.1 - cursor.1
+            {
+                return true;
+            }
+            if point == (old_start, new_start) || point == (old_end, new_end) {
+                return true;
+            }
+            cursor = (old_end, new_end);
+        }
+        point.0 >= cursor.0
+            && point.0 <= lengths.0
+            && point.1 >= cursor.1
+            && point.1 <= lengths.1
+            && point.0 - cursor.0 == point.1 - cursor.1
+    }
+
+    fn independent_signature(
+        hunks: &[(usize, usize, usize, usize)],
+        target_old: &std::ops::Range<usize>,
+        target_new: &std::ops::Range<usize>,
+    ) -> CanonicalSignature {
+        let mut contained = Vec::new();
+        for &(old_start, old_end, new_start, new_end) in hunks {
+            let old_overlap = old_start < target_old.end && target_old.start < old_end;
+            let new_overlap = new_start < target_new.end && target_new.start < new_end;
+            let old_inside = target_old.start <= old_start && old_end <= target_old.end;
+            let new_inside = target_new.start <= new_start && new_end <= target_new.end;
+            if (old_overlap && !old_inside) || (new_overlap && !new_inside) {
+                return None;
+            }
+            if old_inside && new_inside {
+                contained.push((old_start, old_end, new_start, new_end));
+            }
+        }
+        if contained.is_empty() {
+            return None;
+        }
+        Some((
+            target_old.start,
+            target_old.end,
+            target_new.start,
+            target_new.end,
+            contained,
+        ))
+    }
+
     fn script_signature(edits: &[AtomicEdit]) -> ScriptSignature {
         edits
             .iter()

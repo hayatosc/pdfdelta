@@ -1377,6 +1377,57 @@ fn assumptions(groups: [&GroupText; 2]) -> Vec<ComparisonAssumption> {
     result
 }
 
+/// Conclusion of the per-path proposal proof.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProposalProof {
+    /// Every optimal path agrees on one non-empty strict hunk signature.
+    Invariant,
+    /// The traversal completed without such an agreement.
+    NotInvariant,
+    /// The traversal ran out of work before reaching a conclusion.
+    Exhausted,
+}
+
+/// Localized target ranges and their strict changed hunks for one path.
+type ProposalHunkSignature = (
+    Range<usize>,
+    Range<usize>,
+    Vec<(Range<usize>, Range<usize>)>,
+);
+
+/// Per-path signature of one proposal's strict changed hunks.
+///
+/// A path only contributes a signature when every changed hunk inside the
+/// target ranges is fully contained; a hunk crossing a boundary, a missing
+/// target range or no changed hunk at all is absent and never counts as a
+/// proof on its own.
+fn target_hunk_signature(
+    target_old: &Range<usize>,
+    target_new: &Range<usize>,
+    edits: &[super::AtomicEdit],
+) -> Option<ProposalHunkSignature> {
+    let mut hunks = Vec::new();
+    let mut crossing = false;
+    super::visit_atomic_hunks(edits, |hunk| {
+        let old_overlap = hunk.old.start < target_old.end && target_old.start < hunk.old.end;
+        let new_overlap = hunk.new.start < target_new.end && target_new.start < hunk.new.end;
+        let old_inside = target_old.start <= hunk.old.start && hunk.old.end <= target_old.end;
+        let new_inside = target_new.start <= hunk.new.start && hunk.new.end <= target_new.end;
+        if (old_overlap && !old_inside) || (new_overlap && !new_inside) {
+            crossing = true;
+            return false;
+        }
+        if old_inside && new_inside {
+            hunks.push((hunk.old.clone(), hunk.new.clone()));
+        }
+        true
+    });
+    if crossing || hunks.is_empty() {
+        return None;
+    }
+    Some((target_old.clone(), target_new.clone(), hunks))
+}
+
 fn point_on_script(point: [usize; 2], edits: &[super::AtomicEdit], lengths: [usize; 2]) -> bool {
     let mut cursor = [0, 0];
     let mut index = 0;
@@ -1472,12 +1523,12 @@ fn locate_in_group(
 fn localize_proposal(
     sides: [&Side<'_>; 2],
     spans: [Option<&TextSpan>; 2],
-    groups: &[GroupText; 2],
+    groups: [&GroupText; 2],
     edits: &[super::AtomicEdit],
 ) -> Result<[Option<Range<usize>>; 2]> {
     let mut ranges = [
-        locate_in_group(sides[0], spans[0], &groups[0])?,
-        locate_in_group(sides[1], spans[1], &groups[1])?,
+        locate_in_group(sides[0], spans[0], groups[0])?,
+        locate_in_group(sides[1], spans[1], groups[1])?,
     ];
     for missing in 0..2 {
         let present = 1 - missing;
@@ -2770,37 +2821,130 @@ impl<'a, 'document> Assessor<'a, 'document> {
         Ok(())
     }
 
+    /// Checks whether the strict changed hunks inside one proposal are the
+    /// same on every optimal edit path of its closed domain.
+    ///
+    /// Only a closed domain with a completed search reaches this check. Every
+    /// path must localize the proposal to the same ranges and contain the same
+    /// changed hunks fully inside those ranges; a boundary-crossing hunk, a
+    /// missing range or no changed hunk at all is absent, and an all-absent
+    /// domain never counts as a proof.
+    ///
+    /// Work exhaustion is reported separately from a negative answer so the
+    /// caller can record an incomplete child relation instead of presenting a
+    /// completed search that never finished.
+    fn proposal_edits_are_invariant(
+        &mut self,
+        proposal: &ProposedRelation,
+        key: &DomainKey,
+    ) -> Result<ProposalProof> {
+        let [old, new] = proof_groups(self.sides, key)?;
+        let lengths = [old.tokens.len(), new.tokens.len()];
+        let token_work = lengths[0].saturating_add(lengths[1]);
+        let sides = self.sides;
+        if !charge(&mut self.remaining_work, token_work) {
+            return Ok(ProposalProof::Exhausted);
+        }
+        let groups = [&old, &new];
+        let target = [proposal.old.as_ref(), proposal.new.as_ref()];
+        let outcome = semantic::check_hunks(
+            &old.tokens,
+            &new.tokens,
+            &mut self.remaining_work,
+            |edits, remaining| {
+                if !charge(remaining, token_work.saturating_add(edits.len())) {
+                    return Ok(None);
+                }
+                let ranges = localize_proposal(sides, target, groups, edits)?;
+                let [Some(old_range), Some(new_range)] = ranges else {
+                    return Ok(Some(None));
+                };
+                if !point_on_script([old_range.start, new_range.start], edits, lengths)
+                    || !point_on_script([old_range.end, new_range.end], edits, lengths)
+                {
+                    return Ok(Some(None));
+                }
+                Ok(Some(target_hunk_signature(&old_range, &new_range, edits)))
+            },
+        )?;
+        Ok(match outcome {
+            semantic::Outcome::Unique {
+                signature: Some(_), ..
+            } => ProposalProof::Invariant,
+            semantic::Outcome::Unique { .. } | semantic::Outcome::Ambiguous => {
+                ProposalProof::NotInvariant
+            }
+            semantic::Outcome::BudgetExceeded => ProposalProof::Exhausted,
+        })
+    }
+
     fn assess(&mut self, proposal: &ProposedRelation) -> Result<usize> {
         if let Some(index) = self.output_stop {
             return Ok(index);
         }
         let key = self.domain_key(proposal)?;
         self.prove_domain(&key)?;
-        let proof = &self.domains[&key];
-        let parent = proof.relation;
+        let parent = self.domains[&key].relation;
+        let proof_unique = self.domains[&key].unique;
+        let proof_search = self.domains[&key].search;
+        let proof_strict_unique = self.domains[&key].strict_unique;
         let mut reasons = self.records[parent].reasons.clone();
         let mut search = SearchCompleteness::Complete;
-        if reasons.is_empty() && !proof.unique {
-            reasons.push(if proof.search == SearchCompleteness::Incomplete {
-                AssessmentReason::WorkLimit
+        let mut targeted_invariant = false;
+        if reasons.is_empty() && !proof_unique {
+            // A specific proposal may still be identical on every optimal path
+            // of an otherwise ambiguous domain; only then is it established.
+            //
+            // The proof is limited to whole-view domains spanning more than one
+            // block because those domains close a region whose block
+            // correspondence is already carried by alignment evidence, so a
+            // proposal's own strict hunks can be proven while the remaining
+            // blocks keep their candidates. Single-block domains are semantic
+            // event units whose atomic ranges stay coupled until the event's
+            // script is unique, and local sentence domains stay coupled to the
+            // veto obligations of their enclosing uncertain region.
+            let multi_block = key.local.is_none() && key.old.len() > 1 && key.new.len() > 1;
+            if multi_block && proof_search == SearchCompleteness::Complete {
+                match self.proposal_edits_are_invariant(proposal, &key)? {
+                    ProposalProof::Invariant => targeted_invariant = true,
+                    ProposalProof::NotInvariant => {
+                        reasons.push(AssessmentReason::AmbiguousEditLocation);
+                        search = SearchCompleteness::Complete;
+                    }
+                    ProposalProof::Exhausted => {
+                        // The domain's own proof stays complete; only this
+                        // proposal's targeted search ran out of work.
+                        reasons.push(AssessmentReason::WorkLimit);
+                        search = SearchCompleteness::Incomplete;
+                    }
+                }
             } else {
-                AssessmentReason::AmbiguousEditLocation
-            });
-            search = proof.search;
+                reasons.push(if proof_search == SearchCompleteness::Incomplete {
+                    AssessmentReason::WorkLimit
+                } else {
+                    AssessmentReason::AmbiguousEditLocation
+                });
+                search = proof_search;
+            }
         }
         if reasons.is_empty()
-            && !proof.strict_unique
+            && !targeted_invariant
+            && !proof_strict_unique
             && (proposal.old != self.records[parent].old_span
                 || proposal.new != self.records[parent].new_span)
         {
             reasons.push(AssessmentReason::AmbiguousEditLocation);
         }
-        if reasons.is_empty() {
+        if reasons.is_empty() && !targeted_invariant {
+            // The per-path proof already established localization and hunk
+            // containment on every optimal script; the single representative
+            // script is empty for ambiguous domains and cannot add evidence.
+            let proof = &self.domains[&key];
             let groups = proof_groups(self.sides, &key)?;
             let ranges = localize_proposal(
                 self.sides,
                 [proposal.old.as_ref(), proposal.new.as_ref()],
-                &groups,
+                [&groups[0], &groups[1]],
                 &proof.edits,
             )?;
             match ranges {
@@ -2810,7 +2954,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 _ => reasons.push(AssessmentReason::CompetingCorrespondence),
             }
         }
-        let semantic_proof = reasons.is_empty() && proof.stable_events.is_some();
+        let semantic_proof = reasons.is_empty() && self.domains[&key].stable_events.is_some();
         let index = self.record(RelationAssessment {
             old_span: proposal.old.clone(),
             new_span: proposal.new.clone(),
@@ -3108,6 +3252,163 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }
         result.reverse();
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod proposal_signature_tests {
+    use super::target_hunk_signature;
+    use crate::diff::AtomicEdit;
+
+    fn substitution(old_start: usize, new_start: usize) -> [AtomicEdit; 2] {
+        [
+            AtomicEdit {
+                old: old_start..old_start + 1,
+                new: new_start..new_start,
+            },
+            AtomicEdit {
+                old: old_start + 1..old_start + 1,
+                new: new_start..new_start + 1,
+            },
+        ]
+    }
+
+    #[test]
+    fn contained_substitution_is_one_hunk() {
+        let edits = substitution(2, 2);
+        assert_eq!(
+            target_hunk_signature(&(2..3), &(2..3), &edits),
+            Some((2..3, 2..3, vec![(2..3, 2..3)]))
+        );
+    }
+
+    #[test]
+    fn hunks_crossing_a_target_boundary_are_absent() {
+        let crossing_start = [
+            AtomicEdit {
+                old: 1..3,
+                new: 1..1,
+            },
+            AtomicEdit {
+                old: 3..3,
+                new: 1..2,
+            },
+        ];
+        assert_eq!(
+            target_hunk_signature(&(2..3), &(1..2), &crossing_start),
+            None
+        );
+        let crossing_end = [
+            AtomicEdit {
+                old: 3..4,
+                new: 3..3,
+            },
+            AtomicEdit {
+                old: 4..4,
+                new: 3..5,
+            },
+        ];
+        assert_eq!(target_hunk_signature(&(3..4), &(3..4), &crossing_end), None);
+    }
+
+    #[test]
+    fn hunks_outside_the_target_are_absent() {
+        let edits = substitution(0, 0);
+        assert_eq!(target_hunk_signature(&(3..4), &(3..4), &edits), None);
+    }
+
+    #[test]
+    fn empty_sides_localize_insertions_and_deletions() {
+        let insertion = [
+            AtomicEdit {
+                old: 2..2,
+                new: 2..3,
+            },
+            AtomicEdit {
+                old: 2..2,
+                new: 3..4,
+            },
+        ];
+        assert_eq!(
+            target_hunk_signature(&(2..2), &(2..4), &insertion),
+            Some((2..2, 2..4, vec![(2..2, 2..4)]))
+        );
+        let deletion = [
+            AtomicEdit {
+                old: 2..3,
+                new: 2..2,
+            },
+            AtomicEdit {
+                old: 3..4,
+                new: 2..2,
+            },
+        ];
+        assert_eq!(
+            target_hunk_signature(&(2..4), &(2..2), &deletion),
+            Some((2..4, 2..2, vec![(2..4, 2..2)]))
+        );
+    }
+
+    #[test]
+    fn start_and_end_targets_keep_their_hunks() {
+        let start = substitution(0, 0);
+        assert_eq!(
+            target_hunk_signature(&(0..1), &(0..1), &start),
+            Some((0..1, 0..1, vec![(0..1, 0..1)]))
+        );
+        let end = substitution(3, 3);
+        assert_eq!(
+            target_hunk_signature(&(3..4), &(3..4), &end),
+            Some((3..4, 3..4, vec![(3..4, 3..4)]))
+        );
+    }
+
+    #[test]
+    fn equal_run_points_are_correspondence_boundaries() {
+        assert!(super::point_on_script([1, 1], &[], [2, 2]));
+        assert!(super::point_on_script([2, 2], &[], [2, 2]));
+        assert!(!super::point_on_script([3, 3], &[], [2, 2]));
+        assert!(!super::point_on_script([2, 1], &[], [2, 2]));
+    }
+
+    #[test]
+    fn hunk_corners_are_boundaries_but_interiors_are_not() {
+        let edits = substitution(1, 1);
+        assert!(super::point_on_script([1, 1], &edits, [3, 3]));
+        assert!(super::point_on_script([2, 2], &edits, [3, 3]));
+        assert!(!super::point_on_script([1, 2], &edits, [3, 3]));
+        assert!(!super::point_on_script([2, 1], &edits, [3, 3]));
+    }
+
+    #[test]
+    fn leading_and_trailing_runs_follow_the_script_cursor() {
+        let edits = substitution(2, 2);
+        assert!(super::point_on_script([0, 0], &edits, [4, 4]));
+        assert!(super::point_on_script([1, 1], &edits, [4, 4]));
+        assert!(super::point_on_script([2, 2], &edits, [4, 4]));
+        assert!(super::point_on_script([3, 3], &edits, [4, 4]));
+        assert!(super::point_on_script([4, 4], &edits, [4, 4]));
+        assert!(!super::point_on_script([3, 4], &edits, [4, 4]));
+    }
+
+    #[test]
+    fn repeated_positions_select_only_contained_hunks() {
+        let first = substitution(1, 1);
+        let second = substitution(3, 3);
+        let edits = [
+            first[0].clone(),
+            first[1].clone(),
+            second[0].clone(),
+            second[1].clone(),
+        ];
+        assert_eq!(
+            target_hunk_signature(&(1..2), &(1..2), &edits),
+            Some((1..2, 1..2, vec![(1..2, 1..2)]))
+        );
+        assert_eq!(
+            target_hunk_signature(&(0..4), &(0..4), &edits),
+            Some((0..4, 0..4, vec![(1..2, 1..2), (3..4, 3..4)]))
+        );
     }
 }
 
