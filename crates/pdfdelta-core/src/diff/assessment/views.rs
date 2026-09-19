@@ -2932,6 +2932,39 @@ mod tests {
         block
     }
 
+    /// A source-backed block whose tokens advance along x from a start
+    /// position, so its baseline geometry is an interval instead of a point.
+    fn spread_block(
+        id: u64,
+        text: &str,
+        x: f64,
+        y: f64,
+        page: u32,
+        advance: f64,
+    ) -> crate::normalize::BlockText {
+        let mut block = sourced_block(id, text);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        let signatures = (0..tokens)
+            .map(|index| {
+                PositionSignature::new(
+                    Vec2 {
+                        x: x + index as f64 * advance,
+                        y,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("valid position")
+            })
+            .collect::<Vec<_>>();
+        block.position_signatures = Some(signatures);
+        block.pages = vec![page];
+        block
+    }
+
     fn whole_view_positioned_domain(
         domains: &[LocalDomain],
         old_blocks: &[crate::normalize::BlockText],
@@ -4163,6 +4196,185 @@ mod tests {
         let domains = discover_translations([&old, &new], input, &established, &mut budget, 100)?;
         assert!(domains.is_empty(), "{domains:?}");
         assert_eq!(budget, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_follows_a_same_band_neighbour_across_other_columns() -> Result<()> {
+        // The target and its support sit in the same right-hand column band
+        // and the support is the nearest source boundary below the target, but
+        // two left-column lines sit between them in the block order. The
+        // proven band relation, not the block index, must admit the support.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [
+            EstablishedBlock {
+                old_block: BlockId(2),
+                new_block: BlockId(102),
+            },
+            EstablishedBlock {
+                old_block: BlockId(3),
+                new_block: BlockId(103),
+            },
+            EstablishedBlock {
+                old_block: BlockId(4),
+                new_block: BlockId(104),
+            },
+        ];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "a same-band nearest neighbour must support the move: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_holds_when_a_point_obstacle_blocks_the_band() -> Result<()> {
+        // A one-token source block has a zero-width baseline x interval. It
+        // sits inside the column band and inside the gap, so it still blocks
+        // the nearest-boundary proof.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "X", 350.0, 685.0, 0, 6.0),
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "X", 350.0, 685.0, 0, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a zero-width obstacle inside the band must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_holds_when_a_same_band_line_intervenes() -> Result<()> {
+        // A third source line sits in the same column band between the target
+        // and the support, so the support is not the nearest source boundary.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(3, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(4, "Intervening right column line", 300.0, 685.0, 0, 6.0),
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(103, "Left column second line", 10.0, 680.0, 0, 6.0),
+            spread_block(104, "Intervening right column line", 300.0, 685.0, 0, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a same-band intervening line must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_holds_when_a_band_obstacle_lacks_geometry() -> Result<()> {
+        // The intervening line keeps its position in the block list but loses
+        // its geometry, so the band closure cannot be proven.
+        let mut obstacle = spread_block(4, "Intervening right column line", 300.0, 685.0, 0, 6.0);
+        obstacle.position_signatures = None;
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            obstacle,
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(104, "Intervening right column line", 300.0, 685.0, 0, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None, None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "an obstacle without geometry must hold the candidate: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn anchored_translation_holds_when_only_one_side_is_geometrically_adjacent() -> Result<()> {
+        // The obstacle exists only in the new document, so the band relation
+        // holds on the old side but not on the new one.
+        let old_blocks = [
+            spread_block(1, "Target right column line", 300.0, 700.0, 0, 6.0),
+            spread_block(2, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(5, "Support right column line", 300.0, 670.0, 0, 6.0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Target right column line", 300.0, 699.5, 0, 6.0),
+            spread_block(102, "Left column first line", 10.0, 690.0, 0, 6.0),
+            spread_block(104, "Intervening right column line", 300.0, 685.0, 0, 6.0),
+            spread_block(105, "Support right column line", 300.0, 669.5, 0, 6.0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [None, None, None];
+        let new_intervals = [None, None, None, None];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(5),
+            new_block: BlockId(105),
+        }];
+        let domains = discover_translations([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a one-sided geometric adjacency must hold the candidate: {domains:?}"
+        );
         Ok(())
     }
 
