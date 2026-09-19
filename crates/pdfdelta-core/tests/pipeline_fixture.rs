@@ -1759,7 +1759,13 @@ fn whole_view_singletons_unchanged_stay_comparable() -> Result<()> {
 }
 
 #[test]
-fn whole_view_singletons_with_repeated_text_stay_ambiguous() -> Result<()> {
+fn whole_view_singletons_with_repeated_text_close_by_exact_positions() -> Result<()> {
+    // The two repeated lines have no text-only unique occurrence, but each old
+    // line shares its exact page and per-token source positions with the line
+    // at the same position on the new side. The positioned key (tokens, page
+    // and every token's exact first-source position) is one-to-one on both
+    // sides, so each pair closes as equal; this is a different and stronger
+    // basis than string rarity, and it forces the correspondence by position.
     let old = document(&[
         line("Alpha anchor line remains stable", 0, 180.0),
         line("Beta anchor line remains stable", 0, 144.0),
@@ -1779,7 +1785,7 @@ fn whole_view_singletons_with_repeated_text_stay_ambiguous() -> Result<()> {
         line("Repeated singleton text remains unique", 0, 126.0),
     ]);
     let outcome = compare_extraction_outcomes(
-        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(old.clone()),
         ExtractionOutcome::complete(new),
         PipelineOptions::default(),
     )?;
@@ -1788,8 +1794,29 @@ fn whole_view_singletons_with_repeated_text_stay_ambiguous() -> Result<()> {
         && comparison.change_candidates.is_empty()
         && comparison.unresolved_regions.is_empty();
     assert!(
-        !zero_obligation,
-        "repeated singleton text must not be treated as one unique local equality"
+        zero_obligation,
+        "same-position repeated lines close by their exact positioned keys"
+    );
+
+    // A repeated line whose counterpart moved to another position has no
+    // positioned match and keeps its obligation.
+    let moved_new = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Repeated singleton text remains unique", 0, 162.0),
+        line("Repeated singleton text remains unique", 0, 150.0),
+    ]);
+    let moved_outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(moved_new),
+        PipelineOptions::default(),
+    )?;
+    assert!(
+        !moved_outcome.comparison.unresolved_regions.is_empty(),
+        "a repeated line moved to another position must keep an obligation"
     );
     Ok(())
 }
