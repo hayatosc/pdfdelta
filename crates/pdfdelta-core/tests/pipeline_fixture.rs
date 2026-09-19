@@ -1822,6 +1822,58 @@ fn whole_view_singletons_with_repeated_text_close_by_exact_positions() -> Result
 }
 
 #[test]
+fn rigid_translation_of_an_uncertain_line_follows_an_established_neighbour() -> Result<()> {
+    // The target line and the two surrounding uncertain lines are drawn after
+    // the trusted anchors, so they sit outside the trusted render order and
+    // the alignment cannot anchor them. The target's whole content is equal
+    // and every glyph moved by the same raw -0.5 translation as the two
+    // trusted neighbour lines, so the already established neighbour
+    // correspondence carries the move and the line closes as same content
+    // under a proven rigid translation.
+    let target = BlockId(4);
+    let old = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 270.0),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 287.5),
+        line("Epsilon neighbour remains stable", 0, 251.5),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 269.5),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    let target_open = comparison.unresolved_regions.iter().any(|region| {
+        [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|span| span.blocks.contains(&target))
+    });
+    assert!(
+        !target_open,
+        "a rigidly translated uncertain line with an established neighbour must close: {outcome:#?}"
+    );
+    assert!(comparison.changes.is_empty(), "{outcome:#?}");
+    Ok(())
+}
+
+#[test]
 fn established_equal_local_domain_is_accepted_into_coverage() -> Result<()> {
     let old = document(&[
         line("Alpha anchor line remains stable", 0, 180.0),
