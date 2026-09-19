@@ -2133,6 +2133,33 @@ mod tests {
     }
 
     #[test]
+    fn positioned_equality_closes_a_complete_block_in_a_single_block_trusted_run() -> Result<()> {
+        // The trusted member's text also occurs at another position, so no
+        // content-unique anchor closes it; its own exact positioned key is the
+        // one-to-one proof. The other occurrence differs in position and does
+        // not veto.
+        let old_blocks = [
+            positioned_block(1, "Repeated member line", 10.0, 700.0, 0),
+            positioned_block(2, "Repeated member line", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Repeated member line", 10.0, 700.0, 0),
+            positioned_block(102, "Repeated member line", 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [interval(1, 0, 1), None];
+        let new_intervals = [interval(2, 0, 1), None];
+        let input = recovery(&old_intervals, &new_intervals);
+        let domains = discover([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 0, 0),
+            "a complete block inside a single-block trusted run must close: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn positioned_equality_vetoes_a_same_position_duplicate_inside_a_trusted_view() -> Result<()> {
         let old_blocks = [
             positioned_block(1, "Self-Employment Tax", 10.0, 700.0, 0),
