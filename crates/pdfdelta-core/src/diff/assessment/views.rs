@@ -443,8 +443,9 @@ fn positioned_block(view: &View, block: usize) -> bool {
 struct PositionedOccurrences {
     /// Other occurrences whose complete metadata equals the candidate's key.
     same: usize,
-    /// An occurrence whose metadata is incomplete, so its source position
-    /// cannot be compared; it vetoes the proof.
+    /// An occurrence whose metadata is incomplete and which no offset proves
+    /// different; it vetoes the proof. An occurrence with a definitive
+    /// mismatch at any offset is not unknown and does not compete.
     unknown: bool,
     /// First same-position occurrence, its range and whether it is itself a
     /// complete eligible block. A partial occurrence competes but can never
@@ -497,8 +498,15 @@ fn positioned_occurrences(
             if view_index == self_view && start == needle_range.start {
                 continue;
             }
+            // One offset with complete metadata that differs already proves
+            // this occurrence cannot carry the candidate's key, so later
+            // missing metadata cannot make it unknown. Missing metadata alone
+            // stays unverifiable and vetoes the proof; it is never treated as
+            // equal. The scan continues past a missing offset so a later
+            // definitive mismatch is still found.
             let mut same = true;
             let mut complete = true;
+            let mut different = false;
             for offset in 0..needle.len() {
                 if let (Some(position), Some(page), Some(needle_position), Some(needle_page)) = (
                     view.token_positions[start + offset],
@@ -508,11 +516,15 @@ fn positioned_occurrences(
                 ) {
                     if position != needle_position || page != needle_page {
                         same = false;
+                        different = true;
+                        break;
                     }
                 } else {
                     complete = false;
-                    break;
                 }
+            }
+            if different {
+                continue;
             }
             if !complete {
                 result.unknown = true;
