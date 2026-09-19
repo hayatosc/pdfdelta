@@ -1921,6 +1921,64 @@ fn rigid_translation_with_a_different_neighbour_transform_keeps_an_obligation() 
 }
 
 #[test]
+fn bracketed_region_closes_a_single_token_replacement() -> Result<()> {
+    // The target line differs by one token and is drawn after the trusted
+    // anchors, so it is outside the trusted render order and the alignment
+    // cannot anchor it. Two established correspondences (Delta above and
+    // Epsilon below) bracket it in the same column band, so the region
+    // correspondence is proven geometrically and the single replacement is
+    // reported exactly once.
+    let target = BlockId(4);
+    let old = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unixue", 0, 270.0),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor remains stable", 0, 396.0),
+        line("Beta anchor remains stable", 0, 360.0),
+        line("Delta neighbour remains stable", 0, 288.0),
+        line("Epsilon neighbour remains stable", 0, 252.0),
+        line("Zeta anchor remains stable", 0, 198.0),
+        line("Eta anchor remains stable", 0, 162.0),
+        line("Left uncertain line stays unique", 0, 324.0),
+        line("Target uncertain line stays unique", 0, 270.0),
+        line("Right uncertain line stays unique", 0, 234.0),
+    ]);
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    let change = &comparison.changes[0];
+    assert_eq!(change.occurrences.len(), 1, "{comparison:#?}");
+    let occurrence = &change.occurrences[0];
+    let old_span = occurrence.old_span.as_ref().expect("old span");
+    let new_span = occurrence.new_span.as_ref().expect("new span");
+    assert_eq!(old_span.blocks, [target]);
+    assert_eq!(new_span.blocks, [target]);
+    assert_eq!(old_span.comparable_range, TokenRange { start: 31, end: 32 });
+    assert_eq!(new_span.comparable_range, TokenRange { start: 31, end: 32 });
+    assert_eq!(&"Target uncertain line stays unixue"[31..32], "x");
+    assert_eq!(&"Target uncertain line stays unique"[31..32], "q");
+    let target_open = comparison.unresolved_regions.iter().any(|region| {
+        [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .flatten()
+            .any(|span| span.blocks.contains(&target))
+    });
+    assert!(
+        !target_open,
+        "the bracketed target must close: {comparison:#?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn established_equal_local_domain_is_accepted_into_coverage() -> Result<()> {
     let old = document(&[
         line("Alpha anchor line remains stable", 0, 180.0),
