@@ -382,3 +382,141 @@ fn overlaps(old: &[SourceInterval], new: &[SourceInterval], remaining: &mut usiz
         })
     }))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        alignment::{
+            Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
+            BlockSeparator,
+        },
+        diff::DiffOptions,
+        diff::{TextSpan, assessment::views::LocalDomain},
+        layout::{BlockId, BlockRole},
+        model::{GlyphId, Vec2},
+        normalize::{
+            BlockText, FontSizeSignature, MappedText, PositionSignature, ScalarRange,
+            SourceMapEntry, TextSource, TextSourceAtom,
+        },
+    };
+
+    fn sourced_block(id: u64, text: &str) -> BlockText {
+        let source_map = text
+            .chars()
+            .enumerate()
+            .map(|(index, _)| SourceMapEntry {
+                output_range: ScalarRange {
+                    start: index,
+                    end: index + 1,
+                },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(id * 1000 + index as u64 + 1))]
+                        .into(),
+                },
+            })
+            .collect::<Vec<_>>();
+        let canonical = MappedText {
+            text: text.to_owned(),
+            source_map,
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens");
+        let font_size = FontSizeSignature::new(&[10.0]).expect("valid font size");
+        let position = PositionSignature::new(Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid position");
+        BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: text.to_owned(),
+            matching_tokens: tokens.clone(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: Some(vec![font_size; tokens.len()]),
+            position_signatures: Some(vec![position; tokens.len()]),
+            line_breaks: Some(Vec::new()),
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
+    fn side(blocks: &[BlockText]) -> super::super::Side<'_> {
+        super::super::super::SidePlan::inspect("test", blocks)
+            .expect("test blocks are valid")
+            .materialize()
+            .expect("test blocks materialize")
+    }
+
+    fn span(block: u64, end: usize) -> TextSpan {
+        TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end },
+            comparable_range: super::super::super::TokenRange { start: 0, end },
+        }
+    }
+
+    fn unresolved_alignment(old: &[BlockId], new: &[BlockId]) -> Alignment {
+        Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old: old.to_vec(),
+                new: new.to_vec(),
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::Low,
+                evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+                old_separator: Some(BlockSeparator::Space),
+                new_separator: Some(BlockSeparator::Space),
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn established_source_bounded_equal_domain_accepts_its_ranges() -> Result<()> {
+        let old_blocks = [sourced_block(1, "shared unique text")];
+        let new_blocks = [sourced_block(101, "shared unique text")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let tokens = old_blocks[0]
+            .canonical
+            .comparable_tokens()
+            .expect("old tokens")
+            .len();
+        let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        assessor.local_domains = vec![LocalDomain {
+            old_span: span(1, tokens),
+            new_span: span(101, tokens),
+        }];
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+
+        let [old_ownership, _new_ownership] = ownership;
+        let resolution = old_ownership.finish(&old, assessor.options.max_assessment_ranges)?;
+        assert!(
+            resolution.iter().any(|range| {
+                range.block == BlockId(1)
+                    && range.state == super::super::ResolutionState::Equal
+                    && range.comparable_range.start == 0
+                    && range.comparable_range.end == tokens
+            }),
+            "{resolution:?}"
+        );
+        Ok(())
+    }
+}

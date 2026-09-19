@@ -1795,6 +1795,71 @@ fn whole_view_singletons_with_repeated_text_stay_ambiguous() -> Result<()> {
 }
 
 #[test]
+fn established_equal_local_domain_is_accepted_into_coverage() -> Result<()> {
+    let old = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta middle sentence remains unique and stable", 0, 162.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta middle sentence remains unique and stable", 0, 162.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    assert!(comparison.changes.is_empty());
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
+fn source_bounded_equal_prefix_beside_an_accepted_change_is_accepted() -> Result<()> {
+    let old = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta stable prefix keeps value 10 remains", 0, 162.0),
+    ]);
+    let new = document(&[
+        line("Alpha anchor line remains stable", 0, 180.0),
+        line("Beta anchor line remains stable", 0, 144.0),
+        line("Gamma anchor line remains stable", 0, 108.0),
+        line("Delta anchor line remains stable", 0, 72.0),
+        line("Epsilon anchor line remains stable", 0, 36.0),
+        line("Zeta stable prefix keeps value 20 remains", 0, 162.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
 fn reports_one_generic_paragraph_insertion() -> Result<()> {
     let old = paragraphs(&[
         "Opening paragraph remains stable",
