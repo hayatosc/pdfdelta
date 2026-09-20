@@ -91,3 +91,34 @@ on W4, Schedule C, SE, W2 and 1099. The W4 fatal attempt ends in
 `BudgetExceeded` before any invalid path is examined, so the veto cannot
 shorten it. The change was reverted and the capture pinned as rejected.
 
+## H11 bounded-analysis design (in progress, not implemented)
+
+The W4 fatal attempt enumerates every optimal path and needs the exact
+"every path yields the same cut, with no crossing hunk" predicate, not a full
+witness. A bounded analysis is the next candidate:
+
+- Build the suffix LCS table and a rolling prefix row; an eligible equal edge
+  `(i, j)` satisfies `prefix(i-1, j-1) + 1 + suffix(i, j) == L`.
+- Its rank is `prefix(i-1, j-1) + 1`. Store the actual unique eligible edge per
+  rank (saturating the count at two); a matched pair is mandatory only when it
+  is that exact stored edge, never by rank equality alone.
+- Charge at least `3 * interior` plus row overhead before allocating, and
+  enforce combined bytes for the suffix table, the rolling prefix rows and the
+  rank storage against the semantic memory limit.
+- A quick draft treated `rank == L` as eligibility and charged only
+  `2 * interior`; that was unsound (unequal or non-optimal queried edges could
+  be labelled mandatory) and was reverted without integration.
+- The rule is a sufficient fast path with the original enumeration kept as a
+  fallback. Before any integration, the diagnostic must show that the actual
+  W4 cut boundaries are mandatory matched pairs (or that the strengthened
+  DAG-automaton predicate is needed) and the exhaustive tiny matching
+  intersection oracle must agree on repeated-token and whitespace cases.
+
+## Correction to the H10 record
+
+The H10 five-pair capture is metric-identical to H2, but that identity alone
+does not prove the fatal attempt reached no invalid path. The earlier H9
+outcome trace records `boundary_check_hunks outcome=BudgetExceeded` for that
+attempt, which is consistent with, but does not by itself certify, the claim
+made in the H10 note; a H10-callback trace was not recorded.
+
