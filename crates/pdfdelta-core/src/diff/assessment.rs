@@ -1172,6 +1172,29 @@ fn recovered_span(recovered: &sentence::RecoveredSentence) -> TextSpan {
     }
 }
 
+/// Returns the side that carries no source tokens and no incompleteness
+/// evidence, if any.
+///
+/// A side is proven empty when it has zero canonical tokens, no block issues
+/// and no extraction-gap evidence anywhere in the alignment: the extraction
+/// completed and produced no native text. A side with unmapped tokens, block
+/// issues or any extraction gap is never treated as empty, and the gap check
+/// is deliberately global because an empty side carries no blocks that could
+/// attribute a gap to it.
+fn proven_empty_side(sides: [&Side<'_>; 2], alignment: &Alignment) -> Option<usize> {
+    (0..2).find(|&side| {
+        sides[side].total_tokens == 0
+            && sides[side]
+                .blocks
+                .iter()
+                .all(|block| block.issues.is_empty())
+            && !alignment
+                .spans
+                .iter()
+                .any(|span| span.evidence.contains(&AlignmentEvidence::ExtractionGap))
+    })
+}
+
 fn collect_relations(
     sides: [&Side<'_>; 2],
     alignment: &Alignment,
@@ -2580,6 +2603,14 @@ struct Assessor<'a, 'document> {
     /// Recording only names an already discovered and evaluated span pair, so
     /// it spends no proof budget and never pushes out an earlier recovery.
     equal_fragment_candidates: Vec<local::EqualFragmentCandidate>,
+    /// The comparison side that is proven empty, if any.
+    ///
+    /// A side is proven empty when the extraction produced no canonical
+    /// tokens, no block issues and no extraction-gap evidence anywhere in the
+    /// alignment. The value is fixed for one comparison and lets a one-sided
+    /// proposal use its own extent as its closed domain and take the existing
+    /// one-sided edit path instead of a Myers search it cannot match.
+    empty_side: Option<usize>,
 }
 
 impl<'a, 'document> Assessor<'a, 'document> {
@@ -3070,6 +3101,44 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 }
             }
         }
+        // A proposal that the one-sided alignment already names as a whole
+        // insertion or deletion is its own closed domain: the other side
+        // carries no tokens, so there is no correspondence to bound it and
+        // the anchor windows cannot narrow it. Recovery proposals that only
+        // sit inside a wider unresolved window keep the ordinary domain.
+        let present = self.empty_side.map(|empty| 1 - empty);
+        if let Some(present) = present
+            && proposal.span_indices[present]
+                .and_then(|index| self.alignment.spans.get(index))
+                .is_some_and(|span| {
+                    matches!(
+                        span.kind,
+                        AlignmentKind::Insertion | AlignmentKind::Deletion
+                    )
+                })
+        {
+            let [old, new] = self.proposal_extents(proposal)?;
+            let (old, new) = if self.empty_side == Some(0) {
+                (0..0, new)
+            } else {
+                (old, 0..0)
+            };
+            return Ok(DomainKey {
+                old_separator: domain_separator(
+                    proposal.old.as_ref().and_then(|span| span.separator),
+                    old.clone(),
+                    old.clone(),
+                ),
+                new_separator: domain_separator(
+                    proposal.new.as_ref().and_then(|span| span.separator),
+                    new.clone(),
+                    new.clone(),
+                ),
+                local: None,
+                old,
+                new,
+            });
+        }
         let [old, new] = self.proposal_extents(proposal)?;
         let mut starts = [0, 0];
         let mut ends = [self.sides[0].blocks.len(), self.sides[1].blocks.len()];
@@ -3104,6 +3173,49 @@ impl<'a, 'document> Assessor<'a, 'document> {
         })
     }
 
+    /// Runs the bounded semantic uniqueness check over one group pair.
+    ///
+    /// The projected event signature is built by the shared signature
+    /// callback. A unique outcome records the script and its signature, a
+    /// budget failure reports an incomplete search, and an ambiguous or
+    /// unproven result leaves the caller's state untouched. A one-sided group
+    /// pair takes the existing one-sided edit path inside the check, so an
+    /// empty side never pays for a Myers search it cannot match.
+    fn semantic_witness(
+        &mut self,
+        old: &GroupText,
+        new: &GroupText,
+        unique: &mut bool,
+        stable_events: &mut Option<Vec<ProjectedEvent>>,
+        edits: &mut Vec<super::AtomicEdit>,
+        search: &mut SearchCompleteness,
+    ) -> Result<()> {
+        let sides = self.sides;
+        let limit = self.options.max_assessment_ranges;
+        match semantic::check_hunks(
+            &old.tokens,
+            &new.tokens,
+            &mut self.remaining_work,
+            |edits, remaining| semantic_signature(sides, [old, new], edits, remaining, limit),
+        ) {
+            Ok(semantic::Outcome::Unique {
+                signature,
+                edits: witness,
+            }) => {
+                *unique = true;
+                *stable_events = Some(signature);
+                *edits = witness;
+            }
+            Ok(semantic::Outcome::Ambiguous) => {}
+            Ok(semantic::Outcome::BudgetExceeded)
+            | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                *search = SearchCompleteness::Incomplete;
+            }
+            Err(error) => return Err(error),
+        }
+        Ok(())
+    }
+
     fn prove_domain(&mut self, key: &DomainKey) -> Result<()> {
         if self.domains.contains_key(key) {
             return Ok(());
@@ -3121,34 +3233,56 @@ impl<'a, 'document> Assessor<'a, 'document> {
             match exact::check(&old.tokens, &new.tokens, &mut self.remaining_work) {
                 Ok(exact::ExactUniqueness::Unique) => {
                     strict_unique = true;
-                    // Charge the bounded reconstruction as well as the
-                    // exhaustive uniqueness search before running Myers.
-                    let bound = old
-                        .tokens
-                        .len()
-                        .saturating_add(new.tokens.len())
-                        .saturating_mul(
-                            self.options
-                                .max_edit_distance
-                                .min(old.tokens.len().saturating_add(new.tokens.len()))
-                                .saturating_add(1),
-                        );
-                    if old.tokens == new.tokens {
-                        unique = true;
-                    } else if self.charge(bound) {
-                        match myers::diff(&old.tokens, &new.tokens, self.options.max_edit_distance)
-                        {
-                            Ok(Some(script)) => {
-                                unique = true;
-                                edits = script;
-                            }
-                            Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
-                                search = SearchCompleteness::Incomplete;
-                            }
-                            Err(error) => return Err(error),
-                        }
+                    if self.empty_side.is_some() && (old.tokens.is_empty() || new.tokens.is_empty())
+                    {
+                        // A one-sided domain has exactly one shortest script:
+                        // the whole non-empty side is inserted or deleted. The
+                        // existing one-sided path builds that script and its
+                        // event signature directly, so the bounded Myers
+                        // search and its quadratic charge are never spent on
+                        // an empty side.
+                        self.semantic_witness(
+                            &old,
+                            &new,
+                            &mut unique,
+                            &mut stable_events,
+                            &mut edits,
+                            &mut search,
+                        )?;
                     } else {
-                        search = SearchCompleteness::Incomplete;
+                        // Charge the bounded reconstruction as well as the
+                        // exhaustive uniqueness search before running Myers.
+                        let bound = old
+                            .tokens
+                            .len()
+                            .saturating_add(new.tokens.len())
+                            .saturating_mul(
+                                self.options
+                                    .max_edit_distance
+                                    .min(old.tokens.len().saturating_add(new.tokens.len()))
+                                    .saturating_add(1),
+                            );
+                        if old.tokens == new.tokens {
+                            unique = true;
+                        } else if self.charge(bound) {
+                            match myers::diff(
+                                &old.tokens,
+                                &new.tokens,
+                                self.options.max_edit_distance,
+                            ) {
+                                Ok(Some(script)) => {
+                                    unique = true;
+                                    edits = script;
+                                }
+                                Ok(None)
+                                | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                                    search = SearchCompleteness::Incomplete;
+                                }
+                                Err(error) => return Err(error),
+                            }
+                        } else {
+                            search = SearchCompleteness::Incomplete;
+                        }
                     }
                 }
                 Ok(exact::ExactUniqueness::Ambiguous) => {
@@ -3167,31 +3301,14 @@ impl<'a, 'document> Assessor<'a, 'document> {
                             search = SearchCompleteness::Incomplete;
                         }
                         ExactDisplacementStep::Hold => {
-                            let sides = self.sides;
-                            let limit = self.options.max_assessment_ranges;
-                            match semantic::check_hunks(
-                                &old.tokens,
-                                &new.tokens,
-                                &mut self.remaining_work,
-                                |edits, remaining| {
-                                    semantic_signature(sides, [&old, &new], edits, remaining, limit)
-                                },
-                            ) {
-                                Ok(semantic::Outcome::Unique {
-                                    signature,
-                                    edits: witness,
-                                }) => {
-                                    unique = true;
-                                    stable_events = Some(signature);
-                                    edits = witness;
-                                }
-                                Ok(semantic::Outcome::Ambiguous) => {}
-                                Ok(semantic::Outcome::BudgetExceeded)
-                                | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
-                                    search = SearchCompleteness::Incomplete;
-                                }
-                                Err(error) => return Err(error),
-                            }
+                            self.semantic_witness(
+                                &old,
+                                &new,
+                                &mut unique,
+                                &mut stable_events,
+                                &mut edits,
+                                &mut search,
+                            )?;
                         }
                     }
                 }
@@ -3634,6 +3751,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let key = self.domain_key(proposal)?;
         self.prove_domain(&key)?;
         let parent = self.domains[&key].relation;
+
         let proof_unique = self.domains[&key].unique;
         let proof_search = self.domains[&key].search;
         let proof_strict_unique = self.domains[&key].strict_unique;
@@ -3886,9 +4004,11 @@ impl<'a, 'document> Assessor<'a, 'document> {
             issue_cache: None,
             equal_fragment_cache: None,
             equal_fragment_candidates: Vec::new(),
+            empty_side: proven_empty_side(sides, alignment),
         };
         assessor.root_reasons = assessor.inspect_source_reasons();
         assessor.anchors = assessor.verified_anchors()?;
+
         if let Some(input) = assessor.exact_displacement {
             let mut complete = true;
             for (side, side_records) in [input.old, input.new].into_iter().enumerate() {

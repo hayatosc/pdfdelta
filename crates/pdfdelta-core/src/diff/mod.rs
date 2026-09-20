@@ -10501,6 +10501,214 @@ mod tests {
         }
     }
 
+    fn one_sided_summary(comparison: &Comparison) -> crate::report::ReportSummary {
+        crate::report::summarize(comparison, &crate::report::ExtractionStatus::complete())
+            .expect("one-sided comparison summarizes")
+    }
+
+    /// Builds the per-block one-sided alignment that a comparison with a
+    /// proven-empty side settles on.
+    fn settled_one_sided_alignment(old: &[BlockText], new: &[BlockText]) -> Alignment {
+        let insertion = old.is_empty();
+        let blocks = if insertion { new } else { old };
+        Alignment {
+            spans: blocks
+                .iter()
+                .map(|block| AlignmentSpan {
+                    kind: if insertion {
+                        AlignmentKind::Insertion
+                    } else {
+                        AlignmentKind::Deletion
+                    },
+                    old: if insertion {
+                        Vec::new()
+                    } else {
+                        vec![block.block]
+                    },
+                    new: if insertion {
+                        vec![block.block]
+                    } else {
+                        Vec::new()
+                    },
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::Medium,
+                    evidence: Vec::new(),
+                    old_separator: None,
+                    new_separator: None,
+                })
+                .collect(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn proven_empty_side_inserts_and_deletes_every_block_in_both_directions() {
+        let old = vec![
+            sentence_block(1, "First removed line"),
+            sentence_block(2, "Second removed line"),
+        ];
+        let new = vec![
+            sentence_block(101, "First inserted line"),
+            sentence_block(102, "Second inserted line"),
+        ];
+
+        // Insertion: the old native side is proven empty.
+        let alignment = settled_one_sided_alignment(&[], &new);
+        let comparison = compare_aligned(&[], &new, &alignment, DiffOptions::default())
+            .expect("one-sided insertion compares");
+        assert_eq!(comparison.changes.len(), new.len());
+        assert!(
+            comparison
+                .changes
+                .iter()
+                .all(|change| change.kind == ChangeKind::Insertion)
+        );
+        assert!(comparison.change_candidates.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        assert_eq!(
+            comparison.new_coverage.resolved_tokens,
+            comparison.new_coverage.total_tokens
+        );
+        let summary = one_sided_summary(&comparison);
+        assert!(summary.comparison_complete, "{summary:?}");
+        assert_eq!(
+            summary.difference_status,
+            crate::report::DifferenceStatus::Detected
+        );
+
+        // Deletion: the new native side is proven empty.
+        let alignment = settled_one_sided_alignment(&old, &[]);
+        let comparison = compare_aligned(&old, &[], &alignment, DiffOptions::default())
+            .expect("one-sided deletion compares");
+        assert_eq!(comparison.changes.len(), old.len());
+        assert!(
+            comparison
+                .changes
+                .iter()
+                .all(|change| change.kind == ChangeKind::Deletion)
+        );
+        assert!(comparison.change_candidates.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        assert_eq!(
+            comparison.old_coverage.resolved_tokens,
+            comparison.old_coverage.total_tokens
+        );
+        let summary = one_sided_summary(&comparison);
+        assert!(summary.comparison_complete, "{summary:?}");
+        assert_eq!(
+            summary.difference_status,
+            crate::report::DifferenceStatus::Detected
+        );
+    }
+
+    #[test]
+    fn empty_both_sides_completes_without_changes() {
+        let alignment = Alignment {
+            spans: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_aligned(&[], &[], &alignment, DiffOptions::default())
+            .expect("empty comparison compares");
+        assert!(comparison.changes.is_empty());
+        assert!(comparison.change_candidates.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        let summary = one_sided_summary(&comparison);
+        assert!(summary.comparison_complete, "{summary:?}");
+        assert_eq!(
+            summary.difference_status,
+            crate::report::DifferenceStatus::NoContentChange
+        );
+    }
+
+    #[test]
+    fn one_sided_multiple_and_reordered_blocks_with_repeated_text_complete() {
+        let new = vec![
+            sentence_block(102, "Repeated aa aa aa"),
+            sentence_block(101, "Repeated aa aa aa"),
+            sentence_block(103, "Tail"),
+        ];
+        let alignment = settled_one_sided_alignment(&[], &new);
+        let comparison = compare_aligned(&[], &new, &alignment, DiffOptions::default())
+            .expect("one-sided multi-block insertion compares");
+        assert_eq!(comparison.changes.len(), new.len());
+        let covered = comparison
+            .changes
+            .iter()
+            .flat_map(|change| change.occurrences.iter())
+            .filter_map(|occurrence| occurrence.new_span.as_ref())
+            .flat_map(|span| span.blocks.iter().copied())
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(
+            covered,
+            new.iter().map(|block| block.block).collect(),
+            "every block must be owned exactly once"
+        );
+        assert!(comparison.change_candidates.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        let summary = one_sided_summary(&comparison);
+        assert!(summary.comparison_complete, "{summary:?}");
+    }
+
+    #[test]
+    fn extraction_gap_keeps_a_one_sided_comparison_incomplete() {
+        let new = vec![sentence_block(101, "Text beside an extraction gap")];
+        let alignment = unresolved_alignment(
+            &[],
+            &new,
+            vec![
+                AlignmentEvidence::ReadingOrderUnknown,
+                AlignmentEvidence::ExtractionGap,
+            ],
+        );
+        let comparison = compare_aligned(&[], &new, &alignment, DiffOptions::default())
+            .expect("unproven empty side compares");
+        assert!(comparison.changes.is_empty());
+        assert!(!comparison.unresolved_regions.is_empty());
+        let summary = one_sided_summary(&comparison);
+        assert!(!summary.comparison_complete, "{summary:?}");
+    }
+
+    #[test]
+    fn normalization_issue_on_the_present_side_holds_the_one_sided_proof() {
+        let text = "Uncertain inserted text";
+        let new = vec![sentence_block_with_source_issue(
+            101,
+            text,
+            ScalarRange { start: 0, end: 1 },
+        )];
+        let alignment = settled_one_sided_alignment(&[], &new);
+        let comparison = compare_aligned(&[], &new, &alignment, DiffOptions::default())
+            .expect("uncertain present side compares");
+        assert!(comparison.changes.is_empty());
+        let summary = one_sided_summary(&comparison);
+        assert!(!summary.comparison_complete, "{summary:?}");
+    }
+
+    #[test]
+    fn budget_limit_leaves_no_partial_one_sided_completion() {
+        let new = (0..24)
+            .map(|index| sentence_block(101 + index, &format!("Inserted sentence number {index}")))
+            .collect::<Vec<_>>();
+        let alignment = settled_one_sided_alignment(&[], &new);
+        let comparison = compare_aligned(
+            &[],
+            &new,
+            &alignment,
+            DiffOptions {
+                max_assessment_work: 1,
+                ..DiffOptions::default()
+            },
+        )
+        .expect("exhausted comparison still returns a result");
+        let summary = one_sided_summary(&comparison);
+        assert!(!summary.comparison_complete, "{summary:?}");
+        assert!(comparison.changes.is_empty());
+    }
+
     #[test]
     fn unrelated_unique_sentences_remain_exact_deletion_and_insertion() {
         let old = vec![sentence_block(

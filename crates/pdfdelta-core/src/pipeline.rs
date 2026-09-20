@@ -960,6 +960,23 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
+    // A document whose other side carries no native text at all is one-sided:
+    // the whole present side is an insertion or deletion, independent of the
+    // window reading-order uncertainty that the layout could not resolve. The
+    // existing one-sided span contract already emits that change, so the
+    // alignment is rewritten to one span and no reading-order veto survives.
+    // A clean empty side is required: any extraction-gap evidence keeps the
+    // conservative unresolved windows.
+    let alignment = if old.is_empty() != new.is_empty()
+        && !alignment
+            .spans
+            .iter()
+            .any(|span| span.evidence.contains(&AlignmentEvidence::ExtractionGap))
+    {
+        one_sided_alignment(&old, &new)
+    } else {
+        alignment
+    };
     let recovery = SentenceRecoveryInput {
         old_trusted_run_intervals: &old_trusted_run_intervals,
         new_trusted_run_intervals: &new_trusted_run_intervals,
@@ -1162,6 +1179,51 @@ fn localized_issue_boundary(issue: &ExtractionIssue) -> Option<LocalizedIssueBou
             retained_before, ..
         } => Some(LocalizedIssueBoundary::Glyph(retained_before)),
         ExtractionScope::Document => None,
+    }
+}
+
+/// Builds the per-block one-sided spans of a comparison whose other side
+/// carries no native text.
+///
+/// The present side has no counterpart to correspond to, so the reading-order
+/// uncertainty of its windows cannot change the insertion or deletion claim.
+/// Each block uses the ordinary evidence-free one-sided span shape, so the
+/// existing insertion/deletion emission path owns the whole side and no
+/// window veto survives.
+fn one_sided_alignment(old: &[BlockText], new: &[BlockText]) -> Alignment {
+    let insertion = old.is_empty();
+    let blocks = if insertion { new } else { old };
+    let spans = blocks
+        .iter()
+        .map(|block| AlignmentSpan {
+            kind: if insertion {
+                AlignmentKind::Insertion
+            } else {
+                AlignmentKind::Deletion
+            },
+            old: if insertion {
+                Vec::new()
+            } else {
+                vec![block.block]
+            },
+            new: if insertion {
+                vec![block.block]
+            } else {
+                Vec::new()
+            },
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Medium,
+            evidence: Vec::new(),
+            old_separator: None,
+            new_separator: None,
+        })
+        .collect();
+    Alignment {
+        spans,
+        main_anchors: Vec::new(),
+        move_candidates: Vec::new(),
     }
 }
 
