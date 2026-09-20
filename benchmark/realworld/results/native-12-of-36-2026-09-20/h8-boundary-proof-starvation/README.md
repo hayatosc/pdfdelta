@@ -76,3 +76,18 @@ SE, so it is not proof-preserving. The next candidate must keep those
 promotions: defer wide-domain enumeration proofs until after the ordinary
 relation pass (with index remapping so output order is unchanged), or bound
 the enumeration from measured evidence.
+
+## Decisive-negative veto tested (no gain)
+
+The boundary proof and the proposal-invariant check both require every optimal
+path to produce the same nonempty cut, so one fully examined path without a cut
+is a decisive negative. A typed `PathVerdict`/`check_hunks_decisive` path was
+implemented with tests (first-invalid stops the traversal; late invalid still
+vetoes; callback budget stays `BudgetExceeded`; decisive positives keep the
+canonical witness) and the generic `check_hunks` callers kept ordinary
+equality semantics. The five-pair compressed capture
+(`h10-iteration-002-native`, binary `da35867b570c`) is metric-identical to H2
+on W4, Schedule C, SE, W2 and 1099. The W4 fatal attempt ends in
+`BudgetExceeded` before any invalid path is examined, so the veto cannot
+shorten it. The change was reverted and the capture pinned as rejected.
+
