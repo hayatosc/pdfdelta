@@ -145,6 +145,8 @@ pub enum OmissionKind {
     ContextOmitted,
     /// No image was produced for a case that needs one.
     ImageNotRendered,
+    /// A gap's source list was shortened; the gap itself is still reported.
+    GapSourcesOmitted,
 }
 
 /// The work the export was allowed to do, and whether it finished.

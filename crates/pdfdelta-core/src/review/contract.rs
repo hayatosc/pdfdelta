@@ -338,6 +338,8 @@ pub enum ReviewReason {
     ValueAppearanceUnverified,
     /// Pixels exist for the region but no native text was acquired.
     VisualOnlyRegion,
+    /// Channel discovery found the reference, but no comparison reached it.
+    DiscoveredButUnexamined,
     /// The export stopped before it could describe this material fully.
     ExportBudget,
     /// The engine recorded an obligation this vocabulary does not classify.

@@ -24,6 +24,8 @@
 mod case;
 mod contract;
 mod decision;
+mod evidence_plan;
+mod planner;
 
 pub use case::{
     Cardinality, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence, ReviewCase, ReviewText,
@@ -40,11 +42,13 @@ pub use decision::{
     AgentDecision, DecisionChangeKind, DecisionRejection, DecisionStatus, RetrievalRequest,
     validate_decision,
 };
+pub use evidence_plan::{SharedEvidenceReview, plan_shared_evidence};
 pub use manifest::{
     AgentReviewManifest, CaseCensus, EngineOutcome, EngineStatus, ExportOmission, ExportStatus,
     GapScope, InventoryGap, OmissionKind, OmissionScope, QuestionCount, RetrievalCapability,
     UnlocalizedGap,
 };
+pub use planner::{PlannerLimits, ReviewPlan, evidence_ref, source_alias};
 
 mod manifest;
 

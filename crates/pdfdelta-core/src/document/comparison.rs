@@ -526,15 +526,16 @@ fn compare_validated_scope(
         ..
     } = &mut result;
     let mut sink = super::UnresolvedSink::new(unresolved, obligations);
-    for component in &matching.components {
+    for (component_index, component) in matching.components.iter().enumerate() {
         if component
             .proposals
             .iter()
             .any(|index| pending_source.contains(index))
         {
             sink.retain(
-                super::UnresolvedObligation::new(
+                super::UnresolvedObligation::for_component(
                     super::UnresolvedReason::ComponentDependsOnOmittedCandidates,
+                    component_index,
                 ),
                 "a correspondence component depends on omitted source candidates",
             );
@@ -542,12 +543,18 @@ fn compare_validated_scope(
         }
         if !component.exhaustive {
             sink.retain(
-                super::UnresolvedObligation::new(super::UnresolvedReason::ComponentSearchBudget),
+                super::UnresolvedObligation::for_component(
+                    super::UnresolvedReason::ComponentSearchBudget,
+                    component_index,
+                ),
                 "a correspondence conflict component exceeded its search budget",
             );
         } else if component.mandatory.is_empty() {
             sink.retain(
-                super::UnresolvedObligation::new(super::UnresolvedReason::CompetingOptima),
+                super::UnresolvedObligation::for_component(
+                    super::UnresolvedReason::CompetingOptima,
+                    component_index,
+                ),
                 "a correspondence conflict component has competing optima",
             );
         }

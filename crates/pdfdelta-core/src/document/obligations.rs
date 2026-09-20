@@ -92,6 +92,10 @@ pub struct UnresolvedObligation {
     /// Local comparison index inside the owning scope, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comparison: Option<usize>,
+    /// Solver component index inside the owning scope, when the obligation
+    /// concerns a set of competing proposals rather than a single one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component: Option<usize>,
 }
 
 impl UnresolvedObligation {
@@ -101,6 +105,7 @@ impl UnresolvedObligation {
             reason,
             proposal: None,
             comparison: None,
+            component: None,
         }
     }
 
@@ -110,6 +115,7 @@ impl UnresolvedObligation {
             reason,
             proposal: Some(proposal),
             comparison: None,
+            component: None,
         }
     }
 
@@ -119,6 +125,18 @@ impl UnresolvedObligation {
             reason,
             proposal: None,
             comparison: Some(comparison),
+            component: None,
+        }
+    }
+
+    /// An obligation about one solver component's competing proposals.
+    #[must_use]
+    pub const fn for_component(reason: UnresolvedReason, component: usize) -> Self {
+        Self {
+            reason,
+            proposal: None,
+            comparison: None,
+            component: Some(component),
         }
     }
 }

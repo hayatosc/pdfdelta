@@ -30,6 +30,10 @@ use crate::{
 pub enum TextOrder {
     /// The order in which the content stream paints the material.
     RenderOrder,
+    /// The order the document's own structure tree declares. This is the
+    /// document's assertion about reading order, not a verified property of
+    /// the painted material.
+    DeclaredStructureOrder,
     /// A layout interpretation of the painting order.
     InferredReadingOrder,
     /// No order was established; the runs are reported separately.
@@ -179,6 +183,13 @@ impl SideLocation {
     pub fn with_page(mut self, page: Option<PageId>) -> Self {
         self.page_index = page;
         self.page_number = page.map(|page| page.0.saturating_add(1));
+        self
+    }
+
+    /// Records which kind of view the material belongs to.
+    #[must_use]
+    pub fn view(mut self, kind: NodeKind) -> Self {
+        self.view = Some(kind);
         self
     }
 }
