@@ -18,19 +18,6 @@ enum LocalRecoveryStep {
     Stop { truncated: bool },
 }
 
-/// One strict-closed equal fragment recorded by the local recovery for the
-/// deferred source/position proof.
-///
-/// The recording pass adopts nothing: it only names the already discovered
-/// and evaluated span pair and the established relation that would carry the
-/// premise. The tail pass re-checks the latest ownership before any commit.
-#[derive(Clone)]
-pub(super) struct EqualFragmentCandidate {
-    pub(super) old_span: TextSpan,
-    pub(super) new_span: TextSpan,
-    pub(super) relation: usize,
-}
-
 impl Assessor<'_, '_> {
     /// Known input order also closes gaps between verified global anchors.
     /// These gaps can cross soft block or page boundaries even when the
@@ -1490,14 +1477,30 @@ impl Assessor<'_, '_> {
             if self.remaining_work == 0 || self.output_stop.is_some() {
                 return Ok(());
             }
-            let fragment = self.equal_fragment_candidates[index].clone();
-            if self.records[fragment.relation].outcome != RelationOutcome::Established {
+            let relation = self.equal_fragment_candidates[index];
+            if self.records[relation].outcome != RelationOutcome::Established {
                 continue;
             }
-            let spans = [&fragment.old_span, &fragment.new_span];
-            if !self.charge(spans.iter().map(|span| span.blocks.len()).sum()) {
+            // The relation already stores the span pair. Pay for the transient
+            // copy before it allocates, so a wide container domain can never
+            // amplify the deferred list itself.
+            let copy_work = self.records[relation]
+                .old_span
+                .as_ref()
+                .map_or(0, |span| span.blocks.len())
+                .saturating_add(
+                    self.records[relation]
+                        .new_span
+                        .as_ref()
+                        .map_or(0, |span| span.blocks.len()),
+                );
+            if !self.charge(copy_work) {
                 return Ok(());
             }
+            let Some((old_span, new_span)) = self.copy_recorded_spans(relation)? else {
+                continue;
+            };
+            let spans = [&old_span, &new_span];
             let accepted = [
                 project(self.sides[0], spans[0])?,
                 project(self.sides[1], spans[1])?,
@@ -1610,11 +1613,27 @@ impl Assessor<'_, '_> {
                 super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
                 owner.accepted.extend(accepted_side.iter().copied());
             }
-            self.records[fragment.relation]
+            self.records[relation]
                 .assumptions
                 .push(ComparisonAssumption::EqualFragmentSourcePositions);
         }
         Ok(())
+    }
+
+    /// Copies one recorded relation's span pair with bounded allocation.
+    ///
+    /// The relation keeps the only long-lived copy of the spans; this helper
+    /// returns the transient copy the tail pass needs while it projects and
+    /// re-checks ownership. Every allocation is fallible, and the caller has
+    /// already charged the shared budget for the copy work.
+    fn copy_recorded_spans(&self, relation: usize) -> Result<Option<(TextSpan, TextSpan)>> {
+        let (Some(old), Some(new)) = (
+            self.records[relation].old_span.as_ref(),
+            self.records[relation].new_span.as_ref(),
+        ) else {
+            return Ok(None);
+        };
+        Ok(Some((copy_span(old)?, copy_span(new)?)))
     }
 
     /// Processes one discovered local domain: proves it, protects tentative
@@ -1682,14 +1701,14 @@ impl Assessor<'_, '_> {
                     && proof.strict_unique
                     && proof.unique
                     && proof.search == super::SearchCompleteness::Complete;
-                if strict_closed
-                    && let (Some(old_span), Some(new_span)) = (&proposal.old, &proposal.new)
-                {
-                    self.equal_fragment_candidates.push(EqualFragmentCandidate {
-                        old_span: old_span.clone(),
-                        new_span: new_span.clone(),
-                        relation,
-                    });
+                if strict_closed && proposal.old.is_some() && proposal.new.is_some() {
+                    // The established relation already owns the span pair, so
+                    // the deferred list keeps only its index and never stores
+                    // another variable-length copy of the source spans.
+                    self.equal_fragment_candidates
+                        .try_reserve(1)
+                        .map_err(|_| super::allocation_error("equal fragment candidates"))?;
+                    self.equal_fragment_candidates.push(relation);
                 }
                 return Ok(LocalRecoveryStep::Continue);
             }
@@ -1996,6 +2015,21 @@ fn separator_order(separator: BlockSeparator) -> (u8, u8, u8) {
         BlockSeparator::Space => (1, 0, 0),
         BlockSeparator::PerBoundary([left, right]) => (2, u8::from(left), u8::from(right)),
     }
+}
+
+/// Copies one text span with a fallible block-list allocation.
+fn copy_span(span: &TextSpan) -> Result<TextSpan> {
+    let mut blocks = Vec::new();
+    blocks
+        .try_reserve_exact(span.blocks.len())
+        .map_err(|_| super::allocation_error("equal fragment span blocks"))?;
+    blocks.extend_from_slice(&span.blocks);
+    Ok(TextSpan {
+        blocks,
+        separator: span.separator,
+        canonical_range: span.canonical_range,
+        comparable_range: span.comparable_range,
+    })
 }
 
 /// Reserves capacity before a commit without changing any length.
@@ -5594,6 +5628,53 @@ mod tests {
         }));
         assert!(changes.is_empty());
         assert!(candidates.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_proof_charges_before_copying_a_wide_container_domain() -> Result<()> {
+        let old_blocks = [sourced_block(1, "container domain text")];
+        let new_blocks = [sourced_block(101, "container domain text")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        // Simulate one wide recorded container domain: the deferred list keeps
+        // only the relation index, and the tail pass must pay for the
+        // transient span copy before it allocates.
+        let wide = TextSpan {
+            blocks: (1..=64).map(BlockId).collect(),
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 0, end: 64 },
+            comparable_range: super::super::super::TokenRange { start: 0, end: 64 },
+        };
+        let relation = assessor.record(crate::diff::RelationAssessment {
+            old_span: Some(wide.clone()),
+            new_span: Some(wide),
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: Vec::new(),
+            reasons: Vec::new(),
+        })?;
+        assessor.equal_fragment_candidates.push(relation);
+        assert_eq!(
+            std::mem::size_of_val(&assessor.equal_fragment_candidates[0]),
+            std::mem::size_of::<usize>(),
+            "the deferred list must not retain a source span copy"
+        );
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        assessor.remaining_work = 1;
+        let candidates = Vec::new();
+        assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+        assert!(ownership[0].accepted.is_empty() && ownership[1].accepted.is_empty());
+        assert!(ownership[0].changed.is_empty() && ownership[1].changed.is_empty());
+        assert!(assessor.records.iter().all(|record| {
+            !record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+        }));
         Ok(())
     }
 }

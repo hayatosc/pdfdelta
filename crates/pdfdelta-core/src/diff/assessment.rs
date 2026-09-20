@@ -2597,12 +2597,14 @@ struct Assessor<'a, 'document> {
     /// checked issue projections). A comparison that never proves a
     /// strict-closed equal domain never pays for it.
     equal_fragment_cache: Option<equal_fragment::EqualFragmentCache<'a>>,
-    /// Strict-closed equal fragments recorded by the local recovery for the
-    /// deferred tail proof.
+    /// Relations of strict-closed equal fragments recorded by the local
+    /// recovery for the deferred tail proof.
     ///
-    /// Recording only names an already discovered and evaluated span pair, so
-    /// it spends no proof budget and never pushes out an earlier recovery.
-    equal_fragment_candidates: Vec<local::EqualFragmentCandidate>,
+    /// The relation record already owns the span pair, so the deferred list
+    /// stores only indices and adds no second variable-length source copy.
+    /// Recording spends no proof budget and never pushes out an earlier
+    /// recovery.
+    equal_fragment_candidates: Vec<usize>,
     /// The comparison side that is proven empty, if any.
     ///
     /// A side is proven empty when the extraction produced no canonical
