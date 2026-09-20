@@ -660,6 +660,18 @@ struct SourceIssueCache<'a> {
 struct SourceIssueCacheSide<'a> {
     side: &'a Side<'a>,
     entries: Vec<Option<CachedIssueRanges>>,
+    /// Diagnostic-only hit count for the unit tests; release builds do not
+    /// carry it.
+    #[cfg(test)]
+    hits: std::cell::Cell<usize>,
+}
+
+impl SourceIssueCacheSide<'_> {
+    /// Diagnostic-only hit counter for the unit tests.
+    #[cfg(test)]
+    fn note_hit(&self) {
+        self.hits.set(self.hits.get().saturating_add(1));
+    }
 }
 
 /// The exact result of one checked issue-range validation.
@@ -688,10 +700,14 @@ impl<'a> SourceIssueCache<'a> {
                 SourceIssueCacheSide {
                     side: sides[0],
                     entries: Vec::new(),
+                    #[cfg(test)]
+                    hits: std::cell::Cell::new(0),
                 },
                 SourceIssueCacheSide {
                     side: sides[1],
                     entries: Vec::new(),
+                    #[cfg(test)]
+                    hits: std::cell::Cell::new(0),
                 },
             ],
         };
@@ -754,12 +770,16 @@ fn span_has_source_issues_inner(
         if let Some(cache) = cache.as_deref() {
             match cache.entries[interval.block_index].as_ref() {
                 Some(CachedIssueRanges::Invalid) => {
+                    #[cfg(test)]
+                    cache.note_hit();
                     // The validation already failed; the bounded lookup is
                     // charged and the veto stands either way.
                     let _charged = charge(remaining, 1);
                     return Ok(true);
                 }
                 Some(CachedIssueRanges::Ranges(ranges)) => {
+                    #[cfg(test)]
+                    cache.note_hit();
                     // A hit pays the lookup, the range scan and the two
                     // binary searches over the canonical unmapped table.
                     if !charge(remaining, overlap_scan_cost(ranges, &block.canonical)) {
@@ -2507,6 +2527,13 @@ struct Assessor<'a, 'document> {
     proposal_relations: HashMap<ProposalKey, usize>,
     semantic_rejections: HashSet<ProposalKey>,
     move_relations: HashMap<ProposalKey, Option<usize>>,
+    /// Lazily created cache for the local source-issue veto.
+    ///
+    /// The discovery pass keeps its own cache; this one is created on the
+    /// first local key that needs the veto and lives only as long as the
+    /// assessor. A comparison that never evaluates such a key never pays for
+    /// it.
+    issue_cache: Option<SourceIssueCache<'a>>,
 }
 
 impl<'a, 'document> Assessor<'a, 'document> {
@@ -2739,6 +2766,31 @@ impl<'a, 'document> Assessor<'a, 'document> {
         self.root_reasons.clone()
     }
 
+    /// Returns whether one local side span carries a source issue.
+    ///
+    /// The per-comparison cache is created on first use and only when a local
+    /// key actually needs the veto. When the bounded reservation cannot be
+    /// paid the veto holds immediately instead of running an uncharged
+    /// projection, and every budget failure keeps the veto rather than
+    /// clearing it.
+    fn local_span_has_source_issues(&mut self, side: usize, span: &TextSpan) -> Result<bool> {
+        if self.issue_cache.is_none() {
+            let sides = self.sides;
+            let Some(cache) = SourceIssueCache::new(sides, &mut self.remaining_work)? else {
+                // The shared budget is exhausted: no source issue may be
+                // cleared from an unpayable reservation.
+                return Ok(true);
+            };
+            self.issue_cache = Some(cache);
+        }
+        match &mut self.issue_cache {
+            Some(cache) => {
+                span_has_source_issues_cached(cache.side(side), span, &mut self.remaining_work)
+            }
+            None => Ok(true),
+        }
+    }
+
     fn domain_reasons(&mut self, key: &DomainKey) -> Result<(Vec<AssessmentReason>, bool)> {
         let mut reasons = self.source_reasons();
         if key.local.is_some() {
@@ -2773,8 +2825,8 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let local_issue = if raw_proven {
             false
         } else if let Some((old, new)) = &key.local {
-            span_has_source_issues(self.sides[0], old, &mut self.remaining_work)?
-                || span_has_source_issues(self.sides[1], new, &mut self.remaining_work)?
+            self.local_span_has_source_issues(0, old)?
+                || self.local_span_has_source_issues(1, new)?
         } else {
             true
         };
@@ -3785,6 +3837,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             proposal_relations: HashMap::new(),
             semantic_rejections: HashSet::new(),
             move_relations: HashMap::new(),
+            issue_cache: None,
         };
         assessor.root_reasons = assessor.inspect_source_reasons();
         assessor.anchors = assessor.verified_anchors()?;
@@ -4171,5 +4224,268 @@ mod separator_tests {
             domain_separator(Some(BlockSeparator::Concatenate), 2..5, 0..6),
             BlockSeparator::Concatenate,
         );
+    }
+}
+
+#[cfg(test)]
+mod assessor_issue_cache_tests {
+    use super::*;
+    use crate::{
+        alignment::{AlignmentConfidence, AlignmentSpan},
+        layout::BlockRole,
+        model::GlyphId,
+        normalize::{
+            MappedText, NormalizationIssue, NormalizationIssueKind, SourceMapEntry, TextSource,
+            TextSourceAtom,
+        },
+    };
+
+    /// A block whose only issue projects to canonical range 1..2.
+    fn issue_block(id: u64) -> crate::normalize::BlockText {
+        let entry = |index: usize, glyph: u64| SourceMapEntry {
+            output_range: ScalarRange {
+                start: index,
+                end: index + 1,
+            },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(glyph))].into(),
+            },
+        };
+        let canonical = MappedText {
+            text: "ABC".to_owned(),
+            source_map: vec![entry(0, 1), entry(1, 2), entry(2, 3)],
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("issue tokens");
+        crate::normalize::BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: "ABC".to_owned(),
+            matching_tokens: tokens,
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: vec![NormalizationIssue {
+                kind: NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(2))].into(),
+                },
+            }],
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    /// The same block without any issue.
+    fn plain_block(id: u64) -> crate::normalize::BlockText {
+        let mut block = issue_block(id);
+        block.issues = Vec::new();
+        block
+    }
+
+    fn issue_alignment() -> Alignment {
+        Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old: vec![BlockId(1)],
+                new: vec![BlockId(101)],
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::Low,
+                evidence: vec![AlignmentEvidence::NormalizationIssue],
+                old_separator: None,
+                new_separator: None,
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
+    fn local_span(block: u64, start: usize, end: usize) -> TextSpan {
+        TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical_range: ScalarRange { start, end },
+            comparable_range: TokenRange { start, end },
+        }
+    }
+
+    fn local_key(old: TextSpan, new: TextSpan) -> DomainKey {
+        DomainKey {
+            local: Some((old, new)),
+            old: 0..0,
+            new: 0..0,
+            old_separator: BlockSeparator::Concatenate,
+            new_separator: BlockSeparator::Concatenate,
+        }
+    }
+
+    #[test]
+    fn assessor_local_issue_cache_matches_uncached_across_prime_order() -> Result<()> {
+        let old_blocks = [issue_block(1)];
+        let new_blocks = [issue_block(101)];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = issue_alignment();
+        // Canonical 0..1 avoids the issue at 1..2; canonical 1..3 touches it.
+        let avoiding = local_key(local_span(1, 0, 1), local_span(101, 0, 1));
+        let touching = local_key(local_span(1, 1, 3), local_span(101, 1, 3));
+
+        let mut first = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            None,
+        )?;
+        let avoiding_first = first.domain_reasons(&avoiding)?;
+        let touching_first = first.domain_reasons(&touching)?;
+        let avoiding_again = first.domain_reasons(&avoiding)?;
+
+        let mut second = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            None,
+        )?;
+        let touching_second = second.domain_reasons(&touching)?;
+        let avoiding_second = second.domain_reasons(&avoiding)?;
+
+        assert_eq!(avoiding_first, avoiding_again);
+        assert_eq!(avoiding_first, avoiding_second);
+        assert_eq!(touching_first, touching_second);
+        assert!(avoiding_first.1, "the avoiding interval clears the barrier");
+        assert_eq!(avoiding_first.0, Vec::<AssessmentReason>::new());
+        assert!(!touching_first.1, "the touching interval keeps the barrier");
+        assert_eq!(
+            touching_first.0,
+            vec![AssessmentReason::NormalizationUncertainty]
+        );
+
+        // The repeated validations were served by the cache: two old-side
+        // hits and one new-side hit.
+        let cache = first.issue_cache.as_ref().expect("cache was created");
+        assert_eq!(cache.sides[0].hits.get(), 2);
+        assert_eq!(cache.sides[1].hits.get(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn assessor_local_issue_cache_does_not_leak_raw_proof() -> Result<()> {
+        let old_blocks = [issue_block(1)];
+        let new_blocks = [issue_block(101)];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = issue_alignment();
+        // The whole block overlaps the issue, so without the proof it keeps
+        // the normalization barrier.
+        let whole = local_key(local_span(1, 0, 3), local_span(101, 0, 3));
+        let child = local_key(local_span(1, 1, 3), local_span(101, 1, 3));
+        let mut assessor = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            None,
+        )?;
+        let before = assessor.domain_reasons(&whole)?;
+        assert!(!before.1, "the whole pair starts with the barrier");
+        assert_eq!(before.0, vec![AssessmentReason::NormalizationUncertainty]);
+        // The exact whole pair is the only span the raw proof may lift.
+        assessor.raw_source_equalities = vec![whole.local.clone().expect("local pair")];
+        let proven = assessor.domain_reasons(&whole)?;
+        assert!(proven.1, "the exact proven pair keeps its exception");
+        assert_eq!(proven.0, Vec::<AssessmentReason>::new());
+        // A contained child that still touches the issue keeps the barrier.
+        let child_after = assessor.domain_reasons(&child)?;
+        assert!(
+            !child_after.1,
+            "the proof must not leak to a contained child"
+        );
+        assert_eq!(
+            child_after.0,
+            vec![AssessmentReason::NormalizationUncertainty]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn assessor_local_issue_cache_holds_on_short_budget() -> Result<()> {
+        let old_blocks = [issue_block(1)];
+        let new_blocks = [issue_block(101)];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = issue_alignment();
+        let avoiding = local_key(local_span(1, 0, 1), local_span(101, 0, 1));
+        let touching = local_key(local_span(1, 1, 3), local_span(101, 1, 3));
+
+        // A cold validation miss that cannot pay the pre-validation charge
+        // holds, and a repeat does not promote the key.
+        let options = DiffOptions {
+            max_assessment_work: 12,
+            ..DiffOptions::default()
+        };
+        let mut miss = Assessor::new_with_evidence([&old, &new], &alignment, None, options, None)?;
+        let first = miss.domain_reasons(&touching)?;
+        let second = miss.domain_reasons(&touching)?;
+        assert_eq!(first, second, "a repeat must not promote the key");
+        assert!(
+            !first.1,
+            "an exhausted validation must not clear the barrier"
+        );
+        assert_eq!(first.0, vec![AssessmentReason::NormalizationUncertainty]);
+
+        // A primed hit that cannot pay the overlap scan holds as well.
+        let mut primed = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            None,
+        )?;
+        let with_budget = primed.domain_reasons(&avoiding)?;
+        assert!(with_budget.1, "the avoiding interval clears the barrier");
+        assert_eq!(with_budget.0, Vec::<AssessmentReason>::new());
+        primed.remaining_work = 1;
+        let hit_short = primed.domain_reasons(&avoiding)?;
+        assert!(!hit_short.1, "an unpayable hit keeps the barrier");
+        assert_eq!(
+            hit_short.0,
+            vec![AssessmentReason::NormalizationUncertainty]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn assessor_local_issue_cache_holds_when_reservation_fails() -> Result<()> {
+        let old_blocks = [plain_block(1)];
+        let new_blocks = [plain_block(101)];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = issue_alignment();
+        let touching = local_key(local_span(1, 1, 3), local_span(101, 1, 3));
+        // The anchor verification leaves one work unit, so the per-side cache
+        // reservation cannot be paid.
+        let options = DiffOptions {
+            max_assessment_work: 9,
+            ..DiffOptions::default()
+        };
+        let mut assessor =
+            Assessor::new_with_evidence([&old, &new], &alignment, None, options, None)?;
+        let reasons = assessor.domain_reasons(&touching)?;
+        assert!(!reasons.1, "an unpayable reservation must keep the barrier");
+        assert_eq!(reasons.0, vec![AssessmentReason::NormalizationUncertainty]);
+        assert!(
+            assessor.issue_cache.is_none(),
+            "the cache was never created"
+        );
+        Ok(())
     }
 }
