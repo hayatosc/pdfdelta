@@ -1,0 +1,172 @@
+{
+  "run": "3bfbc880a4774d343c54308c2b9f4f77d8650610",
+  "binary_sha256": "d3aade2874b60dd845c8c00b9cffc8c2ef37eb91fb413fe4425d9eb1ea101fc6",
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "audited_eligible": 3,
+  "eligible_ids": [
+    "bunka-kana-1946-to-1986",
+    "faa-thunderstorms-b-to-c",
+    "irs-schedule-se-2024-to-2025"
+  ],
+  "vacuous_ids": [],
+  "failed_ids": [],
+  "trace_classified": {
+    "zero_candidate_two_sided": [
+      "bunka-official-writing-1952-to-2022",
+      "edpb-controller-processor-v1-to-v2-1",
+      "edpb-design-default-v1-to-v2",
+      "edpb-restrictions-v1-to-final",
+      "mext-lower-secondary-japanese-2008-to-2017",
+      "mext-primary-japanese-2008-to-2017",
+      "mext-upper-secondary-japanese-2009-to-2018",
+      "nist-ai-rmf-draft2-to-v1",
+      "nist-authentication-63b-to-63b4",
+      "nist-contingency-34-to-r1",
+      "nist-risk-assessment-30-to-r1"
+    ],
+    "near_zero_candidate_two_sided": [
+      "ipcc-synthesis-ar5-to-ar6",
+      "irs-1099-misc-2024-to-2025",
+      "irs-w9-2018-to-2024"
+    ],
+    "partial_forced_windows_two_sided": [
+      "arxiv-bert-v1-to-v2",
+      "arxiv-ddpm-v1-to-v2",
+      "arxiv-faster-rcnn-v1-to-v3",
+      "arxiv-gpt3-v1-to-v4",
+      "arxiv-llama2-v1-to-v2",
+      "arxiv-mask-rcnn-v1-to-v3",
+      "ecb-annual-2023-to-2024",
+      "edpb-social-targeting-v1-to-v2",
+      "irs-schedule-c-2024-to-2025",
+      "irs-w2-2024-to-2025",
+      "irs-w4-english-2024-to-2025",
+      "mhlw-care-skills-original-to-revised",
+      "nist-controls-53-r4-to-r5",
+      "nist-incident-handling-r2-to-r3",
+      "nist-risk-management-37-r1-to-r2",
+      "nist-sha-1803-to-1804",
+      "nist-ssdf-draft-to-final"
+    ],
+    "traces_available": 36
+  },
+  "near_complete": [
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "coverage_gap_tokens": 301,
+      "unresolved_regions": 19,
+      "tentative_candidates": 4,
+      "proven_changed_regions": 0
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "coverage_gap_tokens": 5333,
+      "unresolved_regions": 110,
+      "tentative_candidates": 2,
+      "proven_changed_regions": 0
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "coverage_gap_tokens": 21079,
+      "unresolved_regions": 403,
+      "tentative_candidates": 6,
+      "proven_changed_regions": 0
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "coverage_gap_tokens": 29558,
+      "unresolved_regions": 416,
+      "tentative_candidates": 60,
+      "proven_changed_regions": 3
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "coverage_gap_tokens": 45156,
+      "unresolved_regions": 481,
+      "tentative_candidates": 481,
+      "proven_changed_regions": 0
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "coverage_gap_tokens": 68864,
+      "unresolved_regions": 122,
+      "tentative_candidates": 36,
+      "proven_changed_regions": 8
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "coverage_gap_tokens": 72346,
+      "unresolved_regions": 1011,
+      "tentative_candidates": 91,
+      "proven_changed_regions": 0
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "coverage_gap_tokens": 79648,
+      "unresolved_regions": 1018,
+      "tentative_candidates": 155,
+      "proven_changed_regions": 0
+    }
+  ],
+  "extraction_blocked": [
+    "nasa-buckling-8007-1968-to-2020",
+    "arxiv-faster-rcnn-v1-to-v3",
+    "ipcc-synthesis-ar5-to-ar6",
+    "arxiv-ddpm-v1-to-v2",
+    "mhlw-care-skills-original-to-revised"
+  ],
+  "work_exhausted_pairs": [
+    "irs-w9-2018-to-2024",
+    "irs-w4-english-2024-to-2025",
+    "edpb-restrictions-v1-to-final",
+    "edpb-social-targeting-v1-to-v2",
+    "edpb-design-default-v1-to-v2",
+    "irs-1099-misc-2024-to-2025",
+    "nist-sha-1803-to-1804",
+    "faa-thunderstorms-b-to-c",
+    "arxiv-bert-v1-to-v2",
+    "faa-maintenance-records-c-to-d",
+    "edpb-controller-processor-v1-to-v2-1",
+    "nist-ssdf-draft-to-final",
+    "nist-authentication-63b-to-63b4",
+    "irs-w2-2024-to-2025",
+    "nist-incident-handling-r2-to-r3",
+    "mext-upper-secondary-japanese-2009-to-2018",
+    "nist-ai-rmf-draft2-to-v1",
+    "nist-risk-management-37-r1-to-r2",
+    "ecb-annual-2023-to-2024",
+    "mext-primary-japanese-2008-to-2017",
+    "nist-contingency-34-to-r1",
+    "mext-lower-secondary-japanese-2008-to-2017",
+    "nist-controls-53-r4-to-r5",
+    "arxiv-gpt3-v1-to-v4",
+    "arxiv-mask-rcnn-v1-to-v3",
+    "arxiv-llama2-v1-to-v2"
+  ],
+  "recommended_hypothesis": "forced windows exclude their trusted-run-only blocks from candidate indexing and matching as a whole",
+  "predicted_beneficiaries": [
+    "bunka-official-writing-1952-to-2022",
+    "edpb-controller-processor-v1-to-v2-1",
+    "edpb-design-default-v1-to-v2",
+    "edpb-restrictions-v1-to-final",
+    "mext-lower-secondary-japanese-2008-to-2017",
+    "mext-primary-japanese-2008-to-2017",
+    "mext-upper-secondary-japanese-2009-to-2018",
+    "nist-ai-rmf-draft2-to-v1",
+    "nist-authentication-63b-to-63b4",
+    "nist-contingency-34-to-r1",
+    "nist-risk-assessment-30-to-r1"
+  ],
+  "near_zero_beneficiaries": [
+    "ipcc-synthesis-ar5-to-ar6",
+    "irs-1099-misc-2024-to-2025",
+    "irs-w9-2018-to-2024"
+  ],
+  "second_order": [
+    "irs-schedule-c-2024-to-2025",
+    "irs-1099-misc-2024-to-2025",
+    "irs-w2-2024-to-2025",
+    "edpb-social-targeting-v1-to-v2",
+    "bunka-official-writing-1952-to-2022"
+  ]
+}

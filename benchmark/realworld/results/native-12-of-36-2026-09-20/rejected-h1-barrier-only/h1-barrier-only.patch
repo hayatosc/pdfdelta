@@ -1,0 +1,672 @@
+diff --git a/crates/pdfdelta-core/src/alignment/ordered.rs b/crates/pdfdelta-core/src/alignment/ordered.rs
+index 049e8d5..99d051c 100644
+--- a/crates/pdfdelta-core/src/alignment/ordered.rs
++++ b/crates/pdfdelta-core/src/alignment/ordered.rs
+@@ -248,6 +248,11 @@ pub(crate) struct AlignmentGapPlan {
+     forced_windows: BTreeMap<usize, ForcedWindowCauses>,
+     excluded_old: HashSet<BlockId>,
+     excluded_new: HashSet<BlockId>,
++    /// Blocks that sit outside a proven line order within a partition whose
++    /// order is otherwise proven. They stay unmatchable, but the proven order
++    /// of the remaining blocks keeps their enclosing window comparable.
++    barrier_old: HashSet<BlockId>,
++    barrier_new: HashSet<BlockId>,
+     /// Blocks placed by a geometrically inferred region order. Unlike
+     /// `excluded_old`/`excluded_new`, these blocks remain eligible for
+     /// anchoring and their windows stay resolvable; they only mark the
+@@ -289,7 +294,21 @@ pub(crate) fn align_ordered_with_metrics(
+     generator: &dyn CandidateGenerator,
+     options: AlignmentOptions,
+ ) -> AlignmentAttempt {
+-    match plan_ordered_gaps(old, new, options, &[], &[], &[], &[], &[], &[], &[], &[]) {
++    match plan_ordered_gaps(
++        old,
++        new,
++        options,
++        &[],
++        &[],
++        &[],
++        &[],
++        &[],
++        &[],
++        &[],
++        &[],
++        &[],
++        &[],
++    ) {
+         Ok(plan) => align_ordered_with_metrics_and_gap_plan(old, new, generator, options, plan),
+         Err(error) => AlignmentAttempt {
+             result: Err(error),
+@@ -311,6 +330,8 @@ pub(crate) fn plan_ordered_gaps(
+     new_extraction_uncertain_indices: &[usize],
+     old_uncertain_indices: &[usize],
+     new_uncertain_indices: &[usize],
++    old_barrier_indices: &[usize],
++    new_barrier_indices: &[usize],
+     old_inferred_indices: &[usize],
+     new_inferred_indices: &[usize],
+ ) -> Result<AlignmentGapPlan> {
+@@ -332,6 +353,8 @@ pub(crate) fn plan_ordered_gaps(
+     )?;
+     validate_uncertain_indices("old", old_uncertain_indices, old.len())?;
+     validate_uncertain_indices("new", new_uncertain_indices, new.len())?;
++    validate_uncertain_indices("old barrier", old_barrier_indices, old.len())?;
++    validate_uncertain_indices("new barrier", new_barrier_indices, new.len())?;
+     validate_uncertain_indices("old inferred", old_inferred_indices, old.len())?;
+     validate_uncertain_indices("new inferred", new_inferred_indices, new.len())?;
+ 
+@@ -342,6 +365,8 @@ pub(crate) fn plan_ordered_gaps(
+         && new_extraction_uncertain_indices.is_empty()
+         && old_uncertain_indices.is_empty()
+         && new_uncertain_indices.is_empty()
++        && old_barrier_indices.is_empty()
++        && new_barrier_indices.is_empty()
+         && old_inferred_indices.is_empty()
+         && new_inferred_indices.is_empty()
+     {
+@@ -353,6 +378,8 @@ pub(crate) fn plan_ordered_gaps(
+             forced_windows: BTreeMap::new(),
+             excluded_old: HashSet::new(),
+             excluded_new: HashSet::new(),
++            barrier_old: HashSet::new(),
++            barrier_new: HashSet::new(),
+             inferred_old: HashSet::new(),
+             inferred_new: HashSet::new(),
+         });
+@@ -368,14 +395,26 @@ pub(crate) fn plan_ordered_gaps(
+         .enumerate()
+         .map(|(index, features)| (features.block, index))
+         .collect::<HashMap<_, _>>();
++    let barrier_old = old_barrier_indices
++        .iter()
++        .map(|&index| old[index].block)
++        .collect::<HashSet<_>>();
++    let barrier_new = new_barrier_indices
++        .iter()
++        .map(|&index| new[index].block)
++        .collect::<HashSet<_>>();
++    // Anchors must not place a block whose own order is unproven, so barrier
++    // blocks are filtered exactly like the window-forcing uncertainty.
+     let uncertain_old = old_uncertain_indices
+         .iter()
+         .chain(old_extraction_uncertain_indices)
++        .chain(old_barrier_indices)
+         .copied()
+         .collect::<HashSet<_>>();
+     let uncertain_new = new_uncertain_indices
+         .iter()
+         .chain(new_extraction_uncertain_indices)
++        .chain(new_barrier_indices)
+         .copied()
+         .collect::<HashSet<_>>();
+     let all_anchors = primary_exact_anchors(old, new, options.anchor_min_tokens)?
+@@ -468,6 +507,8 @@ pub(crate) fn plan_ordered_gaps(
+         forced_windows,
+         excluded_old,
+         excluded_new,
++        barrier_old,
++        barrier_new,
+         inferred_old,
+         inferred_new,
+     })
+@@ -546,6 +587,11 @@ fn align_ordered_inner(
+         visit_metrics.candidate_visits_required_ngram = Some(0);
+         visit_metrics.candidate_visits_required_short_fallback = Some(0);
+         let mut alignment = identity_alignment(old);
++        reject_reading_order_barriers(
++            &mut alignment.spans,
++            &plan.barrier_old,
++            &plan.barrier_new,
++        );
+         cap_confidence_for_inferred_reading_order(
+             &mut alignment.spans,
+             &plan.inferred_old,
+@@ -679,6 +725,7 @@ fn align_ordered_inner(
+         }
+     }
+     refine_masked_matches(&mut spans);
++    reject_reading_order_barriers(&mut spans, &plan.barrier_old, &plan.barrier_new);
+     cap_confidence_for_inferred_reading_order(&mut spans, &plan.inferred_old, &plan.inferred_new);
+ 
+     Ok(Alignment {
+@@ -688,6 +735,117 @@ fn align_ordered_inner(
+     })
+ }
+ 
++/// Keeps blocks that sit outside a proven line order out of accepted matches.
++///
++/// Their own position is unproven, so no correspondence may claim them. They
++/// stay in candidate generation and the index, which keeps every rival
++/// occurrence visible to competition; this pass only rejects a match once the
++/// chosen correspondence includes one of them and reports the remainder as
++/// unresolved with explicit reading-order evidence.
++fn reject_reading_order_barriers(
++    spans: &mut Vec<AlignmentSpan>,
++    barrier_old: &HashSet<BlockId>,
++    barrier_new: &HashSet<BlockId>,
++) {
++    if barrier_old.is_empty() && barrier_new.is_empty() {
++        return;
++    }
++    let barrier_evidence = |evidence: &[AlignmentEvidence]| {
++        let mut rejected = Vec::with_capacity(evidence.len() + 1);
++        rejected.extend(evidence.iter().copied());
++        if !rejected.contains(&AlignmentEvidence::ReadingOrderUnknown) {
++            rejected.push(AlignmentEvidence::ReadingOrderUnknown);
++        }
++        rejected
++    };
++    let barrier_span = |old: Vec<BlockId>, new: Vec<BlockId>, evidence: Vec<AlignmentEvidence>| {
++        AlignmentSpan {
++            kind: AlignmentKind::Unresolved,
++            old,
++            new,
++            score: 0.0,
++            canonical_similarity: 0.0,
++            score_margin: None,
++            confidence: AlignmentConfidence::Low,
++            evidence,
++            old_separator: None,
++            new_separator: None,
++        }
++    };
++    // Splits one side's blocks into alternating barrier and non-barrier runs
++    // while preserving the side's own order.
++    let runs = |blocks: &[BlockId], barriers: &HashSet<BlockId>| {
++        let mut split: Vec<(bool, Vec<BlockId>)> = Vec::new();
++        for &block in blocks {
++            let is_barrier = barriers.contains(&block);
++            match split.last_mut() {
++                Some((kind, run)) if *kind == is_barrier => run.push(block),
++                _ => split.push((is_barrier, vec![block])),
++            }
++        }
++        split
++    };
++    let mut output = Vec::with_capacity(spans.len());
++    for span in spans.drain(..) {
++        let old_touches = span.old.iter().any(|block| barrier_old.contains(block));
++        let new_touches = span.new.iter().any(|block| barrier_new.contains(block));
++        if !old_touches && !new_touches {
++            output.push(span);
++            continue;
++        }
++        if span.kind == AlignmentKind::Match {
++            // A correspondence that includes an unproven position cannot be
++            // certified or surgically trimmed; keep it entirely unresolved.
++            output.push(barrier_span(
++                span.old,
++                span.new,
++                barrier_evidence(&span.evidence),
++            ));
++            continue;
++        }
++        // Each remaining contiguous run is emitted on its own side. Merging
++        // the runs into one span would concatenate blocks across an unproven
++        // position, so a trusted/barrier/trusted range keeps its boundaries.
++        for (is_barrier, run) in runs(&span.old, barrier_old) {
++            if is_barrier {
++                output.push(barrier_span(run, Vec::new(), barrier_evidence(&span.evidence)));
++            } else {
++                output.push(AlignmentSpan {
++                    kind: span.kind,
++                    old: run,
++                    new: Vec::new(),
++                    score: span.score,
++                    canonical_similarity: span.canonical_similarity,
++                    score_margin: span.score_margin,
++                    confidence: span.confidence,
++                    evidence: span.evidence.clone(),
++                    old_separator: None,
++                    new_separator: None,
++                });
++            }
++        }
++        for (is_barrier, run) in runs(&span.new, barrier_new) {
++            if is_barrier {
++                output.push(barrier_span(Vec::new(), run, barrier_evidence(&span.evidence)));
++            } else {
++                output.push(AlignmentSpan {
++                    kind: span.kind,
++                    old: Vec::new(),
++                    new: run,
++                    score: span.score,
++                    canonical_similarity: span.canonical_similarity,
++                    score_margin: span.score_margin,
++                    confidence: span.confidence,
++                    evidence: span.evidence.clone(),
++                    old_separator: None,
++                    new_separator: None,
++                });
++            }
++        }
++    }
++    *spans = output;
++}
++
+ /// Caps confidence and records inference for every span that touches a
+ /// geometrically inferred reading order, including unresolved recovery spans.
+ fn cap_confidence_for_inferred_reading_order(
+@@ -2743,6 +2901,8 @@ mod tests {
+             &[],
+             &[],
+             &[],
++            &[],
++            &[],
+         )
+         .expect("uncertainty should produce a forced anchor interval");
+ 
+@@ -2801,6 +2961,8 @@ mod tests {
+             &[2],
+             &[],
+             &[],
++            &[],
++            &[],
+         )
+         .expect("reading-order uncertainty should be localized");
+ 
+@@ -2890,6 +3052,8 @@ mod tests {
+             &[1],
+             &[],
+             &[],
++            &[],
++            &[],
+         )
+         .expect("secondary anchors should exclude uncertain blocks");
+ 
+@@ -2927,6 +3091,8 @@ mod tests {
+             &[1],
+             &[],
+             &[],
++            &[],
++            &[],
+         )
+         .expect("short exact coincidences must not become direct boundaries");
+ 
+@@ -2981,6 +3147,8 @@ mod tests {
+             &[],
+             &[],
+             &[],
++            &[],
++            &[],
+         )
+         .expect("extraction uncertainty should remain conservative");
+ 
+@@ -3443,6 +3611,8 @@ mod tests {
+             &[],
+             &[],
+             &[],
++            &[],
++            &[],
+             &[1],
+             &[],
+         )
+@@ -4031,4 +4201,112 @@ mod tests {
+                 .contains(&AlignmentEvidence::NeighborConsistency)
+         );
+     }
++
++    fn barrier_span(kind: AlignmentKind, old: &[u64], new: &[u64]) -> AlignmentSpan {
++        AlignmentSpan {
++            kind,
++            old: old.iter().copied().map(BlockId).collect(),
++            new: new.iter().copied().map(BlockId).collect(),
++            score: 0.0,
++            canonical_similarity: 0.0,
++            score_margin: None,
++            confidence: AlignmentConfidence::Low,
++            evidence: Vec::new(),
++            old_separator: None,
++            new_separator: None,
++        }
++    }
++
++    #[test]
++    fn barrier_rejection_splits_runs_without_crossing_an_unproven_position() {
++        let mut spans = vec![barrier_span(
++            AlignmentKind::Unresolved,
++            &[1, 2, 3],
++            &[10, 11],
++        )];
++        let barriers_old = HashSet::from([BlockId(2)]);
++        reject_reading_order_barriers(&mut spans, &barriers_old, &HashSet::new());
++
++        // trusted/barrier/trusted never merges back into one span: the runs
++        // stay separate, the barrier keeps explicit evidence, and the new side
++        // keeps its own span instead of being paired with a partial range.
++        assert_eq!(spans.len(), 4, "{spans:?}");
++        assert!(spans.iter().all(|span| {
++            !(span.old.contains(&BlockId(1)) && span.old.contains(&BlockId(3)))
++        }));
++        let barrier = spans
++            .iter()
++            .find(|span| span.old == vec![BlockId(2)])
++            .expect("barrier run");
++        assert_eq!(barrier.kind, AlignmentKind::Unresolved);
++        assert_eq!(barrier.new, Vec::<BlockId>::new());
++        assert!(
++            barrier
++                .evidence
++                .contains(&AlignmentEvidence::ReadingOrderUnknown)
++        );
++        assert!(spans.iter().any(|span| span.old == vec![BlockId(1)]));
++        assert!(spans.iter().any(|span| span.old == vec![BlockId(3)]));
++        assert!(spans.iter().any(|span| span.new == vec![BlockId(10), BlockId(11)]));
++    }
++
++    #[test]
++    fn barrier_rejection_fails_closed_on_a_match_span() {
++        let mut spans = vec![AlignmentSpan {
++            evidence: vec![AlignmentEvidence::ExactCanonical],
++            ..barrier_span(AlignmentKind::Match, &[4], &[104])
++        }];
++        let barriers_new = HashSet::from([BlockId(104)]);
++        reject_reading_order_barriers(&mut spans, &HashSet::new(), &barriers_new);
++
++        assert_eq!(spans.len(), 1);
++        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
++        assert_eq!(spans[0].old, vec![BlockId(4)]);
++        assert_eq!(spans[0].new, vec![BlockId(104)]);
++        assert!(
++            spans[0]
++                .evidence
++                .contains(&AlignmentEvidence::ReadingOrderUnknown)
++        );
++        assert!(
++            spans[0]
++                .evidence
++                .contains(&AlignmentEvidence::ExactCanonical)
++        );
++    }
++
++    #[test]
++    fn barrier_rejection_keeps_single_sided_runs_of_deletions_and_insertions() {
++        let mut spans = vec![
++            barrier_span(AlignmentKind::Deletion, &[7], &[]),
++            barrier_span(AlignmentKind::Deletion, &[8], &[]),
++            barrier_span(AlignmentKind::Insertion, &[], &[9]),
++        ];
++        let barriers_old = HashSet::from([BlockId(7)]);
++        let barriers_new = HashSet::from([BlockId(9)]);
++        reject_reading_order_barriers(&mut spans, &barriers_old, &barriers_new);
++
++        assert_eq!(spans.len(), 3);
++        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
++        assert_eq!(spans[0].old, vec![BlockId(7)]);
++        assert_eq!(spans[1].kind, AlignmentKind::Deletion);
++        assert_eq!(spans[1].old, vec![BlockId(8)]);
++        assert_eq!(spans[2].kind, AlignmentKind::Unresolved);
++        assert_eq!(spans[2].new, vec![BlockId(9)]);
++    }
++
++    #[test]
++    fn barrier_rejection_leaves_spans_without_barriers_untouched() {
++        let mut spans = vec![
++            barrier_span(AlignmentKind::Match, &[1], &[2]),
++            barrier_span(AlignmentKind::Unresolved, &[3], &[]),
++        ];
++        let before = spans.clone();
++        reject_reading_order_barriers(
++            &mut spans,
++            &HashSet::from([BlockId(90)]),
++            &HashSet::from([BlockId(91)]),
++        );
++        assert_eq!(spans, before);
++    }
+ }
+diff --git a/crates/pdfdelta-core/src/layout/block.rs b/crates/pdfdelta-core/src/layout/block.rs
+index f5455a4..6421fba 100644
+--- a/crates/pdfdelta-core/src/layout/block.rs
++++ b/crates/pdfdelta-core/src/layout/block.rs
+@@ -122,6 +122,16 @@ pub(crate) enum LayoutIssue {
+         page: PageId,
+         line_ids: Vec<LineId>,
+         reason: UncertainLineReason,
++        /// Whether the partition's own reading order is a proven line order.
++        ///
++        /// `true` only for the [`ReadingOrder::KnownLines`] classification:
++        /// the listed uncertain lines sit outside a proven document line order,
++        /// so the surrounding trusted order can still bound comparisons. For
++        /// every `Unknown` classification there is no proven order, and the
++        /// order between trusted runs is itself unproven.
++        ///
++        /// [`ReadingOrder::KnownLines`]: super::region::ReadingOrder::KnownLines
++        order_proven: bool,
+     },
+ }
+ 
+@@ -396,6 +406,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
+                         page,
+                         line_ids: partition.uncertain_line_ids,
+                         reason,
++                        order_proven: true,
+                     });
+                 }
+                 for region in &graph.regions {
+@@ -414,6 +425,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
+                         page,
+                         line_ids: partition.uncertain_line_ids,
+                         reason,
++                        order_proven: false,
+                     });
+                 }
+                 for region in &graph.regions {
+diff --git a/crates/pdfdelta-core/src/pipeline.rs b/crates/pdfdelta-core/src/pipeline.rs
+index d6a01c3..8042d7d 100644
+--- a/crates/pdfdelta-core/src/pipeline.rs
++++ b/crates/pdfdelta-core/src/pipeline.rs
+@@ -830,6 +830,7 @@ fn compare_validated_glyph_documents_inner(
+     let PreparedDocument {
+         blocks: old,
+         uncertain_block_indices: old_uncertain_block_indices,
++        barrier_block_indices: old_barrier_block_indices,
+         inferred_order_block_indices: old_inferred_order_block_indices,
+         trusted_run_intervals: old_trusted_run_intervals,
+         trusted_run_descriptors: old_trusted_run_descriptors,
+@@ -839,6 +840,7 @@ fn compare_validated_glyph_documents_inner(
+     let PreparedDocument {
+         blocks: new,
+         uncertain_block_indices: new_uncertain_block_indices,
++        barrier_block_indices: new_barrier_block_indices,
+         inferred_order_block_indices: new_inferred_order_block_indices,
+         trusted_run_intervals: new_trusted_run_intervals,
+         trusted_run_descriptors: new_trusted_run_descriptors,
+@@ -891,6 +893,8 @@ fn compare_validated_glyph_documents_inner(
+             &new_extraction_uncertain_block_indices,
+             &old_uncertain_block_indices,
+             &new_uncertain_block_indices,
++            &old_barrier_block_indices,
++            &new_barrier_block_indices,
+             &old_inferred_order_block_indices,
+             &new_inferred_order_block_indices,
+         ),
+@@ -1492,6 +1496,7 @@ fn prepare(
+             page: _,
+             line_ids,
+             reason,
++            order_proven: _,
+         } = issue;
+         let count = line_ids.len();
+         match reason {
+@@ -1560,32 +1565,40 @@ fn prepare(
+             ..PipelineMetrics::default()
+         },
+     );
+-    let uncertain_line_ids = reconstruction
+-        .issues
+-        .into_iter()
+-        .flat_map(|issue| match issue {
+-            LayoutIssue::UnknownReadingOrder {
+-                page: _,
+-                line_ids,
+-                reason: _,
+-            } => line_ids,
+-        })
+-        .collect::<std::collections::HashSet<_>>();
+-    let uncertain_blocks = blocks
+-        .iter()
+-        .filter(|block| {
+-            block
+-                .lines
+-                .iter()
+-                .any(|line_id| uncertain_line_ids.contains(line_id))
+-        })
+-        .map(|block| block.id)
+-        .collect::<std::collections::HashSet<_>>();
++    let mut order_unknown_line_ids = std::collections::HashSet::new();
++    let mut order_proven_uncertain_line_ids = std::collections::HashSet::new();
++    for issue in reconstruction.issues {
++        let LayoutIssue::UnknownReadingOrder {
++            page: _,
++            line_ids,
++            reason: _,
++            order_proven,
++        } = issue;
++        if order_proven {
++            order_proven_uncertain_line_ids.extend(line_ids);
++        } else {
++            order_unknown_line_ids.extend(line_ids);
++        }
++    }
++    let blocks_touching = |line_ids: &std::collections::HashSet<_>| {
++        blocks
++            .iter()
++            .filter(|block| block.lines.iter().any(|line_id| line_ids.contains(line_id)))
++            .map(|block| block.id)
++            .collect::<std::collections::HashSet<_>>()
++    };
++    let uncertain_blocks = blocks_touching(&order_unknown_line_ids);
++    let barrier_blocks = blocks_touching(&order_proven_uncertain_line_ids);
+     let uncertain_block_indices = normalized
+         .iter()
+         .enumerate()
+         .filter_map(|(index, block)| uncertain_blocks.contains(&block.block).then_some(index))
+         .collect();
++    let barrier_block_indices = normalized
++        .iter()
++        .enumerate()
++        .filter_map(|(index, block)| barrier_blocks.contains(&block.block).then_some(index))
++        .collect();
+     let inferred_order_blocks = blocks
+         .iter()
+         .filter(|block| {
+@@ -1608,6 +1621,7 @@ fn prepare(
+     Ok(PreparedDocument {
+         blocks: normalized,
+         uncertain_block_indices,
++        barrier_block_indices,
+         inferred_order_block_indices,
+         trusted_run_intervals,
+         trusted_run_descriptors,
+@@ -1658,7 +1672,13 @@ fn build_features_with_diagnostics(
+ 
+ struct PreparedDocument {
+     blocks: Vec<BlockText>,
++    /// Blocks touching a line whose partition reading order is unproven. Their
++    /// enclosing anchor windows stay unresolved and are excluded from matching.
+     uncertain_block_indices: Vec<usize>,
++    /// Blocks touching a line that sits outside a proven line order. The
++    /// surrounding order is proven, so these blocks are excluded from accepted
++    /// matches but do not force their whole window unresolved.
++    barrier_block_indices: Vec<usize>,
+     /// Blocks placed by a geometrically inferred region order rather than a
+     /// proven one; not excluded from anchoring, but every change whose span
+     /// intersects one of them must be reported at low confidence.
+diff --git a/crates/pdfdelta-core/tests/pipeline_fixture.rs b/crates/pdfdelta-core/tests/pipeline_fixture.rs
+index c38b616..7563858 100644
+--- a/crates/pdfdelta-core/tests/pipeline_fixture.rs
++++ b/crates/pdfdelta-core/tests/pipeline_fixture.rs
+@@ -3646,6 +3646,93 @@ fn assert_unknown_reading_order(comparison: &Comparison) {
+     );
+ }
+ 
++#[test]
++fn h1_reflowed_columns_with_uncertain_footer_recover_trusted_text() -> Result<()> {
++    let old = reflowed_columns_document(false);
++    let new = reflowed_columns_document(true);
++
++    let outcome = compare_extraction_outcomes(
++        ExtractionOutcome::complete(old),
++        ExtractionOutcome::complete(new),
++        PipelineOptions::default(),
++    )?;
++    let comparison = &outcome.comparison;
++    let summary = summarize(comparison, &outcome.extraction)?;
++    {
++        let mut output = Vec::new();
++        pdfdelta_core::report::write_json(
++            &mut output,
++            &outcome.old_blocks,
++            &outcome.new_blocks,
++            &outcome.old_glyph_evidence,
++            &outcome.new_glyph_evidence,
++            comparison,
++            &outcome.extraction,
++        )?;
++        let json: serde_json::Value = serde_json::from_slice(&output).expect("source report");
++        for region in json["unresolved_regions"].as_array().expect("regions") {
++            println!(
++                "H1FIX text old={:?} new={:?} evidence={:?}",
++                region["old_span"]["text"].as_str(),
++                region["new_span"]["text"].as_str(),
++                region["evidence"],
++            );
++        }
++    }
++    println!(
++        "H1FIX complete={} changes={} unresolved={} old_coverage={:?} new_coverage={:?}",
++        summary.comparison_complete,
++        comparison.changes.len(),
++        comparison.unresolved_regions.len(),
++        comparison.old_coverage.ratio,
++        comparison.new_coverage.ratio,
++    );
++    assert!(!summary.comparison_complete);
++    Ok(())
++}
++
++/// Builds the H1 reproducer: two columns whose rows are re-ordered by line
++/// breaks and small word edits on the changed side, plus two vertical
++/// (unsupported) footer lines. Every block text differs, so the primary
++/// anchor chain is empty; the footer lines stay outside the proven line order.
++fn reflowed_columns_document(changed: bool) -> Document<Glyph> {
++    let left_old = [
++        "Quarterly revenue increased across all regions",
++        "Operating costs remained stable through the period",
++        "Customer retention improved during the second half",
++        "Margins expanded as the restructuring completed",
++    ];
++    let right_old = [
++        "Headcount grew in every product division",
++        "Research spending rose faster than the plan",
++        "Supply delays eased during the final months",
++        "Guidance stayed unchanged for the full year",
++    ];
++    let left_new = [
++        "Quarterly revenue increased across most regions",
++        "Operating costs remained stable through the quarter",
++        "Customer retention improved during the second quarter",
++        "Margins expanded as the programme completed",
++    ];
++    let right_new = [
++        "Headcount grew in every product segment",
++        "Research spending rose faster than the budget",
++        "Supply delays eased during the closing months",
++        "Guidance stayed unchanged for the whole year",
++    ];
++    let mut lines = Vec::new();
++    for row in 0..4 {
++        let y = 700.0 - row as f64 * 25.0;
++        let left = if changed { left_new[row] } else { left_old[row] };
++        let right = if changed { right_new[row] } else { right_old[row] };
++        lines.push(line_at(left, 0, 50.0, y));
++        lines.push(line_at(right, 0, 700.0, y));
++    }
++    lines.push(vertical_line("Review draft", 0, 50.0, 600.0));
++    lines.push(vertical_line("Page one", 0, 700.0, 600.0));
++    document(&lines)
++}
++
+ fn assert_unique_glyph_evidence(evidence: &[pdfdelta_core::model::GlyphEvidence]) {
+     for (index, glyph) in evidence.iter().enumerate() {
+         assert!(
