@@ -159,6 +159,7 @@ pdfdelta review list ./review-run --max-output-bytes 8192
 pdfdelta review list ./review-run --cursor CURSOR --max-output-bytes 8192
 pdfdelta review show ./review-run --case R17 --detail index
 pdfdelta review show ./review-run --case R17 --detail text --max-output-bytes 16384
+pdfdelta review show ./review-run --case R17 --detail context --cursor CURSOR
 pdfdelta review show ./review-run --case R17 --detail alternatives --cursor CURSOR
 ```
 
