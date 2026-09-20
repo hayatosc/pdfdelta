@@ -191,6 +191,12 @@ other — and stores them as a new file that keeps the engine's outcome and the
 external answers in separate sections. A submission with any invalid decision
 stores nothing, and the bundle itself is never modified.
 
+`pdfbench audit-agent-review` gates the contract in ordinary CI: it checks the
+packet invariants and measures what a review costs to read, in bytes, without
+running a model or calling any external service. The measured results, including
+the inputs where a packet costs more than handing over the text, are recorded
+under [`benchmark/realworld/remaining/agent-review/`](benchmark/realworld/remaining/agent-review/).
+
 Exporting a bundle changes no comparison field, no coverage count, and no exit
 status, and an external reviewer's answer is never merged into the engine's
 result. `--agent-review` works with the default

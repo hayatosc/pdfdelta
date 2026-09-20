@@ -39,6 +39,9 @@ pub struct PlannerLimits {
     pub max_sources_per_case: usize,
     /// Structural context items gathered per side of a case.
     pub max_labels_per_case: usize,
+    /// Views one case quotes before the rest become an omission. Their sources
+    /// still travel as evidence, so the obligation stays explained.
+    pub max_members_per_case: usize,
     /// How far context gathering walks up the containment hierarchy.
     pub max_context_depth: usize,
 }
@@ -53,6 +56,7 @@ impl Default for PlannerLimits {
             max_text_scalars: 4_096,
             max_sources_per_case: 4_096,
             max_labels_per_case: 16,
+            max_members_per_case: 32,
             max_context_depth: 8,
         }
     }
@@ -82,33 +86,20 @@ impl ReviewPlan {
     }
 }
 
-/// The alias for one source reference.
+/// The bundle-local alias for one source reference.
 ///
 /// The alias is derived from the reference itself, so it is stable without an
 /// allocation order and cannot collide within a side: each origin has its own
-/// prefix and each identifier is unique inside its origin.
-///
-/// # Panics
-/// Never: every rendering is ASCII alphanumeric within the identifier limit.
+/// letter and each identifier is unique inside its origin.
 #[must_use]
 pub fn source_alias(source: SourceRef) -> SourceAlias {
-    let text = match source {
-        SourceRef::Native { glyph } => format!("g{}", glyph.0),
-        SourceRef::NativeVector { line } => format!("v{}", line.0),
-        SourceRef::Rendered { region } => format!("r{region}"),
-        SourceRef::Structured { element } => format!("s{element}"),
-    };
-    SourceAlias::new(text).expect("a derived source alias is a valid identifier")
+    EvidenceRef::new(Side::Old, source).alias()
 }
 
-/// Pairs a source with its side and alias.
+/// Pairs a source with the side it belongs to.
 #[must_use]
-pub fn evidence_ref(side: Side, source: SourceRef) -> EvidenceRef {
-    EvidenceRef {
-        side,
-        alias: source_alias(source),
-        source,
-    }
+pub const fn evidence_ref(side: Side, source: SourceRef) -> EvidenceRef {
+    EvidenceRef::new(side, source)
 }
 
 /// Accumulates the canonical key a case identifier is derived from.

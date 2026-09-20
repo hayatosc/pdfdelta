@@ -268,7 +268,7 @@ pub fn validate_decision(
         let matched = case
             .evidence
             .iter()
-            .filter(|candidate| candidate.alias.as_str() == alias)
+            .filter(|candidate| candidate.alias().as_str() == alias)
             .collect::<Vec<_>>();
         if matched.is_empty() {
             rejections.push(DecisionRejection::UnknownEvidenceRef {
@@ -398,7 +398,7 @@ mod tests {
         model::GlyphId,
         review::contract::{
             CaseCompleteness, DECISION_SCHEMA, EngineClass, EvidenceRef, PipelineContract,
-            ReviewQuestion, SourceAlias,
+            ReviewQuestion,
         },
     };
 
@@ -428,11 +428,10 @@ mod tests {
             available_actions: Vec::new(),
             covered: Vec::new(),
             regions: Vec::new(),
-            evidence: vec![EvidenceRef {
-                side: Side::Old,
-                alias: SourceAlias::new("E31").expect("alias"),
-                source: SourceRef::Native { glyph: GlyphId(31) },
-            }],
+            evidence: vec![EvidenceRef::new(
+                Side::Old,
+                SourceRef::Native { glyph: GlyphId(31) },
+            )],
         }
     }
 
@@ -444,7 +443,7 @@ mod tests {
             status: DecisionStatus::Changed,
             selected_hypotheses: Vec::new(),
             change_kinds: vec![DecisionChangeKind::Value],
-            evidence_refs: vec!["old:E31".into()],
+            evidence_refs: vec!["old:g31".into()],
             rationale: "The deadline value differs.".into(),
             limitations: Vec::new(),
             requests: Vec::new(),
@@ -461,11 +460,11 @@ mod tests {
     fn rejects_a_reference_from_the_other_side() {
         let bundle = BundleId::new("b0").expect("bundle id");
         let mut decision = decision();
-        decision.evidence_refs = vec!["new:E31".into()];
+        decision.evidence_refs = vec!["new:g31".into()];
         let rejections = validate_decision(&decision, &case(), &bundle).expect_err("rejected");
         assert!(
             rejections.contains(&DecisionRejection::EvidenceSideMismatch {
-                reference: "new:E31".into(),
+                reference: "new:g31".into(),
                 expected: Side::Old,
             })
         );
@@ -527,13 +526,13 @@ mod tests {
         let bundle = BundleId::new("b0").expect("bundle id");
         let mut second = case();
         second.case_id = CaseId::new("R18").expect("case id");
-        second.evidence[0].alias = SourceAlias::new("E99").expect("alias");
+        second.evidence[0] = EvidenceRef::new(Side::Old, SourceRef::Native { glyph: GlyphId(99) });
 
         let mut other = decision();
         other.case_id = CaseId::new("R18").expect("case id");
         other.status = DecisionStatus::UnchangedInScope;
         other.change_kinds.clear();
-        other.evidence_refs = vec!["old:E99".into()];
+        other.evidence_refs = vec!["old:g99".into()];
 
         let outcomes = validate_decisions(&[decision(), other], &[case(), second], &bundle);
         assert!(

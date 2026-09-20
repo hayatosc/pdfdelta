@@ -1,0 +1,57 @@
+{
+  "schema": "agent-review-packet-cost/v1",
+  "measured_in": "bytes",
+  "tokenizer": null,
+  "tool": "pdfbench audit-agent-review",
+  "inputs": [
+    {
+      "input": "case1-japanese-typst",
+      "real": true,
+      "comparison_complete": true,
+      "cases": 0,
+      "full_text_bytes": 948,
+      "report_bytes": 24605,
+      "index_bytes": 62,
+      "median_case_bytes": 0,
+      "first_read_reduction_per_mille": 935
+    },
+    {
+      "input": "case2-japanese-typst",
+      "real": true,
+      "comparison_complete": true,
+      "cases": 0,
+      "full_text_bytes": 600,
+      "report_bytes": 22617,
+      "index_bytes": 62,
+      "median_case_bytes": 0,
+      "first_read_reduction_per_mille": 897
+    },
+    {
+      "input": "case3-typst",
+      "real": true,
+      "comparison_complete": true,
+      "cases": 1,
+      "full_text_bytes": 444,
+      "report_bytes": 155135,
+      "index_bytes": 422,
+      "median_case_bytes": 4034,
+      "first_read_reduction_per_mille": -9036
+    },
+    {
+      "input": "synthetic-80-page-one-change",
+      "real": false,
+      "comparison_complete": false,
+      "cases": 161,
+      "full_text_bytes": 445822,
+      "report_bytes": 859627,
+      "index_bytes": 57265,
+      "median_case_bytes": 73513,
+      "first_read_reduction_per_mille": 707,
+      "bundle_bytes": 31034527,
+      "page_raster_bytes": 18565041,
+      "case_packet_bytes": 11193552
+    }
+  ],
+  "target_met": false,
+  "target_note": "The 70% median reduction is a design target stated for mostly-native-text documents with local changes. The only input of that shape here is synthetic; the corpus needed to measure it is absent from this environment."
+}

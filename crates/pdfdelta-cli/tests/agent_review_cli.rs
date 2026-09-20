@@ -1006,13 +1006,18 @@ fn opposite_claims_about_one_reference_are_returned_as_a_conflict() {
         {
             continue;
         }
-        if let Some(reference) = shown["evidence"].as_array().and_then(|refs| refs.first()) {
-            let alias = format!(
-                "{}:{}",
-                reference["side"].as_str().expect("side"),
-                reference["alias"].as_str().expect("alias")
+        // A reference is written as one qualified alias, so a decision can
+        // quote it back exactly as the packet spelled it.
+        if let Some(reference) = shown["evidence"]
+            .as_array()
+            .and_then(|refs| refs.first())
+            .and_then(Value::as_str)
+        {
+            assert!(
+                reference.starts_with("old:") || reference.starts_with("new:"),
+                "{reference}"
             );
-            answerable.push((case.to_owned(), alias));
+            answerable.push((case.to_owned(), reference.to_owned()));
         }
     }
     let (case, reference) = answerable

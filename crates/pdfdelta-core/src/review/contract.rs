@@ -7,7 +7,7 @@
 
 use std::{collections::BTreeSet, fmt};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -149,24 +149,94 @@ impl Side {
     }
 }
 
-/// A side-tagged source reference with its bundle-local alias.
+/// A side-tagged source reference.
 ///
-/// The alias is display sugar for bounded output; [`EvidenceRef::source`]
-/// remains the authority. Source identifiers are execution-local, so an alias
-/// resolved against a different bundle is meaningless and must be rejected
-/// rather than reinterpreted.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// The reference is written as one qualified alias, `old:g31`, because the
+/// alias is derived from the source rather than assigned to it: the origin's
+/// letter and the identifier already say which evidence is meant. Keeping one
+/// spelling removes any chance of an alias and a source disagreeing, and keeps
+/// bounded output from repeating the same fact in two shapes.
+///
+/// Source identifiers are execution-local, so a reference resolved against a
+/// different bundle is meaningless and must be rejected, never reinterpreted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvidenceRef {
     pub side: Side,
-    pub alias: SourceAlias,
     pub source: SourceRef,
 }
 
 impl EvidenceRef {
-    /// Renders the `old:E31` form used in external assessments.
+    #[must_use]
+    pub const fn new(side: Side, source: SourceRef) -> Self {
+        Self { side, source }
+    }
+
+    /// The bundle-local alias of this reference's source.
+    ///
+    /// # Panics
+    /// Never: every rendering is ASCII alphanumeric within the identifier limit.
+    #[must_use]
+    pub fn alias(&self) -> SourceAlias {
+        let text = match self.source {
+            SourceRef::Native { glyph } => format!("g{}", glyph.0),
+            SourceRef::NativeVector { line } => format!("v{}", line.0),
+            SourceRef::Rendered { region } => format!("r{region}"),
+            SourceRef::Structured { element } => format!("s{element}"),
+        };
+        SourceAlias::new(text).expect("a derived source alias is a valid identifier")
+    }
+
+    /// Renders the `old:g31` form used everywhere a reference is written.
     #[must_use]
     pub fn qualified_alias(&self) -> String {
-        format!("{}:{}", self.side.label(), self.alias)
+        format!("{}:{}", self.side.label(), self.alias())
+    }
+
+    /// Reads back a qualified alias produced by [`EvidenceRef::qualified_alias`].
+    ///
+    /// # Errors
+    /// Returns the malformed text when the side, the origin letter, or the
+    /// identifier cannot be read. A reference is never guessed at.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let (side, alias) = text
+            .split_once(':')
+            .ok_or_else(|| format!("evidence reference {text:?} has no side"))?;
+        let side = match side {
+            "old" => Side::Old,
+            "new" => Side::New,
+            _ => return Err(format!("evidence reference {text:?} has an unknown side")),
+        };
+        let (origin, identifier) = alias.split_at(alias.len().min(1));
+        let identifier: u64 = identifier
+            .parse()
+            .map_err(|_| format!("evidence reference {text:?} has no identifier"))?;
+        let source = match origin {
+            "g" => SourceRef::Native {
+                glyph: crate::model::GlyphId(identifier),
+            },
+            "v" => SourceRef::NativeVector {
+                line: crate::model::VectorLineId(identifier),
+            },
+            "r" => SourceRef::Rendered { region: identifier },
+            "s" => SourceRef::Structured {
+                element: identifier,
+            },
+            _ => return Err(format!("evidence reference {text:?} has an unknown origin")),
+        };
+        Ok(Self { side, source })
+    }
+}
+
+impl Serialize for EvidenceRef {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.qualified_alias())
+    }
+}
+
+impl<'de> Deserialize<'de> for EvidenceRef {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Self::parse(&text).map_err(serde::de::Error::custom)
     }
 }
 
@@ -758,14 +828,44 @@ mod tests {
     }
 
     #[test]
-    fn evidence_alias_keeps_its_side() {
-        let reference = EvidenceRef {
-            side: Side::Old,
-            alias: SourceAlias::new("E31").expect("alias"),
-            source: SourceRef::Native {
+    fn evidence_references_round_trip_through_their_qualified_alias() {
+        for source in [
+            SourceRef::Native {
                 glyph: crate::model::GlyphId(31),
             },
-        };
-        assert_eq!(reference.qualified_alias(), "old:E31");
+            SourceRef::NativeVector {
+                line: crate::model::VectorLineId(4),
+            },
+            SourceRef::Rendered { region: 7 },
+            SourceRef::Structured { element: 7 },
+        ] {
+            for side in [Side::Old, Side::New] {
+                let reference = EvidenceRef::new(side, source);
+                let text = reference.qualified_alias();
+                assert_eq!(EvidenceRef::parse(&text).expect("round trip"), reference);
+            }
+        }
+        assert_eq!(
+            EvidenceRef::new(
+                Side::Old,
+                SourceRef::Native {
+                    glyph: crate::model::GlyphId(31)
+                }
+            )
+            .qualified_alias(),
+            "old:g31"
+        );
+        // A rendered region and a structured element with the same number are
+        // different evidence and keep different references.
+        assert_ne!(
+            EvidenceRef::new(Side::Old, SourceRef::Rendered { region: 7 }),
+            EvidenceRef::new(Side::Old, SourceRef::Structured { element: 7 })
+        );
+        for malformed in ["g31", "sideways:g1", "old:x1", "old:g", "old:gx"] {
+            assert!(
+                EvidenceRef::parse(malformed).is_err(),
+                "{malformed:?} must not be guessed at"
+            );
+        }
     }
 }

@@ -899,10 +899,17 @@ fn a_table_case_carries_its_row_and_repeated_occurrences_as_context() {
             || kinds.contains(&pdfdelta_core::review::ContextKind::TableRow),
         "the enclosing table structure is offered as context: {kinds:?}"
     );
-    // The duplicated cell text exists twice in the old revision; a reviewer
-    // must be able to see that equal text is not one element.
+    // The duplicated cell text exists twice in the old revision. When both
+    // occurrences belong to one case, the case's own text must still show both,
+    // so equal text is never collapsed into a single element.
+    let repeated = plan
+        .cases
+        .iter()
+        .filter_map(|case| case.old_text.as_ref())
+        .any(|text| text.text.matches("10 days").count() > 1);
+    let separated = kinds.contains(&pdfdelta_core::review::ContextKind::OtherOccurrence);
     assert!(
-        kinds.contains(&pdfdelta_core::review::ContextKind::OtherOccurrence),
-        "a repeated value is reported as another occurrence: {kinds:?}"
+        repeated || separated,
+        "a repeated value is either quoted twice or offered as another occurrence: {kinds:?}"
     );
 }

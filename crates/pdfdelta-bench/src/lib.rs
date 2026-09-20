@@ -1,3 +1,4 @@
+pub mod agent_review;
 pub mod candidate_eval;
 pub mod candidate_profile;
 pub mod canonical;

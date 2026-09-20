@@ -1141,14 +1141,51 @@ impl<'a> Planner<'a> {
                         }
                     }
                 }
-                for node in owners.keys().copied().collect::<Vec<_>>() {
+                // Unexamined material is grouped by page. Splitting it per
+                // view would assert boundaries the comparison never
+                // established, and would ask a reviewer the same question once
+                // per paragraph; the page is the smallest unit this evidence
+                // actually supports.
+                let mut by_page: BTreeMap<Option<PageId>, (Vec<NodeId>, BTreeSet<SourceRef>)> =
+                    BTreeMap::new();
+                for (node, sources) in owners {
+                    let page = self
+                        .node(side, node)
+                        .and_then(|node| node.pages.first().copied());
+                    let entry = by_page.entry(page).or_default();
+                    entry.0.push(node);
+                    entry.1.extend(sources);
+                }
+                for (page, (members, sources)) in by_page {
+                    // Members supply the quoted text and the located view; the
+                    // full source set travels as evidence either way, so the
+                    // obligation stays explained even when the text is bounded.
+                    let quoted: Vec<NodeId> = members
+                        .iter()
+                        .copied()
+                        .take(self.limits.max_members_per_case)
+                        .collect();
+                    if quoted.len() < members.len() {
+                        self.budget.stop(
+                            OmissionScope::Channel {
+                                channel: channel.channel,
+                            },
+                            OmissionKind::TextOmitted,
+                            Some(members.len() - quoted.len()),
+                        );
+                    }
                     let (old_nodes, new_nodes) = match side {
-                        Side::Old => (vec![node], Vec::new()),
-                        Side::New => (Vec::new(), vec![node]),
+                        Side::Old => (quoted, Vec::new()),
+                        Side::New => (Vec::new(), quoted),
+                    };
+                    let (extra_old, extra_new) = match side {
+                        Side::Old => (sources.into_iter().collect(), Vec::new()),
+                        Side::New => (Vec::new(), sources.into_iter().collect()),
                     };
                     let reasons = vec![
                         ReasonRecord::new(ReviewReason::DiscoveredButUnexamined)
-                            .with_channel(channel.channel),
+                            .with_channel(channel.channel)
+                            .with_page(page),
                     ];
                     let case = self.build_case(CaseDraft {
                         question: ReviewQuestion::ResolveCorrespondence,
@@ -1165,9 +1202,9 @@ impl<'a> Planner<'a> {
                         },
                         hypotheses: Vec::new(),
                         alternatives_total: None,
-                        extra_old: Vec::new(),
-                        extra_new: Vec::new(),
-                        location: None,
+                        extra_old,
+                        extra_new,
+                        location: Some((side, SideLocation::unknown(side).with_page(page))),
                     });
                     self.push(case);
                 }

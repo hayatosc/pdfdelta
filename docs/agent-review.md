@@ -339,6 +339,32 @@ both take a schema for the answer. Pin the host version you rely on, and keep
 that schema check separate from this program's own validation: a
 schema-conformant answer still has to name a real case and real evidence.
 
+## Auditing a bundle
+
+`pdfbench audit-agent-review --bundle ./run [--report report.json]
+[--host-usage usage.json]` checks the invariants a packet consumer depends on
+and measures what a review costs to read. It runs no model, calls no external
+service, and needs no network, so it can gate changes to this contract in
+ordinary CI. It exits non-zero when any invariant is violated.
+
+Findings are violated invariants — a digest that no longer matches, an index
+that disagrees with a packet, a case with no reason, a total reported for an
+enumeration that never closed, a picture offered for a page that was never
+published — not judgements about review quality.
+
+Costs are reported in bytes, which are exact. Tokens are not measured: a token
+count depends on a tokenizer and its version, and quoting one without naming
+them invites comparing figures produced by different instruments. A host's own
+usage record, when supplied, is carried through in its own section and never
+mixed with the byte figures.
+
+The unit that matters for a retrieval loop is the **first read**: the case index
+plus one median case. The bundle's total size is a disk cost, not an input cost,
+because a query's answer is capped by its own output budget and a loop stops
+once it can decide. Measurements on the inputs available here, including where
+the packet path costs more than handing over the text, are recorded in
+`benchmark/realworld/remaining/agent-review/packet-cost.md`.
+
 ## Trust boundary
 
 Document text, file names, extracted strings, candidate descriptions, and
