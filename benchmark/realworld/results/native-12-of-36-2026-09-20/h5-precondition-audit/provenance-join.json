@@ -1,0 +1,875 @@
+{
+  "pair": "edpb-restrictions-v1-to-final",
+  "source": "accepted HEAD capture + intrinsic prepare provenance",
+  "counts": {
+    "clean": 22,
+    "crossing_uncertain": 8,
+    "inferred_only": 80
+  },
+  "clean_candidates": [
+    {
+      "index": 33,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            213
+          ],
+          "text": "There "
+        },
+        {
+          "side": "new",
+          "blocks": [
+            215
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 34,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            213
+          ],
+          "text": "s also a requireme"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            215
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 35,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            213
+          ],
+          "text": " to d"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            215
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 36,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            213
+          ],
+          "text": "monst"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            215
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 37,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            213
+          ],
+          "text": "ate how any proposed inter"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            215
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 38,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            216
+          ],
+          "text": " "
+        },
+        {
+          "side": "new",
+          "blocks": [
+            218
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 39,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            218
+          ],
+          "text": ""
+        },
+        {
+          "side": "new",
+          "blocks": [
+            220
+          ],
+          "text": "20"
+        }
+      ]
+    },
+    {
+      "index": 40,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            218
+          ],
+          "text": "17"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            220
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 41,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            220
+          ],
+          "text": " "
+        },
+        {
+          "side": "new",
+          "blocks": [
+            222
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 42,
+      "kind": "deletion",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            237,
+            238
+          ],
+          "text": "In the same vein, restrictions entailing special categories "
+        }
+      ]
+    },
+    {
+      "index": 48,
+      "kind": "deletion",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            260,
+            261
+          ],
+          "text": "19 https://edpb.europa.eu/sites/edpb/files/consultation/edpb"
+        }
+      ]
+    },
+    {
+      "index": 49,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            266
+          ],
+          "text": "0"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            262
+          ],
+          "text": "4"
+        }
+      ]
+    },
+    {
+      "index": 50,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            266
+          ],
+          "text": "1"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            262
+          ],
+          "text": "5"
+        }
+      ]
+    },
+    {
+      "index": 51,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            268
+          ],
+          "text": ""
+        },
+        {
+          "side": "new",
+          "blocks": [
+            264
+          ],
+          "text": "26"
+        }
+      ]
+    },
+    {
+      "index": 52,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            268
+          ],
+          "text": "2"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            264
+          ],
+          "text": "7"
+        }
+      ]
+    },
+    {
+      "index": 53,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            276
+          ],
+          "text": "i"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            272
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 54,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            276
+          ],
+          "text": ""
+        },
+        {
+          "side": "new",
+          "blocks": [
+            272
+          ],
+          "text": "o"
+        }
+      ]
+    },
+    {
+      "index": 55,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            276
+          ],
+          "text": ""
+        },
+        {
+          "side": "new",
+          "blocks": [
+            272
+          ],
+          "text": "at would b"
+        }
+      ]
+    },
+    {
+      "index": 56,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            276
+          ],
+          "text": "re"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            272
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "index": 57,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            278
+          ],
+          "text": ""
+        },
+        {
+          "side": "new",
+          "blocks": [
+            274
+          ],
+          "text": "of "
+        }
+      ]
+    },
+    {
+      "index": 58,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            278
+          ],
+          "text": "3"
+        },
+        {
+          "side": "new",
+          "blocks": [
+            274
+          ],
+          "text": "8"
+        }
+      ]
+    },
+    {
+      "index": 60,
+      "kind": "deletion",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 0,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 2
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            313,
+            314
+          ],
+          "text": "Furthermore, where the legislatives measures imposing restri"
+        }
+      ]
+    }
+  ],
+  "crossing_examples": [
+    {
+      "index": 1,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 1,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 1
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            77
+          ],
+          "text": "."
+        },
+        {
+          "side": "new",
+          "blocks": [
+            88
+          ],
+          "text": "icle"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 1,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 1
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            77
+          ],
+          "text": "."
+        },
+        {
+          "side": "new",
+          "blocks": [
+            88
+          ],
+          "text": "icle"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "kind": "replacement",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 1,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 1
+      },
+      "occurrences": [
+        {
+          "side": "old",
+          "blocks": [
+            77
+          ],
+          "text": ""
+        },
+        {
+          "side": "new",
+          "blocks": [
+            88
+          ],
+          "text": " the"
+        }
+      ]
+    },
+    {
+      "index": 83,
+      "kind": "insertion",
+      "reasons": [
+        "unknown_reading_order",
+        "inferred_reading_order",
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "outcome": "tentative",
+      "state": {
+        "uncertain": 4,
+        "inferred": 0,
+        "issues": 0,
+        "missing": 0,
+        "clean": 0
+      },
+      "occurrences": [
+        {
+          "side": "new",
+          "blocks": [
+            12,
+            13,
+            14,
+            15
+          ],
+          "text": "Version Table Version 1.0 Version 2.0 Version 2.1"
+        }
+      ]
+    }
+  ]
+}

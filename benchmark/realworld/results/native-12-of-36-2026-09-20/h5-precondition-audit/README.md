@@ -8,21 +8,29 @@ only as an explicitly dependent combined mechanism.
 
 ## Method
 
-On the accepted HEAD (H4 removed), all 110 `change_candidates` of
-`edpb-restrictions-v1-to-final` were mapped onto the unresolved regions that
-contain their span blocks, and each block was classified by the evidence
-recorded on those regions: `reading_order_unknown`, `reading_order_inferred`,
-`normalization_issue`, `extraction_gap`, or none (`clean`).
+A first pass mapped candidates onto unresolved-region evidence labels. That
+was circular: a coarse forced span over the whole window makes every subrange
+appear to touch order evidence. The corrected method joins each candidate span
+block to the *intrinsic* prepare-time provenance (per-block layout reason code,
+uncertain/inferred flags, normalization issue count, trusted-run interval),
+recorded with the temporary `PDFDELTA_H5_DEBUG` diagnostic on the accepted
+source.
 
-## Result
+## Result (raw provenance, accepted HEAD)
 
-Every candidate has **both** the `unknown` and `inferred` states on its span
-blocks:
-
-| span block states | candidates |
+| span block provenance | candidates |
 | --- | ---: |
-| `inferred`, `unknown` | 110 |
-| without `unknown` or `inferred` | 0 |
+| all blocks trusted, not inferred, no normalization issues (`clean`) | 22 |
+| blocks inside inferred order only | 80 |
+| at least one intrinsically order-uncertain block | 8 |
+
+The 110 candidates split into 22/80/8. So a clean trusted precondition does
+exist: e.g. candidate 33 pairs old block 213 (`There `) with new block 215
+(empty), and both blocks are intrinsically trusted and issue-free. Today the
+reasons still name all four labels because `inspect_source_reasons` adds
+`NormalizationUncertainty` when *any* block in the document has issues, and
+`touches_barrier` uses coarse alignment-span ranges, so the single forced
+window over the document intersects every key.
 
 Example fragments whose blocks are all inside those regions:
 
@@ -39,20 +47,27 @@ order-uncertain or inferred regions, and `domain_not_closed` would still hold.
 
 ## Consequence for H5
 
-- Standalone H5 has no beneficiary and will not be implemented.
-- H4 and H5 are dependent in one direction: H4's alignment-level recovery is a
-  necessary prerequisite for any candidate whose spans can be called trusted.
-  Because H4 alone produced no content coverage (its own rejection record),
-  the combined mechanism may only be attempted together with a proof that the
-  *post-H4* spans are trusted, source-bounded and free of intersecting
-  order/normalization evidence, and with the required negatives (touching or
-  crossing an uncertain block, repeated text inside an uncertain competitor,
-  normalization issue inside the claimed span, evidence or work exhaustion).
-- Until that proof is demonstrated, the accepted source stays unchanged and
-  the next cause must be chosen from the remaining ranking rather than from an
-  unproven exemption.
+- H5 has a real precondition set: 22 candidates whose span blocks are
+  intrinsically trusted and issue-free. Clearing the propagated order and
+  normalization reasons for exactly those spans is a sound per-span rule
+  (equivalent to the existing local-domain preconditions), while the 80
+  inferred-only and 8 crossing-uncertain candidates keep their barriers.
+- Two propagated sources must be corrected with intrinsic evidence:
+  `inspect_source_reasons` adding `NormalizationUncertainty` globally, and
+  `touches_barrier` intersecting coarse span ranges instead of the key's own
+  blocks. `domain_not_closed` remains a separate ownership question and must
+  be proven by closure, not declared.
+- The required negatives stay: a candidate touching or crossing an
+  intrinsically uncertain block keeps the barrier (8 candidates), inferred
+  order is not promoted to exact (80 candidates), a normalization issue inside
+  the span keeps the barrier, and work/budget exhaustion fails closed.
+- H4's fine-grained alignment output is a likely prerequisite for closure on
+  the 22 clean candidates, but the intrinsic rule above must be justified by
+  fixtures and real measurement before combining.
 
 ## Files
 
-- `candidate-states.json` — full histogram and example candidates with their
-  span blocks, texts and recorded reasons.
+- `provenance-join.json` — per-candidate intrinsic provenance (trusted /
+  inferred / uncertain / normalization issue counts), clean candidate details
+  and crossing examples. The earlier circular `candidate-states.json` was
+  removed; its downstream-label histogram is superseded by this join.
