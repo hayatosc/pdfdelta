@@ -1062,3 +1062,53 @@ fn opposite_claims_about_one_reference_are_returned_as_a_conflict() {
         "{answer}"
     );
 }
+
+#[test]
+fn a_text_answer_spends_its_budget_on_text_rather_than_identifiers() {
+    let directory = TestDirectory::new();
+    let bundle = text_bundle(&directory, "bundle");
+    let case = first_case(&bundle);
+    let shown = run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        &case,
+        "--detail",
+        "text",
+        "--max-output-bytes",
+        "16384",
+    ]);
+    let response = json(&shown);
+
+    let quoted: usize = ["old_text", "new_text"]
+        .iter()
+        .filter_map(|side| response[*side]["text"].as_str())
+        .map(str::len)
+        .sum();
+    let listed = response["evidence"].as_array().expect("evidence").len();
+    let total = response["evidence_total"].as_u64().expect("evidence total") as usize;
+
+    assert!(
+        listed <= 16,
+        "an answer lists a bounded number of references"
+    );
+    assert_eq!(
+        total - listed,
+        response["omitted"].as_u64().expect("omitted") as usize,
+        "what the answer left out is counted, not hidden"
+    );
+    assert!(
+        quoted > 0,
+        "a decidable case quotes the text it is asking about"
+    );
+    // A reviewer decides from the quoted text; identifiers must not crowd it
+    // out of the answer.
+    let identifiers = serde_json::to_string(&response["evidence"])
+        .expect("evidence")
+        .len();
+    assert!(
+        identifiers <= quoted.max(512),
+        "references took {identifiers} bytes against {quoted} bytes of text"
+    );
+}

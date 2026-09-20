@@ -362,9 +362,15 @@ mixed with the byte figures.
 The unit that matters for a retrieval loop is the **first read**: the case index
 plus one median case. The bundle's total size is a disk cost, not an input cost,
 because a query's answer is capped by its own output budget and a loop stops
-once it can decide. Measurements on the inputs available here, including where
-the packet path costs more than handing over the text, are recorded in
-`benchmark/realworld/remaining/agent-review/packet-cost.md`.
+once it can decide.
+
+Measured on the registered corpus in tokens, triaging the first ten cases costs
+about a quarter of what handing over both documents' text costs — a 75% median
+reduction — while reading every case costs about 2.5 times the full text. The
+packet path is a way to start a review and to stop honestly, not a cheaper way
+to read everything, and on a short document pasting the text is the better move.
+The measurement, its caveats, and the response-budget fix it forced are in
+`benchmark/realworld/remaining/agent-review/corpus-token-measurement.md`.
 
 ## Trust boundary
 

@@ -193,9 +193,13 @@ stores nothing, and the bundle itself is never modified.
 
 `pdfbench audit-agent-review` gates the contract in ordinary CI: it checks the
 packet invariants and measures what a review costs to read, in bytes, without
-running a model or calling any external service. The measured results, including
-the inputs where a packet costs more than handing over the text, are recorded
-under [`benchmark/realworld/remaining/agent-review/`](benchmark/realworld/remaining/agent-review/).
+running a model or calling any external service. Measured on the registered
+real-world corpus, triaging the first ten cases costs about a quarter of the
+tokens that handing over both documents' text costs, while reading every case
+costs about 2.5 times the full text; on a short document, pasting the text is
+cheaper than reviewing it this way. The measurements and their caveats are
+recorded under
+[`benchmark/realworld/remaining/agent-review/`](benchmark/realworld/remaining/agent-review/).
 
 Exporting a bundle changes no comparison field, no coverage count, and no exit
 status, and an external reviewer's answer is never merged into the engine's

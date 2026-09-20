@@ -52,6 +52,6 @@
       "case_packet_bytes": 11193552
     }
   ],
-  "target_met": false,
-  "target_note": "The 70% median reduction is a design target stated for mostly-native-text documents with local changes. The only input of that shape here is synthetic; the corpus needed to measure it is absent from this environment."
+  "target_met": null,
+  "target_note": "Superseded by corpus-token-measurement.json, which measures the corpus in tokens: triage reaches a 75.1% median reduction, full review costs 2.55x the full text."
 }

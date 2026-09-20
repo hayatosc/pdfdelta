@@ -1,0 +1,339 @@
+{
+  "schema": "agent-review-corpus-measurement/v1",
+  "corpus": "benchmark/realworld/manifest.tsv",
+  "pairs_registered": 29,
+  "pairs_downloaded_and_verified": 25,
+  "pairs_unreachable": [
+    "edpb-right-of-access-v1-to-final",
+    "bis-operational-risk-2011-to-2021",
+    "bis-core-principles-2012-to-2024",
+    "khronos-data-format-1-3-to-1-4"
+  ],
+  "route": [
+    "--channels",
+    "text"
+  ],
+  "limit_scale": "per-pair manifest hint",
+  "capture_timeout_seconds": 180,
+  "pairs_with_a_bundle": 16,
+  "pairs_timed_out": 7,
+  "pairs_execution_error": 2,
+  "pairs_complete_comparison": 0,
+  "tokenizer": "tiktoken/0.14.0:cl100k_base",
+  "tokenizer_note": "An estimate produced by a named third-party tokenizer over the same extraction on both sides of every comparison. It is not any host's reported usage and not Claude's tokenizer.",
+  "list_budget_bytes": 8192,
+  "show_budget_bytes": 16384,
+  "triage_cases": 10,
+  "triage_layer_pairs": 11,
+  "triage_median_ratio": 0.249,
+  "triage_median_reduction_percent": 75.1,
+  "triage_median_ratio_before_response_fix": 1.111,
+  "full_review_median_ratio": 2.55,
+  "pairs": [
+    {
+      "pair": "gcc-13-3-to-13-4",
+      "glyphs": 0,
+      "compared": 0,
+      "cases": 369,
+      "answerable": 0,
+      "visual": 368,
+      "full": 2160629,
+      "report": 256597,
+      "L0": 2055,
+      "triage_before": 4676,
+      "triage": 4736,
+      "review_before": 133670,
+      "review": 135884,
+      "questions": {
+        "acquisition_gap": 1,
+        "interpret_visual_region": 368
+      }
+    },
+    {
+      "pair": "unicode-standard-15-to-16",
+      "glyphs": 0,
+      "compared": 0,
+      "cases": 658,
+      "answerable": 0,
+      "visual": 657,
+      "full": 1255715,
+      "report": 306223,
+      "L0": 2055,
+      "triage_before": 4676,
+      "triage": 4736,
+      "review_before": null,
+      "review": null,
+      "questions": {
+        "acquisition_gap": 1,
+        "interpret_visual_region": 657
+      }
+    },
+    {
+      "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+      "glyphs": 1275571,
+      "compared": 62,
+      "cases": 200,
+      "answerable": 11,
+      "visual": 187,
+      "full": 246808,
+      "report": 906532,
+      "L0": 1974,
+      "triage_before": 4580,
+      "triage": 4640,
+      "review_before": 82358,
+      "review": 75431,
+      "questions": {
+        "acquisition_gap": 1,
+        "interpret_visual_region": 187,
+        "resolve_correspondence": 12
+      }
+    },
+    {
+      "pair": "oecd-corporate-governance-2015-to-2023",
+      "glyphs": 325621,
+      "compared": 383,
+      "cases": 155,
+      "answerable": 150,
+      "visual": 4,
+      "full": 56334,
+      "report": 452188,
+      "L0": 2084,
+      "triage_before": 38190,
+      "triage": 8869,
+      "review_before": 560385,
+      "review": 136106,
+      "questions": {
+        "compare_content": 23,
+        "interpret_visual_region": 4,
+        "resolve_correspondence": 128
+      }
+    },
+    {
+      "pair": "qgis-doc-guidelines-es-328-to-334",
+      "glyphs": 153934,
+      "compared": 99520,
+      "cases": 177,
+      "answerable": 174,
+      "visual": 2,
+      "full": 47211,
+      "report": 1647388,
+      "L0": 2007,
+      "triage_before": 35316,
+      "triage": 9995,
+      "review_before": 357299,
+      "review": 109903,
+      "questions": {
+        "compare_content": 11,
+        "interpret_visual_region": 2,
+        "resolve_correspondence": 164
+      }
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "glyphs": 194276,
+      "compared": 376,
+      "cases": 98,
+      "answerable": 97,
+      "visual": 0,
+      "full": 44882,
+      "report": 567684,
+      "L0": 2169,
+      "triage_before": 41428,
+      "triage": 9324,
+      "review_before": 467444,
+      "review": 92187,
+      "questions": {
+        "resolve_correspondence": 98
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "glyphs": 169936,
+      "compared": 48562,
+      "cases": 149,
+      "answerable": 148,
+      "visual": 0,
+      "full": 44041,
+      "report": 1061491,
+      "L0": 2096,
+      "triage_before": 24314,
+      "triage": 7691,
+      "review_before": 533818,
+      "review": 112317,
+      "questions": {
+        "compare_content": 26,
+        "resolve_correspondence": 123
+      }
+    },
+    {
+      "pair": "oasis-odf-packages-v1-2-to-v1-3",
+      "glyphs": 151953,
+      "compared": 30793,
+      "cases": 104,
+      "answerable": 103,
+      "visual": 0,
+      "full": 33062,
+      "report": 732029,
+      "L0": 2108,
+      "triage_before": 36748,
+      "triage": 8237,
+      "review_before": 396967,
+      "review": 81047,
+      "questions": {
+        "compare_content": 17,
+        "resolve_correspondence": 87
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "glyphs": 123129,
+      "compared": 73742,
+      "cases": 120,
+      "answerable": 118,
+      "visual": 1,
+      "full": 26852,
+      "report": 579360,
+      "L0": 2095,
+      "triage_before": 25031,
+      "triage": 6690,
+      "review_before": 238754,
+      "review": 72386,
+      "questions": {
+        "compare_content": 4,
+        "interpret_visual_region": 1,
+        "resolve_correspondence": 115
+      }
+    },
+    {
+      "pair": "kicad-getting-started-7-to-8",
+      "glyphs": 116544,
+      "compared": 17220,
+      "cases": 87,
+      "answerable": 87,
+      "visual": 0,
+      "full": 23251,
+      "report": 1247678,
+      "L0": 2145,
+      "triage_before": 48823,
+      "triage": 11659,
+      "review_before": 408034,
+      "review": 70584,
+      "questions": {
+        "resolve_correspondence": 87
+      }
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "glyphs": 25918,
+      "compared": 9684,
+      "cases": 10,
+      "answerable": 10,
+      "visual": 0,
+      "full": 20181,
+      "report": 164786,
+      "L0": 1067,
+      "triage_before": 44577,
+      "triage": 16397,
+      "review_before": 44577,
+      "review": 16397,
+      "questions": {
+        "compare_content": 1,
+        "resolve_correspondence": 9
+      }
+    },
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "glyphs": 66921,
+      "compared": 40204,
+      "cases": 105,
+      "answerable": 104,
+      "visual": 0,
+      "full": 19784,
+      "report": 554670,
+      "L0": 2133,
+      "triage_before": 42549,
+      "triage": 8720,
+      "review_before": 144983,
+      "review": 61873,
+      "questions": {
+        "resolve_correspondence": 105
+      }
+    },
+    {
+      "pair": "hmrc-sa100-2023-to-2024",
+      "glyphs": 33137,
+      "compared": 24173,
+      "cases": 37,
+      "answerable": 32,
+      "visual": 4,
+      "full": 8059,
+      "report": 523260,
+      "L0": 2073,
+      "triage_before": 17815,
+      "triage": 6027,
+      "review_before": 61996,
+      "review": 21079,
+      "questions": {
+        "interpret_visual_region": 4,
+        "resolve_correspondence": 33
+      }
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "glyphs": 16990,
+      "compared": 9152,
+      "cases": 36,
+      "answerable": 35,
+      "visual": 0,
+      "full": 4247,
+      "report": 136753,
+      "L0": 2159,
+      "triage_before": 25065,
+      "triage": 7088,
+      "review_before": 40984,
+      "review": 19588,
+      "questions": {
+        "resolve_correspondence": 36
+      }
+    },
+    {
+      "pair": "qgis-pyqgis-ja-328-to-334",
+      "glyphs": 28,
+      "compared": 0,
+      "cases": 402,
+      "answerable": 1,
+      "visual": 355,
+      "full": 10,
+      "report": 148657,
+      "L0": 2022,
+      "triage_before": 5002,
+      "triage": 5062,
+      "review_before": null,
+      "review": null,
+      "questions": {
+        "acquisition_gap": 46,
+        "interpret_visual_region": 355,
+        "resolve_correspondence": 1
+      }
+    },
+    {
+      "pair": "postgresql-16-to-17",
+      "glyphs": 0,
+      "compared": 0,
+      "cases": 357,
+      "answerable": 0,
+      "visual": 356,
+      "full": 0,
+      "report": 617483,
+      "L0": 2053,
+      "triage_before": 4664,
+      "triage": 4724,
+      "review_before": 129024,
+      "review": 131166,
+      "questions": {
+        "acquisition_gap": 1,
+        "interpret_visual_region": 356
+      }
+    }
+  ]
+}

@@ -50,11 +50,12 @@ The packet path saves input only when there is a document to be saved from.
   the comparison resolved nothing at all — the saving comes from reading one
   page's worth of material instead of eighty.
 
-The design target of a 70% median reduction remains a target, not a result. It
-was stated for documents that are mostly native text with local changes, and the
-only input here of that shape is synthetic. Measuring it properly needs the
-non-vendored corpus, which is absent from this environment for the same reason
-the baseline in `baseline.md` could not be reproduced here.
+The design target of a 70% median reduction has since been measured against the
+registered corpus rather than against these fixtures, in tokens rather than
+bytes: see `corpus-token-measurement.md`. Triage reaches a 75.1% median
+reduction there; reviewing every case costs 2.55× the full text. The byte
+figures in this file remain the fixture-scale picture and are superseded by that
+measurement wherever the two disagree.
 
 ## What the export costs on disk
 

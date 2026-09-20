@@ -85,6 +85,16 @@ const CASE_INDEX: &str = "cases/index.json";
 /// Smallest response budget that can carry an envelope plus one record.
 pub(crate) const MIN_OUTPUT_BYTES: usize = 512;
 
+/// Evidence references a text answer carries.
+///
+/// A reviewer decides from the quoted text, not from a list of glyph
+/// identifiers; a decision cites references the case holds, which validation
+/// checks against the stored case rather than against what a response showed.
+/// Filling the remaining budget with identifiers would spend it on the least
+/// decision-relevant field in the answer, so the list is capped and the
+/// remainder is declared.
+const MAX_TEXT_VIEW_EVIDENCE: usize = 16;
+
 /// Detail levels this build can actually serve.
 ///
 /// The planner describes what a case could be asked for in principle. This list
@@ -745,6 +755,7 @@ fn text_view(
     let encoded: Vec<serde_json::Value> = case
         .evidence
         .iter()
+        .take(MAX_TEXT_VIEW_EVIDENCE)
         .map(serde_json::to_value)
         .collect::<Result<_, _>>()
         .map_err(|error| QueryError::new("encoding_failed", error.to_string()))?;
@@ -765,7 +776,8 @@ fn text_view(
         taken += 1;
     }
     envelope["evidence"] = serde_json::Value::Array(encoded[..taken].to_vec());
-    envelope["omitted"] = (encoded.len() - taken).into();
+    envelope["evidence_total"] = case.evidence.len().into();
+    envelope["omitted"] = (case.evidence.len() - taken).into();
     finish(envelope, cap)
 }
 
