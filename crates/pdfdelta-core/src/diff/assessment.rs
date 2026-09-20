@@ -642,11 +642,141 @@ fn block_scalar_boundary(text: &crate::normalize::MappedText, token_boundary: us
     token_boundary - start
 }
 
+/// One discovery pass's cache of checked normalization issue ranges.
+///
+/// The cache borrows the two sides it belongs to and indexes every entry by
+/// that side's own block index, so an entry can never be reused by another
+/// side, another comparison or another block. Each entry stores the exact
+/// result of `BlockText::checked_normalization_issue_ranges`: the complete
+/// validated ranges, or the fact that the validation failed. A failed
+/// validation keeps its issue veto and is never treated as an empty issue
+/// list.
+struct SourceIssueCache<'a> {
+    sides: [SourceIssueCacheSide<'a>; 2],
+}
+
+/// One side's entry table. The table borrows its side, so the entries cannot
+/// outlive the side and cannot be used for another comparison.
+struct SourceIssueCacheSide<'a> {
+    side: &'a Side<'a>,
+    entries: Vec<Option<CachedIssueRanges>>,
+}
+
+/// The exact result of one checked issue-range validation.
+enum CachedIssueRanges {
+    /// The complete validated issue ranges of the block.
+    Ranges(Vec<ScalarRange>),
+    /// The validation failed; the block keeps its issue veto.
+    Invalid,
+}
+
+impl<'a> SourceIssueCache<'a> {
+    /// Reserves one entry per block on each side for one discovery pass.
+    ///
+    /// Returns `Ok(None)` when the shared work budget cannot cover the bounded
+    /// per-block reservation; the caller then returns an empty discovery and
+    /// confirms no new domain. Nothing is stored before the reservation is
+    /// paid, so an exhausted budget never becomes a cached result.
+    ///
+    /// # Errors
+    ///
+    /// Returns the assessment allocation error when an entry table cannot be
+    /// reserved.
+    fn new(sides: [&'a Side<'a>; 2], remaining: &mut usize) -> Result<Option<Self>> {
+        let mut cache = Self {
+            sides: [
+                SourceIssueCacheSide {
+                    side: sides[0],
+                    entries: Vec::new(),
+                },
+                SourceIssueCacheSide {
+                    side: sides[1],
+                    entries: Vec::new(),
+                },
+            ],
+        };
+        for (index, side) in sides.into_iter().enumerate() {
+            if !charge(remaining, side.blocks.len()) {
+                return Ok(None);
+            }
+            let entries = &mut cache.sides[index].entries;
+            entries
+                .try_reserve_exact(side.blocks.len())
+                .map_err(|_| allocation_error("source issue cache entries"))?;
+            entries.resize_with(side.blocks.len(), || None);
+        }
+        Ok(Some(cache))
+    }
+
+    /// The entry table of one side.
+    fn side(&mut self, index: usize) -> &mut SourceIssueCacheSide<'a> {
+        &mut self.sides[index]
+    }
+}
+
+/// Cached variant of [`span_has_source_issues`] for one discovery pass.
+///
+/// The cache carries its own side, so the veto is always evaluated against
+/// that side and the entries can never be reused for another side or another
+/// comparison.
+fn span_has_source_issues_cached(
+    cache: &mut SourceIssueCacheSide<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+) -> Result<bool> {
+    let side = cache.side;
+    span_has_source_issues_inner(side, span, remaining, Some(cache))
+}
+
 fn span_has_source_issues(side: &Side<'_>, span: &TextSpan, remaining: &mut usize) -> Result<bool> {
+    span_has_source_issues_inner(side, span, remaining, None)
+}
+
+/// Shared source-issue veto with an optional per-block cache.
+///
+/// The uncached call keeps the original contract: the full pre-validation
+/// charge is paid before every checked validation. A cached call pays one
+/// bounded lookup, pays the full pre-validation charge only on the first
+/// validation of a block, and pays a bounded overlap scan on a hit. Every
+/// budget failure reports "has issues" and stores nothing, so an exhausted
+/// budget never becomes a cached valid or invalid result.
+fn span_has_source_issues_inner(
+    side: &Side<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+    mut cache: Option<&mut SourceIssueCacheSide>,
+) -> Result<bool> {
     for interval in project(side, span)? {
         let block = &side.blocks[interval.block_index];
         if block.issues.is_empty() {
             continue;
+        }
+        if let Some(cache) = cache.as_deref() {
+            match cache.entries[interval.block_index].as_ref() {
+                Some(CachedIssueRanges::Invalid) => {
+                    // The validation already failed; the bounded lookup is
+                    // charged and the veto stands either way.
+                    let _charged = charge(remaining, 1);
+                    return Ok(true);
+                }
+                Some(CachedIssueRanges::Ranges(ranges)) => {
+                    // A hit pays the lookup, the range scan and the two
+                    // binary searches over the canonical unmapped table.
+                    if !charge(remaining, overlap_scan_cost(ranges, &block.canonical)) {
+                        return Ok(true);
+                    }
+                    if issue_ranges_overlap(ranges, &block.canonical, &interval) {
+                        return Ok(true);
+                    }
+                    continue;
+                }
+                None => {
+                    // A miss pays the bounded lookup before validating.
+                    if !charge(remaining, 1) {
+                        return Ok(true);
+                    }
+                }
+            }
         }
         let source_items = block
             .raw
@@ -663,32 +793,76 @@ fn span_has_source_issues(side: &Side<'_>, span: &TextSpan, remaining: &mut usiz
         ) {
             return Ok(true);
         }
-        let Ok(issues) = block.checked_normalization_issue_ranges() else {
+        let Ok(ranges) = block.checked_normalization_issue_ranges() else {
+            if let Some(cache) = cache.as_deref_mut()
+                && charge(remaining, 1)
+            {
+                cache.entries[interval.block_index] = Some(CachedIssueRanges::Invalid);
+            }
             return Ok(true);
         };
-        let canonical_start = block_scalar_boundary(&block.canonical, interval.start);
-        let canonical_end = block_scalar_boundary(&block.canonical, interval.end);
-        if issues.iter().any(|issue| {
-            let start = if issue.start == issue.end {
-                issue.start.saturating_sub(1)
-            } else {
-                issue.start
-            };
-            let end = if issue.start == issue.end {
-                issue.end.saturating_add(1)
-            } else {
-                issue.end
-            };
-            if canonical_start == canonical_end {
-                start <= canonical_start && canonical_start <= end
-            } else {
-                start < canonical_end && canonical_start < end
+        let has_issues = issue_ranges_overlap(&ranges, &block.canonical, &interval);
+        if let Some(cache) = cache.as_deref_mut() {
+            // Insertion and retained memory are charged; a failed charge
+            // stores nothing and holds the veto.
+            if !charge(remaining, ranges.len().saturating_add(1)) {
+                return Ok(true);
             }
-        }) {
+            cache.entries[interval.block_index] = Some(CachedIssueRanges::Ranges(ranges));
+        }
+        if has_issues {
             return Ok(true);
         }
     }
     Ok(false)
+}
+
+/// Bounded cost of one cached overlap scan: the lookup, the range scan and
+/// the two binary searches over the canonical unmapped-token table.
+///
+/// One `block_scalar_boundary` search runs at most `floor(log2(n)) + 1`
+/// iterations over `n` unmapped tokens (zero iterations for `n == 0`), so the
+/// charge follows the real loop bound instead of a lower approximation.
+fn overlap_scan_cost(ranges: &[ScalarRange], canonical: &crate::normalize::MappedText) -> usize {
+    let unmapped = canonical.unmapped.len();
+    let searches = if unmapped == 0 {
+        0
+    } else {
+        unmapped.ilog2() as usize + 1
+    };
+    ranges
+        .len()
+        .saturating_add(1)
+        .saturating_add(searches.saturating_mul(2))
+}
+
+/// Exact original overlap test between one block's issue ranges and one
+/// projected interval, including the zero-length range and empty canonical
+/// interval rules.
+fn issue_ranges_overlap(
+    ranges: &[ScalarRange],
+    canonical: &crate::normalize::MappedText,
+    interval: &SourceInterval,
+) -> bool {
+    let canonical_start = block_scalar_boundary(canonical, interval.start);
+    let canonical_end = block_scalar_boundary(canonical, interval.end);
+    ranges.iter().any(|issue| {
+        let start = if issue.start == issue.end {
+            issue.start.saturating_sub(1)
+        } else {
+            issue.start
+        };
+        let end = if issue.start == issue.end {
+            issue.end.saturating_add(1)
+        } else {
+            issue.end
+        };
+        if canonical_start == canonical_end {
+            start <= canonical_start && canonical_start <= end
+        } else {
+            start < canonical_end && canonical_start < end
+        }
+    })
 }
 
 fn record_boundary(

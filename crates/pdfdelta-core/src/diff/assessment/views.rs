@@ -150,6 +150,9 @@ pub(super) fn discover(
     if *remaining_work == 0 || sides.iter().any(|side| side.blocks.is_empty()) {
         return Ok(Discovery::default());
     }
+    let Some(mut issue_cache) = super::SourceIssueCache::new(sides, remaining_work)? else {
+        return Ok(Discovery::default());
+    };
 
     let old_descriptors = recovery
         .old_trusted_run_evidence
@@ -201,8 +204,8 @@ pub(super) fn discover(
             .group
             .span(anchor.new_start, anchor.new_end);
         if !compatible_roles(sides, [&old_span, &new_span], remaining_work)?
-            || super::span_has_source_issues(sides[0], &old_span, remaining_work)?
-            || super::span_has_source_issues(sides[1], &new_span, remaining_work)?
+            || super::span_has_source_issues_cached(issue_cache.side(0), &old_span, remaining_work)?
+            || super::span_has_source_issues_cached(issue_cache.side(1), &new_span, remaining_work)?
         {
             continue;
         }
@@ -212,10 +215,12 @@ pub(super) fn discover(
             .push(anchor);
     }
     for (input_index, (old_anchor, new_anchor)) in exact_anchors.iter().enumerate() {
-        let Some(old_tokens) = anchor_tokens(sides[0], old_anchor, remaining_work)? else {
+        let Some(old_tokens) = anchor_tokens(old_anchor, remaining_work, issue_cache.side(0))?
+        else {
             continue;
         };
-        let Some(new_tokens) = anchor_tokens(sides[1], new_anchor, remaining_work)? else {
+        let Some(new_tokens) = anchor_tokens(new_anchor, remaining_work, issue_cache.side(1))?
+        else {
             continue;
         };
         if old_tokens.is_empty() || new_tokens.is_empty() {
@@ -325,14 +330,23 @@ pub(super) fn discover(
         };
         let separated =
             !compatible_roles(sides, [&domain.old_span, &domain.new_span], remaining_work)?
-                || super::span_has_source_issues(sides[0], &domain.old_span, remaining_work)?
-                || super::span_has_source_issues(sides[1], &domain.new_span, remaining_work)?;
+                || super::span_has_source_issues_cached(
+                    issue_cache.side(0),
+                    &domain.old_span,
+                    remaining_work,
+                )?
+                || super::span_has_source_issues_cached(
+                    issue_cache.side(1),
+                    &domain.new_span,
+                    remaining_work,
+                )?;
         let parts = if separated {
             let Some(parts) = split_at_barriers(
                 sides,
                 [&old_views[pair.0], &new_views[pair.1]],
                 &anchors,
                 remaining_work,
+                &mut issue_cache,
             )?
             else {
                 return Ok(Discovery::default());
@@ -343,8 +357,16 @@ pub(super) fn discover(
         };
         for domain in parts {
             if !compatible_roles(sides, [&domain.old_span, &domain.new_span], remaining_work)?
-                || super::span_has_source_issues(sides[0], &domain.old_span, remaining_work)?
-                || super::span_has_source_issues(sides[1], &domain.new_span, remaining_work)?
+                || super::span_has_source_issues_cached(
+                    issue_cache.side(0),
+                    &domain.old_span,
+                    remaining_work,
+                )?
+                || super::span_has_source_issues_cached(
+                    issue_cache.side(1),
+                    &domain.new_span,
+                    remaining_work,
+                )?
             {
                 continue;
             }
@@ -430,6 +452,7 @@ pub(super) fn discover(
         remaining_work,
         &mut localized,
         max_ranges,
+        &mut issue_cache,
     )?;
     localized.sort_unstable_by_key(|(key, _)| *key);
     localized.truncate(max_ranges);
@@ -679,6 +702,7 @@ fn positioned_equalities(
     remaining: &mut usize,
     domains: &mut Vec<SortedDomain>,
     limit: usize,
+    issue_cache: &mut super::SourceIssueCache<'_>,
 ) -> Result<bool> {
     // Map every source block to the view that contains it.
     let mut view_of_block = [
@@ -964,8 +988,8 @@ fn positioned_equalities(
                 continue;
             }
             if !compatible_roles(sides, [&old_span, &new_span], remaining)?
-                || super::span_has_source_issues(sides[0], &old_span, remaining)?
-                || super::span_has_source_issues(sides[1], &new_span, remaining)?
+                || super::span_has_source_issues_cached(issue_cache.side(0), &old_span, remaining)?
+                || super::span_has_source_issues_cached(issue_cache.side(1), &new_span, remaining)?
             {
                 continue;
             }
@@ -3348,6 +3372,7 @@ fn split_at_barriers(
     views: [&View; 2],
     anchors: &[AnchorHit],
     remaining: &mut usize,
+    issue_cache: &mut super::SourceIssueCache<'_>,
 ) -> Result<Option<Vec<LocalDomain>>> {
     let mut parts = Vec::new();
     let mut current: Option<LocalDomain> = None;
@@ -3368,8 +3393,16 @@ fn split_at_barriers(
                 source_bounded: views[0].source_bounded && views[1].source_bounded,
             };
             if compatible_roles(sides, [&combined.old_span, &combined.new_span], remaining)?
-                && !super::span_has_source_issues(sides[0], &combined.old_span, remaining)?
-                && !super::span_has_source_issues(sides[1], &combined.new_span, remaining)?
+                && !super::span_has_source_issues_cached(
+                    issue_cache.side(0),
+                    &combined.old_span,
+                    remaining,
+                )?
+                && !super::span_has_source_issues_cached(
+                    issue_cache.side(1),
+                    &combined.new_span,
+                    remaining,
+                )?
             {
                 current = Some(combined);
                 continue;
@@ -4183,10 +4216,11 @@ fn charge_group(remaining_work: &mut usize, group: &GroupText) -> bool {
 }
 
 fn anchor_tokens(
-    side: &Side<'_>,
     span: &TextSpan,
     remaining_work: &mut usize,
+    issue_cache: &mut super::SourceIssueCacheSide<'_>,
 ) -> Result<Option<Vec<ComparableToken>>> {
+    let side = issue_cache.side;
     let mut seen = HashSet::new();
     if span.blocks.is_empty()
         || span
@@ -4196,7 +4230,7 @@ fn anchor_tokens(
     {
         return Ok(None);
     }
-    if super::span_has_source_issues(side, span, remaining_work)? {
+    if super::span_has_source_issues_cached(issue_cache, span, remaining_work)? {
         return Ok(None);
     }
     let group = side.canonical_group(&span.blocks, span.separator);
@@ -10571,5 +10605,438 @@ mod tests {
         assert_eq!(domains.len(), 1);
         assert_eq!(domains[0].old_span, span(&[1, 2], 2, 3));
         assert_eq!(domains[0].new_span, span(&[101, 102], 2, 3));
+    }
+
+    /// One issue-carrying block and one plain block for the cache tests.
+    fn issue_side_blocks() -> [crate::normalize::BlockText; 2] {
+        [raw_issue_block(1, 10.0, 680.0, 0), block(2, "plain")]
+    }
+
+    /// A block with one leading issue and `unmapped_count` canonical unmapped
+    /// tokens after the single scalar, used to pin the binary-search bound.
+    fn unmapped_issue_block(id: u64, unmapped_count: usize) -> crate::normalize::BlockText {
+        let first = GlyphId(id * 1000 + 1);
+        let source_map = vec![SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(first)].into(),
+            },
+        }];
+        let unmapped = (0..unmapped_count)
+            .map(|index| crate::normalize::UnmappedToken {
+                scalar_index: 1,
+                font_hash: crate::model::FontProgramHash(vec![u8::try_from(index).unwrap_or(0)]),
+                glyph_id: 9,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(
+                        id * 1000 + 10 + index as u64,
+                    ))]
+                    .into(),
+                },
+            })
+            .collect();
+        let canonical = MappedText {
+            text: "A".to_owned(),
+            source_map: source_map.clone(),
+            unmapped,
+        };
+        let tokens = canonical
+            .comparable_tokens()
+            .expect("unmapped issue tokens");
+        crate::normalize::BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: "A".to_owned(),
+            matching_tokens: tokens,
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: vec![crate::normalize::NormalizationIssue {
+                kind: crate::normalize::NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 0, end: 1 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(first)].into(),
+                },
+            }],
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    /// A whole block whose normalization issue projects to the leading glyph
+    /// instead of the retained line break.
+    fn leading_issue_block(id: u64, x: f64, y: f64, page: u32) -> crate::normalize::BlockText {
+        let mut block = raw_issue_block(id, x, y, page);
+        block.issues[0].raw_range = ScalarRange { start: 0, end: 1 };
+        block.issues[0].source = TextSource {
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(id * 1000 + 1))].into(),
+        };
+        block
+    }
+
+    #[test]
+    fn source_issue_cache_matches_uncached_veto() -> Result<()> {
+        let blocks = issue_side_blocks();
+        let side = side(&blocks);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        for (start, end) in [(0, 4), (0, 1), (0, 3), (1, 4), (3, 4)] {
+            let span = span(&[1], start, end);
+            let uncached = super::super::span_has_source_issues(&side, &span, &mut 1_000_000)?;
+            let cached =
+                super::super::span_has_source_issues_cached(cache.side(0), &span, &mut 1_000_000)?;
+            assert_eq!(cached, uncached, "span {start}..{end} must agree");
+        }
+        // The plain block neither vetoes nor stores an entry.
+        let plain = span(&[2], 0, 5);
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &plain,
+            &mut 1_000_000,
+        )?);
+        assert!(cache.side(0).entries[1].is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_hit_decides_where_uncached_exhausts() -> Result<()> {
+        let blocks = issue_side_blocks();
+        let side = side(&blocks);
+        let span = span(&[1], 0, 1);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut 1_000_000,
+        )?);
+        // A hit pays the bounded lookup and overlap scan only.
+        let mut hit_budget = 4;
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut hit_budget,
+        )?);
+        assert_eq!(hit_budget, 2, "a hit charges the lookup and the scan");
+        // The same budget cannot pay the uncached pre-validation charge.
+        let mut uncached_budget = 4;
+        assert!(super::super::span_has_source_issues(
+            &side,
+            &span,
+            &mut uncached_budget,
+        )?);
+        assert_eq!(uncached_budget, 0);
+        // A hit whose scan charge fails still holds the veto.
+        let mut tiny = 1;
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut tiny,
+        )?);
+        assert_eq!(tiny, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_insertion_failure_holds_without_storing() -> Result<()> {
+        let blocks = issue_side_blocks();
+        let side = side(&blocks);
+        let span = span(&[1], 0, 1);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        // The lookup and the pre-validation charge are paid, the completed
+        // validation says "no overlap", but the insertion charge cannot be
+        // paid: the budget failure must hold the veto and store nothing.
+        let mut budget = 39;
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut budget,
+        )?);
+        assert_eq!(budget, 0);
+        assert!(
+            cache.side(0).entries[0].is_none(),
+            "a failed insertion must store nothing"
+        );
+        // The uncached path has no insertion step and decides the same range.
+        let mut budget = 39;
+        assert!(!super::super::span_has_source_issues(
+            &side,
+            &span,
+            &mut budget,
+        )?);
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_failed_invalid_insertion_stores_nothing() -> Result<()> {
+        let mut blocks = issue_side_blocks();
+        blocks[0].issues[0].source = TextSource {
+            atoms: Vec::new().into(),
+        };
+        let side = side(&blocks);
+        let span = span(&[1], 0, 1);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        // The lookup and the pre-validation charge are paid, the validation
+        // fails, and the Invalid insertion charge cannot be paid.
+        let mut budget = 39;
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut budget,
+        )?);
+        assert_eq!(budget, 0);
+        assert!(cache.side(0).entries[0].is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_does_not_store_on_budget_failure() -> Result<()> {
+        let blocks = issue_side_blocks();
+        let side = side(&blocks);
+        let span = span(&[1], 0, 1);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        let mut miss_budget = 4;
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut miss_budget,
+        )?);
+        assert!(
+            cache.side(0).entries[0].is_none(),
+            "an exhausted miss must not store a result"
+        );
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut 1_000_000,
+        )?);
+        assert!(cache.side(0).entries[0].is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_separates_sides_with_the_same_block_id() -> Result<()> {
+        let old_blocks = [raw_issue_block(1, 10.0, 680.0, 0)];
+        let new_blocks = [leading_issue_block(1, 10.0, 680.0, 0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut cache = super::super::SourceIssueCache::new([&old, &new], &mut 1_000_000)?
+            .expect("cache is affordable");
+        // The same span overlaps the old issue (canonical 2..3) but not the
+        // new issue (canonical 0..1).
+        let same_range = span(&[1], 1, 3);
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &same_range,
+            &mut 1_000_000,
+        )?);
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(1),
+            &same_range,
+            &mut 1_000_000,
+        )?);
+        assert!(matches!(
+            cache.side(0).entries[0],
+            Some(super::super::CachedIssueRanges::Ranges(_))
+        ));
+        assert!(matches!(
+            cache.side(1).entries[0],
+            Some(super::super::CachedIssueRanges::Ranges(_))
+        ));
+        // Priming the new side must not change the old side's verdict, and
+        // each table keeps its own ranges.
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(1),
+            &same_range,
+            &mut 1_000_000,
+        )?);
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &same_range,
+            &mut 1_000_000,
+        )?);
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_separates_blocks() -> Result<()> {
+        let blocks = [
+            raw_issue_block(1, 10.0, 680.0, 0),
+            leading_issue_block(2, 10.0, 660.0, 0),
+        ];
+        let side = side(&blocks);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        let trailing = span(&[1], 1, 3);
+        let leading = span(&[2], 1, 3);
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &trailing,
+            &mut 1_000_000,
+        )?);
+        assert!(!super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &leading,
+            &mut 1_000_000,
+        )?);
+        assert!(matches!(
+            cache.side(0).entries[0],
+            Some(super::super::CachedIssueRanges::Ranges(_))
+        ));
+        assert!(matches!(
+            cache.side(0).entries[1],
+            Some(super::super::CachedIssueRanges::Ranges(_))
+        ));
+        // The primed trailing block never leaks its verdict into the leading
+        // block; both ranges stay separate.
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &trailing,
+            &mut 1_000_000,
+        )?);
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_cache_keeps_failed_validation_veto() -> Result<()> {
+        let mut blocks = issue_side_blocks();
+        blocks[0].issues[0].source = TextSource {
+            atoms: Vec::new().into(),
+        };
+        let side = side(&blocks);
+        let span = span(&[1], 0, 1);
+        assert!(super::super::span_has_source_issues(
+            &side,
+            &span,
+            &mut 1_000_000,
+        )?);
+        let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+            .expect("cache is affordable");
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut 1_000_000,
+        )?);
+        assert!(matches!(
+            cache.side(0).entries[0],
+            Some(super::super::CachedIssueRanges::Invalid)
+        ));
+        // The cached failure still vetoes without revalidating.
+        let mut tiny = 1;
+        assert!(super::super::span_has_source_issues_cached(
+            cache.side(0),
+            &span,
+            &mut tiny,
+        )?);
+        assert_eq!(tiny, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn source_issue_overlap_keeps_zero_length_and_empty_interval_rules() {
+        let canonical = mapped("ABC");
+        let interval = super::super::SourceInterval {
+            block_index: 0,
+            start: 1,
+            end: 3,
+        };
+        assert!(super::super::issue_ranges_overlap(
+            &[ScalarRange { start: 2, end: 2 }],
+            &canonical,
+            &interval,
+        ));
+        assert!(!super::super::issue_ranges_overlap(
+            &[ScalarRange { start: 5, end: 5 }],
+            &canonical,
+            &interval,
+        ));
+        assert!(!super::super::issue_ranges_overlap(
+            &[ScalarRange { start: 3, end: 4 }],
+            &canonical,
+            &interval,
+        ));
+        // An interval over only an unmapped token has equal scalar
+        // boundaries; a zero-length issue at that boundary still overlaps.
+        let canonical = MappedText {
+            text: "A".to_owned(),
+            source_map: vec![SourceMapEntry {
+                output_range: ScalarRange { start: 0, end: 1 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(1))].into(),
+                },
+            }],
+            unmapped: vec![crate::normalize::UnmappedToken {
+                scalar_index: 1,
+                font_hash: crate::model::FontProgramHash(vec![1]),
+                glyph_id: 9,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(2))].into(),
+                },
+            }],
+        };
+        let interval = super::super::SourceInterval {
+            block_index: 0,
+            start: 1,
+            end: 2,
+        };
+        assert!(super::super::issue_ranges_overlap(
+            &[ScalarRange { start: 1, end: 1 }],
+            &canonical,
+            &interval,
+        ));
+        assert!(!super::super::issue_ranges_overlap(
+            &[ScalarRange { start: 3, end: 3 }],
+            &canonical,
+            &interval,
+        ));
+    }
+
+    #[test]
+    fn source_issue_cache_scan_cost_covers_unmapped_searches() -> Result<()> {
+        let range = [ScalarRange { start: 0, end: 1 }];
+        assert_eq!(
+            super::super::overlap_scan_cost(&range, &mapped("ABC")),
+            2,
+            "no unmapped token runs no binary search"
+        );
+        for (unmapped_count, searches) in [(2usize, 2usize), (4, 3)] {
+            let blocks = [unmapped_issue_block(1, unmapped_count)];
+            let side = side(&blocks);
+            let expected = super::super::overlap_scan_cost(&range, &side.blocks[0].canonical);
+            assert_eq!(
+                expected,
+                2 + searches * 2,
+                "n={unmapped_count} must charge the real loop bound"
+            );
+            let mut cache = super::super::SourceIssueCache::new([&side, &side], &mut 1_000_000)?
+                .expect("cache is affordable");
+            // Prime a non-overlapping entry so the hit path decides by itself.
+            cache.side(0).entries[0] =
+                Some(super::super::CachedIssueRanges::Ranges(vec![ScalarRange {
+                    start: 5,
+                    end: 6,
+                }]));
+            let span = span(&[1], 0, 1);
+            let mut budget = expected - 1;
+            assert!(
+                super::super::span_has_source_issues_cached(cache.side(0), &span, &mut budget)?,
+                "n={unmapped_count} must hold on a short scan budget"
+            );
+            assert_eq!(budget, 0);
+            let mut budget = expected;
+            assert!(
+                !super::super::span_has_source_issues_cached(cache.side(0), &span, &mut budget)?,
+                "n={unmapped_count} must decide with the full scan cost"
+            );
+            assert_eq!(budget, 0);
+        }
+        Ok(())
     }
 }
