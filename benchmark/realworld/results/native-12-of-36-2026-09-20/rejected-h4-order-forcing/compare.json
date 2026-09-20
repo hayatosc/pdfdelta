@@ -1,0 +1,230 @@
+[
+  {
+    "pair": "irs-schedule-se-2024-to-2025",
+    "status": "captured",
+    "driver_exit_code": 0,
+    "wall_seconds": 7.17,
+    "complete": true,
+    "vacuous": false,
+    "status_text": "detected",
+    "changes": 12,
+    "unresolved": 0,
+    "candidates": 0,
+    "proven": 0,
+    "old_coverage": {
+      "resolved_tokens": 5485,
+      "total_tokens": 5485,
+      "ratio": 1.0
+    },
+    "new_coverage": {
+      "resolved_tokens": 5502,
+      "total_tokens": 5502,
+      "ratio": 1.0
+    },
+    "baseline": {
+      "complete": true,
+      "changes": 12,
+      "unresolved": 0,
+      "candidates": 0,
+      "proven": 0,
+      "old_resolved": 5485,
+      "new_resolved": 5502
+    },
+    "delta": {
+      "old_resolved": 0,
+      "new_resolved": 0,
+      "unresolved": 0,
+      "changes": 0
+    }
+  },
+  {
+    "pair": "irs-schedule-c-2024-to-2025",
+    "status": "captured",
+    "driver_exit_code": 0,
+    "wall_seconds": 8.97,
+    "complete": false,
+    "vacuous": false,
+    "status_text": "detected",
+    "changes": 11,
+    "unresolved": 19,
+    "candidates": 4,
+    "proven": 0,
+    "old_coverage": {
+      "resolved_tokens": 6619,
+      "total_tokens": 6774,
+      "ratio": 0.9771183938588721
+    },
+    "new_coverage": {
+      "resolved_tokens": 6634,
+      "total_tokens": 6780,
+      "ratio": 0.9784660766961651
+    },
+    "baseline": {
+      "complete": false,
+      "changes": 11,
+      "unresolved": 19,
+      "candidates": 4,
+      "proven": 0,
+      "old_resolved": 6619,
+      "new_resolved": 6634
+    },
+    "delta": {
+      "old_resolved": 0,
+      "new_resolved": 0,
+      "unresolved": 0,
+      "changes": 0
+    }
+  },
+  {
+    "pair": "edpb-restrictions-v1-to-final",
+    "status": "captured",
+    "driver_exit_code": 0,
+    "wall_seconds": 62.49,
+    "complete": false,
+    "vacuous": false,
+    "status_text": "indeterminate",
+    "changes": 0,
+    "unresolved": 1234,
+    "candidates": 110,
+    "proven": 0,
+    "old_coverage": {
+      "resolved_tokens": 0,
+      "total_tokens": 53297,
+      "ratio": 0.0
+    },
+    "new_coverage": {
+      "resolved_tokens": 0,
+      "total_tokens": 56965,
+      "ratio": 0.0
+    },
+    "baseline": {
+      "complete": false,
+      "changes": 0,
+      "unresolved": 1234,
+      "candidates": 110,
+      "proven": 0,
+      "old_resolved": 0,
+      "new_resolved": 0
+    },
+    "delta": {
+      "old_resolved": 0,
+      "new_resolved": 0,
+      "unresolved": 0,
+      "changes": 0
+    }
+  },
+  {
+    "pair": "edpb-design-default-v1-to-v2",
+    "status": "captured",
+    "driver_exit_code": 0,
+    "wall_seconds": 92.03,
+    "complete": false,
+    "vacuous": false,
+    "status_text": "indeterminate",
+    "changes": 0,
+    "unresolved": 1755,
+    "candidates": 460,
+    "proven": 0,
+    "old_coverage": {
+      "resolved_tokens": 0,
+      "total_tokens": 81344,
+      "ratio": 0.0
+    },
+    "new_coverage": {
+      "resolved_tokens": 0,
+      "total_tokens": 94542,
+      "ratio": 0.0
+    },
+    "baseline": {
+      "complete": false,
+      "changes": 0,
+      "unresolved": 1755,
+      "candidates": 460,
+      "proven": 0,
+      "old_resolved": 0,
+      "new_resolved": 0
+    },
+    "delta": {
+      "old_resolved": 0,
+      "new_resolved": 0,
+      "unresolved": 0,
+      "changes": 0
+    }
+  },
+  {
+    "pair": "faa-thunderstorms-b-to-c",
+    "status": "captured",
+    "driver_exit_code": 0,
+    "wall_seconds": 11.82,
+    "complete": true,
+    "vacuous": false,
+    "status_text": "detected",
+    "changes": 286,
+    "unresolved": 0,
+    "candidates": 0,
+    "proven": 0,
+    "old_coverage": {
+      "resolved_tokens": 0,
+      "total_tokens": 0,
+      "ratio": 1.0
+    },
+    "new_coverage": {
+      "resolved_tokens": 27731,
+      "total_tokens": 27731,
+      "ratio": 1.0
+    },
+    "baseline": {
+      "complete": true,
+      "changes": 286,
+      "unresolved": 0,
+      "candidates": 0,
+      "proven": 0,
+      "old_resolved": 0,
+      "new_resolved": 27731
+    },
+    "delta": {
+      "old_resolved": 0,
+      "new_resolved": 0,
+      "unresolved": 0,
+      "changes": 0
+    }
+  },
+  {
+    "pair": "bunka-kana-1946-to-1986",
+    "status": "captured",
+    "driver_exit_code": 0,
+    "wall_seconds": 2.62,
+    "complete": true,
+    "vacuous": false,
+    "status_text": "detected",
+    "changes": 525,
+    "unresolved": 0,
+    "candidates": 0,
+    "proven": 0,
+    "old_coverage": {
+      "resolved_tokens": 0,
+      "total_tokens": 0,
+      "ratio": 1.0
+    },
+    "new_coverage": {
+      "resolved_tokens": 5484,
+      "total_tokens": 5484,
+      "ratio": 1.0
+    },
+    "baseline": {
+      "complete": true,
+      "changes": 525,
+      "unresolved": 0,
+      "candidates": 0,
+      "proven": 0,
+      "old_resolved": 0,
+      "new_resolved": 5484
+    },
+    "delta": {
+      "old_resolved": 0,
+      "new_resolved": 0,
+      "unresolved": 0,
+      "changes": 0
+    }
+  }
+]
