@@ -202,10 +202,22 @@ pub fn write_output_atomically(
         .is_some_and(|extension| extension.eq_ignore_ascii_case("gz"));
     let prepare_result = (|| {
         if compressed {
+            // Batch the many small serializer writes into bounded chunks
+            // before they reach the compressor. The buffer holds only pending
+            // uncompressed bytes in memory; no plaintext file is created.
             let mut encoder = GzEncoder::new(&mut temporary_file, Compression::default());
-            let write_result = write(&mut encoder);
+            let mut buffered = BufWriter::with_capacity(64 * 1024, &mut encoder);
+            let write_result = write(&mut buffered);
+            let flush_result = buffered.flush();
+            drop(buffered);
             let finish_result = encoder.finish();
             write_result?;
+            flush_result.map_err(|error| {
+                format!(
+                    "cannot flush compressed {output_kind} for {}: {error}",
+                    output_path.display()
+                )
+            })?;
             finish_result.map_err(|error| {
                 format!(
                     "cannot finish compressed {output_kind} for {}: {error}",

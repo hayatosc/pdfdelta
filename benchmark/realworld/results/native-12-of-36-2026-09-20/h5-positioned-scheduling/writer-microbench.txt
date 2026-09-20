@@ -1,0 +1,10 @@
+   Compiling pdfdelta-cli v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-cli)
+    Finished `release` profile [optimized] target(s) in 12.67s
+     Running unittests src/main.rs (target/release/deps/pdfdelta-e004d62a55864a84)
+
+running 1 test
+H5BENCH plain=0.526s 195308B hash=0x734392bbbf222325 buffered=0.159s 195314B hash=0x734392bbbf222325
+test fs::compressed_output_tests::writer_batching_microbench ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 86 filtered out; finished in 0.85s
+

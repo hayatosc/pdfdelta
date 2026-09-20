@@ -132,3 +132,36 @@ plaintext because they are small durable evidence; the large-report path
 existing 128 MiB summary limit into a removed temporary file. Future captures
 default to compression and retention; final acceptance runs are pinned before
 the final two-run evaluation.
+
+## Buffered pre-encoder writer
+
+Compressing at report creation exposed a throughput regression: the atomic
+writer handed the serializer directly to `GzEncoder`, so every small `serde`
+write crossed the compressor boundary. The buffered writer wraps the encoder in
+a 64 KiB `BufWriter` before writes, keeping only pending uncompressed bytes in
+memory and creating no plaintext file. The compression level is unchanged.
+
+Evidence (`h5-positioned-scheduling/writer-microbench.txt`):
+
+- 64 MiB of 64-byte writes: plain `0.526s`, buffered `0.159s` (about 3.3x);
+  decoded FNV hash `0x734392bbbf222325` identical for both paths.
+- Six default-limit pairs that timed out at 180s with the unbuffered writer
+  complete with the buffered one: `edpb-controller-processor-v1-to-v2-1`
+  (34.1s), `nist-authentication-63b-to-63b4` (88.7s),
+  `nist-incident-handling-r2-to-r3` (40.8s),
+  `mext-upper-secondary-japanese-2009-to-2018` (18.3s),
+  `nist-risk-management-37-r1-to-r2` (57.7s),
+  `nist-risk-assessment-30-to-r1` (11.5s).
+- `cargo test -p pdfdelta-cli --bin pdfdelta compressed_output` covers the
+  encoded destination, plain destination, and the writer-batching microbench.
+
+## Current cache snapshot (2026-09-21)
+
+- `benchmark/realworld/cache`: 5.1 GiB; `/dev/sdd` has 856 GiB available;
+  retention target for disposable completed runs is 7.3 GiB.
+- The one-time plaintext migration saved 53,232,736,462 bytes (49.58 GiB).
+  That figure is historical and separate from the current cache size, which
+  already includes captures made after the migration.
+- `h2-full-iteration-002-native` stays pinned as the accepted reference;
+  `h5-final-iteration-005-native` is pinned as rejected evidence carrying the
+  W2 retention proof, so rotation cannot erase it.
