@@ -231,6 +231,25 @@ pub enum ReviewCommand {
         max_output_bytes: usize,
     },
 
+    /// Produce local images for one case from the bundle's retained pages.
+    Render {
+        /// The bundle directory written by `--agent-review`.
+        #[arg(value_name = "DIR")]
+        directory: PathBuf,
+
+        /// Case identifier from a listing.
+        #[arg(long, value_name = "CASE")]
+        case: String,
+
+        /// New directory to write the images into.
+        #[arg(long, value_name = "DIR")]
+        output: PathBuf,
+
+        /// Hard cap on the encoded JSON response, including its metadata.
+        #[arg(long, value_name = "BYTES", default_value_t = 16384, value_parser = parse_output_budget)]
+        max_output_bytes: usize,
+    },
+
     /// Read one case at one detail level.
     Show {
         /// The bundle directory written by `--agent-review`.
@@ -257,14 +276,16 @@ pub enum ReviewCommand {
 
 /// Detail levels this build serves.
 ///
-/// Context and visual retrieval are not implemented yet and are therefore not
-/// offered here rather than accepted and answered with a stub.
+/// Visual retrieval is served by `review render` rather than by a detail level,
+/// so it is not offered here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReviewDetail {
     /// Identity, question, location, and what the case still needs.
     Index,
     /// The question, both sides' retained text, reasons, and evidence.
     Text,
+    /// Enclosing headings, neighbours, table structure, and other occurrences.
+    Context,
     /// The competing hypotheses.
     Alternatives,
 }
@@ -274,6 +295,7 @@ impl From<ReviewDetail> for pdfdelta_core::review::Detail {
         match detail {
             ReviewDetail::Index => Self::Index,
             ReviewDetail::Text => Self::Text,
+            ReviewDetail::Context => Self::Context,
             ReviewDetail::Alternatives => Self::Alternatives,
         }
     }
@@ -697,12 +719,26 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_detail_levels_are_not_offered() {
-        // Context and visual retrieval do not exist yet, so the parser rejects
-        // them rather than accepting a request nothing can answer.
+    fn unserved_detail_levels_are_not_offered() {
+        let context = Cli::try_parse_from([
+            "pdfdelta", "review", "show", "bundle", "--case", "R17", "--detail", "context",
+        ])
+        .expect("context retrieval is served");
+        assert!(matches!(
+            context.command,
+            Some(Command::Review {
+                action: ReviewCommand::Show {
+                    detail: ReviewDetail::Context,
+                    ..
+                }
+            })
+        ));
+
+        // Images are produced by `review render`, so `--detail visual` is not
+        // a request this parser accepts.
         assert!(
             Cli::try_parse_from([
-                "pdfdelta", "review", "show", "bundle", "--case", "R17", "--detail", "context",
+                "pdfdelta", "review", "show", "bundle", "--case", "R17", "--detail", "visual",
             ])
             .is_err()
         );

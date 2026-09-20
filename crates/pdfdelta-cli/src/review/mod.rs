@@ -98,15 +98,12 @@ pub(super) fn write(
                     &format!("{side}-region-{}.png", region.id),
                     &mut remaining,
                     |out| {
-                        let mut encoder =
-                            png::Encoder::new(out, region.raster.width, region.raster.height);
-                        encoder.set_color(png::ColorType::Rgb);
-                        encoder.set_depth(png::BitDepth::Eight);
-                        let mut writer = encoder.write_header().map_err(io::Error::other)?;
-                        writer
-                            .write_image_data(&region.raster.rgb)
-                            .map_err(io::Error::other)?;
-                        writer.finish().map_err(io::Error::other)
+                        bundle::write_png(
+                            out,
+                            region.raster.width,
+                            region.raster.height,
+                            &region.raster.rgb,
+                        )
                     },
                 )?);
             }

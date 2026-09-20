@@ -545,7 +545,7 @@ fn document_text_stays_data_and_never_becomes_an_instruction_or_a_path() {
         let name = entry.expect("entry").file_name();
         let name = name.to_string_lossy().into_owned();
         assert!(
-            ["old.pdf", "new.pdf", "manifest.json", "cases"].contains(&name.as_str()),
+            ["old.pdf", "new.pdf", "manifest.json", "cases", "pages"].contains(&name.as_str()),
             "unexpected published artifact {name:?}"
         );
     }
@@ -582,5 +582,182 @@ fn document_text_stays_data_and_never_becomes_an_instruction_or_a_path() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn rendering_cuts_pictures_from_the_pages_the_comparison_retained() {
+    let directory = TestDirectory::new();
+    let (old, new) = fixture(&directory);
+    let bundle = directory.join("bundle");
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    let mut rendered_any = false;
+    for case in json(&listed)["cases"].as_array().expect("cases") {
+        let case = case["case"].as_str().expect("case id");
+        let output = directory.join(&format!("images-{case}"));
+        let answer = run(&[
+            "review",
+            "render",
+            bundle.to_str().expect("path"),
+            "--case",
+            case,
+            "--output",
+            output.to_str().expect("path"),
+        ]);
+        assert_eq!(answer.status.code(), Some(0), "{}", stderr(&answer));
+        let answer = json(&answer);
+        for image in answer["images"].as_array().expect("images") {
+            rendered_any = true;
+            let path = Path::new(image["path"].as_str().expect("path"));
+            let bytes = fs::read(path).expect("the written image");
+            assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "a real PNG is written");
+            assert!(image["width"].as_u64().expect("width") > 0);
+            assert!(
+                ["crop", "page_overview"].contains(&image["purpose"].as_str().expect("purpose")),
+                "{image}"
+            );
+            // The profile the picture came from travels with it.
+            assert!(
+                image["backend"]
+                    .as_str()
+                    .expect("backend")
+                    .contains("72dpi"),
+                "{image}"
+            );
+        }
+        for missing in answer["unavailable"].as_array().expect("unavailable") {
+            assert!(missing["reason"].as_str().is_some(), "{missing}");
+        }
+    }
+    assert!(
+        rendered_any,
+        "the fixture has at least one case with a page to picture"
+    );
+}
+
+#[test]
+fn rendering_refuses_an_existing_destination_and_a_modified_page() {
+    let directory = TestDirectory::new();
+    let (old, new) = fixture(&directory);
+    let bundle = directory.join("bundle");
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    let case = json(&listed)["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .map(|case| case["case"].as_str().expect("case id").to_owned())
+        .next()
+        .expect("a case");
+
+    let existing = directory.join("existing");
+    fs::create_dir(&existing).expect("existing directory");
+    let refused = run(&[
+        "review",
+        "render",
+        bundle.to_str().expect("path"),
+        "--case",
+        &case,
+        "--output",
+        existing.to_str().expect("path"),
+    ]);
+    assert_eq!(refused.status.code(), Some(2));
+    assert_eq!(json(&refused)["error"], "invalid_destination");
+
+    // A page raster edited after publication is refused rather than cut up.
+    let mut edited = 0;
+    for entry in fs::read_dir(bundle.join("pages")).expect("pages") {
+        let path = entry.expect("entry").path();
+        if path.extension().is_some_and(|kind| kind == "png") {
+            let mut bytes = fs::read(&path).expect("page bytes");
+            let last = bytes.len() - 1;
+            bytes[last] ^= 0xff;
+            fs::write(&path, bytes).expect("edited page");
+            edited += 1;
+        }
+    }
+    assert!(edited > 0, "the bundle published a page to edit");
+    let mut refusals = 0;
+    for case in json(&listed)["cases"].as_array().expect("cases") {
+        let case = case["case"].as_str().expect("case id");
+        let tampered = run(&[
+            "review",
+            "render",
+            bundle.to_str().expect("path"),
+            "--case",
+            case,
+            "--output",
+            directory
+                .join(&format!("images-{case}"))
+                .to_str()
+                .expect("path"),
+        ]);
+        if json(&tampered)["error"] == "tampered_bundle" {
+            refusals += 1;
+        }
+    }
+    assert!(
+        refusals > 0,
+        "a case that needs an edited page must be refused"
+    );
+}
+
+#[test]
+fn a_contract_without_rasters_advertises_no_pictures_and_reports_them_missing() {
+    let directory = TestDirectory::new();
+    let (old, new) = fixture(&directory);
+    let bundle = directory.join("native-bundle");
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--native-text-only",
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+    assert!(
+        !bundle.join("pages").exists(),
+        "a text-only contract publishes no page rasters"
+    );
+
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    for case in json(&listed)["cases"].as_array().expect("cases") {
+        assert_ne!(
+            case["next"]["action"].as_str(),
+            Some("render"),
+            "no picture is offered where none was retained"
+        );
     }
 }

@@ -37,6 +37,10 @@ pub struct PlannerLimits {
     pub max_text_scalars: usize,
     /// Retained sources per side of a case.
     pub max_sources_per_case: usize,
+    /// Structural context items gathered per side of a case.
+    pub max_labels_per_case: usize,
+    /// How far context gathering walks up the containment hierarchy.
+    pub max_context_depth: usize,
 }
 
 impl Default for PlannerLimits {
@@ -48,15 +52,20 @@ impl Default for PlannerLimits {
             max_hypotheses_per_case: 16,
             max_text_scalars: 4_096,
             max_sources_per_case: 4_096,
+            max_labels_per_case: 16,
+            max_context_depth: 8,
         }
     }
 }
 
 /// A planned bundle: the index and the cases it indexes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ReviewPlan {
     pub manifest: AgentReviewManifest,
     pub cases: Vec<ReviewCase>,
+    /// Surrounding structure per case, kept apart from the cases themselves so
+    /// a caller pays for it only when it asks.
+    pub contexts: Vec<super::CaseContext>,
 }
 
 impl ReviewPlan {
@@ -64,6 +73,12 @@ impl ReviewPlan {
     #[must_use]
     pub fn case(&self, case: &CaseId) -> Option<&ReviewCase> {
         self.cases.iter().find(|entry| &entry.case_id == case)
+    }
+
+    /// Looks up one case's gathered context.
+    #[must_use]
+    pub fn context(&self, case: &CaseId) -> Option<&super::CaseContext> {
+        self.contexts.iter().find(|entry| &entry.case_id == case)
     }
 }
 
@@ -418,6 +433,7 @@ pub(super) fn review_text(
 
 /// Everything a finished projection hands to assembly.
 pub(super) struct Assembly<'a> {
+    pub contexts: Vec<super::CaseContext>,
     pub identity: BundleIdentity,
     pub outcome: EngineOutcome,
     pub channels: &'a BTreeSet<Channel>,
@@ -431,6 +447,7 @@ pub(super) struct Assembly<'a> {
 /// Final assembly: order the cases, census them, and build the index.
 pub(super) fn assemble(assembly: Assembly<'_>, budget: &Budget) -> ReviewPlan {
     let Assembly {
+        contexts,
         identity,
         outcome,
         channels,
@@ -502,7 +519,16 @@ pub(super) fn assemble(assembly: Assembly<'_>, budget: &Budget) -> ReviewPlan {
         ],
         next: RetrievalAction::List { cursor: None },
     };
-    ReviewPlan { manifest, cases }
+    let retained: BTreeSet<_> = cases.iter().map(|case| case.case_id.clone()).collect();
+    ReviewPlan {
+        manifest,
+        cases,
+        // Context for a case the budget dropped would describe nothing.
+        contexts: contexts
+            .into_iter()
+            .filter(|context| retained.contains(&context.case_id))
+            .collect(),
+    }
 }
 
 #[cfg(test)]

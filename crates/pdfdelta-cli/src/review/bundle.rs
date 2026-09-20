@@ -138,6 +138,24 @@ pub(crate) fn file(
     })
 }
 
+/// Writes one lossless RGB raster as a PNG.
+///
+/// The samples are the ones the comparison retained; nothing is resampled,
+/// so a published page is the same observation the engine examined.
+pub(crate) fn write_png(
+    out: &mut dyn Write,
+    width: u32,
+    height: u32,
+    rgb: &[u8],
+) -> io::Result<()> {
+    let mut encoder = png::Encoder::new(out, width, height);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().map_err(io::Error::other)?;
+    writer.write_image_data(rgb).map_err(io::Error::other)?;
+    writer.finish().map_err(io::Error::other)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

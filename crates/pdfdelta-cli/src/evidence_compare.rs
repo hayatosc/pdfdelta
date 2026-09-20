@@ -356,6 +356,7 @@ pub fn compare(
                 name: new_input.path,
                 bytes: new_bytes,
             },
+            &page_rasters(&old, &new),
         )?;
     }
     if let Some(directory) = output.review_dir {
@@ -492,6 +493,46 @@ pub fn compare(
         ],
     );
     Ok((if !complete { 3 } else { u8::from(changes > 0) }, !complete))
+}
+
+/// The composited page rasters this run retained, ready to publish.
+///
+/// These are the samples the comparison examined, in the profile the renderer
+/// declared; nothing is re-rendered for the bundle.
+fn page_rasters<'a>(
+    old: &'a EvidenceStore,
+    new: &'a EvidenceStore,
+) -> Vec<crate::agent_review::PageRaster<'a>> {
+    use pdfdelta_core::review::Side;
+
+    let mut rasters = Vec::new();
+    for (side, store) in [(Side::Old, old), (Side::New, new)] {
+        for region in store
+            .rendered
+            .iter()
+            .filter(|region| region.composited_page)
+        {
+            let backend = store.backends.get(region.backend).map_or_else(
+                || "unknown".to_owned(),
+                |backend| format!("{}/{}/{}", backend.name, backend.version, backend.profile),
+            );
+            rasters.push(crate::agent_review::PageRaster {
+                side,
+                page: region.page,
+                page_bounds: store
+                    .pages
+                    .iter()
+                    .find(|page| page.page == region.page)
+                    .and_then(|page| page.bounds)
+                    .map(|bounds| [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]),
+                width: region.raster.width,
+                height: region.raster.height,
+                rgb: &region.raster.rgb,
+                backend,
+            });
+        }
+    }
+    rasters
 }
 
 /// The engine's own verdict, copied for the bundle without recomputation.

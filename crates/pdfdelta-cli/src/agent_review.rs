@@ -11,14 +11,18 @@
 //! with a cursor that advances, never cut in half.
 
 use std::{
+    collections::BTreeSet,
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
-use pdfdelta_core::review::{
-    AgentReviewManifest, CaseCompleteness, CaseId, Cursor, Detail, EngineClass, EngineOutcome,
-    Hypothesis, MAX_CURSOR_BYTES, RequiredEvidence, RetrievalAction, ReviewCase, ReviewPlan,
-    ReviewQuestion, ReviewReason,
+use pdfdelta_core::{
+    model::PageId,
+    review::{
+        AgentReviewManifest, CaseCompleteness, CaseContext, CaseId, Cursor, Detail, EngineClass,
+        EngineOutcome, Hypothesis, MAX_CURSOR_BYTES, RequiredEvidence, RetrievalAction, ReviewCase,
+        ReviewPlan, ReviewQuestion, ReviewReason, Side,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +33,49 @@ pub(crate) struct SourceDocument<'a> {
     pub name: &'a Path,
     pub bytes: &'a [u8],
 }
+
+/// One composited page raster a case might need a picture of.
+///
+/// These are the rasters the comparison itself retained, in the profile it
+/// declared. Publishing them keeps a rendered view an observation of that run
+/// rather than a fresh rendering that might differ.
+pub(crate) struct PageRaster<'a> {
+    pub side: Side,
+    pub page: PageId,
+    /// The page box the renderer used, in PDF user space.
+    pub page_bounds: Option<[f64; 4]>,
+    pub width: u32,
+    pub height: u32,
+    pub rgb: &'a [u8],
+    pub backend: String,
+}
+
+/// A published page raster, as the bundle records it.
+#[derive(Clone, Serialize, Deserialize)]
+struct PageRecord {
+    side: Side,
+    page_number: u32,
+    page_index: PageId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    page_bounds: Option<[f64; 4]>,
+    width: u32,
+    height: u32,
+    /// Bundle-relative path of the published PNG.
+    file: String,
+    backend: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PageIndex {
+    bundle_id: String,
+    pages: Vec<PageRecord>,
+    /// False when a page a case needs was not published.
+    complete: bool,
+}
+
+/// Published page rasters, at most this many per bundle.
+const MAX_PUBLISHED_PAGES: usize = 1_024;
+const PAGE_INDEX: &str = "pages/index.json";
 
 /// Written last; a bundle without it is incomplete and must not be read.
 const COMPLETION_MARKER: &str = "manifest.json";
@@ -42,14 +89,23 @@ pub(crate) const MIN_OUTPUT_BYTES: usize = 512;
 /// The planner describes what a case could be asked for in principle. This list
 /// is what the command line answers today, and the manifest advertises exactly
 /// this, so a caller is never invited to make a request that cannot be served.
-const SERVED_DETAILS: [Detail; 3] = [Detail::Index, Detail::Text, Detail::Alternatives];
+const SERVED_DETAILS: [Detail; 4] = [
+    Detail::Index,
+    Detail::Text,
+    Detail::Context,
+    Detail::Alternatives,
+];
 
-fn served(action: &RetrievalAction) -> bool {
+/// Whether this build can answer one proposed retrieval.
+///
+/// A render action is offered only when the bundle actually published a page
+/// raster for the case, so a caller is never invited to ask for a picture that
+/// does not exist.
+fn served(action: &RetrievalAction, rendered_pages: &BTreeSet<(Side, PageId)>) -> bool {
     match action {
         RetrievalAction::List { .. } => true,
         RetrievalAction::Show { detail, .. } => SERVED_DETAILS.contains(detail),
-        // Local rendering is not part of this command surface yet.
-        RetrievalAction::Render { .. } => false,
+        RetrievalAction::Render { .. } => !rendered_pages.is_empty(),
     }
 }
 
@@ -112,6 +168,7 @@ pub(crate) fn write(
     plan: &ReviewPlan,
     old: SourceDocument<'_>,
     new: SourceDocument<'_>,
+    rasters: &[PageRaster<'_>],
 ) -> Result<(), String> {
     bundle::create_directory(directory)?;
     let result = (|| {
@@ -124,16 +181,79 @@ pub(crate) fn write(
                 out.write_all(new.bytes)
             })?,
         ];
+        // Only pages some case could ask to see are published; the rest would
+        // enlarge the bundle without answering any question in it.
+        let needed: BTreeSet<(Side, PageId)> = plan
+            .cases
+            .iter()
+            .flat_map(|case| &case.regions)
+            .map(|region| (region.side, region.page_index))
+            .collect();
+        let mut pages = Vec::new();
+        let mut pages_complete = true;
+        for raster in rasters
+            .iter()
+            .filter(|raster| needed.contains(&(raster.side, raster.page)))
+        {
+            if pages.len() >= MAX_PUBLISHED_PAGES {
+                pages_complete = false;
+                break;
+            }
+            let file = format!("pages/{}-{}.png", raster.side.label(), raster.page.0);
+            artifacts.push(bundle::file(directory, &file, &mut remaining, |out| {
+                bundle::write_png(out, raster.width, raster.height, raster.rgb)
+            })?);
+            pages.push(PageRecord {
+                side: raster.side,
+                page_number: raster.page.0.saturating_add(1),
+                page_index: raster.page,
+                page_bounds: raster.page_bounds,
+                width: raster.width,
+                height: raster.height,
+                file,
+                backend: raster.backend.clone(),
+            });
+        }
+        let published: BTreeSet<(Side, PageId)> = pages
+            .iter()
+            .map(|record| (record.side, record.page_index))
+            .collect();
+        if !pages.is_empty() || !pages_complete {
+            let index = PageIndex {
+                bundle_id: plan.manifest.bundle_id.as_str().to_owned(),
+                pages,
+                complete: pages_complete,
+            };
+            artifacts.push(bundle::file(
+                directory,
+                PAGE_INDEX,
+                &mut remaining,
+                |out| serde_json::to_writer(out, &index).map_err(io::Error::other),
+            )?);
+        }
         let mut records = Vec::with_capacity(plan.cases.len());
         for case in &plan.cases {
             let mut case = case.clone();
-            case.available_actions.retain(served);
+            let available: BTreeSet<(Side, PageId)> = case
+                .regions
+                .iter()
+                .map(|region| (region.side, region.page_index))
+                .filter(|key| published.contains(key))
+                .collect();
+            case.available_actions
+                .retain(|action| served(action, &available));
             records.push(IndexRecord::new(&case));
             // The identifier is validated ASCII without separators, so it
             // cannot escape the bundle directory.
             let name = format!("cases/{}.json", case.case_id);
             artifacts.push(bundle::file(directory, &name, &mut remaining, |out| {
                 serde_json::to_writer(out, &case).map_err(io::Error::other)
+            })?);
+        }
+        for context in &plan.contexts {
+            let name = format!("cases/{}.context.json", context.case_id);
+            artifacts.push(bundle::file(directory, &name, &mut remaining, |out| {
+                serde_json::to_writer(out, context).map_err(io::Error::other)
             })?);
         }
         let index = CaseIndex {
@@ -150,7 +270,10 @@ pub(crate) fn write(
         let new_name = new.name.display().to_string();
         let mut manifest = plan.manifest.clone();
         for capability in &mut manifest.capabilities {
-            capability.available &= SERVED_DETAILS.contains(&capability.detail);
+            capability.available &= match capability.detail {
+                Detail::Visual => !published.is_empty(),
+                detail => SERVED_DETAILS.contains(&detail),
+            };
         }
         bundle::file(directory, COMPLETION_MARKER, &mut remaining, |out| {
             serde_json::to_writer_pretty(
@@ -218,6 +341,11 @@ struct StoredArtifact {
 }
 
 impl StoredManifest {
+    /// Whether the manifest published an artifact under this name.
+    fn lists(&self, name: &str) -> bool {
+        self.files.iter().any(|artifact| artifact.name == name)
+    }
+
     /// Reads one artifact and checks it against the digest the manifest
     /// recorded when the bundle was published.
     ///
@@ -528,7 +656,16 @@ pub(crate) fn show(
         Detail::Index => finish(envelope, cap),
         Detail::Text => text_view(envelope, &stored, cap),
         Detail::Alternatives => alternatives(envelope, &stored, &manifest.bundle_id, cursor, cap),
-        Detail::Context | Detail::Visual => Err(QueryError::new(
+        Detail::Context => context_view(
+            envelope,
+            &manifest,
+            directory,
+            &stored,
+            &manifest.bundle_id,
+            cursor,
+            cap,
+        ),
+        Detail::Visual => Err(QueryError::new(
             "unsupported_detail",
             format!("{detail:?} retrieval is not implemented"),
         )),
@@ -627,6 +764,69 @@ fn text_view(
     finish(envelope, cap)
 }
 
+/// Answers `--detail context` inside the byte cap.
+///
+/// A case with no gathered context answers with an empty, complete list rather
+/// than an error: the absence of surrounding structure is itself the answer.
+fn context_view(
+    mut envelope: serde_json::Value,
+    manifest: &StoredManifest,
+    directory: &Path,
+    case: &ReviewCase,
+    bundle: &str,
+    cursor: Option<&str>,
+    cap: usize,
+) -> Result<Vec<u8>, QueryError> {
+    let name = format!("cases/{}.context.json", case.case_id);
+    let stored: CaseContext = if manifest.lists(&name) {
+        manifest.read_verified(directory, &name)?
+    } else {
+        CaseContext {
+            case_id: case.case_id.clone(),
+            items: Vec::new(),
+            complete: true,
+        }
+    };
+    let query = query_digest(&["context", case.case_id.as_str()]);
+    let start = match cursor {
+        Some(cursor) => {
+            let cursor = Cursor::new(cursor)
+                .map_err(|error| QueryError::new("invalid_cursor", error.to_string()))?;
+            let after = cursor_position(&cursor, bundle, &query)?;
+            after
+                .parse::<usize>()
+                .ok()
+                .filter(|position| *position < stored.items.len())
+                .map(|position| position + 1)
+                .ok_or_else(|| {
+                    QueryError::new("stale_cursor", "the cursor names an item this case lacks")
+                })?
+        }
+        None => 0,
+    };
+    let remaining = &stored.items[start.min(stored.items.len())..];
+    let encoded: Vec<serde_json::Value> = remaining
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<Result<_, _>>()
+        .map_err(|error| QueryError::new("encoding_failed", error.to_string()))?;
+    envelope["context_complete"] = stored.complete.into();
+    envelope["context"] = serde_json::Value::Array(Vec::new());
+    let taken = if encoded.is_empty() {
+        0
+    } else {
+        fit_records(&envelope, &encoded, cap)?
+    };
+    envelope["context"] = serde_json::Value::Array(encoded[..taken].to_vec());
+    envelope["omitted"] = (remaining.len() - taken).into();
+    if taken < remaining.len() {
+        envelope["next_cursor"] = cursor_for(bundle, &query, &(start + taken - 1).to_string())?
+            .as_str()
+            .into();
+    }
+    finish(envelope, cap)
+}
+
 fn alternatives(
     mut envelope: serde_json::Value,
     case: &ReviewCase,
@@ -689,6 +889,245 @@ fn finish(envelope: serde_json::Value, cap: usize) -> Result<Vec<u8>, QueryError
     Ok(encoded)
 }
 
+/// One produced image, as the render answer reports it.
+#[derive(Serialize)]
+struct RenderedImage {
+    /// Filesystem path of the written PNG.
+    path: String,
+    sha256: String,
+    width: u32,
+    height: u32,
+    side: Side,
+    page_number: u32,
+    page_index: PageId,
+    purpose: RenderPurpose,
+    /// The rendering profile the published page was produced with.
+    backend: String,
+    /// Pixel box this image covers inside the published page.
+    pixel_bounds: [u32; 4],
+}
+
+/// What a produced image shows.
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum RenderPurpose {
+    /// A crop around the case's own material, with margin for its surroundings.
+    Crop,
+    /// The whole page, because no usable box for the material was established.
+    PageOverview,
+}
+
+/// Why a case's page could not be pictured.
+#[derive(Serialize)]
+struct UnavailableRegion {
+    side: Side,
+    page_number: u32,
+    page_index: PageId,
+    reason: &'static str,
+}
+
+/// Maps a PDF-space box onto the published raster.
+///
+/// The raster was produced from the page box at one sample per point, so the
+/// mapping is a translation and a vertical flip. When the raster's dimensions
+/// do not match that page box — a rotated page, or a different profile — no
+/// mapping is established and the caller falls back to the whole page rather
+/// than cropping at a guessed offset.
+fn pixel_bounds(record: &PageRecord, bounds: [f64; 4]) -> Option<[u32; 4]> {
+    let page = record.page_bounds?;
+    let (page_width, page_height) = (page[2] - page[0], page[3] - page[1]);
+    if !page_width.is_finite()
+        || !page_height.is_finite()
+        || page_width <= 0.0
+        || page_height <= 0.0
+    {
+        return None;
+    }
+    let matches = |declared: f64, raster: u32| (declared.ceil() - f64::from(raster)).abs() <= 1.0;
+    if !matches(page_width, record.width) || !matches(page_height, record.height) {
+        return None;
+    }
+    // Margin scales with the material's own height, so small text keeps its
+    // surrounding line and a large block is not swamped by white space.
+    let margin = ((bounds[3] - bounds[1]).abs() * 0.75).clamp(4.0, 72.0);
+    let left = (bounds[0] - page[0] - margin).max(0.0);
+    let right = (bounds[2] - page[0] + margin).min(page_width);
+    let top = (page[3] - bounds[3] - margin).max(0.0);
+    let bottom = (page[3] - bounds[1] + margin).min(page_height);
+    if !(left < right && top < bottom) {
+        return None;
+    }
+    Some([
+        left as u32,
+        top as u32,
+        right.ceil() as u32,
+        bottom.ceil() as u32,
+    ])
+}
+
+/// Produces local images for one case.
+///
+/// Images are cut from the page rasters the comparison retained, not from a
+/// fresh rendering, so what a reviewer sees is the observation the engine had.
+/// A page whose raster was never published, or whose geometry cannot be mapped,
+/// is reported as unavailable instead of being approximated.
+pub(crate) fn render(
+    directory: &Path,
+    case: &str,
+    output: &Path,
+    cap: usize,
+) -> Result<Vec<u8>, QueryError> {
+    let manifest: StoredManifest = read_json(&artifact(directory, COMPLETION_MARKER))?;
+    let case_id =
+        CaseId::new(case).map_err(|error| QueryError::new("invalid_case", error.to_string()))?;
+    let stored: ReviewCase = manifest
+        .read_verified(directory, &format!("cases/{case_id}.json"))
+        .map_err(|error| {
+            if matches!(error.error, "unreadable_bundle" | "unlisted_artifact") {
+                QueryError::new("unknown_case", format!("{case_id} is not in this bundle"))
+            } else {
+                error
+            }
+        })?;
+    let pages: PageIndex = if manifest.lists(PAGE_INDEX) {
+        manifest.read_verified(directory, PAGE_INDEX)?
+    } else {
+        PageIndex {
+            bundle_id: manifest.bundle_id.clone(),
+            pages: Vec::new(),
+            complete: true,
+        }
+    };
+    bundle::validate_destination(output, &[])
+        .map_err(|error| QueryError::new("invalid_destination", error))?;
+    bundle::create_directory(output)
+        .map_err(|error| QueryError::new("invalid_destination", error))?;
+
+    let mut produced = Vec::new();
+    let mut unavailable = Vec::new();
+    let mut remaining = MAX_BYTES;
+    for region in &stored.regions {
+        let Some(record) = pages
+            .pages
+            .iter()
+            .find(|record| record.side == region.side && record.page_index == region.page_index)
+        else {
+            unavailable.push(UnavailableRegion {
+                side: region.side,
+                page_number: region.page_number,
+                page_index: region.page_index,
+                reason: "no page raster was retained for this page",
+            });
+            continue;
+        };
+        let raster = decode_page(directory, &manifest, record)?;
+        let (bounds, purpose) = match region
+            .bounds
+            .and_then(|bounds| pixel_bounds(record, bounds))
+        {
+            Some(bounds) => (bounds, RenderPurpose::Crop),
+            None => (
+                [0, 0, record.width, record.height],
+                RenderPurpose::PageOverview,
+            ),
+        };
+        let (width, height) = (bounds[2] - bounds[0], bounds[3] - bounds[1]);
+        let mut cropped = Vec::with_capacity((width as usize) * (height as usize) * 3);
+        for row in bounds[1]..bounds[3] {
+            let start = ((row as usize) * (record.width as usize) + bounds[0] as usize) * 3;
+            let end = start + (width as usize) * 3;
+            cropped.extend_from_slice(&raster[start..end]);
+        }
+        let name = format!(
+            "{}-page-{}-{}.png",
+            region.side.label(),
+            region.page_index.0,
+            match purpose {
+                RenderPurpose::Crop => "crop",
+                RenderPurpose::PageOverview => "overview",
+            }
+        );
+        let artifact = bundle::file(output, &name, &mut remaining, |out| {
+            bundle::write_png(out, width, height, &cropped)
+        })
+        .map_err(|error| QueryError::new("render_failed", error))?;
+        produced.push(RenderedImage {
+            path: output.join(&name).display().to_string(),
+            sha256: artifact.sha256,
+            width,
+            height,
+            side: region.side,
+            page_number: region.page_number,
+            page_index: region.page_index,
+            purpose,
+            backend: record.backend.clone(),
+            pixel_bounds: bounds,
+        });
+    }
+
+    let envelope = serde_json::json!({
+        "schema": pdfdelta_core::review::REVIEW_SCHEMA,
+        "view": "visual",
+        "bundle_id": manifest.bundle_id,
+        "case_id": stored.case_id,
+        "images": produced,
+        "unavailable": unavailable,
+        "page_rasters_complete": pages.complete,
+        "note": "Paths are written files. A model has not seen an image until the host loads it; a path alone is not evidence. Pixel differences show where samples differ, not what the words are.",
+    });
+    finish(envelope, cap)
+}
+
+/// Reads one published page back as raw RGB samples.
+fn decode_page(
+    directory: &Path,
+    manifest: &StoredManifest,
+    record: &PageRecord,
+) -> Result<Vec<u8>, QueryError> {
+    if !manifest.lists(&record.file) {
+        return Err(QueryError::new(
+            "unlisted_artifact",
+            format!("{} is not listed in the manifest", record.file),
+        ));
+    }
+    let path = artifact(directory, &record.file);
+    let bytes = std::fs::read(&path).map_err(|error| {
+        QueryError::new("unreadable_bundle", format!("{}: {error}", path.display()))
+    })?;
+    use sha2::{Digest, Sha256};
+    let expected = manifest
+        .files
+        .iter()
+        .find(|artifact| artifact.name == record.file)
+        .map(|artifact| artifact.sha256.as_str())
+        .unwrap_or_default();
+    if crate::fs::lowercase_hex(&Sha256::digest(&bytes)) != expected {
+        return Err(QueryError::new(
+            "tampered_bundle",
+            format!(
+                "{} does not match the digest the manifest records",
+                record.file
+            ),
+        ));
+    }
+    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    let mut reader = decoder
+        .read_info()
+        .map_err(|error| QueryError::new("malformed_bundle", error.to_string()))?;
+    let mut samples = vec![0; reader.output_buffer_size().unwrap_or(0)];
+    let info = reader
+        .next_frame(&mut samples)
+        .map_err(|error| QueryError::new("malformed_bundle", error.to_string()))?;
+    if info.width != record.width || info.height != record.height {
+        return Err(QueryError::new(
+            "malformed_bundle",
+            "the published page does not match its recorded dimensions",
+        ));
+    }
+    samples.truncate(info.buffer_size());
+    Ok(samples)
+}
+
 /// Writes one query answer to standard output.
 pub(crate) fn emit(payload: &[u8]) -> Result<(), String> {
     let stdout = io::stdout();
@@ -746,14 +1185,68 @@ mod tests {
         );
     }
 
+    fn page(width: u32, height: u32, bounds: Option<[f64; 4]>) -> PageRecord {
+        PageRecord {
+            side: Side::Old,
+            page_number: 1,
+            page_index: PageId(0),
+            page_bounds: bounds,
+            width,
+            height,
+            file: "pages/old-0.png".into(),
+            backend: "fixture/1/page-rgb-white-72dpi".into(),
+        }
+    }
+
+    #[test]
+    fn a_crop_is_only_mapped_when_the_raster_matches_the_page_box() {
+        let upright = page(612, 792, Some([0.0, 0.0, 612.0, 792.0]));
+        let bounds = pixel_bounds(&upright, [100.0, 700.0, 300.0, 712.0]).expect("mapped");
+        // PDF space is y-up and the raster is y-down, so a box near the top of
+        // the page maps to a small row index.
+        assert!(bounds[1] < 100, "{bounds:?}");
+        assert!(bounds[0] < 100 && bounds[2] > 300, "{bounds:?}");
+
+        // A rotated page renders to transposed dimensions, so no mapping is
+        // established and the caller falls back to the whole page.
+        let rotated = page(792, 612, Some([0.0, 0.0, 612.0, 792.0]));
+        assert_eq!(pixel_bounds(&rotated, [100.0, 700.0, 300.0, 712.0]), None);
+
+        // Without a page box there is nothing to map against.
+        let unknown = page(612, 792, None);
+        assert_eq!(pixel_bounds(&unknown, [100.0, 700.0, 300.0, 712.0]), None);
+    }
+
+    #[test]
+    fn a_crop_stays_inside_the_published_raster() {
+        let record = page(612, 792, Some([0.0, 0.0, 612.0, 792.0]));
+        // Material at the very edge of the page still produces a box inside
+        // the raster once the margin is clamped.
+        let bounds = pixel_bounds(&record, [0.0, 0.0, 612.0, 792.0]).expect("mapped");
+        assert_eq!(bounds[0], 0);
+        assert_eq!(bounds[1], 0);
+        assert!(bounds[2] <= record.width, "{bounds:?}");
+        assert!(bounds[3] <= record.height, "{bounds:?}");
+    }
+
     #[test]
     fn unserved_retrieval_actions_are_not_advertised() {
         let case = CaseId::new("R0").expect("case id");
-        assert!(served(&RetrievalAction::Show {
-            case: case.clone(),
-            detail: Detail::Text,
-            cursor: None,
-        }));
-        assert!(!served(&RetrievalAction::Render { case }));
+        let none = BTreeSet::new();
+        let some = BTreeSet::from([(Side::Old, PageId(0))]);
+        assert!(served(
+            &RetrievalAction::Show {
+                case: case.clone(),
+                detail: Detail::Text,
+                cursor: None,
+            },
+            &none
+        ));
+        // A picture is offered only when the bundle published one to cut it from.
+        assert!(!served(
+            &RetrievalAction::Render { case: case.clone() },
+            &none
+        ));
+        assert!(served(&RetrievalAction::Render { case }, &some));
     }
 }

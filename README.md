@@ -177,10 +177,17 @@ reached through a cursor, never cut in half. A comparison that exits 3 still
 publishes a usable bundle, and `review list` and `review show` exit 0 on a
 successful read while carrying the engine's own status inside the payload.
 
+`review show --detail context` adds enclosing headings, neighbours, table
+structure, and other occurrences of the same text, and `review render` cuts
+images out of the page rasters the comparison retained — never a fresh
+rendering, and never a crop mapped onto a raster whose geometry does not match
+the page box it came from. Pages are rendered at 72 dpi, so small type may not
+be legible; that case is answerable only as undetermined rather than by
+enlarging a crop.
+
 Exporting a bundle changes no comparison field, no coverage count, and no exit
 status, and an external reviewer's answer is never merged into the engine's
-result. Context retrieval, region rendering, and importing an external
-assessment are not implemented yet. `--agent-review` works with the default
+result. Importing an external assessment is not implemented yet. `--agent-review` works with the default
 channels and with `--native-text-only`, but not together with `--review`.
 [`docs/agent-review.md`](docs/agent-review.md) documents the contract.
 

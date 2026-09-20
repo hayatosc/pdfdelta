@@ -22,6 +22,7 @@
 //! command argument.
 
 mod case;
+mod context;
 mod contract;
 mod decision;
 mod evidence_plan;
@@ -29,9 +30,10 @@ mod native_plan;
 mod planner;
 
 pub use case::{
-    Cardinality, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence, ReviewCase, ReviewText,
-    SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
+    Cardinality, CaseRegion, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence, ReviewCase,
+    ReviewText, SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
 };
+pub use context::{CaseContext, ContextItem, ContextKind};
 pub use contract::{
     BundleId, BundleIdentity, CaseCompleteness, CaseId, Completeness, Cursor, DECISION_SCHEMA,
     Detail, EngineClass, EvidenceRef, GapId, HypothesisId, IdentifierError, MAX_CURSOR_BYTES,

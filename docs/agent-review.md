@@ -170,20 +170,32 @@ failure, the number of bytes it would need.
 `review` is a subcommand name, so a file actually named `review` must be given
 as `./review` to be read as an input path.
 
-Not implemented yet: `--detail context`, `--detail visual`, local region
-rendering, and importing an external assessment. The parser rejects the detail
-levels it cannot serve instead of accepting them and answering with a stub, and
-the manifest's capability list reports exactly what this build answers.
+Produce local images for a case:
+
+```sh
+pdfdelta review render ./review-run --case R17 --output ./r17-images
+```
+
+Not implemented yet: importing an external assessment. The parser rejects the
+detail levels it cannot serve instead of accepting them and answering with a
+stub, and the manifest's capability list reports exactly what this build
+answers.
 
 ## Bundle layout
 
 ```text
 review-run/
-  old.pdf, new.pdf     the exact acquired bytes the comparison examined
-  cases/<case>.json    one packet per case
-  cases/index.json     the compact listing `review list` pages through
-  manifest.json        written last; its presence means the bundle is complete
+  old.pdf, new.pdf             the exact acquired bytes the comparison examined
+  cases/<case>.json            one packet per case
+  cases/<case>.context.json    that case's surrounding structure
+  cases/index.json             the compact listing `review list` pages through
+  pages/<side>-<page>.png      page rasters a case could need a picture of
+  pages/index.json             their dimensions, page boxes and profiles
+  manifest.json                written last; its presence means the bundle is complete
 ```
+
+Only pages some case could ask to see are published, at most 1,024 per bundle,
+and the page index says when that limit stopped it.
 
 Files are published atomically into a new directory with owner-only access, the
 whole bundle is bounded to 512 MiB, and every artifact is listed in the manifest
@@ -197,6 +209,35 @@ when the bundle was published, and a file that no longer matches is refused
 rather than answered. This detects a bundle that drifted or was edited after
 publication; it is not a defence against replacing the whole bundle, manifest
 included.
+
+## Pictures
+
+`review render` cuts images out of the page rasters the comparison retained, in
+the profile that produced them. Nothing is re-rendered for a query, so what a
+reviewer sees is the observation the engine had.
+
+A crop is mapped only when the published raster's dimensions match the page box
+it was rendered from. When they do not — a rotated page, or a different profile
+— no mapping is established and the whole page is returned instead of a box cut
+at a guessed offset. A page whose raster was never published is reported as
+unavailable with the reason, not approximated. The margin around a crop scales
+with the material's own height, so a small line keeps its surroundings.
+
+Output goes to a new directory that must not exist. The answer names each
+image's path, digest, dimensions, pixel box, page in both bases, and the profile
+it came from.
+
+Two limits are worth stating plainly. A path is not an image: a model has not
+seen a picture until the host loads it. And pixel differences show where samples
+differ, not what the words are; reading text off an image never becomes an exact
+claim about native glyphs.
+
+Pages are rendered at 72 dpi. Small type is therefore not always legible, and
+enlarging a crop adds no evidence — a measurement of where this binds, and what
+a higher-resolution profile would cost, is recorded in
+`benchmark/realworld/remaining/agent-review/72dpi-legibility.md`. A higher
+resolution would be a separate declared profile and a different observation, not
+a better view of the same raster.
 
 ## Cursors
 

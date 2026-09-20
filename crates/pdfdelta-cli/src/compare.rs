@@ -544,6 +544,8 @@ fn write_native_bundle(
             name: new.0,
             bytes: new.1,
         },
+        // This contract retains no rasters of its own.
+        &[],
     )
 }
 

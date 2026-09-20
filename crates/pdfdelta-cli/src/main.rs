@@ -38,6 +38,12 @@ fn review_query<W: Write>(action: args::ReviewCommand, diagnostics: &mut W) -> E
             cursor,
             max_output_bytes,
         } => agent_review::list(&directory, cursor.as_deref(), max_output_bytes),
+        args::ReviewCommand::Render {
+            directory,
+            case,
+            output,
+            max_output_bytes,
+        } => agent_review::render(&directory, &case, &output, max_output_bytes),
         args::ReviewCommand::Show {
             directory,
             case,

@@ -109,6 +109,9 @@ impl<'a> Planner<'a> {
         self.enumeration_limits();
         assemble(
             Assembly {
+                // Structural context comes from the evidence graph, which this
+                // contract does not build.
+                contexts: Vec::new(),
                 identity: self.input.identity.clone(),
                 outcome: self.input.outcome.clone(),
                 channels: &BTreeSet::from([Channel::Text]),
@@ -308,6 +311,8 @@ impl<'a> Planner<'a> {
             available_actions,
             evidence,
             covered,
+            // This contract retains no rasters, so no rendered view exists.
+            regions: Vec::new(),
             case_id,
         }
     }
@@ -629,6 +634,7 @@ impl<'a> Planner<'a> {
                 available_actions: Vec::new(),
                 evidence: Vec::new(),
                 covered: Vec::new(),
+                regions: Vec::new(),
                 case_id,
             };
             self.push(case);

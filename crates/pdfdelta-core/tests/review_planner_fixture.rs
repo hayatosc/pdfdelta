@@ -863,3 +863,46 @@ fn a_larger_budget_may_reveal_competitors_without_having_settled_the_earlier_ans
         "the wider search still has material to review"
     );
 }
+
+#[test]
+fn a_table_case_carries_its_row_and_repeated_occurrences_as_context() {
+    let old = table(&[
+        &["Region", "Amount"],
+        &["North", "10 days"],
+        &["South", "10 days"],
+    ]);
+    let new = table(&[
+        &["Region", "Amount"],
+        &["North", "20 days"],
+        &["South", "10 days"],
+    ]);
+    let comparison = compare(&old, &new, comparison_limits());
+    let plan = plan(&old, &new, &comparison);
+
+    assert!(
+        !plan.contexts.is_empty(),
+        "a structured case gathers surrounding evidence"
+    );
+    for context in &plan.contexts {
+        assert!(
+            plan.case(&context.case_id).is_some(),
+            "context is only kept for a case the plan retained"
+        );
+    }
+    let kinds: BTreeSet<_> = plan
+        .contexts
+        .iter()
+        .flat_map(|context| context.items.iter().map(|item| item.kind))
+        .collect();
+    assert!(
+        kinds.contains(&pdfdelta_core::review::ContextKind::EnclosingHeading)
+            || kinds.contains(&pdfdelta_core::review::ContextKind::TableRow),
+        "the enclosing table structure is offered as context: {kinds:?}"
+    );
+    // The duplicated cell text exists twice in the old revision; a reviewer
+    // must be able to see that equal text is not one element.
+    assert!(
+        kinds.contains(&pdfdelta_core::review::ContextKind::OtherOccurrence),
+        "a repeated value is reported as another occurrence: {kinds:?}"
+    );
+}

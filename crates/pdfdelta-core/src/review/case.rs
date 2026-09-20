@@ -293,8 +293,23 @@ pub struct TextCoverage {
     pub token_range: TokenInterval,
 }
 
+/// Where one case's material sits on a page, in PDF user space.
+///
+/// Bounds are the union of the retained geometry of the case's sources on that
+/// page. `None` means geometry was not retained, which is different from a
+/// zero-size region: no crop can be derived from it, and a reader is given the
+/// whole page instead of a box that was guessed.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CaseRegion {
+    pub side: Side,
+    pub page_number: u32,
+    pub page_index: PageId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<[f64; 4]>,
+}
+
 /// One review case.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReviewCase {
     pub case_id: CaseId,
     /// Content digest over the canonical case key, for tamper and drift checks.
@@ -346,6 +361,9 @@ pub struct ReviewCase {
     /// Token intervals this case accounts for under the native-glyph contract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub covered: Vec<TextCoverage>,
+    /// Pages and bounds a rendered view of this case would cover.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub regions: Vec<CaseRegion>,
 }
 
 impl ReviewCase {

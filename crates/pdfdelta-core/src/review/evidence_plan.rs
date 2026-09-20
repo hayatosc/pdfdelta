@@ -91,6 +91,7 @@ struct Planner<'a> {
     /// Content digest to case index, so the same question asked twice about the
     /// same material is one case rather than two competing identifiers.
     by_digest: BTreeMap<String, usize>,
+    contexts: Vec<super::CaseContext>,
     old_nodes: BTreeMap<NodeId, &'a GraphNode>,
     new_nodes: BTreeMap<NodeId, &'a GraphNode>,
 }
@@ -111,6 +112,7 @@ pub fn plan_shared_evidence(input: &SharedEvidenceReview<'_>, limits: PlannerLim
         gaps: Vec::new(),
         explained: BTreeSet::new(),
         by_digest: BTreeMap::new(),
+        contexts: Vec::new(),
         old_nodes: input
             .old
             .graph
@@ -167,6 +169,7 @@ impl<'a> Planner<'a> {
             .collect();
         assemble(
             Assembly {
+                contexts: self.contexts,
                 identity: self.input.identity.clone(),
                 outcome: self.input.outcome.clone(),
                 channels: self.input.channels,
@@ -255,6 +258,42 @@ impl<'a> Planner<'a> {
         merged.sources.sort();
         merged.sources.dedup();
         Some(merged)
+    }
+
+    /// Pages a case covers, with the union of its sources' retained geometry.
+    ///
+    /// Geometry that was not retained leaves the bounds unknown rather than
+    /// producing an invented box; a reader is then shown the whole page.
+    fn regions(
+        &self,
+        old_sources: &BTreeSet<SourceRef>,
+        new_sources: &BTreeSet<SourceRef>,
+    ) -> Vec<super::CaseRegion> {
+        let mut regions = Vec::new();
+        for (side, view, sources) in [
+            (Side::Old, self.input.old, old_sources),
+            (Side::New, self.input.new, new_sources),
+        ] {
+            let mut pages: BTreeMap<PageId, Option<[f64; 4]>> = BTreeMap::new();
+            for source in sources {
+                let Some((page, bounds)) = source_geometry(view, *source) else {
+                    continue;
+                };
+                let entry = pages.entry(page).or_insert(None);
+                *entry = match (*entry, bounds) {
+                    (Some(current), Some(next)) => Some(union(current, next)),
+                    (Some(current), None) => Some(current),
+                    (None, next) => next,
+                };
+            }
+            regions.extend(pages.into_iter().map(|(page, bounds)| super::CaseRegion {
+                side,
+                page_number: page.0.saturating_add(1),
+                page_index: page,
+                bounds,
+            }));
+        }
+        regions
     }
 
     fn sources_of(&self, side: Side, nodes: &[NodeId]) -> BTreeSet<SourceRef> {
@@ -348,6 +387,18 @@ impl<'a> Planner<'a> {
             return None;
         }
         let case_id = self.identifiers.case(&digest);
+        if !old_nodes.is_empty() || !new_nodes.is_empty() {
+            let context = super::context::gather(
+                &case_id,
+                self.input.old,
+                self.input.new,
+                (old_nodes, new_nodes),
+                self.limits,
+            );
+            if !context.items.is_empty() || !context.complete {
+                self.contexts.push(context);
+            }
+        }
         let old_text = self.node_text(Side::Old, old_nodes);
         let new_text = self.node_text(Side::New, new_nodes);
         let pages: BTreeSet<PageId> = old_nodes
@@ -419,6 +470,7 @@ impl<'a> Planner<'a> {
                     .map(|source| evidence_ref(Side::New, *source)),
             )
             .collect();
+        let regions = self.regions(&old_sources, &new_sources);
         let (old_location, new_location) = match location {
             Some((Side::Old, location)) => (Some(location), self.location(Side::New, new_nodes)),
             Some((Side::New, location)) => (self.location(Side::Old, old_nodes), Some(location)),
@@ -453,6 +505,7 @@ impl<'a> Planner<'a> {
             evidence,
             // This contract accounts for material through source references.
             covered: Vec::new(),
+            regions,
         })
     }
 
@@ -1034,6 +1087,14 @@ impl<'a> Planner<'a> {
                     ],
                     evidence,
                     covered: Vec::new(),
+                    regions: vec![super::CaseRegion {
+                        side,
+                        page_number: page.page.0.saturating_add(1),
+                        page_index: page.page,
+                        bounds: page
+                            .bounds
+                            .map(|bounds| [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]),
+                    }],
                     case_id,
                 };
                 self.push(Some(case));
@@ -1148,6 +1209,84 @@ impl<'a> Planner<'a> {
             }
         }
     }
+}
+
+/// The page and retained geometry of one source reference.
+fn source_geometry(
+    view: DocumentView<'_>,
+    source: SourceRef,
+) -> Option<(PageId, Option<[f64; 4]>)> {
+    let store = view.evidence;
+    match source {
+        SourceRef::Native { glyph } => store
+            .native
+            .items()
+            .iter()
+            .find(|item| item.id == glyph)
+            .map(|item| {
+                (
+                    item.page,
+                    Some([
+                        item.bbox.min.x,
+                        item.bbox.min.y,
+                        item.bbox.max.x,
+                        item.bbox.max.y,
+                    ]),
+                )
+            }),
+        SourceRef::NativeVector { line } => store
+            .native
+            .vector_lines()
+            .iter()
+            .find(|item| item.id == line)
+            .map(|item| {
+                (
+                    item.page,
+                    Some([
+                        item.from.x.min(item.to.x),
+                        item.from.y.min(item.to.y),
+                        item.from.x.max(item.to.x),
+                        item.from.y.max(item.to.y),
+                    ]),
+                )
+            }),
+        SourceRef::Rendered { region } => store
+            .rendered
+            .iter()
+            .find(|item| item.id == region)
+            .map(|item| (item.page, polygon_bounds(&item.polygon))),
+        SourceRef::Structured { element } => store
+            .structured
+            .iter()
+            .find(|item| item.id == element)
+            .and_then(|item| {
+                item.page.map(|page| {
+                    (
+                        page,
+                        item.bounds
+                            .map(|bounds| [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]),
+                    )
+                })
+            }),
+    }
+}
+
+fn polygon_bounds(polygon: &[crate::model::Vec2]) -> Option<[f64; 4]> {
+    let first = polygon.first()?;
+    let mut bounds = [first.x, first.y, first.x, first.y];
+    for point in polygon {
+        bounds = union(bounds, [point.x, point.y, point.x, point.y]);
+    }
+    Some(bounds)
+}
+
+fn union(left: [f64; 4], right: [f64; 4]) -> [f64; 4] {
+    [
+        left[0].min(right[0]),
+        left[1].min(right[1]),
+        left[2].max(right[2]),
+        left[3].max(right[3]),
+    ]
 }
 
 /// What a group of scope obligations is about.
