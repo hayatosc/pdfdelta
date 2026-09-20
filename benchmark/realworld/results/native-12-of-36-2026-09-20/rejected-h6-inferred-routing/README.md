@@ -85,5 +85,5 @@ and both decompositions are exact. The residual is deferred as edit ambiguity un
 current solver (moves and repeated numeric contexts); the complete searches and
 alternative groups do not prove that no source or geometry evidence could
 disambiguate it, and no contract change is required or requested. If a future
-iteration adds move semantics or a canonical atomic-edit choice, this evidence
-is the starting point.
+iteration uses or refines the existing move and source-evidence machinery, or
+adds a canonical atomic-edit choice, this evidence is the starting point.

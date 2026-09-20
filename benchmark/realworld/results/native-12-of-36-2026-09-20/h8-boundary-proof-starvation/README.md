@@ -51,3 +51,28 @@ for that proposal was not accepted, so the consumed budget produced no output.
 Both need a meaningful regression with a negative case (wide-domain proof that
 would succeed must not be silently dropped) and targeted verification on W4,
 Schedule C, SE, W2 and 1099 with payload retention checked.
+
+## Preflight hypothesis tested (disproven for W4)
+
+The fatal attempt built a suffix table of 1021 x 1021 = 1,042,441 interior
+cells while 12,132,996 units remained, so the `build_suffix` preflight was
+affordable. The enumeration then consumed the remaining ~11.1M and returned
+`BudgetExceeded`. The cost is real wide-domain path enumeration, not an
+oversized preflight debit that zeroes the shared budget without doing work, so
+a minimal "retain remainder on an unaffordable preflight" change cannot fix
+this case and was reverted.
+
+## Cross-pair boundary outcomes
+
+Raw traces are under `traces/`.
+
+- W4: 79 attempts, 52 `NotProven`, 23 `Budget`, 4 `Unavailable`, 0 `Proven`,
+  and all 79 were strict subspans of their domain.
+- Schedule C: 14 attempts, 13 `NotProven`, 1 `Proven` (a subspan attempt).
+- Schedule SE: 5 attempts, 3 `NotProven`, 2 `Proven` (subspan attempts).
+
+A blanket skip of subspan boundary proofs would drop real promotions on C and
+SE, so it is not proof-preserving. The next candidate must keep those
+promotions: defer wide-domain enumeration proofs until after the ordinary
+relation pass (with index remapping so output order is unchanged), or bound
+the enumeration from measured evidence.
