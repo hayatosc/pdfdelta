@@ -549,7 +549,19 @@ pub enum Detail {
     /// Case identity, question, location, and required evidence kinds only.
     Index,
     /// The question, both sides' retained text, reasons, and hypotheses.
+    ///
+    /// Material no comparison reached is located rather than quoted here: the
+    /// answer carries its size and the action that quotes it, because the text
+    /// of an unexamined page is the document rather than an answer to the
+    /// question the case asks.
     Text,
+    /// The quoted text of material a case only locates.
+    ///
+    /// This is the deliberate cost of examining a page the comparison never
+    /// reached, kept apart from [`Detail::Text`] so a reviewer who reads every
+    /// case does not pay it for every page. Like any text answer it is cut to
+    /// the caller's byte budget, with the remainder declared.
+    Quote,
     /// Headings, neighbours, table labels, footnotes, and other occurrences.
     Context,
     /// The remaining competing hypotheses and their counterevidence.

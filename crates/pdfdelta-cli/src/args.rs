@@ -303,6 +303,8 @@ pub enum ReviewDetail {
     Index,
     /// The question, both sides' retained text, reasons, and evidence.
     Text,
+    /// The quoted text of material the comparison never examined.
+    Quote,
     /// Enclosing headings, neighbours, table structure, and other occurrences.
     Context,
     /// The competing hypotheses.
@@ -314,6 +316,7 @@ impl From<ReviewDetail> for pdfdelta_core::review::Detail {
         match detail {
             ReviewDetail::Index => Self::Index,
             ReviewDetail::Text => Self::Text,
+            ReviewDetail::Quote => Self::Quote,
             ReviewDetail::Context => Self::Context,
             ReviewDetail::Alternatives => Self::Alternatives,
         }

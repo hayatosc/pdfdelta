@@ -52,7 +52,9 @@ pub use manifest::{
     UnlocalizedGap,
 };
 pub use native_plan::{NativeTextReview, cases_covering, covered_blocks, plan_native_text};
-pub use planner::{PlannerLimits, ReviewPlan, evidence_ref, retain_text, source_alias};
+pub use planner::{
+    PlannerLimits, ReviewPlan, evidence_ref, retain_text, source_alias, withhold_text,
+};
 
 mod manifest;
 

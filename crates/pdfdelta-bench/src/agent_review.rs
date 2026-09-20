@@ -198,6 +198,9 @@ struct CaseIndex {
 struct IndexRecord {
     case: String,
     question: String,
+    /// Absent from a listing that returned none, so a record that omits it
+    /// reads as zero rather than as a malformed index.
+    #[serde(default)]
     alternatives_returned: usize,
     #[serde(default)]
     alternatives_total: Option<usize>,

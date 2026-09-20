@@ -348,6 +348,34 @@ pub fn retain_text(
     shortened
 }
 
+/// Replaces retained text with its location and its size.
+///
+/// The scalars stay in the bundle; what a caller receives is the interval, how
+/// long it is, and the action that quotes it. The omission is recorded as a
+/// detail-level exclusion rather than a budget cut, so a reader can tell a
+/// response that ran out of room from one that deliberately declined to quote.
+///
+/// Text that is already empty is returned unchanged: an omission of nothing
+/// would assert material the case does not hold.
+#[must_use]
+pub fn withhold_text(text: &ReviewText, expand: Option<RetrievalAction>) -> ReviewText {
+    let scalars = text.text.chars().count();
+    let mut withheld = text.clone();
+    if scalars == 0 {
+        return withheld;
+    }
+    withheld.text = String::new();
+    withheld.unmapped = Vec::new();
+    withheld.sources = Vec::new();
+    withheld.omitted.push(OmittedRun {
+        range: ScalarInterval::new(0, scalars),
+        scalars,
+        reason: OmissionReason::DetailLevel,
+        expand_with: expand,
+    });
+    withheld
+}
+
 /// Projects one text view into retained review text.
 ///
 /// Unmapped tokens keep their position and raw codes instead of being replaced
@@ -554,6 +582,10 @@ pub(super) fn assemble(assembly: Assembly<'_>, budget: &Budget) -> ReviewPlan {
             },
             RetrievalCapability {
                 detail: Detail::Text,
+                available: true,
+            },
+            RetrievalCapability {
+                detail: Detail::Quote,
                 available: true,
             },
             RetrievalCapability {

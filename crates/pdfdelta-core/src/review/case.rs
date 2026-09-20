@@ -295,20 +295,40 @@ pub enum CaseFinding {
     /// The material was compared and found equal within the examined range.
     /// This says nothing about the rest of the document.
     EqualityEstablished,
-    /// Nothing was established: the material was never compared, or the
-    /// comparison could not conclude.
+    /// The material was compared and the comparison could not conclude. The
+    /// quoted text is the open question itself.
     NotEstablished,
+    /// The material was discovered but no comparison ever reached it. Nothing
+    /// about it is open in the engine's sense: it was never asked.
+    ///
+    /// The distinction from [`CaseFinding::NotEstablished`] is what a quote is
+    /// worth. An undecided comparison quotes the two sides a reviewer must
+    /// weigh; unexamined material has no two sides, so its text is the
+    /// document again and is retrieved only when a reviewer decides to examine
+    /// the page.
+    NotExamined,
 }
 
 impl CaseFinding {
     /// Listing rank, so what the engine already settled is offered first.
+    ///
+    /// Unexamined material ranks last: it is the largest population in a run
+    /// that stopped early, and reading it is reading the document rather than
+    /// the review.
     #[must_use]
     pub const fn rank(self) -> u8 {
         match self {
             Self::DifferenceEstablished => 0,
             Self::NotEstablished => 1,
             Self::EqualityEstablished => 2,
+            Self::NotExamined => 3,
         }
+    }
+
+    /// Whether a comparison reached this material at all.
+    #[must_use]
+    pub const fn examined(self) -> bool {
+        !matches!(self, Self::NotExamined)
     }
 }
 

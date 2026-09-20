@@ -984,7 +984,8 @@ fn opposite_claims_about_one_reference_are_returned_as_a_conflict() {
         "--max-output-bytes",
         "16384",
     ]);
-    // Find a case that quotes evidence and can be concluded about.
+    // Find a case that quotes evidence and can be concluded about. The quote
+    // level is what serves references for material no comparison examined.
     let mut answerable = Vec::new();
     for case in json(&listed)["cases"].as_array().expect("cases") {
         let case = case["case"].as_str().expect("case id");
@@ -995,7 +996,7 @@ fn opposite_claims_about_one_reference_are_returned_as_a_conflict() {
             "--case",
             case,
             "--detail",
-            "text",
+            "quote",
             "--max-output-bytes",
             "65536",
         ]);
@@ -1075,7 +1076,7 @@ fn a_text_answer_spends_its_budget_on_text_rather_than_identifiers() {
         "--case",
         &case,
         "--detail",
-        "text",
+        "quote",
         "--max-output-bytes",
         "16384",
     ]);
@@ -1098,10 +1099,7 @@ fn a_text_answer_spends_its_budget_on_text_rather_than_identifiers() {
         response["omitted"].as_u64().expect("omitted") as usize,
         "what the answer left out is counted, not hidden"
     );
-    assert!(
-        quoted > 0,
-        "a decidable case quotes the text it is asking about"
-    );
+    assert!(quoted > 0, "a quote answer carries the text it quotes");
     // A reviewer decides from the quoted text; identifiers must not crowd it
     // out of the answer.
     let identifiers = serde_json::to_string(&response["evidence"])
@@ -1110,5 +1108,127 @@ fn a_text_answer_spends_its_budget_on_text_rather_than_identifiers() {
     assert!(
         identifiers <= quoted.max(512),
         "references took {identifiers} bytes against {quoted} bytes of text"
+    );
+}
+
+/// A bundle whose material is long enough that locating it costs less than
+/// quoting it, which is the case the text level withholds.
+fn long_text_bundle(directory: &TestDirectory, name: &str) -> PathBuf {
+    let filler = "The reporting deadline is stated in the schedule below and repeats. ".repeat(12);
+    let old = directory.join("long-old.pdf");
+    let new = directory.join("long-new.pdf");
+    write_pdf(&old, &[&format!("{filler}The deadline is 10 days.")]);
+    write_pdf(&new, &[&format!("{filler}The deadline is 20 days.")]);
+    let bundle = directory.join(name);
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--channels",
+        "text",
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+    bundle
+}
+
+#[test]
+fn material_no_comparison_examined_is_located_rather_than_quoted() {
+    let directory = TestDirectory::new();
+    let bundle = long_text_bundle(&directory, "long-bundle");
+    let case = first_case(&bundle);
+    let located = json(&run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        &case,
+        "--detail",
+        "text",
+        "--max-output-bytes",
+        "16384",
+    ]));
+    assert_eq!(
+        located["finding"], "not_examined",
+        "the fixture's first case is material nothing compared: {located}"
+    );
+
+    let side = ["old_text", "new_text"]
+        .into_iter()
+        .find(|side| located[*side].is_object())
+        .expect("a located side");
+    assert_eq!(
+        located[side]["text"], "",
+        "unexamined material is not quoted at the text level"
+    );
+    let withheld = located[side]["omitted"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .expect("a withheld run");
+    assert_eq!(withheld["reason"], "detail_level");
+    assert!(
+        withheld["scalars"].as_u64().expect("a length") > 0,
+        "the withheld run declares how much it withheld: {withheld}"
+    );
+    assert_eq!(
+        withheld["expand_with"]["action"], "show",
+        "the withheld run names the retrieval that returns it: {withheld}"
+    );
+    assert_eq!(withheld["expand_with"]["detail"], "quote");
+    assert_eq!(
+        located["evidence"].as_array().map(Vec::len),
+        Some(0),
+        "references for unexamined material are counted, not sampled"
+    );
+    assert_eq!(
+        located["evidence_total"], located["omitted"],
+        "every reference the case holds is declared as left out: {located}"
+    );
+
+    // The same case quotes its material when a reviewer asks for it.
+    let quoted = json(&run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        &case,
+        "--detail",
+        "quote",
+        "--max-output-bytes",
+        "16384",
+    ]));
+    assert!(
+        quoted[side]["text"]
+            .as_str()
+            .is_some_and(|text| !text.is_empty()),
+        "the quote level returns what the text level withheld: {quoted}"
+    );
+}
+
+#[test]
+fn short_unexamined_material_is_quoted_because_locating_it_would_cost_more() {
+    let directory = TestDirectory::new();
+    let bundle = text_bundle(&directory, "bundle");
+    let case = first_case(&bundle);
+    let shown = json(&run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        &case,
+        "--detail",
+        "text",
+        "--max-output-bytes",
+        "16384",
+    ]));
+    assert_eq!(shown["finding"], "not_examined");
+    let quoted: usize = ["old_text", "new_text"]
+        .into_iter()
+        .filter_map(|side| shown[side]["text"].as_str())
+        .map(str::len)
+        .sum();
+    assert!(
+        quoted > 0,
+        "a locator for a single short line would cost more than the line: {shown}"
     );
 }

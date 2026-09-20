@@ -22,7 +22,7 @@ use pdfdelta_core::{
         AgentDecision, AgentReviewManifest, CaseCompleteness, CaseContext, CaseFinding, CaseId,
         Cursor, DecisionStatus, Detail, EngineClass, EngineOutcome, Hypothesis, MAX_CURSOR_BYTES,
         RequiredEvidence, RetrievalAction, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason,
-        Side,
+        ReviewText, Side,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -100,9 +100,10 @@ const MAX_TEXT_VIEW_EVIDENCE: usize = 16;
 /// The planner describes what a case could be asked for in principle. This list
 /// is what the command line answers today, and the manifest advertises exactly
 /// this, so a caller is never invited to make a request that cannot be served.
-const SERVED_DETAILS: [Detail; 4] = [
+const SERVED_DETAILS: [Detail; 5] = [
     Detail::Index,
     Detail::Text,
+    Detail::Quote,
     Detail::Context,
     Detail::Alternatives,
 ];
@@ -141,12 +142,34 @@ struct IndexRecord {
     required_evidence: Vec<RequiredEvidence>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     alternatives_total: Option<usize>,
+    #[serde(default, skip_serializing_if = "is_zero")]
     alternatives_returned: usize,
-    next: RetrievalAction,
+    /// Scalars of material the case covers, for material no comparison
+    /// examined. A listing carries the size rather than the text, so a
+    /// reviewer can judge whether a page is worth opening without opening it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unexamined_scalars: Option<usize>,
+    /// The detail level worth requesting for this case, to be read with
+    /// [`IndexRecord::case`]. Both are closed vocabularies, so a host composes
+    /// the retrieval without handling any text the document supplied.
+    next: Detail,
+}
+
+const fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 impl IndexRecord {
     fn new(case: &ReviewCase) -> Self {
+        let examined = case.finding.examined();
+        // Only the sides a text answer would actually withhold: the rest is
+        // quoted there, so naming its size here would double-count it.
+        let scalars = [case.old_text.as_ref(), case.new_text.as_ref()]
+            .into_iter()
+            .flatten()
+            .filter(|text| !examined && worth_locating(text, &case.case_id))
+            .map(|text| text.text.chars().count())
+            .sum::<usize>();
         Self {
             case: case.case_id.clone(),
             question: case.question,
@@ -159,10 +182,15 @@ impl IndexRecord {
             required_evidence: case.required_evidence.clone(),
             alternatives_total: case.alternatives_total,
             alternatives_returned: case.alternatives_returned,
-            next: RetrievalAction::Show {
-                case: case.case_id.clone(),
-                detail: Detail::Text,
-                cursor: None,
+            unexamined_scalars: (!examined && scalars > 0).then_some(scalars),
+            // A text answer for unexamined material repeats what this record
+            // already carries, so the listing names the retrieval that adds
+            // something instead: the quote a reviewer asks for when they
+            // decide to examine the page.
+            next: if examined || scalars == 0 {
+                Detail::Text
+            } else {
+                Detail::Quote
             },
         }
     }
@@ -654,11 +682,15 @@ pub(crate) fn show(
                 error
             }
         })?;
+    // The run's own outcome belongs to the listing, which a review reads
+    // first and which repeats it on every page. Carrying it again in each of
+    // several hundred case answers charges for the same six numbers once per
+    // case; the case's finding, engine class, and completeness are what a case
+    // answer is asked for.
     let envelope = serde_json::json!({
         "schema": pdfdelta_core::review::REVIEW_SCHEMA,
         "view": format!("{detail:?}").to_lowercase(),
         "bundle_id": manifest.bundle_id,
-        "engine": manifest.engine,
         "case_id": stored.case_id,
         "question": stored.question,
         "engine_class": stored.engine_class,
@@ -666,7 +698,7 @@ pub(crate) fn show(
         "pipeline": stored.pipeline,
         "completeness": stored.completeness,
         "required_evidence": stored.required_evidence,
-        "available_actions": stored.available_actions,
+        "available_actions": offered_actions(&stored)?,
         "alternatives_total": stored.alternatives_total,
         "alternatives_returned": 0,
         "omitted": 0,
@@ -674,7 +706,8 @@ pub(crate) fn show(
     });
     match detail {
         Detail::Index => finish(envelope, cap),
-        Detail::Text => text_view(envelope, &stored, cap),
+        Detail::Text => text_view(envelope, &stored, cap, Quoting::AsExamined),
+        Detail::Quote => text_view(envelope, &stored, cap, Quoting::Always),
         Detail::Alternatives => alternatives(envelope, &stored, &manifest.bundle_id, cursor, cap),
         Detail::Context => context_view(
             envelope,
@@ -692,17 +725,97 @@ pub(crate) fn show(
     }
 }
 
-/// Answers `--detail text` inside the byte cap.
+/// The retrievals a case answer offers, without repeating the case identifier
+/// the answer already carries in `case_id`.
+///
+/// Every action a stored case holds names that same case, so spelling it out
+/// once per action charges for the identifier four or five times in every
+/// answer. An action that names another case, if one is ever produced, is
+/// passed through whole rather than being flattened onto the wrong identity.
+fn offered_actions(case: &ReviewCase) -> Result<Vec<serde_json::Value>, QueryError> {
+    case.available_actions
+        .iter()
+        .map(|action| {
+            let compact = match action {
+                RetrievalAction::Show {
+                    case: named,
+                    detail,
+                    cursor: None,
+                } if *named == case.case_id => {
+                    Some(serde_json::json!({ "action": "show", "detail": detail }))
+                }
+                RetrievalAction::Render { case: named } if *named == case.case_id => {
+                    Some(serde_json::json!({ "action": "render" }))
+                }
+                _ => None,
+            };
+            match compact {
+                Some(value) => Ok(value),
+                None => serde_json::to_value(action)
+                    .map_err(|error| QueryError::new("encoding_failed", error.to_string())),
+            }
+        })
+        .collect()
+}
+
+/// The action that returns a case's withheld text.
+fn quote_action(case: &CaseId) -> RetrievalAction {
+    RetrievalAction::Show {
+        case: case.clone(),
+        detail: Detail::Quote,
+        cursor: None,
+    }
+}
+
+/// Whether locating one side's text costs less than quoting it.
+///
+/// A locator is a fixed-size record — an interval, a length, and the retrieval
+/// that returns the run — so for short material it is the more expensive of
+/// the two. Withholding text that is cheaper to quote would spend a response's
+/// budget to say less, so the two encodings are compared and the smaller one
+/// is served. Nothing is hidden either way: both forms declare what they hold.
+fn worth_locating(text: &ReviewText, case: &CaseId) -> bool {
+    let encoded =
+        |value: &ReviewText| serde_json::to_vec(value).map_or(usize::MAX, |bytes| bytes.len());
+    encoded(&pdfdelta_core::review::withhold_text(
+        text,
+        Some(quote_action(case)),
+    )) < encoded(text)
+}
+
+/// Whether a view quotes material the comparison never examined.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Quoting {
+    /// Quote only what a comparison actually looked at. Unexamined material is
+    /// located instead, with the action that quotes it.
+    AsExamined,
+    /// Quote whatever the case holds, because the caller asked for it.
+    Always,
+}
+
+/// Answers `--detail text` and `--detail quote` inside the byte cap.
 ///
 /// Required metadata is placed first, then both sides' text shortened at a
 /// sentence boundary with an explicit omission, and finally as many evidence
 /// references as still fit. Nothing is cut in the middle, and a budget that
 /// cannot carry even the metadata is refused with the size it would need.
+///
+/// A case whose material no comparison reached is located rather than quoted
+/// at [`Detail::Text`]: its text is the document, not an answer to the
+/// question the case asks, and a reviewer reading every case would pay for the
+/// whole document to learn nothing. The withheld run carries its length and
+/// the [`Detail::Quote`] action that returns it, and the same references are
+/// summarized by count instead of sampled, because sixteen of several thousand
+/// identifiers for a page nothing examined name no evidence a reviewer can act
+/// on.
 fn text_view(
     mut envelope: serde_json::Value,
     case: &ReviewCase,
     cap: usize,
+    quoting: Quoting,
 ) -> Result<Vec<u8>, QueryError> {
+    let quote = quoting == Quoting::Always || case.finding.examined();
+    let mut located = false;
     for (key, value) in [
         ("reasons", serde_json::to_value(&case.reasons)),
         ("assumptions", serde_json::to_value(&case.assumptions)),
@@ -728,16 +841,20 @@ fn text_view(
     let share = (cap - baseline) / 2;
     for (key, text) in [("old_text", &case.old_text), ("new_text", &case.new_text)] {
         let Some(text) = text else { continue };
-        let expand = RetrievalAction::Show {
-            case: case.case_id.clone(),
-            detail: Detail::Text,
-            cursor: None,
-        };
         // A side's own reference list repeats the case-level evidence, which
         // is filled separately below; carrying both would spend the budget on
         // the same references twice.
         let mut text = text.clone();
         text.sources = Vec::new();
+        if !quote && worth_locating(&text, &case.case_id) {
+            located = true;
+            let withheld =
+                pdfdelta_core::review::withhold_text(&text, Some(quote_action(&case.case_id)));
+            envelope[key] = serde_json::to_value(&withheld)
+                .map_err(|error| QueryError::new("encoding_failed", error.to_string()))?;
+            continue;
+        }
+        let expand = quote_action(&case.case_id);
         let mut scalars = text.text.chars().count();
         let fitted;
         // Halve the retained length until the encoded side fits its share.
@@ -757,10 +874,13 @@ fn text_view(
         }
         envelope[key] = fitted;
     }
+    // References are summarized by count only where the text was withheld: an
+    // answer that quotes its material is an answer a decision can cite.
+    let sample = if located { 0 } else { MAX_TEXT_VIEW_EVIDENCE };
     let encoded: Vec<serde_json::Value> = case
         .evidence
         .iter()
-        .take(MAX_TEXT_VIEW_EVIDENCE)
+        .take(sample)
         .map(serde_json::to_value)
         .collect::<Result<_, _>>()
         .map_err(|error| QueryError::new("encoding_failed", error.to_string()))?;

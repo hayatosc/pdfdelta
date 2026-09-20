@@ -219,6 +219,7 @@ impl<'a> Planner<'a> {
         let Draft {
             question,
             engine_class,
+            finding,
             old_span,
             new_span,
             reasons,
@@ -270,7 +271,19 @@ impl<'a> Planner<'a> {
             detail: Detail::Text,
             cursor: None,
         }];
-        if !hypotheses.is_empty() || alternatives_total.is_none() {
+        // Unexamined material is located rather than quoted at the text level,
+        // so the action that quotes it is the one a reviewer needs next.
+        if !finding.examined() && readable {
+            available_actions.push(RetrievalAction::Show {
+                case: case_id.clone(),
+                detail: Detail::Quote,
+                cursor: None,
+            });
+        }
+        // An unknown total is a reason to ask, but only where a search ran at
+        // all: material nothing examined has no competitors to enumerate, and
+        // offering the level would invite one call per case to hear so.
+        if !hypotheses.is_empty() || (alternatives_total.is_none() && finding.examined()) {
             available_actions.push(RetrievalAction::Show {
                 case: case_id.clone(),
                 detail: Detail::Alternatives,
@@ -285,7 +298,7 @@ impl<'a> Planner<'a> {
             // This contract's cases are the obligations its comparison could
             // not discharge; its established changes are reported as change
             // events rather than as questions.
-            finding: CaseFinding::NotEstablished,
+            finding,
             channels: BTreeSet::from([Channel::Text]),
             completeness,
             reasons,
@@ -341,6 +354,7 @@ impl<'a> Planner<'a> {
             let draft = Draft {
                 question: ReviewQuestion::CompareContent,
                 engine_class: EngineClass::Unavailable,
+                finding: CaseFinding::NotEstablished,
                 old_span: region.old_span.clone(),
                 new_span: region.new_span.clone(),
                 reasons,
@@ -405,6 +419,7 @@ impl<'a> Planner<'a> {
             let draft = Draft {
                 question: ReviewQuestion::ResolveCorrespondence,
                 engine_class: EngineClass::Unavailable,
+                finding: CaseFinding::NotEstablished,
                 old_span,
                 new_span,
                 reasons,
@@ -504,6 +519,7 @@ impl<'a> Planner<'a> {
             let draft = Draft {
                 question: ReviewQuestion::ResolveCorrespondence,
                 engine_class: EngineClass::Unavailable,
+                finding: CaseFinding::NotEstablished,
                 old_span: relation.old_span.clone(),
                 new_span: relation.new_span.clone(),
                 reasons: relation_reasons(relation),
@@ -561,6 +577,7 @@ impl<'a> Planner<'a> {
                 let draft = Draft {
                     question: ReviewQuestion::ResolveCorrespondence,
                     engine_class: EngineClass::Unavailable,
+                    finding: CaseFinding::NotExamined,
                     old_span,
                     new_span,
                     reasons: vec![
@@ -674,6 +691,8 @@ impl<'a> Planner<'a> {
 struct Draft {
     question: ReviewQuestion,
     engine_class: EngineClass,
+    /// What the comparison established about this material, if anything.
+    finding: CaseFinding,
     old_span: Option<TextSpan>,
     new_span: Option<TextSpan>,
     reasons: Vec<ReasonRecord>,

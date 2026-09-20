@@ -177,6 +177,11 @@ reached through a cursor, never cut in half. A comparison that exits 3 still
 publishes a usable bundle, and `review list` and `review show` exit 0 on a
 successful read while carrying the engine's own status inside the payload.
 
+Material the comparison discovered but never reached is located rather than
+quoted: a text answer gives its page, its length, and the `--detail quote`
+action that returns it, so reading every case does not mean paying for the
+whole document to learn that nothing examined it.
+
 `review show --detail context` adds enclosing headings, neighbours, table
 structure, and other occurrences of the same text, and `review render` cuts
 images out of the page rasters the comparison retained — never a fresh
@@ -198,8 +203,9 @@ finding and the listing is ordered by it, so a reviewer reads what the engine
 settled and stops where it stopped. Measured on the registered real-world
 corpus, that costs about a quarter of the tokens that handing over both
 documents' text costs, and never more than the document; reading every case
-instead costs about 2.5 times the full text. The measurements and their caveats
-are recorded under
+instead costs about 1.6 times the full text, and less than the document where
+pages the comparison never examined dominate. The measurements and their
+caveats are recorded under
 [`benchmark/realworld/remaining/agent-review/`](benchmark/realworld/remaining/agent-review/).
 
 Exporting a bundle changes no comparison field, no coverage count, and no exit

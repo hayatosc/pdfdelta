@@ -74,6 +74,40 @@ made is different from a search that ran and stopped short.
 One returned hypothesis is never uniqueness: a case with a single hypothesis and
 an incomplete enumeration is a case whose alternatives were not enumerated.
 
+## What the engine established, and what it never reached
+
+Every case carries the engine's own finding, and a listing is ordered by it, so
+a reviewer can read what the engine settled and stop where the engine stopped
+instead of at an arbitrary count.
+
+| Finding | What it says |
+| --- | --- |
+| `difference_established` | A difference is proved for this material, even where its exact position inside the range is still open. |
+| `equality_established` | The material was compared and found equal within the examined range. It says nothing about the rest of the document. |
+| `not_established` | The material was compared and the comparison could not conclude. The quoted text is the open question. |
+| `not_examined` | The material was discovered and no comparison ever reached it. |
+
+A finding is always read together with the case's result class: a difference
+established under an inferred correspondence is still inferred.
+
+The last two are different questions, and they are worth different amounts of
+reading. An undecided comparison quotes two sides a reviewer has to weigh.
+Unexamined material has no two sides — its text is the document again — so a
+case that only locates material says where it is and how many scalars it
+covers, and `--detail text` withholds the text with the `--detail quote`
+action that returns it. Its listing record names `quote` as the retrieval worth
+making, because a text answer for it would repeat the record.
+
+The same rule applies to the references such a case holds: the answer reports
+how many there are rather than sampling sixteen of several thousand glyph
+identifiers for a page nothing examined. They stay in the bundle, where the
+coverage accounting needs them, and the quote serves them.
+
+This is a cost decision with a consequence a caller has to accept: a review
+that never asks for those quotes does not find differences hiding in the pages
+the comparison never reached. What it does do is say how much material that is,
+per page, instead of leaving it out.
+
 ## Cases, gaps, and material with no candidate
 
 A case is a question to answer, not a difference to approve. Its unit is the
@@ -159,6 +193,7 @@ pdfdelta review list ./review-run --max-output-bytes 8192
 pdfdelta review list ./review-run --cursor CURSOR --max-output-bytes 8192
 pdfdelta review show ./review-run --case R17 --detail index
 pdfdelta review show ./review-run --case R17 --detail text --max-output-bytes 16384
+pdfdelta review show ./review-run --case R17 --detail quote --max-output-bytes 65536
 pdfdelta review show ./review-run --case R17 --detail context --cursor CURSOR
 pdfdelta review show ./review-run --case R17 --detail alternatives --cursor CURSOR
 ```
@@ -322,6 +357,7 @@ reads the bundle in whatever order its own reasoning needs:
 pdfdelta old.pdf new.pdf --channels text --agent-review ./run   # 0, 1 or 3
 pdfdelta review list ./run --max-output-bytes 8192              # what is open
 pdfdelta review show ./run --case R… --detail text              # the question
+pdfdelta review show ./run --case R… --detail quote             # material it only locates
 pdfdelta review show ./run --case R… --detail context           # its surroundings
 pdfdelta review show ./run --case R… --detail alternatives      # the competitors
 pdfdelta review render ./run --case R… --output ./images        # pictures, if needed
@@ -367,13 +403,17 @@ once it can decide.
 Every case carries the engine's own finding, and the listing is ordered by it,
 so a reviewer can read what the engine settled and stop where the engine
 stopped. Measured on the registered corpus in tokens, that review costs about a
-quarter of what handing over both documents' text costs — a 74% median
-reduction, worst case a half, and never more than the document itself.
+quarter of what handing over both documents' text costs — a 75% median
+reduction, worst case about a half, and never more than the document itself.
 
-Reading *every* case instead costs about 2.5 times the full text. The packets
-are an index over open questions, not a compression of the document: what they
-save is the reading you do not have to do, and what they add is an account of
-what the comparison never examined. The measurement and its caveats are in
+Reading *every* case costs about 1.6 times the full text at the median, and
+less than the document where unexamined pages dominate. That ratio tracks how
+much the engine settled rather than how the packets are encoded: on a run that
+settles nothing, reading every case is reading the unsettled document plus the
+account of why it is unsettled. Reading the quotes as well — the whole document
+through the packet — costs about 2.2 times the text, and always will, because
+that account is what the raw text does not carry. The measurement and its
+caveats are in
 `benchmark/realworld/remaining/agent-review/corpus-token-measurement.md`.
 
 ## Trust boundary

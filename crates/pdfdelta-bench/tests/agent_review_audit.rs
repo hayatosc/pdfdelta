@@ -35,21 +35,23 @@ fn bundle(case: Value, extra: &[(&str, Vec<u8>)]) -> Bundle {
     ));
     fs::create_dir_all(directory.join("cases")).expect("bundle directory");
     let case_id = case["case_id"].as_str().expect("case id").to_owned();
-    let index = serde_json::to_vec(&json!({
-        "bundle_id": "b0",
-        "records": [{
-            "case": case_id,
-            "question": case["question"],
-            "engine_class": case["engine_class"],
-            "finding": case["finding"],
-            "reasons": [],
-            "completeness": case["completeness"],
-            "alternatives_returned": case["alternatives_returned"],
-            "alternatives_total": case["alternatives_total"],
-            "next": { "action": "show", "case": case_id, "detail": "text" },
-        }],
-    }))
-    .expect("index");
+    let mut record = json!({
+        "case": case_id,
+        "question": case["question"],
+        "engine_class": case["engine_class"],
+        "finding": case["finding"],
+        "reasons": [],
+        "completeness": case["completeness"],
+        "alternatives_total": case["alternatives_total"],
+        "next": "text",
+    });
+    // A published listing leaves out an enumeration that returned nothing, so
+    // the audit has to read a record without the field rather than reject it.
+    if case["alternatives_returned"].as_u64() != Some(0) {
+        record["alternatives_returned"] = case["alternatives_returned"].clone();
+    }
+    let index =
+        serde_json::to_vec(&json!({ "bundle_id": "b0", "records": [record] })).expect("index");
     let packet = serde_json::to_vec(&case).expect("case");
 
     let mut files = vec![

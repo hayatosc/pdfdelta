@@ -391,6 +391,7 @@ impl<'a> Planner<'a> {
             return None;
         }
         let case_id = self.identifiers.case(&digest);
+        let mut has_context = false;
         if !old_nodes.is_empty() || !new_nodes.is_empty() {
             let context = super::context::gather(
                 &case_id,
@@ -401,6 +402,7 @@ impl<'a> Planner<'a> {
             );
             if !context.items.is_empty() || !context.complete {
                 self.contexts.push(context);
+                has_context = true;
             }
         }
         let old_text = self.node_text(Side::Old, old_nodes);
@@ -438,19 +440,33 @@ impl<'a> Planner<'a> {
         } else {
             vec![RequiredEvidence::Unavailable]
         };
-        let mut available_actions = vec![
-            RetrievalAction::Show {
+        let mut available_actions = vec![RetrievalAction::Show {
+            case: case_id.clone(),
+            detail: Detail::Text,
+            cursor: None,
+        }];
+        // Unexamined material is located rather than quoted at the text level,
+        // so the action that quotes it is the one a reviewer needs next.
+        if !finding.examined() && readable {
+            available_actions.push(RetrievalAction::Show {
                 case: case_id.clone(),
-                detail: Detail::Text,
+                detail: Detail::Quote,
                 cursor: None,
-            },
-            RetrievalAction::Show {
+            });
+        }
+        // Offering context for a case that gathered none invites a retrieval
+        // that can only answer "nothing", once per case.
+        if has_context {
+            available_actions.push(RetrievalAction::Show {
                 case: case_id.clone(),
                 detail: Detail::Context,
                 cursor: None,
-            },
-        ];
-        if !hypotheses.is_empty() || alternatives_total.is_none() {
+            });
+        }
+        // An unknown total is a reason to ask, but only where a search ran at
+        // all: material nothing examined has no competitors to enumerate, and
+        // offering the level would invite one call per case to hear so.
+        if !hypotheses.is_empty() || (alternatives_total.is_none() && finding.examined()) {
             available_actions.push(RetrievalAction::Show {
                 case: case_id.clone(),
                 detail: Detail::Alternatives,
@@ -1231,7 +1247,7 @@ impl<'a> Planner<'a> {
                         question: ReviewQuestion::ResolveCorrespondence,
                         engine_class: EngineClass::Unavailable,
                         // Discovered, never reached by any comparison.
-                        finding: CaseFinding::NotEstablished,
+                        finding: CaseFinding::NotExamined,
                         old_nodes: &old_nodes,
                         new_nodes: &new_nodes,
                         reasons,
