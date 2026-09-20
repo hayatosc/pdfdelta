@@ -71,3 +71,17 @@ unchanged (no production commit). The next H6 cause keeps the original order
 obligations and looks for source-specific local equality or closure: the
 moved-row candidate competition and the block 228 `ambiguous_edit_location` /
 `numeric_mask` residuals.
+
+## Schedule C residual closure
+
+After the routing rejection, the original-order residual was re-inspected
+without any engine change. The two `ambiguous_edit_location` candidates on
+block 228 (`–` -> `-` at 68..69 and `6, line 2` -> empty at 70..79) belong to
+`alternative_group` 2 and 3 with `search: complete`, and the moved-row
+regions carry `text_similarity` plus `candidate_competition` with complete
+searches: old block 126 `27 a Other expenses` matches either new block 126
+(same label, different text) or new block 133 (same text, different label),
+and both decompositions are exact. The residual is contract-level edit
+ambiguity (moves and repeated numeric contexts), not exhausted search, so H6
+closes without an engine change. If a future iteration adds move semantics or
+a canonical atomic-edit choice, this evidence is the starting point.
