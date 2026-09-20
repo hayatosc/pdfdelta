@@ -207,6 +207,64 @@ struct StoredManifest {
     cases: StoredCensus,
     #[serde(default)]
     unlocalized_gaps: Vec<serde_json::Value>,
+    #[serde(default)]
+    files: Vec<StoredArtifact>,
+}
+
+#[derive(Deserialize)]
+struct StoredArtifact {
+    name: String,
+    sha256: String,
+}
+
+impl StoredManifest {
+    /// Reads one artifact and checks it against the digest the manifest
+    /// recorded when the bundle was published.
+    ///
+    /// This detects a bundle that drifted or was modified after publication.
+    /// It is not a defence against rewriting the manifest itself, which would
+    /// require replacing the whole bundle.
+    fn read_verified<T: serde::de::DeserializeOwned>(
+        &self,
+        directory: &Path,
+        name: &str,
+    ) -> Result<T, QueryError> {
+        let path = artifact(directory, name);
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
+            QueryError::new("unreadable_bundle", format!("{}: {error}", path.display()))
+        })?;
+        if !metadata.is_file() {
+            return Err(QueryError::new(
+                "unreadable_bundle",
+                format!("{} is not a regular file", path.display()),
+            ));
+        }
+        let bytes = std::fs::read(&path).map_err(|error| {
+            QueryError::new("unreadable_bundle", format!("{}: {error}", path.display()))
+        })?;
+        let Some(expected) = self
+            .files
+            .iter()
+            .find(|artifact| artifact.name == name)
+            .map(|artifact| artifact.sha256.as_str())
+        else {
+            return Err(QueryError::new(
+                "unlisted_artifact",
+                format!("{name} is not listed in the manifest"),
+            ));
+        };
+        use sha2::{Digest, Sha256};
+        let found = crate::fs::lowercase_hex(&Sha256::digest(&bytes));
+        if found != expected {
+            return Err(QueryError::new(
+                "tampered_bundle",
+                format!("{name} does not match the digest the manifest records"),
+            ));
+        }
+        serde_json::from_slice(&bytes).map_err(|error| {
+            QueryError::new("malformed_bundle", format!("{}: {error}", path.display()))
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -373,7 +431,7 @@ pub(crate) fn list(
     cap: usize,
 ) -> Result<Vec<u8>, QueryError> {
     let manifest: StoredManifest = read_json(&artifact(directory, COMPLETION_MARKER))?;
-    let index: CaseIndex = read_json(&artifact(directory, CASE_INDEX))?;
+    let index: CaseIndex = manifest.read_verified(directory, CASE_INDEX)?;
     if index.bundle_id != manifest.bundle_id {
         return Err(QueryError::new(
             "malformed_bundle",
@@ -440,9 +498,10 @@ pub(crate) fn show(
     let manifest: StoredManifest = read_json(&artifact(directory, COMPLETION_MARKER))?;
     let case_id =
         CaseId::new(case).map_err(|error| QueryError::new("invalid_case", error.to_string()))?;
-    let stored: ReviewCase = read_json(&artifact(directory, &format!("cases/{case_id}.json")))
+    let stored: ReviewCase = manifest
+        .read_verified(directory, &format!("cases/{case_id}.json"))
         .map_err(|error| {
-            if error.error == "unreadable_bundle" {
+            if matches!(error.error, "unreadable_bundle" | "unlisted_artifact") {
                 QueryError::new("unknown_case", format!("{case_id} is not in this bundle"))
             } else {
                 error

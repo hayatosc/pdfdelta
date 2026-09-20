@@ -675,3 +675,144 @@ fn ambiguous_scope_reports_its_competing_proposals() {
         }
     }
 }
+
+/// A tagged table whose cells carry their own text.
+///
+/// Row and column membership is structure, not text: two revisions can hold the
+/// same cell strings while associating them with different rows.
+fn table(rows: &[&[&str]]) -> Fixture {
+    let mut structured = Vec::new();
+    let mut next = 0_u64;
+    let mut element = |role: &str, text: Option<&str>, parent: Option<u64>, order: u32| {
+        let id = next;
+        next += 1;
+        structured.push(StructuredEvidence {
+            id,
+            page: None,
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                content: None,
+                identifier: None,
+                glyphs: Vec::new(),
+                role: role.into(),
+                text: text.map(Into::into),
+                parent,
+                order: Some(order),
+            },
+        });
+        id
+    };
+    let table = element("table", None, None, 0);
+    for (row_index, cells) in rows.iter().enumerate() {
+        let row = element(
+            "tr",
+            None,
+            Some(table),
+            u32::try_from(row_index).expect("row fits in u32"),
+        );
+        for (cell_index, text) in cells.iter().enumerate() {
+            element(
+                "td",
+                Some(text),
+                Some(row),
+                u32::try_from(cell_index).expect("cell fits in u32"),
+            );
+        }
+    }
+    let store = EvidenceStore {
+        revision: "planner-fixture".into(),
+        native: Document::new(Vec::new()),
+        pages: Vec::new(),
+        backends: vec![BackendIdentity {
+            kind: BackendKind::NativeParser,
+            name: "fixture".into(),
+            version: "1".into(),
+            profile: "source-structure".into(),
+            model: None,
+        }],
+        rendered: Vec::new(),
+        inventories: vec![ChannelInventory {
+            page: None,
+            channel: Channel::Text,
+            backend: 0,
+            sources: structured
+                .iter()
+                .map(|element| SourceRef::Structured {
+                    element: element.id,
+                })
+                .collect(),
+            complete: true,
+        }],
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
+        issues: Vec::new(),
+        structured,
+    };
+    let limits = DocumentComparisonLimits::default();
+    let graph = DocumentGraph::from_evidence(
+        &store,
+        PipelineOptions::default(),
+        limits.evidence,
+        limits.graph,
+    )
+    .expect("derive table views");
+    Fixture { store, graph }
+}
+
+#[test]
+fn equal_cell_text_with_a_changed_row_association_is_never_dropped() {
+    // Both revisions contain exactly the same cell strings. Only which row each
+    // value belongs to differs, so text equality alone must not end the matter.
+    let old = table(&[
+        &["Region", "Amount"],
+        &["North", "10 days"],
+        &["South", "20 days"],
+    ]);
+    let new = table(&[
+        &["Region", "Amount"],
+        &["North", "20 days"],
+        &["South", "10 days"],
+    ]);
+    let comparison = compare(&old, &new, comparison_limits());
+    let plan = plan(&old, &new, &comparison);
+
+    assert_obligations_explained(&old, &new, &comparison, &plan);
+
+    // The two moved values must be visible as a settled change or as a case to
+    // review; disappearing because the multiset of strings is unchanged is the
+    // failure this fixture exists to catch.
+    let values = ["10 days", "20 days"];
+    for value in values {
+        let element = old
+            .store
+            .structured
+            .iter()
+            .find(|element| match &element.value {
+                StructuredValue::StructureElement { text, .. } => text.as_deref() == Some(value),
+                _ => false,
+            })
+            .expect("the fixture contains the value");
+        let source = SourceRef::Structured {
+            element: element.id,
+        };
+        let settled = comparison.comparisons().any(|pair| {
+            pair.operation.is_some()
+                && pair.old.iter().any(|node| {
+                    old.graph.nodes.iter().any(|graph_node| {
+                        graph_node.id == *node && graph_node.sources.contains(&source)
+                    })
+                })
+        });
+        let reviewed = plan.cases.iter().any(|case| {
+            case.evidence
+                .iter()
+                .any(|reference| reference.side == Side::Old && reference.source == source)
+        });
+        assert!(
+            settled || reviewed,
+            "{value:?} is neither a reported change nor a case to review"
+        );
+    }
+}

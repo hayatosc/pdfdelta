@@ -447,3 +447,65 @@ fn a_bundle_refuses_to_publish_over_an_existing_directory() {
         stderr(&output)
     );
 }
+
+#[test]
+fn a_modified_packet_is_refused_rather_than_answered() {
+    let directory = TestDirectory::new();
+    let (old, new) = fixture(&directory);
+    let bundle = directory.join("bundle");
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "8192",
+    ]);
+    let case = json(&listed)["cases"][0]["case"]
+        .as_str()
+        .expect("a case to read")
+        .to_owned();
+    let packet = bundle.join(format!("cases/{case}.json"));
+    let mut stored: Value =
+        serde_json::from_slice(&fs::read(&packet).expect("packet")).expect("JSON");
+    stored["engine_class"] = Value::String("strict".into());
+    fs::write(&packet, serde_json::to_vec(&stored).expect("edited packet")).expect("write");
+
+    let shown = run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        &case,
+        "--max-output-bytes",
+        "8192",
+    ]);
+    assert_eq!(shown.status.code(), Some(2), "{}", stdout(&shown));
+    assert_eq!(
+        json(&shown)["error"],
+        "tampered_bundle",
+        "an edited packet must not be answered as if it were published"
+    );
+
+    // The index is checked the same way.
+    let index = bundle.join("cases/index.json");
+    let mut stored: Value =
+        serde_json::from_slice(&fs::read(&index).expect("index")).expect("JSON");
+    stored["bundle_id"] = Value::String("bdeadbeef".into());
+    fs::write(&index, serde_json::to_vec(&stored).expect("edited index")).expect("write");
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "8192",
+    ]);
+    assert_eq!(json(&listed)["error"], "tampered_bundle");
+}

@@ -192,6 +192,12 @@ in a document can choose where bytes land.
 
 A bundle without `manifest.json` is incomplete and must not be read.
 
+Every artifact a query reads is checked against the digest the manifest recorded
+when the bundle was published, and a file that no longer matches is refused
+rather than answered. This detects a bundle that drifted or was edited after
+publication; it is not a defence against replacing the whole bundle, manifest
+included.
+
 ## Cursors
 
 A cursor is opaque and bound to one bundle identity and one query shape. Using a
