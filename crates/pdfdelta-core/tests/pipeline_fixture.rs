@@ -2377,6 +2377,192 @@ fn compares_empty_documents() -> Result<()> {
 }
 
 #[test]
+fn proven_empty_side_settles_every_block_in_both_directions() -> Result<()> {
+    let empty = Document::new(Vec::new());
+    let text = paragraphs(&[
+        "First inserted paragraph remains visible",
+        "Second inserted paragraph remains visible",
+        "Third inserted paragraph remains visible",
+    ]);
+
+    for insertion in [true, false] {
+        let (old, new) = if insertion {
+            (empty.clone(), text.clone())
+        } else {
+            (text.clone(), empty.clone())
+        };
+        let outcome = compare_extraction_outcomes_with_diagnostics(
+            ExtractionOutcome::complete(old),
+            ExtractionOutcome::complete(new),
+            PipelineOptions::default(),
+            &mut PipelineDiagnostics::new(),
+        )?;
+        let comparison = &outcome.comparison;
+        assert!(outcome.extraction.old_complete && outcome.extraction.new_complete);
+        assert!(!comparison.changes.is_empty(), "insertion={insertion}");
+        let kind = if insertion {
+            ChangeKind::Insertion
+        } else {
+            ChangeKind::Deletion
+        };
+        assert!(
+            comparison.changes.iter().all(|change| change.kind == kind),
+            "insertion={insertion}: {comparison:#?}"
+        );
+        assert!(comparison.change_candidates.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        assert!(comparison.proven_changed_regions.is_empty());
+        if insertion {
+            assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+        } else {
+            assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+        }
+        let summary = summarize(&outcome.comparison, &outcome.extraction)?;
+        assert!(
+            summary.comparison_complete,
+            "insertion={insertion}: {summary:?}"
+        );
+        assert_eq!(summary.difference_status, DifferenceStatus::Detected);
+    }
+    Ok(())
+}
+
+#[test]
+fn proven_empty_side_settles_repeated_and_overlapping_blocks() -> Result<()> {
+    // Repeated text at identical coordinates leaves the window reading order
+    // uncertain; a proven-empty old side still settles every block.
+    let text = document(&[
+        line("Repeated shared phrase", 0, 300.0),
+        line("Repeated shared phrase", 0, 300.0),
+        line("Distinct closing phrase", 0, 270.0),
+    ]);
+    let outcome = compare_extraction_outcomes_with_diagnostics(
+        ExtractionOutcome::complete(Document::new(Vec::new())),
+        ExtractionOutcome::complete(text),
+        PipelineOptions::default(),
+        &mut PipelineDiagnostics::new(),
+    )?;
+    let comparison = &outcome.comparison;
+    assert!(!comparison.changes.is_empty(), "{comparison:#?}");
+    assert!(
+        comparison
+            .changes
+            .iter()
+            .all(|change| change.kind == ChangeKind::Insertion)
+    );
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    let summary = summarize(comparison, &outcome.extraction)?;
+    assert!(summary.comparison_complete, "{summary:?}");
+    assert_eq!(summary.difference_status, DifferenceStatus::Detected);
+    Ok(())
+}
+
+#[test]
+fn empty_side_with_an_extraction_issue_never_completes() -> Result<()> {
+    let text = paragraphs(&["Complete evidence remains visible"]);
+    for (kind, scope) in [
+        (ExtractionIssueKind::Unsupported, ExtractionScope::Document),
+        (
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::GlyphGap { retained_before: 0 },
+        ),
+    ] {
+        let old = ExtractionOutcome::new(
+            Document::new(Vec::new()),
+            vec![ExtractionIssue::new(
+                kind,
+                scope,
+                "empty side evidence is unavailable",
+            )?],
+        )?;
+        let outcome = compare_extraction_outcomes_with_diagnostics(
+            old,
+            ExtractionOutcome::complete(text.clone()),
+            PipelineOptions::default(),
+            &mut PipelineDiagnostics::new(),
+        )?;
+        let summary = summarize(&outcome.comparison, &outcome.extraction)?;
+        assert!(
+            !summary.comparison_complete,
+            "kind={kind:?} scope={scope:?}: {summary:?}"
+        );
+        assert!(!outcome.extraction.old_complete);
+        assert!(outcome.comparison.changes.is_empty());
+    }
+    Ok(())
+}
+
+#[test]
+fn present_side_normalization_issue_holds_the_one_sided_proof() -> Result<()> {
+    // The line break after a comma has no lexical rule, so normalization
+    // records the ambiguous break as a block issue on the present side. The
+    // two lines sit close enough to form one wrapped block.
+    let text = document(&[
+        line("A first clause ends here,", 0, 300.0),
+        line("and a second clause continues", 0, 288.0),
+    ]);
+    let empty = Document::new(Vec::new());
+    let outcome = compare_extraction_outcomes_with_diagnostics(
+        ExtractionOutcome::complete(empty),
+        ExtractionOutcome::complete(text),
+        PipelineOptions::default(),
+        &mut PipelineDiagnostics::new(),
+    )?;
+    let summary = summarize(&outcome.comparison, &outcome.extraction)?;
+    assert!(!summary.comparison_complete, "{summary:?}");
+    assert!(outcome.comparison.changes.is_empty());
+    assert!(!outcome.comparison.unresolved_regions.is_empty());
+    Ok(())
+}
+
+#[test]
+fn one_sided_limits_never_report_partial_completion() -> Result<()> {
+    let text = paragraphs(&[
+        "First inserted paragraph remains visible",
+        "Second inserted paragraph remains visible",
+        "Third inserted paragraph remains visible",
+        "Fourth inserted paragraph remains visible",
+    ]);
+    for options in [
+        PipelineOptions {
+            diff: DiffOptions {
+                max_assessment_work: 1,
+                ..DiffOptions::default()
+            },
+            ..PipelineOptions::default()
+        },
+        PipelineOptions {
+            diff: DiffOptions {
+                max_assessment_ranges: 2,
+                ..DiffOptions::default()
+            },
+            ..PipelineOptions::default()
+        },
+    ] {
+        let result = compare_extraction_outcomes_with_diagnostics(
+            ExtractionOutcome::complete(Document::new(Vec::new())),
+            ExtractionOutcome::complete(text.clone()),
+            options,
+            &mut PipelineDiagnostics::new(),
+        );
+        match result {
+            // A hard range limit fails closed instead of returning a partial
+            // comparison.
+            Err(Error::LimitExceeded { .. }) => {}
+            Err(error) => return Err(error),
+            Ok(outcome) => {
+                let summary = summarize(&outcome.comparison, &outcome.extraction)?;
+                assert!(!summary.comparison_complete, "{summary:?}");
+                assert!(outcome.comparison.changes.is_empty());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn compares_complete_extraction_outcomes_with_the_existing_pipeline() -> Result<()> {
     let old = ExtractionOutcome::complete(paragraphs(&[
         "Opening paragraph establishes context",
