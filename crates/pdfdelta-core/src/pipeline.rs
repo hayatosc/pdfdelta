@@ -964,9 +964,10 @@ fn compare_validated_glyph_documents_inner(
     // the whole present side is an insertion or deletion, independent of the
     // window reading-order uncertainty that the layout could not resolve. The
     // existing one-sided span contract already emits that change, so the
-    // alignment is rewritten to one span and no reading-order veto survives.
-    // A clean empty side is required: any extraction-gap evidence keeps the
-    // conservative unresolved windows.
+    // alignment is rewritten to one evidence-free insertion or deletion span
+    // per present-side block and no reading-order veto survives. A clean empty
+    // side is required: any extraction-gap evidence keeps the conservative
+    // unresolved windows.
     let alignment = if old.is_empty() != new.is_empty()
         && !alignment
             .spans
