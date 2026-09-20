@@ -332,6 +332,7 @@ mod tests {
             related_cases: Vec::new(),
             conflicts_with: Vec::new(),
             available_actions: Vec::new(),
+            covered: Vec::new(),
             evidence: vec![EvidenceRef {
                 side: Side::Old,
                 alias: SourceAlias::new("E31").expect("alias"),

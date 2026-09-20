@@ -25,11 +25,12 @@ mod case;
 mod contract;
 mod decision;
 mod evidence_plan;
+mod native_plan;
 mod planner;
 
 pub use case::{
     Cardinality, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence, ReviewCase, ReviewText,
-    SideLocation, StructureLabel, TextOrder, UnmappedMark,
+    SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
 };
 pub use contract::{
     BundleId, BundleIdentity, CaseCompleteness, CaseId, Completeness, Cursor, DECISION_SCHEMA,
@@ -48,6 +49,7 @@ pub use manifest::{
     GapScope, InventoryGap, OmissionKind, OmissionScope, QuestionCount, RetrievalCapability,
     UnlocalizedGap,
 };
+pub use native_plan::{NativeTextReview, cases_covering, covered_blocks, plan_native_text};
 pub use planner::{PlannerLimits, ReviewPlan, evidence_ref, source_alias};
 
 mod manifest;

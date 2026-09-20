@@ -340,6 +340,10 @@ pub enum ReviewReason {
     VisualOnlyRegion,
     /// Channel discovery found the reference, but no comparison reached it.
     DiscoveredButUnexamined,
+    /// Enumeration finished and produced no counterpart candidate at all.
+    NoCandidateCounterpart,
+    /// Counterpart candidates existed but every one of them was rejected.
+    CandidatesRejected,
     /// The export stopped before it could describe this material fully.
     ExportBudget,
     /// The engine recorded an obligation this vocabulary does not classify.

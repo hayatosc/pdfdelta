@@ -377,6 +377,8 @@ impl<'a> Planner<'a> {
             conflicts_with: Vec::new(),
             available_actions,
             evidence,
+            // This contract accounts for material through source references.
+            covered: Vec::new(),
         }
     }
 
@@ -962,6 +964,7 @@ impl<'a> Planner<'a> {
                         },
                     ],
                     evidence,
+                    covered: Vec::new(),
                     case_id,
                 };
                 self.push(case);

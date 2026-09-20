@@ -279,6 +279,20 @@ pub enum RequiredEvidence {
     Unavailable,
 }
 
+/// A comparable-token interval one case accounts for.
+///
+/// The native-glyph contract partitions each side's comparable tokens
+/// exclusively, so a case is accounted for by the intervals it covers. The
+/// shared-evidence contract expresses the same accounting through
+/// [`ReviewCase::evidence`] source references instead, and leaves this empty.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextCoverage {
+    pub side: Side,
+    /// Block identifier inside the side's normalization.
+    pub block: u64,
+    pub token_range: TokenInterval,
+}
+
 /// One review case.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReviewCase {
@@ -329,6 +343,9 @@ pub struct ReviewCase {
     /// quoted by another case as context.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<EvidenceRef>,
+    /// Token intervals this case accounts for under the native-glyph contract.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered: Vec<TextCoverage>,
 }
 
 impl ReviewCase {
