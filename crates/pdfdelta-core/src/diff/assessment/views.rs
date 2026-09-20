@@ -3999,7 +3999,7 @@ fn left_to_right_text(block: &BlockText) -> bool {
     })
 }
 
-fn horizontal_direction(signature: &crate::normalize::PositionSignature) -> bool {
+pub(super) fn horizontal_direction(signature: &crate::normalize::PositionSignature) -> bool {
     let direction = signature.direction();
     if !direction.x.is_finite() || !direction.y.is_finite() {
         return false;

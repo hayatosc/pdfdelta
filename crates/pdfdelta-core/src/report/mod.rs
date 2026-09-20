@@ -742,6 +742,7 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::StationaryNeighbour => "stationary_neighbour",
         ComparisonAssumption::PositionedReplacement => "positioned_replacement",
         ComparisonAssumption::RawSourceEquality => "raw_source_equality",
+        ComparisonAssumption::EqualFragmentSourcePositions => "equal_fragment_source_positions",
     }
 }
 

@@ -1,12 +1,12 @@
 use super::{
-    Assessor, ChangeCandidate, ChangeEvent, Ownership, ProposedRelation, RelationOutcome,
-    SearchCompleteness, SourceInterval, TextSpan, charge, occurrence_indices, project,
-    proof_groups, visit_domain_hunks,
+    Assessor, ChangeCandidate, ChangeEvent, ComparisonAssumption, Ownership, ProposedRelation,
+    RelationOutcome, SearchCompleteness, SourceInterval, TextSpan, charge, occurrence_indices,
+    project, proof_groups, visit_domain_hunks,
 };
 use crate::{
     Result,
     alignment::BlockSeparator,
-    diff::{Confidence, Side},
+    diff::{Confidence, ProvenChangedRegion, Side},
 };
 
 /// Outcome of processing one local domain during recovery.
@@ -16,6 +16,19 @@ enum LocalRecoveryStep {
     /// The caller must stop; `truncated` reports whether output limits cut
     /// the recovery short.
     Stop { truncated: bool },
+}
+
+/// One strict-closed equal fragment recorded by the local recovery for the
+/// deferred source/position proof.
+///
+/// The recording pass adopts nothing: it only names the already discovered
+/// and evaluated span pair and the established relation that would carry the
+/// premise. The tail pass re-checks the latest ownership before any commit.
+#[derive(Clone)]
+pub(super) struct EqualFragmentCandidate {
+    pub(super) old_span: TextSpan,
+    pub(super) new_span: TextSpan,
+    pub(super) relation: usize,
 }
 
 impl Assessor<'_, '_> {
@@ -1452,6 +1465,158 @@ impl Assessor<'_, '_> {
         Ok(false)
     }
 
+    /// Adopts the strict-closed equal fragments that the local recovery
+    /// recorded for the deferred source/position proof.
+    ///
+    /// The pass runs after every existing recovery, proof and emission pass,
+    /// so it can only spend the budget those passes left over; an exhausted
+    /// budget leaves the remaining fragments pending instead of demoting or
+    /// rewriting any record. Every fragment is re-checked against the latest
+    /// changed ownership, the tentative candidates and the proven changed
+    /// regions before the proof runs, and only a complete proof commits its
+    /// projected intervals and premise. The order follows the recording
+    /// order, so the outcome is deterministic.
+    pub(super) fn recover_equal_fragments(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        candidates: &[ChangeCandidate],
+        proven: &[ProvenChangedRegion],
+    ) -> Result<()> {
+        if self.remaining_work == 0 || self.equal_fragment_candidates.is_empty() {
+            return Ok(());
+        }
+        let limit = self.options.max_assessment_ranges;
+        for index in 0..self.equal_fragment_candidates.len() {
+            if self.remaining_work == 0 || self.output_stop.is_some() {
+                return Ok(());
+            }
+            let fragment = self.equal_fragment_candidates[index].clone();
+            if self.records[fragment.relation].outcome != RelationOutcome::Established {
+                continue;
+            }
+            let spans = [&fragment.old_span, &fragment.new_span];
+            if !self.charge(spans.iter().map(|span| span.blocks.len()).sum()) {
+                return Ok(());
+            }
+            let accepted = [
+                project(self.sides[0], spans[0])?,
+                project(self.sides[1], spans[1])?,
+            ];
+            // The latest changed ownership still wins over a new equality.
+            let mut conflict = false;
+            for side in 0..2 {
+                let Some(overlap) = overlaps(
+                    &accepted[side],
+                    &ownership[side].changed,
+                    &mut self.remaining_work,
+                ) else {
+                    return Ok(());
+                };
+                conflict |= overlap;
+            }
+            if conflict {
+                continue;
+            }
+            // Tentative candidates still own every source range they claim.
+            let mut candidate_conflict = false;
+            'candidates: for candidate in candidates {
+                for occurrence in &candidate.change.occurrences {
+                    for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        let Some(span) = span else {
+                            continue;
+                        };
+                        if !self.charge(span.blocks.len()) {
+                            return Ok(());
+                        }
+                        let source = project(self.sides[side], span)?;
+                        let Some(overlap) =
+                            overlaps(&source, &accepted[side], &mut self.remaining_work)
+                        else {
+                            return Ok(());
+                        };
+                        if overlap {
+                            candidate_conflict = true;
+                            break 'candidates;
+                        }
+                    }
+                }
+            }
+            if candidate_conflict {
+                continue;
+            }
+            // A proven changed region keeps its whole span unresolved, so a
+            // fragment that would resolve part of it is never adopted.
+            let mut proven_conflict = false;
+            'proven: for region in proven {
+                for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let Some(span) = span else {
+                        continue;
+                    };
+                    if !self.charge(span.blocks.len()) {
+                        return Ok(());
+                    }
+                    let source = project(self.sides[side], span)?;
+                    let Some(overlap) =
+                        overlaps(&source, &accepted[side], &mut self.remaining_work)
+                    else {
+                        return Ok(());
+                    };
+                    if overlap {
+                        proven_conflict = true;
+                        break 'proven;
+                    }
+                }
+            }
+            if proven_conflict {
+                continue;
+            }
+            // A span whose projected intervals are already contained in the
+            // accepted ownership needs no repeated proof or premise.
+            let mut owned = true;
+            for (side, span) in spans.into_iter().enumerate() {
+                let Some(contains) = self.ownership_contains(ownership, side, span)? else {
+                    return Ok(());
+                };
+                owned &= contains;
+            }
+            if owned {
+                continue;
+            }
+            let fits = (0..2).all(|side| {
+                ownership[side]
+                    .accepted
+                    .len()
+                    .saturating_add(accepted[side].len())
+                    <= limit
+            });
+            if !fits {
+                continue;
+            }
+            let cache = self
+                .equal_fragment_cache
+                .get_or_insert_with(|| super::equal_fragment::EqualFragmentCache::new(self.sides));
+            match cache.prove(spans, &mut self.remaining_work)? {
+                super::equal_fragment::FragmentVerdict::Proven => {}
+                super::equal_fragment::FragmentVerdict::Held(_) => continue,
+                super::equal_fragment::FragmentVerdict::Exhausted => return Ok(()),
+            }
+            for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
+                super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
+                owner.accepted.extend(accepted_side.iter().copied());
+            }
+            self.records[fragment.relation]
+                .assumptions
+                .push(ComparisonAssumption::EqualFragmentSourcePositions);
+        }
+        Ok(())
+    }
+
     /// Processes one discovered local domain: proves it, protects tentative
     /// candidates and commits either an equal range or a localized edit
     /// script. `Stop` tells the caller not to continue; `truncated` reports
@@ -1504,9 +1669,28 @@ impl Assessor<'_, '_> {
             // Only complete source-bounded singleton domains may publish
             // an equal range without an edit script. Trusted-run fragments,
             // ordered and footer domains keep their existing obligations.
-            if !domain.source_bounded
-                || self.records[relation].search != super::SearchCompleteness::Complete
-            {
+            let complete = self.records[relation].search == super::SearchCompleteness::Complete;
+            if !domain.source_bounded || !complete {
+                // A strict-closed domain is only recorded here. Its
+                // source/position-complete proof runs in the deferred tail
+                // pass, which re-checks the latest ownership after every
+                // existing recovery and emission pass and spends only the
+                // budget those passes left over. This early pass adopts
+                // nothing, charges nothing extra and promises nothing.
+                let strict_closed = !domain.source_bounded
+                    && complete
+                    && proof.strict_unique
+                    && proof.unique
+                    && proof.search == super::SearchCompleteness::Complete;
+                if strict_closed
+                    && let (Some(old_span), Some(new_span)) = (&proposal.old, &proposal.new)
+                {
+                    self.equal_fragment_candidates.push(EqualFragmentCandidate {
+                        old_span: old_span.clone(),
+                        new_span: new_span.clone(),
+                        relation,
+                    });
+                }
                 return Ok(LocalRecoveryStep::Continue);
             }
             // Protect tentative candidates: an accepted equality must not
@@ -1843,13 +2027,13 @@ mod tests {
             Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
             BlockSeparator,
         },
-        diff::DiffOptions,
+        diff::{Change, ChangeKind, ChangedRegionProof, Confidence, DiffOptions},
         diff::{TextSpan, assessment::views::LocalDomain},
         layout::{BlockId, BlockRole},
         model::{GlyphId, Vec2},
         normalize::{
-            BlockText, FontSizeSignature, MappedText, PositionSignature, ScalarRange,
-            SourceMapEntry, TextSource, TextSourceAtom,
+            BlockText, FontSizeSignature, MappedText, NormalizationEvent, NormalizationKind,
+            PositionSignature, ScalarRange, SourceMapEntry, TextSource, TextSourceAtom,
         },
     };
 
@@ -5081,6 +5265,335 @@ mod tests {
             assessor.proposal_edits_are_invariant(&proposal, &key)?,
             ProposalProof::Exhausted
         );
+        Ok(())
+    }
+
+    fn strict_closed_fragment_span(block: u64, start: usize, end: usize) -> TextSpan {
+        TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical_range: ScalarRange { start, end },
+            comparable_range: super::super::super::TokenRange { start, end },
+        }
+    }
+
+    /// Runs the local recovery and the deferred equal-fragment tail pass over
+    /// one strict-closed mid-block fragment and returns the old-side
+    /// resolution and whether the new position premise was recorded.
+    fn run_strict_closed_fragment(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        start: usize,
+        end: usize,
+        prepare: impl FnOnce(&mut [Ownership; 2], &mut Vec<ChangeCandidate>),
+    ) -> Result<(Vec<super::super::ResolutionRange>, bool)> {
+        run_strict_closed_fragment_with(
+            old_blocks,
+            new_blocks,
+            start,
+            end,
+            prepare,
+            &[],
+            DiffOptions::default(),
+        )
+    }
+
+    /// The same fixture with a caller-chosen proven-region list and options.
+    fn run_strict_closed_fragment_with(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        start: usize,
+        end: usize,
+        prepare: impl FnOnce(&mut [Ownership; 2], &mut Vec<ChangeCandidate>),
+        proven: &[ProvenChangedRegion],
+        options: DiffOptions,
+    ) -> Result<(Vec<super::super::ResolutionRange>, bool)> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let alignment = unresolved_alignment(
+            &old_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            &new_blocks
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+        );
+        let mut assessor = super::super::Assessor::new([&old, &new], &alignment, None, options)?;
+        assessor.local_domains = vec![LocalDomain {
+            old_span: strict_closed_fragment_span(old_blocks[0].block.0, start, end),
+            new_span: strict_closed_fragment_span(new_blocks[0].block.0, start, end),
+            source_bounded: false,
+        }];
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        prepare(&mut ownership, &mut candidates);
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        assessor.recover_equal_fragments(&mut ownership, &candidates, proven)?;
+        let adopted = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+        });
+        let [old_ownership, _new_ownership] = ownership;
+        let resolution = old_ownership.finish(&old, assessor.options.max_assessment_ranges)?;
+        Ok((resolution, adopted))
+    }
+
+    fn fragment_state(
+        resolution: &[super::super::ResolutionRange],
+        index: usize,
+    ) -> Option<super::super::ResolutionState> {
+        resolution
+            .iter()
+            .find(|range| {
+                range.block == BlockId(1)
+                    && range.comparable_range.start <= index
+                    && index < range.comparable_range.end
+            })
+            .map(|range| range.state)
+    }
+
+    #[test]
+    fn strict_closed_interior_fragment_gains_equal_coverage() -> Result<()> {
+        let text = "outer unknown shared fragment unknown tail";
+        let start = "outer unknown ".chars().count();
+        let end = start + "shared fragment".chars().count();
+        let old_blocks = [sourced_block(1, text)];
+        let new_blocks = [sourced_block(101, text)];
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&old_blocks, &new_blocks, start, end, |_, _| {})?;
+        assert!(
+            adopted,
+            "the adopted fragment must record its position premise"
+        );
+        assert!(
+            resolution.iter().any(|range| {
+                range.block == BlockId(1)
+                    && range.state == super::super::ResolutionState::Equal
+                    && range.comparable_range.start == start
+                    && range.comparable_range.end == end
+            }),
+            "{resolution:?}"
+        );
+        assert_eq!(
+            fragment_state(&resolution, 0),
+            Some(super::super::ResolutionState::Unresolved)
+        );
+        assert_eq!(
+            fragment_state(&resolution, end),
+            Some(super::super::ResolutionState::Unresolved)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn conflicting_or_unproven_fragments_gain_no_ownership() -> Result<()> {
+        let text = "outer unknown shared fragment unknown tail";
+        let start = "outer unknown ".chars().count();
+        let end = start + "shared fragment".chars().count();
+        let old_blocks = [sourced_block(1, text)];
+        let new_blocks = [sourced_block(101, text)];
+        let no_equal = |resolution: &[super::super::ResolutionRange]| {
+            resolution
+                .iter()
+                .all(|range| range.state != super::super::ResolutionState::Equal)
+        };
+
+        // A changed-ownership conflict adopts nothing.
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&old_blocks, &new_blocks, start, end, |ownership, _| {
+                let interval = SourceInterval {
+                    block_index: 0,
+                    start,
+                    end,
+                };
+                ownership[0].accepted.push(interval);
+                ownership[0].changed.push(interval);
+            })?;
+        assert!(!adopted);
+        assert!(no_equal(&resolution), "{resolution:?}");
+
+        // A candidate conflict adopts nothing.
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&old_blocks, &new_blocks, start, end, |_, candidates| {
+                candidates.push(ChangeCandidate {
+                    change: Change::single_occurrence(
+                        ChangeKind::Replacement,
+                        Some(strict_closed_fragment_span(1, start, end)),
+                        Some(strict_closed_fragment_span(101, start, end)),
+                        Confidence::High,
+                        Vec::new(),
+                    ),
+                    relation: 0,
+                    alternative_group: 0,
+                });
+            })?;
+        assert!(!adopted);
+        assert!(no_equal(&resolution), "{resolution:?}");
+
+        // A missing position signature adopts nothing.
+        let mut old_missing = sourced_block(1, text);
+        old_missing.position_signatures = None;
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&[old_missing], &new_blocks, start, end, |_, _| {})?;
+        assert!(!adopted);
+        assert!(no_equal(&resolution), "{resolution:?}");
+
+        // A raw source that is not the selected glyph adopts nothing.
+        let mut old_bad_raw = sourced_block(1, text);
+        old_bad_raw.raw.source_map[start].source = TextSource {
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(9999))].into(),
+        };
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&[old_bad_raw], &new_blocks, start, end, |_, _| {})?;
+        assert!(!adopted);
+        assert!(no_equal(&resolution), "{resolution:?}");
+
+        // A malformed event source adopts nothing.
+        let mut old_bad_event = sourced_block(1, text);
+        old_bad_event.normalization_events = vec![NormalizationEvent {
+            kind: NormalizationKind::WhitespaceCollapse,
+            raw_range: ScalarRange {
+                start,
+                end: start + 1,
+            },
+            canonical_range: ScalarRange {
+                start,
+                end: start + 1,
+            },
+            source: TextSource::default(),
+        }];
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&[old_bad_event], &new_blocks, start, end, |_, _| {})?;
+        assert!(!adopted);
+        assert!(no_equal(&resolution), "{resolution:?}");
+
+        // A fragment already contained in the accepted ownership needs no
+        // repeated proof or premise, and the existing range stays equal.
+        let (resolution, adopted) =
+            run_strict_closed_fragment(&old_blocks, &new_blocks, start, end, |ownership, _| {
+                for owner in ownership.iter_mut() {
+                    owner.accepted.push(SourceInterval {
+                        block_index: 0,
+                        start: 0,
+                        end: text.chars().count(),
+                    });
+                }
+            })?;
+        assert!(!adopted);
+        assert!(
+            resolution.iter().any(|range| {
+                range.block == BlockId(1)
+                    && range.state == super::super::ResolutionState::Equal
+                    && range.comparable_range.start == 0
+                    && range.comparable_range.end == text.chars().count()
+            }),
+            "{resolution:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn proven_changed_region_blocks_deferred_adoption() -> Result<()> {
+        let text = "outer unknown shared fragment unknown tail";
+        let start = "outer unknown ".chars().count();
+        let end = start + "shared fragment".chars().count();
+        let old_blocks = [sourced_block(1, text)];
+        let new_blocks = [sourced_block(101, text)];
+        // The whole fragment is already claimed by a proven changed region,
+        // so the tail pass must keep it unresolved and adopt nothing.
+        let region = ProvenChangedRegion {
+            old_span: Some(strict_closed_fragment_span(1, start, end)),
+            new_span: Some(strict_closed_fragment_span(101, start, end)),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+            confidence: Confidence::High,
+        };
+        let (resolution, adopted) = run_strict_closed_fragment_with(
+            &old_blocks,
+            &new_blocks,
+            start,
+            end,
+            |_, _| {},
+            &[region],
+            DiffOptions::default(),
+        )?;
+        assert!(!adopted);
+        assert!(
+            resolution
+                .iter()
+                .all(|range| range.state != super::super::ResolutionState::Equal),
+            "{resolution:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_proof_exhaustion_keeps_existing_records() -> Result<()> {
+        let text = "outer unknown shared fragment unknown tail";
+        let start = "outer unknown ".chars().count();
+        let end = start + "shared fragment".chars().count();
+        let old_blocks = [sourced_block(1, text)];
+        let new_blocks = [sourced_block(101, text)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        assessor.local_domains = vec![LocalDomain {
+            old_span: strict_closed_fragment_span(1, start, end),
+            new_span: strict_closed_fragment_span(101, start, end),
+            source_bounded: false,
+        }];
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        ownership[0].accepted.push(SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 2,
+        });
+        ownership[0].changed.push(SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 2,
+        });
+        let accepted = ownership[0].accepted.clone();
+        let changed = ownership[0].changed.clone();
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        assert!(
+            !assessor.equal_fragment_candidates.is_empty(),
+            "the recovery must record the strict-closed fragment"
+        );
+        let outcomes = assessor
+            .records
+            .iter()
+            .map(|record| (record.outcome, record.search))
+            .collect::<Vec<_>>();
+        // An exhausted tail pass is a no-op: it commits no interval, records
+        // no premise, demotes no record and leaves the candidates pending.
+        assessor.remaining_work = 0;
+        assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+        assert_eq!(ownership[0].accepted, accepted);
+        assert_eq!(ownership[0].changed, changed);
+        assert_eq!(
+            assessor
+                .records
+                .iter()
+                .map(|record| (record.outcome, record.search))
+                .collect::<Vec<_>>(),
+            outcomes
+        );
+        assert!(assessor.records.iter().all(|record| {
+            !record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+        }));
+        assert!(changes.is_empty());
+        assert!(candidates.is_empty());
         Ok(())
     }
 }

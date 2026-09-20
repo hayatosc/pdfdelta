@@ -151,6 +151,24 @@ impl PositionSignature {
     }
 }
 
+#[cfg(test)]
+impl PositionSignature {
+    /// Builds a signature from raw geometry without the finite check.
+    ///
+    /// Production evidence only enters through [`Self::new`], which rejects
+    /// non-finite geometry. This constructor exists so tests can prove that
+    /// downstream evidence checks reject a non-finite signature instead of
+    /// trusting the constructor invariant.
+    pub(crate) fn from_raw_bits(baseline: Vec2, direction: Vec2) -> Self {
+        Self {
+            baseline_x: baseline.x.to_bits(),
+            baseline_y: baseline.y.to_bits(),
+            direction_x: direction.x.to_bits(),
+            direction_y: direction.y.to_bits(),
+        }
+    }
+}
+
 fn canonical_f64_bits(value: f64) -> u64 {
     if value == 0.0 {
         0.0_f64.to_bits()
@@ -914,7 +932,7 @@ fn invalid_issue_projection() -> Error {
     Error::Unresolved("normalization issue source projection is incomplete".to_owned())
 }
 
-fn has_duplicate_source_atoms(source: &TextSource) -> bool {
+pub(crate) fn has_duplicate_source_atoms(source: &TextSource) -> bool {
     source
         .atoms
         .iter()
@@ -922,7 +940,10 @@ fn has_duplicate_source_atoms(source: &TextSource) -> bool {
         .any(|(index, atom)| source.atoms[..index].contains(atom))
 }
 
-fn scalar_range_contains_or_touches(container: ScalarRange, candidate: ScalarRange) -> bool {
+pub(crate) fn scalar_range_contains_or_touches(
+    container: ScalarRange,
+    candidate: ScalarRange,
+) -> bool {
     if container.start == container.end {
         candidate.start <= container.start && container.start <= candidate.end
     } else if candidate.start == candidate.end {

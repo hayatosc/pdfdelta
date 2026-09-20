@@ -6,6 +6,7 @@
 
 mod claims;
 mod document_claims;
+mod equal_fragment;
 mod exact;
 mod footers;
 mod hypotheses;
@@ -132,6 +133,13 @@ pub enum ComparisonAssumption {
     PositionedReplacement,
     /// One exact whole-block pair whose raw source projection is isomorphic.
     RawSourceEquality,
+    /// A strict-closed equal domain whose selected tokens each carry one real
+    /// glyph with one contiguous single-scalar raw counterpart and bit-exact
+    /// finite horizontal positions was adopted for its own projected source
+    /// intervals. The surrounding unresolved regions, the candidate and
+    /// changed-ownership protections and the global reading order are
+    /// unchanged.
+    EqualFragmentSourcePositions,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -965,18 +973,29 @@ impl Ownership {
         Ok(())
     }
 
-    fn finish(mut self, side: &Side<'_>, range_limit: usize) -> Result<Vec<ResolutionRange>> {
-        merge_intervals(&mut self.accepted);
-        merge_intervals(&mut self.changed);
+    fn finish(self, side: &Side<'_>, range_limit: usize) -> Result<Vec<ResolutionRange>> {
+        self.resolution(side, range_limit)
+    }
+
+    /// Computes the resolution partition without consuming the ownership.
+    ///
+    /// The deferred equal-fragment tail pass compares the partition before
+    /// and after its commit, so the computation is a read-only snapshot. Only
+    /// the two interval lists are cloned; the partition is rebuilt from them.
+    fn resolution(&self, side: &Side<'_>, range_limit: usize) -> Result<Vec<ResolutionRange>> {
+        let mut accepted = self.accepted.clone();
+        let mut changed = self.changed.clone();
+        merge_intervals(&mut accepted);
+        merge_intervals(&mut changed);
         let mut accepted_by_block = HashMap::<usize, Vec<SourceInterval>>::new();
         let mut changed_by_block = HashMap::<usize, Vec<SourceInterval>>::new();
-        for interval in self.accepted {
+        for interval in accepted {
             accepted_by_block
                 .entry(interval.block_index)
                 .or_default()
                 .push(interval);
         }
-        for interval in self.changed {
+        for interval in changed {
             changed_by_block
                 .entry(interval.block_index)
                 .or_default()
@@ -2271,42 +2290,37 @@ pub(super) fn finish(
             }
         }
     }
-    let [old_ownership, new_ownership] = ownership;
-    let old_resolution = old_ownership.finish(sides[0], options.max_assessment_ranges)?;
-    let new_resolution = new_ownership.finish(sides[1], options.max_assessment_ranges)?;
-    let unresolved_regions = unresolved_output(
-        sides,
-        alignment,
-        [&old_resolution, &new_resolution],
-        proposed.unresolved_regions,
-        options.max_assessment_ranges,
-    )?;
+    // The early partitions let the existing proof and emission passes test
+    // their whole-domain claims before the deferred equal-fragment tail pass
+    // changes ownership. The final partitions are recomputed from the
+    // committed ownership after that pass, which never adopts a fragment that
+    // would resolve part of a proven changed region.
+    let early_old_resolution = ownership[0].resolution(sides[0], options.max_assessment_ranges)?;
+    let early_new_resolution = ownership[1].resolution(sides[1], options.max_assessment_ranges)?;
+    let early_partitions = [&early_old_resolution[..], &early_new_resolution[..]];
     let mut proven_changed_regions = Vec::new();
     // Local recovery can resolve part of an earlier unlocalized proof. Its
     // original whole-domain proof cannot be reused for the remaining ranges.
-    let entirely_unresolved = |spans: [Option<&TextSpan>; 2]| -> Result<bool> {
-        for (side, span) in spans.into_iter().enumerate() {
-            let Some(span) = span else {
-                continue;
-            };
-            let partition = if side == 0 {
-                &old_resolution
-            } else {
-                &new_resolution
-            };
-            if !project(sides[side], span)?.iter().all(|interval| {
-                partition.iter().any(|part| {
-                    part.block == sides[side].blocks[interval.block_index].block
-                        && part.state == ResolutionState::Unresolved
-                        && part.comparable_range.start <= interval.start
-                        && part.comparable_range.end >= interval.end
-                })
-            }) {
-                return Ok(false);
+    let entirely_unresolved =
+        |partitions: [&[ResolutionRange]; 2], spans: [Option<&TextSpan>; 2]| -> Result<bool> {
+            for (side, span) in spans.into_iter().enumerate() {
+                let Some(span) = span else {
+                    continue;
+                };
+                let partition = partitions[side];
+                if !project(sides[side], span)?.iter().all(|interval| {
+                    partition.iter().any(|part| {
+                        part.block == sides[side].blocks[interval.block_index].block
+                            && part.state == ResolutionState::Unresolved
+                            && part.comparable_range.start <= interval.start
+                            && part.comparable_range.end >= interval.end
+                    })
+                }) {
+                    return Ok(false);
+                }
             }
-        }
-        Ok(true)
-    };
+            Ok(true)
+        };
     for region in proposed.proven_changed_regions {
         let proposal = ProposedRelation {
             old: region.old_span.clone(),
@@ -2323,7 +2337,10 @@ pub(super) fn finish(
         if domain.outcome == RelationOutcome::Established
             && domain.old_span == region.old_span
             && domain.new_span == region.new_span
-            && entirely_unresolved([region.old_span.as_ref(), region.new_span.as_ref()])?
+            && entirely_unresolved(
+                early_partitions,
+                [region.old_span.as_ref(), region.new_span.as_ref()],
+            )?
         {
             proven_changed_regions.push(region);
         }
@@ -2342,11 +2359,12 @@ pub(super) fn finish(
         if relation.outcome != RelationOutcome::Established {
             continue;
         }
-        if !entirely_unresolved([relation.old_span.as_ref(), relation.new_span.as_ref()])?
-            || proven_changed_regions.iter().any(|region| {
-                region.old_span == relation.old_span && region.new_span == relation.new_span
-            })
-        {
+        if !entirely_unresolved(
+            early_partitions,
+            [relation.old_span.as_ref(), relation.new_span.as_ref()],
+        )? || proven_changed_regions.iter().any(|region| {
+            region.old_span == relation.old_span && region.new_span == relation.new_span
+        }) {
             continue;
         }
         let old_span = relation.old_span.clone();
@@ -2385,6 +2403,21 @@ pub(super) fn finish(
             },
         });
     }
+    // Deferred equal-fragment adoption: after every existing recovery, proof
+    // and emission pass has run, spend only the budget they left over. The
+    // pass re-checks the latest ownership and never rewrites a record, so an
+    // exhausted budget leaves the remaining fragments pending.
+    assessor.recover_equal_fragments(&mut ownership, &candidates, &proven_changed_regions)?;
+    let [old_ownership, new_ownership] = ownership;
+    let old_resolution = old_ownership.finish(sides[0], options.max_assessment_ranges)?;
+    let new_resolution = new_ownership.finish(sides[1], options.max_assessment_ranges)?;
+    let unresolved_regions = unresolved_output(
+        sides,
+        alignment,
+        [&old_resolution, &new_resolution],
+        proposed.unresolved_regions,
+        options.max_assessment_ranges,
+    )?;
     let coverage = |partition: &[ResolutionRange], total| {
         super::coverage(
             partition
@@ -2534,6 +2567,19 @@ struct Assessor<'a, 'document> {
     /// assessor. A comparison that never evaluates such a key never pays for
     /// it.
     issue_cache: Option<SourceIssueCache<'a>>,
+    /// Lazily created cache for the equal-fragment proof.
+    ///
+    /// It borrows the two immutable sides and stores only selection-independent
+    /// evidence (the document-wide glyph sharing index, event structures and
+    /// checked issue projections). A comparison that never proves a
+    /// strict-closed equal domain never pays for it.
+    equal_fragment_cache: Option<equal_fragment::EqualFragmentCache<'a>>,
+    /// Strict-closed equal fragments recorded by the local recovery for the
+    /// deferred tail proof.
+    ///
+    /// Recording only names an already discovered and evaluated span pair, so
+    /// it spends no proof budget and never pushes out an earlier recovery.
+    equal_fragment_candidates: Vec<local::EqualFragmentCandidate>,
 }
 
 impl<'a, 'document> Assessor<'a, 'document> {
@@ -3838,6 +3884,8 @@ impl<'a, 'document> Assessor<'a, 'document> {
             semantic_rejections: HashSet::new(),
             move_relations: HashMap::new(),
             issue_cache: None,
+            equal_fragment_cache: None,
+            equal_fragment_candidates: Vec::new(),
         };
         assessor.root_reasons = assessor.inspect_source_reasons();
         assessor.anchors = assessor.verified_anchors()?;
