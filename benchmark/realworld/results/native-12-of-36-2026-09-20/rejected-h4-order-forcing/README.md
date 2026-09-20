@@ -87,3 +87,7 @@ in force everywhere else. That is the same per-domain exemption that local
 domains already use, extended to trusted alignment spans; it would need a
 programmatic fixture with an uncertain block present as a competitor and a
 negative case where a span touches an uncertain block.
+
+Note: the raw capture directory `.../h4-iteration-003-native/` was reclaimed
+by bounded rotation after this rejection; the durable findings remain in this
+directory and in commit `15112a5`.
