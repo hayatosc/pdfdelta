@@ -217,9 +217,12 @@ pub fn compare(
     )
     .map_err(|error| error.to_string())?;
     if !table_refinements.exhaustive {
-        comparison
-            .relation_unresolved
-            .push("counterpart table refinement search is incomplete".into());
+        comparison.retain_relation_unresolved(
+            pdfdelta_core::document::UnresolvedObligation::new(
+                pdfdelta_core::document::UnresolvedReason::CounterpartRefinementIncomplete,
+            ),
+            "counterpart table refinement search is incomplete",
+        );
     }
     let selected_nodes = pdfdelta_core::document::selected_nodes(
         &old_graph,

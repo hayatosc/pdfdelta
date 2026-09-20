@@ -1213,8 +1213,9 @@ fn use_native_count(
     };
     comparison.text_mask = None;
     comparison.text_change_proof = Some(proof);
-    comparison.unresolved.push(
-        "native token order is unresolved; source multiplicity proves change without a mask".into(),
+    comparison.retain_unresolved(
+        super::UnresolvedObligation::new(super::UnresolvedReason::NativeOrderUnresolved),
+        "native token order is unresolved; source multiplicity proves change without a mask",
     );
     Ok(true)
 }

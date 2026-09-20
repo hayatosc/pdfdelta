@@ -11,8 +11,9 @@ use pdfdelta_core::{
     document::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, CorrespondenceScope,
         DocumentComparisonLimits, DocumentGraph, DocumentView, EvidenceStore, HierarchyLimits,
-        MatchingChannels, NodeId, SourceRef, StructuredEvidence, StructuredValue,
+        MatchingChannels, NodeId, SourceRef, StructuredEvidence, StructuredValue, UnresolvedReason,
         compare_document_views, document_coverage, document_source_accounting,
+        unresolved_classification,
     },
     model::Document,
     pipeline::PipelineOptions,
@@ -236,6 +237,59 @@ fn identifiers_and_aliases_reject_unsafe_text() {
         assert!(
             CaseId::new(hostile).is_err(),
             "identifier {hostile:?} must be rejected rather than escaped downstream"
+        );
+    }
+}
+
+#[test]
+fn retained_obligations_are_classified_where_they_are_emitted() {
+    let old = fixture(&["First paragraph.", "Second paragraph.", "Third."], true);
+    let new = fixture(
+        &["First paragraph.", "Second paragraph changed.", "Third."],
+        true,
+    );
+    let old_view = DocumentView {
+        evidence: &old.0,
+        graph: &old.1,
+    };
+    let new_view = DocumentView {
+        evidence: &new.0,
+        graph: &new.1,
+    };
+    let channels = BTreeSet::from([Channel::Text]);
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.channels = MatchingChannels::from(&channels);
+    // A candidate budget too small to close enumeration forces the scope to
+    // retain an obligation instead of completing.
+    limits.matching.max_proposals = 1;
+    let comparison = compare_document_views(
+        old_view,
+        new_view,
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits,
+        HierarchyLimits::default(),
+    )
+    .expect("compare under a candidate budget");
+
+    let scope = &comparison.scopes[0].result;
+    assert!(
+        !scope.unresolved.is_empty(),
+        "a truncated enumeration must retain an obligation"
+    );
+    assert_eq!(
+        scope.unresolved.len(),
+        scope.obligations.len(),
+        "each retained message carries its classification at the same index"
+    );
+    for index in 0..scope.unresolved.len() {
+        assert_ne!(
+            unresolved_classification(&scope.obligations, index).reason,
+            UnresolvedReason::Other,
+            "message {:?} was emitted without a classification",
+            scope.unresolved[index]
         );
     }
 }

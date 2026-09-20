@@ -20,6 +20,7 @@ mod key_presence;
 mod matching;
 mod native;
 mod normalization;
+mod obligations;
 mod operations;
 mod providers;
 mod recognition;
@@ -46,6 +47,10 @@ pub use graph::*;
 pub use key_presence::*;
 pub use matching::*;
 pub use normalization::NormalizationCertificate;
+pub use obligations::{
+    UnresolvedObligation, UnresolvedReason, UnresolvedSink,
+    classification as unresolved_classification,
+};
 pub use operations::*;
 pub use relations::RelationComparison;
 pub use scoped_keys::*;
