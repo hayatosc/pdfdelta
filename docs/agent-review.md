@@ -364,12 +364,16 @@ plus one median case. The bundle's total size is a disk cost, not an input cost,
 because a query's answer is capped by its own output budget and a loop stops
 once it can decide.
 
-Measured on the registered corpus in tokens, triaging the first ten cases costs
-about a quarter of what handing over both documents' text costs — a 75% median
-reduction — while reading every case costs about 2.5 times the full text. The
-packet path is a way to start a review and to stop honestly, not a cheaper way
-to read everything, and on a short document pasting the text is the better move.
-The measurement, its caveats, and the response-budget fix it forced are in
+Every case carries the engine's own finding, and the listing is ordered by it,
+so a reviewer can read what the engine settled and stop where the engine
+stopped. Measured on the registered corpus in tokens, that review costs about a
+quarter of what handing over both documents' text costs — a 74% median
+reduction, worst case a half, and never more than the document itself.
+
+Reading *every* case instead costs about 2.5 times the full text. The packets
+are an index over open questions, not a compression of the document: what they
+save is the reading you do not have to do, and what they add is an account of
+what the comparison never examined. The measurement and its caveats are in
 `benchmark/realworld/remaining/agent-review/corpus-token-measurement.md`.
 
 ## Trust boundary

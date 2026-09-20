@@ -409,6 +409,7 @@ mod tests {
             question: ReviewQuestion::CompareContent,
             pipeline: PipelineContract::SharedEvidence,
             engine_class: EngineClass::Strict,
+            finding: crate::review::CaseFinding::DifferenceEstablished,
             channels: BTreeSet::new(),
             completeness: CaseCompleteness::unknown(),
             reasons: Vec::new(),

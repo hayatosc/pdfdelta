@@ -279,6 +279,39 @@ pub enum RequiredEvidence {
     Unavailable,
 }
 
+/// What the engine established about this case's material before it stopped.
+///
+/// This is the engine's own finding, carried so a reviewer can tell apart a
+/// range where a difference is already proved and only its position is open,
+/// from material that was never compared at all. It is always read together
+/// with the case's [`EngineClass`]: a difference established under an inferred
+/// correspondence is still inferred, and stays so whatever a reviewer decides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaseFinding {
+    /// A difference was established for this material, even where its exact
+    /// position within the range remains unresolved.
+    DifferenceEstablished,
+    /// The material was compared and found equal within the examined range.
+    /// This says nothing about the rest of the document.
+    EqualityEstablished,
+    /// Nothing was established: the material was never compared, or the
+    /// comparison could not conclude.
+    NotEstablished,
+}
+
+impl CaseFinding {
+    /// Listing rank, so what the engine already settled is offered first.
+    #[must_use]
+    pub const fn rank(self) -> u8 {
+        match self {
+            Self::DifferenceEstablished => 0,
+            Self::NotEstablished => 1,
+            Self::EqualityEstablished => 2,
+        }
+    }
+}
+
 /// A comparable-token interval one case accounts for.
 ///
 /// The native-glyph contract partitions each side's comparable tokens
@@ -317,6 +350,8 @@ pub struct ReviewCase {
     pub question: ReviewQuestion,
     pub pipeline: PipelineContract,
     pub engine_class: EngineClass,
+    /// What the engine established here before it stopped.
+    pub finding: CaseFinding,
     pub channels: BTreeSet<Channel>,
     pub completeness: CaseCompleteness,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

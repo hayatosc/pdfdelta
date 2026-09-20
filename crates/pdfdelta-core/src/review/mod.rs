@@ -30,8 +30,8 @@ mod native_plan;
 mod planner;
 
 pub use case::{
-    Cardinality, CaseRegion, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence, ReviewCase,
-    ReviewText, SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
+    Cardinality, CaseFinding, CaseRegion, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence,
+    ReviewCase, ReviewText, SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
 };
 pub use context::{CaseContext, ContextItem, ContextKind};
 pub use contract::{

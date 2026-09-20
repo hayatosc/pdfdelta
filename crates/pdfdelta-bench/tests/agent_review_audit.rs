@@ -41,6 +41,7 @@ fn bundle(case: Value, extra: &[(&str, Vec<u8>)]) -> Bundle {
             "case": case_id,
             "question": case["question"],
             "engine_class": case["engine_class"],
+            "finding": case["finding"],
             "reasons": [],
             "completeness": case["completeness"],
             "alternatives_returned": case["alternatives_returned"],
@@ -94,6 +95,7 @@ fn sound_case() -> Value {
         "question": "compare_content",
         "pipeline": "shared_evidence",
         "engine_class": "strict",
+        "finding": "difference_established",
         "channels": ["text"],
         "completeness": {
             "evidence": "unknown",

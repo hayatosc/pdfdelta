@@ -17,11 +17,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    BundleIdentity, CaseCompleteness, Completeness, Detail, EngineClass, EngineOutcome,
-    EvidenceRef, GapScope, Hypothesis, HypothesisId, InventoryGap, OmissionKind, OmissionScope,
-    PlannerLimits, ReasonRecord, RequiredEvidence, RetrievalAction, ReviewAssumption, ReviewCase,
-    ReviewPlan, ReviewQuestion, ReviewReason, ReviewText, Side, SideLocation, TextOrder,
-    UnlocalizedGap,
+    BundleIdentity, CaseCompleteness, CaseFinding, Completeness, Detail, EngineClass,
+    EngineOutcome, EvidenceRef, GapScope, Hypothesis, HypothesisId, InventoryGap, OmissionKind,
+    OmissionScope, PlannerLimits, ReasonRecord, RequiredEvidence, RetrievalAction,
+    ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason, ReviewText, Side,
+    SideLocation, TextOrder, UnlocalizedGap,
     case::Cardinality,
     planner::{Assembly, Budget, CaseKey, Identifiers, assemble, evidence_ref, review_text},
 };
@@ -53,6 +53,8 @@ pub struct SharedEvidenceReview<'a> {
 struct CaseDraft<'n> {
     question: ReviewQuestion,
     engine_class: EngineClass,
+    /// What the engine established for this material.
+    finding: CaseFinding,
     old_nodes: &'n [NodeId],
     new_nodes: &'n [NodeId],
     reasons: Vec<ReasonRecord>,
@@ -340,6 +342,7 @@ impl<'a> Planner<'a> {
         let CaseDraft {
             question,
             engine_class,
+            finding,
             old_nodes,
             new_nodes,
             reasons,
@@ -357,6 +360,7 @@ impl<'a> Planner<'a> {
         new_sources.extend(extra_new);
         let mut key = CaseKey::new(question);
         key.debug(&engine_class);
+        key.debug(&finding);
         key.sources(Side::Old, &old_sources);
         key.sources(Side::New, &new_sources);
         for reason in &reasons {
@@ -485,6 +489,7 @@ impl<'a> Planner<'a> {
             question,
             pipeline: self.input.identity.pipeline,
             engine_class,
+            finding,
             channels: self.input.channels.clone(),
             completeness,
             reasons,
@@ -572,9 +577,11 @@ impl<'a> Planner<'a> {
             };
             let old = local.old.clone();
             let new = local.new.clone();
+            let finding = finding_of(local);
             let case = self.build_case(CaseDraft {
                 question: ReviewQuestion::CompareContent,
                 engine_class,
+                finding,
                 old_nodes: &old,
                 new_nodes: &new,
                 reasons,
@@ -642,6 +649,8 @@ impl<'a> Planner<'a> {
                 } else {
                     EngineClass::Unavailable
                 },
+                // The correspondence itself is what is open here.
+                finding: CaseFinding::NotEstablished,
                 old_nodes: &old_nodes,
                 new_nodes: &new_nodes,
                 reasons,
@@ -834,6 +843,7 @@ impl<'a> Planner<'a> {
             let case = self.build_case(CaseDraft {
                 question: ReviewQuestion::CompareContent,
                 engine_class,
+                finding: finding_of(&review.comparison),
                 old_nodes: &old,
                 new_nodes: &new,
                 reasons,
@@ -863,6 +873,7 @@ impl<'a> Planner<'a> {
             let case = self.build_case(CaseDraft {
                 question: ReviewQuestion::CompareRelationship,
                 engine_class: EngineClass::Unavailable,
+                finding: CaseFinding::NotEstablished,
                 old_nodes: &[],
                 new_nodes: &[],
                 reasons,
@@ -888,6 +899,11 @@ impl<'a> Planner<'a> {
             let case = self.build_case(CaseDraft {
                 question: ReviewQuestion::CompareRelationship,
                 engine_class: EngineClass::Inferred,
+                finding: if relation.changed() {
+                    CaseFinding::DifferenceEstablished
+                } else {
+                    CaseFinding::NotEstablished
+                },
                 old_nodes: &[],
                 new_nodes: &[],
                 reasons: vec![
@@ -974,6 +990,7 @@ impl<'a> Planner<'a> {
                             ReviewQuestion::AcquisitionGap
                         },
                         engine_class: EngineClass::Unavailable,
+                        finding: CaseFinding::NotEstablished,
                         old_nodes: &[],
                         new_nodes: &[],
                         reasons,
@@ -1071,6 +1088,8 @@ impl<'a> Planner<'a> {
                     question: ReviewQuestion::InterpretVisualRegion,
                     pipeline: self.input.identity.pipeline,
                     engine_class: EngineClass::Unavailable,
+                    // Pixels exist, but nothing was compared.
+                    finding: CaseFinding::NotEstablished,
                     channels: self.input.channels.clone(),
                     completeness: CaseCompleteness {
                         evidence: Completeness::Incomplete,
@@ -1211,6 +1230,8 @@ impl<'a> Planner<'a> {
                     let case = self.build_case(CaseDraft {
                         question: ReviewQuestion::ResolveCorrespondence,
                         engine_class: EngineClass::Unavailable,
+                        // Discovered, never reached by any comparison.
+                        finding: CaseFinding::NotEstablished,
                         old_nodes: &old_nodes,
                         new_nodes: &new_nodes,
                         reasons,
@@ -1345,6 +1366,22 @@ fn union(left: [f64; 4], right: [f64; 4]) -> [f64; 4] {
         left[2].max(right[2]),
         left[3].max(right[3]),
     ]
+}
+
+/// The engine's own finding for one local comparison.
+///
+/// An operation means a difference was established, whether or not its exact
+/// position was resolved. A comparison that ran and produced none means the
+/// material was equal within the range it examined. Anything else established
+/// nothing.
+fn finding_of(comparison: &crate::document::LocalViewComparison) -> CaseFinding {
+    if comparison.operation.is_some() {
+        CaseFinding::DifferenceEstablished
+    } else if comparison.compared {
+        CaseFinding::EqualityEstablished
+    } else {
+        CaseFinding::NotEstablished
+    }
 }
 
 /// What a group of scope obligations is about.

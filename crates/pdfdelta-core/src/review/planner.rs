@@ -504,11 +504,14 @@ pub(super) fn assemble(assembly: Assembly<'_>, budget: &Budget) -> ReviewPlan {
         mut cases,
         visual_available,
     } = assembly;
-    // Listing order is stable and readable: by question, then by location, then
-    // by identifier. It is not a ranking and implies no priority.
+    // Cases the engine already settled something about come first, so a
+    // reviewer that stops early stops on the material the engine could reach
+    // rather than at an arbitrary point. Within one finding the order is
+    // stable and readable, and it implies no ranking among equals.
     cases.sort_by(|left, right| {
         let key = |case: &ReviewCase| {
             (
+                case.finding.rank(),
                 format!("{:?}", case.question),
                 case.old.as_ref().and_then(|side| side.page_number),
                 case.new.as_ref().and_then(|side| side.page_number),

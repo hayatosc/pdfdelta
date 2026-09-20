@@ -1033,3 +1033,55 @@ fn a_stored_value_the_engine_could_not_reconcile_is_asked_about_not_filed_as_a_g
         "a value that was acquired is not an acquisition failure"
     );
 }
+
+#[test]
+fn a_case_says_what_the_engine_established_and_settled_ones_are_listed_first() {
+    // One paragraph differs; the rest of the material is never reached, so the
+    // two kinds of case must be distinguishable without opening them.
+    let old = build(Build {
+        paragraphs: &[
+            "A stable opening paragraph.",
+            "The reporting deadline is 10 days.",
+            "A stable closing paragraph.",
+        ],
+        ..Build::default()
+    });
+    let new = build(Build {
+        paragraphs: &[
+            "A stable opening paragraph.",
+            "The reporting deadline is 20 days.",
+            "A stable closing paragraph.",
+        ],
+        ..Build::default()
+    });
+    let comparison = compare(&old, &new, comparison_limits());
+    let plan = plan(&old, &new, &comparison);
+    assert_obligations_explained(&old, &new, &comparison, &plan);
+
+    let findings: Vec<_> = plan.cases.iter().map(|case| case.finding).collect();
+    assert!(
+        !findings.is_empty(),
+        "the fixture leaves something to review"
+    );
+    // Whatever the engine settled comes first, so stopping early stops on the
+    // material the engine could reach.
+    let ranks: Vec<u8> = findings.iter().map(|finding| finding.rank()).collect();
+    assert!(
+        ranks.windows(2).all(|pair| pair[0] <= pair[1]),
+        "cases are ordered by what the engine established: {findings:?}"
+    );
+    for case in &plan.cases {
+        // A case that never reached a comparison must not claim a finding.
+        if case
+            .reasons
+            .iter()
+            .any(|reason| reason.reason == ReviewReason::DiscoveredButUnexamined)
+        {
+            assert_eq!(
+                case.finding,
+                pdfdelta_core::review::CaseFinding::NotEstablished,
+                "unexamined material establishes nothing"
+            );
+        }
+    }
+}

@@ -19,8 +19,8 @@ use std::{
 use pdfdelta_core::{
     model::PageId,
     review::{
-        AgentDecision, AgentReviewManifest, CaseCompleteness, CaseContext, CaseId, Cursor,
-        DecisionStatus, Detail, EngineClass, EngineOutcome, Hypothesis, MAX_CURSOR_BYTES,
+        AgentDecision, AgentReviewManifest, CaseCompleteness, CaseContext, CaseFinding, CaseId,
+        Cursor, DecisionStatus, Detail, EngineClass, EngineOutcome, Hypothesis, MAX_CURSOR_BYTES,
         RequiredEvidence, RetrievalAction, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason,
         Side,
     },
@@ -127,6 +127,9 @@ struct IndexRecord {
     case: CaseId,
     question: ReviewQuestion,
     engine_class: EngineClass,
+    /// What the engine established here, so a caller can tell a settled
+    /// difference from material nothing reached.
+    finding: CaseFinding,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     old_page: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -148,6 +151,7 @@ impl IndexRecord {
             case: case.case_id.clone(),
             question: case.question,
             engine_class: case.engine_class,
+            finding: case.finding,
             old_page: case.old.as_ref().and_then(|side| side.page_number),
             new_page: case.new.as_ref().and_then(|side| side.page_number),
             reasons: case.reasons.iter().map(|reason| reason.reason).collect(),
@@ -658,6 +662,7 @@ pub(crate) fn show(
         "case_id": stored.case_id,
         "question": stored.question,
         "engine_class": stored.engine_class,
+        "finding": stored.finding,
         "pipeline": stored.pipeline,
         "completeness": stored.completeness,
         "required_evidence": stored.required_evidence,

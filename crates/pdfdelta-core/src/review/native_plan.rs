@@ -10,11 +10,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    BundleIdentity, CaseCompleteness, CaseId, Completeness, Detail, EngineClass, EngineOutcome,
-    EvidenceRef, GapScope, Hypothesis, HypothesisId, PlannerLimits, ReasonRecord, RequiredEvidence,
-    RetrievalAction, ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason,
-    ReviewText, ScalarInterval, Side, SideLocation, TextCoverage, TextOrder, TokenInterval,
-    UnlocalizedGap,
+    BundleIdentity, CaseCompleteness, CaseFinding, CaseId, Completeness, Detail, EngineClass,
+    EngineOutcome, EvidenceRef, GapScope, Hypothesis, HypothesisId, PlannerLimits, ReasonRecord,
+    RequiredEvidence, RetrievalAction, ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion,
+    ReviewReason, ReviewText, ScalarInterval, Side, SideLocation, TextCoverage, TextOrder,
+    TokenInterval, UnlocalizedGap,
     case::{Cardinality, UnmappedMark},
     planner::{Assembly, Budget, CaseKey, Identifiers, assemble, evidence_ref},
 };
@@ -282,6 +282,10 @@ impl<'a> Planner<'a> {
             question,
             pipeline: self.input.identity.pipeline,
             engine_class,
+            // This contract's cases are the obligations its comparison could
+            // not discharge; its established changes are reported as change
+            // events rather than as questions.
+            finding: CaseFinding::NotEstablished,
             channels: BTreeSet::from([Channel::Text]),
             completeness,
             reasons,
@@ -610,6 +614,7 @@ impl<'a> Planner<'a> {
                 question: ReviewQuestion::AcquisitionGap,
                 pipeline: self.input.identity.pipeline,
                 engine_class: EngineClass::Unavailable,
+                finding: CaseFinding::NotEstablished,
                 channels: BTreeSet::from([Channel::Text]),
                 completeness: CaseCompleteness {
                     evidence: Completeness::Incomplete,

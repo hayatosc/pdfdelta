@@ -1,8 +1,9 @@
 # Does a review packet actually cost fewer tokens?
 
 Measured on the registered real-world corpus rather than on synthetic input.
-The short answer: **yes for triage, by about 75% at the median — but only after
-a fix this measurement forced, and no for reviewing every case.**
+The short answer: **yes — about 74% at the median, and never more than the
+document, once the packets say which cases the engine actually settled.** Two
+fixes this measurement forced were needed to get there.
 
 ## How it was measured
 
@@ -24,8 +25,15 @@ a fix this measurement forced, and no for reviewing every case.**
   come from one extractor.
 - Packet path: the actual commands, not a model of them. `review list` with an
   8 KiB budget, then `review show --detail text` with a 16 KiB budget.
-  **Triage** is the first listing plus the first ten cases. **Full review** is
-  every listing page plus every case.
+  Three stopping rules are measured:
+
+  - **Settled review** — read index pages while they still hold cases the
+    engine settled something about, then open exactly those. The listing is
+    ordered by that finding, so everything after the first unsettled page is
+    unsettled too. This is the rule the packets justify.
+  - **First ten cases** — an earlier measurement, kept for comparison. Nothing
+    in the packet justified stopping at ten; the number is arbitrary.
+  - **Full review** — every listing page plus every case.
 
 Reproduce with `capture-bundles.py`, `measure-tokens.py` and
 `case-composition.py` beside this file.
@@ -52,7 +60,36 @@ numbers meaningless:
 
 ## Result
 
-Ratio of packet tokens to full-text tokens, lower is better.
+Ratio of packet tokens to full-text tokens, lower is better. `settled` counts
+the cases where the engine established a difference; the rest of each bundle's
+cases are material it never examined, which the index reports as a count rather
+than asking a reviewer to read.
+
+| Pair | Full text | Cases | Settled | Settled review | ÷ full |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| oecd-corporate-governance | 56,334 | 155 | 23 | 21,474 | 0.38 |
+| qgis-doc-guidelines-es | 47,211 | 177 | 11 | 12,880 | 0.27 |
+| nist-csf-v1-1-to-v2-0 | 44,883 | 98 | 0 | 2,111 | 0.05 |
+| w3c-ws-policy-attach | 44,041 | 149 | 26 | 22,538 | 0.51 |
+| oasis-odf-packages | 33,062 | 104 | 17 | 14,704 | 0.44 |
+| ecma-109-ed10-to-ed11 | 26,853 | 120 | 4 | 6,273 | 0.23 |
+| kicad-getting-started | 23,251 | 87 | 0 | 2,090 | 0.09 |
+| irs-w4-korean | 20,181 | 10 | 0 | 1,133 | 0.06 |
+| arxiv-attention-v6-to-v7 | 19,784 | 105 | 0 | 2,086 | 0.11 |
+| hmrc-sa100 | 8,059 | 37 | 0 | 2,106 | 0.26 |
+| irs-form-1040 | 4,248 | 36 | 0 | 2,090 | 0.49 |
+
+**Median 0.261 — a 73.9% reduction, with a worst case of 0.51.** No pair costs
+more than its document. Where the engine settled nothing, the whole review is
+one index page of about 2,000 tokens saying so.
+
+### The earlier, unjustified cut
+
+Reading the first ten cases regardless of what they held gave a median of 0.249
+— a similar number reached for the wrong reason. On `irs-form-1040` it cost
+1.67× the document, because ten arbitrary cases on a four-page form is most of
+the form. The figures below are kept to show the difference between a rule and
+a coincidence.
 
 | Pair | Full text | Triage (10 cases) | ÷ full | Full review | ÷ full |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -68,31 +105,44 @@ Ratio of packet tokens to full-text tokens, lower is better.
 | irs-w4-korean | 20,181 | 16,397 | 0.81 | 16,397 | 0.81 |
 | irs-form-1040 | 4,247 | 7,088 | 1.67 | 19,588 | 4.61 |
 
-- **Triage: 0.249 at the median — a 75.1% reduction.** The stated target was
-  70%, so it is met on this layer.
 - **Full review: 2.55× the full text at the median.** Reading every case costs
-  more than handing over both documents. The packet path is a way to start and
-  to stop honestly, not a cheaper way to read everything.
+  more than handing over both documents, and no ordering changes that. The
+  packets are an index over open questions, not a compression of the document.
 - Seeing whether there is anything to review at all — one `review list` — costs
   about 2,000 tokens regardless of document size.
-- The saving grows with the document. On `irs-form-1040`, 4,247 tokens of text
-  in total, triage costs 1.67× the document; pasting it is the right move.
 
-## The fix this measurement forced
+## The two fixes this measurement forced
 
-The first run of this measurement gave a median triage ratio of **1.111** — the
-packet path cost *more* than the full text. Inspecting one answer showed why:
-**75% of it was a list of 935 glyph identifiers**, against 16% for the text the
-reviewer actually reads. The response layer was spending its budget on its least
-decision-relevant field.
+**The response spent its budget on identifiers.** The first run gave a median
+ratio of **1.111** — the packet path cost *more* than the full text. One answer
+showed why: 75% of it was a list of 935 glyph identifiers, against 16% for the
+text the reviewer reads. A text answer now carries at most sixteen references
+and declares how many it left out; the full set stays in the bundle, where the
+accounting needs it, and a decision still cites references the stored case
+holds. One `oecd` answer fell from 17,455 to 4,437 bytes.
 
-A text answer now carries at most sixteen references and declares how many it
-left out; the full set stays in the bundle, where the accounting needs it, and a
-decision still cites references the stored case holds. One `oecd` answer fell
-from 17,455 to 4,437 bytes, and the median triage ratio from 1.111 to 0.249.
+**The packets withheld the engine's own finding.** Every case looked alike, so
+there was no ground for stopping anywhere, and reviewing all of them costs 2.55×
+the document. Yet the engine had already established a difference in 23 of
+`oecd`'s 155 cases and in none of `nist-csf`'s 98 — it simply was not written
+down. Cases now carry that finding, the listing is ordered by it, and a reviewer
+can stop where the engine stopped instead of at an arbitrary count.
 
-The target was not met by the design as written. It was met after measuring the
-design against real documents.
+Neither target was met by the design as written. Both were met after measuring
+the design against real documents.
+
+## What the comparison is, and is not
+
+The settled review finds every difference the engine could establish, and says
+how much it never examined. It does not find differences hiding in the pages it
+never examined — on `oecd`, 132 of 155 cases are exactly that.
+
+Pasting both documents' text gives a model everything, including those pages,
+but hands it 325,000 characters with no structure, no account of what was
+compared, and no way to tell a verified equality from an unread page. The two
+are not the same review at a different price. Which is worth more depends on
+whether an honest account of the engine's blind spots is useful to the caller,
+and this measurement cannot settle that.
 
 ## What this does not show
 

@@ -335,5 +335,161 @@
         "interpret_visual_region": 356
       }
     }
-  ]
+  ],
+  "stopping_rule": "Read index pages while they still hold cases the engine settled something about, then open exactly those. The listing is ordered so everything after the first unsettled page is unsettled too.",
+  "settled_review": {
+    "triage_layer_pairs": 11,
+    "median_ratio": 0.261,
+    "median_reduction_percent": 73.9,
+    "worst_ratio": 0.512,
+    "best_ratio": 0.047,
+    "pairs_above_full_text": 0,
+    "pairs": [
+      {
+        "pair": "gcc-13-3-to-13-4",
+        "full": 2160629,
+        "cases": 369,
+        "settled": 0,
+        "tokens": 1992,
+        "old_triage": 4736,
+        "old_review": 135884
+      },
+      {
+        "pair": "unicode-standard-15-to-16",
+        "full": 1255715,
+        "cases": 658,
+        "settled": 0,
+        "tokens": 1992,
+        "old_triage": 4736,
+        "old_review": null
+      },
+      {
+        "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+        "full": 246808,
+        "cases": 200,
+        "settled": 0,
+        "tokens": 2008,
+        "old_triage": 4640,
+        "old_review": 75431
+      },
+      {
+        "pair": "oecd-corporate-governance-2015-to-2023",
+        "full": 56334,
+        "cases": 155,
+        "settled": 23,
+        "tokens": 21474,
+        "old_triage": 8869,
+        "old_review": 136106
+      },
+      {
+        "pair": "qgis-doc-guidelines-es-328-to-334",
+        "full": 47211,
+        "cases": 177,
+        "settled": 11,
+        "tokens": 12880,
+        "old_triage": 9995,
+        "old_review": 109903
+      },
+      {
+        "pair": "nist-csf-v1-1-to-v2-0",
+        "full": 44883,
+        "cases": 98,
+        "settled": 0,
+        "tokens": 2111,
+        "old_triage": 9324,
+        "old_review": 92187
+      },
+      {
+        "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+        "full": 44041,
+        "cases": 149,
+        "settled": 26,
+        "tokens": 22538,
+        "old_triage": 7691,
+        "old_review": 112317
+      },
+      {
+        "pair": "oasis-odf-packages-v1-2-to-v1-3",
+        "full": 33062,
+        "cases": 104,
+        "settled": 17,
+        "tokens": 14704,
+        "old_triage": 8237,
+        "old_review": 81047
+      },
+      {
+        "pair": "ecma-109-ed10-to-ed11",
+        "full": 26853,
+        "cases": 120,
+        "settled": 4,
+        "tokens": 6273,
+        "old_triage": 6690,
+        "old_review": 72386
+      },
+      {
+        "pair": "kicad-getting-started-7-to-8",
+        "full": 23251,
+        "cases": 87,
+        "settled": 0,
+        "tokens": 2090,
+        "old_triage": 11659,
+        "old_review": 70584
+      },
+      {
+        "pair": "irs-w4-korean-2024-to-2025",
+        "full": 20181,
+        "cases": 10,
+        "settled": 0,
+        "tokens": 1133,
+        "old_triage": 16397,
+        "old_review": 16397
+      },
+      {
+        "pair": "arxiv-attention-v6-to-v7",
+        "full": 19784,
+        "cases": 105,
+        "settled": 0,
+        "tokens": 2086,
+        "old_triage": 8720,
+        "old_review": 61873
+      },
+      {
+        "pair": "hmrc-sa100-2023-to-2024",
+        "full": 8059,
+        "cases": 37,
+        "settled": 0,
+        "tokens": 2106,
+        "old_triage": 6027,
+        "old_review": 21079
+      },
+      {
+        "pair": "irs-form-1040-2024-to-2025",
+        "full": 4248,
+        "cases": 36,
+        "settled": 0,
+        "tokens": 2090,
+        "old_triage": 7088,
+        "old_review": 19588
+      },
+      {
+        "pair": "qgis-pyqgis-ja-328-to-334",
+        "full": 10,
+        "cases": 402,
+        "settled": 0,
+        "tokens": 2041,
+        "old_triage": 5062,
+        "old_review": null
+      },
+      {
+        "pair": "postgresql-16-to-17",
+        "full": 0,
+        "cases": 357,
+        "settled": 0,
+        "tokens": 1990,
+        "old_triage": 4724,
+        "old_review": 131166
+      }
+    ]
+  },
+  "superseded_note": "The earlier figures read the first ten cases regardless of what they held, which nothing in the packet justified. They are kept for comparison; the settled-review rule replaces them."
 }
