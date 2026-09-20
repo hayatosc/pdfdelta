@@ -71,24 +71,37 @@ tokens, loses 478 unresolved regions and gains 478 insertions. All three
 complete controls (`irs-schedule-se-2024-to-2025`, `bunka-kana-1946-to-1986`,
 `faa-thunderstorms-b-to-c`) remain complete.
 
-Source retention (linear streaming audit over the compressed reports, recorded
-in `retention-audit.json`):
+Source retention (linear streaming audit over the compressed reports,
+implemented in `benchmark/realworld/remaining/completion-investigation/audit_retention.py`,
+recorded in `retention-audit.json`):
 
-- 31 of the 36 H2 reports have a full SHA-256 equal to the baseline report
-  hash, so their payloads are byte-identical.
+- 31 of the 36 H2 reports have a logical (uncompressed) SHA-256 equal to the
+  frozen baseline report hash, verified per pair and listed explicitly in
+  `retention-audit.json` (`whole_report_identical`; each entry records the
+  verification mode and both report hashes).
 - The remaining 5 report hashes differ. Four of them
   (`irs-schedule-se`, `irs-schedule-c`, `faa-thunderstorms`, `bunka-kana`)
   have all 11 audited source-bound members byte-identical to their
   baseline-identical captures (`summary`, `changes`, `change_candidates`,
   `proven_changed_regions`, `formatting_only_changes`, `unresolved_regions`,
   `extraction`, and the assessment `old_resolution`, `new_resolution`,
-  `relations`, `review_units`); only the assessment work counters differ.
-- `faa-maintenance-records-c-to-d` differs exactly in the members the fix
-  changes (changes, candidates, unresolved regions, resolutions, relations).
-  Within it, all 17,933 new-side glyphs the baseline established as insertions
-  are still owned by changes with identical span text (zero missing or
-  reassigned), and the 62,242 inserted glyphs are owned exactly once and are
-  disjoint from the 950 glyphs in the 3 residual regions.
+  `relations`, `review_units`). Every member digest is recorded for both
+  sides; for example SE's `summary` digest is
+  `c7ad3d0c96c904dc9c0ea0882b52324dc281912b402783fb2ea07166b2a87799` on both
+  sides. Only the assessment work counters differ, and the audit excludes
+  exactly those fields.
+- `faa-maintenance-records-c-to-d` differs in the six members the fix changes:
+  `summary`, `changes`, `change_candidates`, `unresolved_regions`,
+  `new_resolution`, `relations`. Within it, all 17,933 new-side glyphs the
+  baseline established as insertions are still owned by changes with identical
+  span text (zero missing or reassigned), and the 62,242 inserted glyphs are
+  owned exactly once and are disjoint from the 950 glyphs in the 3 residual
+  regions.
+- The audit fails on a truncated report, a missing required member or a
+  duplicate member key; six independent serde-style fixture tests
+  (`test_audit_retention.py`) cover nested child mutations, resolution
+  coordinate mutations, excluded work counters, duplicates, missing members
+  and truncation.
 
 ## Remaining blocker (explicit, not complete)
 

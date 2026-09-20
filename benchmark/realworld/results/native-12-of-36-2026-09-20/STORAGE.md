@@ -102,6 +102,27 @@ End-to-end smoke capture: `benchmark/realworld/cache/storage-smoke-native`
 gzip stdout/stderr logs, logical/stored digest binding, retention pass
 protecting the current run).
 
+## Post-format validation record
+
+The first `storage-gates` run recorded `fmt exit=1` because the new Rust test
+module was not yet rustfmt-formatted. After `cargo fmt --all`, the check was
+re-run and its output retained:
+
+- `storage-fmt-recheck.txt` (copy of
+  `benchmark/realworld/cache/native-12-of-36-2026-09-20/storage-gates/fmt-recheck.log`,
+  same SHA-256 `04a8e7576150762739aa3d3a09289d009a409b8193b3b7f92569a5062531b2e0`;
+  the committed copy uses `.txt` because result logs are git-ignored)
+  records `cargo fmt --all -- --check` with `exit=0` and no output at
+  `2026-09-20T16:09:16Z`.
+- `cargo test -p pdfdelta-cli --bin pdfdelta compressed_output` passes
+  (2 tests).
+- `git diff --check` exits 0.
+
+The other storage-gates results (clippy, workspace tests, all-features library
+tests, rustdoc, generated fixture verify) were produced on the same Rust code
+before the formatting-only change and remain valid; `storage-gates/status.txt`
+still shows the stale `fmt exit=1` line and must not be cited alone.
+
 ## Limits
 
 Legacy/unmarked directories are compression-only and are never rotated
