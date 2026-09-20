@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+use flate2::{Compression, write::GzEncoder};
 use pdfdelta_core::{
     diff::Comparison,
     model::GlyphEvidence,
@@ -174,8 +175,8 @@ pub fn write_text_report_atomically(output_path: &Path, content: &str) -> Result
 }
 
 pub fn write_trace_atomically(output_path: &Path, trace: &ExecutionTrace) -> Result<(), String> {
-    write_output_atomically(output_path, "trace report", |temporary_file| {
-        trace.write_json(temporary_file).map_err(|error| {
+    write_output_atomically(output_path, "trace report", |mut temporary_file| {
+        trace.write_json(&mut temporary_file).map_err(|error| {
             format!(
                 "cannot render diagnostic trace for {}: {error}",
                 output_path.display()
@@ -184,15 +185,36 @@ pub fn write_trace_atomically(output_path: &Path, trace: &ExecutionTrace) -> Res
     })
 }
 
+/// Writes one output file atomically.
+///
+/// A destination ending in `.gz` is compressed while it is written, so the
+/// temporary file never holds an uncompressed copy. Compression and flush
+/// errors fail closed before the file is published.
 pub fn write_output_atomically(
     output_path: &Path,
     output_kind: &'static str,
-    write: impl FnOnce(&mut BufWriter<File>) -> Result<(), String>,
+    write: impl FnOnce(&mut dyn Write) -> Result<(), String>,
 ) -> Result<(), String> {
     let (temporary_path, temporary_file) = create_temporary_output_for(output_path, output_kind)?;
     let mut temporary_file = BufWriter::new(temporary_file);
+    let compressed = output_path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("gz"));
     let prepare_result = (|| {
-        write(&mut temporary_file)?;
+        if compressed {
+            let mut encoder = GzEncoder::new(&mut temporary_file, Compression::default());
+            let write_result = write(&mut encoder);
+            let finish_result = encoder.finish();
+            write_result?;
+            finish_result.map_err(|error| {
+                format!(
+                    "cannot finish compressed {output_kind} for {}: {error}",
+                    output_path.display()
+                )
+            })?;
+        } else {
+            write(&mut temporary_file)?;
+        }
         temporary_file.flush().map_err(|error| {
             format!(
                 "cannot flush temporary {output_kind} for {}: {error}",
@@ -627,5 +649,60 @@ mod tests {
         fs::remove_file(temporary_path).expect("temporary JSON report should be removed");
 
         assert_eq!(mode, 0o600);
+    }
+}
+
+#[cfg(test)]
+mod compressed_output_tests {
+    use std::{fs::File, io::Read, path::PathBuf};
+
+    use super::write_output_atomically;
+
+    fn scratch_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "pdfdelta-compressed-output-{}-{name}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn gzip_destination_compresses_while_writing_and_refuses_overwrite() {
+        let path = scratch_path("report.json.gz");
+        write_output_atomically(&path, "JSON report", |writer| {
+            writer
+                .write_all(b"{\"schema_version\": 11}\n")
+                .map_err(|error| error.to_string())
+        })
+        .expect("gzip output");
+
+        let mut decoder = flate2::read::GzDecoder::new(File::open(&path).expect("gzip file"));
+        let mut text = String::new();
+        decoder.read_to_string(&mut text).expect("gzip content");
+        assert_eq!(text, "{\"schema_version\": 11}\n");
+
+        let error = write_output_atomically(&path, "JSON report", |_| Ok(()))
+            .expect_err("existing output must not be overwritten");
+        assert!(error.contains("refusing to overwrite"), "{error}");
+
+        // A corrupt gzip payload is detectable from the published file alone.
+        std::fs::write(&path, b"not gzip").expect("corrupt fixture");
+        let mut decoder = flate2::read::GzDecoder::new(File::open(&path).expect("corrupt file"));
+        let mut text = String::new();
+        assert!(decoder.read_to_string(&mut text).is_err());
+
+        std::fs::remove_file(&path).expect("cleanup");
+    }
+
+    #[test]
+    fn plain_destination_stays_uncompressed() {
+        let path = scratch_path("report.json");
+        write_output_atomically(&path, "JSON report", |writer| {
+            writer
+                .write_all(b"plain\n")
+                .map_err(|error| error.to_string())
+        })
+        .expect("plain output");
+        assert_eq!(std::fs::read(&path).expect("plain file"), b"plain\n");
+        std::fs::remove_file(&path).expect("cleanup");
     }
 }

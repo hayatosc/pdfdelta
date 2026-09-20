@@ -41,7 +41,8 @@ pub struct Cli {
     #[arg(long, conflicts_with = "channels")]
     pub native_text_only: bool,
 
-    /// Write a machine-readable JSON comparison report to a file.
+    /// Write a machine-readable JSON comparison report to a file. A path
+    /// ending in `.gz` is written as gzip while it is produced.
     #[arg(short = 'j', long, value_name = "PATH", requires = "new")]
     pub json: Option<PathBuf>,
 

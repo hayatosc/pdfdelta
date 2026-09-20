@@ -3,9 +3,12 @@
 
 import argparse
 from collections import Counter
+from datetime import datetime, timezone
+import gzip
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import shutil
@@ -16,6 +19,58 @@ import tarfile
 
 PANEL = Path("benchmark/realworld/followup/panel.json")
 DRIVER = Path("benchmark/realworld/next/development/capture-comparisons.py")
+# A capture run must start with room for compressed reports and the source
+# archive; the reserve is intentionally far above the compressed size of a
+# full panel capture.
+MIN_FREE_BYTES = 10 * 1024 * 1024 * 1024
+COMPRESSION_MANIFEST = "compression-manifest.json"
+
+
+def resolve_report_path(path):
+    """Resolves a report path that may have been migrated to `.gz`.
+
+    Resolution order: the exact path, `<path>.gz`, then an ancestor
+    `compression-manifest.json` mapping an old plaintext path to its verified
+    archive. The logical content hash is unchanged by migration.
+    """
+    path = Path(path)
+    if path.is_file():
+        return path
+    compressed = Path(f"{path}.gz")
+    if compressed.is_file():
+        return compressed
+    for directory in [path.parent, *path.parents]:
+        manifest = directory / COMPRESSION_MANIFEST
+        if not manifest.is_file():
+            continue
+        try:
+            payload = json.loads(manifest.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        for entry in payload.get("entries", []):
+            if entry.get("old_path") == str(path):
+                candidate = Path(entry["new_path"])
+                if candidate.is_file():
+                    return candidate
+    raise FileNotFoundError(f"report not found: {path}")
+
+
+def require_free_space(path):
+    """Fails closed before a capture that could exhaust the filesystem."""
+    free = shutil.disk_usage(path).free
+    if free < MIN_FREE_BYTES:
+        raise RuntimeError(
+            f"refusing to start capture: only {free} bytes free, "
+            f"reserve is {MIN_FREE_BYTES} bytes"
+        )
+
+
+def open_report(path):
+    """Opens a native report, decompressing gzip content transparently."""
+    path = Path(path)
+    if path.suffix == ".gz":
+        return gzip.open(path, "rb")
+    return path.open("rb")
 
 
 def reference(path):
@@ -23,6 +78,77 @@ def reference(path):
     with path.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     return {"path": str(path), "sha256": digest}
+
+
+def write_run_marker(path, fields):
+    """Writes the versioned capture-run lifecycle marker atomically."""
+    temporary = path.with_name(f"{path.name}.tmp")
+    temporary.write_text(json.dumps(fields, indent=2) + "\n")
+    os.replace(temporary, path)
+
+
+def run_marker_fields(record, args, selected_pairs, state, created, existing=None):
+    """Builds marker fields, preserving pins and reasons across transitions."""
+    existing = existing or {}
+    return {
+        "version": 1,
+        "kind": "panel-capture",
+        "state": state,
+        "pinned": bool(existing.get("pinned", False)),
+        "reason": existing.get("reason"),
+        "created_utc": existing.get("created_utc", created),
+        "updated_utc": datetime.now(timezone.utc).isoformat(),
+        "head": record["head"],
+        "binary_sha256": record["binary"]["sha256"],
+        "panel_sha256": record["panel"]["sha256"],
+        "route": args.route,
+        "fixed_denominator": 36,
+        "selected_pairs": selected_pairs,
+    }
+
+
+def transition_run_marker(marker_path, record, args, selected_pairs, state, created):
+    """Moves the on-disk lifecycle marker to `state`, preserving pins.
+
+    The previous marker is read first so a pin or reason set while the capture
+    was active survives the completed/failed transition.
+    """
+    marker_path = Path(marker_path)
+    existing = None
+    if marker_path.is_file():
+        try:
+            existing = json.loads(marker_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            existing = None
+    fields = run_marker_fields(
+        record, args, selected_pairs, state, created, existing=existing
+    )
+    write_run_marker(marker_path, fields)
+    return fields
+
+
+def report_reference(path):
+    """Binds a report by its logical content digest and its stored file.
+
+    The logical digest hashes the uncompressed content, so bindings stay
+    comparable with plaintext-era records while the stored file is compressed.
+    A migrated plaintext path resolves to its verified archive first.
+    """
+    path = resolve_report_path(path)
+    digest = hashlib.sha256()
+    logical_bytes = 0
+    with open_report(path) as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+            logical_bytes += len(chunk)
+    return {
+        "path": str(path),
+        "sha256": digest.hexdigest(),
+        "logical_bytes": logical_bytes,
+        "file_sha256": reference(path)["sha256"],
+        "bytes": path.stat().st_size,
+        "encoding": "gzip" if path.suffix == ".gz" else "identity",
+    }
 
 
 def summarize(report):
@@ -124,7 +250,7 @@ class _NativeReportReader:
     def __init__(self, path, chunk=8 * 1024 * 1024):
         self._path = Path(path)
         self._chunk = chunk
-        self._stream = self._path.open("rb")
+        self._stream = open_report(self._path)
         self._buffer = b""
         self._offset = 0
         self._position = 0
@@ -146,7 +272,10 @@ class _NativeReportReader:
         self._compact()
         if self._eof:
             return False
-        data = self._stream.read(self._chunk)
+        try:
+            data = self._stream.read(self._chunk)
+        except (OSError, EOFError, gzip.BadGzipFile) as error:
+            raise NativeReportError(f"native report decompression failed: {error}") from error
         if not data:
             self._eof = True
             return False
@@ -197,9 +326,16 @@ class _NativeReportReader:
             raise NativeReportError("native report member range is inverted")
         if end - start > self._SMALL_CAP:
             raise NativeReportError("native report member exceeds its byte cap")
-        with self._path.open("rb") as stream:
-            stream.seek(start)
-            return stream.read(end - start)
+        # Reuse the already decompressed window when the range is still
+        # buffered; reopening a gzip stream would decompress from the start.
+        if self._offset <= start and end <= self._offset + len(self._buffer):
+            return self._buffer[start - self._offset:end - self._offset]
+        try:
+            with open_report(self._path) as stream:
+                stream.seek(start)
+                return stream.read(end - start)
+        except (OSError, EOFError, gzip.BadGzipFile) as error:
+            raise NativeReportError(f"native report decompression failed: {error}") from error
 
     def _read_string(self):
         """Returns the raw bytes of one JSON string, including its quotes."""
@@ -552,6 +688,11 @@ def main():
         default="native",
         help="comparison route; native is the corrected primary scope",
     )
+    parser.add_argument(
+        "--no-rotate",
+        action="store_true",
+        help="skip the automatic retention pass after a completed capture",
+    )
     args = parser.parse_args()
     panel = json.loads(PANEL.read_text())
     pairs = panel["pairs"]
@@ -563,6 +704,7 @@ def main():
     # Small documents run first so acquisition and solver pilots are available
     # while the full, unchanged denominator is still being captured.
     pairs.sort(key=lambda pair: sum(pair[side].get("bytes", 0) for side in ("old", "new")))
+    require_free_space(args.output.parent)
     args.output.mkdir(parents=True, exist_ok=False)
     binary = args.output / "pdfdelta"
     shutil.copy2(args.binary, binary)
@@ -596,44 +738,82 @@ def main():
         "timeout_seconds": 180,
         "rows": [],
     }
+    marker = args.output / ".capture-run.json"
+    created = datetime.now(timezone.utc).isoformat()
+    transition_run_marker(marker, record, args, len(pairs), "active", created)
     failed = False
-    for pair in pairs:
-        destination = args.output / pair["id"]
-        command = [
-            sys.executable, str(DRIVER), str(binary),
-            str(Path(pair["old"]["path"]).parent), str(destination),
-            "--manifest", pair["historical_inputs"], "--pair", pair["id"],
-            "--implementation", record["head"], "--route", args.route,
-        ]
-        result = subprocess.run(command, check=False)
-        row = {"pair": pair["id"], "driver_exit_code": result.returncode, "command": command}
-        runs = destination / "runs.json"
-        if runs.is_file():
-            row["runs"] = reference(runs)
-            run = json.loads(runs.read_text())["runs"][0]
-            row["status"] = run["status"]
-            row["wall_seconds"] = run.get("wall_seconds")
-            if run["route"] != args.route:
-                raise ValueError(
-                    f"{pair['id']}: driver route {run['route']} is not {args.route}"
-                )
-            if run["status"] == "captured":
-                report = destination / f"{pair['id']}-{args.route}.json"
-                row["report"] = reference(report)
-                if args.route == "native":
-                    fields = read_native_report(report)
-                    row["schema_version"] = fields["schema_version"]
-                    row.update(summarize_native(fields))
-                else:
-                    payload = json.loads(report.read_text())
-                    row["schema_version"] = payload.get("schema_version")
-                    row.update(summarize(payload))
-        else:
-            row["status"] = "driver_failed"
-        failed |= row["status"] != "captured"
-        record["rows"].append(row)
-        record["complete_pairs"] = sum(row.get("comparison_complete", False) for row in record["rows"])
-        (args.output / "summary.json").write_text(json.dumps(record, indent=2) + "\n")
+    try:
+        for pair in pairs:
+            destination = args.output / pair["id"]
+            command = [
+                sys.executable, str(DRIVER), str(binary),
+                str(Path(pair["old"]["path"]).parent), str(destination),
+                "--manifest", pair["historical_inputs"], "--pair", pair["id"],
+                "--implementation", record["head"], "--route", args.route,
+            ]
+            result = subprocess.run(command, check=False)
+            row = {"pair": pair["id"], "driver_exit_code": result.returncode, "command": command}
+            runs = destination / "runs.json"
+            if runs.is_file():
+                row["runs"] = reference(runs)
+                run = json.loads(runs.read_text())["runs"][0]
+                row["status"] = run["status"]
+                row["wall_seconds"] = run.get("wall_seconds")
+                if run["route"] != args.route:
+                    raise ValueError(
+                        f"{pair['id']}: driver route {run['route']} is not {args.route}"
+                    )
+                if run["status"] == "captured":
+                    report = resolve_report_path(
+                        destination / f"{pair['id']}-{args.route}.json"
+                    )
+                    row["report"] = report_reference(report)
+                    if row["report"]["sha256"] != run.get("report_sha256"):
+                        raise ValueError(
+                            f"{pair['id']}: report logical hash disagrees with the driver record"
+                        )
+                    if args.route == "native":
+                        fields = read_native_report(report)
+                        row["schema_version"] = fields["schema_version"]
+                        row.update(summarize_native(fields))
+                    else:
+                        with open_report(report) as stream:
+                            payload = json.load(stream)
+                        row["schema_version"] = payload.get("schema_version")
+                        row.update(summarize(payload))
+            else:
+                row["status"] = "driver_failed"
+            failed |= row["status"] != "captured"
+            record["rows"].append(row)
+            record["complete_pairs"] = sum(row.get("comparison_complete", False) for row in record["rows"])
+            (args.output / "summary.json").write_text(json.dumps(record, indent=2) + "\n")
+    except BaseException:
+        # Interrupted or failing captures stay protected: the marker records
+        # the failure so automatic retention never removes a partial run.
+        transition_run_marker(marker, record, args, len(pairs), "failed", created)
+        raise
+    transition_run_marker(
+        marker,
+        record,
+        args,
+        len(pairs),
+        "completed" if not failed else "failed",
+        created,
+    )
+    if not args.no_rotate:
+        try:
+            import rotate_runs
+
+            retention_failures = rotate_runs.run_retention(
+                root=args.output.parent,
+                keep=3,
+                protect=[str(args.output)],
+                apply=True,
+            )
+            if retention_failures:
+                print(f"warning: retention reported {retention_failures} failure(s)")
+        except Exception as error:  # noqa: BLE001 - retention must not break capture
+            print(f"warning: retention pass failed: {error}")
     return int(failed)
 
 
