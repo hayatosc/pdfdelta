@@ -1,11 +1,18 @@
 use pdfdelta_core::{
     document::{
-        BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
-        DocumentView, DocumentViewComparison, EdgeKind, EvidenceStore, HierarchyLimits,
-        InterpretationStatus, NodeContent, NodeId, SourceRef, StructuredEvidence, StructuredValue,
-        TypedOperation, ViewBasis, compare_document_views, compare_text_group_views,
+        BackendIdentity, BackendKind, Channel, ChannelInventory, CorrespondenceScope,
+        DeclaredStructureText, DeclaredTextStatus, DocumentComparisonLimits, DocumentGraph,
+        DocumentView, DocumentViewComparison, EdgeKind, EvidenceStore, GraphLimits, GraphNode,
+        HierarchyLimits, InterpretationStatus, NodeContent, NodeId, PageEvidence, SourceRef,
+        StructuredEvidence, StructuredValue, TextNormalization, TypedOperation, ViewBasis,
+        compare_document_views, compare_text_group_views,
     },
-    model::Document,
+    model::{
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+    },
+    normalize::ComparableToken,
+    pdf::ObjectRef,
     pipeline::PipelineOptions,
 };
 
@@ -41,6 +48,7 @@ fn fixture(parts: &[&str]) -> (EvidenceStore, DocumentGraph) {
                     glyphs: Vec::new(),
                     role: "paragraph".into(),
                     text: Some((*text).into()),
+                    declared_text: None,
                     parent: None,
                     order: Some(index as u32),
                 },
@@ -1341,4 +1349,494 @@ fn text_budget_exhaustion_retains_proved_anchors_and_independent_field_changes()
     assert!(result.comparisons().all(|pair| pair.compared
         && pair.interpretation == InterpretationStatus::ConditionalOnCorrespondence));
     assert!(!result.search_resolved());
+}
+fn declared_native_glyph() -> Glyph {
+    Glyph {
+        id: GlyphId(0),
+        text: DecodedText::Mapped("-".into()),
+        raw_code: b"-".to_vec(),
+        page: PageId(0),
+        bbox: Rect {
+            min: Vec2 { x: 0.0, y: 0.0 },
+            max: Vec2 { x: 5.0, y: 10.0 },
+        },
+        baseline: Vec2 { x: 0.0, y: 0.0 },
+        direction: Vec2 { x: 1.0, y: 0.0 },
+        font_id: FontId(1),
+        font_size: 10.0,
+        render_order: 0,
+        render_mode: TextRenderMode::Fill,
+        crop_status: GlyphCropStatus::Inside,
+        path_clip_status: GlyphPathClipStatus::Unclipped,
+        provenance: GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 1,
+                generation: 0,
+            },
+            operator_index: 0,
+        },
+    }
+}
+
+fn validated_declaration(text: &str, raw: Vec<u8>) -> DeclaredStructureText {
+    DeclaredStructureText {
+        raw,
+        text: text.into(),
+        status: DeclaredTextStatus::Validated,
+        glyphs: vec![GlyphId(0)],
+        reason: None,
+    }
+}
+
+fn unresolved_declaration(text: &str, raw: Vec<u8>, reason: &str) -> DeclaredStructureText {
+    DeclaredStructureText {
+        raw,
+        text: text.into(),
+        status: DeclaredTextStatus::Unresolved,
+        glyphs: Vec::new(),
+        reason: Some(reason.into()),
+    }
+}
+
+fn declared_fixture(declared: Option<DeclaredStructureText>) -> (EvidenceStore, DocumentGraph) {
+    let store = EvidenceStore {
+        revision: "declared-text-fixture".into(),
+        native: Document::new(vec![declared_native_glyph()]),
+        pages: vec![PageEvidence {
+            page: PageId(0),
+            bounds: None,
+        }],
+        backends: vec![BackendIdentity {
+            kind: BackendKind::NativeParser,
+            name: "fixture".into(),
+            version: "1".into(),
+            profile: "declared-text".into(),
+            model: None,
+        }],
+        rendered: Vec::new(),
+        structured: vec![StructuredEvidence {
+            id: 0,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                role: "Span".into(),
+                identifier: Some(b"declared-span".to_vec()),
+                text: None,
+                declared_text: declared,
+                glyphs: vec![GlyphId(0)],
+                content: None,
+                parent: None,
+                order: Some(0),
+            },
+        }],
+        inventories: vec![ChannelInventory {
+            page: Some(PageId(0)),
+            channel: Channel::Text,
+            backend: 0,
+            sources: vec![SourceRef::Native { glyph: GlyphId(0) }],
+            complete: true,
+        }],
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
+        issues: Vec::new(),
+    };
+    let graph = graph(&store);
+    (store, graph)
+}
+
+fn declared_node(graph: &DocumentGraph) -> &GraphNode {
+    graph
+        .nodes
+        .iter()
+        .find(|node| node.sources.contains(&SourceRef::Structured { element: 0 }))
+        .expect("declared structure node")
+}
+
+#[test]
+fn validated_declared_replacement_is_compared_text_without_duplication() {
+    let old = declared_fixture(Some(validated_declaration(
+        "\u{ad}",
+        vec![0xFE, 0xFF, 0x00, 0xAD],
+    )));
+    let new = declared_fixture(Some(validated_declaration("-", b"-".to_vec())));
+    let node = declared_node(&old.1);
+    let NodeContent::Text { view } = &node.content else {
+        panic!("declared replacement text view")
+    };
+    assert_eq!(view.tokens, vec![ComparableToken::Scalar('\u{ad}')]);
+    assert_eq!(view.normalization, TextNormalization::Exact);
+    assert!(
+        node.sources
+            .contains(&SourceRef::Native { glyph: GlyphId(0) })
+    );
+    let DecodedText::Mapped(native) = &old.0.native.items()[0].text else {
+        panic!("native glyph text")
+    };
+    assert_eq!(native, "-");
+    // The native glyph view cannot silently bypass the changed declaration.
+    let native_view = old
+        .1
+        .nodes
+        .iter()
+        .find(|node| {
+            node.basis == ViewBasis::NativeLayout
+                && node
+                    .sources
+                    .contains(&SourceRef::Native { glyph: GlyphId(0) })
+                && matches!(node.content, NodeContent::Text { .. })
+        })
+        .expect("native text view");
+    let NodeContent::Text { view } = &native_view.content else {
+        panic!("native text view")
+    };
+    assert!(matches!(
+        view.normalization,
+        TextNormalization::Unresolved { .. }
+    ));
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let comparisons = result.comparisons().collect::<Vec<_>>();
+    assert!(!comparisons.is_empty(), "declared text must be compared");
+    assert!(
+        comparisons.iter().any(|comparison| matches!(
+            &comparison.operation,
+            Some(TypedOperation::TextChanged { old: Some(old), new: Some(new) })
+                if old == "\u{ad}" && new == "-"
+        )),
+        "validated declared content must be compared as a text change: {comparisons:?}"
+    );
+    assert!(
+        !comparisons.iter().any(|comparison| {
+            comparison.compared
+                && comparison.operation.is_none()
+                && comparison.unresolved.is_empty()
+        }),
+        "changed declarations must not compare exact: {comparisons:?}"
+    );
+}
+
+#[test]
+fn equal_validated_declarations_do_not_duplicate_or_change_text() {
+    let old = declared_fixture(Some(validated_declaration("-", b"-".to_vec())));
+    let new = declared_fixture(Some(validated_declaration("-", b"-".to_vec())));
+    let node = declared_node(&old.1);
+    let NodeContent::Text { view } = &node.content else {
+        panic!("declared replacement text view")
+    };
+    assert_eq!(view.tokens, vec![ComparableToken::Scalar('-')]);
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let comparisons = result.comparisons().collect::<Vec<_>>();
+    assert!(
+        !comparisons.is_empty(),
+        "equal declarations must be compared"
+    );
+    assert!(
+        comparisons.iter().all(|comparison| {
+            comparison.compared
+                && comparison.operation.is_none()
+                && comparison.unresolved.is_empty()
+        }),
+        "{comparisons:?}"
+    );
+}
+
+#[test]
+fn unresolved_declaration_keeps_native_text_and_blocks_exactness() {
+    let old = declared_fixture(Some(unresolved_declaration(
+        "\u{ad}",
+        vec![0xFE, 0xFF, 0x00, 0xAD],
+        "ParentTree owner binding was not acquired",
+    )));
+    let new = declared_fixture(None);
+    let node = declared_node(&old.1);
+    let NodeContent::Text { view } = &node.content else {
+        panic!("native text view")
+    };
+    assert_eq!(view.tokens, vec![ComparableToken::Scalar('-')]);
+    assert!(matches!(
+        view.normalization,
+        TextNormalization::Unresolved { .. }
+    ));
+    let result = compare(&old, &new, DocumentComparisonLimits::default());
+    let comparisons = result.comparisons().collect::<Vec<_>>();
+    assert!(
+        !comparisons.iter().any(|comparison| {
+            comparison.compared
+                && comparison.operation.is_none()
+                && comparison.unresolved.is_empty()
+        }),
+        "unresolved declarations must not compare exact: {comparisons:?}"
+    );
+    assert!(
+        comparisons
+            .iter()
+            .any(|comparison| !comparison.unresolved.is_empty()),
+        "unresolved declarations must surface explicit uncertainty: {comparisons:?}"
+    );
+}
+fn overlap_fixture() -> (EvidenceStore, DocumentGraph) {
+    let (mut store, _) = declared_fixture(Some(unresolved_declaration(
+        "\u{ad}",
+        vec![0xFE, 0xFF, 0x00, 0xAD],
+        "ParentTree owner binding was not acquired",
+    )));
+    store.structured.push(StructuredEvidence {
+        id: 1,
+        page: Some(PageId(0)),
+        bounds: None,
+        object: None,
+        backend: 0,
+        value: StructuredValue::StructureElement {
+            role: "Span".into(),
+            identifier: Some(b"undeclared-overlap".to_vec()),
+            text: None,
+            declared_text: None,
+            glyphs: vec![GlyphId(0)],
+            content: None,
+            parent: None,
+            order: Some(1),
+        },
+    });
+    let graph = graph(&store);
+    (store, graph)
+}
+
+#[test]
+fn overlapping_undeclared_view_cannot_escape_declaration_uncertainty() {
+    let (_, graph) = overlap_fixture();
+    for element in [0_u64, 1] {
+        let node = graph
+            .nodes
+            .iter()
+            .find(|node| node.sources.contains(&SourceRef::Structured { element }))
+            .expect("overlapping structure view");
+        let NodeContent::Text { view } = &node.content else {
+            panic!("overlapping text view")
+        };
+        assert!(
+            matches!(view.normalization, TextNormalization::Unresolved { .. }),
+            "element {element} must stay uncertain"
+        );
+    }
+}
+
+#[test]
+fn forged_declared_replacement_views_fail_source_conservation() {
+    let limits = DocumentComparisonLimits::default();
+    for mutation in ["truncate", "mismatch", "drop_membership"] {
+        let (store, mut graph) = declared_fixture(Some(validated_declaration(
+            "\u{ad}",
+            vec![0xFE, 0xFF, 0x00, 0xAD],
+        )));
+        let node = graph
+            .nodes
+            .iter_mut()
+            .find(|node| node.sources.contains(&SourceRef::Structured { element: 0 }))
+            .expect("declared view");
+        match mutation {
+            "truncate" => {
+                let NodeContent::Text { view } = &mut node.content else {
+                    panic!("declared view")
+                };
+                view.tokens.pop();
+                view.origins.pop();
+                view.source_backed.pop();
+            }
+            "mismatch" => {
+                let NodeContent::Text { view } = &mut node.content else {
+                    panic!("declared view")
+                };
+                view.tokens[0] = ComparableToken::Scalar('x');
+            }
+            "drop_membership" => {
+                node.sources
+                    .retain(|source| *source != SourceRef::Native { glyph: GlyphId(0) });
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            graph
+                .validate(&store, limits.evidence, limits.graph)
+                .is_err(),
+            "{mutation} must fail validation"
+        );
+    }
+}
+
+#[test]
+fn oversized_declaration_affected_set_is_rejected_before_copy() {
+    let (store, _) = declared_fixture(None);
+    let graph = DocumentGraph {
+        declaration_affected: (0..5)
+            .map(|glyph| SourceRef::Native {
+                glyph: GlyphId(glyph),
+            })
+            .collect(),
+        ..DocumentGraph::default()
+    };
+    let limits = DocumentComparisonLimits {
+        graph: GraphLimits {
+            max_references: 4,
+            ..GraphLimits::default()
+        },
+        ..DocumentComparisonLimits::default()
+    };
+    assert!(matches!(
+        graph.validate(&store, limits.evidence, limits.graph),
+        Err(pdfdelta_core::Error::LimitExceeded {
+            resource: "graph references",
+            limit: 4,
+        })
+    ));
+}
+
+#[test]
+fn dangling_declaration_affected_source_is_rejected() {
+    let (store, mut graph) = declared_fixture(None);
+    graph.declaration_affected.insert(SourceRef::Native {
+        glyph: GlyphId(999),
+    });
+    let limits = DocumentComparisonLimits::default();
+    assert!(matches!(
+        graph.validate(&store, limits.evidence, limits.graph),
+        Err(pdfdelta_core::Error::InvalidConfiguration(_))
+    ));
+}
+
+#[test]
+fn deserialized_declaration_affected_set_is_validated() {
+    let (store, _) = declared_fixture(None);
+    let graph = DocumentGraph {
+        declaration_affected: (0..5)
+            .map(|glyph| SourceRef::Native {
+                glyph: GlyphId(glyph),
+            })
+            .collect(),
+        ..DocumentGraph::default()
+    };
+    let encoded = serde_json::to_string(&graph).expect("serialize graph");
+    let decoded: DocumentGraph = serde_json::from_str(&encoded).expect("deserialize graph");
+    assert_eq!(decoded.declaration_affected, graph.declaration_affected);
+    let limits = DocumentComparisonLimits {
+        graph: GraphLimits {
+            max_references: 4,
+            ..GraphLimits::default()
+        },
+        ..DocumentComparisonLimits::default()
+    };
+    assert!(matches!(
+        decoded.validate(&store, limits.evidence, limits.graph),
+        Err(pdfdelta_core::Error::LimitExceeded {
+            resource: "graph references",
+            limit: 4,
+        })
+    ));
+}
+
+#[test]
+fn from_evidence_declaration_affected_set_validates() {
+    let (store, graph) = declared_fixture(Some(unresolved_declaration(
+        "\u{ad}",
+        vec![0xFE, 0xFF, 0x00, 0xAD],
+        "ParentTree owner binding was not acquired",
+    )));
+    assert!(!graph.declaration_affected.is_empty());
+    let limits = DocumentComparisonLimits::default();
+    graph
+        .validate(&store, limits.evidence, limits.graph)
+        .expect("provider-marked declaration set validates");
+}
+
+fn declaration_chain(declared: bool) -> EvidenceStore {
+    EvidenceStore {
+        revision: "declaration-limit-chain".into(),
+        native: Document::new(vec![declared_native_glyph()]),
+        pages: vec![PageEvidence {
+            page: PageId(0),
+            bounds: None,
+        }],
+        backends: vec![BackendIdentity {
+            kind: BackendKind::NativeParser,
+            name: "fixture".into(),
+            version: "1".into(),
+            profile: "declaration-chain".into(),
+            model: None,
+        }],
+        rendered: Vec::new(),
+        structured: (0..8)
+            .map(|index| StructuredEvidence {
+                id: index,
+                page: Some(PageId(0)),
+                bounds: None,
+                object: None,
+                backend: 0,
+                value: StructuredValue::StructureElement {
+                    role: "Span".into(),
+                    identifier: None,
+                    text: None,
+                    declared_text: (declared && index == 0).then(|| {
+                        unresolved_declaration(
+                            "\u{ad}",
+                            vec![0xFE],
+                            "ParentTree owner binding was not acquired",
+                        )
+                    }),
+                    glyphs: if index == 7 {
+                        vec![GlyphId(0)]
+                    } else {
+                        Vec::new()
+                    },
+                    content: None,
+                    parent: (index > 0).then(|| index - 1),
+                    order: Some(index as u32),
+                },
+            })
+            .collect(),
+        inventories: vec![ChannelInventory {
+            page: Some(PageId(0)),
+            channel: Channel::Text,
+            backend: 0,
+            sources: vec![SourceRef::Native { glyph: GlyphId(0) }],
+            complete: true,
+        }],
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
+        issues: Vec::new(),
+    }
+}
+
+#[test]
+fn declaration_work_limit_stop_only_trips_with_declarations() {
+    let limits = DocumentComparisonLimits::default();
+    let control = declaration_chain(false);
+    let declared = declaration_chain(true);
+    // Same evidence, elements and glyphs; only the declared_text differs.
+    let build = |store: &EvidenceStore, max_references: usize| {
+        DocumentGraph::from_evidence(
+            store,
+            PipelineOptions::default(),
+            limits.evidence,
+            GraphLimits {
+                max_references,
+                ..limits.graph
+            },
+        )
+    };
+    let base = (1..=500)
+        .find(|limit| build(&control, *limit).is_ok())
+        .expect("the declaration-free control builds under a small reference limit");
+    assert!(
+        build(&control, base).is_ok(),
+        "the control must still build at the shared limit"
+    );
+    let error = build(&declared, base)
+        .expect_err("declaration work must exceed the shared reference limit");
+    match error {
+        pdfdelta_core::Error::LimitExceeded { resource, .. } => assert!(
+            resource.contains("declaration"),
+            "unexpected limit resource: {resource}"
+        ),
+        other => panic!("unexpected error: {other:?}"),
+    }
 }

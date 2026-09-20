@@ -141,6 +141,39 @@ pub struct WidgetCrop {
     pub pixel_bounds: [u32; 4],
 }
 
+/// A declared replacement text (`ActualText`) attached to a structure element.
+///
+/// The declaration is preserved exactly as stored and decoded without
+/// normalization: soft hyphens and newlines stay as declared. `Alt` is never a
+/// replacement declaration. Native glyph evidence remains untouched beside it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DeclaredStructureText {
+    /// Raw PDF string bytes exactly as stored in the document.
+    pub raw: Vec<u8>,
+    /// Decoded literal text with no normalization applied.
+    pub text: String,
+    /// Validation of the declaration's native binding.
+    pub status: DeclaredTextStatus,
+    /// The validated native membership; empty when the status is unresolved.
+    #[serde(default)]
+    pub glyphs: Vec<GlyphId>,
+    /// Explicit reason when the declaration cannot be validated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// Validation state of a declared replacement binding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclaredTextStatus {
+    /// A single complete page marked-content sequence with non-empty native
+    /// membership, a reciprocal `ParentTree` owner and no conflicting declaration.
+    Validated,
+    /// The declaration exists but its binding cannot be validated; the native
+    /// view stays original and the uncertainty remains explicit.
+    Unresolved,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StructuredValue {
@@ -170,6 +203,11 @@ pub enum StructuredValue {
         #[serde(default)]
         identifier: Option<Vec<u8>>,
         text: Option<String>,
+        /// A declared `ActualText` replacement for this element's membership.
+        /// The declaration is a separate, explicitly bound interpretation; it
+        /// never replaces glyph text, raw codes, geometry or provenance.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        declared_text: Option<DeclaredStructureText>,
         /// Native memberships are alternatives to layout views, not copied text.
         #[serde(default)]
         glyphs: Vec<GlyphId>,
@@ -474,6 +512,10 @@ pub(super) struct NativeIndex<'a> {
     pub baselines: BTreeMap<PageId, Vec<&'a Glyph>>,
     pub paint_pages: BTreeMap<PageId, Vec<&'a NonTextPaint>>,
     pub text_scopes: BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
+    /// Sources whose text interpretation a declared replacement covers. The
+    /// graph fills this from the provider marking; projection must not clear
+    /// that uncertainty for these sources.
+    pub declaration_affected: BTreeSet<SourceRef>,
 }
 
 #[derive(Default)]
@@ -876,6 +918,7 @@ impl EvidenceStore {
                 StructuredValue::StructureElement {
                     role,
                     text,
+                    declared_text,
                     glyphs,
                     identifier,
                     content,
@@ -961,6 +1004,59 @@ impl EvidenceStore {
                             return Err(invalid(
                                 "duplicate or cross-page structure glyph membership",
                             ));
+                        }
+                    }
+                    if let Some(declared) = declared_text {
+                        add_bytes(
+                            &mut text_bytes,
+                            declared.raw.len(),
+                            limits.max_text_bytes,
+                            "declared replacement bytes",
+                        )?;
+                        add_bytes(
+                            &mut text_bytes,
+                            declared.text.len(),
+                            limits.max_text_bytes,
+                            "declared replacement text bytes",
+                        )?;
+                        if let Some(reason) = &declared.reason {
+                            add_bytes(
+                                &mut text_bytes,
+                                reason.len(),
+                                limits.max_text_bytes,
+                                "declared replacement reason bytes",
+                            )?;
+                        }
+                        match declared.status {
+                            DeclaredTextStatus::Validated => {
+                                if declared.text.is_empty() || declared.raw.is_empty() {
+                                    return Err(invalid(
+                                        "validated replacement declaration is empty",
+                                    ));
+                                }
+                                if declared.reason.is_some() {
+                                    return Err(invalid(
+                                        "validated replacement declaration retains an unresolved reason",
+                                    ));
+                                }
+                                if declared.glyphs != *glyphs {
+                                    return Err(invalid(
+                                        "validated replacement membership disagrees with the element membership",
+                                    ));
+                                }
+                                if declared.glyphs.is_empty() {
+                                    return Err(invalid(
+                                        "validated replacement declaration has no native membership",
+                                    ));
+                                }
+                            }
+                            DeclaredTextStatus::Unresolved => {
+                                if !declared.glyphs.is_empty() {
+                                    return Err(invalid(
+                                        "unresolved replacement declaration must not claim a native membership",
+                                    ));
+                                }
+                            }
                         }
                     }
                     add_bytes(

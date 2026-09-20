@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pdfdelta-bench",
+        "--example",
+        "paint_trace_probe"
+      ],
+      "exit_code": 0,
+      "passed": 9,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/paint-trace-tests.log",
+        "sha256": "747531aa033788e962c1c047ae4ade8a7297cc104a035af1c262afbfa9cac8ab"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "pdfdelta-bench",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/paint-trace-clippy.log",
+        "sha256": "63f3a13761be3e1628db981fc4d847b269781f13063837eb9905fbefecadaea5"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "reported_by": "OpenCode after final review correction"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "-p",
+        "pdfdelta-bench",
+        "--example",
+        "paint_trace_probe"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/paint-trace-build.log",
+        "sha256": "1e24a33c8ea4a33ed28a37a2d9102faf05b9210bedcc53835ce80e9eefc7c500"
+      }
+    }
+  ],
+  "screen": {
+    "path": "benchmark/realworld/remaining/completion-investigation/declarations-worklist.json",
+    "sha256": "cb67f17859a1825878ea637125249da4711e79a1785d2e917bfb698f5dcb6749"
+  },
+  "prior_screen": {
+    "path": "benchmark/realworld/remaining/completion-investigation/declarations-initial.json",
+    "sha256": "0a82c2f493ea56b250df4a2b3f42a898007fea65f0c6c436c5bd2cc7e82ecd88"
+  },
+  "audits": {
+    "inputs_checked": 72,
+    "raw_report_hashes_checked": 72,
+    "diagnostic_flags_false": 72,
+    "previous_finished_scans_lost": 0
+  },
+  "production_comparison_changed": false,
+  "new_strict_completions": 0
+}

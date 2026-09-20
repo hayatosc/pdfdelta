@@ -2,10 +2,11 @@ use pdfdelta_core::{
     document::{
         AlternativeViews, CorrespondenceProposal, CorrespondenceScope, DocumentGraph, EdgeKind,
         FieldValue, GraphEdge, GraphNode, IdentityKey, MatchingAlgorithm, MatchingLimits,
-        NodeContent, NodeId, NodeKind, ProposalBasis, SourceConflict, SourceRef, ViewBasis,
-        propose_scope_correspondences, solve_correspondence_scope,
+        NodeContent, NodeId, NodeKind, ProposalBasis, SourceConflict, SourceRef, TextNormalization,
+        TextView, ViewBasis, propose_scope_correspondences, solve_correspondence_scope,
     },
     model::PageId,
+    normalize::ComparableToken,
 };
 
 fn graph(fields: &[(&str, &str)], page: u32) -> DocumentGraph {
@@ -350,17 +351,22 @@ fn shared_views_require_one_partition_for_the_whole_selection() {
         )
         .expect("partition dependencies stay local");
         assert_eq!(result.components.len(), 2);
-        assert_eq!(
-            result.components[0].exhaustive,
-            max_component_proposals == 24
-        );
+        assert!(result.components[0].exhaustive);
+        if max_component_proposals == 2 {
+            // The proposal cap no longer decides applicability: the exact
+            // cardinality preflight uses the state budget instead.
+            assert_eq!(
+                result.components[0].algorithm,
+                MatchingAlgorithm::CardinalityChoice
+            );
+        }
         assert!(result.components[0].mandatory.is_empty());
         assert_eq!(result.components[1].mandatory, vec![3]);
     }
 }
 
 #[test]
-fn certified_priority_prefix_survives_an_unfinished_residual_component() {
+fn certified_priority_prefix_survives_a_wide_residual_component() {
     let mut old = graph(&[("anchor", "same"), ("b", "same"), ("c", "same")], 0);
     old.nodes[3].sources = old.nodes[2].sources.clone();
     let new = old.clone();
@@ -392,7 +398,7 @@ fn certified_priority_prefix_survives_an_unfinished_residual_component() {
         )
         .expect("complete ownership and priority-prefix evidence");
         assert_eq!(result.components.len(), 1);
-        assert_eq!(result.components[0].exhaustive, cap == 24);
+        assert!(result.components[0].exhaustive);
         assert_eq!(result.components[0].mandatory, vec![0]);
         assert!(result.source_only_mandatory.contains(&0));
         assert!(
@@ -1141,4 +1147,260 @@ fn split_merge_preserves_tokens_sources_and_declared_local_order() {
         solve_correspondence_scope(&old, &new, SCOPE, &[proposal], MatchingLimits::default())
             .is_err()
     );
+}
+
+fn paragraph_graph(texts: &[&str]) -> DocumentGraph {
+    let mut graph = DocumentGraph::default();
+    graph.nodes.push(GraphNode {
+        id: NodeId(0),
+        kind: NodeKind::Document,
+        pages: Vec::new(),
+        sources: Vec::new(),
+        identity: None,
+        basis: ViewBasis::SourceStructure,
+        content: NodeContent::Container,
+    });
+    for (index, text) in texts.iter().enumerate() {
+        let id = NodeId(index as u64 + 1);
+        let source = SourceRef::Structured { element: id.0 };
+        let tokens: Vec<_> = text.chars().map(ComparableToken::Scalar).collect();
+        let view = TextView {
+            origins: vec![vec![source]; tokens.len()],
+            source_backed: vec![true; tokens.len()],
+            tokens,
+            normalization: TextNormalization::Exact,
+        };
+        graph.nodes.push(GraphNode {
+            id,
+            kind: NodeKind::Paragraph,
+            pages: Vec::new(),
+            sources: vec![source],
+            identity: None,
+            basis: ViewBasis::SourceStructure,
+            content: NodeContent::Text { view },
+        });
+        graph.edges.push(GraphEdge {
+            from: NodeId(0),
+            to: id,
+            kind: EdgeKind::Contains,
+            sources: Vec::new(),
+            basis: ViewBasis::SourceStructure,
+        });
+    }
+    graph
+}
+
+fn split_group(old: u64, new: [u64; 2], weight: u32) -> CorrespondenceProposal {
+    CorrespondenceProposal {
+        old: vec![NodeId(old)],
+        new: new.iter().copied().map(NodeId).collect(),
+        basis: ProposalBasis::TextSimilarity,
+        supplier: "cardinality-fixture".into(),
+        weight,
+    }
+}
+
+fn order_edge(graph: &mut DocumentGraph, from: u64, to: u64) {
+    graph.edges.push(GraphEdge {
+        from: NodeId(from),
+        to: NodeId(to),
+        kind: EdgeKind::Precedes,
+        sources: Vec::new(),
+        basis: ViewBasis::SourceStructure,
+    });
+}
+
+#[test]
+fn wide_single_endpoint_group_component_uses_exact_cardinality_choice() {
+    let old = paragraph_graph(&["x"]);
+    let new = paragraph_graph(&vec!["y"; 27]);
+    let mut proposals: Vec<_> = (0..26)
+        .map(|index| split_group(1, [index as u64 + 1, index as u64 + 2], 1))
+        .collect();
+    proposals[5].weight = 9;
+    let mut new = new;
+    for index in 1..=26 {
+        order_edge(&mut new, index, index + 1);
+    }
+    let result =
+        solve_correspondence_scope(&old, &new, SCOPE, &proposals, MatchingLimits::default())
+            .expect("valid group fixture");
+    assert_eq!(result.components.len(), 1);
+    let component = &result.components[0];
+    assert_eq!(component.algorithm, MatchingAlgorithm::CardinalityChoice);
+    assert!(component.exhaustive);
+    assert_eq!(component.mandatory, [5]);
+    assert!(component.explored_states > 0);
+    assert!(component.explored_states <= MatchingLimits::default().max_states_per_component);
+}
+
+#[test]
+fn wide_two_endpoint_group_component_selects_independent_optima() {
+    let mut old = paragraph_graph(&["x", "y"]);
+    order_edge(&mut old, 1, 2);
+    let mut new = paragraph_graph(&vec!["z"; 53]);
+    let mut proposals = Vec::new();
+    for index in 0..13 {
+        proposals.push(split_group(
+            1,
+            [index as u64 * 2 + 1, index as u64 * 2 + 2],
+            1,
+        ));
+    }
+    for index in 0..13 {
+        proposals.push(split_group(
+            2,
+            [index as u64 * 2 + 27, index as u64 * 2 + 28],
+            1,
+        ));
+    }
+    proposals[0].weight = 9;
+    proposals[13].weight = 8;
+    // A connector sharing both old endpoints joins the two clusters into one
+    // component and conflicts with every proposal in both.
+    proposals.push(CorrespondenceProposal {
+        old: vec![NodeId(1), NodeId(2)],
+        new: vec![NodeId(53)],
+        basis: ProposalBasis::TextSimilarity,
+        supplier: "cardinality-fixture".into(),
+        weight: 1,
+    });
+    for index in 0..26 {
+        let from = (index / 13) * 26 + index % 13 * 2 + 1;
+        order_edge(&mut new, from, from + 1);
+    }
+    let result =
+        solve_correspondence_scope(&old, &new, SCOPE, &proposals, MatchingLimits::default())
+            .expect("valid group fixture");
+    assert_eq!(result.components.len(), 1);
+    let component = &result.components[0];
+    assert_eq!(component.algorithm, MatchingAlgorithm::CardinalityChoice);
+    assert!(component.exhaustive);
+    assert_eq!(component.mandatory, [0, 13]);
+}
+
+#[test]
+fn wide_tied_source_candidates_keep_protection_and_share_the_work_budget() {
+    let old = paragraph_graph(&["ab", "x"]);
+    // Node 1 is the first token, node 2 the second token, node 3 the shared
+    // second token of the tied rivals, node 4 the inferred tie breaker.
+    let mut texts = vec!["a", "b", "b", "d"];
+    texts.extend((0..25).map(|_| "a"));
+    let mut new = paragraph_graph(&texts);
+    // Candidate 0 alone can join the inferred tie breaker; candidates 1..25
+    // share the common new endpoint with it and therefore cannot.
+    let mut proposals = vec![CorrespondenceProposal {
+        old: vec![NodeId(1)],
+        new: vec![NodeId(1), NodeId(2)],
+        basis: ProposalBasis::LiteralContent,
+        supplier: "typed-scope-v1".into(),
+        weight: 1,
+    }];
+    for index in 0..25_u64 {
+        proposals.push(CorrespondenceProposal {
+            old: vec![NodeId(1)],
+            new: vec![NodeId(index + 5), NodeId(3)],
+            basis: ProposalBasis::LiteralContent,
+            supplier: "typed-scope-v1".into(),
+            weight: 1,
+        });
+    }
+    proposals.push(CorrespondenceProposal {
+        old: vec![NodeId(2)],
+        new: vec![NodeId(3), NodeId(4)],
+        basis: ProposalBasis::TextSimilarity,
+        supplier: "literal-trigram-dice-v1".into(),
+        weight: 1,
+    });
+    order_edge(&mut new, 1, 2);
+    for index in 1..=25_u64 {
+        order_edge(&mut new, index + 4, 3);
+    }
+    order_edge(&mut new, 3, 4);
+    let limits = MatchingLimits::default();
+    let result = solve_correspondence_scope(&old, &new, SCOPE, &proposals, limits)
+        .expect("valid source and inferred tie fixture");
+    assert_eq!(result.components.len(), 1);
+    let component = &result.components[0];
+    assert_eq!(component.algorithm, MatchingAlgorithm::CardinalityChoice);
+    assert!(component.exhaustive);
+    // Every source candidate ties at class one, so only candidate 0 can add
+    // the inferred tie breaker: the joint optimum is mandatory, while the
+    // source-only optimum keeps every tied candidate and certifies none.
+    assert_eq!(component.mandatory, [0, 26]);
+    assert!(result.source_only_mandatory.is_empty());
+    assert!(result.inferred_proposals.contains(&0));
+    assert!(result.inferred_proposals.contains(&26));
+    let used = component.assignment_work;
+    assert!(used > 0);
+    // A budget equal to the observed total still completes and never exceeds
+    // the configured shared work.
+    let tight = solve_correspondence_scope(
+        &old,
+        &new,
+        SCOPE,
+        &proposals,
+        MatchingLimits {
+            max_assignment_work_per_component: used,
+            ..MatchingLimits::default()
+        },
+    )
+    .expect("tight but sufficient work budget");
+    assert!(tight.components[0].exhaustive);
+    assert_eq!(tight.components[0].mandatory, [0, 26]);
+    assert!(tight.components[0].assignment_work <= used);
+    assert!(tight.source_only_mandatory.is_empty());
+}
+
+#[test]
+fn unfinished_priority_residual_keeps_only_the_forced_prefix() {
+    let fields: Vec<(&str, &str)> = (0..31)
+        .map(|index| (if index == 0 { "anchor" } else { "b" }, "same"))
+        .collect();
+    let mut old = graph(&fields, 0);
+    for node in old.nodes.iter_mut().skip(2) {
+        node.identity = None;
+    }
+    // The chain is connected through shared sources; the anchor link conflicts
+    // with its neighbor, so forcing the anchor leaves a wide residual chain.
+    old.nodes[1]
+        .sources
+        .push(SourceRef::Structured { element: 2000 });
+    old.nodes[2]
+        .sources
+        .push(SourceRef::Structured { element: 2000 });
+    for index in 0..29_usize {
+        let element = 2001 + index as u64;
+        old.nodes[index + 2]
+            .sources
+            .push(SourceRef::Structured { element });
+        old.nodes[index + 3]
+            .sources
+            .push(SourceRef::Structured { element });
+    }
+    let new = old.clone();
+    let mut proposals = vec![CorrespondenceProposal {
+        old: vec![NodeId(1)],
+        new: vec![NodeId(1)],
+        basis: ProposalBasis::ScopedIdentity,
+        supplier: "priority-prefix-fixture".into(),
+        weight: 1,
+    }];
+    for id in 2..=31_u64 {
+        proposals.push(CorrespondenceProposal {
+            old: vec![NodeId(id)],
+            new: vec![NodeId(id)],
+            basis: ProposalBasis::TextSimilarity,
+            supplier: "priority-prefix-fixture".into(),
+            weight: u32::MAX,
+        });
+    }
+    let result =
+        solve_correspondence_scope(&old, &new, SCOPE, &proposals, MatchingLimits::default())
+            .expect("valid prefix and residual chain");
+    assert_eq!(result.components.len(), 1);
+    let component = &result.components[0];
+    assert!(!component.exhaustive);
+    assert_eq!(component.mandatory, vec![0]);
+    assert!(result.source_only_mandatory.contains(&0));
 }

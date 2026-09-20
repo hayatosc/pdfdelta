@@ -14,10 +14,10 @@ use super::{
 mod pricing;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-struct Score([i128; 6]);
+pub(super) struct Score([i128; 6]);
 
 impl Score {
-    fn add(self, other: Self) -> Option<Self> {
+    pub(super) fn add(self, other: Self) -> Option<Self> {
         let mut result = self;
         for (value, other) in result.0.iter_mut().zip(other.0) {
             *value = value.checked_add(other)?;
@@ -32,6 +32,15 @@ impl Score {
         }
         Some(result)
     }
+
+    /// Charges one objective class by its weight. Costs are negated weights, so
+    /// the minimizer of the ordered additive group maximizes the declared
+    /// lexicographic objective.
+    pub(super) fn penalize(self, class: usize, weight: u32) -> Option<Self> {
+        let mut result = self;
+        result.0[class] = result.0[class].checked_sub(i128::from(weight))?;
+        Some(result)
+    }
 }
 
 #[cfg_attr(test, derive(Clone, Copy))]
@@ -40,25 +49,38 @@ struct Edge {
     cost: Score,
 }
 
-struct Assignment {
+pub(super) struct Assignment {
     rows: Vec<BTreeMap<usize, Edge>>,
     real_columns: usize,
 }
 
-struct Optimum {
-    cost: Score,
-    selected: Vec<usize>,
+pub(super) struct Optimum {
+    pub(super) cost: Score,
+    pub(super) selected: Vec<usize>,
     #[cfg(test)]
     row_potential: Vec<Score>,
     #[cfg(test)]
     column_potential: Vec<Score>,
 }
 
-struct Budget {
+pub(super) struct Budget {
     remaining: usize,
 }
 
 impl Budget {
+    pub(super) fn new(limit: usize) -> Self {
+        Self { remaining: limit }
+    }
+
+    pub(super) fn remaining(&self) -> usize {
+        self.remaining
+    }
+
+    /// Charges work against the shared component budget.
+    pub(super) fn charge(&mut self, count: usize) -> Option<()> {
+        self.spend(count)
+    }
+
     fn spend(&mut self, count: usize) -> Option<()> {
         self.remaining = self.remaining.checked_sub(count)?;
         Some(())
@@ -66,7 +88,7 @@ impl Budget {
 }
 
 impl Assignment {
-    fn new(
+    pub(super) fn new(
         indices: &[usize],
         proposals: &[CorrespondenceProposal],
         source_premises: &[bool],
@@ -117,7 +139,12 @@ impl Assignment {
 
     /// Rectangular Hungarian augmentation with absent edges, zero-cost dummy
     /// columns, and exact potentials in the ordered additive score group.
-    fn optimum(&self, forbidden: Option<usize>, budget: &mut Budget) -> Option<Optimum> {
+    /// Every proposal in `forbidden` is unavailable in this solve.
+    pub(super) fn optimum(
+        &self,
+        forbidden: &BTreeSet<usize>,
+        budget: &mut Budget,
+    ) -> Option<Optimum> {
         let rows = self.rows.len();
         let columns = self.real_columns.checked_add(rows)?;
         budget.spend(rows.checked_add(columns)?)?;
@@ -145,7 +172,7 @@ impl Assignment {
                     } else {
                         self.rows[current_row - 1]
                             .get(&(candidate - 1))
-                            .filter(|edge| Some(edge.proposal) != forbidden)
+                            .filter(|edge| !forbidden.contains(&edge.proposal))
                             .map(|edge| edge.cost)
                     };
                     if let Some(cost) = cost {
@@ -225,9 +252,7 @@ pub(super) fn solve(
     source_premises: &[bool],
     work_limit: usize,
 ) -> MatchingComponent {
-    let mut budget = Budget {
-        remaining: work_limit,
-    };
+    let mut budget = Budget::new(work_limit);
     let mut result = MatchingComponent {
         proposals: indices,
         mandatory: Vec::new(),
@@ -238,10 +263,10 @@ pub(super) fn solve(
     };
     let mut certificate = || -> Option<Vec<usize>> {
         let problem = Assignment::new(&result.proposals, proposals, source_premises, &mut budget)?;
-        let optimum = problem.optimum(None, &mut budget)?;
+        let optimum = problem.optimum(&BTreeSet::new(), &mut budget)?;
         let mut mandatory = Vec::new();
         for edge in optimum.selected {
-            let without = problem.optimum(Some(edge), &mut budget)?;
+            let without = problem.optimum(&BTreeSet::from([edge]), &mut budget)?;
             match without.cost.cmp(&optimum.cost) {
                 std::cmp::Ordering::Greater => mandatory.push(edge),
                 std::cmp::Ordering::Equal => {}
@@ -255,7 +280,7 @@ pub(super) fn solve(
         result.mandatory = mandatory;
         result.exhaustive = true;
     }
-    result.assignment_work = work_limit - budget.remaining;
+    result.assignment_work = work_limit - budget.remaining();
     result
 }
 
@@ -343,23 +368,11 @@ mod tests {
             }
         }
         let indices: Vec<_> = (0..proposals.len()).collect();
-        let problem = Assignment::new(
-            &indices,
-            &proposals,
-            &source,
-            &mut Budget {
-                remaining: usize::MAX,
-            },
-        )
-        .expect("bounded fixture construction");
+        let problem = Assignment::new(&indices, &proposals, &source, &mut Budget::new(usize::MAX))
+            .expect("bounded fixture construction");
         let expected = brute_force(&problem);
         let actual = problem
-            .optimum(
-                None,
-                &mut Budget {
-                    remaining: usize::MAX,
-                },
-            )
+            .optimum(&BTreeSet::new(), &mut Budget::new(usize::MAX))
             .expect("bounded fixture optimum");
         assert_eq!(expected.cost, actual.cost, "{matrix:?}");
         let result = solve(indices, &proposals, &source, 1_000_000);

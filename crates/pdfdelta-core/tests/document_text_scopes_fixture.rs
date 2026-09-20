@@ -1,11 +1,13 @@
+use std::collections::BTreeSet;
+
 use pdfdelta_core::{
     document::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, CorrespondenceScope,
-        DocumentComparisonLimits, DocumentGraph, DocumentView, DocumentViewComparison, EdgeKind,
-        EvidenceBoundary, EvidenceFailure, EvidenceIssue, EvidenceStore, GraphEdge, GraphNode,
-        HierarchyLimits, NodeContent, NodeId, NodeKind, PageEvidence, SourceRef,
-        StructuredEvidence, StructuredValue, TextNormalization, TextView, ViewBasis,
-        compare_document_views,
+        DeclaredStructureText, DeclaredTextStatus, DocumentComparisonLimits, DocumentGraph,
+        DocumentView, DocumentViewComparison, EdgeKind, EvidenceBoundary, EvidenceFailure,
+        EvidenceIssue, EvidenceStore, GraphEdge, GraphNode, HierarchyLimits, InterpretationStatus,
+        NodeContent, NodeId, NodeKind, PageEvidence, SourceRef, StructuredEvidence,
+        StructuredValue, TextNormalization, TextView, ViewBasis, compare_document_views,
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -87,6 +89,7 @@ fn mixed_native_page_break(fixture: &mut Fixture) {
             role: "Span".into(),
             identifier: None,
             text: None,
+            declared_text: None,
             glyphs: Vec::new(),
             content: Some(vec![NativeStructureKid::MarkedContent { sequence: 1 }]),
             parent: Some(0),
@@ -274,6 +277,7 @@ fn tagged_page_break(fixture: &mut Fixture) {
             role: "P".into(),
             identifier: None,
             text: None,
+            declared_text: None,
             glyphs: glyphs.iter().map(|glyph| glyph.id).collect(),
             parent: None,
             order: Some(0),
@@ -4511,6 +4515,7 @@ fn validated_paint_populations_preserve_native_membership_and_provider_obligatio
                         role: "Span".into(),
                         identifier: None,
                         text: None,
+                        declared_text: None,
                         glyphs: Vec::new(),
                         content: None,
                         parent: None,
@@ -4680,12 +4685,58 @@ fn native_domain_ownership_requires_local_closure_and_indivisible_sources() {
             _ => unreachable!(),
         };
         let comparison = compare(&old, &new);
-        assert_eq!(
-            comparison.scopes[0].result.native_text_domains.len(),
-            expected,
-            "{case}"
-        );
-        assert!(!comparison.search_resolved(), "{case}");
+        let result = &comparison.scopes[0].result;
+        assert_eq!(result.native_text_domains.len(), expected, "{case}");
+        if case == "inferred" {
+            // Exhaustive matching does not establish source-backed
+            // interpretation or ownership of native evidence.
+            assert!(!result.accepted_correspondences.is_empty(), "{case}");
+            assert!(
+                result
+                    .accepted_correspondences
+                    .iter()
+                    .all(|index| result.matching.inferred_proposals.contains(index)),
+                "{case}"
+            );
+            assert!(
+                result.comparisons.iter().all(|comparison| {
+                    comparison.interpretation == InterpretationStatus::Inferred
+                }),
+                "{case}"
+            );
+            assert!(result.native_text_intervals.is_empty(), "{case}");
+            assert!(result.text_boundary_correspondences.is_empty(), "{case}");
+            // Completion accounting must preserve the same uncertainty even
+            // when the optimizer can finish its search.
+            let coverage = pdfdelta_core::document::document_coverage(
+                DocumentView {
+                    evidence: &old.0,
+                    graph: &old.1,
+                },
+                DocumentView {
+                    evidence: &new.0,
+                    graph: &new.1,
+                },
+                &comparison,
+                &[Channel::Text].into(),
+            );
+            assert_eq!(coverage.len(), 1, "{case}");
+            assert!(coverage[0].old_discovered_sources > 0, "{case}");
+            assert!(coverage[0].new_discovered_sources > 0, "{case}");
+            assert_eq!(coverage[0].old_compared_sources, 0, "{case}");
+            assert_eq!(coverage[0].new_compared_sources, 0, "{case}");
+            assert_eq!(
+                coverage[0].old_uncompared_sources, coverage[0].old_discovered_sources,
+                "{case}"
+            );
+            assert_eq!(
+                coverage[0].new_uncompared_sources, coverage[0].new_discovered_sources,
+                "{case}"
+            );
+            assert!(!coverage[0].complete, "{case}");
+        } else {
+            assert!(!comparison.search_resolved(), "{case}");
+        }
     }
 }
 
@@ -5571,4 +5622,308 @@ fn tagged_page_regions_retain_disjoint_same_row_prefixes() {
             "{fault}"
         );
     }
+}
+
+fn declared_rows(rows: &[&str], declared: Option<DeclaredStructureText>) -> Fixture {
+    let (mut store, manual) = fixture_rows(rows);
+    let interior: Vec<GlyphId> = manual.nodes[2]
+        .sources
+        .iter()
+        .filter_map(|source| match source {
+            SourceRef::Native { glyph } => Some(*glyph),
+            _ => None,
+        })
+        .collect();
+    store.structured.push(StructuredEvidence {
+        id: 0,
+        page: Some(PageId(0)),
+        bounds: None,
+        object: None,
+        backend: 0,
+        value: StructuredValue::StructureElement {
+            role: "Span".into(),
+            identifier: None,
+            text: None,
+            declared_text: declared,
+            glyphs: interior,
+            content: None,
+            parent: None,
+            order: Some(0),
+        },
+    });
+    let limits = DocumentComparisonLimits::default();
+    let graph = DocumentGraph::from_evidence(
+        &store,
+        pdfdelta_core::pipeline::PipelineOptions::default(),
+        limits.evidence,
+        limits.graph,
+    )
+    .expect("declared graph");
+    (store, graph)
+}
+
+fn unresolved_payload(text: &str) -> DeclaredStructureText {
+    DeclaredStructureText {
+        raw: text.as_bytes().to_vec(),
+        text: text.into(),
+        status: DeclaredTextStatus::Unresolved,
+        glyphs: Vec::new(),
+        reason: Some("ParentTree owner binding was not acquired".into()),
+    }
+}
+
+#[test]
+fn declaration_uncertainty_is_not_masked_by_an_accepted_changed_interval() {
+    let old = declared_rows(&["First boundary.", "Earlier 10.", "Last boundary."], None);
+    let new = declared_rows(
+        &["First boundary.", "Updated 20.", "Last boundary."],
+        Some(unresolved_payload("Y")),
+    );
+    let affected = declared_membership(&new);
+    assert_no_affected_coverage(&old, &new, &affected);
+}
+
+#[test]
+fn declaration_uncertainty_is_not_masked_by_an_equal_raw_interval() {
+    let old = declared_rows(
+        &["First boundary.", "Earlier 10.", "Last boundary."],
+        Some(unresolved_payload("X")),
+    );
+    let new = declared_rows(
+        &["First boundary.", "Earlier 10.", "Last boundary."],
+        Some(unresolved_payload("Y")),
+    );
+    let affected = declared_membership(&new);
+    assert_no_affected_coverage(&old, &new, &affected);
+}
+
+#[test]
+fn nested_declaration_owner_blocks_descendant_projection() {
+    let (mut old_store, _) = fixture_rows(&["First boundary.", "Earlier 10.", "Last boundary."]);
+    let (mut new_store, new_manual) =
+        fixture_rows(&["First boundary.", "Updated 20.", "Last boundary."]);
+    let interior: Vec<GlyphId> = new_manual.nodes[2]
+        .sources
+        .iter()
+        .filter_map(|source| match source {
+            SourceRef::Native { glyph } => Some(*glyph),
+            _ => None,
+        })
+        .collect();
+    for store in [&mut old_store, &mut new_store] {
+        store.structured.push(StructuredEvidence {
+            id: 0,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                role: "Sect".into(),
+                identifier: None,
+                text: None,
+                declared_text: Some(unresolved_payload("Y")),
+                glyphs: Vec::new(),
+                content: None,
+                parent: None,
+                order: Some(0),
+            },
+        });
+        store.structured.push(StructuredEvidence {
+            id: 1,
+            page: Some(PageId(0)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                role: "Span".into(),
+                identifier: None,
+                text: None,
+                declared_text: None,
+                glyphs: interior.clone(),
+                content: None,
+                parent: Some(0),
+                order: Some(1),
+            },
+        });
+    }
+    let limits = DocumentComparisonLimits::default();
+    let rebuild = |store: &EvidenceStore| {
+        DocumentGraph::from_evidence(
+            store,
+            pdfdelta_core::pipeline::PipelineOptions::default(),
+            limits.evidence,
+            limits.graph,
+        )
+        .expect("nested declared graph")
+    };
+    let old_graph = rebuild(&old_store);
+    let new_graph = rebuild(&new_store);
+    let affected: BTreeSet<SourceRef> = interior
+        .iter()
+        .map(|glyph| SourceRef::Native { glyph: *glyph })
+        .collect();
+    assert_no_affected_coverage(&(old_store, old_graph), &(new_store, new_graph), &affected);
+}
+
+#[test]
+fn unaffected_intervals_remain_available_beside_a_declaration() {
+    let mut old = fixture("Earlier 10.");
+    let mut new = fixture("Updated 20.");
+    for fixture in [&mut old, &mut new] {
+        append_unassigned(fixture, PageId(1), 0.0);
+    }
+    for store in [&mut old.0, &mut new.0] {
+        store.structured.push(StructuredEvidence {
+            id: 0,
+            page: Some(PageId(1)),
+            bounds: None,
+            object: None,
+            backend: 0,
+            value: StructuredValue::StructureElement {
+                role: "Span".into(),
+                identifier: None,
+                text: None,
+                declared_text: Some(unresolved_payload("Y")),
+                glyphs: vec![GlyphId(1000)],
+                content: None,
+                parent: None,
+                order: Some(0),
+            },
+        });
+    }
+    let limits = DocumentComparisonLimits::default();
+    let rebuild = |store: &EvidenceStore| {
+        DocumentGraph::from_evidence(
+            store,
+            pdfdelta_core::pipeline::PipelineOptions::default(),
+            limits.evidence,
+            limits.graph,
+        )
+        .expect("declared graph")
+    };
+    let old_graph = rebuild(&old.0);
+    let new_graph = rebuild(&new.0);
+    let old = (old.0, old_graph);
+    let new = (new.0, new_graph);
+    let interior: BTreeSet<SourceRef> = old
+        .1
+        .nodes
+        .iter()
+        .find(|node| node.kind == NodeKind::Paragraph && node.sources.len() == 11)
+        .expect("interior node")
+        .sources
+        .iter()
+        .copied()
+        .collect();
+    let result = compare(&old, &new);
+    let scope = &result.scopes[0].result;
+    let mut certified: BTreeSet<SourceRef> = scope
+        .text_scope_reviews
+        .iter()
+        .flat_map(|review| {
+            review
+                .old_sources
+                .iter()
+                .chain(&review.new_sources)
+                .copied()
+        })
+        .collect();
+    for interval in &scope.native_text_intervals {
+        certified.extend(sources_of_interval(interval));
+    }
+    assert!(
+        certified.is_superset(&interior),
+        "unaffected interior must stay comparable: {certified:?}"
+    );
+}
+
+fn sources_of_interval(
+    interval: &pdfdelta_core::document::NativeTextIntervalComparison,
+) -> BTreeSet<SourceRef> {
+    let value = serde_json::to_value(interval).expect("interval json");
+    let mut sources = BTreeSet::new();
+    for key in ["old_sources", "new_sources"] {
+        for source in value[key].as_array().into_iter().flatten() {
+            let origin = source["origin"].as_str().unwrap_or_default();
+            if origin == "native"
+                && let Some(glyph) = source["glyph"].as_u64()
+            {
+                sources.insert(SourceRef::Native {
+                    glyph: GlyphId(glyph),
+                });
+            }
+        }
+    }
+    sources
+}
+
+fn declared_membership(fixture: &Fixture) -> BTreeSet<SourceRef> {
+    fixture
+        .1
+        .nodes
+        .iter()
+        .find(|node| node.sources.contains(&SourceRef::Structured { element: 0 }))
+        .expect("declared structure node")
+        .sources
+        .iter()
+        .copied()
+        .filter(|source| matches!(source, SourceRef::Native { .. }))
+        .collect()
+}
+
+fn assert_no_affected_coverage(old: &Fixture, new: &Fixture, affected: &BTreeSet<SourceRef>) {
+    assert!(!affected.is_empty());
+    let marked = new.1.nodes.iter().any(|node| {
+        matches!(
+            &node.content,
+            NodeContent::Text { view }
+                if matches!(view.normalization, TextNormalization::Unresolved { .. })
+        ) && node.sources.iter().any(|source| affected.contains(source))
+    });
+    assert!(
+        marked,
+        "provider must mark a text node holding the declared membership"
+    );
+    let result = compare(old, new);
+    let scope = &result.scopes[0].result;
+    let mut interval_sources: BTreeSet<SourceRef> = BTreeSet::new();
+    for interval in &scope.native_text_intervals {
+        interval_sources.extend(sources_of_interval(interval));
+    }
+    let review_sources: BTreeSet<SourceRef> = scope
+        .text_scope_reviews
+        .iter()
+        .flat_map(|review| {
+            review
+                .old_sources
+                .iter()
+                .chain(&review.new_sources)
+                .copied()
+        })
+        .collect();
+    let compared_nodes: BTreeSet<NodeId> = scope
+        .comparisons
+        .iter()
+        .filter(|comparison| {
+            comparison.compared
+                && comparison.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+        })
+        .flat_map(|comparison| comparison.old.iter().chain(&comparison.new).copied())
+        .collect();
+    let compared_sources: BTreeSet<SourceRef> = old
+        .1
+        .nodes
+        .iter()
+        .chain(&new.1.nodes)
+        .filter(|node| compared_nodes.contains(&node.id))
+        .flat_map(|node| node.sources.iter().copied())
+        .collect();
+    assert!(
+        !interval_sources
+            .iter()
+            .chain(&review_sources)
+            .chain(&compared_sources)
+            .any(|source| affected.contains(source)),
+        "declared uncertainty was masked: intervals={interval_sources:?} reviews={review_sources:?} compared={compared_sources:?}"
+    );
 }

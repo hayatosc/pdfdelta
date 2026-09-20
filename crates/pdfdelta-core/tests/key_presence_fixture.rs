@@ -312,6 +312,7 @@ fn paragraphs(revision: &str, parent: Option<u64>) -> EvidenceStore {
                 role: role.into(),
                 glyphs: Vec::new(),
                 text: (role == "P").then(|| "Existing words under a new identity".into()),
+                declared_text: None,
                 parent: owner,
                 order: Some(id as u32),
             },

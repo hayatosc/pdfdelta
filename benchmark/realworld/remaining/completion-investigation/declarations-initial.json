@@ -1,0 +1,2170 @@
+{
+  "version": 1,
+  "certifies_text_inventory": false,
+  "new_completions": 0,
+  "panel": {
+    "path": "benchmark/realworld/followup/panel.json",
+    "sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744"
+  },
+  "binary": {
+    "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+    "sha256": "dec4d2064102fd0f4eea75909a0cd948ceb21749b68336cdbac457c5aa19732d"
+  },
+  "source": {
+    "path": "benchmark/realworld/cache/source-completion/reachable-properties-v1/source.tar.gz",
+    "sha256": "c8117e8fc8b0f0e5d1f9e6c983c97744305ce7735b88e534854fca16a42c12d4"
+  },
+  "script": {
+    "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/completion-investigation/strict-next/scan_declarations.py",
+    "sha256": "074de03c77ed32099b73ba9cf46db79ceb3ccd37c2334ff84a194bde7c87f804"
+  },
+  "fixed_inputs": 72,
+  "timeout_seconds": 35,
+  "limits": "Unchanged probe: 200 pages, 8 MiB content/metadata, 100000 resource visits, metadata depth 32.",
+  "limitations": [
+    "Page program syntax and reachable declarations only; Forms may be uninvoked.",
+    "No declaration-to-painted-source execution binding or visual transcription is certified.",
+    "Failed and depth-limited scans do not establish absence of declarations."
+  ],
+  "rows": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-old.pdf",
+        "sha256": "a08e49953c4db939dda42ac5b54273b22f60fda1c7ca6eaeb5d35f18509bf71f"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 48,
+      "paints": 971,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.276,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-controller-processor-v1-to-v2-1-old.json",
+        "sha256": "f6996235d6e723ae0ede20af4b680d5b2c1da6e4d7860ce1feee8630c1dff2de"
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-new.pdf",
+        "sha256": "f47d0428ebfab4e4767495bd87e11cbd370439105f35baf710fe9fb31a043e22"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-controller-processor-v1-to-v2-1-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 51,
+      "paints": 1213,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 34,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.076,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-controller-processor-v1-to-v2-1-new.json",
+        "sha256": "d0e321f26aa54a9ff220d37dc955f39fb4a6f52f1f61954f86f54d247e781c84"
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-old.pdf",
+        "sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 18,
+      "paints": 13,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.029,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-restrictions-v1-to-final-old.json",
+        "sha256": "5304c580a90cfaf4d47d3623973be07f29a8facd019c30043d369f0b21e75e03"
+      }
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-new.pdf",
+        "sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 20,
+      "paints": 62,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 17,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.025,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-restrictions-v1-to-final-new.json",
+        "sha256": "ff9e549e25946db85181494137dba3b69713b6beeaad83dafa3a13e789eac6ff"
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-old.pdf",
+        "sha256": "3b090f638c33deb118a639f1a6af4ce928977dfe5ab3ada5253c36a55d42d76b"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 27,
+      "paints": 593,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 77,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 2,
+      "form_inline_declarations": 0,
+      "seconds": 0.062,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-design-default-v1-to-v2-old.json",
+        "sha256": "ed1bc5c2a17bc7e59ece8c3629b05ea4cdc9870ed561b99ca2db7f2d1fd4a722"
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-new.pdf",
+        "sha256": "179c669a3aac9a2c6cd9b5765d262a2150347eec88e1b73e4e6cf3eb6dfb46ac"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-design-default-v1-to-v2-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 31,
+      "paints": 713,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.074,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-design-default-v1-to-v2-new.json",
+        "sha256": "55f8b4d434e1e0a129e0c87e78b4372900a2f27586ef1e0d705912d096f35409"
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-old.pdf",
+        "sha256": "e231944e40d3741d22d54712eb434d4044edef54ddbd254c18c9742077f37ab7"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 37,
+      "paints": 678,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.22,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-social-targeting-v1-to-v2-old.json",
+        "sha256": "a621c4a9adb55bbbdea5ab1aad3b4e55bc626f051dd7fbdf2085404368afdba6"
+      }
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-new.pdf",
+        "sha256": "1752ccea30a6fbeff0907c0be261c05e40fa5d6a5d512da483894ebd4060bbed"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/edpb-social-targeting-v1-to-v2-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 40,
+      "paints": 739,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.244,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/edpb-social-targeting-v1-to-v2-new.json",
+        "sha256": "7b3474606f2451fe91046f237ac59336c6d9f8a5260dbb32e3b8c60e26427be3"
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-old.pdf",
+        "sha256": "b1c5ead0632dcfb979c59d8c462b094ad2465ddaf62d5c246289d6d9b4419df1"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 80,
+      "paints": 1622,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 195,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {
+        "ActualText": 18,
+        "Alt": 1
+      },
+      "forms": 3,
+      "form_inline_declarations": 0,
+      "seconds": 0.134,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-incident-handling-r2-to-r3-old.json",
+        "sha256": "c16f71de8be22f5df5859ad1d52a18a627e330afb6653732853bec498f625745"
+      }
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-new.pdf",
+        "sha256": "e5593d6bb85daecec7e8d9549400c7b3473bcc3f06e469c82218073afa7fba2d"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-incident-handling-r2-to-r3-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 48,
+      "paints": 4383,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 4373,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.123,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-incident-handling-r2-to-r3-new.json",
+        "sha256": "61ff7272c3a61bb003ed5223cb4ed58f965dd18c72b22d960a6cada4a14bca65"
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-old.pdf",
+        "sha256": "24f4e6df241f5a488df909710f45b66c3f0eb6a5d2ea9899655097f6a5d82d6e"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 32,
+      "paints": 3065,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 1294,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.113,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-ssdf-draft-to-final-old.json",
+        "sha256": "f98a198c0c4f7bf7e257c0bd97036f1e275ab9033f0a860605ab84b2e3cdab3b"
+      }
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-new.pdf",
+        "sha256": "617746e553a9e2da49bfbd4eef0dfc3094758a39b869314e4173ac36605cde22"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-ssdf-draft-to-final-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 36,
+      "paints": 3850,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 2184,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.126,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-ssdf-draft-to-final-new.json",
+        "sha256": "d88feb758758422989a6bac8c6d2617c142c6b05f55820c81e8993d6461e6ef0"
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-old.pdf",
+        "sha256": "87d67b518e1cef9aff671e1a76860e8013a8ab160bad8763da801782ee7b7000"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 36,
+      "paints": 1712,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 865,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.065,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-ai-rmf-draft2-to-v1-old.json",
+        "sha256": "acf6eb2f16857d108bc247b4d1a0bd0b357aed3bd7ba7fddc66121f65ec9e26f"
+      }
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-new.pdf",
+        "sha256": "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-ai-rmf-draft2-to-v1-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 48,
+      "paints": 208,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 1,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.029,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-ai-rmf-draft2-to-v1-new.json",
+        "sha256": "0788e593a383ee0c43a3b8c0ceeb66ece11aeff2af2cf0a328bc180d8cb7bd9f"
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-old.pdf",
+        "sha256": "ccfce7510a1267933f912d023306c6e7d485f21be63d271108b61aad6139127e"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 80,
+      "paints": 3750,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 2666,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.168,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-authentication-63b-to-63b4-old.json",
+        "sha256": "3e1bf94b4ecb3e4eb49d49a7e9b6f2b8e2949ac68c8a56bb909b8a56f2ec6ba7"
+      }
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-new.pdf",
+        "sha256": "d9ab89576b5ae2cfb3ba37781110788dea27a85a5079496dbfc1a79834670afd"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-authentication-63b-to-63b4-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 129,
+      "paints": 1202,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 661,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.119,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-authentication-63b-to-63b4-new.json",
+        "sha256": "b3d43bb49742b47d51c631ceaedbd2b09d0f9e622b163c60dd7a8a2775730bcf"
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-old.pdf",
+        "sha256": "78366390cd4e3db89e06009fce54df272bee0d3b34003f3a786c4835239bfdff"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 6,
+      "paints": 155,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 21,
+      "form_inline_declarations": 0,
+      "seconds": 0.013,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-w9-2018-to-2024-old.json",
+        "sha256": "96f65703accddfc6a5304b891ff152ae133efd1876024809c94cf56702896d84"
+      }
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-new.pdf",
+        "sha256": "2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-w9-2018-to-2024-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 6,
+      "paints": 162,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 160,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 24,
+      "form_inline_declarations": 0,
+      "seconds": 0.013,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-w9-2018-to-2024-new.json",
+        "sha256": "87febfac6fe05a9965a4aaedeca9ea3f992d5f3c6605861cd0411881fbb05ed4"
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-old.pdf",
+        "sha256": "e60e3af7512073bffbd7ef3c4f3a2fc9593d2aed2e420718d4ccf17659e2c3ed"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 4,
+      "paints": 924,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 921,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 12,
+      "form_inline_declarations": 0,
+      "seconds": 0.038,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-w4-english-2024-to-2025-old.json",
+        "sha256": "b847c631ab503003aa1be0e589ec658c5acba96e4c9c7a899dd7b791c119365d"
+      }
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-new.pdf",
+        "sha256": "94fa236f26c1a6dbbdeb40b8bd8870793e7a5be0f74ead3c2799d2b0961be68a"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-w4-english-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 4,
+      "paints": 924,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 921,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 12,
+      "form_inline_declarations": 0,
+      "seconds": 0.045,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-w4-english-2024-to-2025-new.json",
+        "sha256": "34f83b1d5e49e27fe967a5ca9728829cb7496fad39e4100054eec393ce8ae485"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+        "sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 2,
+      "paints": 309,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 304,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 43,
+      "form_inline_declarations": 0,
+      "seconds": 0.019,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-schedule-c-2024-to-2025-old.json",
+        "sha256": "e4a14e716f5e20d38259676ad1215d2858eb7107ab2d0394dbb1e13e9c1c0a54"
+      }
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+        "sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 2,
+      "paints": 309,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 299,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 43,
+      "form_inline_declarations": 0,
+      "seconds": 0.019,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-schedule-c-2024-to-2025-new.json",
+        "sha256": "16d8b6bcefc71d97e47667d6c341a04344f458de32c7cda5721cd591a53ab076"
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-old.pdf",
+        "sha256": "ac8ba97e554b67275d0e888d709e0ecadc9b45634c52cd934fa9bdcfd15179b0"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 2,
+      "paints": 140,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 133,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 3,
+      "form_inline_declarations": 0,
+      "seconds": 0.01,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-schedule-se-2024-to-2025-old.json",
+        "sha256": "8b7400c76d27c510994c64fe742eef3fdcb56272cdf210206891bd46f37985ec"
+      }
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-new.pdf",
+        "sha256": "05bc2b3e1dfca65d8c6fc6d652af4fa3736e953c6575d6e9f82590484677d347"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/irs-schedule-se-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 2,
+      "paints": 140,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 133,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 3,
+      "form_inline_declarations": 0,
+      "seconds": 0.01,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-schedule-se-2024-to-2025-new.json",
+        "sha256": "651e18a6e07d1b662027d6c95b786d8df649cf4421b833bface620585055bddf"
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-old.pdf",
+        "sha256": "58534a3c000cbcc60ed64e999a2d9ed839edc2d9894e4449e9d79e1118b5e5ba"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 14,
+      "paints": 77,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.02,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-bert-v1-to-v2-old.json",
+        "sha256": "8de2ba80685a0b43c5f4cd30037dad62b5c02f122edeafdfd6df6a3e7ad86c20"
+      }
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-new.pdf",
+        "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-bert-v1-to-v2-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 16,
+      "paints": 83,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.025,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-bert-v1-to-v2-new.json",
+        "sha256": "f924f7fc8e74741e8c20516e67ac32985f84fa85ff05741f5b244e0b911bdb40"
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-old.pdf",
+        "sha256": "f756a2d3e23c2770a3e8c4354965e98d37411c18aab91556df0c335675dec396"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 72,
+      "paints": 400,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.071,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-gpt3-v1-to-v4-old.json",
+        "sha256": "c56e30e0800485a63d5d8ac75d2143e6c895dfd55f4b7f4f3910782459289ca6"
+      }
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-new.pdf",
+        "sha256": "97fd272f1fdfc18677462d0292f5fbf26ca86b4d1b485c2dba03269b643a0e83"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-gpt3-v1-to-v4-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 75,
+      "paints": 400,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.077,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-gpt3-v1-to-v4-new.json",
+        "sha256": "53d35801c6583f6a5528147cceb40a2be27b1f13cded4af76931a9ff69fd6df2"
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-old.pdf",
+        "sha256": "15b499bba39b7d9586879328a3fe13dd9a8c5ae80b2d187ae3ff15b0133e1c57"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 139,
+      "paints": 2132,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.072,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mext-primary-japanese-2008-to-2017-old.json",
+        "sha256": "c27519a0796c152ebbfafb8dba32c92ec991fbd3d45fa08b6697ad315108b089"
+      }
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-new.pdf",
+        "sha256": "4a18f8d0247415c9e27a86e2688b3759cdb0c032a8e07ab51690a13a5fc27c2e"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mext-primary-japanese-2008-to-2017-new.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.041,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mext-primary-japanese-2008-to-2017-new.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-old.pdf",
+        "sha256": "793600d98c5de56971d5cd617ae84bc9661fadd92471c626a175741a02e52c99"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 119,
+      "paints": 2331,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.106,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mext-lower-secondary-japanese-2008-to-2017-old.json",
+        "sha256": "192e32020bc62c4f5ff3a9ff35bdaef5710f9dd639f865dba119fcac83bc437d"
+      }
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-new.pdf",
+        "sha256": "d56fb8ec65d401abc7bd8b2cfeae445f8b67be0851cd6173045bf0c4f18ec576"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mext-lower-secondary-japanese-2008-to-2017-new.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.06,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mext-lower-secondary-japanese-2008-to-2017-new.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-old.pdf",
+        "sha256": "c510378d787991b7da6b253bdd7bb32f00b39746e60dbcfb49cf2249e16830a5"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 82,
+      "paints": 2633,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.073,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mext-upper-secondary-japanese-2009-to-2018-old.json",
+        "sha256": "0e0a042d93d5d53e5ef5831a2e63bb436e5447ac600971613ed68dae51e52ff1"
+      }
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-new.pdf",
+        "sha256": "012b3fe4e8c72f92d8c1879ffb02dbf53f27ab31cd09766ccf5da384470ed224"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mext-upper-secondary-japanese-2009-to-2018-new.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.027,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mext-upper-secondary-japanese-2009-to-2018-new.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-old.pdf",
+        "sha256": "feccc8ce02e124970efe6401c702730c6cd033c4e108373a7f6d4edddbab64fe"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-old.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.223,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mhlw-care-skills-original-to-revised-old.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-new.pdf",
+        "sha256": "2fa47d80d4167c5173e9f24c93178d90fdcf5e6cc45ca574360364f9820325af"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/mhlw-care-skills-original-to-revised-new.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.157,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/mhlw-care-skills-original-to-revised-new.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-old.pdf",
+        "sha256": "6eb451ac9dadf2c0605d343398e6b92175c2d96fda5afaceee118583cc2a5e9c"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 60,
+      "paints": 60,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.029,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nasa-buckling-8007-1968-to-2020-old.json",
+        "sha256": "6a2eae2f1643b4d81f3b426832f8a21bea9bcdefb1f4a9ae6630b0b70b414970"
+      }
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-new.pdf",
+        "sha256": "299dfb8807862f174768356353f39c6bf6993596cb6f5933dd4fd23181e8837b"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nasa-buckling-8007-1968-to-2020-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 109,
+      "paints": 573,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 2,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 1,
+      "form_inline_declarations": 0,
+      "seconds": 0.222,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nasa-buckling-8007-1968-to-2020-new.json",
+        "sha256": "a5a8ebab7d46ce70ff0d0b5cf390b2297b2964e4bc8ec61d67b4298cc4b323f7"
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-old.pdf",
+        "sha256": "27066e79f9c48859784a2e85dabd8469b424cbd7599f973f65598dc2558b205c"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-old.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"page operator count limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.425,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/ipcc-synthesis-ar5-to-ar6-old.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-new.pdf",
+        "sha256": "f5258cf9434fd8887848e334197b6397ad6e107a6f06ddf21a00b2bce3f5dee6"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/ipcc-synthesis-ar5-to-ar6-new.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"page operator count limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.247,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/ipcc-synthesis-ar5-to-ar6-new.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-old.pdf",
+        "sha256": "8d241acc31e76042d46640355c7539c0bacacf75effca4b51292fcd7b1bd65dd"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 195,
+      "paints": 4140,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 3630,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.422,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/ecb-annual-2023-to-2024-old.json",
+        "sha256": "01c5ff44d331c3788a8e6b08c6df8d3d05cf5b09e7b748f152ce2fa47f6f2c63"
+      }
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-new.pdf",
+        "sha256": "9b1fa8402e6a50c318dba51c8158a14a54319dab92b3f25e0dfbc4a0e4ab43cc"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/ecb-annual-2023-to-2024-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 200,
+      "paints": 4524,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 4081,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.356,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/ecb-annual-2023-to-2024-new.json",
+        "sha256": "373283b6d9bb50f634f898c311eedb3512f4be7ef11bbf9377948f7ed6eaa614"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-old.pdf",
+        "sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 33,
+      "paints": 242,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.03,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-sha-1803-to-1804-old.json",
+        "sha256": "b86b3185c6cc1380ee25f77903495d935eaa991d9036dad4caee842ff94634d2"
+      }
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-new.pdf",
+        "sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 36,
+      "paints": 537,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "backend error: resolving object 220 0: object not found",
+      "declarations_by_key": {},
+      "forms": 85,
+      "form_inline_declarations": 0,
+      "seconds": 0.109,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-sha-1803-to-1804-new.json",
+        "sha256": "d4205872237f8d74bca5ba4eb9a6e3dfd29f6b5ea90d2c8b85d1cd0db36e3dec"
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-old.pdf",
+        "sha256": "4bd69fcbb4a9e794d38424d187b91d7e958461f5eaaa14cf2a578a2b6aac71be"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 24,
+      "paints": 3214,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.153,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-ddpm-v1-to-v2-old.json",
+        "sha256": "dd6113901ec6df994fc25d7e0f1212c02a0cae73591fcc47346297b7332b36f4"
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-new.pdf",
+        "sha256": "aee5e07a802e8dfd2a386374c94fd61d1d056cb7e1e0fec4f28e8120ff5d8505"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-ddpm-v1-to-v2-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 25,
+      "paints": 3217,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.147,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-ddpm-v1-to-v2-new.json",
+        "sha256": "9e405faba5c6b1bef2f5571a39b6f49ffaa33324fdfe21217bef6fdaaad2c4f1"
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-old.pdf",
+        "sha256": "03c022db7d7ff846e0a1ada4c8be936416f7f7f9c680c64d9494d7b30ebfdd80"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 76,
+      "paints": 474,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.128,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-llama2-v1-to-v2-old.json",
+        "sha256": "8be1ad7ea9da8150588f6afc4938e7e4258845bed5a0bde13026c08e5d2a171b"
+      }
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-new.pdf",
+        "sha256": "1df284ce95f783002074bfe8f21d47c646b396ceb1736ea3ec0ea212fc070d91"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-dev/arxiv-llama2-v1-to-v2-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 77,
+      "paints": 474,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.127,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-llama2-v1-to-v2-new.json",
+        "sha256": "d9dc650e64269becb23d6bfea357818bfdc28559002aacd4045f981d25554b07"
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-old.pdf",
+        "sha256": "cd4af4a51c9b016b73116bc5fdfb284f9734e47b9cb95027f9d5d4fe35e74198"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 103,
+      "paints": 4391,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 191,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 1,
+      "form_inline_declarations": 0,
+      "seconds": 0.19,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-risk-management-37-r1-to-r2-old.json",
+        "sha256": "4d4dbf69a69f62dc2ef77936a691eb152e2bc462deac2d21ee2d06060c3e385d"
+      }
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-new.pdf",
+        "sha256": "4f75e1136bb905a654f1bcd9eefefb4108f47597276ee5eec0688f6d96f6a01d"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-risk-management-37-r1-to-r2-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 183,
+      "paints": 6726,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 2868,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.422,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-risk-management-37-r1-to-r2-new.json",
+        "sha256": "8aa968e5414e98ca5ac404591aab80aaa2e9cb07496593964f0c70bbc7e92142"
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-old.pdf",
+        "sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 6,
+      "paints": 430,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 427,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 6,
+      "form_inline_declarations": 0,
+      "seconds": 0.019,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-1099-misc-2024-to-2025-old.json",
+        "sha256": "fac4768b797bf169be5f7fe16b75801e7c4004eb02e4185ad8da5b4d36209ed7"
+      }
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-new.pdf",
+        "sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 6,
+      "paints": 435,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 432,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 6,
+      "form_inline_declarations": 0,
+      "seconds": 0.024,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-1099-misc-2024-to-2025-new.json",
+        "sha256": "384b725fced0d13eb7d272e725a2161d8f30fa05e0bd22c0e0f6f6b531606824"
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf",
+        "sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 11,
+      "paints": 927,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 902,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 3,
+      "form_inline_declarations": 0,
+      "seconds": 0.035,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-w2-2024-to-2025-old.json",
+        "sha256": "bc678527089e48056b1cd8f4b8f6db08c743a8974a36f042c0fd93f0b08026dd"
+      }
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf",
+        "sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 11,
+      "paints": 927,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 920,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 3,
+      "form_inline_declarations": 0,
+      "seconds": 0.036,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/irs-w2-2024-to-2025-new.json",
+        "sha256": "fbd647d4d076206d72a4d5bee9a5e9555601b61d18e9cb85e16f8ad44cb3dbfa"
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-old.pdf",
+        "sha256": "7de5bdd6997c513e42645d8fd6c6cc69928ff6b6eabafe11a7c1673f79739602"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 9,
+      "paints": 144,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.069,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-mask-rcnn-v1-to-v3-old.json",
+        "sha256": "6bcbe0ce85838b6df7e1d264635319cd9342ddca9a54baef2c212dd4b89a5b3a"
+      }
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-new.pdf",
+        "sha256": "b595a882b763d55d933543131f32a2c4b6f41d0818d418ef46a2b66f946b67a8"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/arxiv-mask-rcnn-v1-to-v3-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 12,
+      "paints": 245,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.15,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-mask-rcnn-v1-to-v3-new.json",
+        "sha256": "a0aff5aa6e1058f6bf676e3fcf22091815006e803c6064d8392d45dc6034876f"
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-old.pdf",
+        "sha256": "eab197762a6c2be1272f4b10f0603b98383c8aa9ecebc4bd23ba3b0424cf9890"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 8,
+      "paints": 3147,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.072,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/bunka-official-writing-1952-to-2022-old.json",
+        "sha256": "7e2cf55222fcb05ee743ef60610dc0f4efbf3df588182fb5e3128eb8d49a09e5"
+      }
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-new.pdf",
+        "sha256": "5762b22f0f5c10e1071ec1909717beb68e3987ffb18ba0e18a45d3623e1fc5e9"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/bunka-official-writing-1952-to-2022-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 63,
+      "paints": 1453,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 528,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata visit limit",
+      "declarations_by_key": {
+        "ActualText": 4289,
+        "Alt": 35
+      },
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.327,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/bunka-official-writing-1952-to-2022-new.json",
+        "sha256": "71987c030fddb849545d0f1f0b214377f072e011e995330c5e845aaa9fccc12a"
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-old.pdf",
+        "sha256": "f4ccfc41b97f113e4d26abf8e46fd7c59796eee477d1990cf990eedc2f730b8e"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 7,
+      "paints": 871,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 871,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.06,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/faa-thunderstorms-b-to-c-old.json",
+        "sha256": "780f64e04b757399f11fd75ab0458db7919fc4bd3de883626ab30305623f9cb9"
+      }
+    },
+    {
+      "pair": "faa-thunderstorms-b-to-c",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-new.pdf",
+        "sha256": "c46c75a25a87f078d1ae425c77c4e9937489382817c9724f1e8c6c76ccd134cc"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/faa-thunderstorms-b-to-c-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 13,
+      "paints": 1096,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 1,
+      "artifact_paints": 1,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.039,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/faa-thunderstorms-b-to-c-new.json",
+        "sha256": "705d0625669f0e2b9172f11957908990f7692cca6580dcbccaab69519fb860bc"
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-old.pdf",
+        "sha256": "efff83973cae2e7512fdf47cfc5f8b912667006a5c7dbe4559acbbb4b46c2273"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 11,
+      "paints": 366,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.046,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/faa-maintenance-records-c-to-d-old.json",
+        "sha256": "75afe070eb937d9d11af85b555d8c734cb83668621487cc79c5aa42e67f2da67"
+      }
+    },
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-new.pdf",
+        "sha256": "d20dba43e5c83d60d1ea0b61f56a021d98372137a435ee0004125a89fe5696dd"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/faa-maintenance-records-c-to-d-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 24,
+      "paints": 1673,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 642,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 33,
+      "form_inline_declarations": 0,
+      "seconds": 0.066,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/faa-maintenance-records-c-to-d-new.json",
+        "sha256": "e750361ade4219ba3aceecb703107d0ba2e825e9df3d2f97bc2ab507a86e678e"
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-old.pdf",
+        "sha256": "9d72de197c6c8e76f32602fc447406d6a43f37b5b019933dd4d873463061a6ef"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 10,
+      "paints": 196,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.028,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-faster-rcnn-v1-to-v3-old.json",
+        "sha256": "16ff1093e152861d97d26a26cdf7789813a81fdba7a9299417f76288f7104b52"
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-new.pdf",
+        "sha256": "f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/arxiv-faster-rcnn-v1-to-v3-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 14,
+      "paints": 332,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.106,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/arxiv-faster-rcnn-v1-to-v3-new.json",
+        "sha256": "b425eaade602ed656cbcb46f3799fb6fbda13bf75bdd23a12780ae603681c1cb"
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-old.pdf",
+        "sha256": "3cb630da029ed53867ee7ff3e1f50aa3bb8419716b7b3864dcf2e778cd912999"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 13,
+      "paints": 13,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "scanned",
+      "metadata_reason": null,
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.005,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/bunka-kana-1946-to-1986-old.json",
+        "sha256": "f661ad319ec145d26d61c2c72877c0e08d089ed57210b2428ec30d360586d2b7"
+      }
+    },
+    {
+      "pair": "bunka-kana-1946-to-1986",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-new.pdf",
+        "sha256": "da79514967608d2c384fb72bb121e5c57951b2c1fb9a634f66e0eb2f8a98b601"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/bunka-kana-1946-to-1986-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 11,
+      "paints": 99,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 10,
+      "form_inline_declarations": 0,
+      "seconds": 0.04,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/bunka-kana-1946-to-1986-new.json",
+        "sha256": "edc616928f2429db3f2b98ada09bbca7b388a75af679cac6c0ce5e1f34134e13"
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-old.pdf",
+        "sha256": "e6f8a1aae41168f4ec9edc5b34aee0a21f2c888c78bf1de33e6ec63a0209db4e"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-old.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.254,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-controls-53-r4-to-r5-old.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-new.pdf",
+        "sha256": "fc63bcd61715d0181dd8e85998b1e6201ae3515fc6626102101cab1841e11ec6"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-controls-53-r4-to-r5-new.pdf"
+      ],
+      "exit_code": 1,
+      "stderr": "Error: \"diagnostic page limit\"\n",
+      "status": "probe_failed",
+      "seconds": 0.315,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-controls-53-r4-to-r5-new.json",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-old.pdf",
+        "sha256": "04456e1a4555e4ea3649a4f798af696a7eb91e80d2415a0b1e67a7f9e4b396ef"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 65,
+      "paints": 254,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.06,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-risk-assessment-30-to-r1-old.json",
+        "sha256": "d1b635e1843500b38a05a6fba9ef6c3a7eb13c72a672078f39e5ddcd118f4a90"
+      }
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-new.pdf",
+        "sha256": "f214087f0bdb35932a28c16eb93932a33c67a6edfb5e6f1638866bd201c98e04"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-risk-assessment-30-to-r1-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 95,
+      "paints": 8528,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 28,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.241,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-risk-assessment-30-to-r1-new.json",
+        "sha256": "c08b2843deb40b5ea3437ef44dca7fa5c5f1c83d83a1428acd0d77428a98d198"
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "old",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-old.pdf",
+        "sha256": "1838f48f555d8fd8d54a6212024d138224307acfb4f86eea88fdf03c96d02a19"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-old.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 117,
+      "paints": 358,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.101,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-contingency-34-to-r1-old.json",
+        "sha256": "1e4bb5919b5e4d1d80d6f4deb9071016d3c7467ac14bdf40b3adae38be365dbb"
+      }
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "side": "new",
+      "input": {
+        "path": "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-new.pdf",
+        "sha256": "476f04d4c60b0770c1ac8b2720551972074ce78e936a3e7a535048416111d0df"
+      },
+      "command": [
+        "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/paint_trace_probe",
+        "benchmark/realworld/cache/next-blind/nist-contingency-34-to-r1-new.pdf"
+      ],
+      "exit_code": 0,
+      "stderr": "",
+      "status": "captured",
+      "pages": 149,
+      "paints": 4796,
+      "paints_with_inline_actual_text": 0,
+      "paints_with_named_properties": 0,
+      "artifact_paints": 0,
+      "inline_declarations": 0,
+      "metadata_status": "unresolved",
+      "metadata_reason": "metadata traversal depth limit",
+      "declarations_by_key": {},
+      "forms": 0,
+      "form_inline_declarations": 0,
+      "seconds": 0.189,
+      "raw": {
+        "path": "benchmark/realworld/cache/completion-investigation/strict-next/declarations-v1/nist-contingency-34-to-r1-new.json",
+        "sha256": "6eb4b0f02266d0cbb51297363cd85219b010722bf216b36e9afaac9a68e7bbd7"
+      }
+    }
+  ]
+}

@@ -4321,3 +4321,181 @@ fn stderr(output: &Output) -> String {
 fn path_text(path: &Path) -> &str {
     path.to_str().expect("temporary test path should be UTF-8")
 }
+
+fn append_content_stream(path: &Path, stream: Stream) {
+    let mut pdf = Document::load(path).expect("load fixture");
+    let page = pdf.get_pages()[&1];
+    let painted = pdf.add_object(stream);
+    let dictionary = pdf
+        .get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary");
+    let native = dictionary
+        .get(b"Contents")
+        .expect("native contents")
+        .clone();
+    dictionary.set("Contents", vec![native, Object::Reference(painted)]);
+    pdf.save(path).expect("save fixture with appended content");
+}
+
+fn image_only_fixture(path: &Path, rgb: [u8; 3]) {
+    let mut pdf = Document::with_version("1.5");
+    let pages = pdf.new_object_id();
+    let image = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Image", "Width" => 1, "Height" => 1,
+            "BitsPerComponent" => 8, "ColorSpace" => "DeviceRGB",
+        },
+        rgb.to_vec(),
+    ));
+    let contents = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 72 0 0 72 0 0 cm /I Do Q".to_vec(),
+    ));
+    let page = pdf.add_object(dictionary! {
+        "Type" => "Page", "Parent" => pages,
+        "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(72), Object::from(72)],
+        "Resources" => dictionary! { "XObject" => dictionary! { "I" => image } }, "Contents" => contents,
+    });
+    pdf.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages", "Kids" => vec![Object::Reference(page)], "Count" => 1,
+        }),
+    );
+    let catalog = pdf.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+    pdf.trailer.set("Root", catalog);
+    pdf.save(path).expect("image-only fixture");
+}
+
+fn native_json(old: &Path, new: &Path, report: &Path) -> (Option<i32>, Value) {
+    let output = compare(old, new, &["--json", path_text(report)]);
+    assert!(
+        matches!(output.status.code(), Some(0 | 1 | 3)),
+        "{}",
+        stderr(&output)
+    );
+    (
+        output.status.code(),
+        serde_json::from_slice(&fs::read(report).expect("native report")).expect("JSON report"),
+    )
+}
+
+fn shared_text_json(old: &Path, new: &Path, report: &Path) -> Value {
+    let _output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text"])
+        .arg(old)
+        .arg(new)
+        .arg("--json")
+        .arg(report)
+        .output()
+        .expect("shared-text comparison");
+    serde_json::from_slice(&fs::read(report).expect("shared report")).expect("JSON report")
+}
+
+#[test]
+fn native_scope_separates_text_from_path_and_image_content() {
+    let directory = TestDirectory::new();
+
+    // Identical native text beside different path drawings: the native scope
+    // reports no content change, while the shared route keeps its paint-driven
+    // incompleteness.
+    let same_old = directory.join("same-text-old.pdf");
+    let same_new = directory.join("same-text-new.pdf");
+    for (path, drawing) in [
+        (&same_old, b"20 20 m 30 25 l 30 70 l S".to_vec()),
+        (&same_new, b"40 40 m 50 45 l 50 90 l S".to_vec()),
+    ] {
+        write_pdf(path, &["The shipment quantity is 100 kilograms."]);
+        append_content_stream(path, Stream::new(dictionary! {}, drawing));
+    }
+    let (same_code, native) = native_json(
+        &same_old,
+        &same_new,
+        &directory.join("same-text-native.json"),
+    );
+    assert_eq!(same_code, Some(0));
+    assert_eq!(native["comparison_scope"]["images_compared"], false);
+    assert_eq!(native["summary"]["difference_status"], "no_content_change");
+    assert_eq!(native["summary"]["comparison_complete"], true);
+    let shared = shared_text_json(
+        &same_old,
+        &same_new,
+        &directory.join("same-text-shared.json"),
+    );
+    assert_eq!(shared["comparison_complete"], false);
+    assert_eq!(shared["coverage"][0]["old_inventory_complete"], false);
+
+    // One native text replacement beside different drawings: the native scope
+    // detects exactly the text change and still completes; the shared route
+    // remains incomplete.
+    let changed_old = directory.join("changed-text-old.pdf");
+    let changed_new = directory.join("changed-text-new.pdf");
+    for (path, text, drawing) in [
+        (
+            &changed_old,
+            "The shipment quantity is 100 kilograms.",
+            b"20 20 m 30 25 l 30 70 l S".to_vec(),
+        ),
+        (
+            &changed_new,
+            "The shipment quantity is 200 kilograms.",
+            b"40 40 m 50 45 l 50 90 l S".to_vec(),
+        ),
+    ] {
+        write_pdf(path, &[text]);
+        append_content_stream(path, Stream::new(dictionary! {}, drawing));
+    }
+    let (changed_code, changed) = native_json(
+        &changed_old,
+        &changed_new,
+        &directory.join("changed-text-native.json"),
+    );
+    assert_eq!(changed_code, Some(1));
+    assert_eq!(changed["summary"]["difference_status"], "detected");
+    assert_eq!(changed["summary"]["content_changes"], 1);
+    assert_eq!(changed["summary"]["comparison_complete"], true);
+    let shared_changed = shared_text_json(
+        &changed_old,
+        &changed_new,
+        &directory.join("changed-text-shared.json"),
+    );
+    assert_eq!(shared_changed["comparison_complete"], false);
+
+    // An image-only pair completes natively but is vacuous: no native tokens
+    // on either side, so it is not a meaningful document comparison success.
+    let image_old = directory.join("image-old.pdf");
+    let image_new = directory.join("image-new.pdf");
+    image_only_fixture(&image_old, [255, 0, 0]);
+    image_only_fixture(&image_new, [0, 0, 255]);
+    let (vacuous_code, vacuous) =
+        native_json(&image_old, &image_new, &directory.join("image-native.json"));
+    assert_eq!(vacuous_code, Some(0));
+    assert_eq!(vacuous["summary"]["comparison_complete"], true);
+    assert_eq!(
+        vacuous["summary"]["old_alignment_coverage"]["total_tokens"],
+        0
+    );
+    assert_eq!(
+        vacuous["summary"]["new_alignment_coverage"]["total_tokens"],
+        0
+    );
+
+    // A corrupt compressed content stream stays an incomplete native extraction
+    // even when both sides are byte-identical.
+    let broken = directory.join("broken-text.pdf");
+    write_pdf(&broken, &["The shipment quantity is 100 kilograms."]);
+    append_content_stream(
+        &broken,
+        Stream::new(
+            dictionary! { "Filter" => "FlateDecode" },
+            b"not a zlib stream".to_vec(),
+        ),
+    );
+    let (broken_code, broken_report) =
+        native_json(&broken, &broken, &directory.join("broken-native.json"));
+    assert_eq!(broken_code, Some(3));
+    assert_eq!(broken_report["summary"]["comparison_complete"], false);
+    assert_ne!(broken_report["extraction"]["old_complete"], true);
+}

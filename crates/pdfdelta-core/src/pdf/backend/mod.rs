@@ -1,4 +1,5 @@
 mod lopdf;
+mod strict_flate;
 mod text;
 
 pub use lopdf::LopdfParser;

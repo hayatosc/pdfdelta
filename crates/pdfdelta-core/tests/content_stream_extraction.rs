@@ -6111,3 +6111,721 @@ fn externally_rendered_japanese_typst_fixture_extracts_complete_horizontal_glyph
 
     Ok(())
 }
+
+fn nested_declaration_fixture(
+    child_actual_text: Option<&[u8]>,
+    program: &[u8],
+) -> Result<(pdfdelta_core::document::StructureEvidence, Document<Glyph>)> {
+    use pdfdelta_core::document::extract_structure_evidence;
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(dictionary! {}, program.to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("StructParents", 5);
+    let root = pdf.new_object_id();
+    let parent = pdf.new_object_id();
+    let child = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => parent, "Pg" => page, "K" => Object::Integer(3),
+        "ActualText" => match child_actual_text {
+            Some(bytes) => Object::String(bytes.to_vec(), lopdf::StringFormat::Literal),
+            None => Object::Null,
+        },
+    });
+    pdf.objects.insert(
+        parent,
+        Object::Dictionary(dictionary! {
+            "S" => "P", "P" => root, "Pg" => page, "K" => Object::Reference(child),
+            "ActualText" => Object::String(vec![0xFE, 0xFF, 0x00, 0xAD], lopdf::StringFormat::Literal),
+        }),
+    );
+    let mut owners = vec![Object::Null; 8];
+    owners[3] = Object::Reference(child);
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => parent,
+            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(5), Object::Array(owners)] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("nested fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    Ok((tags, native))
+}
+
+type DeclarationStatus = Option<(pdfdelta_core::document::DeclaredTextStatus, Option<String>)>;
+
+fn declaration_statuses(
+    tags: &pdfdelta_core::document::StructureEvidence,
+) -> Vec<(u64, DeclarationStatus)> {
+    use pdfdelta_core::document::StructuredValue;
+    tags.elements
+        .iter()
+        .map(|element| {
+            let status = match &element.value {
+                StructuredValue::StructureElement {
+                    declared_text: Some(declared),
+                    ..
+                } => Some((declared.status, declared.reason.clone())),
+                _ => None,
+            };
+            (
+                element
+                    .object
+                    .map_or(0, |object| u64::from(object.object_number)),
+                status,
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn nested_ancestor_and_child_declarations_stay_unresolved() -> Result<()> {
+    use pdfdelta_core::document::DeclaredTextStatus;
+    let (tags, _) = nested_declaration_fixture(
+        Some(&[0xFE, 0xFF, 0x00, 0xAD]),
+        b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET EMC",
+    )?;
+    let statuses = declaration_statuses(&tags);
+    assert_eq!(statuses.len(), 2);
+    assert!(
+        statuses
+            .iter()
+            .all(|(_, status)| matches!(status, Some((DeclaredTextStatus::Unresolved, _))))
+    );
+    Ok(())
+}
+
+#[test]
+fn ancestor_declaration_with_undeclared_child_stays_unresolved() -> Result<()> {
+    use pdfdelta_core::document::DeclaredTextStatus;
+    let (tags, _) =
+        nested_declaration_fixture(None, b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET EMC")?;
+    let statuses = declaration_statuses(&tags);
+    let parent = statuses
+        .iter()
+        .find(|(_, status)| status.is_some())
+        .expect("ancestor declaration");
+    assert_eq!(
+        parent.1.as_ref().map(|(status, _)| *status),
+        Some(DeclaredTextStatus::Unresolved)
+    );
+    Ok(())
+}
+
+#[test]
+fn distinct_nested_mcids_over_one_glyph_stay_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{
+        DeclaredTextStatus, StructuredValue, extract_structure_evidence,
+    };
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/Span << /MCID 1 >> BDC /Span << /MCID 2 >> BDC BT /F1 10 Tf (-) Tj ET EMC EMC".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("StructParents", 5);
+    let root = pdf.new_object_id();
+    let first = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => Object::Integer(1),
+        "ActualText" => Object::String(vec![0xFE, 0xFF, 0x00, 0xAD], lopdf::StringFormat::Literal),
+    });
+    let second = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => Object::Integer(2),
+        "ActualText" => Object::string_literal("-"),
+    });
+    let mut owners = vec![Object::Null; 8];
+    owners[1] = Object::Reference(first);
+    owners[2] = Object::Reference(second);
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => vec![first.into(), second.into()],
+            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(5), Object::Array(owners)] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("overlap fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    for element in &tags.elements {
+        let StructuredValue::StructureElement { declared_text, .. } = &element.value else {
+            continue;
+        };
+        let declared = declared_text.as_ref().expect("declaration retained");
+        assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+        assert!(
+            declared
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("overlapping replacement memberships"))
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn form_paint_inside_the_scope_stays_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{
+        DeclaredTextStatus, StructuredValue, extract_structure_evidence,
+    };
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+        },
+        b"0 0 10 10 re f".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET /Fm0 Do EMC".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "Fm0" => form },
+        }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("StructParents", 5);
+    let root = pdf.new_object_id();
+    let owner = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => Object::Integer(3),
+        "ActualText" => Object::String(vec![0xFE, 0xFF, 0x00, 0xAD], lopdf::StringFormat::Literal),
+    });
+    let mut owners = vec![Object::Null; 8];
+    owners[3] = Object::Reference(owner);
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => owner,
+            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(5), Object::Array(owners)] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("form paint fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    assert_eq!(mapped_text(native.items()), "-");
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    let declared = declared_text.as_ref().expect("declaration retained");
+    assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+    assert!(
+        declared
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("page retains non-text paint")),
+        "{:?}",
+        declared.reason
+    );
+    Ok(())
+}
+
+#[test]
+fn paint_in_a_sibling_page_stream_stays_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{DeclaredTextStatus, StructuredValue};
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let text = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET EMC".to_vec(),
+    ));
+    let paint = pdf.add_object(Stream::new(dictionary! {}, b"0 0 10 10 re f".to_vec()));
+    install_page(
+        &mut pdf,
+        Object::Array(vec![text.into(), paint.into()]),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("StructParents", 5);
+    let root = pdf.new_object_id();
+    let owner = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => Object::Integer(3),
+        "ActualText" => Object::String(vec![0xFE, 0xFF, 0x00, 0xAD], lopdf::StringFormat::Literal),
+    });
+    let mut owners = vec![Object::Null; 8];
+    owners[3] = Object::Reference(owner);
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => owner,
+            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(5), Object::Array(owners)] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes)
+        .expect("sibling stream fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    let tags = pdfdelta_core::document::extract_structure_evidence(
+        parsed.as_ref(),
+        &native,
+        0,
+        0,
+        Default::default(),
+    )?;
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    let declared = declared_text.as_ref().expect("declaration retained");
+    assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+    Ok(())
+}
+
+#[test]
+fn paint_inside_the_scope_keeps_the_declaration_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{DeclaredTextStatus, StructuredValue};
+    for program in [
+        b"/Span << /MCID 3 >> BDC 0 0 10 10 re f BT /F1 10 Tf (-) Tj ET EMC".as_slice(),
+        b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET 0 0 10 10 re f EMC".as_slice(),
+    ] {
+        let (tags, native) = declared_text_tags_with_program(
+            program,
+            Some(&[0xFE, 0xFF, 0x00, 0xAD]),
+            None,
+            Object::Integer(3),
+            true,
+        )?;
+        assert_eq!(mapped_text(native.items()), "-");
+        let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value
+        else {
+            panic!("structure element evidence")
+        };
+        let declared = declared_text.as_ref().expect("declaration retained");
+        assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+        assert!(
+            declared
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("non-text paint")),
+            "{:?}",
+            declared.reason
+        );
+    }
+    // The pure-text control still validates.
+    let (tags, _) = declared_text_tags(
+        Some(&[0xFE, 0xFF, 0x00, 0xAD]),
+        None,
+        Object::Integer(3),
+        true,
+    )?;
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    assert_eq!(
+        declared_text.as_ref().map(|declared| declared.status),
+        Some(DeclaredTextStatus::Validated)
+    );
+    Ok(())
+}
+
+fn declared_text_tags(
+    actual_text: Option<&[u8]>,
+    alt: Option<&[u8]>,
+    kid: Object,
+    with_parent_tree: bool,
+) -> Result<(pdfdelta_core::document::StructureEvidence, Document<Glyph>)> {
+    declared_text_tags_with_program(
+        b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET EMC",
+        actual_text,
+        alt,
+        kid,
+        with_parent_tree,
+    )
+}
+
+fn declared_text_tags_with_program(
+    program: &[u8],
+    actual_text: Option<&[u8]>,
+    alt: Option<&[u8]>,
+    kid: Object,
+    with_parent_tree: bool,
+) -> Result<(pdfdelta_core::document::StructureEvidence, Document<Glyph>)> {
+    use pdfdelta_core::document::extract_structure_evidence;
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(dictionary! {}, program.to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("StructParents", 5);
+    let root = pdf.new_object_id();
+    let mut element = dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => kid,
+    };
+    if let Some(bytes) = actual_text {
+        element.set(
+            "ActualText",
+            Object::String(bytes.to_vec(), lopdf::StringFormat::Literal),
+        );
+    }
+    if let Some(bytes) = alt {
+        element.set(
+            "Alt",
+            Object::String(bytes.to_vec(), lopdf::StringFormat::Literal),
+        );
+    }
+    let owner = pdf.add_object(element);
+    let mut root_dictionary = dictionary! { "Type" => "StructTreeRoot", "K" => owner };
+    if with_parent_tree {
+        let mut owners = vec![Object::Null; 8];
+        owners[3] = Object::Reference(owner);
+        root_dictionary.set(
+            "ParentTree",
+            dictionary! { "Nums" => vec![Object::Integer(5), Object::Array(owners)] },
+        );
+    }
+    pdf.objects
+        .insert(root, Object::Dictionary(root_dictionary));
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("declaration fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    Ok((tags, native))
+}
+
+#[test]
+fn declared_actual_text_is_retained_and_validated_with_reciprocal_parent_tree() -> Result<()> {
+    use pdfdelta_core::document::{DeclaredTextStatus, StructuredValue};
+    let (tags, native) = declared_text_tags(
+        Some(&[0xFE, 0xFF, 0x00, 0xAD]),
+        None,
+        Object::Integer(3),
+        true,
+    )?;
+    assert_eq!(mapped_text(native.items()), "-");
+    let StructuredValue::StructureElement {
+        declared_text,
+        glyphs,
+        ..
+    } = &tags.elements[0].value
+    else {
+        panic!("structure element evidence")
+    };
+    let declared = declared_text.as_ref().expect("declaration retained");
+    assert_eq!(declared.raw, vec![0xFE, 0xFF, 0x00, 0xAD]);
+    assert_eq!(declared.text, "\u{ad}");
+    assert_eq!(declared.status, DeclaredTextStatus::Validated);
+    assert_eq!(&declared.glyphs, glyphs);
+    assert_eq!(declared.glyphs.len(), 1);
+    assert!(declared.reason.is_none());
+    Ok(())
+}
+
+#[test]
+fn declared_actual_text_without_parent_tree_stays_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{DeclaredTextStatus, StructuredValue};
+    let (tags, native) = declared_text_tags(
+        Some(&[0xFE, 0xFF, 0x00, 0xAD]),
+        None,
+        Object::Integer(3),
+        false,
+    )?;
+    assert_eq!(mapped_text(native.items()), "-");
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    let declared = declared_text.as_ref().expect("declaration retained");
+    assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+    assert!(
+        declared
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("ParentTree")),
+        "{:?}",
+        declared.reason
+    );
+    assert!(declared.glyphs.is_empty());
+    assert_eq!(declared.raw, vec![0xFE, 0xFF, 0x00, 0xAD]);
+    assert_eq!(declared.text, "\u{ad}");
+    Ok(())
+}
+
+#[test]
+fn alt_is_never_a_replacement_declaration() -> Result<()> {
+    use pdfdelta_core::document::StructuredValue;
+    let (tags, _) = declared_text_tags(None, Some(b"description"), Object::Integer(3), true)?;
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    assert!(declared_text.is_none());
+    Ok(())
+}
+
+#[test]
+fn undecodable_declared_actual_text_stays_explicit() -> Result<()> {
+    use pdfdelta_core::document::{DeclaredTextStatus, StructuredValue};
+    let (tags, _) = declared_text_tags(Some(&[0xFE, 0xFF, 0x00]), None, Object::Integer(3), true)?;
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    let declared = declared_text.as_ref().expect("declaration retained");
+    assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+    assert_eq!(declared.raw, vec![0xFE, 0xFF, 0x00]);
+    assert!(
+        declared
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("incomplete")),
+        "{:?}",
+        declared.reason
+    );
+    Ok(())
+}
+
+#[test]
+fn multi_kid_declarations_stay_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{DeclaredTextStatus, StructuredValue};
+    let (tags, _) = declared_text_tags(
+        Some(b"-"),
+        None,
+        Object::Array(vec![Object::Integer(3), Object::Integer(4)]),
+        true,
+    )?;
+    let StructuredValue::StructureElement { declared_text, .. } = &tags.elements[0].value else {
+        panic!("structure element evidence")
+    };
+    let declared = declared_text.as_ref().expect("declaration retained");
+    assert_eq!(declared.status, DeclaredTextStatus::Unresolved);
+    assert!(declared.glyphs.is_empty());
+    Ok(())
+}
+
+#[test]
+fn conflicting_declarations_over_one_sequence_stay_unresolved() -> Result<()> {
+    use pdfdelta_core::document::{
+        DeclaredTextStatus, StructuredValue, extract_structure_evidence,
+    };
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/Span << /MCID 3 >> BDC BT /F1 10 Tf (-) Tj ET EMC".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let page = pdf.get_pages()[&1];
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("StructParents", 5);
+    let root = pdf.new_object_id();
+    let first = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => Object::Integer(3),
+        "ActualText" => Object::String(vec![0xFE, 0xFF, 0x00, 0xAD], lopdf::StringFormat::Literal),
+    });
+    let second = pdf.add_object(dictionary! {
+        "S" => "Span", "P" => root, "Pg" => page, "K" => Object::Integer(3),
+        "ActualText" => Object::string_literal("-"),
+    });
+    let mut owners = vec![Object::Null; 8];
+    owners[3] = Object::Reference(first);
+    pdf.objects.insert(
+        root,
+        Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot", "K" => vec![first.into(), second.into()],
+            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(5), Object::Array(owners)] },
+        }),
+    );
+    let catalog = pdf
+        .trailer
+        .get(b"Root")
+        .expect("catalog")
+        .as_reference()
+        .expect("reference");
+    pdf.get_object_mut(catalog)
+        .expect("catalog object")
+        .as_dict_mut()
+        .expect("catalog dictionary")
+        .set("StructTreeRoot", root);
+    let mut bytes = Vec::new();
+    pdf.save_to(&mut bytes).expect("conflict fixture bytes");
+    let parsed = LopdfParser.parse(bytes.into(), ParseLimits::default())?;
+    let native =
+        ContentStreamGlyphExtractor.extract(parsed.as_ref(), ExtractionLimits::default())?;
+    let tags = extract_structure_evidence(parsed.as_ref(), &native, 0, 0, Default::default())?;
+    let mut statuses = Vec::new();
+    for element in &tags.elements {
+        let StructuredValue::StructureElement { declared_text, .. } = &element.value else {
+            continue;
+        };
+        let declared = declared_text.as_ref().expect("declaration retained");
+        statuses.push((declared.status, declared.reason.clone()));
+    }
+    assert_eq!(statuses.len(), 2);
+    assert!(
+        statuses
+            .iter()
+            .all(|(status, _)| *status == DeclaredTextStatus::Unresolved)
+    );
+    assert!(statuses.iter().any(|(_, reason)| {
+        reason.as_deref().is_some_and(|reason| {
+            reason.contains("overlapping replacement memberships")
+                || reason.contains("nested replacement owners")
+                || reason.contains("conflicting")
+        })
+    }));
+    Ok(())
+}
+
+#[test]
+fn invalid_form_beside_valid_native_text_stays_unresolved() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 40.into(), 40.into()],
+            "Filter" => "FlateDecode",
+        },
+        b"not a zlib stream".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (A) Tj ET /X Do".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "X" => form },
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(
+        !outcome.is_complete(),
+        "a corrupt Form must not leave the page inventory complete"
+    );
+    assert!(
+        outcome
+            .issues()
+            .iter()
+            .any(|issue| issue.kind() == ExtractionIssueKind::Unresolved)
+    );
+    assert_eq!(mapped_text(outcome.document().items()), "A");
+    Ok(())
+}

@@ -39,9 +39,11 @@ struct ValidatedObjectStream {
 /// parser remains `Send + Sync`, but concurrent parse calls do not load PDFs in
 /// parallel.
 ///
-/// Object-stream-heavy inputs also pay for two decompression passes: this
+/// Object-stream-heavy inputs also pay for repeated decompression passes: this
 /// parser first decodes each object stream to validate and charge its index,
-/// then the backend decodes it again while materializing objects.
+/// then the backend decodes it again while materializing objects, and every
+/// `FlateDecode` stage is additionally re-validated strictly before either
+/// decode is accepted.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LopdfParser;
 
@@ -336,6 +338,8 @@ impl ParsedPdf for LopdfParsedPdf {
             .resolve_object(reference)?
             .as_stream()
             .map_err(|error| map_lopdf_error(error, "reading decoded stream", self.limits))?;
+        let context = format!("{} {} R", reference.object_number, reference.generation);
+        super::strict_flate::validate_stream_flate_stages(stream, self.limits, &context)?;
         let bytes = stream
             .get_plain_content_with_limit(self.limits.max_decoded_stream_bytes)
             .map_err(|error| map_lopdf_error(error, "decoding stream", self.limits))?;
@@ -411,7 +415,8 @@ fn limit_loaded_objects(
             return None;
         }
 
-        let validated = match validate_object_stream_index(stream, count, state.limits) {
+        let context = format!("{} {} R", id.0, id.1);
+        let validated = match validate_object_stream_index(stream, count, state.limits, &context) {
             Ok(validated) => validated,
             Err(error) => {
                 state.error = Some(error);
@@ -463,7 +468,9 @@ fn validate_object_stream_index(
     stream: &lopdf::Stream,
     count: usize,
     limits: ParseLimits,
+    context: &str,
 ) -> Result<ValidatedObjectStream> {
+    super::strict_flate::validate_stream_flate_stages(stream, limits, context)?;
     let first = stream
         .dict
         .get(b"First")
@@ -977,7 +984,7 @@ fn child_depth(depth: usize, max_depth: usize) -> Result<usize> {
     Ok(next)
 }
 
-fn map_lopdf_error(error: lopdf::Error, context: &str, limits: ParseLimits) -> Error {
+pub(super) fn map_lopdf_error(error: lopdf::Error, context: &str, limits: ParseLimits) -> Error {
     match &error {
         lopdf::Error::Decompress(lopdf::DecompressError::MemoryLimitExceeded { .. }) => {
             limit_error("PDF decoded stream bytes", limits.max_decoded_stream_bytes)

@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "workspace-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "wall_seconds": 112.06708438100759,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/workspace-tests.log",
+        "sha256": "cecfa37b48f4c76b9aa69511f8f4addc0930ecca60192e4b06534c2eb922c4e2"
+      }
+    },
+    {
+      "name": "all-feature-libs",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-features",
+        "--lib"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "wall_seconds": 45.86420370498672,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/all-feature-libs.log",
+        "sha256": "6515c407d176a48af98ea6a147f94b4dd2618468488c52261fb31f8114c61d35"
+      }
+    },
+    {
+      "name": "workspace-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "wall_seconds": 23.920207496994408,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/workspace-clippy.log",
+        "sha256": "9695463d00d2defc11a69a2134ec74c716771e78fb7f7313e3f0d8fcbdf96f94"
+      }
+    },
+    {
+      "name": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--workspace",
+        "--no-deps",
+        "--all-features",
+        "--document-private-items"
+      ],
+      "environment": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "wall_seconds": 18.07014520499797,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/docs.log",
+        "sha256": "349f3fb6c99544d8469b632d0ade1b6beca0fdb2ebd1f6e8dd3f9e521bb8b46b"
+      }
+    },
+    {
+      "name": "generated",
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "wall_seconds": 28.492485638998915,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/generated.log",
+        "sha256": "7eba194ea45a3395051dd15624241048eac34a380ff506799a4f91ac9ee39aba"
+      }
+    },
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "wall_seconds": 3.474719912992441,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/format.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "workspace_test_counts": {
+    "passed": 2619,
+    "failed": 0,
+    "ignored": 2
+  },
+  "all_feature_library_counts": {
+    "passed": 1515,
+    "failed": 0,
+    "ignored": 2
+  },
+  "generated_panel": {
+    "passed": 48,
+    "total": 48,
+    "strict_author_intent_cells": 42,
+    "declared_candidate_policy_cells": 6
+  },
+  "binary": {
+    "path": "benchmark/realworld/cache/completion-investigation/cardinality-rest/pdfdelta",
+    "sha256": "f18ce992be2d63a7b76fe683c301187761a352c4163d7a3df3f519dc65f42d45"
+  },
+  "source_archive": {
+    "path": "benchmark/realworld/cache/completion-investigation/cardinality-rest/production.tar.gz",
+    "sha256": "cb6af0b6d196a373e32e9f82324e40e103210141ec83b1672cd1153a28e9440e"
+  },
+  "current_sources_match_snapshot": true,
+  "runner": {
+    "path": "benchmark/realworld/cache/completion-investigation/cardinality-checks/runner.py",
+    "sha256": "2dfe39b7c851a9fbabe640f21f7695a010b631707448d709d3ff2315f6b6ec15"
+  },
+  "independent_oracle": {
+    "path": "benchmark/realworld/remaining/completion-investigation/cardinality-oracle.json",
+    "sha256": "56e5974ed0ed1bf8e92a7d94e2f2107e795ee80816cae06cdf009727866f1bbb"
+  },
+  "probe_binary": {
+    "path": "benchmark/realworld/cache/completion-investigation/clique-search/parent/matching_component_probe",
+    "sha256": "df2b930a3a23fbea309d412d7421110f13d0b8100a5ff586fcda06672b00fb83"
+  },
+  "probe_source": {
+    "path": "crates/pdfdelta-bench/examples/matching_component_probe.rs",
+    "sha256": "ec7fd57f25bf8f464b43e842f12b167ccb64060f62a6fc3362a9052b2a9c4118"
+  },
+  "capture_script": {
+    "path": "benchmark/realworld/remaining/completion-investigation/capture.py",
+    "sha256": "30b9d23d79deab930836d7c3300deae9fe225a4e428cd3364bd69198e10fa0fc"
+  }
+}

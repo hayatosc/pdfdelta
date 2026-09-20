@@ -1,0 +1,222 @@
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/format.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 51.89,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks/clippy.log",
+        "sha256": "4b63666816a01deadf79a3ade146e2e48799cd9e78f72db2624e2efd81c9881b"
+      }
+    },
+    {
+      "name": "core_clippy_after_fixture_fix",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "pdfdelta-core",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/opencode-clippy.log",
+        "sha256": "0cc2ffeeabb7e1e7492e4f09ac34740d79f4887cb5b8f6a79cea2e4bdef06046"
+      }
+    },
+    {
+      "name": "tests",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 60.98,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/tests.log",
+        "sha256": "2dd6b286b9865fc34c15d8bd27cf4f8092644c2dc02bf79baf8bd3bc472b2136"
+      },
+      "totals": {
+        "passed": 2604,
+        "failed": 0,
+        "ignored": 2
+      }
+    },
+    {
+      "name": "features",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-features",
+        "--lib"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 66.84,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/features.log",
+        "sha256": "3592654c78fb1ee8b45aecdde3611cf4828cd42ad2000a1e33202964d8ffa6b5"
+      },
+      "totals": {
+        "passed": 1504,
+        "failed": 0,
+        "ignored": 2
+      }
+    },
+    {
+      "name": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--workspace",
+        "--no-deps",
+        "--all-features",
+        "--document-private-items"
+      ],
+      "env": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "seconds": 25.46,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/docs.log",
+        "sha256": "c3986a442b941e0c20be08810d047efef734bf8fb6e07fc3eb335fb0a9d24b39"
+      }
+    },
+    {
+      "name": "generated",
+      "command": [
+        "cargo",
+        "run",
+        "-p",
+        "pdfdelta-bench",
+        "--locked",
+        "--",
+        "verify"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 46.35,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/generated.log",
+        "sha256": "868b3052c5ffc677995f52f26b716dc99230c7ae4aab8869cdf245b311c1292a"
+      }
+    },
+    {
+      "name": "hybrid_after_negative_fixture_review",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "pdfdelta-core",
+        "--all-features",
+        "document::matching::hybrid::tests",
+        "--lib"
+      ],
+      "exit_code": 0,
+      "totals": {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0
+      },
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/hybrid-review.log",
+        "sha256": "473be68157e34645672ab7b8c5c4e7ef43934151549b6e4be4fa20d8bc6aa03f"
+      }
+    },
+    {
+      "name": "core_clippy_after_negative_fixture_review",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "pdfdelta-core",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": {
+        "path": "benchmark/realworld/cache/completion-investigation/checks-final/core-review-clippy.log",
+        "sha256": "27a00909727a6d24e5a8d6dc8886336fa6aea7ce7eec2cc2949c5886cf2706e6"
+      }
+    }
+  ],
+  "final_source_archive": {
+    "path": "benchmark/realworld/cache/completion-investigation/checks-final/production.tar.gz",
+    "sha256": "3af9e3cd8e17da8c29bed2e4d82aeea2bcabfd6e0bfaaaaabd937a1c177e7425"
+  },
+  "final_production_diff": {
+    "path": "benchmark/realworld/cache/completion-investigation/checks-final/production.patch",
+    "sha256": "149d6b9ccf0a7597de1d226e640d47c65255fb7e1f5aae5ca5f24e13a0a80fda"
+  },
+  "panel_binary": {
+    "path": "benchmark/realworld/cache/completion-investigation/after/pdfdelta",
+    "sha256": "e15626244d4bac041ecfdd7a73e8157f756d12178016466991e33b8b45db8c06"
+  },
+  "panel_source_archive": {
+    "path": "benchmark/realworld/cache/completion-investigation/after/production.tar.gz",
+    "sha256": "13536d4bbde851e26d24bfeb952c6966efd8ff4cdcc7ca4c346a23006c5634f2"
+  },
+  "files_changed_after_panel_freeze": [
+    "crates/pdfdelta-core/src/document/matching.rs",
+    "crates/pdfdelta-core/src/document/matching/hybrid.rs",
+    "crates/pdfdelta-core/tests/document_text_scopes_fixture.rs"
+  ],
+  "post_freeze_changes": "Only MatchingLimits documentation, the inferred-ownership test, and the no-leaves hybrid negative test were updated; no comparison behavior changed.",
+  "initial_test_failure": {
+    "name": "tests",
+    "command": [
+      "cargo",
+      "test",
+      "--workspace"
+    ],
+    "env": {},
+    "exit_code": 101,
+    "seconds": 157.32,
+    "log": {
+      "path": "benchmark/realworld/cache/completion-investigation/checks/tests.log",
+      "sha256": "acc790ad2394981d63186707c42f8606bac316b89d5f07ee62b7eeda1ffcc1b6"
+    }
+  },
+  "panel_audit": {
+    "path": "benchmark/realworld/remaining/completion-investigation/panel-audit.json",
+    "sha256": "8c98fbd8ccab6c947fcd399d61f875fb4689c23b7c64fb8046e8328269c79d93"
+  }
+}

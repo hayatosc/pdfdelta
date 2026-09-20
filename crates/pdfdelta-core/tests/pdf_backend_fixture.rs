@@ -1597,3 +1597,377 @@ proptest! {
         }
     }
 }
+
+fn fixture_with_replaced_content(stream: Stream) -> (Vec<u8>, FixtureIds) {
+    let (mut document, ids) = fixture_document(1);
+    document.reference_table.cross_reference_type = XrefType::CrossReferenceTable;
+    document.objects.insert(ids.content, Object::Stream(stream));
+    let mut bytes = Vec::new();
+    document
+        .save_to(&mut bytes)
+        .expect("fixture should serialize");
+    (bytes, ids)
+}
+
+fn flate_fixture(content: Vec<u8>) -> (Vec<u8>, FixtureIds) {
+    fixture_with_replaced_content(Stream::new(
+        dictionary! { "Filter" => "FlateDecode" },
+        content,
+    ))
+}
+
+fn compressed_fixture_bytes() -> Vec<u8> {
+    let mut stream = Stream::new(dictionary! {}, CONTENT.to_vec());
+    stream.compress().expect("fixture should compress");
+    assert!(stream.dict.get(b"Filter").is_ok());
+    stream.content
+}
+
+fn ascii85_encode(bytes: &[u8]) -> Vec<u8> {
+    let mut encoded = Vec::new();
+    for chunk in bytes.chunks(4) {
+        let mut group = [0_u8; 4];
+        group[..chunk.len()].copy_from_slice(chunk);
+        let value = u32::from_be_bytes(group);
+        if chunk.len() == 4 && value == 0 {
+            encoded.push(b'z');
+            continue;
+        }
+        let mut digits = [0_u8; 5];
+        let mut remaining = value;
+        for index in (0..5).rev() {
+            digits[index] = b'!' + u8::try_from(remaining % 85).expect("digit fits");
+            remaining /= 85;
+        }
+        encoded.extend_from_slice(&digits[..=chunk.len()]);
+    }
+    encoded.extend_from_slice(b"~>");
+    encoded
+}
+
+#[test]
+fn accepts_valid_flate_encodings_including_empty_plaintext() {
+    // RFC 1950 zlib encoding of empty plaintext.
+    let (bytes, ids) = flate_fixture(vec![0x78, 0x9c, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01]);
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    let decoded = pdf
+        .decoded_stream(object_ref(ids.content))
+        .expect("valid empty FlateDecode plaintext should decode");
+    assert!(decoded.bytes.is_empty());
+
+    let (bytes, ids) = flate_fixture(compressed_fixture_bytes());
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    assert_eq!(
+        pdf.decoded_stream(object_ref(ids.content))
+            .expect("valid FlateDecode stream should decode")
+            .bytes,
+        CONTENT
+    );
+}
+
+#[test]
+fn rejects_corrupt_flate_payloads_instead_of_returning_partial_bytes() {
+    let valid = compressed_fixture_bytes();
+    let mut checksum_failure = valid.clone();
+    let last = checksum_failure.len() - 1;
+    checksum_failure[last] ^= 0xff;
+    let cases: Vec<(&str, Vec<u8>)> = vec![
+        ("corrupt header", b"not a zlib stream".to_vec()),
+        ("checksum failure", checksum_failure),
+        (
+            "truncated before completion",
+            valid[..valid.len() / 2].to_vec(),
+        ),
+        ("missing final checksum", valid[..valid.len() - 4].to_vec()),
+        ("empty encoded payload", Vec::new()),
+    ];
+    for (name, content) in cases {
+        let (bytes, ids) = flate_fixture(content);
+        let pdf = parse(bytes, limits()).expect("fixture should parse");
+        let error = pdf.decoded_stream(object_ref(ids.content)).expect_err(name);
+        assert!(matches!(error, Error::Unresolved(_)), "{name}: {error}");
+        if name == "corrupt header" {
+            assert!(error.to_string().contains("invalid zlib header"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn rejects_malformed_filter_declarations_instead_of_raw_bytes() {
+    let (bytes, ids) = fixture_with_replaced_content(Stream::new(
+        dictionary! { "Filter" => 5 },
+        b"raw-looking bytes".to_vec(),
+    ));
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    let error = pdf
+        .decoded_stream(object_ref(ids.content))
+        .expect_err("malformed Filter must not fall back to raw bytes");
+    assert!(matches!(error, Error::Unresolved(_)), "{error}");
+}
+
+#[test]
+fn flate_decoded_output_limit_is_exact_and_bounded() {
+    let (bytes, ids) = flate_fixture(compressed_fixture_bytes());
+    let exact = ParseLimits {
+        max_decoded_stream_bytes: CONTENT.len(),
+        ..limits()
+    };
+    let pdf = parse(bytes.clone(), exact).expect("fixture should parse");
+    assert_eq!(
+        pdf.decoded_stream(object_ref(ids.content))
+            .expect("output at the exact limit should decode")
+            .bytes,
+        CONTENT
+    );
+
+    let over = ParseLimits {
+        max_decoded_stream_bytes: CONTENT.len() - 1,
+        ..limits()
+    };
+    let pdf = parse(bytes, over).expect("fixture should parse");
+    assert!(matches!(
+        pdf.decoded_stream(object_ref(ids.content)),
+        Err(Error::LimitExceeded {
+            resource: "PDF decoded stream bytes",
+            limit,
+        }) if limit == CONTENT.len() - 1
+    ));
+}
+
+#[test]
+fn validates_and_decodes_valid_flate_filter_chains() {
+    let encoded = ascii85_encode(&compressed_fixture_bytes());
+    let (bytes, ids) = fixture_with_replaced_content(Stream::new(
+        dictionary! {
+            "Filter" => vec![
+                Object::Name(b"ASCII85Decode".to_vec()),
+                Object::Name(b"FlateDecode".to_vec()),
+            ],
+        },
+        encoded,
+    ));
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    assert_eq!(
+        pdf.decoded_stream(object_ref(ids.content))
+            .expect("valid ASCII85+Flate chain should decode")
+            .bytes,
+        CONTENT
+    );
+}
+
+#[test]
+fn validates_and_decodes_valid_flate_predictor_streams() {
+    // PNG Up predictor (12) over 64 rows of 8 columns; every row delta is one
+    // byte so the decoded rows are constant counters.
+    let columns = 8_usize;
+    let mut encoded = Vec::new();
+    for row in 0..64 {
+        encoded.push(2);
+        encoded.extend(std::iter::repeat_n(
+            u8::try_from(row.min(1)).expect("row fits"),
+            columns,
+        ));
+    }
+    let mut stream = Stream::new(dictionary! {}, encoded);
+    stream
+        .compress()
+        .expect("predictor fixture should compress");
+    assert!(stream.dict.get(b"Filter").is_ok());
+    stream.dict.set(
+        "DecodeParms",
+        dictionary! { "Predictor" => 12, "Columns" => i64::try_from(columns).expect("fits") },
+    );
+    let (bytes, ids) = fixture_with_replaced_content(stream);
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    let decoded = pdf
+        .decoded_stream(object_ref(ids.content))
+        .expect("valid predictor stream should decode");
+    let expected = (0..64_u8)
+        .flat_map(|row| std::iter::repeat_n(row, columns))
+        .collect::<Vec<_>>();
+    assert_eq!(decoded.bytes, expected);
+}
+
+fn handwritten_truncated_object_stream_fixture() -> Vec<u8> {
+    let mut bytes = b"%PDF-1.5\n%\xFF\xFF\xFF\xFF\n".to_vec();
+    let mut offsets = vec![
+        append_object(&mut bytes, 1, b"<< /Type /Catalog /Pages 2 0 R >>"),
+        append_object(
+            &mut bytes,
+            2,
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << >> /MediaBox [0 0 612 792] >>",
+        ),
+        append_object(
+            &mut bytes,
+            3,
+            b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+        ),
+        append_stream_object(&mut bytes, 4, b"<< /Length 6 >>", b"BT ET\n"),
+    ];
+    let mut stream = compressed_empty_object_stream(4096);
+    stream.content.truncate(stream.content.len() / 2);
+    let dictionary = format!(
+        "<< /Type /ObjStm /N 0 /First 0 /Filter /FlateDecode /Length {} >>",
+        stream.content.len()
+    );
+    offsets.push(append_stream_object(
+        &mut bytes,
+        5,
+        dictionary.as_bytes(),
+        &stream.content,
+    ));
+    let xref_offset = bytes.len();
+    bytes.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+    for offset in offsets {
+        writeln!(bytes, "{offset:010} 00000 n ").expect("xref entry should serialize");
+    }
+    write!(
+        bytes,
+        "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n"
+    )
+    .expect("xref trailer should serialize");
+    bytes
+}
+
+#[test]
+fn rejects_truncated_object_streams_at_parse() {
+    let bytes = handwritten_truncated_object_stream_fixture();
+    let Err(error) = parse(bytes, limits()) else {
+        panic!("truncated object stream must be rejected");
+    };
+    assert!(matches!(error, Error::Unresolved(_)), "{error}");
+}
+
+fn double_flate_fixture(content: Vec<u8>) -> (Vec<u8>, FixtureIds) {
+    fixture_with_replaced_content(Stream::new(
+        dictionary! {
+            "Filter" => vec![
+                Object::Name(b"FlateDecode".to_vec()),
+                Object::Name(b"FlateDecode".to_vec()),
+            ],
+        },
+        content,
+    ))
+}
+
+fn zlib_compress(bytes: &[u8]) -> Vec<u8> {
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+    encoder.write_all(bytes).expect("fixture should encode");
+    encoder.finish().expect("fixture should finish")
+}
+
+fn double_compressed_fixture_bytes() -> Vec<u8> {
+    zlib_compress(&compressed_fixture_bytes())
+}
+
+#[test]
+fn validates_and_decodes_valid_multistage_flate_chains() {
+    let (bytes, ids) = double_flate_fixture(double_compressed_fixture_bytes());
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    assert_eq!(
+        pdf.decoded_stream(object_ref(ids.content))
+            .expect("valid two-stage Flate chain should decode")
+            .bytes,
+        CONTENT
+    );
+}
+
+#[test]
+fn rejects_corruption_in_a_later_flate_stage() {
+    let mut inner = compressed_fixture_bytes();
+    let middle = inner.len() / 2;
+    inner[middle] ^= 0xff;
+    let (bytes, ids) = double_flate_fixture(zlib_compress(&inner));
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    let error = pdf
+        .decoded_stream(object_ref(ids.content))
+        .expect_err("corruption in the second stage must be rejected");
+    assert!(matches!(error, Error::Unresolved(_)), "{error}");
+    assert!(error.to_string().contains("stage 1"), "{error}");
+}
+
+#[test]
+fn validates_flate_stages_larger_than_the_validation_buffer() {
+    let mut state = 0x1234_5678_u32;
+    let mut payload = Vec::with_capacity(200_000);
+    for _ in 0..200_000 {
+        state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        payload.push(u8::try_from(state >> 24).expect("byte fits"));
+    }
+    // Stored-block zlib keeps the intermediate zlib stream above 64 KiB, so the
+    // ASCII85 prefix decode and the Flate validation both cross the fixed
+    // validation buffer and the size-bounded prefix buffer.
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::none());
+    encoder.write_all(&payload).expect("payload should encode");
+    let large_zlib = encoder.finish().expect("payload should finish");
+    assert!(large_zlib.len() > 64 * 1024);
+    let (bytes, ids) = fixture_with_replaced_content(Stream::new(
+        dictionary! {
+            "Filter" => vec![
+                Object::Name(b"ASCII85Decode".to_vec()),
+                Object::Name(b"FlateDecode".to_vec()),
+            ],
+        },
+        ascii85_encode(&large_zlib),
+    ));
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    let decoded = pdf
+        .decoded_stream(object_ref(ids.content))
+        .expect("large two-stage stream should decode");
+    assert_eq!(decoded.bytes, payload);
+}
+
+#[test]
+fn validates_and_decodes_a_four_stage_flate_chain() {
+    let mut content = compressed_fixture_bytes();
+    for _ in 0..3 {
+        content = zlib_compress(&content);
+    }
+    let (bytes, ids) = fixture_with_replaced_content(Stream::new(
+        dictionary! {
+            "Filter" => vec![
+                Object::Name(b"FlateDecode".to_vec()),
+                Object::Name(b"FlateDecode".to_vec()),
+                Object::Name(b"FlateDecode".to_vec()),
+                Object::Name(b"FlateDecode".to_vec()),
+            ],
+        },
+        content,
+    ));
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+    assert_eq!(
+        pdf.decoded_stream(object_ref(ids.content))
+            .expect("valid four-stage Flate chain should decode")
+            .bytes,
+        CONTENT
+    );
+}
+
+#[test]
+fn flate_chain_output_limit_is_exact_and_bounded() {
+    let (bytes, ids) = double_flate_fixture(double_compressed_fixture_bytes());
+    let exact = ParseLimits {
+        max_decoded_stream_bytes: CONTENT.len(),
+        ..limits()
+    };
+    let pdf = parse(bytes.clone(), exact).expect("fixture should parse");
+    assert_eq!(
+        pdf.decoded_stream(object_ref(ids.content))
+            .expect("chain output at the exact limit should decode")
+            .bytes,
+        CONTENT
+    );
+
+    let over = ParseLimits {
+        max_decoded_stream_bytes: CONTENT.len() - 1,
+        ..limits()
+    };
+    let pdf = parse(bytes, over).expect("fixture should parse");
+    assert!(matches!(
+        pdf.decoded_stream(object_ref(ids.content)),
+        Err(Error::LimitExceeded {
+            resource: "PDF decoded stream bytes",
+            limit,
+        }) if limit == CONTENT.len() - 1
+    ));
+}

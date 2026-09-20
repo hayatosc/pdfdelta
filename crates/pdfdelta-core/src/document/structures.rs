@@ -7,10 +7,21 @@ use crate::{
 };
 
 use super::{
-    Channel, ChannelInventory, EvidenceIssue, NativeStructureKid, SourceRef, StructuredEvidence,
-    StructuredValue,
+    Channel, ChannelInventory, DeclaredStructureText, DeclaredTextStatus, EvidenceIssue,
+    NativeStructureKid, SourceRef, StructuredEvidence, StructuredValue,
     forms::{classify, dictionary},
 };
+
+/// A declared replacement captured during the walk; validation is finalized
+/// only after the `ParentTree` bindings are known.
+struct PendingDeclaration {
+    element: u64,
+    /// The narrow validated candidate: a single direct integer kid with
+    /// non-empty complete membership.
+    candidate: Option<(usize, Vec<GlyphId>)>,
+    /// Why no candidate was established.
+    reason: Option<String>,
+}
 
 mod parents;
 
@@ -145,6 +156,7 @@ pub fn extract_structure_evidence(
     let mut nodes = 0usize;
     let mut glyph_references = 0usize;
     let mut label_bytes = 0usize;
+    let mut pending_declarations: Vec<PendingDeclaration> = Vec::new();
     while let Some(item) = pending.pop() {
         let imported = (|| {
             nodes += 1;
@@ -186,6 +198,36 @@ pub fn extract_structure_evidence(
             if label_bytes > limits.max_label_bytes {
                 return Err(limit("structure label bytes", limits.max_label_bytes));
             }
+            // `ActualText` is the only replacement declaration; `Alt` is a
+            // description and is never read here. Invalid encodings stay
+            // explicit: the raw bytes are retained with an unresolved reason.
+            let declaration = match element.get(b"ActualText".as_slice()) {
+                None => None,
+                Some(PdfObject::String(bytes)) => {
+                    if bytes.len() > limits.max_label_bytes {
+                        return Err(limit("declared replacement bytes", limits.max_label_bytes));
+                    }
+                    label_bytes = label_bytes.saturating_add(bytes.len());
+                    if label_bytes > limits.max_label_bytes {
+                        return Err(limit("structure label bytes", limits.max_label_bytes));
+                    }
+                    match crate::pdf::decode_text_string(bytes, limits.max_label_bytes) {
+                        Ok(text) => {
+                            label_bytes = label_bytes.saturating_add(text.len());
+                            if label_bytes > limits.max_label_bytes {
+                                return Err(limit("structure label bytes", limits.max_label_bytes));
+                            }
+                            Some((bytes.clone(), text, None))
+                        }
+                        Err(error) => Some((bytes.clone(), String::new(), Some(error.to_string()))),
+                    }
+                }
+                Some(_) => Some((
+                    Vec::new(),
+                    String::new(),
+                    Some("ActualText is not a string".into()),
+                )),
+            };
             let page = page_reference(pdf, element.get(b"Pg".as_slice()), item.page, &pages)?;
             let id = first_id
                 .checked_add(result.elements.len() as u64)
@@ -205,6 +247,10 @@ pub fn extract_structure_evidence(
             let mut bound = true;
             let mut structural_children = Vec::new();
             let mut binding_errors = Vec::new();
+            let single_integer_kid =
+                entries.len() == 1 && matches!(entries.first(), Some(PdfObject::Integer(_)));
+            let mut declaration_candidate: Option<(usize, Vec<GlyphId>)> = None;
+            let mut declaration_reason: Option<String> = None;
             for (order, entry) in entries.into_iter().enumerate() {
                 let membership = (|| match entry {
                     PdfObject::Integer(mcid) => bind_mcid(
@@ -280,6 +326,23 @@ pub fn extract_structure_evidence(
                 match membership {
                     Ok(Some((sequence, members))) => {
                         content[order] = NativeStructureKid::MarkedContent { sequence };
+                        if single_integer_kid && declaration.is_some() {
+                            if members.is_empty() {
+                                declaration_reason =
+                                    Some("marked-content membership is empty".into());
+                            } else {
+                                // The candidate duplicates the element membership
+                                // for the declaration only; charge it before cloning.
+                                glyph_references = glyph_references.saturating_add(members.len());
+                                if glyph_references > limits.max_glyph_references {
+                                    return Err(limit(
+                                        "structure glyph references",
+                                        limits.max_glyph_references,
+                                    ));
+                                }
+                                declaration_candidate = Some((sequence, members.clone()));
+                            }
+                        }
                         if members.is_empty() {
                             bound = false;
                             binding_errors.push(unresolved(
@@ -288,9 +351,17 @@ pub fn extract_structure_evidence(
                         }
                         glyphs.extend(members);
                     }
-                    Ok(None) => {}
+                    Ok(None) => {
+                        if single_integer_kid {
+                            declaration_reason =
+                                Some("structure kid is not a marked-content reference".into());
+                        }
+                    }
                     Err(error @ Error::LimitExceeded { .. }) => return Err(error),
                     Err(error) => {
+                        if single_integer_kid {
+                            declaration_reason = Some(error.to_string());
+                        }
                         bound = false;
                         binding_errors.push(error);
                     }
@@ -315,6 +386,33 @@ pub fn extract_structure_evidence(
                     .iter()
                     .all(|id| native_glyphs.get(*id).is_some_and(|glyph| glyph.page == *p))
             });
+            let declared_text = declaration.map(|(raw, text, decode_error)| {
+                // An undecodable or empty declaration never validates: it stays
+                // explicit with its raw bytes and an unresolved reason.
+                let valid_text = decode_error.is_none() && !text.is_empty();
+                let candidate = valid_text.then_some(declaration_candidate).flatten();
+                let reason = decode_error
+                    .clone()
+                    .or_else(|| declaration_reason.clone())
+                    .or_else(|| (!valid_text).then(|| "declared replacement text is empty".into()))
+                    .or_else(|| {
+                        candidate
+                            .is_none()
+                            .then(|| "replacement binding is not validated".into())
+                    });
+                pending_declarations.push(PendingDeclaration {
+                    element: id,
+                    candidate,
+                    reason: reason.clone(),
+                });
+                DeclaredStructureText {
+                    raw,
+                    text,
+                    status: DeclaredTextStatus::Unresolved,
+                    glyphs: Vec::new(),
+                    reason,
+                }
+            });
             result.elements.push(StructuredEvidence {
                 id,
                 page,
@@ -325,6 +423,7 @@ pub fn extract_structure_evidence(
                     role,
                     identifier: identifier.cloned(),
                     text: None,
+                    declared_text,
                     glyphs,
                     content: Some(content),
                     parent: item.parent,
@@ -383,6 +482,7 @@ pub fn extract_structure_evidence(
         Ok(bindings) => result.native_inventory.parents = Some(bindings),
         Err(error) => issue(&mut result, None, error),
     }
+    finalize_declarations(&mut result, first_id, pending_declarations, native, limits);
     issue(
         &mut result,
         None,
@@ -391,6 +491,215 @@ pub fn extract_structure_evidence(
         ),
     );
     Ok(result)
+}
+
+/// Finalizes declared replacement bindings after `ParentTree` acquisition.
+///
+/// A declaration is validated only for a single complete marked-content
+/// sequence with non-empty native membership, a reciprocal `ParentTree` owner,
+/// no competing or nested declaration and no retained non-text paint on its
+/// page. Everything else stays explicitly unresolved with the native view
+/// untouched.
+fn finalize_declarations(
+    result: &mut StructureEvidence,
+    first_id: u64,
+    pending: Vec<PendingDeclaration>,
+    native: &Document<Glyph>,
+    limits: StructureLimits,
+) {
+    if pending.is_empty() {
+        return;
+    }
+    let parents_acquired = result.native_inventory.parents.is_some();
+    let owners: HashMap<usize, ObjectRef> = result
+        .native_inventory
+        .parents
+        .as_ref()
+        .map(|bindings| {
+            bindings
+                .iter()
+                .map(|binding| (binding.sequence, binding.owner))
+                .collect()
+        })
+        .unwrap_or_default();
+    let declaring: HashSet<u64> = pending
+        .iter()
+        .map(|declaration| declaration.element)
+        .collect();
+    let parent_of: HashMap<u64, u64> = result
+        .elements
+        .iter()
+        .filter_map(|element| match &element.value {
+            StructuredValue::StructureElement {
+                parent: Some(parent),
+                ..
+            } => Some((element.id, *parent)),
+            _ => None,
+        })
+        .collect();
+    let mut blocked: HashMap<u64, &'static str> = HashMap::new();
+    // Nested replacement owners: an ancestor or descendant declaration may
+    // cover the same content, so neither side may validate in isolation. The
+    // walk has its own explicit budget and never consumes the traversal budget.
+    let mut ancestry_work = 0usize;
+    for declaration in &pending {
+        let mut current = parent_of.get(&declaration.element).copied();
+        let mut depth = 0usize;
+        while let Some(ancestor) = current {
+            if depth >= limits.max_depth {
+                blocked.insert(declaration.element, "replacement ancestry depth limit");
+                break;
+            }
+            depth += 1;
+            ancestry_work = ancestry_work.saturating_add(1);
+            if ancestry_work > limits.max_nodes {
+                blocked.insert(declaration.element, "replacement ancestry node limit");
+                break;
+            }
+            if declaring.contains(&ancestor) {
+                blocked.insert(declaration.element, "nested replacement owners");
+                blocked.insert(ancestor, "nested replacement owners");
+            }
+            current = parent_of.get(&ancestor).copied();
+        }
+    }
+    // Overlapping memberships: two declarations replacing intersecting glyph
+    // sets (including distinct nested MCIDs over the same glyphs) conflict.
+    let mut glyph_owner: HashMap<GlyphId, u64> = HashMap::new();
+    let mut overlap_work = 0usize;
+    for declaration in &pending {
+        let index = declaration
+            .element
+            .checked_sub(first_id)
+            .and_then(|index| usize::try_from(index).ok());
+        let glyphs = index
+            .and_then(|index| result.elements.get(index))
+            .and_then(|element| match &element.value {
+                StructuredValue::StructureElement { glyphs, .. } => Some(glyphs),
+                _ => None,
+            });
+        let Some(glyphs) = glyphs else {
+            continue;
+        };
+        overlap_work = overlap_work.saturating_add(glyphs.len());
+        if overlap_work > limits.max_glyph_references {
+            blocked.insert(declaration.element, "replacement overlap work limit");
+            continue;
+        }
+        for glyph in glyphs {
+            if let Some(previous) = glyph_owner.insert(*glyph, declaration.element)
+                && previous != declaration.element
+            {
+                blocked.insert(declaration.element, "overlapping replacement memberships");
+                blocked.insert(previous, "overlapping replacement memberships");
+            }
+        }
+    }
+    // One page-level paint index: a scope is text-only only when its whole page
+    // has no retained non-text paint. Form-internal and sibling-stream paints
+    // are recorded on the invoking page, so a stream-local check could accept a
+    // paint-bearing scope. This over-rejects pages with unrelated paint.
+    let paint_pages: Option<HashSet<PageId>> = native
+        .non_text_paint_bounds()
+        .map(|paints| paints.iter().map(|paint| paint.page).collect());
+    for declaration in pending {
+        let Some(index) = declaration
+            .element
+            .checked_sub(first_id)
+            .and_then(|index| usize::try_from(index).ok())
+        else {
+            continue;
+        };
+        let object = result
+            .elements
+            .get(index)
+            .and_then(|element| element.object);
+        let (status, glyphs, reason) = match declaration.candidate {
+            Some((sequence, members)) => {
+                let owner = owners.get(&sequence);
+                let paint_free = paint_free_scope(native, sequence, paint_pages.as_ref());
+                if !parents_acquired {
+                    (
+                        DeclaredTextStatus::Unresolved,
+                        Vec::new(),
+                        Some("ParentTree owner binding was not acquired".to_owned()),
+                    )
+                } else if owner.is_none() {
+                    (
+                        DeclaredTextStatus::Unresolved,
+                        Vec::new(),
+                        Some("marked-content sequence has no ParentTree owner".to_owned()),
+                    )
+                } else if owner != object.as_ref() {
+                    (
+                        DeclaredTextStatus::Unresolved,
+                        Vec::new(),
+                        Some("ParentTree owner disagrees with the declaring element".to_owned()),
+                    )
+                } else if let Some(conflict) = blocked.get(&declaration.element) {
+                    (
+                        DeclaredTextStatus::Unresolved,
+                        Vec::new(),
+                        Some((*conflict).to_owned()),
+                    )
+                } else {
+                    match paint_free {
+                        Ok(true) => (DeclaredTextStatus::Validated, members, None),
+                        Ok(false) => (
+                            DeclaredTextStatus::Unresolved,
+                            Vec::new(),
+                            Some("page retains non-text paint".to_owned()),
+                        ),
+                        Err(reason) => (
+                            DeclaredTextStatus::Unresolved,
+                            Vec::new(),
+                            Some(reason.to_owned()),
+                        ),
+                    }
+                }
+            }
+            None => (
+                DeclaredTextStatus::Unresolved,
+                Vec::new(),
+                Some(
+                    declaration
+                        .reason
+                        .clone()
+                        .unwrap_or_else(|| "replacement binding is not validated".to_owned()),
+                ),
+            ),
+        };
+        if let Some(StructuredValue::StructureElement {
+            declared_text: Some(declared),
+            ..
+        }) = result
+            .elements
+            .get_mut(index)
+            .map(|element| &mut element.value)
+        {
+            declared.status = status;
+            declared.glyphs = glyphs;
+            declared.reason = reason;
+        }
+    }
+}
+
+/// Text-only scope evidence: the retained non-text paint inventory must be
+/// available and must contain no paint on the sequence's page. Form-internal
+/// and sibling-stream paints are recorded on the invoking page, so a page-level
+/// check is the sound minimum; it over-rejects pages with unrelated paint.
+fn paint_free_scope(
+    native: &Document<Glyph>,
+    sequence_index: usize,
+    paint_pages: Option<&HashSet<PageId>>,
+) -> std::result::Result<bool, &'static str> {
+    let Some(paint_pages) = paint_pages else {
+        return Err("non-text paint inventory is unavailable");
+    };
+    let Some(sequence) = native.marked_content().get(sequence_index) else {
+        return Err("marked-content sequence is missing");
+    };
+    Ok(!paint_pages.contains(&sequence.page))
 }
 
 fn bind_mcid(

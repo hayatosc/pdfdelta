@@ -4,6 +4,8 @@
 //! stores only selected/priced edges; rows, columns and dummy choices never shrink.
 //! This does not close any earlier candidate supplier's incomplete universe.
 
+use std::collections::BTreeSet;
+
 use super::{Assignment, Budget, Edge, Optimum, Score};
 
 mod measurement;
@@ -36,7 +38,7 @@ fn price(
     rows: usize,
     columns: usize,
     edge_at: &impl Fn(usize, usize) -> Option<Edge>,
-    forbidden: Option<usize>,
+    forbidden: &BTreeSet<usize>,
     budget: &mut Budget,
     pass: &mut PricingPass,
 ) -> Option<Optimum> {
@@ -51,7 +53,7 @@ fn price(
         pass.candidate_checks += 1;
         pass.universe_lookups += 1;
         if let Some(edge) = edge_at(row, row)
-            && Some(edge.proposal) != forbidden
+            && !forbidden.contains(&edge.proposal)
         {
             active.rows[row].insert(row, edge);
             active_edges += 1;
@@ -75,7 +77,7 @@ fn price(
                 let Some(edge) = edge_at(row, column) else {
                     continue;
                 };
-                if Some(edge.proposal) == forbidden {
+                if forbidden.contains(&edge.proposal) {
                     continue;
                 }
                 let reduced = edge
@@ -129,9 +131,7 @@ fn trial_with(
     edge_at: impl Fn(usize, usize) -> Option<Edge>,
     work_limit: usize,
 ) -> Trial {
-    let mut budget = Budget {
-        remaining: work_limit,
-    };
+    let mut budget = Budget::new(work_limit);
     let mut result = Trial {
         cost: None,
         mandatory: Vec::new(),
@@ -145,7 +145,7 @@ fn trial_with(
             rows,
             columns,
             &edge_at,
-            None,
+            &BTreeSet::new(),
             &mut budget,
             &mut result.passes[0],
         )?;
@@ -160,7 +160,7 @@ fn trial_with(
                 rows,
                 columns,
                 &edge_at,
-                Some(proposal),
+                &BTreeSet::from([proposal]),
                 &mut budget,
                 &mut pass,
             );
@@ -179,7 +179,7 @@ fn trial_with(
         result.mandatory = mandatory;
         result.complete = true;
     }
-    result.work = work_limit - budget.remaining;
+    result.work = work_limit - budget.remaining();
     result
 }
 

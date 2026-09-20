@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "report": {
+    "path": "benchmark/realworld/cache/completion-investigation/after/irs-schedule-se-2024-to-2025/irs-schedule-se-2024-to-2025-text.json",
+    "sha256": "b8e34bc45864c4a9c9af42cc3a0a71945969008313286aff42320d579fbd2b26"
+  },
+  "script": {
+    "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/remaining/completion-investigation/endpoint_oracle.py",
+    "sha256": "908ecea926e00b26709d857bd28dfea291266ca7f4b5b4ac397c330ca2104af4"
+  },
+  "contract": "similarity-only-independent-endpoint-packing-v1",
+  "components": [
+    {
+      "score": 8301289,
+      "mandatory": [
+        112,
+        124,
+        148,
+        160,
+        184,
+        196,
+        220
+      ],
+      "states": 13824,
+      "old_endpoints": 11,
+      "new_endpoints": 11,
+      "scope": 0,
+      "component": 84,
+      "production_mandatory": [
+        112,
+        124,
+        148,
+        160,
+        184,
+        196,
+        220
+      ],
+      "production_exhaustive": true,
+      "production_agrees": true
+    }
+  ]
+}

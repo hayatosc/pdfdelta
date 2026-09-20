@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{Result, normalize::ComparableToken, pipeline::PipelineOptions};
+use crate::{Result, model::GlyphId, normalize::ComparableToken, pipeline::PipelineOptions};
 
 use super::{
     BackendKind, DocumentGraph, EdgeKind, EvidenceLimits, EvidenceStore, GraphEdge, GraphLimits,
@@ -73,6 +73,7 @@ impl DocumentGraph {
         let mut structure_order: BTreeMap<_, Vec<_>> = BTreeMap::new();
         let native = crate::model::index_glyphs(&store.native)?;
         let mut widget_label_bytes = 0usize;
+        let mut declaration_work = 0usize;
         for element in &store.structured {
             let id = structured_nodes[&element.id];
             let source = SourceRef::Structured {
@@ -146,6 +147,7 @@ impl DocumentGraph {
                     role,
                     identifier,
                     text,
+                    declared_text,
                     glyphs,
                     parent: owner,
                     order,
@@ -179,19 +181,82 @@ impl DocumentGraph {
                             .iter()
                             .map(|glyph| SourceRef::Native { glyph: *glyph }),
                     );
-                    (
-                        role_kind(role),
-                        if glyphs.is_empty() {
-                            structured_text(
-                                text.as_deref(),
-                                source,
-                                &mut tokens_used,
-                                graph_limits,
-                            )?
-                        } else {
-                            tagged_text(glyphs, source, &native, &mut tokens_used, graph_limits)?
-                        },
-                    )
+                    // A declared `ActualText` replacement is a separate bound
+                    // interpretation. Validated declarations present their exact
+                    // literal content; unresolved declarations keep the original
+                    // native view but state the uncertainty explicitly through
+                    // `TextNormalization::Unresolved` on every affected text
+                    // view. Raw glyph evidence is untouched in either case.
+                    match declared_text {
+                        Some(declared)
+                            if declared.status == super::DeclaredTextStatus::Validated =>
+                        {
+                            // The declared replacement is the verified text view;
+                            // uncertainty over the same sources is indexed below.
+                            (
+                                role_kind(role),
+                                structured_text(
+                                    Some(&declared.text),
+                                    source,
+                                    &mut tokens_used,
+                                    graph_limits,
+                                )?,
+                            )
+                        }
+                        Some(declared) => {
+                            let mut content = if glyphs.is_empty() {
+                                structured_text(
+                                    text.as_deref(),
+                                    source,
+                                    &mut tokens_used,
+                                    graph_limits,
+                                )?
+                            } else {
+                                tagged_text(
+                                    glyphs,
+                                    source,
+                                    &native,
+                                    &mut tokens_used,
+                                    graph_limits,
+                                )?
+                            };
+                            if let NodeContent::Text { view } = &mut content {
+                                let reason = declared
+                                    .reason
+                                    .as_deref()
+                                    .unwrap_or("declared replacement text is not validated");
+                                charge(
+                                    &mut widget_label_bytes,
+                                    reason.len(),
+                                    graph_limits.max_label_bytes,
+                                    "graph label bytes",
+                                )?;
+                                view.normalization = TextNormalization::Unresolved {
+                                    reason: reason.to_owned(),
+                                };
+                            }
+                            (role_kind(role), content)
+                        }
+                        None => (
+                            role_kind(role),
+                            if glyphs.is_empty() {
+                                structured_text(
+                                    text.as_deref(),
+                                    source,
+                                    &mut tokens_used,
+                                    graph_limits,
+                                )?
+                            } else {
+                                tagged_text(
+                                    glyphs,
+                                    source,
+                                    &native,
+                                    &mut tokens_used,
+                                    graph_limits,
+                                )?
+                            },
+                        ),
+                    }
                 }
                 StructuredValue::Annotation { text, .. } => (
                     NodeKind::Annotation,
@@ -221,6 +286,218 @@ impl DocumentGraph {
                 content,
             });
             graph.edges.push(contains(parent, id, basis));
+        }
+        // Declarations make every text interpretation over their affected
+        // sources uncertain: their own element, glyph membership and every
+        // structural descendant. The only exempt view is the exact verified
+        // replacement of a validated declaration. The whole pass is skipped
+        // when no declaration exists, and every step is charged.
+        let has_declarations = store.structured.iter().any(|element| {
+            matches!(
+                &element.value,
+                StructuredValue::StructureElement {
+                    declared_text: Some(_),
+                    ..
+                }
+            )
+        });
+        if has_declarations {
+            let mut reasons: Vec<String> = Vec::new();
+            let mut declared_status: BTreeMap<u64, (bool, u32)> = BTreeMap::new();
+            let mut validated_views: BTreeMap<u64, (&str, &[GlyphId])> = BTreeMap::new();
+            for element in &store.structured {
+                let StructuredValue::StructureElement {
+                    declared_text: Some(declared),
+                    glyphs,
+                    ..
+                } = &element.value
+                else {
+                    continue;
+                };
+                if declared.status == super::DeclaredTextStatus::Validated {
+                    // Compare the declared text with the native membership text
+                    // without allocating a concatenated string; charge the scan.
+                    charge(
+                        &mut declaration_work,
+                        glyphs.len().saturating_add(declared.text.len()),
+                        graph_limits.max_references,
+                        "declaration text comparison work",
+                    )?;
+                    let mut declared_chars = declared.text.chars();
+                    let mut matches = true;
+                    'glyphs: for id in glyphs {
+                        let Some(glyph) = native.get(*id) else {
+                            matches = false;
+                            break;
+                        };
+                        match &glyph.text {
+                            crate::model::DecodedText::Mapped(text) => {
+                                for character in text.chars() {
+                                    if declared_chars.next() != Some(character) {
+                                        matches = false;
+                                        break 'glyphs;
+                                    }
+                                }
+                            }
+                            crate::model::DecodedText::Unmapped { .. } => {
+                                matches = false;
+                                break;
+                            }
+                        }
+                    }
+                    if matches && declared_chars.next().is_some() {
+                        matches = false;
+                    }
+                    let reason = if matches {
+                        "declared replacement text supersedes the native glyph text"
+                    } else {
+                        "declared replacement text differs from the native glyph text"
+                    };
+                    let reason_index = push_declaration_reason(
+                        &mut reasons,
+                        reason,
+                        &mut widget_label_bytes,
+                        graph_limits,
+                    )?;
+                    declared_status.insert(element.id, (true, reason_index));
+                    validated_views.insert(element.id, (declared.text.as_str(), glyphs.as_slice()));
+                } else {
+                    let reason = declared
+                        .reason
+                        .as_deref()
+                        .unwrap_or("declared replacement text is not validated");
+                    let reason_index = push_declaration_reason(
+                        &mut reasons,
+                        reason,
+                        &mut widget_label_bytes,
+                        graph_limits,
+                    )?;
+                    declared_status.insert(element.id, (false, reason_index));
+                }
+            }
+            let parents: BTreeMap<u64, u64> = store
+                .structured
+                .iter()
+                .filter_map(|element| match &element.value {
+                    StructuredValue::StructureElement {
+                        parent: Some(parent),
+                        ..
+                    } => Some((element.id, *parent)),
+                    _ => None,
+                })
+                .collect();
+            let mut uncertain: BTreeMap<SourceRef, (u64, u32)> = BTreeMap::new();
+            for element in &store.structured {
+                let mut current = Some(element.id);
+                let mut depth = 0usize;
+                while let Some(owner) = current {
+                    if let Some((_, reason_index)) = declared_status.get(&owner) {
+                        charge(
+                            &mut declaration_work,
+                            1,
+                            graph_limits.max_references,
+                            "declaration uncertainty work",
+                        )?;
+                        prefer_unresolved(
+                            &mut uncertain,
+                            &declared_status,
+                            SourceRef::Structured {
+                                element: element.id,
+                            },
+                            owner,
+                            *reason_index,
+                        );
+                        if let StructuredValue::StructureElement { glyphs, .. } = &element.value {
+                            for glyph in glyphs {
+                                charge(
+                                    &mut declaration_work,
+                                    1,
+                                    graph_limits.max_references,
+                                    "declaration uncertainty work",
+                                )?;
+                                prefer_unresolved(
+                                    &mut uncertain,
+                                    &declared_status,
+                                    SourceRef::Native { glyph: *glyph },
+                                    owner,
+                                    *reason_index,
+                                );
+                            }
+                        }
+                    }
+                    charge(
+                        &mut declaration_work,
+                        1,
+                        graph_limits.max_references,
+                        "declaration ancestry work",
+                    )?;
+                    depth += 1;
+                    if depth > graph_limits.max_nodes {
+                        return Err(invalid("declaration ancestry depth limit"));
+                    }
+                    current = parents.get(&owner).copied();
+                }
+            }
+            for node in &mut graph.nodes {
+                let mut exempt = false;
+                let mut mark: Option<u32> = None;
+                let mut node_sources: Option<BTreeSet<SourceRef>> = None;
+                for source in &node.sources {
+                    charge(
+                        &mut declaration_work,
+                        1,
+                        graph_limits.max_references,
+                        "declaration uncertainty work",
+                    )?;
+                    if let SourceRef::Structured { element } = source
+                        && let Some((true, _)) = declared_status.get(element)
+                        && let Some((declared_text, members)) = validated_views.get(element)
+                    {
+                        if node_sources.is_none() {
+                            charge(
+                                &mut declaration_work,
+                                node.sources.len(),
+                                graph_limits.max_references,
+                                "declaration uncertainty work",
+                            )?;
+                            node_sources = Some(node.sources.iter().copied().collect());
+                        }
+                        if let Some(node_sources) = &node_sources
+                            && is_exact_replacement_view(node, declared_text, members, node_sources)
+                        {
+                            exempt = true;
+                            break;
+                        }
+                    }
+                    if let Some((_, reason_index)) = uncertain.get(source) {
+                        mark = Some(*reason_index);
+                    }
+                }
+                if exempt {
+                    continue;
+                }
+                let Some(reason_index) = mark else {
+                    continue;
+                };
+                let reason = &reasons[reason_index as usize];
+                if let NodeContent::Text { view } = &mut node.content
+                    && view.normalization == TextNormalization::Exact
+                {
+                    charge(
+                        &mut widget_label_bytes,
+                        reason.len(),
+                        graph_limits.max_label_bytes,
+                        "graph label bytes",
+                    )?;
+                    view.normalization = TextNormalization::Unresolved {
+                        reason: reason.clone(),
+                    };
+                }
+            }
+            // Retain the marked sources so later local projections cannot
+            // clear the uncertainty. The set is bounded by the evidence items
+            // already charged above.
+            graph.declaration_affected = uncertain.into_keys().collect();
         }
         for mut siblings in structure_order.into_values() {
             siblings.sort_by_key(|entry| entry.0);
@@ -320,6 +597,85 @@ fn tagged_text(
         view.source_backed.extend((0..count).map(|_| true));
     }
     Ok(NodeContent::Text { view })
+}
+
+/// Keeps the unresolved owner when two declarations share one source; the
+/// validated owner never overrides an existing unresolved entry.
+fn prefer_unresolved(
+    uncertain: &mut BTreeMap<SourceRef, (u64, u32)>,
+    declared_status: &BTreeMap<u64, (bool, u32)>,
+    source: SourceRef,
+    owner: u64,
+    reason_index: u32,
+) {
+    match uncertain.entry(source) {
+        std::collections::btree_map::Entry::Occupied(mut existing) => {
+            let existing_validated = declared_status
+                .get(&existing.get().0)
+                .is_some_and(|(validated, _)| *validated);
+            let new_validated = declared_status
+                .get(&owner)
+                .is_some_and(|(validated, _)| *validated);
+            if existing_validated && !new_validated {
+                existing.insert((owner, reason_index));
+            }
+        }
+        std::collections::btree_map::Entry::Vacant(vacant) => {
+            vacant.insert((owner, reason_index));
+        }
+    }
+}
+
+/// Charges and stores one declaration reason once; sources reference its index
+/// instead of cloning the string per source.
+fn push_declaration_reason(
+    reasons: &mut Vec<String>,
+    reason: &str,
+    label_bytes: &mut usize,
+    limits: GraphLimits,
+) -> Result<u32> {
+    charge(
+        label_bytes,
+        reason.len(),
+        limits.max_label_bytes,
+        "graph label bytes",
+    )?;
+    let index = u32::try_from(reasons.len())
+        .map_err(|_| invalid("too many declaration uncertainty reasons"))?;
+    reasons.push(reason.to_owned());
+    Ok(index)
+}
+
+/// The exact verified replacement view: correct basis, Exact normalization,
+/// full declared tokens (iterator comparison, no allocation) and the complete
+/// native membership within the node's own source set.
+fn is_exact_replacement_view(
+    node: &GraphNode,
+    declared_text: &str,
+    members: &[GlyphId],
+    node_sources: &BTreeSet<SourceRef>,
+) -> bool {
+    if node.basis != ViewBasis::SourceStructure {
+        return false;
+    }
+    let NodeContent::Text { view } = &node.content else {
+        return false;
+    };
+    if view.normalization != TextNormalization::Exact {
+        return false;
+    }
+    if view.tokens.len() != declared_text.chars().count()
+        || !view
+            .tokens
+            .iter()
+            .zip(declared_text.chars())
+            .all(|(token, character)| *token == ComparableToken::Scalar(character))
+    {
+        return false;
+    }
+    members
+        .iter()
+        .all(|glyph| node_sources.contains(&SourceRef::Native { glyph: *glyph }))
 }
 
 pub(super) fn role_kind(role: &str) -> NodeKind {

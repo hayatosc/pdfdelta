@@ -16,8 +16,8 @@ use super::{
     source_children, spend,
 };
 use crate::document::{
-    BackendKind, Channel, EvidenceBoundary, EvidenceFailure, NodeKind, ViewBasis,
-    evidence::ScopedTextEvidence,
+    BackendKind, Channel, EvidenceBoundary, EvidenceFailure, NodeKind, TextNormalization,
+    ViewBasis, evidence::ScopedTextEvidence,
 };
 
 mod census;
@@ -291,6 +291,7 @@ pub(super) struct Sources<'a> {
     baselines: &'a BTreeMap<PageId, Vec<&'a Glyph>>,
     paint_pages: &'a BTreeMap<PageId, Vec<&'a NonTextPaint>>,
     text_scopes: &'a BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
+    declaration_affected: &'a BTreeSet<SourceRef>,
     native_order: Option<Vec<segments::Membership<'a>>>,
 }
 
@@ -433,6 +434,9 @@ impl<'a> Sources<'a> {
         inline_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Option<Vec<Option<usize>>>)> {
+        if self.declaration_blocks(node) {
+            return None;
+        }
         let (mut projected, boundaries) =
             projection::expanded(node, self.glyphs, remaining, paint_order, inline_order)?;
         if !padding.is_empty() {
@@ -480,7 +484,26 @@ impl<'a> Sources<'a> {
         paint_order: bool,
         remaining: &mut usize,
     ) -> Option<(GraphNode, Vec<std::ops::Range<usize>>)> {
+        if self.declaration_blocks(node) {
+            return None;
+        }
         projection::physical_rows(node, self.glyphs, remaining, paint_order)
+    }
+
+    /// A node whose interpretation a declaration already marked uncertain must
+    /// not be re-projected into an exact view. The check uses the provider's
+    /// marked sources, never the reason text, so unrelated raw-normalization
+    /// recovery keeps working.
+    fn declaration_blocks(&self, node: &GraphNode) -> bool {
+        let NodeContent::Text { view } = &node.content else {
+            return false;
+        };
+        if !matches!(view.normalization, TextNormalization::Unresolved { .. }) {
+            return false;
+        }
+        node.sources
+            .iter()
+            .any(|source| self.declaration_affected.contains(source))
     }
 
     /// Returns physical row boundaries for an exact, fully backed projection.
@@ -706,6 +729,7 @@ impl<'a> Sources<'a> {
             baselines: &index.baselines,
             paint_pages: &index.paint_pages,
             text_scopes: &index.text_scopes,
+            declaration_affected: &index.declaration_affected,
             native_order: None,
         }
     }

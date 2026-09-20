@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod assignment;
 mod candidates;
+mod cardinality;
 mod decisions;
+mod hybrid;
 mod index;
 
 pub use decisions::*;
@@ -66,11 +68,16 @@ pub struct MatchingLimits {
     /// partition-membership checks during correspondence search.
     pub max_ownership_visits: usize,
     pub max_states_per_component: usize,
-    /// Bounds assignment construction, augmentation, and all edge-exclusion
-    /// certificates, including the separate source-only solve.
+    /// Bounds assignment construction, augmentation, edge-exclusion
+    /// certificates, and the cardinality preflight, including the separate
+    /// source-only solve.
     pub max_assignment_work_per_component: usize,
-    /// Maximum unresolved proposals per search after forced higher-priority
-    /// correspondences eliminate incompatible lower-priority candidates.
+    /// Maximum proposals enumerated by subset and mixed search after forced
+    /// higher-priority correspondences eliminate incompatible candidates.
+    /// In mixed components this bounds grouped candidates; independent
+    /// one-to-one candidates use the separate assignment-work budget. The
+    /// exact cardinality route may exceed this raw count only when its proved
+    /// decision tree fits the component state budget.
     pub max_component_proposals: usize,
 }
 
@@ -178,6 +185,12 @@ pub enum MatchingAlgorithm {
     #[default]
     SubsetSearch,
     BipartiteAssignment,
+    /// Bounded enumeration of conflict-free group candidates with the
+    /// independent leaf remainder solved by exact assignment.
+    MixedAssignment,
+    /// Exact endpoint-cardinality bounded enumeration for wide group
+    /// components whose conflict-free selections are provably small.
+    CardinalityChoice,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -597,6 +610,7 @@ pub fn solve_correspondence_scope(
     let mut signatures = BTreeSet::new();
     let mut ownership = Vec::with_capacity(proposals.len());
     let mut source_premises = Vec::with_capacity(proposals.len());
+    let mut assignment_shape = Vec::with_capacity(proposals.len());
     let mut assignment_eligible = Vec::with_capacity(proposals.len());
     let mut ownership_budget = limits.max_ownership_visits;
     let cell_keys = if proposals
@@ -727,24 +741,24 @@ pub fn solve_correspondence_scope(
                 "duplicate correspondence must combine supplier evidence",
             ));
         }
-        assignment_eligible.push(
-            proposal.old.len() == 1
-                && proposal.new.len() == 1
-                && left.nodes.len() == 1
-                && right.nodes.len() == 1
-                && left.partitions.is_empty()
-                && right.partitions.is_empty()
-                && !old_containment.contains_key(&proposal.old[0])
-                && !new_containment.contains_key(&proposal.new[0])
-                && !matches!(
-                    old_nodes[&proposal.old[0]].content,
-                    super::NodeContent::Container
-                )
-                && !matches!(
-                    new_nodes[&proposal.new[0]].content,
-                    super::NodeContent::Container
-                ),
-        );
+        let shape = proposal.old.len() == 1
+            && proposal.new.len() == 1
+            && left.nodes.len() == 1
+            && right.nodes.len() == 1
+            && left.partitions.is_empty()
+            && right.partitions.is_empty()
+            && !old_containment.contains_key(&proposal.old[0])
+            && !new_containment.contains_key(&proposal.new[0])
+            && !matches!(
+                old_nodes[&proposal.old[0]].content,
+                super::NodeContent::Container
+            )
+            && !matches!(
+                new_nodes[&proposal.new[0]].content,
+                super::NodeContent::Container
+            );
+        assignment_shape.push(shape);
+        assignment_eligible.push(shape);
         ownership.push((left, right));
     }
     let mut conflicts = vec![BTreeSet::new(); proposals.len()];
@@ -828,6 +842,7 @@ pub fn solve_correspondence_scope(
                     &source_premises,
                     &conflicts,
                     &ownership,
+                    &assignment_shape,
                     limits,
                 )
             }
@@ -1282,6 +1297,7 @@ fn solve_component(
     source_premises: &[bool],
     conflicts: &[BTreeSet<usize>],
     ownership: &[(Ownership, Ownership)],
+    assignment_shape: &[bool],
     limits: MatchingLimits,
 ) -> MatchingComponent {
     let mut remaining = indices.clone();
@@ -1347,23 +1363,127 @@ fn solve_component(
         }
         remaining = retained;
     }
-    let mut result = search_component(
+    let residual_states = limits
+        .max_states_per_component
+        .saturating_sub(explored_states);
+    let residual_limits = MatchingLimits {
+        max_states_per_component: residual_states,
+        ..limits
+    };
+    // A few plain group candidates disarm the whole-component assignment path;
+    // the mixed search decides such components exactly within the same budgets.
+    // Wide group populations then get the exact endpoint-cardinality bounded
+    // search when its decision tree fits the component state budget; every
+    // other shape keeps the component subset search.
+    let mut result = if remaining.len() > limits.max_component_proposals {
+        match hybrid::classify(&remaining, assignment_shape, ownership, proposals) {
+            Some(mixed) if mixed.groups.len() <= limits.max_component_proposals => {
+                match hybrid::solve(
+                    &mixed,
+                    proposals,
+                    source_premises,
+                    conflicts,
+                    &forced,
+                    residual_states,
+                    limits.max_assignment_work_per_component,
+                ) {
+                    hybrid::Attempt::Solved(outcome) => {
+                        let mut mandatory = forced.clone();
+                        mandatory.extend(outcome.mandatory);
+                        MatchingComponent {
+                            proposals: Vec::new(),
+                            mandatory: mandatory.into_iter().collect(),
+                            explored_states: outcome.explored_states,
+                            assignment_work: outcome.assignment_work,
+                            algorithm: MatchingAlgorithm::MixedAssignment,
+                            exhaustive: outcome.exhaustive,
+                        }
+                    }
+                    hybrid::Attempt::Unsupported { assignment_work } => {
+                        // The hybrid verification already spent part of the
+                        // component assignment budget; the cardinality
+                        // preflight continues from what is left.
+                        let mut remaining_limits = residual_limits;
+                        remaining_limits.max_assignment_work_per_component = limits
+                            .max_assignment_work_per_component
+                            .saturating_sub(assignment_work);
+                        let mut component = cardinality_or_search(
+                            remaining,
+                            proposals,
+                            source_premises,
+                            conflicts,
+                            ownership,
+                            &forced,
+                            remaining_limits,
+                        );
+                        component.assignment_work =
+                            component.assignment_work.saturating_add(assignment_work);
+                        component
+                    }
+                }
+            }
+            _ => cardinality_or_search(
+                remaining,
+                proposals,
+                source_premises,
+                conflicts,
+                ownership,
+                &forced,
+                residual_limits,
+            ),
+        }
+    } else {
+        search_component(
+            remaining,
+            proposals,
+            source_premises,
+            conflicts,
+            ownership,
+            residual_limits,
+            &forced,
+        )
+    };
+    result.proposals = indices;
+    result.explored_states += explored_states;
+    result
+}
+
+fn cardinality_or_search(
+    remaining: Vec<usize>,
+    proposals: &[CorrespondenceProposal],
+    source_premises: &[bool],
+    conflicts: &[BTreeSet<usize>],
+    ownership: &[(Ownership, Ownership)],
+    forced: &BTreeSet<usize>,
+    limits: MatchingLimits,
+) -> MatchingComponent {
+    match cardinality::solve(
         remaining,
         proposals,
         source_premises,
         conflicts,
         ownership,
-        MatchingLimits {
-            max_states_per_component: limits
-                .max_states_per_component
-                .saturating_sub(explored_states),
-            ..limits
-        },
-        &forced,
-    );
-    result.proposals = indices;
-    result.explored_states += explored_states;
-    result
+        forced,
+        limits,
+    ) {
+        cardinality::Attempt::Solved(component) => component,
+        cardinality::Attempt::Unsupported {
+            remaining,
+            assignment_work,
+        } => {
+            let mut component = search_component(
+                remaining,
+                proposals,
+                source_premises,
+                conflicts,
+                ownership,
+                limits,
+                forced,
+            );
+            component.assignment_work = component.assignment_work.saturating_add(assignment_work);
+            component
+        }
+    }
 }
 
 fn objective_class(

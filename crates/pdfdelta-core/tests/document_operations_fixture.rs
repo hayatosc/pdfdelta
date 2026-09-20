@@ -519,6 +519,7 @@ mod visual_supplier {
                         glyphs: Vec::new(),
                         role: "paragraph".into(),
                         text: Some("unselected background".into()),
+                        declared_text: None,
                         parent: None,
                         order: None,
                     },

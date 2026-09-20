@@ -1432,6 +1432,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> Opti
                 role: "P".into(),
                 identifier: None,
                 text: None,
+                declared_text: None,
                 glyphs: page_zero_glyphs[..count].to_vec(),
                 content: None,
                 parent: previous_structure,

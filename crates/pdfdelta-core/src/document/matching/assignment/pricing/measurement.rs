@@ -1,5 +1,7 @@
 //! Test-only entry point for the benchmark-owned immutable coefficient matrix.
 
+use std::collections::BTreeSet;
+
 use super::{Assignment, Budget, Edge, PricingPass, Score, Trial, trial_with};
 
 #[derive(serde::Deserialize)]
@@ -90,13 +92,13 @@ pub(super) fn dense_trial_with(
             }
         }
         construction.optimization_runs = 1;
-        let optimum = problem.optimum(None, &mut budget)?;
+        let optimum = problem.optimum(&BTreeSet::new(), &mut budget)?;
         construction.complete = true;
         result.cost = Some(optimum.cost);
         let active_edges = construction.max_active_edges;
         let mut mandatory = Vec::new();
         for proposal in optimum.selected {
-            let without = problem.optimum(Some(proposal), &mut budget);
+            let without = problem.optimum(&BTreeSet::from([proposal]), &mut budget);
             result.passes.push(PricingPass {
                 forbidden: Some(proposal),
                 optimization_runs: 1,

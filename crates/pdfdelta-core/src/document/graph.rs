@@ -2,7 +2,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, model::PageId, normalize::ComparableToken};
+use crate::{
+    Result,
+    model::{GlyphId, PageId},
+    normalize::ComparableToken,
+};
 
 use super::{
     BackendKind, Channel, EvidenceLimits, EvidenceStore, FieldValue, SourceRef,
@@ -184,6 +188,11 @@ pub struct DocumentGraph {
     pub source_conflicts: Vec<SourceConflict>,
     /// Explicitly observed relationships versus unexamined/inferred structure.
     pub relations_complete: bool,
+    /// Sources marked uncertain by the declaration pass in `from_evidence`.
+    /// Projection must not turn a node holding one of these sources from
+    /// `Unresolved` back into an exact view. Empty without declarations.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub declaration_affected: BTreeSet<SourceRef>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -258,7 +267,7 @@ impl DocumentGraph {
         evidence: EvidenceLimits,
         limits: GraphLimits,
     ) -> Result<super::evidence::NativeIndex<'a>> {
-        let native = store.validate_indexed(evidence)?;
+        let mut native = store.validate_indexed(evidence)?;
         bounded(self.nodes.len(), limits.max_nodes, "graph nodes")?;
         bounded(self.edges.len(), limits.max_edges, "graph edges")?;
         bounded(
@@ -272,6 +281,32 @@ impl DocumentGraph {
             "source conflicts",
         )?;
         let sources = store.source_pages().collect::<BTreeMap<_, _>>();
+        // Validated declared replacements cover their native membership at the
+        // membership level. The exemption is typed by the evidence and applies
+        // only to the exact verified replacement view: correct owner and basis,
+        // full declared tokens, Exact normalization and the complete native
+        // membership. Every other node must satisfy source conservation.
+        let declared_memberships: BTreeMap<u64, (&str, &[GlyphId])> = store
+            .structured
+            .iter()
+            .filter_map(|element| {
+                let super::StructuredValue::StructureElement {
+                    declared_text: Some(declared),
+                    glyphs,
+                    ..
+                } = &element.value
+                else {
+                    return None;
+                };
+                if declared.status != super::DeclaredTextStatus::Validated
+                    || declared.glyphs.is_empty()
+                    || declared.glyphs != *glyphs
+                {
+                    return None;
+                }
+                Some((element.id, (declared.text.as_str(), glyphs.as_slice())))
+            })
+            .collect();
         let recognized_sources: BTreeSet<_> = store
             .structured
             .iter()
@@ -291,6 +326,25 @@ impl DocumentGraph {
         let mut references = 0usize;
         let mut tokens = 0usize;
         let mut label_bytes = 0usize;
+        // The declaration-affected set is public graph input, so it is charged
+        // against the same aggregate reference budget as node sources and every
+        // member must exist in the evidence store before it is copied into the
+        // index. The charge precedes the copy.
+        charge(
+            &mut references,
+            self.declaration_affected.len(),
+            limits.max_references,
+            "graph references",
+        )?;
+        if self
+            .declaration_affected
+            .iter()
+            .any(|source| !sources.contains_key(source))
+        {
+            return Err(invalid(
+                "declaration-affected source is not present in the evidence store",
+            ));
+        }
         for node in &self.nodes {
             if nodes.insert(node.id, node).is_some() {
                 return Err(invalid("duplicate graph node identity"));
@@ -379,6 +433,48 @@ impl DocumentGraph {
                             ));
                         }
                         used.extend(token_sources);
+                    }
+                    // A node presenting a validated declaration's exact text
+                    // must carry the complete native membership it replaces.
+                    for source in &node.sources {
+                        if let SourceRef::Structured { element } = source
+                            && let Some((declared_text, members)) =
+                                declared_memberships.get(element)
+                            && declares_tokens(view, declared_text)
+                            && !members.iter().all(|glyph| {
+                                source_set.contains(&SourceRef::Native { glyph: *glyph })
+                            })
+                        {
+                            return Err(invalid(
+                                "declared replacement view omits its native membership",
+                            ));
+                        }
+                    }
+                    if used != source_set {
+                        for source in &node.sources {
+                            if let SourceRef::Structured { element } = source
+                                && let Some((declared_text, members)) =
+                                    declared_memberships.get(element)
+                                && is_exact_declared_replacement_view(
+                                    node,
+                                    view,
+                                    declared_text,
+                                    members,
+                                    &source_set,
+                                )
+                            {
+                                used.extend(
+                                    members
+                                        .iter()
+                                        .filter_map(|glyph| {
+                                            source_set
+                                                .get(&SourceRef::Native { glyph: *glyph })
+                                                .copied()
+                                        })
+                                        .collect::<Vec<_>>(),
+                                );
+                            }
+                        }
                     }
                     if used != source_set {
                         return Err(invalid("text view silently omits source evidence"));
@@ -584,6 +680,9 @@ impl DocumentGraph {
             )?;
             check_sources(&conflict.sources, &sources, &mut references, limits)?;
         }
+        native
+            .declaration_affected
+            .clone_from(&self.declaration_affected);
         Ok(native)
     }
 }
@@ -626,6 +725,37 @@ fn check_sources(
         }
     }
     Ok(unique)
+}
+
+/// Token comparison without allocating a declared-token vector.
+fn declares_tokens(view: &TextView, declared_text: &str) -> bool {
+    view.tokens.len() == declared_text.chars().count()
+        && view
+            .tokens
+            .iter()
+            .zip(declared_text.chars())
+            .all(|(token, character)| *token == ComparableToken::Scalar(character))
+}
+
+/// The exact verified replacement view predicate shared with provider
+/// construction: only this node may cover native membership sources without
+/// emitting a token per glyph.
+fn is_exact_declared_replacement_view(
+    node: &GraphNode,
+    view: &TextView,
+    declared_text: &str,
+    members: &[GlyphId],
+    source_set: &BTreeSet<SourceRef>,
+) -> bool {
+    if node.basis != ViewBasis::SourceStructure || view.normalization != TextNormalization::Exact {
+        return false;
+    }
+    if !declares_tokens(view, declared_text) {
+        return false;
+    }
+    members
+        .iter()
+        .all(|glyph| source_set.contains(&SourceRef::Native { glyph: *glyph }))
 }
 
 pub(super) fn charge(

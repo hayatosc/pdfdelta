@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "script": {
+    "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/remaining/completion-investigation/small_component_oracle.py",
+    "sha256": "92c16c803b576bf28818029b1b6493297ed5b5267b48e54b033dce28f467929c"
+  },
+  "scope": "Check small endpoint packings independently by enumerating combinations.\n\nThe two frozen natural components have at most two simultaneously selected\nproposals. This verifier enumerates every subset up to that independently\nderived cardinality bound; it does not reproduce a clique-choice traversal.\nThe native constraint projection must have no partitions, descendant ownership,\nshared node sources, or source conflicts. It is not a visual transcription or\nwhole-document acquisition certificate.\n",
+  "exhaustive_control_cases": 511,
+  "cases": [
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "before": {
+        "path": "benchmark/realworld/cache/completion-investigation/after/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.json",
+        "sha256": "2246b5c0431cf6c5232f62a45551cfa46bd55489993ee0e4a89477e8c122ed8d"
+      },
+      "probe": {
+        "path": "benchmark/realworld/cache/completion-investigation/clique-search/parent/ecb-constraints.json",
+        "sha256": "7af6e5dbf345b089e7a602b62317dff00569b14eb4358185dc3e5c1af0cb9988"
+      },
+      "component": 1437,
+      "proposal_count": 36,
+      "cardinality_upper_bound": 2,
+      "subsets_examined": 667,
+      "feasible_subsets": 329,
+      "optimum": 2,
+      "optimal_subsets": 292,
+      "mandatory_local_ids": [],
+      "mandatory_proposal_ids": [],
+      "after": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-pilot/ecb-annual-2023-to-2024/ecb-annual-2023-to-2024-text.json",
+        "sha256": "467bb82c586606cae563a2212454671a57016472a642995bb89a4c5662b530d5"
+      },
+      "production_agrees": true,
+      "production_algorithm": "cardinality_choice",
+      "production_states": 3523,
+      "production_assignment_work": 255
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "before": {
+        "path": "benchmark/realworld/cache/completion-investigation/after/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "a33ca47714bfd38b96c7bf2930c6de0f285fd6bab592e8a06947cb7c991f5610"
+      },
+      "probe": {
+        "path": "benchmark/realworld/cache/completion-investigation/clique-search/parent/contingency-constraints-v2.json",
+        "sha256": "cec71e32b0bfb54cc3ddff75af40b10ecad324906fbf4cde094b9792904d1828"
+      },
+      "component": 228,
+      "proposal_count": 59,
+      "cardinality_upper_bound": 2,
+      "subsets_examined": 1771,
+      "feasible_subsets": 782,
+      "optimum": 2,
+      "optimal_subsets": 722,
+      "mandatory_local_ids": [],
+      "mandatory_proposal_ids": [],
+      "after": {
+        "path": "benchmark/realworld/cache/completion-investigation/cardinality-pilot/nist-contingency-34-to-r1/nist-contingency-34-to-r1-text.json",
+        "sha256": "91c3e13a4ff1a787de1dbab134a01c89c36d2669b4d9739fbdd4a2cb83701816"
+      },
+      "production_agrees": true,
+      "production_algorithm": "cardinality_choice",
+      "production_states": 16286,
+      "production_assignment_work": 420
+    }
+  ],
+  "limitations": "The constraint projection uses the production native parser and layout; it does not independently adjudicate omitted rivals, semantic identity, full-graph structured views, visual readings, or complete inventory."
+}
