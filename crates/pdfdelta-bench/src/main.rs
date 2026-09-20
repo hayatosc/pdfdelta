@@ -8,7 +8,7 @@ use std::{
 
 use clap::{Parser, Subcommand, ValueEnum};
 use pdfdelta_bench::{
-    agent_review::audit_bundle,
+    agent_review::audit_bundle_with_baseline,
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
     candidate_profile::{
         CandidateProfileGenerator, CandidateProfileRecord, DEFAULT_SYNTHETIC_PROFILE_BLOCKS,
@@ -61,6 +61,10 @@ enum Command {
         /// A host's own usage record, carried through unchanged.
         #[arg(long)]
         host_usage: Option<PathBuf>,
+        /// Directory to write the measured baseline text into, for an external
+        /// tokenizer to count.
+        #[arg(long)]
+        baseline_text: Option<PathBuf>,
         /// Write the audit to a new file instead of standard output.
         #[arg(long)]
         output: Option<PathBuf>,
@@ -544,10 +548,16 @@ fn main() -> ExitCode {
             bundle,
             report,
             host_usage,
+            baseline_text,
             output,
         }) => (|| {
-            let audit = audit_bundle(&bundle, report.as_deref(), host_usage.as_deref())
-                .map_err(|error| error.to_string())?;
+            let audit = audit_bundle_with_baseline(
+                &bundle,
+                report.as_deref(),
+                host_usage.as_deref(),
+                baseline_text.as_deref(),
+            )
+            .map_err(|error| error.to_string())?;
             let mut encoded =
                 serde_json::to_vec_pretty(&audit).map_err(|error| error.to_string())?;
             encoded.push(b'\n');

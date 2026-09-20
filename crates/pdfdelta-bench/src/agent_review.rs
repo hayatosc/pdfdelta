@@ -237,7 +237,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 /// Extracted glyph text of one document, as a host would paste it.
-fn extracted_text_bytes(bytes: Vec<u8>) -> usize {
+fn extracted_text(bytes: Vec<u8>) -> String {
     let source =
         ParserBackedGlyphSource::new(pdfdelta_core::pdf::LopdfParser, ContentStreamGlyphExtractor);
     let Ok(outcome) = source.extract_outcome(
@@ -245,19 +245,24 @@ fn extracted_text_bytes(bytes: Vec<u8>) -> usize {
         ParseLimits::default(),
         ExtractionLimits::default(),
     ) else {
-        return 0;
+        return String::new();
     };
     let document: &Document<Glyph> = outcome.document();
-    document
-        .items()
-        .iter()
-        .map(|glyph| match &glyph.text {
-            DecodedText::Mapped(text) => text.len(),
+    let mut text = String::new();
+    for glyph in document.items() {
+        match &glyph.text {
+            DecodedText::Mapped(mapped) => text.push_str(mapped),
             // An unmapped glyph still occupies a reader's attention; its raw
             // codes are what a host would have to show.
-            DecodedText::Unmapped { .. } => glyph.raw_code.len(),
-        })
-        .sum()
+            DecodedText::Unmapped { .. } => {
+                for byte in &glyph.raw_code {
+                    use std::fmt::Write as _;
+                    let _ = write!(text, "\\x{byte:02x}");
+                }
+            }
+        }
+    }
+    text
 }
 
 /// Audits one exported bundle.
@@ -274,6 +279,25 @@ pub fn audit_bundle(
     directory: &Path,
     report: Option<&Path>,
     host_usage: Option<&Path>,
+) -> Result<BundleAudit> {
+    audit_bundle_with_baseline(directory, report, host_usage, None)
+}
+
+/// Audits one bundle and optionally writes the baseline text it measured.
+///
+/// `baseline_text` receives `old.txt` and `new.txt`: the same extraction the
+/// comparison used, written out so an external tokenizer can count the very
+/// text a host would otherwise paste. Writing it here keeps the baseline and
+/// the packets on one extractor; counting a different library's reading would
+/// compare two documents rather than two ways of reviewing one.
+///
+/// # Errors
+/// As [`audit_bundle`], plus a failure to publish the baseline text.
+pub fn audit_bundle_with_baseline(
+    directory: &Path,
+    report: Option<&Path>,
+    host_usage: Option<&Path>,
+    baseline_text: Option<&Path>,
 ) -> Result<BundleAudit> {
     let manifest_path = directory.join("manifest.json");
     let manifest_bytes = read(&manifest_path)?;
@@ -464,12 +488,22 @@ pub fn audit_bundle(
         }
     }
 
+    if let Some(destination) = baseline_text {
+        fs::create_dir_all(destination).map_err(|error| {
+            BenchError::InvalidInput(format!(
+                "cannot create baseline text directory {}: {error}",
+                destination.display()
+            ))
+        })?;
+    }
     let baseline_full_text_bytes = ["old.pdf", "new.pdf"]
         .iter()
         .map(|name| {
-            fs::read(directory.join(name))
-                .map(extracted_text_bytes)
-                .ok()
+            let text = fs::read(directory.join(name)).map(extracted_text).ok()?;
+            if let Some(destination) = baseline_text {
+                fs::write(destination.join(name.replace(".pdf", ".txt")), &text).ok()?;
+            }
+            Some(text.len())
         })
         .try_fold(0, |total, side| side.map(|bytes| total + bytes));
     let baseline_report_bytes = report
