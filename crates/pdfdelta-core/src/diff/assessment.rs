@@ -11,6 +11,7 @@ mod footers;
 mod hypotheses;
 mod local;
 mod normalization;
+mod raw_source;
 mod review;
 mod semantic;
 mod validation;
@@ -122,6 +123,8 @@ pub enum ComparisonAssumption {
     /// established stationary neighbour correspondence; raw coordinates are
     /// never used to adopt the move.
     StationaryNeighbour,
+    /// One exact whole-block pair whose raw source projection is isomorphic.
+    RawSourceEquality,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -2039,6 +2042,11 @@ pub(super) fn finish(
     if assessor.output_stop.is_none() {
         candidates_truncated |=
             assessor.recover_stationary_members(&mut ownership, &mut changes, &mut candidates)?;
+        candidates_truncated |= assessor.recover_raw_source_equalities(
+            &mut ownership,
+            &mut changes,
+            &mut candidates,
+        )?;
     }
     for formatting in proposed.formatting_changes {
         for &index in &accepted {
@@ -2298,6 +2306,7 @@ struct Assessor<'a, 'document> {
     /// Whole old/new spans proven stationary through an established
     /// neighbour correspondence, kept for report assumptions.
     stationary_members: Vec<(TextSpan, TextSpan)>,
+    raw_source_equalities: Vec<(TextSpan, TextSpan)>,
     /// Spans of local domains discovered by the bracketed-region pass,
     /// recorded so the proven relation carries the geometric boundaries as an
     /// explicit assumption.
@@ -2565,7 +2574,18 @@ impl<'a, 'document> Assessor<'a, 'document> {
         if !has_barrier {
             return Ok((reasons, false));
         }
-        let local_issue = if let Some((old, new)) = &key.local {
+        // The paired raw-source proof is the only evidence that may lift the
+        // normalization-issue barrier, and only for the exact whole-block pair
+        // it proved. Extraction gaps and every other reason stay in force, and
+        // no other span inherits the proof.
+        let raw_proven = key.local.as_ref().is_some_and(|(old, new)| {
+            self.raw_source_equalities
+                .iter()
+                .any(|(raw_old, raw_new)| raw_old == old && raw_new == new)
+        });
+        let local_issue = if raw_proven {
+            false
+        } else if let Some((old, new)) = &key.local {
             span_has_source_issues(self.sides[0], old, &mut self.remaining_work)?
                 || span_has_source_issues(self.sides[1], new, &mut self.remaining_work)?
         } else {
@@ -2927,6 +2947,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 .any(|(bracketed_old, bracketed_new)| bracketed_old == old && bracketed_new == new)
         }) {
             domain_assumptions.push(ComparisonAssumption::BracketedRegion);
+        }
+        if key.local.as_ref().is_some_and(|(old, new)| {
+            self.raw_source_equalities
+                .iter()
+                .any(|(raw_old, raw_new)| raw_old == old && raw_new == new)
+        }) {
+            domain_assumptions.push(ComparisonAssumption::RawSourceEquality);
         }
         if key.local.as_ref().is_some_and(|(old, new)| {
             self.stationary_members
@@ -3552,6 +3579,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             local_anchors: Vec::new(),
             anchored_translations: Vec::new(),
             stationary_members: Vec::new(),
+            raw_source_equalities: Vec::new(),
             bracketed_domains: Vec::new(),
             exact_displacements: Vec::new(),
             footer_domains: Vec::new(),

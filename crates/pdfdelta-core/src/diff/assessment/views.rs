@@ -1,3 +1,5 @@
+use super::raw_source::{RawSourceVerdict, raw_source_isomorphic};
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::{
@@ -1486,6 +1488,17 @@ enum TranslationMode {
     /// One whole original block member sits still and is supported by an
     /// independently established stationary neighbour.
     StationaryMember,
+    /// One whole original block member sits still, is supported by an
+    /// independently established stationary neighbour, and its paired raw
+    /// source projection is completely isomorphic.
+    ///
+    /// This mode reuses every stationary support, reference, occurrence and
+    /// ownership guard unchanged. Its only local addition is that the paired
+    /// raw-source proof replaces the normalization-issue veto of that one
+    /// pair; the returned domain reports `source_bounded = true` because the
+    /// proof compared every original character and source on both sides. The
+    /// view-level and global `source_bounded` flags are never relaxed.
+    RawSourceEquality,
 }
 
 /// Whether one member range covers the whole original block on this side.
@@ -1514,7 +1527,7 @@ fn mode_key_matches(
         TranslationMode::NonzeroSingleton => {
             exact_translation(old_view, old_range, new_view, new_range) == Some(key)
         }
-        TranslationMode::StationaryMember => {
+        TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
             finite_translation(old_view, old_range, new_view, new_range) == Some(key)
         }
     }
@@ -1525,7 +1538,7 @@ fn mode_supports(mode: TranslationMode, translation: crate::model::Vec2) -> bool
     let stationary = translation.x == 0.0 && translation.y == 0.0;
     match mode {
         TranslationMode::NonzeroSingleton => !stationary,
-        TranslationMode::StationaryMember => stationary,
+        TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => stationary,
     }
 }
 
@@ -1622,6 +1635,89 @@ pub(super) fn discover_stationary_members_masked(
     )
 }
 
+/// Whether every member of the built views keeps its raw-source metadata for
+/// the raw-equality mode only.
+///
+/// A whole original block whose raw projection verifies against itself is
+/// augmented locally: its canonical signatures and single page enter the
+/// member token range and its member becomes a candidate. A block with
+/// unknown, unsupported or differing raw evidence keeps its original metadata,
+/// every view and every competitor stays in place, and the view-level
+/// `source_bounded`, `horizontal_text` and `position_signatures` fields are
+/// never relaxed: the candidate key reads the augmented token metadata and
+/// reference geometry still comes from the side's own evidence. `false` means
+/// the shared budget ran out.
+fn augment_raw_source_views(
+    side: &Side<'_>,
+    views: &mut [View],
+    remaining_work: &mut usize,
+) -> Result<bool> {
+    for view in views.iter_mut() {
+        for member in 0..view.block_indices.len() {
+            if !charge(remaining_work, 1) {
+                return Ok(false);
+            }
+            let block_index = view.block_indices[member];
+            let block = &side.blocks[block_index];
+            match raw_source_isomorphic(block, block, remaining_work) {
+                RawSourceVerdict::Isomorphic => {}
+                RawSourceVerdict::Exhausted => return Ok(false),
+                RawSourceVerdict::Different | RawSourceVerdict::Held(_) => continue,
+            }
+            let Some(signatures) = block.position_signatures.as_deref() else {
+                continue;
+            };
+            if !charge(remaining_work, signatures.len()) {
+                return Ok(false);
+            }
+            if !left_to_right_text(block) || !signatures.iter().all(horizontal_direction) {
+                continue;
+            }
+            let [page] = block.pages.as_slice() else {
+                continue;
+            };
+            let range = view.block_ranges[member].clone();
+            if range.len() != signatures.len() {
+                continue;
+            }
+            for (offset, signature) in signatures.iter().enumerate() {
+                if !charge(remaining_work, 1) {
+                    return Ok(false);
+                }
+                view.token_positions[range.start + offset] = Some(*signature);
+                view.token_pages[range.start + offset] = Some(*page);
+            }
+            view.block_candidates[member] = true;
+        }
+    }
+    Ok(true)
+}
+
+/// Raw-source-equality discovery with a reject-only candidate mask.
+///
+/// The mask removes candidate whole blocks only; it never shrinks view
+/// populations, occurrence sets or the reference set. Every stationary
+/// support, reference, order and ownership guard applies unchanged, and the
+/// returned domain may replace only its own pair's normalization-issue veto.
+pub(super) fn discover_raw_source_equalities_masked(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    candidate_mask: &[Vec<bool>; 2],
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::RawSourceEquality,
+        Some(candidate_mask),
+    )
+}
+
 fn discover_translations_mode(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -1651,7 +1747,7 @@ fn discover_translations_mode(
     let new_descriptors = recovery
         .new_trusted_run_evidence
         .map(|evidence| evidence.descriptors);
-    let Some(old_views) = build_views(
+    let Some(mut old_views) = build_views(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
@@ -1660,7 +1756,7 @@ fn discover_translations_mode(
     else {
         return Ok(Vec::new());
     };
-    let Some(new_views) = build_views(
+    let Some(mut new_views) = build_views(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
@@ -1669,6 +1765,12 @@ fn discover_translations_mode(
     else {
         return Ok(Vec::new());
     };
+    if mode == TranslationMode::RawSourceEquality
+        && (!augment_raw_source_views(sides[0], &mut old_views, remaining_work)?
+            || !augment_raw_source_views(sides[1], &mut new_views, remaining_work)?)
+    {
+        return Ok(Vec::new());
+    }
     if old_views.is_empty() || new_views.is_empty() {
         return Ok(Vec::new());
     }
@@ -1784,7 +1886,7 @@ fn discover_translations_mode(
                         continue;
                     }
                 }
-                TranslationMode::StationaryMember => {
+                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
                     if !whole_original_member(sides[0], old_view, block) {
                         continue;
                     }
@@ -1806,9 +1908,11 @@ fn discover_translations_mode(
                 break 'views;
             }
             let candidate_index = old_view.block_indices[block];
-            if mode == TranslationMode::StationaryMember
-                && candidate_mask
-                    .is_some_and(|mask| !mask[0].get(candidate_index).copied().unwrap_or(false))
+            if matches!(
+                mode,
+                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality
+            ) && candidate_mask
+                .is_some_and(|mask| !mask[0].get(candidate_index).copied().unwrap_or(false))
             {
                 continue;
             }
@@ -1956,13 +2060,15 @@ fn discover_translations_mode(
                     crate::model::Vec2 { x: 0.0, y: 0.0 },
                     remaining_work,
                 )?,
-                TranslationMode::StationaryMember => positioned_occurrences(
-                    &old_views,
-                    old_view,
-                    &old_range,
-                    old_view_index,
-                    remaining_work,
-                )?,
+                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
+                    positioned_occurrences(
+                        &old_views,
+                        old_view,
+                        &old_range,
+                        old_view_index,
+                        remaining_work,
+                    )?
+                }
             };
             let Some(old_occurrences) = old_occurrences else {
                 return Ok(Vec::new());
@@ -1979,13 +2085,15 @@ fn discover_translations_mode(
                     key,
                     remaining_work,
                 )?,
-                TranslationMode::StationaryMember => positioned_occurrences(
-                    &new_views,
-                    old_view,
-                    &old_range,
-                    usize::MAX,
-                    remaining_work,
-                )?,
+                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
+                    positioned_occurrences(
+                        &new_views,
+                        old_view,
+                        &old_range,
+                        usize::MAX,
+                        remaining_work,
+                    )?
+                }
             };
             let Some(new_occurrences) = new_occurrences else {
                 return Ok(Vec::new());
@@ -2006,7 +2114,7 @@ fn discover_translations_mode(
                         continue;
                     }
                 }
-                TranslationMode::StationaryMember => {
+                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
                     let Some(member) = new_view
                         .block_ranges
                         .iter()
@@ -2059,9 +2167,11 @@ fn discover_translations_mode(
             else {
                 continue;
             };
-            if mode == TranslationMode::StationaryMember
-                && candidate_mask
-                    .is_some_and(|mask| !mask[1].get(new_candidate_index).copied().unwrap_or(false))
+            if matches!(
+                mode,
+                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality
+            ) && candidate_mask
+                .is_some_and(|mask| !mask[1].get(new_candidate_index).copied().unwrap_or(false))
             {
                 continue;
             }
@@ -2283,8 +2393,24 @@ fn discover_translations_mode(
             }
             let old_span = old_view.group.span(old_range.start, old_range.end);
             let new_span = new_view.group.span(new_range.start, new_range.end);
-            if !compatible_roles(sides, [&old_span, &new_span], remaining_work)?
-                || super::span_has_source_issues(sides[0], &old_span, remaining_work)?
+            if !compatible_roles(sides, [&old_span, &new_span], remaining_work)? {
+                continue;
+            }
+            if mode == TranslationMode::RawSourceEquality {
+                // Only the paired whole-block raw-source proof may replace the
+                // normalization-issue veto of this exact pair. Every other
+                // mode keeps the veto, and an unknown or differing pair is
+                // never promoted to equality.
+                match raw_source_isomorphic(
+                    &sides[0].blocks[candidate_index],
+                    &sides[1].blocks[new_candidate_index],
+                    remaining_work,
+                ) {
+                    RawSourceVerdict::Isomorphic => {}
+                    RawSourceVerdict::Exhausted => return Ok(Vec::new()),
+                    RawSourceVerdict::Different | RawSourceVerdict::Held(_) => continue,
+                }
+            } else if super::span_has_source_issues(sides[0], &old_span, remaining_work)?
                 || super::span_has_source_issues(sides[1], &new_span, remaining_work)?
             {
                 continue;
@@ -2296,7 +2422,11 @@ fn discover_translations_mode(
             });
         }
     }
-    if mode == TranslationMode::StationaryMember && *remaining_work == 0 {
+    if matches!(
+        mode,
+        TranslationMode::StationaryMember | TranslationMode::RawSourceEquality
+    ) && *remaining_work == 0
+    {
         // A cut anywhere in this pass drops every domain it found, so a
         // mid-budget exhaustion never leaves a partial stationary proof.
         return Ok(Vec::new());
@@ -4352,6 +4482,95 @@ mod tests {
         }
     }
 
+    /// A whole block whose raw source projection is fully isomorphic to
+    /// itself but whose normalization carries one ambiguous line break issue.
+    ///
+    /// Raw `A\nB\nC` becomes canonical `AB\nC`: the first line break is
+    /// deleted by a soft line break event and the second is retained with an
+    /// ambiguous line break issue, so the ordinary source-bounded flag stays
+    /// false while the raw proof still holds.
+    fn raw_issue_block(id: u64, x: f64, y: f64, page: u32) -> crate::normalize::BlockText {
+        let first = GlyphId(id * 1000 + 1);
+        let second = GlyphId(id * 1000 + 2);
+        let third = GlyphId(id * 1000 + 3);
+        let glyph = |glyph: GlyphId| TextSourceAtom::Glyph(glyph);
+        let line_break = |preceding: GlyphId, following: GlyphId| TextSourceAtom::LineBreak {
+            preceding,
+            following,
+        };
+        let entry = |index: usize, atom: TextSourceAtom| SourceMapEntry {
+            output_range: ScalarRange {
+                start: index,
+                end: index + 1,
+            },
+            source: TextSource {
+                atoms: vec![atom].into(),
+            },
+        };
+        let raw = MappedText {
+            text: "A\nB\nC".to_owned(),
+            source_map: vec![
+                entry(0, glyph(first)),
+                entry(1, line_break(first, second)),
+                entry(2, glyph(second)),
+                entry(3, line_break(second, third)),
+                entry(4, glyph(third)),
+            ],
+            unmapped: Vec::new(),
+        };
+        let canonical = MappedText {
+            text: "AB\nC".to_owned(),
+            source_map: vec![
+                entry(0, glyph(first)),
+                entry(1, glyph(second)),
+                entry(2, line_break(second, third)),
+                entry(3, glyph(third)),
+            ],
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("raw issue tokens");
+        let position = |index: usize| {
+            PositionSignature::new(
+                Vec2 {
+                    x: x + index as f64 * 10.0,
+                    y,
+                },
+                Vec2 { x: 1.0, y: 0.0 },
+            )
+            .expect("valid position")
+        };
+        let font_size = FontSizeSignature::new(&[10.0]).expect("valid font size");
+        crate::normalize::BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw,
+            canonical,
+            matching: "AB\nC".to_owned(),
+            matching_tokens: tokens.clone(),
+            numeric_mask_applied: false,
+            normalization_events: vec![crate::normalize::NormalizationEvent {
+                kind: crate::normalize::NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                canonical_range: ScalarRange { start: 1, end: 1 },
+                source: TextSource {
+                    atoms: vec![line_break(first, second)].into(),
+                },
+            }],
+            issues: vec![crate::normalize::NormalizationIssue {
+                kind: crate::normalize::NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 3, end: 4 },
+                source: TextSource {
+                    atoms: vec![line_break(second, third)].into(),
+                },
+            }],
+            pages: vec![page],
+            font_size_signatures: Some(vec![font_size; tokens.len()]),
+            position_signatures: Some(vec![position(0), position(1), position(1), position(2)]),
+            line_breaks: Some(vec![2]),
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
     fn side(blocks: &[crate::normalize::BlockText]) -> Side<'_> {
         super::super::super::SidePlan::inspect("test", blocks)
             .expect("test blocks are valid")
@@ -6167,6 +6386,155 @@ mod tests {
         assert!(
             domains.is_empty(),
             "two different anchors must not be stitched into one proof: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_closes_a_whole_issue_block_supported_by_a_stationary_neighbour()
+    -> Result<()> {
+        let old_blocks = [
+            spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            raw_issue_block(2, 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+            raw_issue_block(102, 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let mask = [vec![true, true], vec![true, true]];
+
+        let domains = discover_raw_source_equalities_masked(
+            [&old, &new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &mask,
+        )?;
+        assert_eq!(
+            domains.len(),
+            1,
+            "the raw-equal member may close: {domains:?}"
+        );
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 4)?,
+            "the raw equality must close the whole original block: {domains:?}"
+        );
+
+        // The ordinary stationary mode must keep holding this issue-carrying
+        // member: only the paired raw proof may replace the issue veto.
+        let stationary =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            stationary.is_empty(),
+            "the stationary mode must still hold: {stationary:?}"
+        );
+
+        // A raw difference on the new side holds the pair.
+        let mut changed = new_blocks.clone();
+        changed[1].raw.text = "A\nB\nX".to_owned();
+        let changed_new = side(&changed);
+        let held = discover_raw_source_equalities_masked(
+            [&old, &changed_new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &mask,
+        )?;
+        assert!(held.is_empty(), "a raw difference must hold: {held:?}");
+
+        // Unknown metadata keeps the candidate out of the raw proof.
+        let mut unknown = new_blocks.clone();
+        unknown[1].position_signatures = None;
+        let unknown_new = side(&unknown);
+        let unknown_domains = discover_raw_source_equalities_masked(
+            [&old, &unknown_new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &mask,
+        )?;
+        assert!(
+            unknown_domains.is_empty(),
+            "unknown metadata must hold: {unknown_domains:?}"
+        );
+
+        // A second occurrence at the same position vetoes the pair.
+        let mut duplicated = new_blocks.to_vec();
+        duplicated.push(raw_issue_block(103, 10.0, 680.0, 0));
+        let duplicated_new = side(&duplicated);
+        let duplicated_intervals = [None, None, None];
+        let duplicate_domains = discover_raw_source_equalities_masked(
+            [&old, &duplicated_new],
+            recovery(&intervals, &duplicated_intervals),
+            &established,
+            &mut 100_000,
+            100,
+            &[vec![true, true], vec![true, true, true]],
+        )?;
+        assert!(
+            duplicate_domains.is_empty(),
+            "a same-position duplicate must hold: {duplicate_domains:?}"
+        );
+
+        // Right-to-left canonical text may never use the raw equality.
+        let mut rtl_old = old_blocks.to_vec();
+        rtl_old[1].raw.text = "\u{5d0}\n\u{5d1}\n\u{5d2}".to_owned();
+        rtl_old[1].canonical.text = "\u{5d0}\u{5d1}\n\u{5d2}".to_owned();
+        let mut rtl_new = new_blocks.to_vec();
+        rtl_new[1].raw.text = "\u{5d0}\n\u{5d1}\n\u{5d2}".to_owned();
+        rtl_new[1].canonical.text = "\u{5d0}\u{5d1}\n\u{5d2}".to_owned();
+        let rtl_old = side(&rtl_old);
+        let rtl_new = side(&rtl_new);
+        let rtl_domains = discover_raw_source_equalities_masked(
+            [&rtl_old, &rtl_new],
+            input,
+            &established,
+            &mut 100_000,
+            100,
+            &mask,
+        )?;
+        assert!(
+            rtl_domains.is_empty(),
+            "right-to-left text must not close a raw equality: {rtl_domains:?}"
+        );
+
+        // Without an independent anchor nothing closes.
+        let unanchored = discover_raw_source_equalities_masked(
+            [&old, &new],
+            input,
+            &[],
+            &mut 100_000,
+            100,
+            &mask,
+        )?;
+        assert!(
+            unanchored.is_empty(),
+            "no anchor means no proof: {unanchored:?}"
+        );
+
+        // An exhausted budget never emits a partial domain.
+        let exhausted = discover_raw_source_equalities_masked(
+            [&old, &new],
+            input,
+            &established,
+            &mut 0,
+            100,
+            &mask,
+        )?;
+        assert!(
+            exhausted.is_empty(),
+            "a budget cut must not emit a domain: {exhausted:?}"
         );
         Ok(())
     }

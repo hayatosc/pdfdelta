@@ -784,6 +784,157 @@ impl Assessor<'_, '_> {
         Ok(truncated)
     }
 
+    /// Discovers whole original blocks whose paired raw source projection is
+    /// completely isomorphic and that are carried by an independently
+    /// established stationary neighbour.
+    ///
+    /// The pass runs only after the ordinary local and bracketed recovery has
+    /// reached its fixpoint, so it never spends work the earlier passes still
+    /// need. Candidates whose projected source intervals intersect the
+    /// accepted or changed ownership at all are held; a fully owned candidate
+    /// is skipped. Every candidate is checked into a buffer first and the
+    /// append is charged once, so a mid-budget cut or output limit never
+    /// leaves a partial domain or assumption behind.
+    pub(super) fn discover_raw_source_equalities(
+        &mut self,
+        ownership: &[Ownership; 2],
+    ) -> Result<()> {
+        if self.remaining_work == 0
+            || self.output_stop.is_some()
+            || self.local_domains.len() >= self.options.max_assessment_ranges
+            || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1)
+        {
+            return Ok(());
+        }
+        let Some(recovery) = self.recovery else {
+            return Ok(());
+        };
+        let Some(established) = self.collect_established_blocks(ownership)? else {
+            return Ok(());
+        };
+        if established.is_empty() {
+            return Ok(());
+        }
+        let Some(mask) = self.stationary_candidate_mask(ownership)? else {
+            return Ok(());
+        };
+        if !mask[0].iter().any(|&eligible| eligible) || !mask[1].iter().any(|&eligible| eligible) {
+            return Ok(());
+        }
+        let domains = super::views::discover_raw_source_equalities_masked(
+            self.sides,
+            recovery,
+            &established,
+            &mut self.remaining_work,
+            self.options.max_assessment_ranges,
+            &mask,
+        )?;
+        if domains.is_empty() {
+            return Ok(());
+        }
+        let mut accepted = Vec::new();
+        for domain in domains {
+            if self.local_domains.len() + accepted.len() >= self.options.max_assessment_ranges {
+                break;
+            }
+            let duplicate_work = self.local_domains.len().saturating_add(accepted.len());
+            if !self.charge(duplicate_work) {
+                return Ok(());
+            }
+            if self.local_domains.contains(&domain) || accepted.contains(&domain) {
+                continue;
+            }
+            match self.stationary_candidate_is_clear(ownership, &domain)? {
+                None => return Ok(()),
+                Some(false) => {}
+                Some(true) => accepted.push(domain),
+            }
+        }
+        if accepted.is_empty() {
+            return Ok(());
+        }
+        if !self.charge(
+            accepted
+                .len()
+                .saturating_mul(self.local_domains.len().saturating_add(accepted.len())),
+        ) {
+            return Ok(());
+        }
+        self.local_domains
+            .try_reserve(accepted.len())
+            .map_err(|_| super::allocation_error("raw-source local domains"))?;
+        self.raw_source_equalities
+            .try_reserve(accepted.len())
+            .map_err(|_| super::allocation_error("raw-source-equality member assumptions"))?;
+        for domain in accepted {
+            self.raw_source_equalities
+                .push((domain.old_span.clone(), domain.new_span.clone()));
+            self.local_domains.push(domain);
+        }
+        Ok(())
+    }
+
+    /// Proves only the raw-source-equality members queued by this pass through the
+    /// ordinary local recovery, leaving the already processed queue and the
+    /// translation discovery untouched. Returns whether the recovery was
+    /// truncated by a stop, work limit or output limit.
+    pub(super) fn recover_raw_source_equalities(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        changes: &mut Vec<ChangeEvent>,
+        candidates: &mut Vec<ChangeCandidate>,
+    ) -> Result<bool> {
+        if self.remaining_work == 0 || self.output_stop.is_some() {
+            return Ok(false);
+        }
+        let start = self.local_domains.len();
+        self.discover_raw_source_equalities(ownership)?;
+        if self.local_domains.len() <= start {
+            return Ok(false);
+        }
+        let mut truncated = false;
+        for index in start..self.local_domains.len() {
+            if self.remaining_work == 0 || self.output_stop.is_some() {
+                truncated = true;
+                break;
+            }
+            let domain = self.local_domains[index].clone();
+            if self
+                .raw_source_equalities
+                .iter()
+                .any(|(old, new)| old == &domain.old_span && new == &domain.new_span)
+            {
+                let proposal = super::ProposedRelation {
+                    old: Some(domain.old_span.clone()),
+                    new: Some(domain.new_span.clone()),
+                    span_indices: [None, None],
+                    exact_recovery: true,
+                };
+                let key = self.domain_key(&proposal)?;
+                if let Some(proof) = self.domains.get(&key)
+                    && self.records[proof.relation].outcome != super::RelationOutcome::Established
+                    && !self.records[proof.relation]
+                        .assumptions
+                        .contains(&crate::diff::ComparisonAssumption::RawSourceEquality)
+                {
+                    // The exact raw-proven pair was cached as tentative before
+                    // this proof existed. Dropping only the cache entry makes
+                    // the proof recompute: the earlier relation record stays
+                    // as history, and no other key or established record is
+                    // touched.
+                    self.domains.remove(&key);
+                }
+            }
+            if let LocalRecoveryStep::Stop { truncated: stopped } =
+                self.recover_local_domain(index, ownership, changes, candidates)?
+            {
+                truncated = stopped;
+                break;
+            }
+        }
+        Ok(truncated)
+    }
+
     /// Reject-only eligibility mask over whole original blocks per side.
     ///
     /// A block is eligible when its whole source projection is non-empty and
@@ -1649,6 +1800,76 @@ mod tests {
         }
     }
 
+    /// An alignment with one span per block pair where the last pair carries a
+    /// normalization issue, so a proof's scope is observable.
+    fn scoped_alignment(old: &[BlockId], new: &[BlockId]) -> Alignment {
+        let span = |old_block: BlockId, new_block: BlockId, issue: bool| AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old: vec![old_block],
+            new: vec![new_block],
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: if issue {
+                vec![
+                    AlignmentEvidence::ReadingOrderUnknown,
+                    AlignmentEvidence::NormalizationIssue,
+                ]
+            } else {
+                vec![AlignmentEvidence::ReadingOrderUnknown]
+            },
+            old_separator: Some(BlockSeparator::Space),
+            new_separator: Some(BlockSeparator::Space),
+        };
+        let spans = old
+            .iter()
+            .zip(new)
+            .enumerate()
+            .map(|(index, (old_block, new_block))| {
+                span(*old_block, *new_block, index == 1 || index + 1 == old.len())
+            })
+            .collect();
+        Alignment {
+            spans,
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
+    /// An alignment with one span per block pair and an extraction gap on the
+    /// middle pair only, so the outer anchors can still be proven.
+    fn gapped_alignment(old: &[BlockId], new: &[BlockId]) -> Alignment {
+        let span = |old_block: BlockId, new_block: BlockId, gap: bool| AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old: vec![old_block],
+            new: vec![new_block],
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: if gap {
+                vec![
+                    AlignmentEvidence::ReadingOrderUnknown,
+                    AlignmentEvidence::ExtractionGap,
+                ]
+            } else {
+                vec![AlignmentEvidence::ReadingOrderUnknown]
+            },
+            old_separator: Some(BlockSeparator::Space),
+            new_separator: Some(BlockSeparator::Space),
+        };
+        Alignment {
+            spans: vec![
+                span(old[0], new[0], false),
+                span(old[1], new[1], true),
+                span(old[2], new[2], false),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
     fn positioned_block(id: u64, text: &str, x: f64, y: f64) -> BlockText {
         let mut block = sourced_block(id, text);
         let tokens = block
@@ -2087,6 +2308,998 @@ mod tests {
             records_stationary,
             empty_projection,
         })
+    }
+
+    /// A whole block whose raw projection is self-isomorphic but whose
+    /// normalization carries one ambiguous line break issue.
+    fn raw_issue_block(id: u64, x: f64, y: f64) -> BlockText {
+        use crate::normalize::{
+            MappedText, NormalizationEvent, NormalizationIssue, NormalizationIssueKind,
+            NormalizationKind, PositionSignature, ScalarRange, SourceMapEntry, TextSource,
+            TextSourceAtom,
+        };
+        let first = GlyphId(id * 1000 + 1);
+        let second = GlyphId(id * 1000 + 2);
+        let third = GlyphId(id * 1000 + 3);
+        let glyph = |glyph: GlyphId| TextSourceAtom::Glyph(glyph);
+        let line_break = |preceding: GlyphId, following: GlyphId| TextSourceAtom::LineBreak {
+            preceding,
+            following,
+        };
+        let entry = |index: usize, atom: TextSourceAtom| SourceMapEntry {
+            output_range: ScalarRange {
+                start: index,
+                end: index + 1,
+            },
+            source: TextSource {
+                atoms: vec![atom].into(),
+            },
+        };
+        let raw = MappedText {
+            text: "A\nB\nC".to_owned(),
+            source_map: vec![
+                entry(0, glyph(first)),
+                entry(1, line_break(first, second)),
+                entry(2, glyph(second)),
+                entry(3, line_break(second, third)),
+                entry(4, glyph(third)),
+            ],
+            unmapped: Vec::new(),
+        };
+        let canonical = MappedText {
+            text: "AB\nC".to_owned(),
+            source_map: vec![
+                entry(0, glyph(first)),
+                entry(1, glyph(second)),
+                entry(2, line_break(second, third)),
+                entry(3, glyph(third)),
+            ],
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("raw issue tokens");
+        let position = |index: usize| {
+            PositionSignature::new(
+                crate::model::Vec2 {
+                    x: x + index as f64 * 10.0,
+                    y,
+                },
+                crate::model::Vec2 { x: 1.0, y: 0.0 },
+            )
+            .expect("valid position")
+        };
+        let font_size = crate::normalize::FontSizeSignature::new(&[10.0]).expect("valid font size");
+        BlockText {
+            block: crate::layout::BlockId(id),
+            role: crate::layout::BlockRole::Body,
+            raw,
+            canonical,
+            matching: "AB\nC".to_owned(),
+            matching_tokens: tokens.clone(),
+            numeric_mask_applied: false,
+            normalization_events: vec![NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                canonical_range: ScalarRange { start: 1, end: 1 },
+                source: TextSource {
+                    atoms: vec![line_break(first, second)].into(),
+                },
+            }],
+            issues: vec![NormalizationIssue {
+                kind: NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 3, end: 4 },
+                source: TextSource {
+                    atoms: vec![line_break(second, third)].into(),
+                },
+            }],
+            pages: vec![0],
+            font_size_signatures: Some(vec![font_size; tokens.len()]),
+            position_signatures: Some(vec![position(0), position(1), position(1), position(2)]),
+            line_breaks: Some(vec![2]),
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
+    fn raw_recovery_fixture() -> (Vec<BlockText>, Vec<BlockText>) {
+        let old_blocks = vec![
+            spread_block(1, "Upper boundary line", 300.0, 700.0, 5.0),
+            raw_issue_block(2, 300.0, 680.0),
+            spread_block(3, "Lower boundary line", 300.0, 660.0, 5.0),
+        ];
+        let new_blocks = vec![
+            spread_block(101, "Upper boundary line", 300.0, 700.0, 5.0),
+            raw_issue_block(102, 300.0, 680.0),
+            spread_block(103, "Lower boundary line", 300.0, 660.0, 5.0),
+        ];
+        (old_blocks, new_blocks)
+    }
+
+    struct RawRecovery {
+        truncated: bool,
+        work_used: usize,
+        raw: usize,
+        accepted: [usize; 2],
+        records_raw: usize,
+        relations: Vec<RawRelation>,
+        pre_cached_tentative: bool,
+        same_key: bool,
+        candidate_kept: bool,
+        root_has_normalization: bool,
+        modified_key_differs: bool,
+        modified_in_registry: bool,
+        modified_has_normalization: bool,
+        modified_reasons: Vec<crate::diff::AssessmentReason>,
+        fourth_has_normalization: bool,
+        fourth_key_has_raw: bool,
+    }
+
+    struct RawRelation {
+        established: bool,
+        has_gap: bool,
+        has_normalization: bool,
+        has_raw: bool,
+    }
+
+    fn raw_key_matches(
+        assessor: &mut super::Assessor<'_, '_>,
+        pre_cached_key: &Option<crate::diff::assessment::DomainKey>,
+    ) -> Result<bool> {
+        let Some(key) = pre_cached_key else {
+            return Ok(false);
+        };
+        let Some((old_span, new_span)) = assessor.raw_source_equalities.first().cloned() else {
+            return Ok(false);
+        };
+        let proposal = super::super::ProposedRelation {
+            old: Some(old_span),
+            new: Some(new_span),
+            span_indices: [None, None],
+            exact_recovery: true,
+        };
+        Ok(assessor.domain_key(&proposal)? == *key)
+    }
+
+    fn raw_relations(assessor: &super::Assessor<'_, '_>) -> Vec<RawRelation> {
+        assessor
+            .records
+            .iter()
+            .map(|record| RawRelation {
+                established: record.outcome == super::RelationOutcome::Established,
+                has_gap: record
+                    .reasons
+                    .contains(&crate::diff::AssessmentReason::ExtractionGap),
+                has_normalization: record
+                    .reasons
+                    .contains(&crate::diff::AssessmentReason::NormalizationUncertainty),
+                has_raw: record
+                    .assumptions
+                    .contains(&crate::diff::ComparisonAssumption::RawSourceEquality),
+            })
+            .collect()
+    }
+
+    #[derive(Default, Clone, Copy)]
+    struct RawControls {
+        partial_accept: Option<(usize, usize)>,
+        full_accept: bool,
+        changed: Option<(usize, usize, usize)>,
+        budget: Option<usize>,
+        repeat: bool,
+        skip_anchors: bool,
+        extraction_gap: bool,
+        conflicting_candidate: bool,
+        scoped_alignment: bool,
+        pre_cache: bool,
+        pre_cache_manual_span: bool,
+    }
+
+    fn run_raw_recovery(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        controls: RawControls,
+        options: DiffOptions,
+    ) -> Result<RawRecovery> {
+        let mut pre_cached_tentative = false;
+        let mut pre_cached_key = None;
+        run_raw_recovery_inner(
+            old_blocks,
+            new_blocks,
+            controls,
+            options,
+            &mut pre_cached_tentative,
+            &mut pre_cached_key,
+        )
+    }
+
+    fn run_raw_recovery_inner(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        controls: RawControls,
+        options: DiffOptions,
+        pre_cached_tentative: &mut bool,
+        pre_cached_key: &mut Option<crate::diff::assessment::DomainKey>,
+    ) -> Result<RawRecovery> {
+        use crate::layout::{TrustedRunId, TrustedRunInterval};
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let old_ids = old_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let new_ids = new_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let alignment = if controls.extraction_gap {
+            gapped_alignment(&old_ids, &new_ids)
+        } else if controls.scoped_alignment {
+            scoped_alignment(&old_ids, &new_ids)
+        } else {
+            unresolved_alignment(&old_ids, &new_ids)
+        };
+        let interval = |run: u64, start: usize, end: usize| {
+            Some(TrustedRunInterval {
+                run_id: TrustedRunId(run),
+                start,
+                end,
+            })
+        };
+        let old_intervals = (0..old_blocks.len())
+            .map(|index| interval(1, index, index + 1))
+            .collect::<Vec<_>>();
+        let new_intervals = (0..new_blocks.len())
+            .map(|index| interval(2, index, index + 1))
+            .collect::<Vec<_>>();
+        let recovery = crate::diff::SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, Some(recovery), options)?;
+        if controls.skip_anchors {
+            let mut ownership = [
+                super::super::Ownership::new(),
+                super::super::Ownership::new(),
+            ];
+            let mut changes = Vec::new();
+            let mut candidates = Vec::new();
+            let truncated = assessor.recover_raw_source_equalities(
+                &mut ownership,
+                &mut changes,
+                &mut candidates,
+            )?;
+            let records_raw = assessor
+                .records
+                .iter()
+                .filter(|record| {
+                    record
+                        .assumptions
+                        .contains(&crate::diff::ComparisonAssumption::RawSourceEquality)
+                        && record.outcome == super::RelationOutcome::Established
+                        && record.search == super::SearchCompleteness::Complete
+                })
+                .count();
+            return Ok(RawRecovery {
+                truncated,
+                work_used: 0,
+                raw: assessor.raw_source_equalities.len(),
+                accepted: [ownership[0].accepted.len(), ownership[1].accepted.len()],
+                records_raw,
+                relations: raw_relations(&assessor),
+                pre_cached_tentative: *pre_cached_tentative,
+                same_key: false,
+                candidate_kept: false,
+                root_has_normalization: false,
+                modified_key_differs: false,
+                modified_in_registry: false,
+                modified_has_normalization: false,
+                modified_reasons: Vec::new(),
+                fourth_has_normalization: false,
+                fourth_key_has_raw: false,
+            });
+        }
+        let tokens = |blocks: &[BlockText], index: usize| {
+            blocks[index]
+                .canonical
+                .comparable_tokens()
+                .expect("fixture tokens")
+                .len()
+        };
+        let upper = tokens(old_blocks, 0);
+        let lower = tokens(old_blocks, 2);
+        assessor.local_anchors = vec![
+            LocalDomain {
+                old_span: span(1, upper),
+                new_span: span(101, upper),
+                source_bounded: true,
+            },
+            LocalDomain {
+                old_span: span(3, lower),
+                new_span: span(103, lower),
+                source_bounded: true,
+            },
+        ];
+        for (old_block, new_block, count) in [(1_u64, 101_u64, upper), (3_u64, 103_u64, lower)] {
+            let proposal = super::super::ProposedRelation {
+                old: Some(span(old_block, count)),
+                new: Some(span(new_block, count)),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            assessor.prove_domain(&key)?;
+        }
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        ownership[0].accept(&old, &span(1, upper), 64)?;
+        ownership[1].accept(&new, &span(101, upper), 64)?;
+        ownership[0].accept(&old, &span(3, lower), 64)?;
+        ownership[1].accept(&new, &span(103, lower), 64)?;
+        if controls.full_accept {
+            ownership[0].accept(&old, &span(2, tokens(old_blocks, 1)), 64)?;
+            ownership[1].accept(&new, &span(102, tokens(new_blocks, 1)), 64)?;
+        }
+        if let Some((side, count)) = controls.partial_accept {
+            let block = if side == 0 { BlockId(2) } else { BlockId(102) };
+            let source = if side == 0 { &old } else { &new };
+            ownership[side].accept(source, &span(block.0, count), 64)?;
+        }
+        if let Some((side, block_index, count)) = controls.changed {
+            ownership[side].changed.push(super::SourceInterval {
+                block_index,
+                start: 0,
+                end: count,
+            });
+        }
+        if let Some(budget) = controls.budget {
+            assessor.remaining_work = budget;
+        }
+        let work_before = assessor.remaining_work;
+        if controls.pre_cache {
+            let established = assessor
+                .collect_established_blocks(&ownership)?
+                .unwrap_or_default();
+            let Some(mask) = assessor.stationary_candidate_mask(&ownership)? else {
+                return Err(super::super::invalid("pre-cache mask budget"));
+            };
+            let mut probe_budget = 10_000_000usize;
+            let discovered = super::super::views::discover_raw_source_equalities_masked(
+                assessor.sides,
+                recovery,
+                &established,
+                &mut probe_budget,
+                assessor.options.max_assessment_ranges,
+                &mask,
+            )?;
+            let manual = controls.pre_cache_manual_span.then(|| {
+                let middle = super::TextSpan {
+                    blocks: vec![old_blocks[1].block],
+                    separator: None,
+                    canonical_range: crate::normalize::ScalarRange {
+                        start: 0,
+                        end: tokens(old_blocks, 1),
+                    },
+                    comparable_range: super::super::TokenRange {
+                        start: 0,
+                        end: tokens(old_blocks, 1),
+                    },
+                };
+                let middle_new = super::TextSpan {
+                    blocks: vec![new_blocks[1].block],
+                    separator: None,
+                    canonical_range: crate::normalize::ScalarRange {
+                        start: 0,
+                        end: tokens(new_blocks, 1),
+                    },
+                    comparable_range: super::super::TokenRange {
+                        start: 0,
+                        end: tokens(new_blocks, 1),
+                    },
+                };
+                LocalDomain {
+                    old_span: middle,
+                    new_span: middle_new,
+                    source_bounded: false,
+                }
+            });
+            if let Some(domain) = manual.as_ref().or(discovered.first()) {
+                let old_span = domain.old_span.clone();
+                let new_span = domain.new_span.clone();
+                assessor.local_domains.push(LocalDomain {
+                    old_span: old_span.clone(),
+                    new_span: new_span.clone(),
+                    source_bounded: false,
+                });
+                let proposal = super::super::ProposedRelation {
+                    old: Some(old_span),
+                    new: Some(new_span),
+                    span_indices: [None, None],
+                    exact_recovery: true,
+                };
+                let key = assessor.domain_key(&proposal)?;
+                assessor.prove_domain(&key)?;
+                *pre_cached_tentative = assessor.domains.get(&key).is_some_and(|proof| {
+                    assessor.records[proof.relation].outcome != super::RelationOutcome::Established
+                });
+                *pre_cached_key = Some(key);
+            }
+        }
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        if controls.conflicting_candidate {
+            let span_of = |blocks: &[BlockText], index: usize| super::TextSpan {
+                blocks: vec![blocks[index].block],
+                separator: None,
+                canonical_range: crate::normalize::ScalarRange {
+                    start: 0,
+                    end: tokens(blocks, index),
+                },
+                comparable_range: super::super::TokenRange {
+                    start: 0,
+                    end: tokens(blocks, index),
+                },
+            };
+            candidates.push(ChangeCandidate {
+                change: ChangeEvent {
+                    kind: crate::diff::ChangeKind::Replacement,
+                    occurrences: vec![crate::diff::ChangeOccurrence {
+                        old_span: Some(span_of(old_blocks, 1)),
+                        new_span: Some(span_of(new_blocks, 1)),
+                    }],
+                    confidence: crate::diff::Confidence::High,
+                    tags: Vec::new(),
+                },
+                relation: 0,
+                alternative_group: 0,
+            });
+        }
+        let mut truncated = assessor.recover_raw_source_equalities(
+            &mut ownership,
+            &mut changes,
+            &mut candidates,
+        )?;
+        if controls.repeat {
+            truncated |= assessor.recover_raw_source_equalities(
+                &mut ownership,
+                &mut changes,
+                &mut candidates,
+            )?;
+        }
+        let records_raw = assessor
+            .records
+            .iter()
+            .filter(|record| {
+                record
+                    .assumptions
+                    .contains(&crate::diff::ComparisonAssumption::RawSourceEquality)
+                    && record.outcome == super::RelationOutcome::Established
+                    && record.search == super::SearchCompleteness::Complete
+            })
+            .count();
+        let root_has_normalization = assessor
+            .source_reasons()
+            .contains(&crate::diff::AssessmentReason::NormalizationUncertainty);
+        let mut modified_key_differs = false;
+        let mut modified_in_registry = false;
+        let mut modified_has_normalization = false;
+        let mut modified_reasons = Vec::new();
+        let registry_key = assessor
+            .raw_source_equalities
+            .first()
+            .map(|(old, new)| super::super::ProposedRelation {
+                old: Some(old.clone()),
+                new: Some(new.clone()),
+                span_indices: [None, None],
+                exact_recovery: true,
+            })
+            .map(|proposal| assessor.domain_key(&proposal))
+            .transpose()?;
+        if let Some((old_span, mut new_span)) = assessor.raw_source_equalities.first().cloned() {
+            // Expand past the exact domain so the proposal is no longer
+            // contained and cannot map onto the proven parent key.
+            new_span.canonical_range.end += 1;
+            new_span.comparable_range.end += 1;
+            modified_in_registry = assessor
+                .raw_source_equalities
+                .iter()
+                .any(|(old, new)| old == &old_span && new == &new_span);
+            let proposal = super::super::ProposedRelation {
+                old: Some(old_span),
+                new: Some(new_span),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            modified_key_differs = registry_key.as_ref() != Some(&key);
+            let (reasons, _) = assessor.domain_reasons(&key)?;
+            modified_has_normalization =
+                reasons.contains(&crate::diff::AssessmentReason::NormalizationUncertainty);
+            modified_reasons = reasons;
+        }
+        let mut fourth_has_normalization = false;
+        let mut fourth_key_has_raw = false;
+        if let (Some(old_span), Some(new_span)) = (
+            assessor.sides[0]
+                .blocks
+                .get(3)
+                .map(|block| super::TextSpan {
+                    blocks: vec![block.block],
+                    separator: None,
+                    canonical_range: crate::normalize::ScalarRange {
+                        start: 0,
+                        end: block.canonical.text.chars().count(),
+                    },
+                    comparable_range: super::super::TokenRange {
+                        start: 0,
+                        end: block.canonical.text.chars().count(),
+                    },
+                }),
+            assessor.sides[1]
+                .blocks
+                .get(3)
+                .map(|block| super::TextSpan {
+                    blocks: vec![block.block],
+                    separator: None,
+                    canonical_range: crate::normalize::ScalarRange {
+                        start: 0,
+                        end: block.canonical.text.chars().count(),
+                    },
+                    comparable_range: super::super::TokenRange {
+                        start: 0,
+                        end: block.canonical.text.chars().count(),
+                    },
+                }),
+        ) {
+            let proposal = super::super::ProposedRelation {
+                old: Some(old_span),
+                new: Some(new_span),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            let (reasons, _) = assessor.domain_reasons(&key)?;
+            fourth_has_normalization =
+                reasons.contains(&crate::diff::AssessmentReason::NormalizationUncertainty);
+            fourth_key_has_raw = assessor.domains.get(&key).is_some_and(|proof| {
+                assessor.records[proof.relation]
+                    .assumptions
+                    .contains(&crate::diff::ComparisonAssumption::RawSourceEquality)
+            });
+        }
+        Ok(RawRecovery {
+            truncated,
+            work_used: work_before.saturating_sub(assessor.remaining_work),
+            raw: assessor.raw_source_equalities.len(),
+            accepted: [ownership[0].accepted.len(), ownership[1].accepted.len()],
+            records_raw,
+            relations: raw_relations(&assessor),
+            pre_cached_tentative: *pre_cached_tentative,
+            same_key: raw_key_matches(&mut assessor, pre_cached_key)?,
+            candidate_kept: candidates.len() == usize::from(controls.conflicting_candidate),
+            root_has_normalization,
+            modified_key_differs,
+            modified_in_registry,
+            modified_has_normalization,
+            modified_reasons,
+            fourth_has_normalization,
+            fourth_key_has_raw,
+        })
+    }
+
+    #[test]
+    fn raw_source_equality_pass_scopes_its_proof_to_the_exact_pair() -> Result<()> {
+        let (mut old_blocks, mut new_blocks) = raw_recovery_fixture();
+        old_blocks.push(raw_issue_block(4, 300.0, 640.0));
+        new_blocks.push(raw_issue_block(104, 300.0, 640.0));
+        new_blocks[3].raw.text = "X\nY\nZ".to_owned();
+        new_blocks[3].canonical.text = "XY\nZ".to_owned();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                scoped_alignment: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(
+            recovery.raw, 1,
+            "only the central exact pair may enter the registry"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [3, 3],
+            "only the central pair may be owned beyond the two anchors"
+        );
+        assert!(
+            recovery
+                .relations
+                .iter()
+                .any(|relation| relation.has_raw && relation.established),
+            "the central raw relation must be Established"
+        );
+        assert!(
+            !recovery.modified_in_registry,
+            "a changed range of the same pair must not carry RawSourceEquality"
+        );
+        assert!(
+            !recovery
+                .relations
+                .iter()
+                .any(|relation| relation.has_raw && !relation.established),
+            "RawSourceEquality must never attach to an unproven relation"
+        );
+        assert!(
+            recovery.root_has_normalization,
+            "the root reasons must carry NormalizationUncertainty"
+        );
+        assert!(
+            recovery.modified_key_differs,
+            "the expanded span must form a different key"
+        );
+        assert!(
+            !recovery.modified_in_registry,
+            "a changed range of the same pair must not carry RawSourceEquality"
+        );
+        assert!(
+            recovery.modified_has_normalization,
+            "the changed key must keep NormalizationUncertainty: {:?}",
+            recovery.modified_reasons
+        );
+        assert!(
+            recovery.fourth_has_normalization,
+            "the fourth block's own key must keep NormalizationUncertainty"
+        );
+        assert!(
+            !recovery.fourth_key_has_raw,
+            "the fourth block must not carry RawSourceEquality"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_keeps_a_cached_pair_without_a_new_proof() -> Result<()> {
+        let (old_blocks, mut new_blocks) = raw_recovery_fixture();
+        new_blocks[1].raw.text = "A\nB\nX".to_owned();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                pre_cache: true,
+                pre_cache_manual_span: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert!(
+            recovery.pre_cached_tentative,
+            "the fixture must first cache a tentative relation"
+        );
+        assert_eq!(
+            recovery.raw, 0,
+            "a raw difference must leave the registry empty"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "a cached key without its own new proof must not be promoted"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_re_evaluates_a_tentative_cache() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                pre_cache: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert!(
+            recovery.pre_cached_tentative,
+            "the fixture must first cache a tentative relation for the exact pair"
+        );
+        assert!(
+            recovery.same_key,
+            "the raw registry must contain the exact pre-cached domain key"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [3, 3],
+            "the raw proof must own the cached pair once it arrives"
+        );
+        assert_eq!(recovery.raw, 1, "the registry must not duplicate the pair");
+        assert!(
+            recovery
+                .relations
+                .iter()
+                .any(|relation| relation.has_raw && relation.established),
+            "a new Established raw relation must exist"
+        );
+        assert!(
+            recovery
+                .relations
+                .iter()
+                .any(|relation| !relation.established && relation.has_normalization),
+            "the earlier tentative record must stay as history"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_keeps_an_extraction_gap_on_the_pair() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                extraction_gap: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "the gapped pair must stay unowned while the outer anchors stay owned"
+        );
+        assert_eq!(
+            recovery.records_raw, 0,
+            "no raw proof may be Established across an extraction gap"
+        );
+        assert_eq!(
+            recovery.raw, 1,
+            "the raw registry must still discover the exact pair"
+        );
+        assert!(
+            recovery
+                .relations
+                .iter()
+                .any(|relation| relation.has_raw && !relation.established && relation.has_gap),
+            "the exact relation must keep the extraction gap: {:?}",
+            recovery
+                .relations
+                .iter()
+                .map(|relation| (relation.established, relation.has_gap, relation.has_raw))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            recovery
+                .relations
+                .iter()
+                .filter(|relation| relation.established)
+                .count()
+                >= 2,
+            "the outer anchors must be Established by their own proof"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_closes_an_issue_member_through_the_real_caller() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls::default(),
+            DiffOptions::default(),
+        )?;
+        assert!(!recovery.truncated);
+        assert_eq!(
+            recovery.raw, 1,
+            "the raw-equality member must be recorded once"
+        );
+        assert!(
+            recovery.records_raw >= 1,
+            "the paired raw proof must be Established: {}",
+            recovery.records_raw
+        );
+        assert_eq!(
+            recovery.accepted,
+            [3, 3],
+            "the whole four-token member must be owned on both sides"
+        );
+
+        // The ordinary stationary pass alone must keep holding the issue
+        // member, so only the paired raw proof may own it.
+        let stationary = run_stationary_recovery(
+            &old_blocks,
+            &new_blocks,
+            StationaryControls::default(),
+            DiffOptions::default(),
+        )?;
+        assert_eq!(
+            stationary.stationary, 0,
+            "the stationary mode must still hold"
+        );
+        assert_eq!(
+            stationary.accepted,
+            [2, 2],
+            "the issue member stays unowned"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_holds_on_a_raw_difference() -> Result<()> {
+        let (old_blocks, mut new_blocks) = raw_recovery_fixture();
+        new_blocks[1].raw.text = "A\nB\nX".to_owned();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls::default(),
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.raw, 0, "a raw difference must hold");
+        assert_eq!(recovery.records_raw, 0);
+        assert_eq!(recovery.accepted, [2, 2]);
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_holds_without_an_independent_anchor() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                skip_anchors: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.raw, 0, "no anchor means no proof");
+        assert_eq!(recovery.accepted, [0, 0]);
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_keeps_a_changed_ownership_claim() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                changed: Some((0, 1, 4)),
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.raw, 0, "a changed claim must hold the candidate");
+        assert_eq!(recovery.accepted, [2, 2]);
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_never_reports_a_partial_result_on_a_budget_cut() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let full = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls::default(),
+            DiffOptions::default(),
+        )?;
+        assert_eq!(full.accepted, [3, 3]);
+        assert!(full.work_used > 0, "the full run must consume work");
+        // The budget is set after the anchors are proven and owned, so these
+        // cuts happen inside the raw pass itself.
+        for budget in [0usize, 1, 64] {
+            let recovery = run_raw_recovery(
+                &old_blocks,
+                &new_blocks,
+                RawControls {
+                    budget: Some(budget),
+                    ..RawControls::default()
+                },
+                DiffOptions::default(),
+            )?;
+            assert_eq!(recovery.raw, 0, "budget {budget} must not register a pair");
+            assert_eq!(
+                recovery.accepted,
+                [2, 2],
+                "budget {budget} must not own the pair"
+            );
+            assert_eq!(
+                recovery.records_raw, 0,
+                "budget {budget} must not establish a relation"
+            );
+        }
+        // A cut after discovery started may keep the queued registry entry,
+        // but it must never establish a relation or extend ownership.
+        let mid = full.work_used / 2;
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                budget: Some(mid),
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "the mid cut must not own the pair"
+        );
+        assert_eq!(
+            recovery.records_raw, 0,
+            "the mid cut must not establish a relation"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_keeps_a_conflicting_candidate() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                conflicting_candidate: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert!(
+            recovery.candidate_kept,
+            "the conflicting candidate must stay in the queue"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "a conflicting candidate must hold the central ownership"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_respects_the_range_limit() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        // Two anchors already fill the limit, so the raw addition must be
+        // held without touching the established anchors.
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls::default(),
+            DiffOptions {
+                max_assessment_ranges: 2,
+                ..DiffOptions::default()
+            },
+        )?;
+        assert_eq!(recovery.raw, 0, "a full range limit must not register");
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "a full range limit must not own the pair"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn raw_source_equality_pass_does_not_repeat_work() -> Result<()> {
+        let (old_blocks, new_blocks) = raw_recovery_fixture();
+        let recovery = run_raw_recovery(
+            &old_blocks,
+            &new_blocks,
+            RawControls {
+                repeat: true,
+                ..RawControls::default()
+            },
+            DiffOptions::default(),
+        )?;
+        assert_eq!(recovery.raw, 1, "the registry must not duplicate");
+        assert_eq!(recovery.accepted, [3, 3], "ownership must not duplicate");
+        Ok(())
     }
 
     #[test]

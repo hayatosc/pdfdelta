@@ -740,6 +740,7 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::BracketedRegion => "bracketed_region",
         ComparisonAssumption::ExactTextDisplacement => "exact_text_displacement",
         ComparisonAssumption::StationaryNeighbour => "stationary_neighbour",
+        ComparisonAssumption::RawSourceEquality => "raw_source_equality",
     }
 }
 
