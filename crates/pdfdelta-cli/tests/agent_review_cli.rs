@@ -761,3 +761,299 @@ fn a_contract_without_rasters_advertises_no_pictures_and_reports_them_missing() 
         );
     }
 }
+
+/// Writes a decisions file answering one case of a bundle.
+fn decisions_file(
+    directory: &TestDirectory,
+    name: &str,
+    bundle: &Path,
+    entries: &[Value],
+) -> PathBuf {
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("manifest"))
+            .expect("JSON");
+    let bundle_id = manifest["bundle_id"].as_str().expect("bundle id");
+    let decisions: Vec<Value> = entries
+        .iter()
+        .map(|entry| {
+            let mut entry = entry.clone();
+            entry["schema"] = Value::String("agent-decision/v1".into());
+            if entry.get("bundle_id").is_none() {
+                entry["bundle_id"] = Value::String(bundle_id.into());
+            }
+            entry
+        })
+        .collect();
+    let path = directory.join(name);
+    fs::write(
+        &path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "agent": { "name": "fixture-host", "model": "fixture-model" },
+            "decisions": decisions,
+        }))
+        .expect("decisions"),
+    )
+    .expect("write decisions");
+    path
+}
+
+fn exported_bundle(directory: &TestDirectory, name: &str) -> PathBuf {
+    let (old, new) = fixture(directory);
+    let bundle = directory.join(name);
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+    bundle
+}
+
+/// A bundle from the text channel alone, whose cases quote readable text.
+fn text_bundle(directory: &TestDirectory, name: &str) -> PathBuf {
+    let (old, new) = fixture(directory);
+    let bundle = directory.join(name);
+    run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--channels",
+        "text",
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+    bundle
+}
+
+fn first_case(bundle: &Path) -> String {
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    json(&listed)["cases"][0]["case"]
+        .as_str()
+        .expect("a case")
+        .to_owned()
+}
+
+#[test]
+fn an_external_assessment_is_stored_beside_the_engine_result_not_merged_into_it() {
+    let directory = TestDirectory::new();
+    let bundle = exported_bundle(&directory, "bundle");
+    let case = first_case(&bundle);
+    let decisions = decisions_file(
+        &directory,
+        "decisions.json",
+        &bundle,
+        &[serde_json::json!({
+            "case_id": case,
+            "status": "undetermined",
+            "rationale": "The retained evidence does not settle this.",
+            "limitations": ["correspondence remains an external interpretation"],
+        })],
+    );
+    let output = directory.join("reviewed.json");
+
+    let answer = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        output.to_str().expect("path"),
+    ]);
+    assert_eq!(answer.status.code(), Some(0), "{}", stderr(&answer));
+
+    let stored: Value = serde_json::from_slice(&fs::read(&output).expect("result")).expect("JSON");
+    assert_eq!(stored["schema"], "agent-review-result/v1");
+    assert_eq!(stored["external"]["origin"], "external_agent");
+    assert_eq!(stored["external"]["agent"]["name"], "fixture-host");
+    // The engine's own verdict is copied, not recomputed and not adjusted.
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("manifest"))
+            .expect("JSON");
+    assert_eq!(stored["engine"], manifest["engine"]);
+    // Reviewing a case and resolving it are counted separately.
+    assert_eq!(stored["counts"]["reviewed_cases"], 0);
+    assert_eq!(stored["counts"]["undetermined_cases"], 1);
+    assert!(
+        stored["counts"]["unanswered_cases"]
+            .as_u64()
+            .expect("unanswered")
+            > 0
+    );
+    // The bundle itself is untouched.
+    let after: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("manifest"))
+            .expect("JSON");
+    assert_eq!(manifest, after);
+}
+
+#[test]
+fn a_submission_with_any_invalid_decision_stores_nothing() {
+    let directory = TestDirectory::new();
+    let bundle = exported_bundle(&directory, "bundle");
+    let case = first_case(&bundle);
+    let decisions = decisions_file(
+        &directory,
+        "decisions.json",
+        &bundle,
+        &[
+            serde_json::json!({
+                "case_id": case,
+                "status": "undetermined",
+                "rationale": "held",
+            }),
+            serde_json::json!({
+                "case_id": "Rnotinthisbundle",
+                "status": "undetermined",
+                "rationale": "held",
+            }),
+        ],
+    );
+    let output = directory.join("reviewed.json");
+
+    let answer = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        output.to_str().expect("path"),
+    ]);
+    assert_eq!(answer.status.code(), Some(2));
+    let answer = json(&answer);
+    assert_eq!(answer["error"], "rejected_decisions");
+    assert!(
+        answer["rejections"]
+            .as_array()
+            .expect("rejections")
+            .iter()
+            .any(|rejection| rejection["case_id"] == "Rnotinthisbundle"),
+        "{answer}"
+    );
+    assert!(
+        !output.exists(),
+        "a partially valid submission publishes nothing"
+    );
+}
+
+#[test]
+fn a_decision_for_another_bundle_is_refused() {
+    let directory = TestDirectory::new();
+    let bundle = exported_bundle(&directory, "bundle");
+    let case = first_case(&bundle);
+    let decisions = decisions_file(
+        &directory,
+        "decisions.json",
+        &bundle,
+        &[serde_json::json!({
+            "case_id": case,
+            "bundle_id": "bdeadbeefdeadbeef",
+            "status": "undetermined",
+            "rationale": "held",
+        })],
+    );
+    let answer = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        directory.join("reviewed.json").to_str().expect("path"),
+    ]);
+    assert_eq!(answer.status.code(), Some(2));
+    assert_eq!(json(&answer)["error"], "rejected_decisions");
+}
+
+#[test]
+fn opposite_claims_about_one_reference_are_returned_as_a_conflict() {
+    let directory = TestDirectory::new();
+    let bundle = text_bundle(&directory, "bundle");
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    // Find a case that quotes evidence and can be concluded about.
+    let mut answerable = Vec::new();
+    for case in json(&listed)["cases"].as_array().expect("cases") {
+        let case = case["case"].as_str().expect("case id");
+        let shown = run(&[
+            "review",
+            "show",
+            bundle.to_str().expect("path"),
+            "--case",
+            case,
+            "--detail",
+            "text",
+            "--max-output-bytes",
+            "65536",
+        ]);
+        let shown = json(&shown);
+        if !shown["required_evidence"]
+            .as_array()
+            .is_some_and(Vec::is_empty)
+        {
+            continue;
+        }
+        if let Some(reference) = shown["evidence"].as_array().and_then(|refs| refs.first()) {
+            let alias = format!(
+                "{}:{}",
+                reference["side"].as_str().expect("side"),
+                reference["alias"].as_str().expect("alias")
+            );
+            answerable.push((case.to_owned(), alias));
+        }
+    }
+    let (case, reference) = answerable
+        .first()
+        .cloned()
+        .expect("the text fixture offers a case that quoted text can settle");
+    let decisions = decisions_file(
+        &directory,
+        "decisions.json",
+        &bundle,
+        &[
+            serde_json::json!({
+                "case_id": case,
+                "status": "changed",
+                "change_kinds": ["value"],
+                "evidence_refs": [reference],
+                "rationale": "the value differs",
+            }),
+            serde_json::json!({
+                "case_id": case,
+                "status": "unchanged_in_scope",
+                "evidence_refs": [reference],
+                "rationale": "nothing differs",
+            }),
+        ],
+    );
+    let answer = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        directory.join("reviewed.json").to_str().expect("path"),
+    ]);
+    assert_eq!(answer.status.code(), Some(2));
+    let answer = json(&answer);
+    assert!(
+        serde_json::to_string(&answer["rejections"])
+            .expect("rejections")
+            .contains("cited as changed"),
+        "{answer}"
+    );
+}

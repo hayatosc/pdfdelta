@@ -444,6 +444,63 @@ pub(super) struct Assembly<'a> {
     pub visual_available: bool,
 }
 
+/// How many related or conflicting cases one case names.
+///
+/// The links are navigation aids; a longer list would grow with document size
+/// without telling a reviewer anything more.
+const fn limits_for_links() -> usize {
+    16
+}
+
+/// Links cases that quote the same evidence.
+///
+/// Two cases sharing a source reference are two views of the same material.
+/// That is ordinarily context overlap, so it is recorded as a relation. It
+/// becomes a declared conflict only when both cases ask which counterpart the
+/// material corresponds to, because answering both would give the same source
+/// two owners.
+fn link_cases(cases: &mut [ReviewCase], limit: usize) {
+    let mut holders: BTreeMap<(Side, SourceRef), Vec<usize>> = BTreeMap::new();
+    for (index, case) in cases.iter().enumerate() {
+        for reference in &case.evidence {
+            holders
+                .entry((reference.side, reference.source))
+                .or_default()
+                .push(index);
+        }
+    }
+    let mut related: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); cases.len()];
+    let mut conflicting: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); cases.len()];
+    for sharing in holders.into_values().filter(|sharing| sharing.len() > 1) {
+        for (position, index) in sharing.iter().enumerate() {
+            for other in sharing.iter().skip(position + 1) {
+                related[*index].insert(*other);
+                related[*other].insert(*index);
+                if cases[*index].question == ReviewQuestion::ResolveCorrespondence
+                    && cases[*other].question == ReviewQuestion::ResolveCorrespondence
+                {
+                    conflicting[*index].insert(*other);
+                    conflicting[*other].insert(*index);
+                }
+            }
+        }
+    }
+    let identifiers: Vec<CaseId> = cases.iter().map(|case| case.case_id.clone()).collect();
+    for (index, case) in cases.iter_mut().enumerate() {
+        case.related_cases = related[index]
+            .iter()
+            .filter(|other| !conflicting[index].contains(other))
+            .take(limit)
+            .map(|other| identifiers[*other].clone())
+            .collect();
+        case.conflicts_with = conflicting[index]
+            .iter()
+            .take(limit)
+            .map(|other| identifiers[*other].clone())
+            .collect();
+    }
+}
+
 /// Final assembly: order the cases, census them, and build the index.
 pub(super) fn assemble(assembly: Assembly<'_>, budget: &Budget) -> ReviewPlan {
     let Assembly {
@@ -469,6 +526,7 @@ pub(super) fn assemble(assembly: Assembly<'_>, budget: &Budget) -> ReviewPlan {
         };
         key(left).cmp(&key(right))
     });
+    link_cases(&mut cases, limits_for_links());
     let mut by_question: BTreeMap<String, (ReviewQuestion, usize)> = BTreeMap::new();
     for case in &cases {
         let entry = by_question

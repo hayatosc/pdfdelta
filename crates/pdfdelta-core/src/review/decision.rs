@@ -5,6 +5,8 @@
 //! never changes the engine's comparison, its coverage, or its exit status, and
 //! a schema-valid decision is still only an interpretation.
 
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -119,6 +121,12 @@ pub enum DecisionRejection {
     ChangedWithoutKind,
     /// `NeedMoreEvidence` was asserted without requesting anything.
     NeedMoreEvidenceWithoutRequest,
+    /// Two decisions cite the same evidence with opposite conclusions.
+    ContradictoryClaims {
+        reference: String,
+        changed: CaseId,
+        unchanged: CaseId,
+    },
 }
 
 impl std::fmt::Display for DecisionRejection {
@@ -165,6 +173,14 @@ impl std::fmt::Display for DecisionRejection {
             Self::NeedMoreEvidenceWithoutRequest => {
                 formatter.write_str("a need-more-evidence decision must request a retrieval")
             }
+            Self::ContradictoryClaims {
+                reference,
+                changed,
+                unchanged,
+            } => write!(
+                formatter,
+                "{reference:?} is cited as changed by {changed} and unchanged by {unchanged}"
+            ),
         }
     }
 }
@@ -294,6 +310,84 @@ pub fn validate_decision(
     }
 }
 
+/// One decision's verdict after validation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecisionOutcome {
+    /// Position of the decision in the submitted set.
+    pub index: usize,
+    pub case_id: CaseId,
+    pub rejections: Vec<DecisionRejection>,
+}
+
+/// Checks a whole set of decisions against the cases they answer.
+///
+/// Each decision is checked on its own, and then the set is checked for claims
+/// that cannot both hold: the same evidence cannot be cited as changed by one
+/// decision and unchanged by another. Contradictions are returned rather than
+/// resolved, because choosing between two external answers is not something
+/// this library can do from the evidence.
+#[must_use]
+pub fn validate_decisions(
+    decisions: &[AgentDecision],
+    cases: &[ReviewCase],
+    bundle: &BundleId,
+) -> Vec<DecisionOutcome> {
+    let mut outcomes: Vec<DecisionOutcome> = decisions
+        .iter()
+        .enumerate()
+        .map(|(index, decision)| {
+            let rejections = cases
+                .iter()
+                .find(|case| case.case_id == decision.case_id)
+                .map_or_else(
+                    || {
+                        vec![DecisionRejection::UnknownCase {
+                            case: decision.case_id.clone(),
+                        }]
+                    },
+                    |case| {
+                        validate_decision(decision, case, bundle)
+                            .err()
+                            .unwrap_or_default()
+                    },
+                );
+            DecisionOutcome {
+                index,
+                case_id: decision.case_id.clone(),
+                rejections,
+            }
+        })
+        .collect();
+
+    let cited = |decision: &AgentDecision| -> BTreeSet<String> {
+        decision.evidence_refs.iter().cloned().collect()
+    };
+    for (left, decision) in decisions.iter().enumerate() {
+        if decision.status != DecisionStatus::Changed {
+            continue;
+        }
+        let changed = cited(decision);
+        for (right, other) in decisions.iter().enumerate() {
+            if right == left || other.status != DecisionStatus::UnchangedInScope {
+                continue;
+            }
+            for reference in changed.intersection(&cited(other)) {
+                let rejection = DecisionRejection::ContradictoryClaims {
+                    reference: reference.clone(),
+                    changed: decision.case_id.clone(),
+                    unchanged: other.case_id.clone(),
+                };
+                for outcome in [left, right] {
+                    if !outcomes[outcome].rejections.contains(&rejection) {
+                        outcomes[outcome].rejections.push(rejection.clone());
+                    }
+                }
+            }
+        }
+    }
+    outcomes
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -400,6 +494,51 @@ mod tests {
                 rejection,
                 DecisionRejection::MalformedEvidenceRef { .. }
             ))
+        );
+    }
+
+    #[test]
+    fn opposite_claims_about_the_same_evidence_are_returned_as_a_conflict() {
+        let bundle = BundleId::new("b0").expect("bundle id");
+        let mut second = case();
+        second.case_id = CaseId::new("R18").expect("case id");
+
+        let changed = decision();
+        let mut unchanged = decision();
+        unchanged.case_id = CaseId::new("R18").expect("case id");
+        unchanged.status = DecisionStatus::UnchangedInScope;
+        unchanged.change_kinds.clear();
+
+        let outcomes = validate_decisions(&[changed, unchanged], &[case(), second], &bundle);
+        assert_eq!(outcomes.len(), 2);
+        for outcome in &outcomes {
+            assert!(
+                outcome.rejections.iter().any(|rejection| matches!(
+                    rejection,
+                    DecisionRejection::ContradictoryClaims { .. }
+                )),
+                "both sides of a contradiction are reported: {outcome:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unrelated_pair_of_decisions_passes_the_set_check() {
+        let bundle = BundleId::new("b0").expect("bundle id");
+        let mut second = case();
+        second.case_id = CaseId::new("R18").expect("case id");
+        second.evidence[0].alias = SourceAlias::new("E99").expect("alias");
+
+        let mut other = decision();
+        other.case_id = CaseId::new("R18").expect("case id");
+        other.status = DecisionStatus::UnchangedInScope;
+        other.change_kinds.clear();
+        other.evidence_refs = vec!["old:E99".into()];
+
+        let outcomes = validate_decisions(&[decision(), other], &[case(), second], &bundle);
+        assert!(
+            outcomes.iter().all(|outcome| outcome.rejections.is_empty()),
+            "{outcomes:?}"
         );
     }
 

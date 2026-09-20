@@ -42,8 +42,8 @@ pub use contract::{
     SidedSource, SourceAlias, TokenInterval,
 };
 pub use decision::{
-    AgentDecision, DecisionChangeKind, DecisionRejection, DecisionStatus, RetrievalRequest,
-    validate_decision,
+    AgentDecision, DecisionChangeKind, DecisionOutcome, DecisionRejection, DecisionStatus,
+    RetrievalRequest, validate_decision, validate_decisions,
 };
 pub use evidence_plan::{SharedEvidenceReview, plan_shared_evidence};
 pub use manifest::{

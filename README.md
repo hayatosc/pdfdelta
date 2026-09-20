@@ -185,9 +185,15 @@ the page box it came from. Pages are rendered at 72 dpi, so small type may not
 be legible; that case is answerable only as undetermined rather than by
 enlarging a crop.
 
+`review import` validates the answers that come back — schema, bundle and case
+identity, references and their document side, and claims that contradict each
+other — and stores them as a new file that keeps the engine's outcome and the
+external answers in separate sections. A submission with any invalid decision
+stores nothing, and the bundle itself is never modified.
+
 Exporting a bundle changes no comparison field, no coverage count, and no exit
 status, and an external reviewer's answer is never merged into the engine's
-result. Importing an external assessment is not implemented yet. `--agent-review` works with the default
+result. `--agent-review` works with the default
 channels and with `--native-text-only`, but not together with `--review`.
 [`docs/agent-review.md`](docs/agent-review.md) documents the contract.
 

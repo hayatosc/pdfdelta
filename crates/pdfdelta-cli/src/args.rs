@@ -250,6 +250,25 @@ pub enum ReviewCommand {
         max_output_bytes: usize,
     },
 
+    /// Validate external assessments and store them as a new artifact.
+    Import {
+        /// The bundle directory the assessments answer.
+        #[arg(value_name = "DIR")]
+        directory: PathBuf,
+
+        /// JSON file holding the assessments.
+        #[arg(long, value_name = "PATH")]
+        decisions: PathBuf,
+
+        /// New file to write the validated result to.
+        #[arg(long, value_name = "PATH")]
+        output: PathBuf,
+
+        /// Hard cap on the encoded JSON response, including its metadata.
+        #[arg(long, value_name = "BYTES", default_value_t = 8192, value_parser = parse_output_budget)]
+        max_output_bytes: usize,
+    },
+
     /// Read one case at one detail level.
     Show {
         /// The bundle directory written by `--agent-review`.

@@ -19,9 +19,10 @@ use std::{
 use pdfdelta_core::{
     model::PageId,
     review::{
-        AgentReviewManifest, CaseCompleteness, CaseContext, CaseId, Cursor, Detail, EngineClass,
-        EngineOutcome, Hypothesis, MAX_CURSOR_BYTES, RequiredEvidence, RetrievalAction, ReviewCase,
-        ReviewPlan, ReviewQuestion, ReviewReason, Side,
+        AgentDecision, AgentReviewManifest, CaseCompleteness, CaseContext, CaseId, Cursor,
+        DecisionStatus, Detail, EngineClass, EngineOutcome, Hypothesis, MAX_CURSOR_BYTES,
+        RequiredEvidence, RetrievalAction, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason,
+        Side,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -418,6 +419,9 @@ pub(crate) struct QueryError {
     pub detail: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_bytes: Option<usize>,
+    /// Per-decision refusals, when the failure is a rejected submission.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejections: Option<serde_json::Value>,
 }
 
 impl QueryError {
@@ -427,6 +431,7 @@ impl QueryError {
             error,
             detail: detail.into(),
             required_bytes: None,
+            rejections: None,
         }
     }
 
@@ -1126,6 +1131,150 @@ fn decode_page(
     }
     samples.truncate(info.buffer_size());
     Ok(samples)
+}
+
+/// A submitted set of external assessments.
+///
+/// Either a bare array of decisions or an object carrying them, so a host can
+/// add its own identity without changing the decisions themselves.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SubmittedDecisions {
+    List(Vec<AgentDecision>),
+    Envelope {
+        #[serde(default)]
+        agent: Option<serde_json::Value>,
+        decisions: Vec<AgentDecision>,
+    },
+}
+
+impl SubmittedDecisions {
+    fn into_parts(self) -> (Option<serde_json::Value>, Vec<AgentDecision>) {
+        match self {
+            Self::List(decisions) => (None, decisions),
+            Self::Envelope { agent, decisions } => (agent, decisions),
+        }
+    }
+}
+
+/// Stores validated external assessments as a new artifact.
+///
+/// The bundle is never modified. The result keeps the engine's own outcome and
+/// the external answers in separate sections, because one is a comparison and
+/// the other is an interpretation of it. A set containing any decision that
+/// fails validation is refused as a whole: accepting the rest would silently
+/// publish a partial review as a complete one.
+pub(crate) fn import(
+    directory: &Path,
+    decisions: &Path,
+    output: &Path,
+    cap: usize,
+) -> Result<Vec<u8>, QueryError> {
+    let manifest: StoredManifest = read_json(&artifact(directory, COMPLETION_MARKER))?;
+    let index: CaseIndex = manifest.read_verified(directory, CASE_INDEX)?;
+    let submitted: SubmittedDecisions = read_json(decisions)?;
+    let (agent, submitted) = submitted.into_parts();
+    let bundle = pdfdelta_core::review::BundleId::new(manifest.bundle_id.clone())
+        .map_err(|error| QueryError::new("malformed_bundle", error.to_string()))?;
+
+    // Only the cases a decision names are loaded; a submission never forces a
+    // read of the whole bundle.
+    let mut cases = Vec::new();
+    for decision in &submitted {
+        if cases
+            .iter()
+            .any(|case: &ReviewCase| case.case_id == decision.case_id)
+        {
+            continue;
+        }
+        let name = format!("cases/{}.json", decision.case_id);
+        if !manifest.lists(&name) {
+            continue;
+        }
+        cases.push(manifest.read_verified(directory, &name)?);
+    }
+    let outcomes = pdfdelta_core::review::validate_decisions(&submitted, &cases, &bundle);
+    let rejected: Vec<_> = outcomes
+        .iter()
+        .filter(|outcome| !outcome.rejections.is_empty())
+        .map(|outcome| {
+            serde_json::json!({
+                "index": outcome.index,
+                "case_id": outcome.case_id,
+                "rejections": outcome
+                    .rejections
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    if !rejected.is_empty() {
+        return Err(QueryError {
+            rejections: Some(serde_json::Value::Array(rejected)),
+            ..QueryError::new(
+                "rejected_decisions",
+                "no assessment was stored; every submitted decision must validate",
+            )
+        });
+    }
+
+    let answered: BTreeSet<_> = submitted
+        .iter()
+        .map(|decision| decision.case_id.clone())
+        .collect();
+    let count = |status: DecisionStatus| {
+        submitted
+            .iter()
+            .filter(|decision| decision.status == status)
+            .count()
+    };
+    let reviewed = count(DecisionStatus::Changed) + count(DecisionStatus::UnchangedInScope);
+    let stored = serde_json::json!({
+        "schema": "agent-review-result/v1",
+        "bundle_id": manifest.bundle_id,
+        // The engine's own result, copied without reinterpretation.
+        "engine": manifest.engine,
+        "export": manifest.export,
+        "external": {
+            "origin": "external_agent",
+            "agent": agent,
+            "decisions": submitted,
+        },
+        "counts": {
+            "cases_total": index.records.len(),
+            "reviewed_cases": reviewed,
+            "undetermined_cases": count(DecisionStatus::Undetermined),
+            "need_more_evidence_cases": count(DecisionStatus::NeedMoreEvidence),
+            "unanswered_cases": index
+                .records
+                .iter()
+                .filter(|record| !answered.contains(&record.case))
+                .count(),
+            "unavailable_scopes": manifest.unlocalized_gaps.len(),
+        },
+        "note": "External assessments are review notes. They do not change the comparison, its coverage, or its exit status, and a validated decision is not a proof.",
+    });
+    let encoded = serde_json::to_vec_pretty(&stored)
+        .map_err(|error| QueryError::new("encoding_failed", error.to_string()))?;
+    crate::fs::write_output_atomically(output, "review result", |writer| {
+        writer
+            .write_all(&encoded)
+            .map_err(|error| format!("cannot write review result: {error}"))
+    })
+    .map_err(|error| QueryError::new("unwritable_output", error))?;
+
+    finish(
+        serde_json::json!({
+            "schema": pdfdelta_core::review::REVIEW_SCHEMA,
+            "view": "import",
+            "bundle_id": manifest.bundle_id,
+            "output": output.display().to_string(),
+            "accepted": submitted.len(),
+            "counts": stored["counts"],
+        }),
+        cap,
+    )
 }
 
 /// Writes one query answer to standard output.
