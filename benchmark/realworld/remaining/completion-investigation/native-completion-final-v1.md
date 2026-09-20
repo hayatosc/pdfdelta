@@ -33,14 +33,37 @@ resolution ranges tile the new side with no gap or overlap, and all 1,051 /
 the full 32M work but still reports no candidate, no unresolved region and no
 incomplete search, so the exhaustion hides nothing.
 
-## Scope correction
+## Comparison scope
 
-These are visible-native-text completions. Image pixels, path lettering, OCR
-text layers, handwriting and any non-painting render mode stay outside the
+These are visible-native-text completions. Image pixels, path lettering,
+invisible text (for example render mode 3) and handwriting stay outside the
 comparison scope, so the result does not mean the whole document content
-matches. The independent producers are the Agency for Cultural Affairs
-(Japanese government) and the FAA; the panel records their input URLs and
-SHA-256 hashes, which match the captured inputs.
+matches. Visible text layers are compared, including a visible OCR text
+layer; only non-painting text is excluded. This scope is unchanged from the
+frozen baseline: the baseline already counted FAA old at
+`old_alignment_coverage.total_tokens = 0` (native-text-scope-v2 baseline
+summary, report sha256 `f65ed8269daee054c6ffa1d4ba18d0696a6cd475325e2993c8f9f7ba8578bd27`),
+so the invisible OCR layer was outside the comparison before this work. The
+independent producers are the Agency for Cultural Affairs (Japanese
+government) and the FAA; the panel records their input URLs and SHA-256
+hashes, which match the captured inputs.
+
+## Native source audit
+
+The final audit already checked glyph ownership as Counter multiplicity
+rather than set membership: every change glyph instance is compared with the
+resolution's glyph instances, references repeated inside one change are
+counted, and tiling gaps or overlaps are counted per block. It did not check
+the event ranges or text against extraction evidence, so this record adds
+that check. For every one of the 525 bunka and 286 faa change events, each
+referenced native glyph exists in `inspect --glyphs` output, its page, bbox,
+content-stream object and generation, and operator index equal the native
+glyph record, no span references a glyph twice, the canonical range length
+equals the text length (525/525 and 286/286), and the canonical text equals
+the concatenation of the referenced native glyph texts (332/525 and 220/286
+byte-exact; 525/525 and 286/286 after whitespace normalization, which is the
+only remaining difference: rebuilt separators and U+3000 mapped to a plain
+space).
 
 ## Pipeline-driven tests and controls
 
@@ -71,13 +94,44 @@ and 12 `next-blind` revision pairs are already in the frozen panel; the other
 cached old/new pairs are review copies of panel pairs or synthetic fixtures;
 the round2/round3 blind download attempts for ietf-tls/http/sip, gnu-gpl,
 japan-post-terms and arxiv-resnet all failed and have no cached PDFs. No
-holdout was run, and this note is the evidence instead of a claim.
+holdout was run at that time, and this note was the evidence instead of a
+claim.
+
+A later, pre-frozen follow-up requested two more pairs:
+`irs-w9-2018-to-2024` (`fw9--2018.pdf` to `fw9--2024.pdf`) and
+`irs-w4-2022-to-2023` (`fw4--2022.pdf` to `fw4--2023.pdf`), with URLs, current
+HEAD, final binary, default limits and the overlap check fixed in a manifest
+before any download. The check found `irs-w9-2018-to-2024` is already a frozen
+panel member (`followup_target_index: 8`), so it cannot be an independent
+holdout; it was captured as a panel reassessment with its inputs, denominator
+and scope unchanged. `irs-w4-2022-to-2023` is unused (the panel's W-4 pair is
+2024 to 2025) and became the independent holdout. Both pairs are two-sided
+and both remain incomplete on the final binary: W9 exits 3 with 0 changes, 91
+candidates and 1,011 unresolved regions; W4 exits 3 with 0 changes, 80
+candidates and 621 unresolved regions. Both sides extract completely with no
+issues and both sides carry tokens (W9 34,865 old / 37,481 new; W4 19,888 /
+19,738), so the proven-empty one-sided path must not apply and cannot have
+applied. The holdout adds no completion: the count stays at least 3/36, and
+the W9 reassessment lost no resolved tokens against its predecessor. No
+production code was changed after seeing these results.
+
+The same native-evidence checks ran over the holdout spans: 1,169 W9 and
+1,006 W4 candidate and unresolved spans (76,804 and 40,423 glyph references)
+all have native records, matching provenance, unique references inside a
+span, and canonical range length equal to the text length. Their text equals
+the native glyph sequence except for whitespace normalization, separator-only
+spans whose sources are adjacent boundary punctuation, leading or trailing
+boundary evidence glyphs, and unmapped glyphs omitted from the canonical text
+and listed in `unmapped_tokens`.
 
 ## Evidence
 
 - Final artifact: `benchmark/realworld/cache/completion-investigation/native-completion-final-v1/`
   (`manifest.json`, panel and input hashes, both runs per pair, reference
   subset checks, report and PDF audits).
+- Holdout artifact: `benchmark/realworld/cache/completion-investigation/native-completion-holdout-v1/`
+  (`manifest.json` with the pre-frozen selection, download ledger, PDF audit,
+  captured reports, time and RSS, and the native-evidence audits).
 - Commits: `b94ce79` (comment), `933965c` (resource boundary), `6a1a9f5`
   (pipeline tests); the proven-empty settlement is `37b0a48`.
 - Quality gates on the final source: formatting, workspace clippy, workspace
