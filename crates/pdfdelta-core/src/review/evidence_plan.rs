@@ -29,8 +29,8 @@ use crate::{
     document::{
         Channel, ChannelSourceAccounting, DocumentView, DocumentViewComparison, EvidenceFailure,
         EvidenceIssue, FieldValue, GraphNode, InterpretationStatus, MatchingComponent, NodeContent,
-        NodeId, ScopeViewComparison, SourceRef, UnresolvedObligation, UnresolvedReason,
-        document_source_accounting, unresolved_classification,
+        NodeId, ScopeViewComparison, SourceRef, StructuredValue, UnresolvedObligation,
+        UnresolvedReason, document_source_accounting, unresolved_classification,
     },
     model::PageId,
 };
@@ -932,18 +932,35 @@ impl<'a> Planner<'a> {
                         .push(issue.clone());
                     continue;
                 }
+                // A form obligation that names a stored field is a question
+                // about that field's value and its appearance, not a failure to
+                // acquire anything. The distinction is drawn from the evidence
+                // the issue points at, never from its wording.
+                let appearance = issue.channel == Channel::Forms
+                    && issue.kind == EvidenceFailure::Unresolved
+                    && issue.sources.iter().any(|source| {
+                        matches!(source, SourceRef::Structured { element }
+                        if view.evidence.structured.iter().any(|stored| {
+                            stored.id == *element
+                                && matches!(stored.value, StructuredValue::FormField { .. })
+                        }))
+                    });
                 let reasons = vec![
-                    ReasonRecord::new(issue.kind.into())
-                        .with_message(issue.reason.clone())
-                        .with_channel(issue.channel)
-                        .with_page(issue.page)
-                        .with_sources(
-                            issue
-                                .sources
-                                .iter()
-                                .map(|source| evidence_ref(side, *source))
-                                .collect(),
-                        ),
+                    ReasonRecord::new(if appearance {
+                        ReviewReason::ValueAppearanceUnverified
+                    } else {
+                        issue.kind.into()
+                    })
+                    .with_message(issue.reason.clone())
+                    .with_channel(issue.channel)
+                    .with_page(issue.page)
+                    .with_sources(
+                        issue
+                            .sources
+                            .iter()
+                            .map(|source| evidence_ref(side, *source))
+                            .collect(),
+                    ),
                 ];
                 let (extra_old, extra_new) = match side {
                     Side::Old => (issue.sources.clone(), Vec::new()),
@@ -951,7 +968,11 @@ impl<'a> Planner<'a> {
                 };
                 let case = self.build_case(
                     CaseDraft {
-                        question: ReviewQuestion::AcquisitionGap,
+                        question: if appearance {
+                            ReviewQuestion::CheckValueAppearance
+                        } else {
+                            ReviewQuestion::AcquisitionGap
+                        },
                         engine_class: EngineClass::Unavailable,
                         old_nodes: &[],
                         new_nodes: &[],

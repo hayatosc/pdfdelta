@@ -913,3 +913,123 @@ fn a_table_case_carries_its_row_and_repeated_occurrences_as_context() {
         "a repeated value is either quoted twice or offered as another occurrence: {kinds:?}"
     );
 }
+
+/// A stored form field whose value the engine could not reconcile with its
+/// declared widget appearance.
+fn form_fixture() -> Fixture {
+    let structured = vec![StructuredEvidence {
+        id: 0,
+        page: Some(PageId(0)),
+        bounds: None,
+        object: None,
+        backend: 0,
+        value: StructuredValue::FormField {
+            name: "deadline".into(),
+            field_type: Some(b"Btn".to_vec()),
+            value: pdfdelta_core::document::FieldValue::Name(b"Yes".to_vec()),
+            widgets: Vec::new(),
+            button_states: Vec::new(),
+        },
+    }];
+    let store = EvidenceStore {
+        revision: "planner-fixture".into(),
+        native: Document::new(Vec::new()),
+        pages: vec![PageEvidence {
+            page: PageId(0),
+            bounds: None,
+        }],
+        backends: vec![BackendIdentity {
+            kind: BackendKind::NativeParser,
+            name: "fixture".into(),
+            version: "1".into(),
+            profile: "source-structure".into(),
+            model: None,
+        }],
+        rendered: Vec::new(),
+        inventories: vec![ChannelInventory {
+            page: None,
+            channel: Channel::Forms,
+            backend: 0,
+            sources: vec![SourceRef::Structured { element: 0 }],
+            complete: true,
+        }],
+        key_inventories: Vec::new(),
+        native_structures: Vec::new(),
+        issues: vec![EvidenceIssue {
+            page: Some(PageId(0)),
+            channel: Channel::Forms,
+            sources: vec![SourceRef::Structured { element: 0 }],
+            boundary: None,
+            kind: EvidenceFailure::Unresolved,
+            reason: "saved button value and declared widget appearance states disagree; neither value was substituted".into(),
+        }],
+        structured,
+    };
+    let limits = DocumentComparisonLimits::default();
+    let graph = DocumentGraph::from_evidence(
+        &store,
+        PipelineOptions::default(),
+        limits.evidence,
+        limits.graph,
+    )
+    .expect("derive form views");
+    Fixture { store, graph }
+}
+
+#[test]
+fn a_stored_value_the_engine_could_not_reconcile_is_asked_about_not_filed_as_a_gap() {
+    let old = form_fixture();
+    let new = form_fixture();
+    let channels = BTreeSet::from([Channel::Forms]);
+    let mut limits = DocumentComparisonLimits::default();
+    limits.matching.channels = MatchingChannels::from(&channels);
+    let comparison = compare_document_views(
+        old.view(),
+        new.view(),
+        CorrespondenceScope {
+            old: NodeId(0),
+            new: NodeId(0),
+        },
+        limits,
+        HierarchyLimits::default(),
+    )
+    .expect("compare form fixtures");
+    let plan = plan_shared_evidence(
+        &SharedEvidenceReview {
+            identity: identity(),
+            outcome: outcome(),
+            old: old.view(),
+            new: new.view(),
+            comparison: &comparison,
+            channels: &channels,
+        },
+        PlannerLimits::default(),
+    );
+
+    let case = plan
+        .cases
+        .iter()
+        .find(|case| case.question == ReviewQuestion::CheckValueAppearance)
+        .expect("the unreconciled field becomes a question about its appearance");
+    assert!(
+        case.reasons
+            .iter()
+            .any(|reason| reason.reason == ReviewReason::ValueAppearanceUnverified)
+    );
+    // The engine's own wording is retained beside the classification.
+    assert!(
+        case.reasons.iter().any(|reason| reason
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("appearance states disagree"))),
+        "{:?}",
+        case.reasons
+    );
+    assert!(
+        !plan
+            .cases
+            .iter()
+            .any(|case| case.question == ReviewQuestion::AcquisitionGap),
+        "a value that was acquired is not an acquisition failure"
+    );
+}
