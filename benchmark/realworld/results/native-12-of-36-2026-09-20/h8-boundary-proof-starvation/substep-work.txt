@@ -1,0 +1,1920 @@
+H8 call=0 phase=domain_key remaining=30683053
+H8 call=0 phase=prove_domain remaining=30683045
+H8 call=0 phase=extents old=1 new=1 remaining=30683045
+H8 call=0 phase=boundary remaining=30683045
+H8 call=0 phase=invariant remaining=30683045
+H8 call=0 phase=competing remaining=30683045
+H8 call=1 phase=domain_key remaining=30683045
+H8 call=1 phase=prove_domain remaining=30683011
+H8 call=1 phase=extents old=1 new=1 remaining=30683011
+H8 call=1 phase=boundary remaining=30683011
+H8 call=1 phase=invariant remaining=30683011
+H8 call=1 phase=competing remaining=30683011
+H8 call=2 phase=domain_key remaining=30683011
+H8 call=2 phase=prove_domain remaining=30682912
+H8 call=2 phase=extents old=1 new=1 remaining=30682912
+H8 call=2 phase=boundary remaining=30682912
+H8 call=2 phase=invariant remaining=30682912
+H8 call=2 phase=competing remaining=30682912
+H8 call=3 phase=domain_key remaining=30682912
+H8 call=3 phase=prove_domain remaining=30682880
+H8 call=3 phase=extents old=1 new=1 remaining=30682880
+H8 call=3 phase=boundary remaining=30682880
+H8 call=3 phase=invariant remaining=30682880
+H8 call=3 phase=competing remaining=30682880
+H8 call=4 phase=domain_key remaining=30682880
+H8 call=4 phase=prove_domain remaining=30682831
+H8 call=4 phase=extents old=1 new=1 remaining=30682831
+H8 call=4 phase=boundary remaining=30682831
+H8 call=4 phase=invariant remaining=30682831
+H8 call=4 phase=competing remaining=30682831
+H8 call=5 phase=domain_key remaining=30682831
+H8 call=5 phase=prove_domain remaining=30682823
+H8 call=5 phase=extents old=1 new=1 remaining=30682823
+H8 call=5 phase=boundary remaining=30682823
+H8 call=5 phase=invariant remaining=30682823
+H8 call=5 phase=competing remaining=30682823
+H8 call=6 phase=domain_key remaining=30682823
+H8 call=6 phase=prove_domain remaining=30682817
+H8 call=6 phase=extents old=1 new=1 remaining=30682817
+H8 call=6 phase=boundary remaining=30682817
+H8 call=6 phase=invariant remaining=30682817
+H8 call=6 phase=competing remaining=30682817
+H8 call=7 phase=domain_key remaining=30682817
+H8 call=7 phase=prove_domain remaining=30682809
+H8 call=7 phase=extents old=1 new=1 remaining=30682809
+H8 call=7 phase=boundary remaining=30682809
+H8 call=7 phase=invariant remaining=30682809
+H8 call=7 phase=competing remaining=30682809
+H8 call=8 phase=domain_key remaining=30682809
+H8 call=8 phase=prove_domain remaining=30682784
+H8 call=8 phase=extents old=1 new=1 remaining=30682784
+H8 call=8 phase=boundary remaining=30682784
+H8 call=8 phase=invariant remaining=30682784
+H8 call=8 phase=competing remaining=30682784
+H8 call=9 phase=domain_key remaining=30682784
+H8 call=9 phase=prove_domain remaining=30682755
+H8 call=9 phase=extents old=1 new=1 remaining=30682755
+H8 call=9 phase=boundary remaining=30682755
+H8 call=9 phase=invariant remaining=30682755
+H8 call=9 phase=competing remaining=30682755
+H8 call=10 phase=domain_key remaining=30682755
+H8 call=10 phase=prove_domain remaining=30682723
+H8 call=10 phase=extents old=1 new=1 remaining=30682723
+H8 call=10 phase=boundary remaining=30682723
+H8 call=10 phase=invariant remaining=30682723
+H8 call=10 phase=competing remaining=30682723
+H8 call=11 phase=domain_key remaining=30682723
+H8 call=11 phase=prove_domain remaining=30682697
+H8 call=11 phase=extents old=1 new=1 remaining=30682697
+H8 call=11 phase=boundary remaining=30682697
+H8 call=11 phase=invariant remaining=30682697
+H8 call=11 phase=competing remaining=30682697
+H8 call=12 phase=domain_key remaining=30682697
+H8 call=12 phase=prove_domain remaining=30682669
+H8 call=12 phase=extents old=1 new=1 remaining=30682669
+H8 call=12 phase=boundary remaining=30682669
+H8 call=12 phase=invariant remaining=30682669
+H8 call=12 phase=competing remaining=30682669
+H8 call=13 phase=domain_key remaining=30682669
+H8 call=13 phase=prove_domain remaining=30682648
+H8 call=13 phase=extents old=1 new=1 remaining=30682648
+H8 call=13 phase=boundary remaining=30682648
+H8 call=13 phase=invariant remaining=30682648
+H8 call=13 phase=competing remaining=30682648
+H8 call=14 phase=domain_key remaining=30682648
+H8 call=14 phase=prove_domain remaining=30682644
+H8 call=14 phase=extents old=1 new=1 remaining=30682644
+H8 call=14 phase=boundary remaining=30682644
+H8 call=14 phase=invariant remaining=30682644
+H8 call=14 phase=competing remaining=30682644
+H8 call=15 phase=domain_key remaining=30682644
+H8 call=15 phase=prove_domain remaining=30682555
+H8 call=15 phase=extents old=1 new=1 remaining=30682555
+H8 call=15 phase=boundary remaining=30682555
+H8 call=15 phase=invariant remaining=30682555
+H8 call=15 phase=competing remaining=30682555
+H8 call=16 phase=domain_key remaining=30682555
+H8 call=16 phase=prove_domain remaining=30682409
+H8 call=16 phase=extents old=1 new=1 remaining=30682409
+H8 call=16 phase=boundary remaining=30682409
+H8 call=16 phase=invariant remaining=30682409
+H8 call=16 phase=competing remaining=30682409
+H8 call=17 phase=domain_key remaining=30682409
+H8 call=17 phase=prove_domain remaining=30334899
+H8 call=17 phase=extents old=0 new=1 remaining=30334899
+H8 call=17 phase=boundary remaining=30334899
+H8 call=17 phase=invariant remaining=30334899
+H8 call=17 phase=competing remaining=30334899
+H8 call=18 phase=domain_key remaining=30334899
+H8 call=18 phase=prove_domain remaining=30334772
+H8 call=18 phase=extents old=1 new=1 remaining=30334772
+H8 call=18 phase=boundary remaining=30334772
+H8 call=18 phase=invariant remaining=30334772
+H8 call=18 phase=competing remaining=30334772
+H8 call=19 phase=domain_key remaining=30334772
+H8 call=19 phase=prove_domain remaining=30334687
+H8 call=19 phase=extents old=1 new=1 remaining=30334687
+H8 call=19 phase=boundary remaining=30334687
+H8 call=19 phase=invariant remaining=30334687
+H8 call=19 phase=competing remaining=30334687
+H8 call=20 phase=domain_key remaining=30334687
+H8 call=20 phase=prove_domain remaining=30334679
+H8 call=20 phase=extents old=1 new=1 remaining=30334679
+H8 call=20 phase=boundary remaining=30334679
+H8 call=20 phase=invariant remaining=30334679
+H8 call=20 phase=competing remaining=30334679
+H8 call=21 phase=domain_key remaining=30334679
+H8 call=21 phase=prove_domain remaining=30334665
+H8 call=21 phase=extents old=1 new=1 remaining=30334665
+H8 call=21 phase=boundary remaining=30334665
+H8 call=21 phase=invariant remaining=30334665
+H8 call=21 phase=competing remaining=30334665
+H8 call=22 phase=domain_key remaining=30334665
+H8 call=22 phase=prove_domain remaining=30334655
+H8 call=22 phase=extents old=1 new=1 remaining=30334655
+H8 call=22 phase=boundary remaining=30334655
+H8 call=22 phase=invariant remaining=30334655
+H8 call=22 phase=competing remaining=30334655
+H8 call=23 phase=domain_key remaining=30334655
+H8 call=23 phase=prove_domain remaining=30231672
+H8 call=23 phase=extents old=3 new=3 remaining=30231672
+H8 call=23 phase=boundary remaining=30196027
+H8 call=23 phase=invariant remaining=30160382
+H8 call=23 phase=competing remaining=30160382
+H8 call=24 phase=domain_key remaining=30160382
+H8 call=24 phase=prove_domain remaining=30160382
+H8 call=24 phase=extents old=3 new=3 remaining=30160382
+H8 call=24 phase=boundary remaining=30124737
+H8 call=24 phase=invariant remaining=30089092
+H8 call=24 phase=competing remaining=30089092
+H8 call=25 phase=domain_key remaining=30089092
+H8 call=25 phase=prove_domain remaining=30089092
+H8 call=25 phase=extents old=3 new=3 remaining=30089092
+H8 call=25 phase=boundary remaining=30053447
+H8 call=25 phase=invariant remaining=30017802
+H8 call=25 phase=competing remaining=30017802
+H8 call=26 phase=domain_key remaining=30017802
+H8 call=26 phase=prove_domain remaining=30017602
+H8 call=26 phase=extents old=1 new=1 remaining=30017602
+H8 call=26 phase=boundary remaining=30017602
+H8 call=26 phase=invariant remaining=30017602
+H8 call=26 phase=competing remaining=30017602
+H8 call=27 phase=domain_key remaining=30017602
+H8 call=27 phase=prove_domain remaining=30017516
+H8 call=27 phase=extents old=1 new=1 remaining=30017516
+H8 call=27 phase=boundary remaining=30017516
+H8 call=27 phase=invariant remaining=30017516
+H8 call=27 phase=competing remaining=30017516
+H8 call=28 phase=domain_key remaining=30017516
+H8 call=28 phase=prove_domain remaining=30017297
+H8 call=28 phase=extents old=1 new=1 remaining=30017297
+H8 call=28 phase=boundary remaining=30017297
+H8 call=28 phase=invariant remaining=30017297
+H8 call=28 phase=competing remaining=30017297
+H8 call=29 phase=domain_key remaining=30017297
+H8 call=29 phase=prove_domain remaining=30017289
+H8 call=29 phase=extents old=1 new=1 remaining=30017289
+H8 call=29 phase=boundary remaining=30017289
+H8 call=29 phase=invariant remaining=30017289
+H8 call=29 phase=competing remaining=30017289
+H8 call=30 phase=domain_key remaining=30017289
+H8 call=30 phase=prove_domain remaining=30017283
+H8 call=30 phase=extents old=1 new=1 remaining=30017283
+H8 call=30 phase=boundary remaining=30017283
+H8 call=30 phase=invariant remaining=30017283
+H8 call=30 phase=competing remaining=30017283
+H8 call=31 phase=domain_key remaining=30017283
+H8 call=31 phase=prove_domain remaining=30017273
+H8 call=31 phase=extents old=1 new=1 remaining=30017273
+H8 call=31 phase=boundary remaining=30017273
+H8 call=31 phase=invariant remaining=30017273
+H8 call=31 phase=competing remaining=30017273
+H8 call=32 phase=domain_key remaining=30017273
+H8 call=32 phase=prove_domain remaining=30017263
+H8 call=32 phase=extents old=1 new=1 remaining=30017263
+H8 call=32 phase=boundary remaining=30017263
+H8 call=32 phase=invariant remaining=30017263
+H8 call=32 phase=competing remaining=30017263
+H8 call=33 phase=domain_key remaining=30017263
+H8 call=33 phase=prove_domain remaining=30017255
+H8 call=33 phase=extents old=1 new=1 remaining=30017255
+H8 call=33 phase=boundary remaining=30017255
+H8 call=33 phase=invariant remaining=30017255
+H8 call=33 phase=competing remaining=30017255
+H8 call=34 phase=domain_key remaining=30017255
+H8 call=34 phase=prove_domain remaining=30017172
+H8 call=34 phase=extents old=1 new=1 remaining=30017172
+H8 call=34 phase=boundary remaining=30017172
+H8 call=34 phase=invariant remaining=30017172
+H8 call=34 phase=competing remaining=30017172
+H8 call=35 phase=domain_key remaining=30017172
+H8 call=35 phase=prove_domain remaining=30017094
+H8 call=35 phase=extents old=1 new=1 remaining=30017094
+H8 call=35 phase=boundary remaining=30017094
+H8 call=35 phase=invariant remaining=30017094
+H8 call=35 phase=competing remaining=30017094
+H8 call=36 phase=domain_key remaining=30017094
+H8 call=36 phase=prove_domain remaining=30017083
+H8 call=36 phase=extents old=2 new=2 remaining=30017083
+H8 call=36 phase=boundary remaining=30017083
+H8 call=36 phase=invariant remaining=30017083
+H8 call=36 phase=competing remaining=30017083
+H8 call=37 phase=domain_key remaining=30017083
+H8 call=37 phase=prove_domain remaining=30017083
+H8 call=37 phase=extents old=2 new=2 remaining=30017083
+H8 call=37 phase=boundary remaining=30017083
+H8 call=37 phase=invariant remaining=30017083
+H8 call=37 phase=competing remaining=30017083
+H8 call=38 phase=domain_key remaining=30017083
+H8 call=38 phase=prove_domain remaining=30017071
+H8 call=38 phase=extents old=1 new=1 remaining=30017071
+H8 call=38 phase=boundary remaining=30017071
+H8 call=38 phase=invariant remaining=30017071
+H8 call=38 phase=competing remaining=30017071
+H8 call=39 phase=domain_key remaining=30017071
+H8 call=39 phase=prove_domain remaining=30016985
+H8 call=39 phase=extents old=1 new=1 remaining=30016985
+H8 call=39 phase=boundary remaining=30016985
+H8 call=39 phase=invariant remaining=30016985
+H8 call=39 phase=competing remaining=30016985
+H8 call=40 phase=domain_key remaining=30016985
+H8 call=40 phase=prove_domain remaining=30016910
+H8 call=40 phase=extents old=1 new=1 remaining=30016910
+H8 call=40 phase=boundary remaining=30016910
+H8 call=40 phase=invariant remaining=30016910
+H8 call=40 phase=competing remaining=30016910
+H8 call=41 phase=domain_key remaining=30016910
+H8 call=41 phase=prove_domain remaining=30016904
+H8 call=41 phase=extents old=1 new=1 remaining=30016904
+H8 call=41 phase=boundary remaining=30016904
+H8 call=41 phase=invariant remaining=30016904
+H8 call=41 phase=competing remaining=30016904
+H8 call=42 phase=domain_key remaining=30016904
+H8 call=42 phase=prove_domain remaining=30016816
+H8 call=42 phase=extents old=1 new=1 remaining=30016816
+H8 call=42 phase=boundary remaining=30016816
+H8 call=42 phase=invariant remaining=30016816
+H8 call=42 phase=competing remaining=30016816
+H8 call=43 phase=domain_key remaining=30016816
+H8 call=43 phase=prove_domain remaining=30016755
+H8 call=43 phase=extents old=1 new=1 remaining=30016755
+H8 call=43 phase=boundary remaining=30016755
+H8 call=43 phase=invariant remaining=30016755
+H8 call=43 phase=competing remaining=30016755
+H8 call=44 phase=domain_key remaining=30016755
+H8 call=44 phase=prove_domain remaining=30016749
+H8 call=44 phase=extents old=1 new=1 remaining=30016749
+H8 call=44 phase=boundary remaining=30016749
+H8 call=44 phase=invariant remaining=30016749
+H8 call=44 phase=competing remaining=30016749
+H8 call=45 phase=domain_key remaining=30016749
+H8 call=45 phase=prove_domain remaining=30016664
+H8 call=45 phase=extents old=1 new=1 remaining=30016664
+H8 call=45 phase=boundary remaining=30016664
+H8 call=45 phase=invariant remaining=30016664
+H8 call=45 phase=competing remaining=30016664
+H8 call=46 phase=domain_key remaining=30016664
+H8 call=46 phase=prove_domain remaining=30016658
+H8 call=46 phase=extents old=1 new=1 remaining=30016658
+H8 call=46 phase=boundary remaining=30016658
+H8 call=46 phase=invariant remaining=30016658
+H8 call=46 phase=competing remaining=30016658
+H8 call=47 phase=domain_key remaining=30016658
+H8 call=47 phase=prove_domain remaining=30016650
+H8 call=47 phase=extents old=1 new=1 remaining=30016650
+H8 call=47 phase=boundary remaining=30016650
+H8 call=47 phase=invariant remaining=30016650
+H8 call=47 phase=competing remaining=30016650
+H8 call=48 phase=domain_key remaining=30016650
+H8 call=48 phase=prove_domain remaining=30016641
+H8 call=48 phase=extents old=1 new=1 remaining=30016641
+H8 call=48 phase=boundary remaining=30016641
+H8 call=48 phase=invariant remaining=30016641
+H8 call=48 phase=competing remaining=30016641
+H8 call=49 phase=domain_key remaining=30016641
+H8 call=49 phase=prove_domain remaining=30016576
+H8 call=49 phase=extents old=1 new=1 remaining=30016576
+H8 call=49 phase=boundary remaining=30016576
+H8 call=49 phase=invariant remaining=30016576
+H8 call=49 phase=competing remaining=30016576
+H8 call=50 phase=domain_key remaining=30016576
+H8 call=50 phase=prove_domain remaining=30016571
+H8 call=50 phase=extents old=1 new=1 remaining=30016571
+H8 call=50 phase=boundary remaining=30016571
+H8 call=50 phase=invariant remaining=30016571
+H8 call=50 phase=competing remaining=30016571
+H8 call=51 phase=domain_key remaining=30016571
+H8 call=51 phase=prove_domain remaining=30016533
+H8 call=51 phase=extents old=1 new=1 remaining=30016533
+H8 call=51 phase=boundary remaining=30016533
+H8 call=51 phase=invariant remaining=30016533
+H8 call=51 phase=competing remaining=30016533
+H8 call=52 phase=domain_key remaining=30016533
+H8 call=52 phase=prove_domain remaining=30016519
+H8 call=52 phase=extents old=1 new=1 remaining=30016519
+H8 call=52 phase=boundary remaining=30016519
+H8 call=52 phase=invariant remaining=30016519
+H8 call=52 phase=competing remaining=30016519
+H8 call=53 phase=domain_key remaining=30016519
+H8 call=53 phase=prove_domain remaining=30016509
+H8 call=53 phase=extents old=1 new=1 remaining=30016509
+H8 call=53 phase=boundary remaining=30016509
+H8 call=53 phase=invariant remaining=30016509
+H8 call=53 phase=competing remaining=30016509
+H8 call=54 phase=domain_key remaining=30016509
+H8 call=54 phase=prove_domain remaining=30016497
+H8 call=54 phase=extents old=1 new=1 remaining=30016497
+H8 call=54 phase=boundary remaining=30016497
+H8 call=54 phase=invariant remaining=30016497
+H8 call=54 phase=competing remaining=30016497
+H8 call=55 phase=domain_key remaining=30016497
+H8 call=55 phase=prove_domain remaining=30016434
+H8 call=55 phase=extents old=1 new=1 remaining=30016434
+H8 call=55 phase=boundary remaining=30016434
+H8 call=55 phase=invariant remaining=30016434
+H8 call=55 phase=competing remaining=30016434
+H8 call=56 phase=domain_key remaining=30016434
+H8 call=56 phase=prove_domain remaining=30016419
+H8 call=56 phase=extents old=1 new=1 remaining=30016419
+H8 call=56 phase=boundary remaining=30016419
+H8 call=56 phase=invariant remaining=30016419
+H8 call=56 phase=competing remaining=30016419
+H8 call=57 phase=domain_key remaining=30016419
+H8 call=57 phase=prove_domain remaining=30016413
+H8 call=57 phase=extents old=1 new=1 remaining=30016413
+H8 call=57 phase=boundary remaining=30016413
+H8 call=57 phase=invariant remaining=30016413
+H8 call=57 phase=competing remaining=30016413
+H8 call=58 phase=domain_key remaining=30016413
+H8 call=58 phase=prove_domain remaining=30016355
+H8 call=58 phase=extents old=1 new=1 remaining=30016355
+H8 call=58 phase=boundary remaining=30016355
+H8 call=58 phase=invariant remaining=30016355
+H8 call=58 phase=competing remaining=30016355
+H8 call=59 phase=domain_key remaining=30016355
+H8 call=59 phase=prove_domain remaining=30016355
+H8 call=59 phase=extents old=1 new=1 remaining=30016355
+H8 call=59 phase=boundary remaining=30016355
+H8 call=59 phase=invariant remaining=30016355
+H8 call=59 phase=competing remaining=30016355
+H8 call=60 phase=domain_key remaining=30016355
+H8 call=60 phase=prove_domain remaining=30016252
+H8 call=60 phase=extents old=1 new=1 remaining=30016252
+H8 call=60 phase=boundary remaining=30016252
+H8 call=60 phase=invariant remaining=30016252
+H8 call=60 phase=competing remaining=30016252
+H8 call=61 phase=domain_key remaining=30016252
+H8 call=61 phase=prove_domain remaining=30016168
+H8 call=61 phase=extents old=1 new=1 remaining=30016168
+H8 call=61 phase=boundary remaining=30016168
+H8 call=61 phase=invariant remaining=30016168
+H8 call=61 phase=competing remaining=30016168
+H8 call=62 phase=domain_key remaining=30016168
+H8 call=62 phase=prove_domain remaining=30016165
+H8 call=62 phase=extents old=1 new=1 remaining=30016165
+H8 call=62 phase=boundary remaining=30016165
+H8 call=62 phase=invariant remaining=30016165
+H8 call=62 phase=competing remaining=30016165
+H8 call=63 phase=domain_key remaining=30016165
+H8 call=63 phase=prove_domain remaining=30016064
+H8 call=63 phase=extents old=1 new=1 remaining=30016064
+H8 call=63 phase=boundary remaining=30016064
+H8 call=63 phase=invariant remaining=30016064
+H8 call=63 phase=competing remaining=30016064
+H8 call=64 phase=domain_key remaining=30016064
+H8 call=64 phase=prove_domain remaining=30015987
+H8 call=64 phase=extents old=1 new=1 remaining=30015987
+H8 call=64 phase=boundary remaining=30015987
+H8 call=64 phase=invariant remaining=30015987
+H8 call=64 phase=competing remaining=30015987
+H8 call=65 phase=domain_key remaining=30015987
+H8 call=65 phase=prove_domain remaining=30015983
+H8 call=65 phase=extents old=1 new=1 remaining=30015983
+H8 call=65 phase=boundary remaining=30015983
+H8 call=65 phase=invariant remaining=30015983
+H8 call=65 phase=competing remaining=30015983
+H8 call=66 phase=domain_key remaining=30015983
+H8 call=66 phase=prove_domain remaining=30015882
+H8 call=66 phase=extents old=1 new=1 remaining=30015882
+H8 call=66 phase=boundary remaining=30015882
+H8 call=66 phase=invariant remaining=30015882
+H8 call=66 phase=competing remaining=30015882
+H8 call=67 phase=domain_key remaining=30015882
+H8 call=67 phase=prove_domain remaining=30015814
+H8 call=67 phase=extents old=1 new=1 remaining=30015814
+H8 call=67 phase=boundary remaining=30015814
+H8 call=67 phase=invariant remaining=30015814
+H8 call=67 phase=competing remaining=30015814
+H8 call=68 phase=domain_key remaining=30015814
+H8 call=68 phase=prove_domain remaining=30015810
+H8 call=68 phase=extents old=1 new=1 remaining=30015810
+H8 call=68 phase=boundary remaining=30015810
+H8 call=68 phase=invariant remaining=30015810
+H8 call=68 phase=competing remaining=30015810
+H8 call=69 phase=domain_key remaining=30015810
+H8 call=69 phase=prove_domain remaining=30015720
+H8 call=69 phase=extents old=1 new=1 remaining=30015720
+H8 call=69 phase=boundary remaining=30015720
+H8 call=69 phase=invariant remaining=30015720
+H8 call=69 phase=competing remaining=30015720
+H8 call=70 phase=domain_key remaining=30015720
+H8 call=70 phase=prove_domain remaining=30015716
+H8 call=70 phase=extents old=1 new=1 remaining=30015716
+H8 call=70 phase=boundary remaining=30015716
+H8 call=70 phase=invariant remaining=30015716
+H8 call=70 phase=competing remaining=30015716
+H8 call=71 phase=domain_key remaining=30015716
+H8 call=71 phase=prove_domain remaining=30015616
+H8 call=71 phase=extents old=1 new=1 remaining=30015616
+H8 call=71 phase=boundary remaining=30015616
+H8 call=71 phase=invariant remaining=30015616
+H8 call=71 phase=competing remaining=30015616
+H8 call=72 phase=domain_key remaining=30015616
+H8 call=72 phase=prove_domain remaining=30015515
+H8 call=72 phase=extents old=1 new=1 remaining=30015515
+H8 call=72 phase=boundary remaining=30015515
+H8 call=72 phase=invariant remaining=30015515
+H8 call=72 phase=competing remaining=30015515
+H8 call=73 phase=domain_key remaining=30015515
+H8 call=73 phase=prove_domain remaining=30015514
+H8 call=73 phase=extents old=1 new=1 remaining=30015514
+H8 call=73 phase=boundary remaining=30015514
+H8 call=73 phase=invariant remaining=30015514
+H8 call=73 phase=competing remaining=30015514
+H8 call=74 phase=domain_key remaining=30015514
+H8 call=74 phase=prove_domain remaining=30015416
+H8 call=74 phase=extents old=1 new=1 remaining=30015416
+H8 call=74 phase=boundary remaining=30015416
+H8 call=74 phase=invariant remaining=30015416
+H8 call=74 phase=competing remaining=30015416
+H8 call=75 phase=domain_key remaining=30015416
+H8 call=75 phase=prove_domain remaining=30015341
+H8 call=75 phase=extents old=1 new=1 remaining=30015341
+H8 call=75 phase=boundary remaining=30015341
+H8 call=75 phase=invariant remaining=30015341
+H8 call=75 phase=competing remaining=30015341
+H8 call=76 phase=domain_key remaining=30015341
+H8 call=76 phase=prove_domain remaining=30015338
+H8 call=76 phase=extents old=1 new=1 remaining=30015338
+H8 call=76 phase=boundary remaining=30015338
+H8 call=76 phase=invariant remaining=30015338
+H8 call=76 phase=competing remaining=30015338
+H8 call=77 phase=domain_key remaining=30015338
+H8 call=77 phase=prove_domain remaining=30015283
+H8 call=77 phase=extents old=1 new=1 remaining=30015283
+H8 call=77 phase=boundary remaining=30015283
+H8 call=77 phase=invariant remaining=30015283
+H8 call=77 phase=competing remaining=30015283
+H8 call=78 phase=domain_key remaining=30015283
+H8 call=78 phase=prove_domain remaining=30015196
+H8 call=78 phase=extents old=1 new=1 remaining=30015196
+H8 call=78 phase=boundary remaining=30015196
+H8 call=78 phase=invariant remaining=30015196
+H8 call=78 phase=competing remaining=30015196
+H8 call=79 phase=domain_key remaining=30015196
+H8 call=79 phase=prove_domain remaining=30015190
+H8 call=79 phase=extents old=1 new=1 remaining=30015190
+H8 call=79 phase=boundary remaining=30015190
+H8 call=79 phase=invariant remaining=30015190
+H8 call=79 phase=competing remaining=30015190
+H8 call=80 phase=domain_key remaining=30015190
+H8 call=80 phase=prove_domain remaining=30015187
+H8 call=80 phase=extents old=1 new=1 remaining=30015187
+H8 call=80 phase=boundary remaining=30015187
+H8 call=80 phase=invariant remaining=30015187
+H8 call=80 phase=competing remaining=30015187
+H8 call=81 phase=domain_key remaining=30015187
+H8 call=81 phase=prove_domain remaining=30015075
+H8 call=81 phase=extents old=1 new=1 remaining=30015075
+H8 call=81 phase=boundary remaining=30015075
+H8 call=81 phase=invariant remaining=30015075
+H8 call=81 phase=competing remaining=30015075
+H8 call=82 phase=domain_key remaining=30015075
+H8 call=82 phase=prove_domain remaining=30014999
+H8 call=82 phase=extents old=1 new=1 remaining=30014999
+H8 call=82 phase=boundary remaining=30014999
+H8 call=82 phase=invariant remaining=30014999
+H8 call=82 phase=competing remaining=30014999
+H8 call=83 phase=domain_key remaining=30014999
+H8 call=83 phase=prove_domain remaining=30014996
+H8 call=83 phase=extents old=1 new=1 remaining=30014996
+H8 call=83 phase=boundary remaining=30014996
+H8 call=83 phase=invariant remaining=30014996
+H8 call=83 phase=competing remaining=30014996
+H8 call=84 phase=domain_key remaining=30014996
+H8 call=84 phase=prove_domain remaining=30014897
+H8 call=84 phase=extents old=1 new=1 remaining=30014897
+H8 call=84 phase=boundary remaining=30014897
+H8 call=84 phase=invariant remaining=30014897
+H8 call=84 phase=competing remaining=30014897
+H8 call=85 phase=domain_key remaining=30014897
+H8 call=85 phase=prove_domain remaining=30014802
+H8 call=85 phase=extents old=1 new=1 remaining=30014802
+H8 call=85 phase=boundary remaining=30014802
+H8 call=85 phase=invariant remaining=30014802
+H8 call=85 phase=competing remaining=30014802
+H8 call=86 phase=domain_key remaining=30014802
+H8 call=86 phase=prove_domain remaining=30014797
+H8 call=86 phase=extents old=2 new=2 remaining=30014797
+H8 call=86 phase=boundary remaining=30014797
+H8 call=86 phase=invariant remaining=30014797
+H8 call=86 phase=competing remaining=30014797
+H8 call=87 phase=domain_key remaining=30014797
+H8 call=87 phase=prove_domain remaining=30014797
+H8 call=87 phase=extents old=2 new=2 remaining=30014797
+H8 call=87 phase=boundary remaining=30014797
+H8 call=87 phase=invariant remaining=30014797
+H8 call=87 phase=competing remaining=30014797
+H8 call=88 phase=domain_key remaining=30014797
+H8 call=88 phase=prove_domain remaining=30014706
+H8 call=88 phase=extents old=1 new=1 remaining=30014706
+H8 call=88 phase=boundary remaining=30014706
+H8 call=88 phase=invariant remaining=30014706
+H8 call=88 phase=competing remaining=30014706
+H8 call=89 phase=domain_key remaining=30014706
+H8 call=89 phase=prove_domain remaining=30014703
+H8 call=89 phase=extents old=1 new=1 remaining=30014703
+H8 call=89 phase=boundary remaining=30014703
+H8 call=89 phase=invariant remaining=30014703
+H8 call=89 phase=competing remaining=30014703
+H8 call=90 phase=domain_key remaining=30014703
+H8 call=90 phase=prove_domain remaining=30014628
+H8 call=90 phase=extents old=1 new=1 remaining=30014628
+H8 call=90 phase=boundary remaining=30014628
+H8 call=90 phase=invariant remaining=30014628
+H8 call=90 phase=competing remaining=30014628
+H8 call=91 phase=domain_key remaining=30014628
+H8 call=91 phase=prove_domain remaining=30014545
+H8 call=91 phase=extents old=1 new=1 remaining=30014545
+H8 call=91 phase=boundary remaining=30014545
+H8 call=91 phase=invariant remaining=30014545
+H8 call=91 phase=competing remaining=30014545
+H8 call=92 phase=domain_key remaining=30014545
+H8 call=92 phase=prove_domain remaining=30014466
+H8 call=92 phase=extents old=1 new=1 remaining=30014466
+H8 call=92 phase=boundary remaining=30014466
+H8 call=92 phase=invariant remaining=30014466
+H8 call=92 phase=competing remaining=30014466
+H8 call=93 phase=domain_key remaining=30014466
+H8 call=93 phase=prove_domain remaining=30014385
+H8 call=93 phase=extents old=1 new=1 remaining=30014385
+H8 call=93 phase=boundary remaining=30014385
+H8 call=93 phase=invariant remaining=30014385
+H8 call=93 phase=competing remaining=30014385
+H8 call=94 phase=domain_key remaining=30014385
+H8 call=94 phase=prove_domain remaining=30014303
+H8 call=94 phase=extents old=1 new=1 remaining=30014303
+H8 call=94 phase=boundary remaining=30014303
+H8 call=94 phase=invariant remaining=30014303
+H8 call=94 phase=competing remaining=30014303
+H8 call=95 phase=domain_key remaining=30014303
+H8 call=95 phase=prove_domain remaining=30014225
+H8 call=95 phase=extents old=1 new=1 remaining=30014225
+H8 call=95 phase=boundary remaining=30014225
+H8 call=95 phase=invariant remaining=30014225
+H8 call=95 phase=competing remaining=30014225
+H8 call=96 phase=domain_key remaining=30014225
+H8 call=96 phase=prove_domain remaining=30014151
+H8 call=96 phase=extents old=1 new=1 remaining=30014151
+H8 call=96 phase=boundary remaining=30014151
+H8 call=96 phase=invariant remaining=30014151
+H8 call=96 phase=competing remaining=30014151
+H8 call=97 phase=domain_key remaining=30014151
+H8 call=97 phase=prove_domain remaining=30014069
+H8 call=97 phase=extents old=1 new=1 remaining=30014069
+H8 call=97 phase=boundary remaining=30014069
+H8 call=97 phase=invariant remaining=30014069
+H8 call=97 phase=competing remaining=30014069
+H8 call=98 phase=domain_key remaining=30014069
+H8 call=98 phase=prove_domain remaining=30013985
+H8 call=98 phase=extents old=1 new=1 remaining=30013985
+H8 call=98 phase=boundary remaining=30013985
+H8 call=98 phase=invariant remaining=30013985
+H8 call=98 phase=competing remaining=30013985
+H8 call=99 phase=domain_key remaining=30013985
+H8 call=99 phase=prove_domain remaining=30013900
+H8 call=99 phase=extents old=1 new=1 remaining=30013900
+H8 call=99 phase=boundary remaining=30013900
+H8 call=99 phase=invariant remaining=30013900
+H8 call=99 phase=competing remaining=30013900
+H8 call=100 phase=domain_key remaining=30013900
+H8 call=100 phase=prove_domain remaining=30013821
+H8 call=100 phase=extents old=1 new=1 remaining=30013821
+H8 call=100 phase=boundary remaining=30013821
+H8 call=100 phase=invariant remaining=30013821
+H8 call=100 phase=competing remaining=30013821
+H8 call=101 phase=domain_key remaining=30013821
+H8 call=101 phase=prove_domain remaining=30013609
+H8 call=101 phase=extents old=1 new=1 remaining=30013609
+H8 call=101 phase=boundary remaining=30013609
+H8 call=101 phase=invariant remaining=30013609
+H8 call=101 phase=competing remaining=30013609
+H8 call=102 phase=domain_key remaining=30013609
+H8 call=102 phase=prove_domain remaining=30012215
+H8 call=102 phase=extents old=1 new=1 remaining=30012215
+H8 call=102 phase=boundary remaining=30012215
+H8 call=102 phase=invariant remaining=30012215
+H8 call=102 phase=competing remaining=30012215
+H8 call=103 phase=domain_key remaining=30012215
+H8 call=103 phase=prove_domain remaining=30012209
+H8 call=103 phase=extents old=1 new=1 remaining=30012209
+H8 call=103 phase=boundary remaining=30012209
+H8 call=103 phase=invariant remaining=30012209
+H8 call=103 phase=competing remaining=30012209
+H8 call=104 phase=domain_key remaining=30012209
+H8 call=104 phase=prove_domain remaining=30012156
+H8 call=104 phase=extents old=1 new=1 remaining=30012156
+H8 call=104 phase=boundary remaining=30012156
+H8 call=104 phase=invariant remaining=30012156
+H8 call=104 phase=competing remaining=30012156
+H8 call=105 phase=domain_key remaining=30012156
+H8 call=105 phase=prove_domain remaining=30012139
+H8 call=105 phase=extents old=1 new=1 remaining=30012139
+H8 call=105 phase=boundary remaining=30012139
+H8 call=105 phase=invariant remaining=30012139
+H8 call=105 phase=competing remaining=30012139
+H8 call=106 phase=domain_key remaining=30012139
+H8 call=106 phase=prove_domain remaining=30012134
+H8 call=106 phase=extents old=1 new=1 remaining=30012134
+H8 call=106 phase=boundary remaining=30012134
+H8 call=106 phase=invariant remaining=30012134
+H8 call=106 phase=competing remaining=30012134
+H8 call=107 phase=domain_key remaining=30012134
+H8 call=107 phase=prove_domain remaining=30012129
+H8 call=107 phase=extents old=1 new=1 remaining=30012129
+H8 call=107 phase=boundary remaining=30012129
+H8 call=107 phase=invariant remaining=30012129
+H8 call=107 phase=competing remaining=30012129
+H8 call=108 phase=domain_key remaining=30012129
+H8 call=108 phase=prove_domain remaining=30012113
+H8 call=108 phase=extents old=1 new=1 remaining=30012113
+H8 call=108 phase=boundary remaining=30012113
+H8 call=108 phase=invariant remaining=30012113
+H8 call=108 phase=competing remaining=30012113
+H8 call=109 phase=domain_key remaining=30012113
+H8 call=109 phase=prove_domain remaining=30012097
+H8 call=109 phase=extents old=1 new=1 remaining=30012097
+H8 call=109 phase=boundary remaining=30012097
+H8 call=109 phase=invariant remaining=30012097
+H8 call=109 phase=competing remaining=30012097
+H8 call=110 phase=domain_key remaining=30012097
+H8 call=110 phase=prove_domain remaining=29993961
+H8 call=110 phase=extents old=12 new=12 remaining=29993961
+H8 call=110 phase=boundary remaining=29940734
+H8 call=110 phase=invariant remaining=29887507
+H8 call=110 phase=competing remaining=29887507
+H8 call=111 phase=domain_key remaining=29887507
+H8 call=111 phase=prove_domain remaining=29887507
+H8 call=111 phase=extents old=12 new=12 remaining=29887507
+H8 call=111 phase=boundary remaining=29834280
+H8 call=111 phase=invariant remaining=29781053
+H8 call=111 phase=competing remaining=29781053
+H8 call=112 phase=domain_key remaining=29781053
+H8 call=112 phase=prove_domain remaining=29781053
+H8 call=112 phase=extents old=12 new=12 remaining=29781053
+H8 call=112 phase=boundary remaining=29727826
+H8 call=112 phase=invariant remaining=29674599
+H8 call=112 phase=competing remaining=29674599
+H8 call=113 phase=domain_key remaining=29674599
+H8 call=113 phase=prove_domain remaining=29674599
+H8 call=113 phase=extents old=12 new=12 remaining=29674599
+H8 call=113 phase=boundary remaining=29621372
+H8 call=113 phase=invariant remaining=29568145
+H8 call=113 phase=competing remaining=29568145
+H8 call=114 phase=domain_key remaining=29568145
+H8 call=114 phase=prove_domain remaining=29568129
+H8 call=114 phase=extents old=1 new=1 remaining=29568129
+H8 call=114 phase=boundary remaining=29568129
+H8 call=114 phase=invariant remaining=29568129
+H8 call=114 phase=competing remaining=29568129
+H8 call=115 phase=domain_key remaining=29568129
+H8 call=115 phase=prove_domain remaining=29549540
+H8 call=115 phase=extents old=12 new=12 remaining=29549540
+H8 call=115 phase=boundary remaining=29496362
+H8 call=115 phase=invariant remaining=29443184
+H8 call=115 phase=competing remaining=29443184
+H8 call=116 phase=domain_key remaining=29443184
+H8 call=116 phase=prove_domain remaining=29443184
+H8 call=116 phase=extents old=12 new=12 remaining=29443184
+H8 call=116 phase=boundary remaining=29390006
+H8 call=116 phase=invariant remaining=29336828
+H8 call=116 phase=competing remaining=29336828
+H8 call=117 phase=domain_key remaining=29336828
+H8 call=117 phase=prove_domain remaining=29336828
+H8 call=117 phase=extents old=12 new=12 remaining=29336828
+H8 call=117 phase=boundary remaining=29283650
+H8 call=117 phase=invariant remaining=29230472
+H8 call=117 phase=competing remaining=29230472
+H8 call=118 phase=domain_key remaining=29230472
+H8 call=118 phase=prove_domain remaining=29230456
+H8 call=118 phase=extents old=1 new=1 remaining=29230456
+H8 call=118 phase=boundary remaining=29230456
+H8 call=118 phase=invariant remaining=29230456
+H8 call=118 phase=competing remaining=29230456
+H8 call=119 phase=domain_key remaining=29230456
+H8 call=119 phase=prove_domain remaining=29136025
+H8 call=119 phase=extents old=25 new=25 remaining=29136025
+H8 call=119 phase=boundary remaining=28627412
+H8 call=119 phase=invariant remaining=28118799
+H8 call=119 phase=competing remaining=28118799
+H8 call=120 phase=domain_key remaining=28118799
+H8 call=120 phase=prove_domain remaining=28118799
+H8 call=120 phase=extents old=25 new=25 remaining=28118799
+H8 call=120 phase=boundary remaining=27610186
+H8 call=120 phase=invariant remaining=27101573
+H8 call=120 phase=competing remaining=27101573
+H8 call=121 phase=domain_key remaining=27101573
+H8 call=121 phase=prove_domain remaining=27101573
+H8 call=121 phase=extents old=25 new=25 remaining=27101573
+H8 call=121 phase=boundary remaining=26592960
+H8 call=121 phase=invariant remaining=26084347
+H8 call=121 phase=competing remaining=26084347
+H8 call=122 phase=domain_key remaining=26084347
+H8 call=122 phase=prove_domain remaining=26084347
+H8 call=122 phase=extents old=25 new=25 remaining=26084347
+H8 call=122 phase=boundary remaining=25575734
+H8 call=122 phase=invariant remaining=25067121
+H8 call=122 phase=competing remaining=25067121
+H8 call=123 phase=domain_key remaining=25067121
+H8 call=123 phase=prove_domain remaining=25067121
+H8 call=123 phase=extents old=25 new=25 remaining=25067121
+H8 call=123 phase=boundary remaining=24558508
+H8 call=123 phase=invariant remaining=24049895
+H8 call=123 phase=competing remaining=24049895
+H8 call=124 phase=domain_key remaining=24049895
+H8 call=124 phase=prove_domain remaining=24049895
+H8 call=124 phase=extents old=25 new=25 remaining=24049895
+H8 call=124 phase=boundary remaining=23541282
+H8 call=124 phase=invariant remaining=23032669
+H8 call=124 phase=competing remaining=23032669
+H8 call=125 phase=domain_key remaining=23032669
+H8 call=125 phase=prove_domain remaining=23032651
+H8 call=125 phase=extents old=1 new=1 remaining=23032651
+H8 call=125 phase=boundary remaining=23032651
+H8 call=125 phase=invariant remaining=23032651
+H8 call=125 phase=competing remaining=23032651
+H8 call=126 phase=domain_key remaining=23032651
+H8 call=126 phase=prove_domain remaining=22996902
+H8 call=126 phase=extents old=12 new=12 remaining=22996902
+H8 call=126 phase=boundary remaining=22996902
+H8 call=126 phase=invariant remaining=22996902
+H8 call=126 phase=competing remaining=22996902
+H8 call=127 phase=domain_key remaining=22996902
+H8 call=127 phase=prove_domain remaining=22996902
+H8 call=127 phase=extents old=12 new=12 remaining=22996902
+H8 call=127 phase=boundary remaining=22996902
+H8 call=127 phase=invariant remaining=22996902
+H8 call=127 phase=competing remaining=22996902
+H8 call=128 phase=domain_key remaining=22996902
+H8 call=128 phase=prove_domain remaining=22996902
+H8 call=128 phase=extents old=12 new=12 remaining=22996902
+H8 call=128 phase=boundary remaining=22996902
+H8 call=128 phase=invariant remaining=22996902
+H8 call=128 phase=competing remaining=22996902
+H8 call=129 phase=domain_key remaining=22996902
+H8 call=129 phase=prove_domain remaining=22996902
+H8 call=129 phase=extents old=12 new=12 remaining=22996902
+H8 call=129 phase=boundary remaining=22996902
+H8 call=129 phase=invariant remaining=22996902
+H8 call=129 phase=competing remaining=22996902
+H8 call=130 phase=domain_key remaining=22996902
+H8 call=130 phase=prove_domain remaining=22996884
+H8 call=130 phase=extents old=1 new=1 remaining=22996884
+H8 call=130 phase=boundary remaining=22996884
+H8 call=130 phase=invariant remaining=22996884
+H8 call=130 phase=competing remaining=22996884
+H8 call=131 phase=domain_key remaining=22996884
+H8 call=131 phase=prove_domain remaining=22996866
+H8 call=131 phase=extents old=1 new=1 remaining=22996866
+H8 call=131 phase=boundary remaining=22996866
+H8 call=131 phase=invariant remaining=22996866
+H8 call=131 phase=competing remaining=22996866
+H8 call=132 phase=domain_key remaining=22996866
+H8 call=132 phase=prove_domain remaining=22975539
+H8 call=132 phase=extents old=12 new=12 remaining=22975539
+H8 call=132 phase=boundary remaining=22786055
+H8 call=132 phase=invariant remaining=22596571
+H8 call=132 phase=competing remaining=22596571
+H8 call=133 phase=domain_key remaining=22596571
+H8 call=133 phase=prove_domain remaining=22596571
+H8 call=133 phase=extents old=12 new=12 remaining=22596571
+H8 call=133 phase=boundary remaining=22407087
+H8 call=133 phase=invariant remaining=22217603
+H8 call=133 phase=competing remaining=22217603
+H8 call=134 phase=domain_key remaining=22217603
+H8 call=134 phase=prove_domain remaining=22217603
+H8 call=134 phase=extents old=12 new=12 remaining=22217603
+H8 call=134 phase=boundary remaining=22028119
+H8 call=134 phase=invariant remaining=21838635
+H8 call=134 phase=competing remaining=21838635
+H8 call=135 phase=domain_key remaining=21838635
+H8 call=135 phase=prove_domain remaining=21838635
+H8 call=135 phase=extents old=12 new=12 remaining=21838635
+H8 call=135 phase=boundary remaining=21649151
+H8 call=135 phase=invariant remaining=21459667
+H8 call=135 phase=competing remaining=21459667
+H8 call=136 phase=domain_key remaining=21459667
+H8 call=136 phase=prove_domain remaining=21459667
+H8 call=136 phase=extents old=12 new=12 remaining=21459667
+H8 call=136 phase=boundary remaining=21270183
+H8 call=136 phase=invariant remaining=21080699
+H8 call=136 phase=competing remaining=21080699
+H8 call=137 phase=domain_key remaining=21080699
+H8 call=137 phase=prove_domain remaining=21080681
+H8 call=137 phase=extents old=1 new=1 remaining=21080681
+H8 call=137 phase=boundary remaining=21080681
+H8 call=137 phase=invariant remaining=21080681
+H8 call=137 phase=competing remaining=21080681
+H8 call=138 phase=domain_key remaining=21080681
+H8 call=138 phase=prove_domain remaining=21059354
+H8 call=138 phase=extents old=12 new=12 remaining=21059354
+H8 call=138 phase=boundary remaining=20869870
+H8 call=138 phase=invariant remaining=20680386
+H8 call=138 phase=competing remaining=20680386
+H8 call=139 phase=domain_key remaining=20680386
+H8 call=139 phase=prove_domain remaining=20680386
+H8 call=139 phase=extents old=12 new=12 remaining=20680386
+H8 call=139 phase=boundary remaining=20490902
+H8 call=139 phase=invariant remaining=20301418
+H8 call=139 phase=competing remaining=20301418
+H8 call=140 phase=domain_key remaining=20301418
+H8 call=140 phase=prove_domain remaining=20301418
+H8 call=140 phase=extents old=12 new=12 remaining=20301418
+H8 call=140 phase=boundary remaining=20111934
+H8 call=140 phase=invariant remaining=19922450
+H8 call=140 phase=competing remaining=19922450
+H8 call=141 phase=domain_key remaining=19922450
+H8 call=141 phase=prove_domain remaining=19922450
+H8 call=141 phase=extents old=12 new=12 remaining=19922450
+H8 call=141 phase=boundary remaining=19732966
+H8 call=141 phase=invariant remaining=19543482
+H8 call=141 phase=competing remaining=19543482
+H8 call=142 phase=domain_key remaining=19543482
+H8 call=142 phase=prove_domain remaining=19543482
+H8 call=142 phase=extents old=12 new=12 remaining=19543482
+H8 call=142 phase=boundary remaining=19353998
+H8 call=142 phase=invariant remaining=19164514
+H8 call=142 phase=competing remaining=19164514
+H8 call=143 phase=domain_key remaining=19164514
+H8 call=143 phase=prove_domain remaining=19164496
+H8 call=143 phase=extents old=1 new=1 remaining=19164496
+H8 call=143 phase=boundary remaining=19164496
+H8 call=143 phase=invariant remaining=19164496
+H8 call=143 phase=competing remaining=19164496
+H8 call=144 phase=domain_key remaining=19164496
+H8 call=144 phase=prove_domain remaining=19143176
+H8 call=144 phase=extents old=12 new=12 remaining=19143176
+H8 call=144 phase=boundary remaining=18955932
+H8 call=144 phase=invariant remaining=18768688
+H8 call=144 phase=competing remaining=18768688
+H8 call=145 phase=domain_key remaining=18768688
+H8 call=145 phase=prove_domain remaining=18768688
+H8 call=145 phase=extents old=12 new=12 remaining=18768688
+H8 call=145 phase=boundary remaining=18581444
+H8 call=145 phase=invariant remaining=18394200
+H8 call=145 phase=competing remaining=18394200
+H8 call=146 phase=domain_key remaining=18394200
+H8 call=146 phase=prove_domain remaining=18394200
+H8 call=146 phase=extents old=12 new=12 remaining=18394200
+H8 call=146 phase=boundary remaining=18206956
+H8 call=146 phase=invariant remaining=18019712
+H8 call=146 phase=competing remaining=18019712
+H8 call=147 phase=domain_key remaining=18019712
+H8 call=147 phase=prove_domain remaining=18019712
+H8 call=147 phase=extents old=12 new=12 remaining=18019712
+H8 call=147 phase=boundary remaining=17832468
+H8 call=147 phase=invariant remaining=17645224
+H8 call=147 phase=competing remaining=17645224
+H8 call=148 phase=domain_key remaining=17645224
+H8 call=148 phase=prove_domain remaining=17645224
+H8 call=148 phase=extents old=12 new=12 remaining=17645224
+H8 call=148 phase=boundary remaining=17457980
+H8 call=148 phase=invariant remaining=17270736
+H8 call=148 phase=competing remaining=17270736
+H8 call=149 phase=domain_key remaining=17270736
+H8 call=149 phase=prove_domain remaining=17270718
+H8 call=149 phase=extents old=1 new=1 remaining=17270718
+H8 call=149 phase=boundary remaining=17270718
+H8 call=149 phase=invariant remaining=17270718
+H8 call=149 phase=competing remaining=17270718
+H8 call=150 phase=domain_key remaining=17270718
+H8 call=150 phase=prove_domain remaining=17249232
+H8 call=150 phase=extents old=12 new=12 remaining=17249232
+H8 call=150 phase=boundary remaining=17195372
+H8 call=150 phase=invariant remaining=17141512
+H8 call=150 phase=competing remaining=17141512
+H8 call=151 phase=domain_key remaining=17141512
+H8 call=151 phase=prove_domain remaining=17141512
+H8 call=151 phase=extents old=12 new=12 remaining=17141512
+H8 call=151 phase=boundary remaining=17087652
+H8 call=151 phase=invariant remaining=17033792
+H8 call=151 phase=competing remaining=17033792
+H8 call=152 phase=domain_key remaining=17033792
+H8 call=152 phase=prove_domain remaining=17033792
+H8 call=152 phase=extents old=12 new=12 remaining=17033792
+H8 call=152 phase=boundary remaining=16979932
+H8 call=152 phase=invariant remaining=16926072
+H8 call=152 phase=competing remaining=16926072
+H8 call=153 phase=domain_key remaining=16926072
+H8 call=153 phase=prove_domain remaining=16926072
+H8 call=153 phase=extents old=12 new=12 remaining=16926072
+H8 call=153 phase=boundary remaining=16872212
+H8 call=153 phase=invariant remaining=16818352
+H8 call=153 phase=competing remaining=16818352
+H8 call=154 phase=domain_key remaining=16818352
+H8 call=154 phase=prove_domain remaining=16818334
+H8 call=154 phase=extents old=1 new=1 remaining=16818334
+H8 call=154 phase=boundary remaining=16818334
+H8 call=154 phase=invariant remaining=16818334
+H8 call=154 phase=competing remaining=16818334
+H8 call=155 phase=domain_key remaining=16818334
+H8 call=155 phase=prove_domain remaining=16796661
+H8 call=155 phase=extents old=12 new=12 remaining=16796661
+H8 call=155 phase=boundary remaining=16769385
+H8 call=155 phase=invariant remaining=16742109
+H8 call=155 phase=competing remaining=16742109
+H8 call=156 phase=domain_key remaining=16742109
+H8 call=156 phase=prove_domain remaining=16742109
+H8 call=156 phase=extents old=12 new=12 remaining=16742109
+H8 call=156 phase=boundary remaining=16714833
+H8 call=156 phase=invariant remaining=16687557
+H8 call=156 phase=competing remaining=16687557
+H8 call=157 phase=domain_key remaining=16687557
+H8 call=157 phase=prove_domain remaining=16687557
+H8 call=157 phase=extents old=12 new=12 remaining=16687557
+H8 call=157 phase=boundary remaining=16660281
+H8 call=157 phase=invariant remaining=16633005
+H8 call=157 phase=competing remaining=16633005
+H8 call=158 phase=domain_key remaining=16633005
+H8 call=158 phase=prove_domain remaining=16632987
+H8 call=158 phase=extents old=1 new=1 remaining=16632987
+H8 call=158 phase=boundary remaining=16632987
+H8 call=158 phase=invariant remaining=16632987
+H8 call=158 phase=competing remaining=16632987
+H8 call=159 phase=domain_key remaining=16632987
+H8 call=159 phase=prove_domain remaining=16632970
+H8 call=159 phase=extents old=1 new=1 remaining=16632970
+H8 call=159 phase=boundary remaining=16632970
+H8 call=159 phase=invariant remaining=16632970
+H8 call=159 phase=competing remaining=16632970
+H8 call=160 phase=domain_key remaining=16632970
+H8 call=160 phase=prove_domain remaining=16632959
+H8 call=160 phase=extents old=2 new=2 remaining=16632959
+H8 call=160 phase=boundary remaining=16632959
+H8 call=160 phase=invariant remaining=16632959
+H8 call=160 phase=competing remaining=16632959
+H8 call=161 phase=domain_key remaining=16632959
+H8 call=161 phase=prove_domain remaining=16632959
+H8 call=161 phase=extents old=2 new=2 remaining=16632959
+H8 call=161 phase=boundary remaining=16632959
+H8 call=161 phase=invariant remaining=16632959
+H8 call=161 phase=competing remaining=16632959
+H8 call=162 phase=domain_key remaining=16632959
+H8 call=162 phase=prove_domain remaining=16632953
+H8 call=162 phase=extents old=1 new=1 remaining=16632953
+H8 call=162 phase=boundary remaining=16632953
+H8 call=162 phase=invariant remaining=16632953
+H8 call=162 phase=competing remaining=16632953
+H8 call=163 phase=domain_key remaining=16632953
+H8 call=163 phase=prove_domain remaining=16618626
+H8 call=163 phase=extents old=9 new=9 remaining=16618626
+H8 call=163 phase=boundary remaining=16609275
+H8 call=163 phase=invariant remaining=16599924
+H8 call=163 phase=competing remaining=16599924
+H8 call=164 phase=domain_key remaining=16599924
+H8 call=164 phase=prove_domain remaining=16599889
+H8 call=164 phase=extents old=1 new=1 remaining=16599889
+H8 call=164 phase=boundary remaining=16599889
+H8 call=164 phase=invariant remaining=16599889
+H8 call=164 phase=competing remaining=16599889
+H8 call=165 phase=domain_key remaining=16599889
+H8 call=165 phase=prove_domain remaining=16599889
+H8 call=165 phase=extents old=5 new=5 remaining=16599889
+H8 call=165 phase=boundary remaining=16599889
+H8 call=165 phase=invariant remaining=16599889
+H8 call=165 phase=competing remaining=16599889
+H8 call=166 phase=domain_key remaining=16599889
+H8 call=166 phase=prove_domain remaining=16599874
+H8 call=166 phase=extents old=1 new=1 remaining=16599874
+H8 call=166 phase=boundary remaining=16599874
+H8 call=166 phase=invariant remaining=16599874
+H8 call=166 phase=competing remaining=16599874
+H8 call=167 phase=domain_key remaining=16599874
+H8 call=167 phase=prove_domain remaining=16510649
+H8 call=167 phase=extents old=24 new=23 remaining=16510649
+H8 call=167 phase=boundary remaining=16480322
+H8 call=167 phase=invariant remaining=16449995
+H8 call=167 phase=competing remaining=16449995
+H8 call=168 phase=domain_key remaining=16449995
+H8 call=168 phase=prove_domain remaining=16449995
+H8 call=168 phase=extents old=24 new=23 remaining=16449995
+H8 call=168 phase=boundary remaining=16419668
+H8 call=168 phase=invariant remaining=16389341
+H8 call=168 phase=competing remaining=16389341
+H8 call=169 phase=domain_key remaining=16389341
+H8 call=169 phase=prove_domain remaining=16389341
+H8 call=169 phase=extents old=24 new=23 remaining=16389341
+H8 call=169 phase=boundary remaining=16359014
+H8 call=169 phase=invariant remaining=16328687
+H8 call=169 phase=competing remaining=16328687
+H8 call=170 phase=domain_key remaining=16328687
+H8 call=170 phase=prove_domain remaining=16328687
+H8 call=170 phase=extents old=24 new=23 remaining=16328687
+H8 call=170 phase=boundary remaining=16298360
+H8 call=170 phase=invariant remaining=16268033
+H8 call=170 phase=competing remaining=16268033
+H8 call=171 phase=domain_key remaining=16268033
+H8 call=171 phase=prove_domain remaining=16268033
+H8 call=171 phase=extents old=24 new=23 remaining=16268033
+H8 call=171 phase=boundary remaining=16237706
+H8 call=171 phase=invariant remaining=16207379
+H8 call=171 phase=competing remaining=16207379
+H8 call=172 phase=domain_key remaining=16207379
+H8 call=172 phase=prove_domain remaining=16207379
+H8 call=172 phase=extents old=24 new=23 remaining=16207379
+H8 call=172 phase=boundary remaining=16177052
+H8 call=172 phase=invariant remaining=16146725
+H8 call=172 phase=competing remaining=16146725
+H8 call=173 phase=domain_key remaining=16146725
+H8 call=173 phase=prove_domain remaining=16146725
+H8 call=173 phase=extents old=24 new=23 remaining=16146725
+H8 call=173 phase=boundary remaining=16116398
+H8 call=173 phase=invariant remaining=16086071
+H8 call=173 phase=competing remaining=16086071
+H8 call=174 phase=domain_key remaining=16086071
+H8 call=174 phase=prove_domain remaining=16086071
+H8 call=174 phase=extents old=24 new=23 remaining=16086071
+H8 call=174 phase=boundary remaining=16055744
+H8 call=174 phase=invariant remaining=16025417
+H8 call=174 phase=competing remaining=16025417
+H8 call=175 phase=domain_key remaining=16025417
+H8 call=175 phase=prove_domain remaining=16025417
+H8 call=175 phase=extents old=24 new=23 remaining=16025417
+H8 call=175 phase=boundary remaining=15995090
+H8 call=175 phase=invariant remaining=15964763
+H8 call=175 phase=competing remaining=15964763
+H8 call=176 phase=domain_key remaining=15964763
+H8 call=176 phase=prove_domain remaining=15964763
+H8 call=176 phase=extents old=24 new=23 remaining=15964763
+H8 call=176 phase=boundary remaining=15934436
+H8 call=176 phase=invariant remaining=15904109
+H8 call=176 phase=competing remaining=15904109
+H8 call=177 phase=domain_key remaining=15904109
+H8 call=177 phase=prove_domain remaining=15904109
+H8 call=177 phase=extents old=24 new=23 remaining=15904109
+H8 call=177 phase=boundary remaining=15873782
+H8 call=177 phase=invariant remaining=15843455
+H8 call=177 phase=competing remaining=15843455
+H8 call=178 phase=domain_key remaining=15843455
+H8 call=178 phase=prove_domain remaining=15843455
+H8 call=178 phase=extents old=24 new=23 remaining=15843455
+H8 call=178 phase=boundary remaining=15813128
+H8 call=178 phase=invariant remaining=15782801
+H8 call=178 phase=competing remaining=15782801
+H8 call=179 phase=domain_key remaining=15782801
+H8 call=179 phase=prove_domain remaining=15782801
+H8 call=179 phase=extents old=24 new=23 remaining=15782801
+H8 call=179 phase=boundary remaining=15752474
+H8 call=179 phase=invariant remaining=15722147
+H8 call=179 phase=competing remaining=15722147
+H8 call=180 phase=domain_key remaining=15722147
+H8 call=180 phase=prove_domain remaining=15722141
+H8 call=180 phase=extents old=1 new=1 remaining=15722141
+H8 call=180 phase=boundary remaining=15722141
+H8 call=180 phase=invariant remaining=15722141
+H8 call=180 phase=competing remaining=15722141
+H8 call=181 phase=domain_key remaining=15722141
+H8 call=181 phase=prove_domain remaining=12132996
+H8 call=181 phase=extents old=143 new=143 remaining=12132996
+H8 call=181 phase=boundary remaining=0
+H8 call=181 phase=invariant remaining=0
+H8 call=181 phase=competing remaining=0
+H8 call=182 phase=domain_key remaining=0
+H8 call=182 phase=prove_domain remaining=0
+H8 call=182 phase=extents old=143 new=143 remaining=0
+H8 call=182 phase=boundary remaining=0
+H8 call=182 phase=invariant remaining=0
+H8 call=182 phase=competing remaining=0
+H8 call=183 phase=domain_key remaining=0
+H8 call=183 phase=prove_domain remaining=0
+H8 call=183 phase=extents old=143 new=143 remaining=0
+H8 call=183 phase=boundary remaining=0
+H8 call=183 phase=invariant remaining=0
+H8 call=183 phase=competing remaining=0
+H8 call=184 phase=domain_key remaining=0
+H8 call=184 phase=prove_domain remaining=0
+H8 call=184 phase=extents old=143 new=143 remaining=0
+H8 call=184 phase=boundary remaining=0
+H8 call=184 phase=invariant remaining=0
+H8 call=184 phase=competing remaining=0
+H8 call=185 phase=domain_key remaining=0
+H8 call=185 phase=prove_domain remaining=0
+H8 call=185 phase=extents old=143 new=143 remaining=0
+H8 call=185 phase=boundary remaining=0
+H8 call=185 phase=invariant remaining=0
+H8 call=185 phase=competing remaining=0
+H8 call=186 phase=domain_key remaining=0
+H8 call=186 phase=prove_domain remaining=0
+H8 call=186 phase=extents old=143 new=143 remaining=0
+H8 call=186 phase=boundary remaining=0
+H8 call=186 phase=invariant remaining=0
+H8 call=186 phase=competing remaining=0
+H8 call=187 phase=domain_key remaining=0
+H8 call=187 phase=prove_domain remaining=0
+H8 call=187 phase=extents old=143 new=143 remaining=0
+H8 call=187 phase=boundary remaining=0
+H8 call=187 phase=invariant remaining=0
+H8 call=187 phase=competing remaining=0
+H8 call=188 phase=domain_key remaining=0
+H8 call=188 phase=prove_domain remaining=0
+H8 call=188 phase=extents old=143 new=143 remaining=0
+H8 call=188 phase=boundary remaining=0
+H8 call=188 phase=invariant remaining=0
+H8 call=188 phase=competing remaining=0
+H8 call=189 phase=domain_key remaining=0
+H8 call=189 phase=prove_domain remaining=0
+H8 call=189 phase=extents old=143 new=143 remaining=0
+H8 call=189 phase=boundary remaining=0
+H8 call=189 phase=invariant remaining=0
+H8 call=189 phase=competing remaining=0
+H8 call=190 phase=domain_key remaining=0
+H8 call=190 phase=prove_domain remaining=0
+H8 call=190 phase=extents old=143 new=143 remaining=0
+H8 call=190 phase=boundary remaining=0
+H8 call=190 phase=invariant remaining=0
+H8 call=190 phase=competing remaining=0
+H8 call=191 phase=domain_key remaining=0
+H8 call=191 phase=prove_domain remaining=0
+H8 call=191 phase=extents old=143 new=143 remaining=0
+H8 call=191 phase=boundary remaining=0
+H8 call=191 phase=invariant remaining=0
+H8 call=191 phase=competing remaining=0
+H8 call=192 phase=domain_key remaining=0
+H8 call=192 phase=prove_domain remaining=0
+H8 call=192 phase=extents old=143 new=143 remaining=0
+H8 call=192 phase=boundary remaining=0
+H8 call=192 phase=invariant remaining=0
+H8 call=192 phase=competing remaining=0
+H8 call=193 phase=domain_key remaining=0
+H8 call=193 phase=prove_domain remaining=0
+H8 call=193 phase=extents old=1 new=1 remaining=0
+H8 call=193 phase=boundary remaining=0
+H8 call=193 phase=invariant remaining=0
+H8 call=193 phase=competing remaining=0
+H8 call=194 phase=domain_key remaining=0
+H8 call=194 phase=prove_domain remaining=0
+H8 call=194 phase=extents old=12 new=12 remaining=0
+H8 call=194 phase=boundary remaining=0
+H8 call=194 phase=invariant remaining=0
+H8 call=194 phase=competing remaining=0
+H8 call=195 phase=domain_key remaining=0
+H8 call=195 phase=prove_domain remaining=0
+H8 call=195 phase=extents old=1 new=1 remaining=0
+H8 call=195 phase=boundary remaining=0
+H8 call=195 phase=invariant remaining=0
+H8 call=195 phase=competing remaining=0
+H8 call=196 phase=domain_key remaining=0
+H8 call=196 phase=prove_domain remaining=0
+H8 call=196 phase=extents old=25 new=25 remaining=0
+H8 call=196 phase=boundary remaining=0
+H8 call=196 phase=invariant remaining=0
+H8 call=196 phase=competing remaining=0
+H8 call=197 phase=domain_key remaining=0
+H8 call=197 phase=prove_domain remaining=0
+H8 call=197 phase=extents old=25 new=25 remaining=0
+H8 call=197 phase=boundary remaining=0
+H8 call=197 phase=invariant remaining=0
+H8 call=197 phase=competing remaining=0
+H8 call=198 phase=domain_key remaining=0
+H8 call=198 phase=prove_domain remaining=0
+H8 call=198 phase=extents old=1 new=1 remaining=0
+H8 call=198 phase=boundary remaining=0
+H8 call=198 phase=invariant remaining=0
+H8 call=198 phase=competing remaining=0
+H8 call=199 phase=domain_key remaining=0
+H8 call=199 phase=prove_domain remaining=0
+H8 call=199 phase=extents old=1 new=1 remaining=0
+H8 call=199 phase=boundary remaining=0
+H8 call=199 phase=invariant remaining=0
+H8 call=199 phase=competing remaining=0
+H8 call=200 phase=domain_key remaining=0
+H8 call=200 phase=prove_domain remaining=0
+H8 call=200 phase=extents old=1 new=1 remaining=0
+H8 call=200 phase=boundary remaining=0
+H8 call=200 phase=invariant remaining=0
+H8 call=200 phase=competing remaining=0
+H8 call=201 phase=domain_key remaining=0
+H8 call=201 phase=prove_domain remaining=0
+H8 call=201 phase=extents old=54 new=44 remaining=0
+H8 call=201 phase=boundary remaining=0
+H8 call=201 phase=invariant remaining=0
+H8 call=201 phase=competing remaining=0
+H8 call=202 phase=domain_key remaining=0
+H8 call=202 phase=prove_domain remaining=0
+H8 call=202 phase=extents old=54 new=44 remaining=0
+H8 call=202 phase=boundary remaining=0
+H8 call=202 phase=invariant remaining=0
+H8 call=202 phase=competing remaining=0
+H8 call=203 phase=domain_key remaining=0
+H8 call=203 phase=prove_domain remaining=0
+H8 call=203 phase=extents old=54 new=44 remaining=0
+H8 call=203 phase=boundary remaining=0
+H8 call=203 phase=invariant remaining=0
+H8 call=203 phase=competing remaining=0
+H8 call=204 phase=domain_key remaining=0
+H8 call=204 phase=prove_domain remaining=0
+H8 call=204 phase=extents old=54 new=44 remaining=0
+H8 call=204 phase=boundary remaining=0
+H8 call=204 phase=invariant remaining=0
+H8 call=204 phase=competing remaining=0
+H8 call=205 phase=domain_key remaining=0
+H8 call=205 phase=prove_domain remaining=0
+H8 call=205 phase=extents old=54 new=44 remaining=0
+H8 call=205 phase=boundary remaining=0
+H8 call=205 phase=invariant remaining=0
+H8 call=205 phase=competing remaining=0
+H8 call=206 phase=domain_key remaining=0
+H8 call=206 phase=prove_domain remaining=0
+H8 call=206 phase=extents old=54 new=44 remaining=0
+H8 call=206 phase=boundary remaining=0
+H8 call=206 phase=invariant remaining=0
+H8 call=206 phase=competing remaining=0
+H8 call=207 phase=domain_key remaining=0
+H8 call=207 phase=prove_domain remaining=0
+H8 call=207 phase=extents old=1 new=1 remaining=0
+H8 call=207 phase=boundary remaining=0
+H8 call=207 phase=invariant remaining=0
+H8 call=207 phase=competing remaining=0
+H8 call=208 phase=domain_key remaining=0
+H8 call=208 phase=prove_domain remaining=0
+H8 call=208 phase=extents old=1 new=1 remaining=0
+H8 call=208 phase=boundary remaining=0
+H8 call=208 phase=invariant remaining=0
+H8 call=208 phase=competing remaining=0
+H8 call=209 phase=domain_key remaining=0
+H8 call=209 phase=prove_domain remaining=0
+H8 call=209 phase=extents old=25 new=25 remaining=0
+H8 call=209 phase=boundary remaining=0
+H8 call=209 phase=invariant remaining=0
+H8 call=209 phase=competing remaining=0
+H8 call=210 phase=domain_key remaining=0
+H8 call=210 phase=prove_domain remaining=0
+H8 call=210 phase=extents old=25 new=25 remaining=0
+H8 call=210 phase=boundary remaining=0
+H8 call=210 phase=invariant remaining=0
+H8 call=210 phase=competing remaining=0
+H8 call=211 phase=domain_key remaining=0
+H8 call=211 phase=prove_domain remaining=0
+H8 call=211 phase=extents old=25 new=25 remaining=0
+H8 call=211 phase=boundary remaining=0
+H8 call=211 phase=invariant remaining=0
+H8 call=211 phase=competing remaining=0
+H8 call=212 phase=domain_key remaining=0
+H8 call=212 phase=prove_domain remaining=0
+H8 call=212 phase=extents old=25 new=25 remaining=0
+H8 call=212 phase=boundary remaining=0
+H8 call=212 phase=invariant remaining=0
+H8 call=212 phase=competing remaining=0
+H8 call=213 phase=domain_key remaining=0
+H8 call=213 phase=prove_domain remaining=0
+H8 call=213 phase=extents old=25 new=25 remaining=0
+H8 call=213 phase=boundary remaining=0
+H8 call=213 phase=invariant remaining=0
+H8 call=213 phase=competing remaining=0
+H8 call=214 phase=domain_key remaining=0
+H8 call=214 phase=prove_domain remaining=0
+H8 call=214 phase=extents old=1 new=1 remaining=0
+H8 call=214 phase=boundary remaining=0
+H8 call=214 phase=invariant remaining=0
+H8 call=214 phase=competing remaining=0
+H8 call=215 phase=domain_key remaining=0
+H8 call=215 phase=prove_domain remaining=0
+H8 call=215 phase=extents old=1 new=1 remaining=0
+H8 call=215 phase=boundary remaining=0
+H8 call=215 phase=invariant remaining=0
+H8 call=215 phase=competing remaining=0
+H8 call=216 phase=domain_key remaining=0
+H8 call=216 phase=prove_domain remaining=0
+H8 call=216 phase=extents old=1 new=1 remaining=0
+H8 call=216 phase=boundary remaining=0
+H8 call=216 phase=invariant remaining=0
+H8 call=216 phase=competing remaining=0
+H8 call=217 phase=domain_key remaining=0
+H8 call=217 phase=prove_domain remaining=0
+H8 call=217 phase=extents old=1 new=1 remaining=0
+H8 call=217 phase=boundary remaining=0
+H8 call=217 phase=invariant remaining=0
+H8 call=217 phase=competing remaining=0
+H8 call=218 phase=domain_key remaining=0
+H8 call=218 phase=prove_domain remaining=0
+H8 call=218 phase=extents old=1 new=1 remaining=0
+H8 call=218 phase=boundary remaining=0
+H8 call=218 phase=invariant remaining=0
+H8 call=218 phase=competing remaining=0
+H8 call=219 phase=domain_key remaining=0
+H8 call=219 phase=prove_domain remaining=0
+H8 call=219 phase=extents old=1 new=1 remaining=0
+H8 call=219 phase=boundary remaining=0
+H8 call=219 phase=invariant remaining=0
+H8 call=219 phase=competing remaining=0
+H8 call=220 phase=domain_key remaining=0
+H8 call=220 phase=prove_domain remaining=0
+H8 call=220 phase=extents old=1 new=1 remaining=0
+H8 call=220 phase=boundary remaining=0
+H8 call=220 phase=invariant remaining=0
+H8 call=220 phase=competing remaining=0
+H8 call=221 phase=domain_key remaining=0
+H8 call=221 phase=prove_domain remaining=0
+H8 call=221 phase=extents old=1 new=1 remaining=0
+H8 call=221 phase=boundary remaining=0
+H8 call=221 phase=invariant remaining=0
+H8 call=221 phase=competing remaining=0
+H8 call=222 phase=domain_key remaining=0
+H8 call=222 phase=prove_domain remaining=0
+H8 call=222 phase=extents old=1 new=1 remaining=0
+H8 call=222 phase=boundary remaining=0
+H8 call=222 phase=invariant remaining=0
+H8 call=222 phase=competing remaining=0
+H8 call=223 phase=domain_key remaining=0
+H8 call=223 phase=prove_domain remaining=0
+H8 call=223 phase=extents old=1 new=1 remaining=0
+H8 call=223 phase=boundary remaining=0
+H8 call=223 phase=invariant remaining=0
+H8 call=223 phase=competing remaining=0
+H8 call=224 phase=domain_key remaining=0
+H8 call=224 phase=prove_domain remaining=0
+H8 call=224 phase=extents old=1 new=1 remaining=0
+H8 call=224 phase=boundary remaining=0
+H8 call=224 phase=invariant remaining=0
+H8 call=224 phase=competing remaining=0
+H8 call=225 phase=domain_key remaining=0
+H8 call=225 phase=prove_domain remaining=0
+H8 call=225 phase=extents old=1 new=1 remaining=0
+H8 call=225 phase=boundary remaining=0
+H8 call=225 phase=invariant remaining=0
+H8 call=225 phase=competing remaining=0
+H8 call=226 phase=domain_key remaining=0
+H8 call=226 phase=prove_domain remaining=0
+H8 call=226 phase=extents old=1 new=1 remaining=0
+H8 call=226 phase=boundary remaining=0
+H8 call=226 phase=invariant remaining=0
+H8 call=226 phase=competing remaining=0
+H8 call=227 phase=domain_key remaining=0
+H8 call=227 phase=prove_domain remaining=0
+H8 call=227 phase=extents old=13 new=25 remaining=0
+H8 call=227 phase=boundary remaining=0
+H8 call=227 phase=invariant remaining=0
+H8 call=227 phase=competing remaining=0
+H8 call=228 phase=domain_key remaining=0
+H8 call=228 phase=prove_domain remaining=0
+H8 call=228 phase=extents old=17 new=66 remaining=0
+H8 call=228 phase=boundary remaining=0
+H8 call=228 phase=invariant remaining=0
+H8 call=228 phase=competing remaining=0
+H8 call=229 phase=domain_key remaining=0
+H8 call=229 phase=prove_domain remaining=0
+H8 call=229 phase=extents old=13 new=25 remaining=0
+H8 call=229 phase=boundary remaining=0
+H8 call=229 phase=invariant remaining=0
+H8 call=229 phase=competing remaining=0
+H8 call=230 phase=domain_key remaining=0
+H8 call=230 phase=prove_domain remaining=0
+H8 call=230 phase=extents old=13 new=25 remaining=0
+H8 call=230 phase=boundary remaining=0
+H8 call=230 phase=invariant remaining=0
+H8 call=230 phase=competing remaining=0
+H8 call=231 phase=domain_key remaining=0
+H8 call=231 phase=prove_domain remaining=0
+H8 call=231 phase=extents old=17 new=66 remaining=0
+H8 call=231 phase=boundary remaining=0
+H8 call=231 phase=invariant remaining=0
+H8 call=231 phase=competing remaining=0
+H8 call=232 phase=domain_key remaining=0
+H8 call=232 phase=prove_domain remaining=0
+H8 call=232 phase=extents old=13 new=25 remaining=0
+H8 call=232 phase=boundary remaining=0
+H8 call=232 phase=invariant remaining=0
+H8 call=232 phase=competing remaining=0
+H8 call=233 phase=domain_key remaining=0
+H8 call=233 phase=prove_domain remaining=0
+H8 call=233 phase=extents old=13 new=25 remaining=0
+H8 call=233 phase=boundary remaining=0
+H8 call=233 phase=invariant remaining=0
+H8 call=233 phase=competing remaining=0
+H8 call=234 phase=domain_key remaining=0
+H8 call=234 phase=prove_domain remaining=0
+H8 call=234 phase=extents old=1 new=1 remaining=0
+H8 call=234 phase=boundary remaining=0
+H8 call=234 phase=invariant remaining=0
+H8 call=234 phase=competing remaining=0
+H8 call=235 phase=domain_key remaining=0
+H8 call=235 phase=prove_domain remaining=0
+H8 call=235 phase=extents old=1 new=1 remaining=0
+H8 call=235 phase=boundary remaining=0
+H8 call=235 phase=invariant remaining=0
+H8 call=235 phase=competing remaining=0
+H8 call=236 phase=domain_key remaining=0
+H8 call=236 phase=prove_domain remaining=0
+H8 call=236 phase=extents old=1 new=1 remaining=0
+H8 call=236 phase=boundary remaining=0
+H8 call=236 phase=invariant remaining=0
+H8 call=236 phase=competing remaining=0
+H8 call=237 phase=domain_key remaining=0
+H8 call=237 phase=prove_domain remaining=0
+H8 call=237 phase=extents old=1 new=1 remaining=0
+H8 call=237 phase=boundary remaining=0
+H8 call=237 phase=invariant remaining=0
+H8 call=237 phase=competing remaining=0
+H8 call=238 phase=domain_key remaining=0
+H8 call=238 phase=prove_domain remaining=0
+H8 call=238 phase=extents old=1 new=1 remaining=0
+H8 call=238 phase=boundary remaining=0
+H8 call=238 phase=invariant remaining=0
+H8 call=238 phase=competing remaining=0
+H8 call=239 phase=domain_key remaining=0
+H8 call=239 phase=prove_domain remaining=0
+H8 call=239 phase=extents old=1 new=1 remaining=0
+H8 call=239 phase=boundary remaining=0
+H8 call=239 phase=invariant remaining=0
+H8 call=239 phase=competing remaining=0
+H8 call=240 phase=domain_key remaining=0
+H8 call=240 phase=prove_domain remaining=0
+H8 call=240 phase=extents old=1 new=1 remaining=0
+H8 call=240 phase=boundary remaining=0
+H8 call=240 phase=invariant remaining=0
+H8 call=240 phase=competing remaining=0
+H8 call=241 phase=domain_key remaining=0
+H8 call=241 phase=prove_domain remaining=0
+H8 call=241 phase=extents old=1 new=1 remaining=0
+H8 call=241 phase=boundary remaining=0
+H8 call=241 phase=invariant remaining=0
+H8 call=241 phase=competing remaining=0
+H8 call=242 phase=domain_key remaining=0
+H8 call=242 phase=prove_domain remaining=0
+H8 call=242 phase=extents old=1 new=1 remaining=0
+H8 call=242 phase=boundary remaining=0
+H8 call=242 phase=invariant remaining=0
+H8 call=242 phase=competing remaining=0
+H8 call=243 phase=domain_key remaining=0
+H8 call=243 phase=prove_domain remaining=0
+H8 call=243 phase=extents old=1 new=1 remaining=0
+H8 call=243 phase=boundary remaining=0
+H8 call=243 phase=invariant remaining=0
+H8 call=243 phase=competing remaining=0
+H8 call=244 phase=domain_key remaining=0
+H8 call=244 phase=prove_domain remaining=0
+H8 call=244 phase=extents old=1 new=1 remaining=0
+H8 call=244 phase=boundary remaining=0
+H8 call=244 phase=invariant remaining=0
+H8 call=244 phase=competing remaining=0
+H8 call=245 phase=domain_key remaining=0
+H8 call=245 phase=prove_domain remaining=0
+H8 call=245 phase=extents old=1 new=1 remaining=0
+H8 call=245 phase=boundary remaining=0
+H8 call=245 phase=invariant remaining=0
+H8 call=245 phase=competing remaining=0
+H8 call=246 phase=domain_key remaining=0
+H8 call=246 phase=prove_domain remaining=0
+H8 call=246 phase=extents old=1 new=1 remaining=0
+H8 call=246 phase=boundary remaining=0
+H8 call=246 phase=invariant remaining=0
+H8 call=246 phase=competing remaining=0
+H8 call=247 phase=domain_key remaining=0
+H8 call=247 phase=prove_domain remaining=0
+H8 call=247 phase=extents old=1 new=1 remaining=0
+H8 call=247 phase=boundary remaining=0
+H8 call=247 phase=invariant remaining=0
+H8 call=247 phase=competing remaining=0
+H8 call=248 phase=domain_key remaining=0
+H8 call=248 phase=prove_domain remaining=0
+H8 call=248 phase=extents old=1 new=1 remaining=0
+H8 call=248 phase=boundary remaining=0
+H8 call=248 phase=invariant remaining=0
+H8 call=248 phase=competing remaining=0
+H8 call=249 phase=domain_key remaining=0
+H8 call=249 phase=prove_domain remaining=0
+H8 call=249 phase=extents old=1 new=1 remaining=0
+H8 call=249 phase=boundary remaining=0
+H8 call=249 phase=invariant remaining=0
+H8 call=249 phase=competing remaining=0
+H8 call=250 phase=domain_key remaining=0
+H8 call=250 phase=prove_domain remaining=0
+H8 call=250 phase=extents old=105 new=114 remaining=0
+H8 call=250 phase=boundary remaining=0
+H8 call=250 phase=invariant remaining=0
+H8 call=250 phase=competing remaining=0
+H8 call=251 phase=domain_key remaining=0
+H8 call=251 phase=prove_domain remaining=0
+H8 call=251 phase=extents old=105 new=114 remaining=0
+H8 call=251 phase=boundary remaining=0
+H8 call=251 phase=invariant remaining=0
+H8 call=251 phase=competing remaining=0
+H8 call=252 phase=domain_key remaining=0
+H8 call=252 phase=prove_domain remaining=0
+H8 call=252 phase=extents old=105 new=114 remaining=0
+H8 call=252 phase=boundary remaining=0
+H8 call=252 phase=invariant remaining=0
+H8 call=252 phase=competing remaining=0
+H8 call=253 phase=domain_key remaining=0
+H8 call=253 phase=prove_domain remaining=0
+H8 call=253 phase=extents old=2 new=3 remaining=0
+H8 call=253 phase=boundary remaining=0
+H8 call=253 phase=invariant remaining=0
+H8 call=253 phase=competing remaining=0
+H8 call=254 phase=domain_key remaining=0
+H8 call=254 phase=prove_domain remaining=0
+H8 call=254 phase=extents old=2 new=9 remaining=0
+H8 call=254 phase=boundary remaining=0
+H8 call=254 phase=invariant remaining=0
+H8 call=254 phase=competing remaining=0
+H8 call=255 phase=domain_key remaining=0
+H8 call=255 phase=prove_domain remaining=0
+H8 call=255 phase=extents old=13 new=25 remaining=0
+H8 call=255 phase=boundary remaining=0
+H8 call=255 phase=invariant remaining=0
+H8 call=255 phase=competing remaining=0
+H8 call=256 phase=domain_key remaining=0
+H8 call=256 phase=prove_domain remaining=0
+H8 call=256 phase=extents old=2 new=2 remaining=0
+H8 call=256 phase=boundary remaining=0
+H8 call=256 phase=invariant remaining=0
+H8 call=256 phase=competing remaining=0
+H8 call=257 phase=domain_key remaining=0
+H8 call=257 phase=prove_domain remaining=0
+H8 call=257 phase=extents old=2 new=2 remaining=0
+H8 call=257 phase=boundary remaining=0
+H8 call=257 phase=invariant remaining=0
+H8 call=257 phase=competing remaining=0
+H8 call=258 phase=domain_key remaining=0
+H8 call=258 phase=prove_domain remaining=0
+H8 call=258 phase=extents old=1 new=1 remaining=0
+H8 call=258 phase=boundary remaining=0
+H8 call=258 phase=invariant remaining=0
+H8 call=258 phase=competing remaining=0
+H8 call=259 phase=domain_key remaining=0
+H8 call=259 phase=prove_domain remaining=0
+H8 call=259 phase=extents old=7 new=18 remaining=0
+H8 call=259 phase=boundary remaining=0
+H8 call=259 phase=invariant remaining=0
+H8 call=259 phase=competing remaining=0
+H8 call=260 phase=domain_key remaining=0
+H8 call=260 phase=prove_domain remaining=0
+H8 call=260 phase=extents old=21 new=44 remaining=0
+H8 call=260 phase=boundary remaining=0
+H8 call=260 phase=invariant remaining=0
+H8 call=260 phase=competing remaining=0
+H8 call=261 phase=domain_key remaining=0
+H8 call=261 phase=prove_domain remaining=0
+H8 call=261 phase=extents old=21 new=44 remaining=0
+H8 call=261 phase=boundary remaining=0
+H8 call=261 phase=invariant remaining=0
+H8 call=261 phase=competing remaining=0
+H8 call=262 phase=domain_key remaining=0
+H8 call=262 phase=prove_domain remaining=0
+H8 call=262 phase=extents old=21 new=44 remaining=0
+H8 call=262 phase=boundary remaining=0
+H8 call=262 phase=invariant remaining=0
+H8 call=262 phase=competing remaining=0
+H8 call=263 phase=domain_key remaining=0
+H8 call=263 phase=prove_domain remaining=0
+H8 call=263 phase=extents old=21 new=44 remaining=0
+H8 call=263 phase=boundary remaining=0
+H8 call=263 phase=invariant remaining=0
+H8 call=263 phase=competing remaining=0
+H8 call=264 phase=domain_key remaining=0
+H8 call=264 phase=prove_domain remaining=0
+H8 call=264 phase=extents old=21 new=44 remaining=0
+H8 call=264 phase=boundary remaining=0
+H8 call=264 phase=invariant remaining=0
+H8 call=264 phase=competing remaining=0
+H8 call=265 phase=domain_key remaining=0
+H8 call=265 phase=prove_domain remaining=0
+H8 call=265 phase=extents old=25 new=85 remaining=0
+H8 call=265 phase=boundary remaining=0
+H8 call=265 phase=invariant remaining=0
+H8 call=265 phase=competing remaining=0
+H8 call=266 phase=domain_key remaining=0
+H8 call=266 phase=prove_domain remaining=0
+H8 call=266 phase=extents old=25 new=85 remaining=0
+H8 call=266 phase=boundary remaining=0
+H8 call=266 phase=invariant remaining=0
+H8 call=266 phase=competing remaining=0
+H8 call=267 phase=domain_key remaining=0
+H8 call=267 phase=prove_domain remaining=0
+H8 call=267 phase=extents old=25 new=85 remaining=0
+H8 call=267 phase=boundary remaining=0
+H8 call=267 phase=invariant remaining=0
+H8 call=267 phase=competing remaining=0
+H8 call=268 phase=domain_key remaining=0
+H8 call=268 phase=prove_domain remaining=0
+H8 call=268 phase=extents old=25 new=85 remaining=0
+H8 call=268 phase=boundary remaining=0
+H8 call=268 phase=invariant remaining=0
+H8 call=268 phase=competing remaining=0
+H8 call=269 phase=domain_key remaining=0
+H8 call=269 phase=prove_domain remaining=0
+H8 call=269 phase=extents old=25 new=85 remaining=0
+H8 call=269 phase=boundary remaining=0
+H8 call=269 phase=invariant remaining=0
+H8 call=269 phase=competing remaining=0
+H8 call=270 phase=domain_key remaining=0
+H8 call=270 phase=prove_domain remaining=0
+H8 call=270 phase=extents old=25 new=85 remaining=0
+H8 call=270 phase=boundary remaining=0
+H8 call=270 phase=invariant remaining=0
+H8 call=270 phase=competing remaining=0
+H8 call=271 phase=domain_key remaining=0
+H8 call=271 phase=prove_domain remaining=0
+H8 call=271 phase=extents old=25 new=85 remaining=0
+H8 call=271 phase=boundary remaining=0
+H8 call=271 phase=invariant remaining=0
+H8 call=271 phase=competing remaining=0
+H8 call=272 phase=domain_key remaining=0
+H8 call=272 phase=prove_domain remaining=0
+H8 call=272 phase=extents old=25 new=85 remaining=0
+H8 call=272 phase=boundary remaining=0
+H8 call=272 phase=invariant remaining=0
+H8 call=272 phase=competing remaining=0
+H8 call=273 phase=domain_key remaining=0
+H8 call=273 phase=prove_domain remaining=0
+H8 call=273 phase=extents old=25 new=85 remaining=0
+H8 call=273 phase=boundary remaining=0
+H8 call=273 phase=invariant remaining=0
+H8 call=273 phase=competing remaining=0
+H8 call=274 phase=domain_key remaining=0
+H8 call=274 phase=prove_domain remaining=0
+H8 call=274 phase=extents old=25 new=85 remaining=0
+H8 call=274 phase=boundary remaining=0
+H8 call=274 phase=invariant remaining=0
+H8 call=274 phase=competing remaining=0
+H8 call=275 phase=domain_key remaining=0
+H8 call=275 phase=prove_domain remaining=0
+H8 call=275 phase=extents old=25 new=85 remaining=0
+H8 call=275 phase=boundary remaining=0
+H8 call=275 phase=invariant remaining=0
+H8 call=275 phase=competing remaining=0
+H8 call=276 phase=domain_key remaining=0
+H8 call=276 phase=prove_domain remaining=0
+H8 call=276 phase=extents old=25 new=85 remaining=0
+H8 call=276 phase=boundary remaining=0
+H8 call=276 phase=invariant remaining=0
+H8 call=276 phase=competing remaining=0
+H8 call=277 phase=domain_key remaining=0
+H8 call=277 phase=prove_domain remaining=0
+H8 call=277 phase=extents old=30 new=112 remaining=0
+H8 call=277 phase=boundary remaining=0
+H8 call=277 phase=invariant remaining=0
+H8 call=277 phase=competing remaining=0
+H8 call=278 phase=domain_key remaining=0
+H8 call=278 phase=prove_domain remaining=0
+H8 call=278 phase=extents old=30 new=112 remaining=0
+H8 call=278 phase=boundary remaining=0
+H8 call=278 phase=invariant remaining=0
+H8 call=278 phase=competing remaining=0
+H8 call=279 phase=domain_key remaining=0
+H8 call=279 phase=prove_domain remaining=0
+H8 call=279 phase=extents old=30 new=112 remaining=0
+H8 call=279 phase=boundary remaining=0
+H8 call=279 phase=invariant remaining=0
+H8 call=279 phase=competing remaining=0
+H8 call=280 phase=domain_key remaining=0
+H8 call=280 phase=prove_domain remaining=0
+H8 call=280 phase=extents old=30 new=112 remaining=0
+H8 call=280 phase=boundary remaining=0
+H8 call=280 phase=invariant remaining=0
+H8 call=280 phase=competing remaining=0
+H8 call=281 phase=domain_key remaining=0
+H8 call=281 phase=prove_domain remaining=0
+H8 call=281 phase=extents old=30 new=112 remaining=0
+H8 call=281 phase=boundary remaining=0
+H8 call=281 phase=invariant remaining=0
+H8 call=281 phase=competing remaining=0
+H8 call=282 phase=domain_key remaining=0
+H8 call=282 phase=prove_domain remaining=0
+H8 call=282 phase=extents old=30 new=112 remaining=0
+H8 call=282 phase=boundary remaining=0
+H8 call=282 phase=invariant remaining=0
+H8 call=282 phase=competing remaining=0
+H8 call=283 phase=domain_key remaining=0
+H8 call=283 phase=prove_domain remaining=0
+H8 call=283 phase=extents old=33 new=122 remaining=0
+H8 call=283 phase=boundary remaining=0
+H8 call=283 phase=invariant remaining=0
+H8 call=283 phase=competing remaining=0
+H8 call=284 phase=domain_key remaining=0
+H8 call=284 phase=prove_domain remaining=0
+H8 call=284 phase=extents old=33 new=122 remaining=0
+H8 call=284 phase=boundary remaining=0
+H8 call=284 phase=invariant remaining=0
+H8 call=284 phase=competing remaining=0
+H8 call=285 phase=domain_key remaining=0
+H8 call=285 phase=prove_domain remaining=0
+H8 call=285 phase=extents old=4 new=10 remaining=0
+H8 call=285 phase=boundary remaining=0
+H8 call=285 phase=invariant remaining=0
+H8 call=285 phase=competing remaining=0
+H8 call=286 phase=domain_key remaining=0
+H8 call=286 phase=prove_domain remaining=0
+H8 call=286 phase=extents old=4 new=10 remaining=0
+H8 call=286 phase=boundary remaining=0
+H8 call=286 phase=invariant remaining=0
+H8 call=286 phase=competing remaining=0
+H8 call=287 phase=domain_key remaining=0
+H8 call=287 phase=prove_domain remaining=0
+H8 call=287 phase=extents old=7 new=18 remaining=0
+H8 call=287 phase=boundary remaining=0
+H8 call=287 phase=invariant remaining=0
+H8 call=287 phase=competing remaining=0
+H8 call=288 phase=domain_key remaining=0
+H8 call=288 phase=prove_domain remaining=0
+H8 call=288 phase=extents old=7 new=18 remaining=0
+H8 call=288 phase=boundary remaining=0
+H8 call=288 phase=invariant remaining=0
+H8 call=288 phase=competing remaining=0
+H8 call=289 phase=domain_key remaining=0
+H8 call=289 phase=prove_domain remaining=0
+H8 call=289 phase=extents old=7 new=18 remaining=0
+H8 call=289 phase=boundary remaining=0
+H8 call=289 phase=invariant remaining=0
+H8 call=289 phase=competing remaining=0
+H8 call=290 phase=domain_key remaining=0
+H8 call=290 phase=prove_domain remaining=0
+H8 call=290 phase=extents old=21 new=44 remaining=0
+H8 call=290 phase=boundary remaining=0
+H8 call=290 phase=invariant remaining=0
+H8 call=290 phase=competing remaining=0
+H8 call=291 phase=domain_key remaining=0
+H8 call=291 phase=prove_domain remaining=0
+H8 call=291 phase=extents old=3 new=3 remaining=0
+H8 call=291 phase=boundary remaining=0
+H8 call=291 phase=invariant remaining=0
+H8 call=291 phase=competing remaining=0
+H8 call=292 phase=domain_key remaining=0
+H8 call=292 phase=prove_domain remaining=0
+H8 call=292 phase=extents old=3 new=3 remaining=0
+H8 call=292 phase=boundary remaining=0
+H8 call=292 phase=invariant remaining=0
+H8 call=292 phase=competing remaining=0
+H8 call=293 phase=domain_key remaining=0
+H8 call=293 phase=prove_domain remaining=0
+H8 call=293 phase=extents old=3 new=3 remaining=0
+H8 call=293 phase=boundary remaining=0
+H8 call=293 phase=invariant remaining=0
+H8 call=293 phase=competing remaining=0
+H8 call=294 phase=domain_key remaining=0
+H8 call=294 phase=prove_domain remaining=0
+H8 call=294 phase=extents old=3 new=3 remaining=0
+H8 call=294 phase=boundary remaining=0
+H8 call=294 phase=invariant remaining=0
+H8 call=294 phase=competing remaining=0
+H8 call=295 phase=domain_key remaining=0
+H8 call=295 phase=prove_domain remaining=0
+H8 call=295 phase=extents old=2 new=3 remaining=0
+H8 call=295 phase=boundary remaining=0
+H8 call=295 phase=invariant remaining=0
+H8 call=295 phase=competing remaining=0
+H8 call=296 phase=domain_key remaining=0
+H8 call=296 phase=prove_domain remaining=0
+H8 call=296 phase=extents old=2 new=9 remaining=0
+H8 call=296 phase=boundary remaining=0
+H8 call=296 phase=invariant remaining=0
+H8 call=296 phase=competing remaining=0
+H8 call=297 phase=domain_key remaining=0
+H8 call=297 phase=prove_domain remaining=0
+H8 call=297 phase=extents old=13 new=25 remaining=0
+H8 call=297 phase=boundary remaining=0
+H8 call=297 phase=invariant remaining=0
+H8 call=297 phase=competing remaining=0
+H8 call=298 phase=domain_key remaining=0
+H8 call=298 phase=prove_domain remaining=0
+H8 call=298 phase=extents old=13 new=25 remaining=0
+H8 call=298 phase=boundary remaining=0
+H8 call=298 phase=invariant remaining=0
+H8 call=298 phase=competing remaining=0
+H8 call=299 phase=domain_key remaining=0
+H8 call=299 phase=prove_domain remaining=0
+H8 call=299 phase=extents old=13 new=25 remaining=0
+H8 call=299 phase=boundary remaining=0
+H8 call=299 phase=invariant remaining=0
+H8 call=299 phase=competing remaining=0
+H8 call=300 phase=domain_key remaining=0
+H8 call=300 phase=prove_domain remaining=0
+H8 call=300 phase=extents old=1 new=1 remaining=0
+H8 call=300 phase=boundary remaining=0
+H8 call=300 phase=invariant remaining=0
+H8 call=300 phase=competing remaining=0
+H8 call=301 phase=domain_key remaining=0
+H8 call=301 phase=prove_domain remaining=0
+H8 call=301 phase=extents old=2 new=2 remaining=0
+H8 call=301 phase=boundary remaining=0
+H8 call=301 phase=invariant remaining=0
+H8 call=301 phase=competing remaining=0
+H8 call=302 phase=domain_key remaining=0
+H8 call=302 phase=prove_domain remaining=0
+H8 call=302 phase=extents old=2 new=2 remaining=0
+H8 call=302 phase=boundary remaining=0
+H8 call=302 phase=invariant remaining=0
+H8 call=302 phase=competing remaining=0
+H8 call=303 phase=domain_key remaining=0
+H8 call=303 phase=prove_domain remaining=0
+H8 call=303 phase=extents old=2 new=2 remaining=0
+H8 call=303 phase=boundary remaining=0
+H8 call=303 phase=invariant remaining=0
+H8 call=303 phase=competing remaining=0
+H8 call=304 phase=domain_key remaining=0
+H8 call=304 phase=prove_domain remaining=0
+H8 call=304 phase=extents old=2 new=2 remaining=0
+H8 call=304 phase=boundary remaining=0
+H8 call=304 phase=invariant remaining=0
+H8 call=304 phase=competing remaining=0
+H8 call=305 phase=domain_key remaining=0
+H8 call=305 phase=prove_domain remaining=0
+H8 call=305 phase=extents old=2 new=2 remaining=0
+H8 call=305 phase=boundary remaining=0
+H8 call=305 phase=invariant remaining=0
+H8 call=305 phase=competing remaining=0
+H8 call=306 phase=domain_key remaining=0
+H8 call=306 phase=prove_domain remaining=0
+H8 call=306 phase=extents old=2 new=2 remaining=0
+H8 call=306 phase=boundary remaining=0
+H8 call=306 phase=invariant remaining=0
+H8 call=306 phase=competing remaining=0
+H8 call=307 phase=domain_key remaining=0
+H8 call=307 phase=prove_domain remaining=0
+H8 call=307 phase=extents old=1 new=1 remaining=0
+H8 call=307 phase=boundary remaining=0
+H8 call=307 phase=invariant remaining=0
+H8 call=307 phase=competing remaining=0
+H8 call=308 phase=domain_key remaining=0
+H8 call=308 phase=prove_domain remaining=0
+H8 call=308 phase=extents old=25 new=25 remaining=0
+H8 call=308 phase=boundary remaining=0
+H8 call=308 phase=invariant remaining=0
+H8 call=308 phase=competing remaining=0
+H8 call=309 phase=domain_key remaining=0
+H8 call=309 phase=prove_domain remaining=0
+H8 call=309 phase=extents old=12 new=12 remaining=0
+H8 call=309 phase=boundary remaining=0
+H8 call=309 phase=invariant remaining=0
+H8 call=309 phase=competing remaining=0
+H8 call=310 phase=domain_key remaining=0
+H8 call=310 phase=prove_domain remaining=0
+H8 call=310 phase=extents old=12 new=12 remaining=0
+H8 call=310 phase=boundary remaining=0
+H8 call=310 phase=invariant remaining=0
+H8 call=310 phase=competing remaining=0
+H8 call=311 phase=domain_key remaining=0
+H8 call=311 phase=prove_domain remaining=0
+H8 call=311 phase=extents old=12 new=12 remaining=0
+H8 call=311 phase=boundary remaining=0
+H8 call=311 phase=invariant remaining=0
+H8 call=311 phase=competing remaining=0
+H8 call=312 phase=domain_key remaining=0
+H8 call=312 phase=prove_domain remaining=0
+H8 call=312 phase=extents old=12 new=12 remaining=0
+H8 call=312 phase=boundary remaining=0
+H8 call=312 phase=invariant remaining=0
+H8 call=312 phase=competing remaining=0
+H8 call=313 phase=domain_key remaining=0
+H8 call=313 phase=prove_domain remaining=0
+H8 call=313 phase=extents old=12 new=12 remaining=0
+H8 call=313 phase=boundary remaining=0
+H8 call=313 phase=invariant remaining=0
+H8 call=313 phase=competing remaining=0
+H8 call=314 phase=domain_key remaining=0
+H8 call=314 phase=prove_domain remaining=0
+H8 call=314 phase=extents old=12 new=12 remaining=0
+H8 call=314 phase=boundary remaining=0
+H8 call=314 phase=invariant remaining=0
+H8 call=314 phase=competing remaining=0
+H8 call=315 phase=domain_key remaining=0
+H8 call=315 phase=prove_domain remaining=0
+H8 call=315 phase=extents old=12 new=12 remaining=0
+H8 call=315 phase=boundary remaining=0
+H8 call=315 phase=invariant remaining=0
+H8 call=315 phase=competing remaining=0
+H8 call=316 phase=domain_key remaining=0
+H8 call=316 phase=prove_domain remaining=0
+H8 call=316 phase=extents old=12 new=12 remaining=0
+H8 call=316 phase=boundary remaining=0
+H8 call=316 phase=invariant remaining=0
+H8 call=316 phase=competing remaining=0
+H8 call=317 phase=domain_key remaining=0
+H8 call=317 phase=prove_domain remaining=0
+H8 call=317 phase=extents old=9 new=9 remaining=0
+H8 call=317 phase=boundary remaining=0
+H8 call=317 phase=invariant remaining=0
+H8 call=317 phase=competing remaining=0
+H8 call=318 phase=domain_key remaining=0
+H8 call=318 phase=prove_domain remaining=0
+H8 call=318 phase=extents old=143 new=143 remaining=0
+H8 call=318 phase=boundary remaining=0
+H8 call=318 phase=invariant remaining=0
+H8 call=318 phase=competing remaining=0
+H8 call=319 phase=domain_key remaining=0
+H8 call=319 phase=prove_domain remaining=0
+H8 call=319 phase=extents old=143 new=143 remaining=0
+H8 call=319 phase=boundary remaining=0
+H8 call=319 phase=invariant remaining=0
+H8 call=319 phase=competing remaining=0

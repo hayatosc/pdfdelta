@@ -1,0 +1,53 @@
+# H8 trace: wide-domain boundary proof starves later relations (W4)
+
+Status: causal trace complete; no engine change yet. Temporary per-proposal and
+per-substep diagnostics were removed after the run.
+
+## Evidence
+
+Targeted native run on `irs-w4-english-2024-to-2025` with the accepted engine
+plus a temporary file-sink diagnostic (`PDFDELTA_H8_DEBUG`, no stderr lock).
+
+Per-proposal work (`per-proposal-work.txt`): 320 proposals, 30683053 units of
+localization budget after anchors.
+
+- Proposal 181 (single block, 16 tokens per side) spent **15,722,141** units
+  before/after its assessment and ended `Tentative` / `Incomplete` /
+  `[WorkLimit]`, leaving `remaining_work = 0`.
+- The 139 proposals after it had `before = 0`, spent 0 and were all
+  `WorkLimit`.
+- Several tiny proposals are also expensive: proposals 119-124 (single block,
+  5 tokens) spent about **508,613-1,111,657** units each and stayed
+  `AmbiguousEditLocation`.
+
+Per-substep work (`substep-work.txt`) for the top consumer:
+
+| call | domain_key | prove_domain | extents | boundary proof | after |
+| --- | ---: | ---: | --- | ---: | ---: |
+| 181 | 15,722,141 | 12,132,996 | old 143 / new 143 blocks | consumed 12,132,996, returned Budget | 0 |
+| 119 | 29,230,456 | 29,136,025 | old 25 / new 25 blocks | consumed 508,613 | ambiguous |
+
+## Causal chain
+
+`Assessor::assess` attempts `boundary_displacement_proof` for a proposal whose
+closed domain is wide (`key.old.len() > 1 && key.new.len() > 1`), even when the
+proposal itself is one block. The proof builds canonical groups for the whole
+domain and runs `semantic::check_hunks` over them. For proposal 181 the domain
+is 143 blocks wide, the proof consumed the entire remaining budget and returned
+`BoundaryDisplacement::Budget`, which records `WorkLimit`/`Incomplete` and
+zeroes the shared budget, starving every later relation. The original result
+for that proposal was not accepted, so the consumed budget produced no output.
+
+## Candidate designs (to test with fixtures, not unconditional edits)
+
+1. Bound the optional boundary proof: stop it before it can consume the whole
+   shared remainder, and return `NotProven` instead of `Budget` so later
+   relations keep the remainder. Must be charged honestly and must not change
+   any accepted result of the truncated relation.
+2. Assess bounded relations before wide-domain ones while preserving output
+   order, so the 139 starved proposals complete first. Must show no accepted
+   result is lost on the same fixtures.
+
+Both need a meaningful regression with a negative case (wide-domain proof that
+would succeed must not be silently dropped) and targeted verification on W4,
+Schedule C, SE, W2 and 1099 with payload retention checked.

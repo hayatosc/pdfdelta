@@ -37,15 +37,18 @@ allocation, and the zero-budget path failed before allocation.
 Result: `h7-iteration-002-native`, binary `849957084f2f`; 1099, Schedule C,
 SE and W2 are again metric-identical to H2. No gain.
 
-## Why the residual is not scheduling-bound
+## What the measurements do and do not show
 
 The tentative 1099 relations carry `unknown_reading_order`,
-`normalization_uncertainty` and `domain_not_closed`; none carries
-`WorkLimit`, and candidate discovery is not truncated. Spending the full
-32,000,000 is the natural cost of this run, not evidence of truncation, so
-further emission-path accounting work cannot close these relations. Like
-Schedule C, the 1099 residual is proof-bound and needs order or move semantics
-with source-level evidence, not work reduction.
+`normalization_uncertainty` and `domain_not_closed`, and none of the 61
+carries `WorkLimit`; candidate discovery is not truncated. That absence does
+not prove every search completed: a failure can saturate the shared budget to
+zero without recording a per-relation limit, and H7's two variants show only
+that the measured rework targets did not change the four-pair metrics. The
+1099 residual remains an **unresolved order/closure proof** problem, which
+needs source-level order or move evidence rather than further generic
+accounting changes; it is not proven impossible. Schedule C stays deferred
+under the same reasoning.
 
 ## Decision
 
