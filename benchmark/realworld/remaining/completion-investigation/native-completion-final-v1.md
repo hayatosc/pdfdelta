@@ -124,8 +124,57 @@ spans whose sources are adjacent boundary punctuation, leading or trailing
 boundary evidence glyphs, and unmapped glyphs omitted from the canonical text
 and listed in `unmapped_tokens`.
 
+## Original problem evaluation
+
+The increment's definition of done is at least two distinct pairs in the
+unchanged 36-pair panel newly complete under `--native-text-only` relative to
+the captured native baseline, with no previously complete pair lost, two
+captures of the same final build, independent producer families, the five core
+acceptance cases and the project checks. The corrected native baseline is
+0/36; this increment confirms at least 3/36. `irs-schedule-se-2024-to-2025`
+was already complete and stays complete, and `bunka-kana-1946-to-1986` and
+`faa-thunderstorms-b-to-c` are newly complete, all three on the same binary
+`0db25404` with two bit-identical captures per pair. The scope, the 36-pair
+denominator and the default limits are unchanged from the baseline.
+
+The four controls (SE, C, 1099-MISC, W-2) lost no resolved token positions
+and C keeps its 64-token gain. The two new completions come from two
+independent producer families (Agency for Cultural Affairs and FAA). The
+pre-frozen `irs-w4-2022-to-2023` holdout stays incomplete and is a negative
+control outside the denominator, so it adds no count and is not mixed into
+the 3/36. `pdfbench verify` passes 48/48, including the five release
+acceptance cases, and the five quality gates on the final source all exit 0.
+The increment threshold is met; the full 36 pairs were not re-captured on the
+final binary.
+
+At least 3/36 also marks the remaining gap: the common two-sided non-empty
+revision case still ends incomplete for most of the panel, many pairs remain
+unmeasured on the final binary, and image or OCR comparison execution is
+still unimplemented. The distinction stays explicit: a visible existing OCR
+text layer is compared, while invisible text such as render mode 3 has always
+been outside the visible-content comparison.
+
+## Plan acceptance and cleanup
+
+The run's plan (`docs/plans/source-completion/PLAN.md` and its companion
+`PLAN.html`) defined this increment's acceptance as at least two newly
+complete pairs, two same-build captures, independent producer evidence, the
+five core acceptance cases and passing checks. Its completion report and
+cleanup section requires preserving the original problem and result in
+durable artifacts before deleting only the two run-owned planning files.
+Copies are preserved at
+`benchmark/realworld/cache/completion-investigation/native-completion-final-v1/plan/PLAN.md`
+(sha256 `d01d00fb701d405c3d7947e4d00abf098269d72ac456228472b2251103700e46`)
+and `benchmark/realworld/cache/completion-investigation/native-completion-final-v1/plan/PLAN.html`
+(sha256 `52b39fa71a58c4c8e9d251dc010c9c00ac5ac9a61c472be1753e15f5e305cc4b`);
+the workspace paths were deleted and are not cited as evidence.
+
 ## Evidence
 
+- Text-operator audit note: `benchmark/realworld/cache/completion-investigation/native-completion-final-v1/audit-note-text-operators.md`
+  (sha256 `b552faf5b7ec9d508d50638a68ef8b097a02d50b2d9f72cd8e94e821b139bee3`),
+  preserved raw-stream and parsed page-stream tool copies, and the saved
+  recursive glyph evidence; the two stored numbers are not rewritten.
 - Final artifact: `benchmark/realworld/cache/completion-investigation/native-completion-final-v1/`
   (`manifest.json`, panel and input hashes, both runs per pair, reference
   subset checks, report and PDF audits).
