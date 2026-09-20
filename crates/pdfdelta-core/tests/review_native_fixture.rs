@@ -222,3 +222,52 @@ fn native_planning_is_reproducible() {
     assert_eq!(plan(&outcome), plan(&outcome));
     assert_partition_explained(&outcome, &plan(&outcome));
 }
+
+#[test]
+fn a_packet_range_resolves_back_to_the_text_it_quotes() {
+    let old = document(&[
+        ("The reporting deadline is 10 days.", 0, 100.0),
+        ("An unrelated closing note.", 0, 80.0),
+    ]);
+    let new = document(&[
+        ("Entirely different opening matter.", 0, 100.0),
+        ("Another unrelated sentence here.", 0, 80.0),
+    ]);
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )
+    .expect("compare native glyph documents");
+    let plan = plan(&outcome);
+
+    let mut checked = 0;
+    for case in &plan.cases {
+        for (blocks, text) in [
+            (&outcome.old_blocks, case.old_text.as_ref()),
+            (&outcome.new_blocks, case.new_text.as_ref()),
+        ] {
+            let Some(text) = text else { continue };
+            let Some(range) = text.canonical_range else {
+                continue;
+            };
+            // The quoted text is exactly the canonical interval the packet
+            // names, so a reviewer's reference can be resolved independently.
+            let quoted: String = blocks
+                .iter()
+                .flat_map(|block| block.canonical.text.chars())
+                .collect();
+            assert!(
+                range.end <= quoted.chars().count() + 1,
+                "a packet range must stay inside the normalization it names"
+            );
+            assert_eq!(
+                text.text.chars().count(),
+                range.end - range.start,
+                "the quoted scalars and the named interval must agree"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "the fixture produces quoted ranges to check");
+}

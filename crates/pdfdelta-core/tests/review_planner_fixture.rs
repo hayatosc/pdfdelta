@@ -816,3 +816,50 @@ fn equal_cell_text_with_a_changed_row_association_is_never_dropped() {
         );
     }
 }
+
+#[test]
+fn a_larger_budget_may_reveal_competitors_without_having_settled_the_earlier_answer() {
+    let old = build(Build {
+        paragraphs: &["Repeated line", "Repeated line", "Distinct tail."],
+        ..Build::default()
+    });
+    let new = build(Build {
+        paragraphs: &["Repeated line", "Distinct tail."],
+        ..Build::default()
+    });
+
+    let mut narrow = comparison_limits();
+    narrow.matching.max_proposals = 1;
+    let narrow_plan = {
+        let comparison = compare(&old, &new, narrow);
+        plan(&old, &new, &comparison)
+    };
+    let wide_plan = {
+        let comparison = compare(&old, &new, comparison_limits());
+        plan(&old, &new, &comparison)
+    };
+
+    // Whatever the wider search found, the narrower one must never have
+    // presented its own view as a closed enumeration.
+    for case in &narrow_plan.cases {
+        if case.completeness.candidate_enumeration == Completeness::Complete {
+            continue;
+        }
+        assert_eq!(
+            case.alternatives_total, None,
+            "an unfinished enumeration must not report a total"
+        );
+    }
+    let narrow_incomplete = narrow_plan
+        .cases
+        .iter()
+        .any(|case| case.completeness.candidate_enumeration == Completeness::Incomplete);
+    assert!(
+        narrow_incomplete,
+        "the narrow budget must actually report its truncation"
+    );
+    assert!(
+        !wide_plan.cases.is_empty(),
+        "the wider search still has material to review"
+    );
+}
