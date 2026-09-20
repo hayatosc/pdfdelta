@@ -1,0 +1,58 @@
+{
+  "pair": "faa-maintenance-records-c-to-d",
+  "binary_sha256": "80cc5fb13105a27ef625aa582fa04cc5acf64e520abe8e57ad55bc7a8bcd4cbe",
+  "work_by_stage_after": {
+    "anchor_verification": 254166,
+    "local_views": 0,
+    "localization": 1142742,
+    "emission": 727646
+  },
+  "work_limit": 32000000,
+  "residual": [
+    {
+      "blocks": [
+        509
+      ],
+      "evidence": [],
+      "reasons": [
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "search": "complete",
+      "confidence": "medium",
+      "kind": "insertion",
+      "glyph_count": 330,
+      "text": "2. Compliance with Airworthiness Directives (AD) or SBs.\n3. Repairs carried out.\n4. Modifications carried out.\n5. Replacement articles installed.\n6. Life-limited parts status (total time, total cycles, etc.).\n7. If a specific batch or lot number is used to control or trace the product or article, enter the batch or lot number in this block."
+    },
+    {
+      "blocks": [
+        512
+      ],
+      "evidence": [],
+      "reasons": [
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "search": "complete",
+      "confidence": "medium",
+      "kind": "insertion",
+      "glyph_count": 223,
+      "text": "9. Deviations from the customer work order.\n10. Information needed to support shipments with shortages or reassembly after delivery.\n11. Release statements to satisfy a Civil Airworthiness Authority (CAA) maintenance requirement."
+    },
+    {
+      "blocks": [
+        547
+      ],
+      "evidence": [],
+      "reasons": [
+        "normalization_uncertainty",
+        "domain_not_closed"
+      ],
+      "search": "complete",
+      "confidence": "medium",
+      "kind": "insertion",
+      "glyph_count": 397,
+      "text": "return to service is the date on which the original work was completed (refer to 14 CFR \u00a7 43.9). The date should be in the following format: two-digit day, first three letters of the month, and four-digit year (e.g., 03 Feb 2008). This does not need to be the same as the printing or shipping date, which may occur later. The use or omission of slashes,\nhyphens, or spaces in the date does not matter."
+    }
+  ]
+}

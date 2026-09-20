@@ -2563,6 +2563,50 @@ fn one_sided_limits_never_report_partial_completion() -> Result<()> {
 }
 
 #[test]
+fn one_sided_valid_relation_work_is_not_quadratic_in_change_count() -> Result<()> {
+    // The proven-empty settlement validates each accepted one-sided relation
+    // against the proposed change list. Scanning every change for every
+    // relation charges O(blocks^2) work that the default budget happens to
+    // hide for small documents. A budget that comfortably covers the actual
+    // per-relation proof must therefore still complete this document.
+    let texts = (0..60)
+        .map(|index| format!("Distinct inserted line {index} carries stable wording"))
+        .collect::<Vec<_>>();
+    let lines = texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| line_at(text, 0, 0.0, 1000.0 - index as f64 * 100.0))
+        .collect::<Vec<_>>();
+    let options = PipelineOptions {
+        diff: DiffOptions {
+            max_assessment_work: 40_000,
+            ..DiffOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let outcome = compare_extraction_outcomes_with_diagnostics(
+        ExtractionOutcome::complete(Document::new(Vec::new())),
+        ExtractionOutcome::complete(document(&lines)),
+        options,
+        &mut PipelineDiagnostics::new(),
+    )?;
+    let comparison = &outcome.comparison;
+    let summary = summarize(comparison, &outcome.extraction)?;
+    assert!(summary.comparison_complete, "{summary:?}");
+    assert_eq!(comparison.changes.len(), 60, "{comparison:#?}");
+    assert!(
+        comparison
+            .changes
+            .iter()
+            .all(|change| change.kind == ChangeKind::Insertion)
+    );
+    assert!(comparison.change_candidates.is_empty());
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
 fn compares_complete_extraction_outcomes_with_the_existing_pipeline() -> Result<()> {
     let old = ExtractionOutcome::complete(paragraphs(&[
         "Opening paragraph establishes context",

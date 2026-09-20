@@ -1846,6 +1846,32 @@ fn contains_span(
     }
 }
 
+/// Necessary structural precondition of [`contains_span`].
+///
+/// [`locate_in_group`] builds the group from the outer span's blocks in their
+/// stored order (`GroupText::new(blocks.to_vec(), ..)`), finds the first
+/// position of the inner span's first block, and requires the following slice
+/// to equal the inner blocks exactly. This mirrors that check without assuming
+/// anything about the numeric order of block ids, so a valid span whose ids are
+/// not monotonically increasing is never rejected. Failing the check, the exact
+/// range comparison cannot succeed; callers charge the structural visit
+/// explicitly before skipping the expensive canonicalization.
+fn span_may_contain(outer: Option<&TextSpan>, inner: Option<&TextSpan>) -> bool {
+    match (outer, inner) {
+        (_, None) => true,
+        (None, Some(_)) => false,
+        (Some(outer), Some(inner)) => {
+            let Some(first) = inner.blocks.first() else {
+                return false;
+            };
+            let Some(start) = outer.blocks.iter().position(|block| block == first) else {
+                return false;
+            };
+            outer.blocks.get(start..start + inner.blocks.len()) == Some(inner.blocks.as_slice())
+        }
+    }
+}
+
 fn occurrence_indices(alignment: &Alignment, spans: [Option<&TextSpan>; 2]) -> [Option<usize>; 2] {
     std::array::from_fn(|side| {
         spans[side].and_then(|span| {
@@ -2644,6 +2670,30 @@ impl<'a, 'document> Assessor<'a, 'document> {
             }
             let mut contained = Vec::new();
             for occurrence in &change.occurrences {
+                // Every candidate occurrence visit is charged before the
+                // structural check, so the repeated scan of the change list
+                // stays inside the shared budget even when most occurrences
+                // cannot belong to this relation. Containment requires the
+                // occurrence's blocks to be a contiguous, in-order subsequence
+                // of the relation's own blocks; a failure cannot enter the
+                // contained set and skips the expensive canonicalization.
+                let structural_work = old
+                    .as_ref()
+                    .map_or(1, |span| span.blocks.len())
+                    .saturating_add(new.as_ref().map_or(1, |span| span.blocks.len()));
+                if !self.charge(structural_work) {
+                    self.records[index].outcome = RelationOutcome::Tentative;
+                    self.records[index].search = SearchCompleteness::Incomplete;
+                    self.records[index]
+                        .reasons
+                        .push(AssessmentReason::WorkLimit);
+                    return Ok(false);
+                }
+                if !span_may_contain(old.as_ref(), occurrence.old_span.as_ref())
+                    || !span_may_contain(new.as_ref(), occurrence.new_span.as_ref())
+                {
+                    continue;
+                }
                 let source_work = occurrence
                     .old_span
                     .as_ref()
@@ -4657,5 +4707,41 @@ mod assessor_issue_cache_tests {
             "the cache was never created"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod span_may_contain_tests {
+    use super::{BlockId, ScalarRange, TextSpan, TokenRange, span_may_contain};
+
+    fn span(blocks: &[u64]) -> TextSpan {
+        TextSpan {
+            blocks: blocks.iter().copied().map(BlockId).collect(),
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 10 },
+            comparable_range: TokenRange { start: 0, end: 10 },
+        }
+    }
+
+    #[test]
+    fn structural_precondition_is_order_independent_and_contiguous() {
+        // Block ids are not monotone; the check follows the stored span order
+        // exactly like the canonical group built from the outer span.
+        let outer = span(&[5, 2, 9]);
+        assert!(span_may_contain(Some(&outer), Some(&span(&[2, 9]))));
+        assert!(span_may_contain(Some(&outer), Some(&span(&[5]))));
+        assert!(span_may_contain(Some(&outer), Some(&span(&[5, 2, 9]))));
+        assert!(!span_may_contain(Some(&outer), Some(&span(&[5, 9]))));
+        assert!(!span_may_contain(Some(&outer), Some(&span(&[9, 2]))));
+        assert!(!span_may_contain(Some(&outer), Some(&span(&[3]))));
+    }
+
+    #[test]
+    fn structural_precondition_handles_missing_and_empty_sides() {
+        let outer = span(&[1]);
+        assert!(span_may_contain(Some(&outer), None));
+        assert!(span_may_contain(None, None));
+        assert!(!span_may_contain(None, Some(&outer)));
+        assert!(!span_may_contain(Some(&outer), Some(&span(&[]))));
     }
 }

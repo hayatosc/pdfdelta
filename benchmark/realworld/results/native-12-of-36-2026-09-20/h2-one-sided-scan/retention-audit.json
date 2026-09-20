@@ -1,0 +1,113 @@
+{
+  "pairs": {
+    "irs-schedule-se-2024-to-2025": {
+      "baseline_report_sha256": "fec5b4dc0d0e05301178c9d24fb5c148faf6c2d97cbf88596d8196eeadf9d822",
+      "members": {
+        "change_candidates": "e5ab1734cc1ecbbd68e0d3873efbb16ca94eaba29bbdb215b2786c72c327dfd5",
+        "changes": "ce0633c47462366f88ba459718cea752fb453920a386978eb82130f44d605738",
+        "extraction": "84a8f0746ce42cebf578ad8a5e60a9305a9b69cc606ac9eac057faed0ad082a9",
+        "formatting_only_changes": "8a7ed85e838ddfabb701fb225cf02a142fcb191470ed762493f1f66c5530a8e7",
+        "new_resolution": "a39a475b46617120f5d3fc05ca117f8ae3c6cde4add4ea563c5bb93f03be4758",
+        "old_resolution": "cd110a91999b968b1f8739a15b1b5f237edd2d785c5c97c0bd8d763a851468ee",
+        "proven_changed_regions": "cfccd084a34d2a1ce6ba758d70f38d663c5ca782acec89590af02f1015d75c98",
+        "relations": "f2b0f6a93951430dffa01933ffc08fff1b55f3697170d6af94e11b992fd60c1b",
+        "review_units": "153c2a73dca5bb3c6d95724d1ea513b345080e1ddd1cd6a8cbc9066e226d2856",
+        "summary": "3d18e7810988d8d0e3dfe23398d8356e4029fa03cfacf450d2abff68e7ef1450",
+        "unresolved_regions": "b40a7e8d2935bd1509424a8b49dabbd45fb0a1450dd86735e81972c30c6ec97d"
+      },
+      "different_members": []
+    },
+    "irs-schedule-c-2024-to-2025": {
+      "baseline_report_sha256": "f062331d2e793274bce5ae376feaa1c831908754e7d4fdcf45d96ffe9a88a7ab",
+      "members": {
+        "change_candidates": "fa89dc54c93d1ca5a56f9c6de68d2a96f1cf91370487906bbaeb13c1a0befdc3",
+        "changes": "a06bc7bd8a0ccfc054246d7af4c897730c0f42d52a41b2b8d2c0562f58f11e62",
+        "extraction": "84a8f0746ce42cebf578ad8a5e60a9305a9b69cc606ac9eac057faed0ad082a9",
+        "formatting_only_changes": "28619088fd5bffff108e243a88943832f95fbc386fc94d6c05915f1bb80570d6",
+        "new_resolution": "521205542214a967ae7aa6fe3356823afbd5e4b4dd4f953dad7a40a69a461c4d",
+        "old_resolution": "7fe0951abfbb6bab3447b7c629bf907ec81393c5a7e35ddec69812465e204017",
+        "proven_changed_regions": "cfccd084a34d2a1ce6ba758d70f38d663c5ca782acec89590af02f1015d75c98",
+        "relations": "60c2e76bc8b6b5ba8e58dcd3e981be75994ef8d0ba4340595026e2850a33b2a9",
+        "review_units": "2fcc3f67b727867e5e17c31eb777767faf104416b5dbf5754748104f540b38bd",
+        "summary": "3d18e7810988d8d0e3dfe23398d8356e4029fa03cfacf450d2abff68e7ef1450",
+        "unresolved_regions": "fb9aefa5a5aabbe46913e96c29c56882b37c1d3093594d0b1c23b4d8ff64ed49"
+      },
+      "different_members": []
+    },
+    "faa-thunderstorms-b-to-c": {
+      "baseline_report_sha256": "da485f68031926bb61a2a7ebaf968e9dbb890ab09ad174ebd50b6982862b9dbf",
+      "members": {
+        "change_candidates": "e5ab1734cc1ecbbd68e0d3873efbb16ca94eaba29bbdb215b2786c72c327dfd5",
+        "changes": "d9fec3e3da3c5280f7b53b3a075dccf7a51fa79d15c2da430b247ad395cd5f3f",
+        "extraction": "84a8f0746ce42cebf578ad8a5e60a9305a9b69cc606ac9eac057faed0ad082a9",
+        "formatting_only_changes": "9dc3c0ae467c6663a809a20905f3e6a1ca1a173d8b5b1c8793e7893aa724e38f",
+        "new_resolution": "94f1db3d807906e577a6ec4f5afcd1dd59dd532409add991b42057a0c724f8c2",
+        "old_resolution": "f0af44f73527f2ac6dd4de84cc2ed2728d514ee9066226321a6006b018edec8e",
+        "proven_changed_regions": "cfccd084a34d2a1ce6ba758d70f38d663c5ca782acec89590af02f1015d75c98",
+        "relations": "b284817bf7e99d9adf4dc0a53669c19dee8ccf09d861a704d2a861400ef2eea8",
+        "review_units": "153c2a73dca5bb3c6d95724d1ea513b345080e1ddd1cd6a8cbc9066e226d2856",
+        "summary": "3d18e7810988d8d0e3dfe23398d8356e4029fa03cfacf450d2abff68e7ef1450",
+        "unresolved_regions": "b40a7e8d2935bd1509424a8b49dabbd45fb0a1450dd86735e81972c30c6ec97d"
+      },
+      "different_members": []
+    },
+    "faa-maintenance-records-c-to-d": {
+      "baseline_report_sha256": "41a5e95b8a621cd18d9ab2c9ca18cd950ce923e52c85f0770fbfe17b6bb10c10",
+      "members": {
+        "change_candidates": "3dfdbcd3d837e1c1821eca0b908944fb71c28360a3d3f3c8bbe310cc0ae79533",
+        "changes": "3c823c069673a6306f47ef50bd93f6694c8e8a2695e9a38b89232357f45063c6",
+        "extraction": "84a8f0746ce42cebf578ad8a5e60a9305a9b69cc606ac9eac057faed0ad082a9",
+        "formatting_only_changes": "9dc3c0ae467c6663a809a20905f3e6a1ca1a173d8b5b1c8793e7893aa724e38f",
+        "new_resolution": "8c7c32779736f12c2bfd14edcc17063c68d5816359564705fb8d4cc588280126",
+        "old_resolution": "f0af44f73527f2ac6dd4de84cc2ed2728d514ee9066226321a6006b018edec8e",
+        "proven_changed_regions": "cfccd084a34d2a1ce6ba758d70f38d663c5ca782acec89590af02f1015d75c98",
+        "relations": "4831bd568b4931c6231e91941d879552849001cb0257128abb1776ca63513036",
+        "review_units": "153c2a73dca5bb3c6d95724d1ea513b345080e1ddd1cd6a8cbc9066e226d2856",
+        "summary": "3d18e7810988d8d0e3dfe23398d8356e4029fa03cfacf450d2abff68e7ef1450",
+        "unresolved_regions": "5fa42a20864a1122c212e6924267936a6e1b001617cc239231060008533aa951"
+      },
+      "different_members": [
+        "change_candidates",
+        "changes",
+        "new_resolution",
+        "relations",
+        "unresolved_regions"
+      ]
+    },
+    "bunka-kana-1946-to-1986": {
+      "baseline_report_sha256": "3c1ca2f6d960514e2195cdbbd7d3f4241ece7671e668c2f0c5954ce63e060d9d",
+      "members": {
+        "change_candidates": "e5ab1734cc1ecbbd68e0d3873efbb16ca94eaba29bbdb215b2786c72c327dfd5",
+        "changes": "a7650e7f897089e8cde58b5565c973ef1c6bf81ce533a63eb5250c0b1b35f273",
+        "extraction": "84a8f0746ce42cebf578ad8a5e60a9305a9b69cc606ac9eac057faed0ad082a9",
+        "formatting_only_changes": "9dc3c0ae467c6663a809a20905f3e6a1ca1a173d8b5b1c8793e7893aa724e38f",
+        "new_resolution": "8c7bcf7b9fa9c0228fb0fdf2af0f31671d3d331b56726d868a3f58052f312134",
+        "old_resolution": "f0af44f73527f2ac6dd4de84cc2ed2728d514ee9066226321a6006b018edec8e",
+        "proven_changed_regions": "cfccd084a34d2a1ce6ba758d70f38d663c5ca782acec89590af02f1015d75c98",
+        "relations": "ae30b8aa52bf67c8a02edb5cbe5b72f3f0bcc445602e585c72b9e18428946d5f",
+        "review_units": "153c2a73dca5bb3c6d95724d1ea513b345080e1ddd1cd6a8cbc9066e226d2856",
+        "summary": "3d18e7810988d8d0e3dfe23398d8356e4029fa03cfacf450d2abff68e7ef1450",
+        "unresolved_regions": "b40a7e8d2935bd1509424a8b49dabbd45fb0a1450dd86735e81972c30c6ec97d"
+      },
+      "different_members": []
+    }
+  },
+  "retained": [
+    "irs-schedule-se-2024-to-2025",
+    "irs-schedule-c-2024-to-2025",
+    "faa-thunderstorms-b-to-c",
+    "bunka-kana-1946-to-1986"
+  ],
+  "different": [
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "members": [
+        "change_candidates",
+        "changes",
+        "new_resolution",
+        "relations",
+        "unresolved_regions"
+      ]
+    }
+  ]
+}
