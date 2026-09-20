@@ -122,3 +122,31 @@ outcome trace records `boundary_check_hunks outcome=BudgetExceeded` for that
 attempt, which is consistent with, but does not by itself certify, the claim
 made in the H10 note; a H10-callback trace was not recorded.
 
+## H11 mandatory-edge measurement (rule does not hold for W4)
+
+The corrected analysis (unique eligible edge per rank from suffix LCS plus a
+rolling prefix row, charged before allocation with combined memory checks) was
+validated against an exhaustive all-path intersection oracle on repeated,
+whitespace, empty and crossing inputs. A diagnostic probe then logged both cut
+nodes with stable-endpoint status and the mandatory edge immediately before or
+after each node (`pair_is_mandatory(i, j) || pair_is_mandatory(i + 1, j + 1)`).
+
+Across all 75 W4 boundary attempts the sufficient rule holds for **none**:
+
+- 50 attempts have stable-or-mandatory flags at both cut nodes but the
+  localized slices are token-equal, so no change hunk exists and the cut is not
+  a valid boundary under this rule.
+- 23 attempts have neither cut node stable nor adjacent to a mandatory edge.
+- The fatal 143-block key (471,614)/(559,702) appears 14 times with
+  `lcs = 821`, `unique_ranks = 777`; every one has equal localized slices.
+- The probe uses `locate_in_group` fixed ranges, while the callback localizes
+  through the per-edit script, so the mandatory-edge predicate cannot simply
+  replace the callback; the measurement is sufficient to reject this fast-path
+  formulation for W4.
+
+Raw log: `traces/boundary-mandatory-w4.txt`. The analysis code and probe were
+reverted without integration. Next candidate: a narrow evaluation of the
+optimal-path DAG with a boundary-state automaton that proves the exact
+predicate without path enumeration, or a different cause from the accepted
+scorecard.
+
