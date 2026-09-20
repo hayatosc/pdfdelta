@@ -935,6 +935,157 @@ impl Assessor<'_, '_> {
         Ok(truncated)
     }
 
+    /// Discovers whole source-bounded original members whose complete page and
+    /// per-token position columns match one-to-one while their token text
+    /// differs, carried by an independently established stationary neighbour.
+    ///
+    /// The pass runs only after the ordinary local and bracketed recovery has
+    /// reached its fixpoint, so it never spends work the earlier passes still
+    /// need. Candidates whose projected source intervals intersect the
+    /// accepted or changed ownership at all are held; a fully owned candidate
+    /// is skipped. Every candidate is checked into a buffer first and the
+    /// append is charged once, so a mid-budget cut or output limit never
+    /// leaves a partial domain or assumption behind.
+    pub(super) fn discover_positioned_replacements(
+        &mut self,
+        ownership: &[Ownership; 2],
+    ) -> Result<()> {
+        if self.remaining_work == 0
+            || self.output_stop.is_some()
+            || self.local_domains.len() >= self.options.max_assessment_ranges
+            || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1)
+        {
+            return Ok(());
+        }
+        let Some(recovery) = self.recovery else {
+            return Ok(());
+        };
+        let Some(established) = self.collect_established_blocks(ownership)? else {
+            return Ok(());
+        };
+        if established.is_empty() {
+            return Ok(());
+        }
+        let Some(mask) = self.stationary_candidate_mask(ownership)? else {
+            return Ok(());
+        };
+        if !mask[0].iter().any(|&eligible| eligible) || !mask[1].iter().any(|&eligible| eligible) {
+            return Ok(());
+        }
+        let domains = super::views::discover_positioned_replacements_masked(
+            self.sides,
+            recovery,
+            &established,
+            &mut self.remaining_work,
+            self.options.max_assessment_ranges,
+            &mask,
+        )?;
+        if domains.is_empty() {
+            return Ok(());
+        }
+        let mut accepted = Vec::new();
+        for domain in domains {
+            if self.local_domains.len() + accepted.len() >= self.options.max_assessment_ranges {
+                break;
+            }
+            let duplicate_work = self.local_domains.len().saturating_add(accepted.len());
+            if !self.charge(duplicate_work) {
+                return Ok(());
+            }
+            if self.local_domains.contains(&domain) || accepted.contains(&domain) {
+                continue;
+            }
+            match self.stationary_candidate_is_clear(ownership, &domain)? {
+                None => return Ok(()),
+                Some(false) => {}
+                Some(true) => accepted.push(domain),
+            }
+        }
+        if accepted.is_empty() {
+            return Ok(());
+        }
+        if !self.charge(
+            accepted
+                .len()
+                .saturating_mul(self.local_domains.len().saturating_add(accepted.len())),
+        ) {
+            return Ok(());
+        }
+        self.local_domains
+            .try_reserve(accepted.len())
+            .map_err(|_| super::allocation_error("positioned-replacement local domains"))?;
+        self.positioned_replacements
+            .try_reserve(accepted.len())
+            .map_err(|_| super::allocation_error("positioned-replacement member assumptions"))?;
+        for domain in accepted {
+            self.positioned_replacements
+                .push((domain.old_span.clone(), domain.new_span.clone()));
+            self.local_domains.push(domain);
+        }
+        Ok(())
+    }
+
+    /// Proves only the positioned-replacement members queued by this pass
+    /// through the ordinary local recovery, leaving the already processed
+    /// queue and the translation discovery untouched. Returns whether the
+    /// recovery was truncated by a stop, work limit or output limit.
+    pub(super) fn recover_positioned_replacements(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        changes: &mut Vec<ChangeEvent>,
+        candidates: &mut Vec<ChangeCandidate>,
+    ) -> Result<bool> {
+        if self.remaining_work == 0 || self.output_stop.is_some() {
+            return Ok(false);
+        }
+        let start = self.local_domains.len();
+        self.discover_positioned_replacements(ownership)?;
+        if self.local_domains.len() <= start {
+            return Ok(false);
+        }
+        let mut truncated = false;
+        for index in start..self.local_domains.len() {
+            if self.remaining_work == 0 || self.output_stop.is_some() {
+                truncated = true;
+                break;
+            }
+            let domain = self.local_domains[index].clone();
+            if self
+                .positioned_replacements
+                .iter()
+                .any(|(old, new)| old == &domain.old_span && new == &domain.new_span)
+            {
+                let proposal = super::ProposedRelation {
+                    old: Some(domain.old_span.clone()),
+                    new: Some(domain.new_span.clone()),
+                    span_indices: [None, None],
+                    exact_recovery: true,
+                };
+                let key = self.domain_key(&proposal)?;
+                if let Some(proof) = self.domains.get(&key)
+                    && self.records[proof.relation].outcome != super::RelationOutcome::Established
+                    && !self.records[proof.relation]
+                        .assumptions
+                        .contains(&crate::diff::ComparisonAssumption::PositionedReplacement)
+                {
+                    // The exact position-column pair was cached as tentative
+                    // before this proof existed. Dropping only the cache entry
+                    // makes the proof recompute: the earlier relation record
+                    // stays as history, and no other key or established record
+                    // is touched.
+                    self.domains.remove(&key);
+                }
+            }
+            if let LocalRecoveryStep::Stop { truncated: stopped } =
+                self.recover_local_domain(index, ownership, changes, candidates)?
+            {
+                truncated = stopped;
+                break;
+            }
+        }
+        Ok(truncated)
+    }
+
     /// Reject-only eligibility mask over whole original blocks per side.
     ///
     /// A block is eligible when its whole source projection is non-empty and
@@ -2397,6 +2548,320 @@ mod tests {
             line_breaks: Some(vec![2]),
             page_breaks: Some(Vec::new()),
         }
+    }
+
+    fn positioned_replacement_fixture() -> (Vec<BlockText>, Vec<BlockText>) {
+        (
+            vec![
+                positioned_block(1, "Anchor line", 300.0, 300.0),
+                positioned_block(2, "ABCDE", 300.0, 290.0),
+            ],
+            vec![
+                positioned_block(101, "Anchor line", 300.0, 300.0),
+                positioned_block(102, "ABXDE", 300.0, 290.0),
+            ],
+        )
+    }
+
+    struct PositionedRecovery {
+        replacements: Vec<(TextSpan, TextSpan)>,
+        changes: Vec<ChangeEvent>,
+        candidates: Vec<ChangeCandidate>,
+        changed: [Vec<SourceInterval>; 2],
+        edits: Vec<crate::diff::AtomicEdit>,
+        accepted: [usize; 2],
+        truncated: bool,
+        assumed: bool,
+        established: bool,
+    }
+
+    fn run_positioned_replacement(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        establish_anchor: bool,
+        partial_ownership: Option<(usize, usize)>,
+        budget: Option<usize>,
+        repeat: bool,
+    ) -> Result<PositionedRecovery> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let old_ids = old_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let new_ids = new_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let alignment = unresolved_alignment(&old_ids, &new_ids);
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let recovery = crate::diff::SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut assessor = super::super::Assessor::new(
+            [&old, &new],
+            &alignment,
+            Some(recovery),
+            DiffOptions::default(),
+        )?;
+        let anchor_len = old_blocks[0]
+            .canonical
+            .comparable_tokens()
+            .expect("anchor tokens")
+            .len();
+        if establish_anchor {
+            assessor.local_anchors = vec![LocalDomain {
+                old_span: span(1, anchor_len),
+                new_span: span(101, anchor_len),
+                source_bounded: true,
+            }];
+            let proposal = super::super::ProposedRelation {
+                old: Some(span(1, anchor_len)),
+                new: Some(span(101, anchor_len)),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            assessor.prove_domain(&key)?;
+        }
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        if establish_anchor {
+            ownership[0].accept(&old, &span(1, anchor_len), 64)?;
+            ownership[1].accept(&new, &span(101, anchor_len), 64)?;
+        }
+        if let Some((side_index, count)) = partial_ownership {
+            let block = if side_index == 0 {
+                BlockId(2)
+            } else {
+                BlockId(102)
+            };
+            let source = if side_index == 0 { &old } else { &new };
+            ownership[side_index].accept(source, &span(block.0, count), 64)?;
+        }
+        if let Some(budget) = budget {
+            assessor.remaining_work = budget;
+        }
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        let mut truncated = assessor.recover_positioned_replacements(
+            &mut ownership,
+            &mut changes,
+            &mut candidates,
+        )?;
+        if repeat {
+            // The second pass must see the queued domain as already recovered
+            // and add neither a duplicate change nor a duplicate assumption.
+            truncated |= assessor.recover_positioned_replacements(
+                &mut ownership,
+                &mut changes,
+                &mut candidates,
+            )?;
+        }
+        let edits = assessor
+            .localized_edits
+            .iter()
+            .flat_map(|script| script.edits.iter().cloned())
+            .collect::<Vec<_>>();
+        let assumed = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&crate::diff::ComparisonAssumption::PositionedReplacement)
+        });
+        let established = assessor.records.iter().any(|record| {
+            record.outcome == super::RelationOutcome::Established
+                && record
+                    .assumptions
+                    .contains(&crate::diff::ComparisonAssumption::PositionedReplacement)
+        });
+        Ok(PositionedRecovery {
+            replacements: assessor.positioned_replacements.clone(),
+            changes,
+            candidates,
+            changed: [ownership[0].changed.clone(), ownership[1].changed.clone()],
+            edits,
+            accepted: [ownership[0].accepted.len(), ownership[1].accepted.len()],
+            truncated,
+            assumed,
+            established,
+        })
+    }
+
+    fn token_text(tokens: &[crate::normalize::ComparableToken]) -> String {
+        tokens
+            .iter()
+            .map(|token| match token {
+                crate::normalize::ComparableToken::Scalar(character) => *character,
+                crate::normalize::ComparableToken::Unmapped { .. } => '?',
+            })
+            .collect()
+    }
+
+    #[test]
+    fn positioned_replacement_recovery_publishes_one_exact_replacement() -> Result<()> {
+        let (old_blocks, new_blocks) = positioned_replacement_fixture();
+        let recovery =
+            run_positioned_replacement(&old_blocks, &new_blocks, true, None, None, true)?;
+        assert_eq!(
+            recovery.replacements,
+            vec![(span(2, 5), span(102, 5))],
+            "the whole changed member must close exactly once"
+        );
+        assert!(
+            recovery.established,
+            "the replacement domain must establish a relation"
+        );
+        assert!(
+            recovery.assumed,
+            "the relation must carry the positioned-replacement assumption"
+        );
+        assert_eq!(
+            recovery.accepted,
+            [2, 2],
+            "both sides must own the anchor and the replacement"
+        );
+        assert!(!recovery.truncated);
+
+        // The emitted output, not the fixture arrays, must carry exactly one
+        // replacement change with no competing candidate left behind.
+        assert_eq!(
+            recovery.changes.len(),
+            1,
+            "exactly one change event: {:?}",
+            recovery.changes
+        );
+        assert_eq!(
+            recovery.changes[0].kind,
+            crate::diff::ChangeKind::Replacement
+        );
+        assert!(
+            recovery.candidates.is_empty(),
+            "the recovery must not leave a competing candidate: {:?}",
+            recovery.candidates
+        );
+
+        // The emitted occurrence ranges project to the changed source
+        // intervals on both sides, and those intervals are the changed
+        // ownership this recovery records.
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut old_intervals = Vec::new();
+        let mut new_intervals = Vec::new();
+        for occurrence in &recovery.changes[0].occurrences {
+            if let Some(span) = occurrence.old_span.as_ref() {
+                old_intervals.extend(super::super::project(&old, span)?);
+            }
+            if let Some(span) = occurrence.new_span.as_ref() {
+                new_intervals.extend(super::super::project(&new, span)?);
+            }
+        }
+        assert_eq!(
+            old_intervals,
+            vec![SourceInterval {
+                block_index: old.index[&BlockId(2)],
+                start: 2,
+                end: 3,
+            }],
+            "the emitted old range is the single changed token"
+        );
+        assert_eq!(
+            new_intervals,
+            vec![SourceInterval {
+                block_index: new.index[&BlockId(102)],
+                start: 2,
+                end: 3,
+            }],
+            "the emitted new range is the single changed token"
+        );
+        assert_eq!(
+            recovery.changed[0], old_intervals,
+            "the old changed ownership must match the emitted range"
+        );
+        assert_eq!(
+            recovery.changed[1], new_intervals,
+            "the new changed ownership must match the emitted range"
+        );
+
+        // The actual content of the emitted ranges is C on the old side and X
+        // on the new side.
+        let old_tokens = &old.canonical[old_intervals[0].block_index]
+            [old_intervals[0].start..old_intervals[0].end];
+        let new_tokens = &new.canonical[new_intervals[0].block_index]
+            [new_intervals[0].start..new_intervals[0].end];
+        assert_eq!(token_text(old_tokens), "C");
+        assert_eq!(token_text(new_tokens), "X");
+        assert_ne!(token_text(old_tokens), token_text(new_tokens));
+
+        // The localized edit witness is the internal one-token change, not the
+        // whole-word domain range.
+        assert_eq!(
+            recovery.edits,
+            vec![
+                crate::diff::AtomicEdit {
+                    old: 2..3,
+                    new: 2..2
+                },
+                crate::diff::AtomicEdit {
+                    old: 3..3,
+                    new: 2..3
+                },
+            ],
+            "one internal replacement witness: delete C and insert X"
+        );
+
+        // The repeated recovery must not append a second change or assumption.
+        assert_eq!(recovery.changes.len(), 1);
+        assert_eq!(recovery.replacements.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_recovery_holds_without_an_anchor() -> Result<()> {
+        let (old_blocks, new_blocks) = positioned_replacement_fixture();
+        let recovery =
+            run_positioned_replacement(&old_blocks, &new_blocks, false, None, None, false)?;
+        assert!(
+            recovery.replacements.is_empty(),
+            "no established neighbour may support the replacement"
+        );
+        assert!(!recovery.assumed);
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_recovery_holds_on_partial_ownership() -> Result<()> {
+        let (old_blocks, new_blocks) = positioned_replacement_fixture();
+        let recovery =
+            run_positioned_replacement(&old_blocks, &new_blocks, true, Some((0, 2)), None, false)?;
+        assert!(
+            recovery.replacements.is_empty(),
+            "an intersecting ownership must hold the candidate"
+        );
+        assert!(!recovery.assumed);
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_recovery_holds_on_budget_exhaustion() -> Result<()> {
+        let (old_blocks, new_blocks) = positioned_replacement_fixture();
+        let recovery =
+            run_positioned_replacement(&old_blocks, &new_blocks, true, None, Some(0), false)?;
+        assert!(
+            recovery.replacements.is_empty(),
+            "an exhausted budget must not leave a partial proof"
+        );
+        assert!(!recovery.truncated);
+        assert!(!recovery.assumed);
+        Ok(())
     }
 
     fn raw_recovery_fixture() -> (Vec<BlockText>, Vec<BlockText>) {

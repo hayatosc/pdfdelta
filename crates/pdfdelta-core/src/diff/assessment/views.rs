@@ -475,6 +475,43 @@ fn positioned_occurrences(
     self_view: usize,
     remaining: &mut usize,
 ) -> Result<Option<PositionedOccurrences>> {
+    positioned_occurrences_with(views, needle_view, needle_range, self_view, remaining, true)
+}
+
+/// Position-column entry used by the positioned-replacement mode: the same
+/// scanner with `require_equal_tokens = false`, so an occurrence is selected
+/// by complete page and per-token position equality alone even when its token
+/// text differs from the candidate.
+fn positioned_occurrences_by_position(
+    views: &[View],
+    needle_view: &View,
+    needle_range: &std::ops::Range<usize>,
+    self_view: usize,
+    remaining: &mut usize,
+) -> Result<Option<PositionedOccurrences>> {
+    positioned_occurrences_with(
+        views,
+        needle_view,
+        needle_range,
+        self_view,
+        remaining,
+        false,
+    )
+}
+
+/// Shared positioned scan. `require_equal_tokens` gates the cheap first-token
+/// prefilter and the full-token equality check; the complete-metadata,
+/// deny-only, unknown-veto and whole-member logic is identical in both modes.
+/// Without token equality every start still charges the full scan, so the
+/// shared budget observes the same work.
+fn positioned_occurrences_with(
+    views: &[View],
+    needle_view: &View,
+    needle_range: &std::ops::Range<usize>,
+    self_view: usize,
+    remaining: &mut usize,
+    require_equal_tokens: bool,
+) -> Result<Option<PositionedOccurrences>> {
     let needle = &needle_view.group.tokens[needle_range.clone()];
     let mut result = PositionedOccurrences {
         same: 0,
@@ -490,18 +527,20 @@ fn positioned_occurrences(
             return Ok(None);
         }
         for start in 0..=tokens.len() - needle.len() {
-            // A cheap first-token prefilter keeps the optional positioned
-            // search from consuming the shared budget on non-matching starts.
-            if !charge(remaining, 1) {
-                return Ok(None);
-            }
-            if tokens[start] != needle[0] {
-                continue;
+            if require_equal_tokens {
+                // A cheap first-token prefilter keeps the optional positioned
+                // search from consuming the shared budget on non-matching starts.
+                if !charge(remaining, 1) {
+                    return Ok(None);
+                }
+                if tokens[start] != needle[0] {
+                    continue;
+                }
             }
             if !charge(remaining, needle.len().saturating_add(1)) {
                 return Ok(None);
             }
-            if &tokens[start..start + needle.len()] != needle {
+            if require_equal_tokens && &tokens[start..start + needle.len()] != needle {
                 continue;
             }
             if view_index == self_view && start == needle_range.start {
@@ -1499,6 +1538,17 @@ enum TranslationMode {
     /// proof compared every original character and source on both sides. The
     /// view-level and global `source_bounded` flags are never relaxed.
     RawSourceEquality,
+    /// One whole original block member occupies the same page and per-token
+    /// position column on both sides with different token text, supported by
+    /// an independently established stationary neighbour.
+    ///
+    /// This mode reuses every stationary support, reference, occurrence and
+    /// ownership guard unchanged, but its occurrence scan ignores token text
+    /// and selects by complete page and position equality alone. The closed
+    /// domain is a correspondence for the later exact diff, not an equality
+    /// proof: the differing text is reported as a replacement. A pair with
+    /// equal tokens is left to the existing equality modes.
+    PositionedReplacement,
 }
 
 /// Whether one member range covers the whole original block on this side.
@@ -1527,7 +1577,9 @@ fn mode_key_matches(
         TranslationMode::NonzeroSingleton => {
             exact_translation(old_view, old_range, new_view, new_range) == Some(key)
         }
-        TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
+        TranslationMode::StationaryMember
+        | TranslationMode::RawSourceEquality
+        | TranslationMode::PositionedReplacement => {
             finite_translation(old_view, old_range, new_view, new_range) == Some(key)
         }
     }
@@ -1538,7 +1590,9 @@ fn mode_supports(mode: TranslationMode, translation: crate::model::Vec2) -> bool
     let stationary = translation.x == 0.0 && translation.y == 0.0;
     match mode {
         TranslationMode::NonzeroSingleton => !stationary,
-        TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => stationary,
+        TranslationMode::StationaryMember
+        | TranslationMode::RawSourceEquality
+        | TranslationMode::PositionedReplacement => stationary,
     }
 }
 
@@ -1606,6 +1660,55 @@ pub(super) fn discover_stationary_members(
         remaining_work,
         max_ranges,
         TranslationMode::StationaryMember,
+        None,
+    )
+}
+
+/// Positioned-replacement discovery: whole source-bounded original members
+/// whose complete page and per-token position columns agree one-to-one while
+/// their token text differs, supported by an independently established
+/// stationary neighbour.
+///
+/// `candidate_mask[side][block_index] == false` removes that whole original
+/// block from candidacy on that side. The mask never shrinks the view
+/// population or the reference set: masked blocks still support anchors, stay
+/// in every reference check and still compete as occurrences.
+pub(super) fn discover_positioned_replacements_masked(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    candidate_mask: &[Vec<bool>; 2],
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::PositionedReplacement,
+        Some(candidate_mask),
+    )
+}
+
+/// Positioned-replacement discovery without a candidate mask, used by the
+/// discovery tests.
+#[cfg(test)]
+pub(super) fn discover_positioned_replacements(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::PositionedReplacement,
         None,
     )
 }
@@ -1886,7 +1989,9 @@ fn discover_translations_mode(
                         continue;
                     }
                 }
-                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
+                TranslationMode::StationaryMember
+                | TranslationMode::RawSourceEquality
+                | TranslationMode::PositionedReplacement => {
                     if !whole_original_member(sides[0], old_view, block) {
                         continue;
                     }
@@ -1910,7 +2015,9 @@ fn discover_translations_mode(
             let candidate_index = old_view.block_indices[block];
             if matches!(
                 mode,
-                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality
+                TranslationMode::StationaryMember
+                    | TranslationMode::RawSourceEquality
+                    | TranslationMode::PositionedReplacement
             ) && candidate_mask
                 .is_some_and(|mask| !mask[0].get(candidate_index).copied().unwrap_or(false))
             {
@@ -2060,6 +2167,13 @@ fn discover_translations_mode(
                     crate::model::Vec2 { x: 0.0, y: 0.0 },
                     remaining_work,
                 )?,
+                TranslationMode::PositionedReplacement => positioned_occurrences_by_position(
+                    &old_views,
+                    old_view,
+                    &old_range,
+                    old_view_index,
+                    remaining_work,
+                )?,
                 TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
                     positioned_occurrences(
                         &old_views,
@@ -2083,6 +2197,13 @@ fn discover_translations_mode(
                     &old_range,
                     usize::MAX,
                     key,
+                    remaining_work,
+                )?,
+                TranslationMode::PositionedReplacement => positioned_occurrences_by_position(
+                    &new_views,
+                    old_view,
+                    &old_range,
+                    usize::MAX,
                     remaining_work,
                 )?,
                 TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
@@ -2114,7 +2235,9 @@ fn discover_translations_mode(
                         continue;
                     }
                 }
-                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
+                TranslationMode::StationaryMember
+                | TranslationMode::RawSourceEquality
+                | TranslationMode::PositionedReplacement => {
                     let Some(member) = new_view
                         .block_ranges
                         .iter()
@@ -2129,9 +2252,16 @@ fn discover_translations_mode(
             }
             // Re-verify the whole-block translation immediately before the
             // domain is added: full token sequence and one raw finite non-zero
-            // translation over every token.
-            if old_view.group.tokens[old_range.clone()] != new_view.group.tokens[new_range.clone()]
-            {
+            // translation over every token. The positioned-replacement mode is
+            // the one mode that requires the two sequences to differ; an
+            // identical pair belongs to the existing equality modes.
+            let same_tokens = old_view.group.tokens[old_range.clone()]
+                == new_view.group.tokens[new_range.clone()];
+            if mode == TranslationMode::PositionedReplacement {
+                if same_tokens {
+                    continue;
+                }
+            } else if !same_tokens {
                 continue;
             }
             if !charge(
@@ -2169,7 +2299,9 @@ fn discover_translations_mode(
             };
             if matches!(
                 mode,
-                TranslationMode::StationaryMember | TranslationMode::RawSourceEquality
+                TranslationMode::StationaryMember
+                    | TranslationMode::RawSourceEquality
+                    | TranslationMode::PositionedReplacement
             ) && candidate_mask
                 .is_some_and(|mask| !mask[1].get(new_candidate_index).copied().unwrap_or(false))
             {
@@ -2415,6 +2547,31 @@ fn discover_translations_mode(
             {
                 continue;
             }
+            if mode == TranslationMode::PositionedReplacement {
+                // A source-bounded block may still project several glyphs or a
+                // synthetic space onto one canonical scalar. The replacement
+                // mode additionally requires each side's own raw and canonical
+                // projections to be literal one-to-one glyph mappings; the
+                // self comparison is validation only and never a paired
+                // equality, an issue release or an augmentation.
+                let mut literal = true;
+                for block in [
+                    &sides[0].blocks[candidate_index],
+                    &sides[1].blocks[new_candidate_index],
+                ] {
+                    match raw_source_isomorphic(block, block, remaining_work) {
+                        RawSourceVerdict::Isomorphic => {}
+                        RawSourceVerdict::Exhausted => return Ok(Vec::new()),
+                        RawSourceVerdict::Different | RawSourceVerdict::Held(_) => {
+                            literal = false;
+                            break;
+                        }
+                    }
+                }
+                if !literal {
+                    continue;
+                }
+            }
             domains.push(LocalDomain {
                 old_span,
                 new_span,
@@ -2424,7 +2581,9 @@ fn discover_translations_mode(
     }
     if matches!(
         mode,
-        TranslationMode::StationaryMember | TranslationMode::RawSourceEquality
+        TranslationMode::StationaryMember
+            | TranslationMode::RawSourceEquality
+            | TranslationMode::PositionedReplacement
     ) && *remaining_work == 0
     {
         // A cut anywhere in this pass drops every domain it found, so a
@@ -5482,6 +5641,68 @@ mod tests {
     }
 
     #[test]
+    fn position_only_scan_matches_a_text_difference_where_text_mode_does_not() -> Result<()> {
+        let needle = positioned_view(
+            "ABCDE",
+            vec![Some(0.0), Some(1.0), Some(2.0), Some(3.0), Some(4.0)],
+            vec![Some(0), Some(0), Some(0), Some(0), Some(0)],
+            true,
+        );
+        let views = [positioned_view(
+            "ABXDE",
+            vec![Some(0.0), Some(1.0), Some(2.0), Some(3.0), Some(4.0)],
+            vec![Some(0), Some(0), Some(0), Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 100_000;
+        let text = positioned_occurrences(&views, &needle, &(0..5), usize::MAX, &mut budget)?
+            .expect("the text search completes");
+        assert_eq!(text.same, 0, "different tokens must not match: {text:?}");
+        assert!(!text.unknown, "every occurrence has complete metadata");
+        assert!(text.matched.is_none());
+
+        let mut budget = 100_000;
+        let position =
+            positioned_occurrences_by_position(&views, &needle, &(0..5), usize::MAX, &mut budget)?
+                .expect("the position search completes");
+        assert_eq!(position.same, 1, "the shared position column matches");
+        assert!(!position.unknown);
+        let matched = position.matched.clone();
+        assert!(
+            matched.is_some_and(|(_, range, _)| range == (0..5)),
+            "the position-only scan selects the occurrence: {position:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn position_only_scan_vetoes_an_unknown_position() -> Result<()> {
+        let needle = positioned_view(
+            "ABCDE",
+            vec![Some(0.0), Some(1.0), Some(2.0), Some(3.0), Some(4.0)],
+            vec![Some(0), Some(0), Some(0), Some(0), Some(0)],
+            true,
+        );
+        let views = [positioned_view(
+            "ABXDE",
+            vec![Some(0.0), None, Some(2.0), Some(3.0), Some(4.0)],
+            vec![Some(0), None, Some(0), Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 100_000;
+        let result =
+            positioned_occurrences_by_position(&views, &needle, &(0..5), usize::MAX, &mut budget)?
+                .expect("the position search completes");
+        assert_eq!(result.same, 0);
+        assert!(result.unknown, "missing metadata vetoes: {result:?}");
+        assert!(
+            result.matched.is_none(),
+            "an unknown occurrence is never adopted"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn positioned_occurrences_separates_definitive_mismatches_from_unknowns() -> Result<()> {
         let needle = positioned_view(
             "ABC",
@@ -6346,6 +6567,265 @@ mod tests {
         assert!(
             whole_view_positioned_domain(&domains, &old_blocks, &new_blocks, 1, 1),
             "an established neighbour with the same raw translation must close the singleton: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_closes_one_changed_whole_member() -> Result<()> {
+        // ABCDE becomes ABXDE at the same page and position column, supported
+        // by an independent stationary anchor. The replacement mode closes the
+        // whole member as a correspondence; the stationary equality mode must
+        // keep holding it because its scan still requires equal token text.
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(102, "ABXDE", 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert_eq!(
+            domains.len(),
+            1,
+            "one changed member with a matching position column closes: {domains:?}"
+        );
+        assert!(
+            block_positioned_domain(&domains, &old, &new, BlockId(2), BlockId(102), 5)?,
+            "the domain must cover the whole changed member: {domains:?}"
+        );
+
+        let stationary =
+            discover_stationary_members([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            stationary.is_empty(),
+            "the stationary equality mode must not close a replacement: {stationary:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_rejects_a_synthetic_space_source() -> Result<()> {
+        // A source-bounded block may map one canonical scalar to a synthetic
+        // space. The position column alone must not adopt it: the mode
+        // requires each side's own raw and canonical projections to be literal
+        // one-to-one glyph mappings.
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let mut synthetic = positioned_block(102, "ABXDE", 10.0, 680.0, 0);
+        synthetic.canonical.source_map[2].source.atoms = vec![TextSourceAtom::SyntheticSpace {
+            preceding: GlyphId(102_002),
+            following: GlyphId(102_004),
+        }]
+        .into();
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            synthetic,
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a synthetic-space source must not be adopted: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_rejects_a_multi_glyph_source() -> Result<()> {
+        // A whitespace collapse may map one canonical scalar to several
+        // glyphs. The position column alone must not adopt it.
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let mut collapsed = positioned_block(102, "ABXDE", 10.0, 680.0, 0);
+        collapsed.canonical.source_map[2].source.atoms = vec![
+            TextSourceAtom::Glyph(GlyphId(102_003)),
+            TextSourceAtom::Glyph(GlyphId(102_006)),
+        ]
+        .into();
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            collapsed,
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a multi-glyph source must not be adopted: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_holds_on_a_same_position_duplicate() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(102, "ABXDE", 10.0, 680.0, 0),
+            positioned_block(103, "ABXDE", 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [None, None];
+        let new_intervals = [None, None, None];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a second same-position whole member must hold the pair: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_holds_on_an_unknown_competitor() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let mut unknown = positioned_block(103, "ABXDE", 10.0, 680.0, 0);
+        unknown.position_signatures = None;
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(102, "ABXDE", 10.0, 680.0, 0),
+            unknown,
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_intervals = [None, None];
+        let new_intervals = [None, None, None];
+        let input = recovery(&old_intervals, &new_intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "an occurrence without complete positions must veto: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_holds_without_an_established_anchor() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(102, "ABXDE", 10.0, 680.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &[], &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "no established neighbour may support the replacement: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_holds_on_a_move() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(102, "ABXDE", 10.0, 679.5, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "a moved member has no same-position occurrence: {domains:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_replacement_holds_on_a_partial_position_difference() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, "Anchor line", 10.0, 700.0, 0),
+            positioned_block(2, "ABCDE", 10.0, 680.0, 0),
+        ];
+        let mut changed = positioned_block(102, "ABXDE", 10.0, 680.0, 0);
+        changed
+            .position_signatures
+            .as_mut()
+            .expect("fixture positions")[3] =
+            PositionSignature::new(Vec2 { x: 13.5, y: 680.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let new_blocks = [
+            positioned_block(101, "Anchor line", 10.0, 700.0, 0),
+            changed,
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None, None];
+        let input = recovery(&intervals, &intervals);
+        let established = [EstablishedBlock {
+            old_block: BlockId(1),
+            new_block: BlockId(101),
+        }];
+        let domains =
+            discover_positioned_replacements([&old, &new], input, &established, &mut 100_000, 100)?;
+        assert!(
+            domains.is_empty(),
+            "one bit-different position must hold the pair: {domains:?}"
         );
         Ok(())
     }
