@@ -9,10 +9,23 @@ key inside the assessment object. Assessment work counters
 only fields excluded.
 
 The audit fails on a truncated report, a missing required member, or a
-duplicate member key. Proxy pairs must prove that the left capture's logical
-report hash equals the frozen baseline hash before their members are compared.
+duplicate member key. Two reference modes are supported:
+
+- ``baseline`` (default): every non-proxy right report must be byte-identical
+  to the frozen scorecard hash, and every proxy pair must prove that its left
+  capture matches the frozen baseline hash before members are compared.
+- ``accepted``: the left capture is the reference. Its metadata must bind the
+  frozen panel, the native route, the fixed denominator, the ``1.0`` limit
+  scale, the ``180`` second timeout and a nonempty binary identity, and the
+  compared report hashes must match that metadata. Proxy pairs then compare
+  members against this verified left capture instead of the initial baseline.
+
+``expected_differences`` excuses proxy differences only for the pairs listed.
+When it is empty no difference is excused, so a historical audit that accepted
+the FAA maintenance pair must pass that pair explicitly.
 """
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -37,6 +50,10 @@ TOP_LEVEL = (
     "extraction",
 )
 NESTED = ("old_resolution", "new_resolution", "relations", "review_units")
+PANEL_SHA256 = "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744"
+BASELINE_SCORECARD = (
+    ROOT / "benchmark/realworld/results/native-12-of-36-2026-09-20/baseline-scorecard.json"
+)
 KEY_LINE = re.compile(rb'\n( {2,8})"([A-Za-z_]+)": ')
 MAX_KEY_BYTES = 32
 SUFFIX_CAP = 4096
@@ -140,24 +157,83 @@ def audit_pair(left_path, right_path):
     }
 
 
-def main():
-    args = sys.argv[1:]
-    if len(args) != 3:
-        raise SystemExit("usage: audit_retention.py PROXY_PAIRS LEFT_DIR RIGHT_DIR")
-    proxy_pairs = json.loads(Path(args[0]).read_text())
-    left_dir = ROOT / args[1]
-    right_dir = ROOT / args[2]
+def capture_bindings(capture_dir):
+    """Returns (pair -> recorded logical sha, capture identity) or (None, {})."""
+    summary_path = Path(capture_dir) / "summary.json"
+    if not summary_path.is_file():
+        return None, {}
+    summary = json.loads(summary_path.read_text())
+    rows = {
+        row["pair"]: row["report"]["sha256"]
+        for row in summary.get("rows", [])
+        if isinstance(row.get("report"), dict) and "sha256" in row["report"]
+    }
+    identity = {
+        "head": summary.get("head"),
+        "binary_sha256": (summary.get("binary") or {}).get("sha256"),
+        "panel_sha256": (summary.get("panel") or {}).get("sha256"),
+        "fixed_denominator": summary.get("fixed_denominator"),
+        "route": summary.get("route"),
+        "limit_scale": summary.get("limit_scale"),
+        "timeout_seconds": summary.get("timeout_seconds"),
+    }
+    return rows, identity
+
+
+def require_capture_binding(label, recorded, pair, logical_sha, identity, required):
+    if recorded is None:
+        if required:
+            raise AuditError(f"{label} capture metadata is missing")
+        return
+    expected = recorded.get(pair)
+    if expected is None:
+        raise AuditError(f"{label} capture metadata lacks {pair}")
+    if expected != logical_sha:
+        raise AuditError(
+            f"{label} report for {pair} does not match its capture metadata"
+        )
+    if identity.get("fixed_denominator") != 36:
+        raise AuditError(f"{label} capture does not carry the frozen denominator")
+    panel_sha = identity.get("panel_sha256")
+    if panel_sha != PANEL_SHA256:
+        raise AuditError(f"{label} capture does not bind the frozen panel")
+    if required:
+        if identity.get("route") != "native":
+            raise AuditError(f"{label} capture does not use the native route")
+        if identity.get("limit_scale") != 1:
+            raise AuditError(f"{label} capture does not use the fixed limit scale")
+        if identity.get("timeout_seconds") != 180:
+            raise AuditError(f"{label} capture does not use the fixed timeout")
+        binary_sha = identity.get("binary_sha256")
+        if not isinstance(binary_sha, str) or not binary_sha:
+            raise AuditError(f"{label} capture has no binary identity")
+
+
+def run_audit(
+    proxy_pairs,
+    left_dir,
+    right_dir,
+    reference_mode,
+    baseline_path=None,
+    expected_differences=(),
+):
+    if reference_mode not in ("baseline", "accepted"):
+        raise AuditError(f"unsupported reference mode {reference_mode}")
+    left_dir = Path(left_dir)
+    right_dir = Path(right_dir)
     baseline = {
         row["pair"]: row
         for row in json.loads(
-            (
-                ROOT
-                / "benchmark/realworld/results/native-12-of-36-2026-09-20/baseline-scorecard.json"
-            ).read_text()
+            (baseline_path or BASELINE_SCORECARD).read_text()
         )["records"]
     }
+    left_recorded, left_identity = capture_bindings(left_dir)
+    right_recorded, right_identity = capture_bindings(right_dir)
     all_pairs = [row["pair"] for row in baseline.values()]
     report = {
+        "reference_mode": reference_mode,
+        "left_capture": left_identity,
+        "right_capture": right_identity,
         "whole_report_identical": [],
         "proxy_member_compared": [],
         "different": [],
@@ -166,44 +242,64 @@ def main():
     for pair in all_pairs:
         right = capture_module.resolve_report_path(right_dir / pair / f"{pair}-native.json")
         right_sha = logical_sha256(right)
-        baseline_sha = baseline[pair]["report_sha256"]
+        require_capture_binding(
+            "right",
+            right_recorded,
+            pair,
+            right_sha,
+            right_identity,
+            required=reference_mode == "accepted",
+        )
         left = None
         try:
             left = capture_module.resolve_report_path(left_dir / pair / f"{pair}-native.json")
         except FileNotFoundError:
             left = None
         left_sha = logical_sha256(left) if left is not None else None
+        if left_sha is not None:
+            require_capture_binding(
+                "left",
+                left_recorded,
+                pair,
+                left_sha,
+                left_identity,
+                required=reference_mode == "accepted",
+            )
+        baseline_sha = baseline[pair]["report_sha256"]
         entry = {
             "baseline_report_sha256": baseline_sha,
             "left_report_sha256": left_sha,
             "right_report_sha256": right_sha,
         }
         if pair not in proxy_pairs:
-            # A non-proxy pair is retained when the candidate report content
-            # hash equals the frozen baseline hash (and the proxy copy, when it
-            # exists, matches it too).
-            if right_sha != baseline_sha or (
-                left_sha is not None and left_sha != baseline_sha
-            ):
-                raise AuditError(
-                    f"{pair}: non-proxy report is not byte-identical to baseline"
+            if reference_mode == "accepted":
+                if left_sha is None:
+                    raise AuditError(f"{pair}: accepted reference capture is missing")
+                if right_sha != left_sha:
+                    raise AuditError(
+                        f"{pair}: changed but not listed as a proxy pair"
+                    )
+                entry["verification"] = "accepted_capture"
+            else:
+                if right_sha != baseline_sha or (
+                    left_sha is not None and left_sha != baseline_sha
+                ):
+                    raise AuditError(
+                        f"{pair}: non-proxy report is not byte-identical to baseline"
+                    )
+                entry["verification"] = (
+                    "baseline_and_left" if left_sha is not None else "baseline_hash"
                 )
-            entry["verification"] = (
-                "baseline_and_proxy" if left_sha is not None else "baseline_hash"
-            )
             report["whole_report_identical"].append(pair)
             report["pairs"][pair] = entry
             continue
         if left is None:
             raise AuditError(f"{pair}: proxy capture is missing")
-        if left_sha != baseline_sha:
+        if reference_mode == "baseline" and left_sha != baseline_sha:
             raise AuditError(f"{pair}: proxy capture does not match the baseline hash")
-        entry["verification"] = "member_compare"
-        try:
-            members = audit_pair(left, right)
-        except AuditError as error:
-            raise AuditError(f"{pair}: {error}") from error
+        members = audit_pair(left, right)
         entry.update(members)
+        entry["verification"] = "member_compare"
         report["pairs"][pair] = entry
         report["proxy_member_compared"].append(pair)
         if members["different_members"]:
@@ -215,18 +311,57 @@ def main():
             f"{len(members['different_members'])} different",
             flush=True,
         )
-    out = ROOT / "benchmark/realworld/cache/native-12-of-36-2026-09-20/retention-audit.json"
-    out.write_text(json.dumps(report, indent=2) + "\n")
+    expected = set(expected_differences)
+    report["expected_differences"] = sorted(expected)
+    report["expected_different"] = [
+        item for item in report["different"] if item["pair"] in expected
+    ]
+    report["unexpected_different"] = [
+        item for item in report["different"] if item["pair"] not in expected
+    ]
     print(
         "whole reports identical:",
         len(report["whole_report_identical"]),
         "proxy pairs compared:",
         len(report["proxy_member_compared"]),
+        "expected different:",
+        sorted(item["pair"] for item in report["expected_different"]),
+        "unexpected different:",
+        sorted(item["pair"] for item in report["unexpected_different"]),
     )
-    unexpected = [
-        item for item in report["different"] if item["pair"] not in ("faa-maintenance-records-c-to-d",)
-    ]
-    return 0 if not unexpected else 1
+    return report
+
+
+def parse_cli(argv):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("proxy_pairs", type=Path)
+    parser.add_argument("left_dir", type=Path)
+    parser.add_argument("right_dir", type=Path)
+    parser.add_argument("--reference", choices=("baseline", "accepted"), default="baseline")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(
+            "benchmark/realworld/cache/native-12-of-36-2026-09-20/retention-audit.json"
+        ),
+    )
+    parser.add_argument("--expected", type=Path, default=None)
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_cli(sys.argv[1:] if argv is None else argv)
+    proxy_pairs = json.loads(args.proxy_pairs.read_text())
+    expected = json.loads(args.expected.read_text()) if args.expected else []
+    report = run_audit(
+        proxy_pairs,
+        ROOT / args.left_dir,
+        ROOT / args.right_dir,
+        args.reference,
+        expected_differences=expected,
+    )
+    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    return 0 if not report["unexpected_different"] else 1
 
 
 if __name__ == "__main__":

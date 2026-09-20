@@ -1,8 +1,11 @@
 # H3 investigation: punctuation-boundary line breaks hold the one-sided proof
 
-Status: investigated; **FAA maintenance cannot complete under the preserved
-contract**. A contract decision is required before any implementation. No
-production change was made.
+Status: investigated and **deferred because the required proof was not
+established**, not because a user decision is required. The token-invariance
+argument presented below does not prove that joining is impossible in the
+source, and an assumption-based exemption would not satisfy the exactness
+contract, so no production change was made. A future attempt is free to find a
+sound normalization proof from additional source evidence.
 
 ## Residual
 
@@ -45,31 +48,24 @@ the residual was run against the current pipeline:
 The existing pinned fixture `present_side_normalization_issue_holds_the_one_sided_proof`
 covers the same comma shape and asserts the same conservative outcome.
 
-## Why a token proof is available but not sufficient
+## Rejected argument (do not treat as proof)
 
-For a break that is not word-internal (no soft or lexical hyphen, the scalars
-around the break are not both letters/digits), the admissible normalizations
-are the retained line separator or a space; both yield the same comparable
-token sequence, while joining without a separator would merge adjacent tokens
-and no existing rule produces it. The uncertainty is therefore
-representational (separator form), not token-level.
+An argument was considered and **rejected**: for a break that is not
+word-internal, the retained line separator and a space would yield the same
+comparable tokens, so the uncertainty might be only representational. That
+argument does not prove the source cannot have joined the tokens (for example
+a grouped number or an identifier written without a separator), and it applies
+equally to the pinned comma fixture; discharging the veto on it would not have
+been exactness. Joining was not ruled out, so no rule was implemented. The FAA
+residual therefore has no proven normalization rule yet:
 
-However, that property holds equally for the pinned comma fixture, and
-discharging it would weaken the one-sided normalization veto that the run
-instruction requires preserving. The FAA residual therefore blocks on a
-contract decision, not on a missing local proof:
-
-- **Option A (contract change):** accept token-invariant ambiguous breaks in
-  one-sided relations with an explicit assumption (for example a new
-  `AmbiguousBreakNormalization` variant recorded on the relation), keep the
-  canonical separator deterministic, and update
-  `present_side_normalization_issue_holds_the_one_sided_proof` to the new
-  expected behavior. This is the only route that can finish FAA.
-- **Option B (preserve the veto):** the 3 blocks stay unresolved; FAA remains
-  at 3 residual blocks, and the next cause should be selected elsewhere.
-
-No implementation was attempted because Option A is a contract decision and
-Option B changes nothing; neither is a unilateral production edit.
+- any rule must show from source evidence which separator alternative is the
+  faithful one; the current evidence cannot distinguish a soft wrap from a
+  hard break or a word join, so the conservative veto stays;
+- an explicit assumption that merely *accepts* the ambiguity would not satisfy
+  the exactness contract and was not pursued;
+- the 3 blocks therefore stay unresolved and the next cause was selected from
+  the remaining ranking.
 
 ## Next largest cause
 

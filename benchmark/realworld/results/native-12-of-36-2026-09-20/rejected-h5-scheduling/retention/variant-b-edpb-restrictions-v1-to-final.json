@@ -1,0 +1,152 @@
+{
+  "pair": "edpb-restrictions-v1-to-final",
+  "before_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h2-full-iteration-002-native",
+  "after_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h5-iteration-007-native-targeted",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 53297,
+          "tokens_after": 53297,
+          "resolved_before": 0,
+          "resolved_after": 23212,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 23212,
+          "transitions": {
+            "unresolved->changed": 59,
+            "unresolved->equal": 23153,
+            "unresolved->unresolved": 30085
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 53297,
+          "tokens_after": 53297,
+          "resolved_before": 0,
+          "resolved_after": 23212,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 23212,
+          "transitions": {
+            "unresolved->changed": 59,
+            "unresolved->equal": 23153,
+            "unresolved->unresolved": 30085
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 418,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 1234,
+      "regions_after": 854,
+      "region_blocks": {
+        "old_before": 418,
+        "old_after": 352,
+        "new_before": 394,
+        "new_after": 361,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 56965,
+          "tokens_after": 56965,
+          "resolved_before": 0,
+          "resolved_after": 23306,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 23306,
+          "transitions": {
+            "unresolved->changed": 57,
+            "unresolved->equal": 23249,
+            "unresolved->unresolved": 33659
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 56965,
+          "tokens_after": 56965,
+          "resolved_before": 0,
+          "resolved_after": 23306,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 23306,
+          "transitions": {
+            "unresolved->changed": 57,
+            "unresolved->equal": 23249,
+            "unresolved->unresolved": 33659
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 394,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 6,
+      "structural_review": [
+        86,
+        93,
+        118,
+        120,
+        325
+      ],
+      "source_sequence_mismatches": 5,
+      "regions_before": 1234,
+      "regions_after": 854,
+      "region_blocks": {
+        "old_before": 418,
+        "old_after": 352,
+        "new_before": 394,
+        "new_after": 361,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 0,
+      "after": 41,
+      "retained": 0,
+      "identical": false
+    },
+    "formatting_only_changes": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 7028,
+      "sources_accounted": 7028,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 10698,
+      "sources_accounted": 10698,
+      "sources_missing": 0
+    }
+  },
+  "review": [
+    "new_resolution: structural source events changed at block 86",
+    "new_resolution: structural source events changed at block 93",
+    "new_resolution: structural source events changed at block 118",
+    "new_resolution: structural source events changed at block 120",
+    "new_resolution: structural source events changed at block 325"
+  ],
+  "problems": [],
+  "retention": "needs-review"
+}

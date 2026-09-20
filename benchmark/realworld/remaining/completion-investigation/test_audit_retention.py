@@ -1,5 +1,8 @@
 """Retention audit regressions on independent serde-style fixtures."""
+import json
 
+import gzip
+import hashlib
 from pathlib import Path
 import shutil
 import tempfile
@@ -145,6 +148,197 @@ class RetentionAuditTests(unittest.TestCase):
         digests, seen, complete = audit_retention.scan_member_digests(truncated)
         self.assertFalse(complete)
         self.assertEqual(seen["extraction"], 1)
+
+
+class ReferenceModeTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="pdfdelta-audit-modes-"))
+        self.left = self.root / "left"
+        self.right = self.root / "right"
+        self.baseline_path = self.root / "baseline.json"
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def capture(self, root, pair, payload, **overrides):
+        run = root / pair
+        run.mkdir(parents=True)
+        report = run / f"{pair}-native.json.gz"
+        with gzip.open(report, "wb") as stream:
+            stream.write(payload)
+        logical = hashlib.sha256(payload).hexdigest()
+        summary = {
+            "rows": [
+                {"pair": pair, "report": {"path": str(report), "sha256": logical}}
+            ],
+            "head": "h" * 40,
+            "binary": {"sha256": "b" * 64},
+            "panel": {"sha256": audit_retention.PANEL_SHA256},
+            "fixed_denominator": 36,
+            "route": "native",
+            "limit_scale": 1,
+            "timeout_seconds": 180,
+        }
+        summary.update(overrides)
+        (root / "summary.json").write_text(json.dumps(summary))
+        return logical
+
+    def baseline_file(self, pair, logical):
+        self.baseline_path.write_text(
+            json.dumps({"records": [{"pair": pair, "report_sha256": logical}]})
+        )
+
+    def test_baseline_mode_rejects_changed_non_proxy(self):
+        payload = report_text().encode()
+        left_logical = self.capture(self.left, "pair-a", payload)
+        right_logical = self.capture(self.right, "pair-a", report_text(content_changes=2).encode())
+        self.baseline_file("pair-a", left_logical)
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                [], self.left, self.right, "baseline", baseline_path=self.baseline_path
+            )
+        self.assertNotEqual(left_logical, right_logical)
+
+    def test_accepted_mode_rejects_changed_non_proxy(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload)
+        self.capture(self.right, "pair-a", report_text(content_changes=2).encode())
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                [], self.left, self.right, "accepted", baseline_path=self.baseline_path
+            )
+
+    def test_accepted_mode_rejects_tampered_left(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload)
+        self.capture(self.right, "pair-a", payload)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        report = self.left / "pair-a" / "pair-a-native.json.gz"
+        with gzip.open(report, "wb") as stream:
+            stream.write(report_text(content_changes=5).encode())
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                [], self.left, self.right, "accepted", baseline_path=self.baseline_path
+            )
+
+    def test_missing_capture_pair_metadata_fails(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload)
+        self.capture(self.right, "pair-a", payload)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        summary = json.loads((self.right / "summary.json").read_text())
+        summary["rows"] = []
+        (self.right / "summary.json").write_text(json.dumps(summary))
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                [], self.left, self.right, "accepted", baseline_path=self.baseline_path
+            )
+
+    def test_baseline_mode_proxy_requires_left_baseline_match(self):
+        left_payload = report_text().encode()
+        right_payload = report_text(content_changes=2).encode()
+        self.capture(self.left, "pair-a", left_payload)
+        self.capture(self.right, "pair-a", right_payload)
+        self.baseline_file("pair-a", hashlib.sha256(right_payload).hexdigest())
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                ["pair-a"], self.left, self.right, "baseline",
+                baseline_path=self.baseline_path,
+            )
+
+    def test_accepted_mode_uses_verified_left_reference(self):
+        left_payload = report_text().encode()
+        self.capture(self.left, "pair-a", left_payload)
+        self.capture(self.right, "pair-a", left_payload)
+        # The baseline record differs from the accepted left reference; the
+        # accepted mode compares against the verified left capture instead.
+        self.baseline_file("pair-a", "f" * 64)
+        report = audit_retention.run_audit(
+            ["pair-a"], self.left, self.right, "accepted",
+            baseline_path=self.baseline_path,
+        )
+        self.assertEqual(report["proxy_member_compared"], ["pair-a"])
+        self.assertEqual(report["different"], [])
+        self.assertEqual(report["unexpected_different"], [])
+
+    def test_accepted_mode_requires_native_route(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload, route="text")
+        self.capture(self.right, "pair-a", payload)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                ["pair-a"], self.left, self.right, "accepted",
+                baseline_path=self.baseline_path,
+            )
+
+    def test_accepted_mode_requires_fixed_limits(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload, limit_scale=2)
+        self.capture(self.right, "pair-a", payload)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                ["pair-a"], self.left, self.right, "accepted",
+                baseline_path=self.baseline_path,
+            )
+
+    def test_accepted_mode_requires_binary_identity(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload, binary={})
+        self.capture(self.right, "pair-a", payload)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        with self.assertRaises(audit_retention.AuditError):
+            audit_retention.run_audit(
+                ["pair-a"], self.left, self.right, "accepted",
+                baseline_path=self.baseline_path,
+            )
+
+    def test_baseline_mode_ignores_accepted_metadata(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload, route="text", limit_scale=2)
+        self.capture(self.right, "pair-a", payload, route="text", limit_scale=2)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        audit_retention.run_audit(
+            [], self.left, self.right, "baseline", baseline_path=self.baseline_path
+        )
+
+    def test_parse_cli_defaults_to_baseline_reference(self):
+        parsed = audit_retention.parse_cli(["p.json", "left", "right"])
+        self.assertEqual(parsed.reference, "baseline")
+        self.assertEqual(
+            str(parsed.output),
+            "benchmark/realworld/cache/native-12-of-36-2026-09-20/retention-audit.json",
+        )
+
+    def test_expected_proxy_difference_is_reported_separately(self):
+        left_payload = report_text().encode()
+        right_payload = report_text(content_changes=2).encode()
+        self.capture(self.left, "pair-a", left_payload)
+        self.capture(self.right, "pair-a", right_payload)
+        self.baseline_file("pair-a", hashlib.sha256(left_payload).hexdigest())
+        report = audit_retention.run_audit(
+            ["pair-a"], self.left, self.right, "accepted",
+            baseline_path=self.baseline_path,
+            expected_differences=["pair-a"],
+        )
+        self.assertEqual(report["unexpected_different"], [])
+        self.assertEqual(
+            [item["pair"] for item in report["expected_different"]], ["pair-a"]
+        )
+        self.assertIn("summary", report["expected_different"][0]["members"])
+
+    def test_accepted_mode_proxy_pair_compares_members(self):
+        payload = report_text().encode()
+        self.capture(self.left, "pair-a", payload)
+        self.capture(self.right, "pair-a", payload)
+        self.baseline_file("pair-a", hashlib.sha256(payload).hexdigest())
+        report = audit_retention.run_audit(
+            ["pair-a"], self.left, self.right, "accepted", baseline_path=self.baseline_path
+        )
+        self.assertEqual(report["proxy_member_compared"], ["pair-a"])
+        self.assertEqual(report["different"], [])
 
 
 if __name__ == "__main__":
