@@ -310,6 +310,38 @@ fn retention_boundary(scalars: &[char], budget: usize) -> Option<usize> {
         })
 }
 
+/// Shortens retained text to a scalar budget, recording what it withheld.
+///
+/// The cut lands on a sentence, clause, or whitespace boundary, never inside a
+/// number, a negation, or a unit. When no boundary exists at or before the
+/// budget the whole run is withheld rather than cut at an arbitrary scalar, so
+/// a reviewer never reads a value that the document does not contain.
+///
+/// The withheld run keeps its interval, its length, and the action that
+/// retrieves it.
+#[must_use]
+pub fn retain_text(
+    text: &ReviewText,
+    max_scalars: usize,
+    expand: Option<RetrievalAction>,
+) -> ReviewText {
+    let scalars: Vec<char> = text.text.chars().collect();
+    if scalars.len() <= max_scalars {
+        return text.clone();
+    }
+    let retained = retention_boundary(&scalars, max_scalars).unwrap_or(0);
+    let mut shortened = text.clone();
+    shortened.text = scalars[..retained].iter().collect();
+    shortened.unmapped.retain(|mark| mark.position <= retained);
+    shortened.omitted.push(OmittedRun {
+        range: ScalarInterval::new(retained, scalars.len()),
+        scalars: scalars.len() - retained,
+        reason: OmissionReason::ResponseBudget,
+        expand_with: expand,
+    });
+    shortened
+}
+
 /// Projects one text view into retained review text.
 ///
 /// Unmapped tokens keep their position and raw codes instead of being replaced

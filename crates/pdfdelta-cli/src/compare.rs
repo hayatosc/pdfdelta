@@ -1,6 +1,7 @@
 use std::{
     io::{self, Write},
     path::Path,
+    sync::Arc,
 };
 
 use pdfdelta_core::{
@@ -117,8 +118,11 @@ fn compare_documents_inner<W: Write>(
     let report_output = command.options.output_path;
     let json_output = command.options.json_path;
     let trace_output = command.trace_path;
-    if let Some(directory) = command.options.review_dir {
-        crate::review::validate_destination(
+    for directory in [command.options.review_dir, command.options.agent_review_dir]
+        .into_iter()
+        .flatten()
+    {
+        crate::review::bundle::validate_destination(
             directory,
             &[json_output, report_output, trace_output],
         )?;
@@ -278,12 +282,14 @@ pub fn compare_documents_traced<W: Write>(
     // sequential run, where the new side never ran.
     let mut old_trace = ExecutionTrace::new(old_input.path, new_input.path, false);
     let mut new_trace = ExecutionTrace::new(old_input.path, new_input.path, false);
+    let retain_input = options.agent_review_dir.is_some();
     let extract = |input: &ComparisonInput<'_>,
                    password: Option<&str>,
                    font_identities: &ExternalFontIdentities,
                    side: &str,
                    trace_side: TraceSide,
-                   trace: &mut ExecutionTrace| {
+                   trace: &mut ExecutionTrace,
+                   retained: &mut Option<Arc<[u8]>>| {
         extract_comparison_outcome(
             side,
             trace_side,
@@ -293,10 +299,14 @@ pub fn compare_documents_traced<W: Write>(
                 password,
                 external_font_identities: font_identities,
                 cache: extraction_cache.as_ref(),
+                retain_input,
             },
             trace,
+            retained,
         )
     };
+    let mut old_bytes = None;
+    let mut new_bytes = None;
     let (old_result, new_result) = rayon::join(
         || {
             extract(
@@ -306,6 +316,7 @@ pub fn compare_documents_traced<W: Write>(
                 "old",
                 TraceSide::Old,
                 &mut old_trace,
+                &mut old_bytes,
             )
         },
         || {
@@ -316,6 +327,7 @@ pub fn compare_documents_traced<W: Write>(
                 "new",
                 TraceSide::New,
                 &mut new_trace,
+                &mut new_bytes,
             )
         },
     );
@@ -380,6 +392,20 @@ pub fn compare_documents_traced<W: Write>(
         return Err(error);
     }
 
+    if let Some(directory) = options.agent_review_dir {
+        let (Some(old_bytes), Some(new_bytes)) = (&old_bytes, &new_bytes) else {
+            return Err("review source bytes were not retained".into());
+        };
+        write_native_bundle(
+            directory,
+            &outcome,
+            &summary,
+            (old_input.path, old_bytes),
+            (new_input.path, new_bytes),
+            options.limit_scale,
+        )?;
+    }
+
     let old_label = old_input.path.display().to_string();
     let new_label = new_input.path.display().to_string();
     let render_report = |color| {
@@ -434,19 +460,113 @@ pub fn compare_documents_traced<W: Write>(
 }
 
 /// Everything a single-side extraction needs besides the file itself.
+/// Publishes the native-glyph review bundle for one comparison.
+///
+/// The plan is projected from this run's own blocks and glyph evidence, and the
+/// published bytes are the ones extraction read, so every reference in the
+/// bundle points at the material this comparison examined.
+fn write_native_bundle(
+    directory: &Path,
+    outcome: &pdfdelta_core::pipeline::ComparisonOutcome,
+    summary: &ReportSummary,
+    old: (&Path, &[u8]),
+    new: (&Path, &[u8]),
+    limit_scale: f64,
+) -> Result<(), String> {
+    use pdfdelta_core::review::{
+        BundleIdentity, EngineOutcome, EngineStatus, NativeTextReview, POLICY_VERSION,
+        PipelineContract, PlannerLimits, REVIEW_SCHEMA, plan_native_text,
+    };
+    use sha2::{Digest, Sha256};
+
+    let digest = |bytes: &[u8]| crate::fs::lowercase_hex(&Sha256::digest(bytes));
+    let changed = summary.difference_status == DifferenceStatus::Detected;
+    let identity = BundleIdentity {
+        policy_version: POLICY_VERSION,
+        schema: REVIEW_SCHEMA.into(),
+        old_sha256: digest(old.1),
+        new_sha256: digest(new.1),
+        old_bytes: old.1.len(),
+        new_bytes: new.1.len(),
+        options: format!("native_text_only;limit_scale={limit_scale}"),
+        // This contract has no evidence store, so the normalization policy
+        // version stands in as the snapshot identity.
+        old_revision: format!(
+            "native-text-policy-{}",
+            pdfdelta_core::diff::ASSESSMENT_POLICY_VERSION
+        ),
+        new_revision: format!(
+            "native-text-policy-{}",
+            pdfdelta_core::diff::ASSESSMENT_POLICY_VERSION
+        ),
+        backends: Vec::new(),
+        pipeline: PipelineContract::NativeText,
+        selected_channels: std::collections::BTreeSet::from([
+            pdfdelta_core::document::Channel::Text,
+        ]),
+    };
+    let plan = plan_native_text(
+        &NativeTextReview {
+            identity,
+            outcome: EngineOutcome {
+                status: if summary.comparison_complete {
+                    if changed {
+                        EngineStatus::CompleteChanged
+                    } else {
+                        EngineStatus::CompleteUnchanged
+                    }
+                } else {
+                    EngineStatus::Incomplete
+                },
+                comparison_complete: summary.comparison_complete,
+                typed_changes: outcome.comparison.changes.len(),
+                inferred_changes: 0,
+                scope_content_changes: 0,
+                inferred_scope_changes: 0,
+            },
+            comparison: &outcome.comparison,
+            old_blocks: &outcome.old_blocks,
+            new_blocks: &outcome.new_blocks,
+            old_glyphs: &outcome.old_glyph_evidence,
+            new_glyphs: &outcome.new_glyph_evidence,
+            extraction: &outcome.extraction,
+        },
+        PlannerLimits::default(),
+    );
+    crate::agent_review::write(
+        directory,
+        &plan,
+        crate::agent_review::SourceDocument {
+            name: old.0,
+            bytes: old.1,
+        },
+        crate::agent_review::SourceDocument {
+            name: new.0,
+            bytes: new.1,
+        },
+    )
+}
+
 pub struct ExtractionContext<'a> {
     pub parse_limits: ParseLimits,
     pub password: Option<&'a str>,
     pub external_font_identities: &'a ExternalFontIdentities,
     pub cache: Option<&'a ExtractionCache>,
+    /// Retain the exact acquired bytes for a bundle that publishes them.
+    pub retain_input: bool,
 }
 
+/// Extracts one side, optionally retaining the exact bytes it read.
+///
+/// The retained bytes are the ones extraction actually used, so a bundle that
+/// publishes them cannot disagree with the comparison that was performed.
 pub fn extract_comparison_outcome(
     side: &str,
     trace_side: TraceSide,
     path: &Path,
     context: &ExtractionContext<'_>,
     trace: &mut ExecutionTrace,
+    retained: &mut Option<Arc<[u8]>>,
 ) -> Result<ExtractionOutcome, String> {
     // Wall-clock durations mirror the pipeline phases' duration_us metric so
     // the extraction cost is visible in the trace; the metric is
@@ -487,6 +607,10 @@ pub fn extract_comparison_outcome(
             ("duration_us", duration_metric(read_started.elapsed())),
         ],
     );
+
+    if context.retain_input {
+        *retained = Some(bytes.clone());
+    }
 
     // A cache hit is exactly equivalent to re-running parse and extraction,
     // because the key covers every extraction-determining input. The traced

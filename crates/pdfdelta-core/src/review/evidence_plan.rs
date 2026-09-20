@@ -62,6 +62,22 @@ struct CaseDraft<'n> {
     /// `None` when candidate enumeration never closed, so the number of
     /// competing hypotheses is unknown rather than equal to what was returned.
     alternatives_total: Option<usize>,
+    /// References the case quotes that its member views do not own, such as a
+    /// range review's interior or a relationship's endpoints.
+    extra_old: Vec<SourceRef>,
+    extra_new: Vec<SourceRef>,
+    /// A location established outside the graph, such as a failing page.
+    location: Option<(Side, SideLocation)>,
+}
+
+impl CaseDraft<'_> {
+    /// A draft with no extra references and no external location.
+    fn located(self, side: Side, location: SideLocation) -> Self {
+        Self {
+            location: Some((side, location)),
+            ..self
+        }
+    }
 }
 
 struct Planner<'a> {
@@ -72,6 +88,9 @@ struct Planner<'a> {
     cases: Vec<ReviewCase>,
     gaps: Vec<UnlocalizedGap>,
     explained: BTreeSet<(Side, SourceRef)>,
+    /// Content digest to case index, so the same question asked twice about the
+    /// same material is one case rather than two competing identifiers.
+    by_digest: BTreeMap<String, usize>,
     old_nodes: BTreeMap<NodeId, &'a GraphNode>,
     new_nodes: BTreeMap<NodeId, &'a GraphNode>,
 }
@@ -91,6 +110,7 @@ pub fn plan_shared_evidence(input: &SharedEvidenceReview<'_>, limits: PlannerLim
         cases: Vec::new(),
         gaps: Vec::new(),
         explained: BTreeSet::new(),
+        by_digest: BTreeMap::new(),
         old_nodes: input
             .old
             .graph
@@ -246,17 +266,38 @@ impl<'a> Planner<'a> {
     }
 
     /// Records a case and marks the evidence it quotes as explained.
-    fn push(&mut self, case: ReviewCase) {
+    ///
+    /// A case whose canonical key repeats an existing one is the same question
+    /// about the same material, so its references are merged into that case
+    /// instead of producing a second identifier for one decision.
+    fn push(&mut self, case: Option<ReviewCase>) {
+        let Some(case) = case else {
+            return;
+        };
+        if let Some(index) = self.by_digest.get(&case.content_digest).copied() {
+            let existing = &mut self.cases[index];
+            for reference in case.evidence {
+                if !existing.evidence.contains(&reference) {
+                    existing.evidence.push(reference);
+                }
+            }
+            for reference in &existing.evidence {
+                self.explained.insert((reference.side, reference.source));
+            }
+            return;
+        }
         if !self.budget.accept_case() {
             return;
         }
         for reference in &case.evidence {
             self.explained.insert((reference.side, reference.source));
         }
+        self.by_digest
+            .insert(case.content_digest.clone(), self.cases.len());
         self.cases.push(case);
     }
 
-    fn build_case(&mut self, draft: CaseDraft<'_>) -> ReviewCase {
+    fn build_case(&mut self, draft: CaseDraft<'_>) -> Option<ReviewCase> {
         let CaseDraft {
             question,
             engine_class,
@@ -267,9 +308,14 @@ impl<'a> Planner<'a> {
             completeness,
             hypotheses,
             alternatives_total,
+            extra_old,
+            extra_new,
+            location,
         } = draft;
-        let old_sources = self.sources_of(Side::Old, old_nodes);
-        let new_sources = self.sources_of(Side::New, new_nodes);
+        let mut old_sources = self.sources_of(Side::Old, old_nodes);
+        let mut new_sources = self.sources_of(Side::New, new_nodes);
+        old_sources.extend(extra_old);
+        new_sources.extend(extra_new);
         let mut key = CaseKey::new(question);
         key.debug(&engine_class);
         key.sources(Side::Old, &old_sources);
@@ -280,8 +326,28 @@ impl<'a> Planner<'a> {
                 key.field(message.as_bytes());
             }
         }
-        let case_id = self.identifiers.case(&key.finish());
-        let digest = case_id.as_str()[1..].to_owned();
+        let digest = key.finish();
+        if let Some(index) = self.by_digest.get(&digest).copied() {
+            let existing = &mut self.cases[index];
+            for source in old_sources
+                .iter()
+                .map(|source| evidence_ref(Side::Old, *source))
+                .chain(
+                    new_sources
+                        .iter()
+                        .map(|source| evidence_ref(Side::New, *source)),
+                )
+            {
+                if !existing.evidence.contains(&source) {
+                    existing.evidence.push(source);
+                }
+            }
+            for reference in &existing.evidence {
+                self.explained.insert((reference.side, reference.source));
+            }
+            return None;
+        }
+        let case_id = self.identifiers.case(&digest);
         let old_text = self.node_text(Side::Old, old_nodes);
         let new_text = self.node_text(Side::New, new_nodes);
         let pages: BTreeSet<PageId> = old_nodes
@@ -353,7 +419,15 @@ impl<'a> Planner<'a> {
                     .map(|source| evidence_ref(Side::New, *source)),
             )
             .collect();
-        ReviewCase {
+        let (old_location, new_location) = match location {
+            Some((Side::Old, location)) => (Some(location), self.location(Side::New, new_nodes)),
+            Some((Side::New, location)) => (self.location(Side::Old, old_nodes), Some(location)),
+            None => (
+                self.location(Side::Old, old_nodes),
+                self.location(Side::New, new_nodes),
+            ),
+        };
+        Some(ReviewCase {
             case_id,
             content_digest: digest,
             question,
@@ -363,8 +437,8 @@ impl<'a> Planner<'a> {
             completeness,
             reasons,
             assumptions,
-            old: self.location(Side::Old, old_nodes),
-            new: self.location(Side::New, new_nodes),
+            old: old_location,
+            new: new_location,
             old_text,
             new_text,
             alternatives_returned: hypotheses.len(),
@@ -379,7 +453,7 @@ impl<'a> Planner<'a> {
             evidence,
             // This contract accounts for material through source references.
             covered: Vec::new(),
-        }
+        })
     }
 
     fn scopes(&mut self) {
@@ -455,6 +529,9 @@ impl<'a> Planner<'a> {
                 completeness,
                 hypotheses: Vec::new(),
                 alternatives_total: Some(0),
+                extra_old: Vec::new(),
+                extra_new: Vec::new(),
+                location: None,
             });
             self.push(case);
         }
@@ -519,6 +596,9 @@ impl<'a> Planner<'a> {
                 completeness,
                 hypotheses,
                 alternatives_total: total,
+                extra_old: Vec::new(),
+                extra_new: Vec::new(),
+                location: None,
             });
             self.push(case);
         }
@@ -698,9 +778,7 @@ impl<'a> Planner<'a> {
             }
             let old = review.comparison.old.clone();
             let new = review.comparison.new.clone();
-            let extra_old: Vec<_> = review.old_sources.clone();
-            let extra_new: Vec<_> = review.new_sources.clone();
-            let mut case = self.build_case(CaseDraft {
+            let case = self.build_case(CaseDraft {
                 question: ReviewQuestion::CompareContent,
                 engine_class,
                 old_nodes: &old,
@@ -710,16 +788,12 @@ impl<'a> Planner<'a> {
                 completeness,
                 hypotheses: Vec::new(),
                 alternatives_total: None,
+                // A range review locates interior sources its member views do
+                // not own.
+                extra_old: review.old_sources.clone(),
+                extra_new: review.new_sources.clone(),
+                location: None,
             });
-            // A range review locates sources its member nodes do not own.
-            for (side, sources) in [(Side::Old, extra_old), (Side::New, extra_new)] {
-                for source in sources {
-                    let reference = evidence_ref(side, source);
-                    if !case.evidence.contains(&reference) {
-                        case.evidence.push(reference);
-                    }
-                }
-            }
             self.push(case);
         }
     }
@@ -748,6 +822,9 @@ impl<'a> Planner<'a> {
                 },
                 hypotheses: Vec::new(),
                 alternatives_total: None,
+                extra_old: Vec::new(),
+                extra_new: Vec::new(),
+                location: None,
             });
             self.push(case);
         }
@@ -755,9 +832,7 @@ impl<'a> Planner<'a> {
             if relation.interpretation != InterpretationStatus::Inferred {
                 continue;
             }
-            let old: Vec<_> = relation.old_sources.clone();
-            let new: Vec<_> = relation.new_sources.clone();
-            let mut case = self.build_case(CaseDraft {
+            let case = self.build_case(CaseDraft {
                 question: ReviewQuestion::CompareRelationship,
                 engine_class: EngineClass::Inferred,
                 old_nodes: &[],
@@ -775,15 +850,10 @@ impl<'a> Planner<'a> {
                 },
                 hypotheses: Vec::new(),
                 alternatives_total: None,
+                extra_old: relation.old_sources.clone(),
+                extra_new: relation.new_sources.clone(),
+                location: None,
             });
-            for (side, sources) in [(Side::Old, old), (Side::New, new)] {
-                for source in sources {
-                    let reference = evidence_ref(side, source);
-                    if !case.evidence.contains(&reference) {
-                        case.evidence.push(reference);
-                    }
-                }
-            }
             self.push(case);
         }
     }
@@ -822,33 +892,32 @@ impl<'a> Planner<'a> {
                                 .collect(),
                         ),
                 ];
-                let mut case = self.build_case(CaseDraft {
-                    question: ReviewQuestion::AcquisitionGap,
-                    engine_class: EngineClass::Unavailable,
-                    old_nodes: &[],
-                    new_nodes: &[],
-                    reasons,
-                    assumptions: Vec::new(),
-                    completeness: CaseCompleteness {
-                        evidence: Completeness::Incomplete,
-                        candidate_enumeration: Completeness::Unknown,
-                        solver_search: Completeness::Unknown,
-                        response: Completeness::Complete,
-                    },
-                    hypotheses: Vec::new(),
-                    alternatives_total: None,
-                });
-                let location = SideLocation::unknown(side).with_page(issue.page);
-                match side {
-                    Side::Old => case.old = Some(location),
-                    Side::New => case.new = Some(location),
-                }
-                for source in &issue.sources {
-                    let reference = evidence_ref(side, *source);
-                    if !case.evidence.contains(&reference) {
-                        case.evidence.push(reference);
+                let (extra_old, extra_new) = match side {
+                    Side::Old => (issue.sources.clone(), Vec::new()),
+                    Side::New => (Vec::new(), issue.sources.clone()),
+                };
+                let case = self.build_case(
+                    CaseDraft {
+                        question: ReviewQuestion::AcquisitionGap,
+                        engine_class: EngineClass::Unavailable,
+                        old_nodes: &[],
+                        new_nodes: &[],
+                        reasons,
+                        assumptions: Vec::new(),
+                        completeness: CaseCompleteness {
+                            evidence: Completeness::Incomplete,
+                            candidate_enumeration: Completeness::Unknown,
+                            solver_search: Completeness::Unknown,
+                            response: Completeness::Complete,
+                        },
+                        hypotheses: Vec::new(),
+                        alternatives_total: None,
+                        extra_old,
+                        extra_new,
+                        location: None,
                     }
-                }
+                    .located(side, SideLocation::unknown(side).with_page(issue.page)),
+                );
                 self.push(case);
             }
             for ((channel, message), issues) in channel_gaps {
@@ -967,7 +1036,7 @@ impl<'a> Planner<'a> {
                     covered: Vec::new(),
                     case_id,
                 };
-                self.push(case);
+                self.push(Some(case));
             }
         }
     }
@@ -1035,6 +1104,9 @@ impl<'a> Planner<'a> {
                         },
                         hypotheses: Vec::new(),
                         alternatives_total: None,
+                        extra_old: Vec::new(),
+                        extra_new: Vec::new(),
+                        location: None,
                     });
                     self.push(case);
                 }
