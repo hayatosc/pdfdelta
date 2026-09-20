@@ -146,22 +146,49 @@ Evidence (`h5-positioned-scheduling/writer-microbench.txt`):
 - 64 MiB of 64-byte writes: plain `0.526s`, buffered `0.159s` (about 3.3x);
   decoded FNV hash `0x734392bbbf222325` identical for both paths.
 - Six default-limit pairs that timed out at 180s with the unbuffered writer
-  complete with the buffered one: `edpb-controller-processor-v1-to-v2-1`
+  finished their default-limit capture with the buffered writer (the
+  comparisons themselves remain incomplete): `edpb-controller-processor-v1-to-v2-1`
   (34.1s), `nist-authentication-63b-to-63b4` (88.7s),
   `nist-incident-handling-r2-to-r3` (40.8s),
   `mext-upper-secondary-japanese-2009-to-2018` (18.3s),
   `nist-risk-management-37-r1-to-r2` (57.7s),
   `nist-risk-assessment-30-to-r1` (11.5s).
-- `cargo test -p pdfdelta-cli --bin pdfdelta compressed_output` covers the
-  encoded destination, plain destination, and the writer-batching microbench.
+- `cargo test -p pdfdelta-cli --bin pdfdelta compressed_output` retains two
+  tests (encoded destination and plain destination). The writer-batching
+  microbench was a temporary measurement, is not part of that test command,
+  and survives only as evidence in `writer-microbench.txt`.
 
 ## Current cache snapshot (2026-09-21)
 
-- `benchmark/realworld/cache`: 5.1 GiB; `/dev/sdd` has 856 GiB available;
-  retention target for disposable completed runs is 7.3 GiB.
+- `benchmark/realworld/cache`: 5.1 GiB; `/dev/sdd` has 856 GiB available.
+  Retention keeps the newest three disposable completed generations by run
+  marker; pins protect accepted and rejected evidence. The 7.3 GiB figure
+  sometimes quoted next to the cache is the Cargo `./target` directory size,
+  not a retention quota.
 - The one-time plaintext migration saved 53,232,736,462 bytes (49.58 GiB).
   That figure is historical and separate from the current cache size, which
   already includes captures made after the migration.
 - `h2-full-iteration-002-native` stays pinned as the accepted reference;
   `h5-final-iteration-005-native` is pinned as rejected evidence carrying the
   W2 retention proof, so rotation cannot erase it.
+
+## Verification records (2026-09-21)
+
+- Gate run on the committed storage/tooling tree (reused for later text-only
+  corrections because no Rust source changed after it exited 0):
+  `cargo fmt --all -- --check`,
+  `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
+  `cargo test --workspace`, `cargo test --workspace --all-features --lib`,
+  `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --document-private-items`,
+  `cargo run --release -p pdfdelta-bench --bin pdfbench --locked -- verify`,
+  `git diff --check`; all exited 0 (`GATES_EXIT=0`), and the generated-fixture
+  verify reported `48/48 passed`. Python suites also passed: 45 tests under
+  `remaining/completion-investigation` and 7 under `next/development`.
+- Fresh CLI-only control after restoring the accepted core: release binary
+  sha256 `9a1e311be00ab1f13b289516bd23ed9ae660fc887313224630e1b13a12ac56f4`,
+  capture `benchmark/realworld/cache/native-12-of-36-2026-09-20/cli-restored-control/`.
+  `irs-schedule-se-2024-to-2025` and `irs-w2-2024-to-2025` reports are
+  logically byte-identical to the accepted H2 capture, with identical metrics:
+  logical report sha256 `6ae783e7060035b7a318feee22709473083328c5be62a434e9b6057056e1de06`
+  (SE) and `2a278a92ab23b0abdb998ab2d14768f02f7e1955bdc7e19394a77bf155b6fc5d`
+  (W2), so the buffered compressed writer does not change report content.
