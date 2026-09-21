@@ -52,13 +52,26 @@ input (program, encoding, code).
   sides, all mapped through the proven id map, 0 unmapped / 0 missing /
   0 added; the same 12 raw glyphs are excluded from the projected inventory on
   both sides.
-- Region grouping: 29 unresolved new-side regions (47,979 comparable tokens)
-  all join relations; `evidence` is empty on every region, so causes come from
-  relations: `normalization_uncertainty` 87, `domain_not_closed` 58,
-  outcomes `tentative` 87 / `established` 29, all searches complete,
-  work exhausted exactly at the 32,000,000 limit (localization 15,833,460,
-  emission 15,036,439, anchor_verification 1,130,101). Extraction complete is
-  distinct from comparison complete.
+- Region grouping (corrected, evidence-correction commit): 29 regions /
+  47,979 comparable tokens asserted, all 29 emitted as compact records in
+  `nasa-region-grouping.json`. `JsonUnresolvedRegion.evidence` is empty on
+  every region; joins now require EQUAL new_span block sets because span-local
+  range numbers are not comparable across unequal multi-block spans, and all
+  29 regions report `noncomparable_overlapping_spans` (the earlier
+  block-intersection join was invalid). Equal-block matched relations:
+  reasons `normalization_uncertainty` 58 / `domain_not_closed` 58,
+  assumptions `input_reading_order` 87 / `canonical_normalization` 87 /
+  `alternative_line_break_normalization` 29, outcomes `tentative` 58 /
+  `established` 29, searches all `complete`. The report head does not contain
+  the guessed `*_extraction_complete` keys, so extraction completeness is
+  taken from the raw probe (`issues=0` on H17) and comparison completeness
+  from the capture summary (`false`); the earlier hardcoded flags are removed.
+- Next falsifiable hypothesis: the 29 established alternative-line-break
+  relations suggest already-proven alternate normalization that was not
+  emitted under the saturated 32,000,000 budget (emission 15,036,439). A
+  representative relation chain and its emission consumer must be traced on
+  the frozen binary/source before treating the 29 as impossible
+  normalization.
 
 ## Preserved failures and limitations
 

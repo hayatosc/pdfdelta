@@ -1,161 +1,124 @@
 #!/usr/bin/env python3
 """NASA 29-region causal grouping (schema authority: report/json.rs).
 
-Single streaming pass with ijson.parse: collects unresolved_regions[*]
-(evidence + new_span ranges/text), assessment.relations[*]
-(reasons/assumptions/outcome/search/new_span) and assessment work counters.
-Joins each region to relations whose new_span block sets and comparable
-ranges overlap; counts gaps and overlapping relations explicitly.
+Streams ONLY the two target arrays with ijson.items (no DOM retention) and
+reads completion flags from the report head. Joins regions to relations only
+when the new_span block sets are EQUAL (local range numbers are not
+comparable across unequal multi-block spans); flags noncomparable cases.
+Emits all 29 compact region records and asserts coverage 47,979.
 """
-import gzip, hashlib, json, sys
+import gzip, hashlib, json, re, sys
 from collections import Counter
 from pathlib import Path
 
 import ijson
 
-TARGETS = {"unresolved_regions.item", "assessment.relations.item"}
 
-
-def collect(report_path):
-    regions, relations = [], []
-    work = {}
-    with gzip.open(report_path, "rb") as stream:
-        stack, keys, targets = [], [], []
-        for prefix, event, value in ijson.parse(stream):
-            short = prefix.rsplit(".", 1)[-1]
-            if event == "start_map":
-                container = {}
-                if prefix in TARGETS:
-                    targets.append((container, prefix))
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, dict) and keys:
-                        parent[keys[-1]] = container
-                    elif isinstance(parent, list):
-                        parent.append(container)
-                stack.append(container)
-            elif event == "start_array":
-                container = []
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, dict) and keys:
-                        parent[keys[-1]] = container
-                    elif isinstance(parent, list):
-                        parent.append(container)
-                stack.append(container)
-            elif event == "end_map":
-                container = stack.pop()
-                for target, name in list(targets):
-                    if target is container:
-                        (regions if name == "unresolved_regions.item" else relations).append(container)
-                        targets.remove((target, name))
-                        break
-            elif event == "end_array":
-                stack.pop()
-            elif event == "map_key":
-                keys.append(value)
-            elif event in ("string", "number", "boolean", "null"):
-                if prefix == "assessment.work_used":
-                    work["work_used"] = value
-                elif prefix == "assessment.work_limit":
-                    work["work_limit"] = value
-                elif prefix.startswith("assessment.work_by_stage."):
-                    work.setdefault("work_by_stage", {})[short] = value
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, dict) and keys:
-                        parent[keys[-1]] = value
-                        keys.pop()
-                    elif isinstance(parent, list):
-                        parent.append(value)
-    return regions, relations, work
-
-
-def span_range(span):
-    if not span:
-        return None
-    return set(span.get("blocks") or []), span["comparable_range"]["start"], span["comparable_range"]["end"]
-
-
-def overlaps(region_span, relation_span):
-    if not region_span or not relation_span:
-        return False
-    blocks_a, start_a, end_a = region_span
-    blocks_b, start_b, end_b = relation_span
-    return bool(blocks_a & blocks_b) and start_a < end_b and start_b < end_a
+def head_keys(path, limit=2_000_000):
+    with gzip.open(path, "rb") as stream:
+        head = stream.read(limit)
+    return {
+        "new_extraction_complete": b'"new_extraction_complete"' in head,
+        "old_extraction_complete": b'"old_extraction_complete"' in head,
+        "new_extraction_complete_true": b'"new_extraction_complete":true' in head,
+        "old_extraction_complete_true": b'"old_extraction_complete":true' in head,
+    }
 
 
 def main():
     report_path, out_path = sys.argv[1], sys.argv[2]
-    regions, relations, work = collect(report_path)
+    with gzip.open(report_path, "rb") as stream:
+        regions = list(ijson.items(stream, "unresolved_regions.item"))
+    with gzip.open(report_path, "rb") as stream:
+        relations = list(ijson.items(stream, "assessment.relations.item"))
+    head = head_keys(report_path)
+
+    def span_parts(span):
+        if not span:
+            return None
+        return (
+            tuple(sorted(span.get("blocks") or [])),
+            (span.get("comparable_range") or {}).get("start"),
+            (span.get("comparable_range") or {}).get("end"),
+            (span.get("canonical_range") or {}).get("start"),
+            (span.get("canonical_range") or {}).get("end"),
+        )
+
+    compact_relations = []
+    for index, relation in enumerate(relations):
+        compact_relations.append({
+            "index": index,
+            "parent": relation.get("parent"),
+            "outcome": relation.get("outcome"),
+            "search": relation.get("search"),
+            "reasons": relation.get("reasons") or [],
+            "assumptions": relation.get("assumptions") or [],
+            "blocks": sorted((relation.get("new_span") or {}).get("blocks") or []),
+            "comparable_range": (relation.get("new_span") or {}).get("comparable_range"),
+        })
+
+    records = []
     evidence_freq = Counter()
-    reason_freq = Counter()
-    assumption_freq = Counter()
-    outcome_freq = Counter()
-    search_freq = Counter()
-    tokens_by_evidence = Counter()
-    joined = 0
-    gaps = 0
-    representatives = []
+    tokens_total = 0
+    noncomparable = 0
+    gap = 0
     for region in regions:
         span = region.get("new_span")
-        evidence = tuple(sorted(region.get("evidence") or []))
-        for label in evidence or ("<none>",):
-            evidence_freq[label] += 1
+        blocks = tuple(sorted((span or {}).get("blocks") or []))
         length = 0
         if span:
             length = span["comparable_range"]["end"] - span["comparable_range"]["start"]
-        for label in evidence or ("<none>",):
-            tokens_by_evidence[label] += length
-        matches = [r for r in relations if overlaps(span_range(span), span_range(r.get("new_span")))]
-        if not matches:
-            gaps += 1
-        else:
-            joined += 1
-            for relation in matches:
-                for reason in relation.get("reasons") or []:
-                    reason_freq[reason] += 1
-                for assumption in relation.get("assumptions") or []:
-                    assumption_freq[assumption] += 1
-                outcome_freq[relation.get("outcome")] += 1
-                search_freq[relation.get("search")] += 1
-        if span and len(representatives) < 5 or (span and length > min((r[0] for r in representatives), default=0)):
-            blocks = span.get("blocks") or []
-            representatives.append((
-                length,
-                {
-                    "blocks": blocks[:4],
-                    "pages": (span.get("pages") or [])[:4],
-                    "comparable_range": span["comparable_range"],
-                    "text_prefix": (span.get("text") or "")[:80],
-                    "evidence": list(evidence),
-                    "matched_relations": len(matches),
-                    "relation_reasons": sorted({r for rel in matches for r in (rel.get("reasons") or [])}),
-                },
-            ))
-    representatives = [r for _, r in sorted(representatives, reverse=True)[:5]]
+        tokens_total += length
+        labels = sorted(region.get("evidence") or [])
+        for label in labels or ["<none>"]:
+            evidence_freq[label] += 1
+        matched = []
+        for relation in compact_relations:
+            if tuple(relation["blocks"]) != blocks:
+                if relation["blocks"] and set(relation["blocks"]) & set(blocks):
+                    noncomparable += 1
+                continue
+            matched.append(relation)
+        if not matched:
+            gap += 1
+        records.append({
+            "blocks": list(blocks),
+            "pages": (span or {}).get("pages"),
+            "comparable_range": (span or {}).get("comparable_range"),
+            "canonical_range": (span or {}).get("canonical_range"),
+            "tokens": length,
+            "evidence": labels,
+            "text_prefix": ((span or {}).get("text") or "")[:60],
+            "matched_relation_indices": [r["index"] for r in matched],
+            "matched_relations": matched,
+        })
+    assert len(records) == 29, len(records)
+    assert tokens_total == 47979, tokens_total
+    outcome_freq = Counter(r["outcome"] for rel in compact_relations for r in [rel] if rel["index"] in {i for rec in records for i in rec["matched_relation_indices"]})
+    reason_freq = Counter(reason for rec in records for rel in rec["matched_relations"] for reason in rel["reasons"])
+    assumption_freq = Counter(a for rec in records for rel in rec["matched_relations"] for a in rel["assumptions"])
+    search_freq = Counter(rel["search"] for rec in records for rel in rec["matched_relations"])
     result = {
-        "regions": len(regions),
-        "relations": len(relations),
-        "joined_regions": joined,
-        "gap_regions": gaps,
-        "evidence_frequency": dict(evidence_freq.most_common()),
-        "tokens_by_evidence": dict(tokens_by_evidence.most_common()),
-        "relation_reason_frequency": dict(reason_freq.most_common()),
-        "relation_assumption_frequency": dict(assumption_freq.most_common()),
-        "relation_outcome_frequency": dict(outcome_freq.most_common()),
-        "relation_search_frequency": dict(search_freq.most_common()),
-        "work": work,
-        "largest_representatives": representatives,
-        "extraction_complete": True,
-        "comparison_complete": False,
+        "regions": len(records),
+        "relations": len(compact_relations),
+        "tokens_total": tokens_total,
+        "gap_regions": gap,
+        "noncomparable_overlapping_spans": noncomparable,
+        "evidence_frequency": dict(evidence_freq),
+        "matched_reason_frequency": dict(reason_freq.most_common()),
+        "matched_assumption_frequency": dict(assumption_freq.most_common()),
+        "matched_outcome_frequency": dict(outcome_freq.most_common()),
+        "matched_search_frequency": dict(search_freq.most_common()),
+        "head_completion_keys": head,
+        "summary_comparison_complete": False,
+        "records": records,
         "binding": {
             "report_sha256": hashlib.file_digest(Path(report_path).open("rb"), "sha256").hexdigest(),
             "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         },
     }
     Path(out_path).write_text(json.dumps(result, indent=2) + "\n")
-    print(json.dumps({k: v for k, v in result.items() if k not in ("largest_representatives",)}, indent=1)[:3000])
+    print(json.dumps({k: v for k, v in result.items() if k != "records"}, indent=1)[:2200])
 
 
 if __name__ == "__main__":
