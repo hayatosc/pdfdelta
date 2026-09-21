@@ -120,6 +120,11 @@ pub enum ComparisonAssumption {
     /// correspondence closure is independent; only the edit location is
     /// proven by the exact displacement.
     ExactTextDisplacement,
+    /// Every token of a localized child span lies on a mandatory matched pair
+    /// of the parent domain's maximum LCS matchings: the equal correspondence
+    /// is fixed on every optimal path even though the parent edit location
+    /// stays ambiguous.
+    MandatoryMatchingEquality,
     /// The candidate sits still and is proven by an independently
     /// established stationary neighbour correspondence; raw coordinates are
     /// never used to adopt the move.
@@ -2568,6 +2573,9 @@ enum ExactDisplacementStep {
     Budget,
 }
 
+/// Child local key plus its localized group ranges.
+type ForcedEqualChild = (DomainKey, Range<usize>, Range<usize>);
+
 struct Assessor<'a, 'document> {
     sides: [&'a Side<'document>; 2],
     alignment: &'a Alignment,
@@ -2580,6 +2588,14 @@ struct Assessor<'a, 'document> {
     remaining_work: usize,
     anchors: Vec<(usize, usize)>,
     domains: HashMap<DomainKey, DomainProof>,
+    /// Relations established through the mandatory-matching equality proof,
+    /// which need the wider overlap veto during semantic validation.
+    forced_equal_relations: std::collections::HashSet<usize>,
+    /// Mandatory matched pairs per closed domain, computed at most once per
+    /// key. `None` records an unavailable analysis; callers keep the ordinary
+    /// proof paths.
+    mandatory_analyses:
+        HashMap<DomainKey, Option<std::sync::Arc<semantic::MandatoryMatchAnalysis>>>,
     records: Vec<RelationAssessment>,
     output_stop: Option<usize>,
     root_relation: Option<usize>,
@@ -2647,10 +2663,73 @@ impl<'a, 'document> Assessor<'a, 'document> {
         index: usize,
         changes: &[ChangeEvent],
     ) -> Result<bool> {
-        let Some(key) = self.semantic_acceptance.get(&index) else {
+        let Some(key) = self.semantic_acceptance.get(&index).cloned() else {
             return Ok(true);
         };
-        let expected = self.domains[key]
+        // A forced-equal claim needs the wider overlap veto: the contained
+        // comparison below cannot see a change or move that only partially
+        // overlaps the claim. Any overlapping occurrence keeps the claim
+        // tentative so existing changed or moved ownership is never erased.
+        if self.forced_equal_relations.contains(&index) {
+            let relation_spans = [
+                self.records[index].old_span.clone(),
+                self.records[index].new_span.clone(),
+            ];
+            let mut accepted = [Vec::new(), Vec::new()];
+            for (side, span) in relation_spans.iter().enumerate() {
+                let Some(span) = span else {
+                    continue;
+                };
+                if !self.charge(span.blocks.len()) {
+                    self.records[index].outcome = RelationOutcome::Tentative;
+                    self.records[index].search = SearchCompleteness::Incomplete;
+                    self.records[index]
+                        .reasons
+                        .push(AssessmentReason::WorkLimit);
+                    return Ok(false);
+                }
+                accepted[side] = project(self.sides[side], span)?;
+            }
+            for change in changes {
+                for occurrence in &change.occurrences {
+                    for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        let Some(span) = span else {
+                            continue;
+                        };
+                        if !self.charge(span.blocks.len()) {
+                            self.records[index].outcome = RelationOutcome::Tentative;
+                            self.records[index].search = SearchCompleteness::Incomplete;
+                            self.records[index]
+                                .reasons
+                                .push(AssessmentReason::WorkLimit);
+                            return Ok(false);
+                        }
+                        let source = project(self.sides[side], span)?;
+                        let Some(overlap) =
+                            local::overlaps(&source, &accepted[side], &mut self.remaining_work)
+                        else {
+                            self.records[index].outcome = RelationOutcome::Tentative;
+                            self.records[index].search = SearchCompleteness::Incomplete;
+                            self.records[index]
+                                .reasons
+                                .push(AssessmentReason::WorkLimit);
+                            return Ok(false);
+                        };
+                        if overlap {
+                            self.records[index].outcome = RelationOutcome::Tentative;
+                            self.records[index]
+                                .reasons
+                                .push(AssessmentReason::AmbiguousEditLocation);
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+        }
+        let expected = self.domains[&key]
             .stable_events
             .clone()
             .expect("semantic proof has a signature");
@@ -3809,6 +3888,24 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let proof_strict_unique = self.domains[&key].strict_unique;
         let mut reasons = self.records[parent].reasons.clone();
         let mut search = SearchCompleteness::Complete;
+        // The optional mandatory-match proof only applies to the intended
+        // ambiguous whole multiblock domain with an empty-reason, completed
+        // parent search; it cannot supply missing order, normalization or
+        // closure premises of its own.
+        let forced_equal_eligible = reasons.is_empty()
+            && !proof_unique
+            && key.local.is_none()
+            && key.old.len() > 1
+            && key.new.len() > 1
+            && proof_search == SearchCompleteness::Complete;
+        let forced_equal = if forced_equal_eligible {
+            self.forced_equal_child(&key, proposal)?
+        } else {
+            None
+        };
+        let will_stop = self.output_stop.is_some()
+            || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1);
+        let forced_equal_applies = forced_equal.is_some() && !will_stop;
         let mut targeted_invariant = false;
         let mut exact_local_proof = None;
         let mut boundary_budget = false;
@@ -3818,6 +3915,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             && key.old.len() > 1
             && key.new.len() > 1
             && proof_search == SearchCompleteness::Complete
+            && !forced_equal_applies
         {
             match self.boundary_displacement_proof(proposal, &key)? {
                 BoundaryDisplacement::Proven(proof) => {
@@ -3832,7 +3930,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             reasons.push(AssessmentReason::WorkLimit);
             search = SearchCompleteness::Incomplete;
         }
-        if reasons.is_empty() && !proof_unique && !targeted_invariant {
+        if reasons.is_empty() && !proof_unique && !targeted_invariant && !forced_equal_applies {
             // A specific proposal may still be identical on every optimal path
             // of an otherwise ambiguous domain; only then is it established.
             //
@@ -3870,13 +3968,14 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }
         if reasons.is_empty()
             && !targeted_invariant
+            && !forced_equal_applies
             && !proof_strict_unique
             && (proposal.old != self.records[parent].old_span
                 || proposal.new != self.records[parent].new_span)
         {
             reasons.push(AssessmentReason::AmbiguousEditLocation);
         }
-        if reasons.is_empty() && !targeted_invariant {
+        if reasons.is_empty() && !targeted_invariant && !forced_equal_applies {
             // The per-path proof already established localization and hunk
             // containment on every optimal script; the single representative
             // script is empty for ambiguous domains and cannot add evidence.
@@ -3895,8 +3994,6 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 _ => reasons.push(AssessmentReason::CompetingCorrespondence),
             }
         }
-        let will_stop = self.output_stop.is_some()
-            || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1);
         let local_proof_applies = exact_local_proof.is_some() && !will_stop;
         let semantic_proof = !local_proof_applies
             && reasons.is_empty()
@@ -3904,6 +4001,9 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let mut assumptions = self.records[parent].assumptions.clone();
         if local_proof_applies {
             assumptions.push(ComparisonAssumption::ExactTextDisplacement);
+        }
+        if forced_equal_applies {
+            assumptions.push(ComparisonAssumption::MandatoryMatchingEquality);
         }
         let index = self.record(RelationAssessment {
             old_span: proposal.old.clone(),
@@ -3947,7 +4047,159 @@ impl<'a, 'document> Assessor<'a, 'document> {
         } else if semantic_proof {
             self.semantic_acceptance.insert(index, key);
         }
+        if let Some((local_key, _old_range, _new_range)) =
+            forced_equal.filter(|_| forced_equal_applies)
+        {
+            // Register the fixed equal correspondence with an empty event
+            // signature: validate_semantic_emission still vetoes any contained
+            // non-move change that overlaps this claim.
+            let lengths = local_key.local.as_ref().map_or([0, 0], |(old, new)| {
+                [
+                    old.comparable_range.end - old.comparable_range.start,
+                    new.comparable_range.end - new.comparable_range.start,
+                ]
+            });
+            self.domains.insert(
+                local_key.clone(),
+                DomainProof {
+                    relation: index,
+                    unique: true,
+                    search: SearchCompleteness::Complete,
+                    edits: Vec::new(),
+                    lengths,
+                    strict_unique: false,
+                    stable_events: Some(Vec::new()),
+                },
+            );
+            self.semantic_acceptance.insert(index, local_key);
+            self.forced_equal_relations.insert(index);
+        }
         Ok(index)
+    }
+
+    /// Detects a localized child whose tokens are all mandatory matched pairs
+    /// of the parent domain, so its equal correspondence is fixed on every
+    /// optimal path while the parent edit location stays ambiguous.
+    ///
+    /// Returns the child local key and localized ranges. The optional analysis
+    /// never turns a resource failure into a fatal error and never erases the
+    /// shared remainder when it is unaffordable.
+    fn forced_equal_child(
+        &mut self,
+        key: &DomainKey,
+        proposal: &ProposedRelation,
+    ) -> Result<Option<ForcedEqualChild>> {
+        let (Some(old_span), Some(new_span)) = (proposal.old.as_ref(), proposal.new.as_ref())
+        else {
+            return Ok(None);
+        };
+        // Building the proof groups materializes the full parent key, not the
+        // child spans, so the bound is computed from the key's blocks before
+        // any group is built. Locate, clone and extent work is charged next.
+        let parent_blocks = [
+            &self.sides[0].blocks[key.old.clone()],
+            &self.sides[1].blocks[key.new.clone()],
+        ];
+        let parent_work = parent_blocks
+            .iter()
+            .map(|blocks| blocks.len().saturating_mul(2))
+            .fold(0usize, usize::saturating_add);
+        let parent_tokens = parent_blocks
+            .iter()
+            .enumerate()
+            .map(|(side, blocks)| {
+                blocks.iter().fold(0usize, |total, block| {
+                    let index = self.sides[side].index[&block.block];
+                    total.saturating_add(self.sides[side].canonical[index].len())
+                })
+            })
+            .fold(0usize, usize::saturating_add);
+        // `locate_in_group` rebuilds the whole prefix group and the child
+        // group for each side after `proof_groups` already materialized both
+        // parents, so the parent token work is counted twice and the child
+        // token/separator work once.
+        let child_tokens = self.sides[0]
+            .source_token_count(&old_span.blocks)
+            .saturating_add(self.sides[1].source_token_count(&new_span.blocks));
+        let locate_work = old_span
+            .blocks
+            .len()
+            .saturating_add(new_span.blocks.len())
+            .saturating_mul(4);
+        let build_work = parent_work
+            .saturating_add(parent_tokens.saturating_mul(2))
+            .saturating_add(child_tokens)
+            .saturating_add(locate_work);
+        if !self.charge(build_work) {
+            return Ok(None);
+        }
+        let [old, new] = proof_groups(self.sides, key)?;
+        let Some(old_range) = locate_in_group(self.sides[0], Some(old_span), &old)? else {
+            return Ok(None);
+        };
+        let Some(new_range) = locate_in_group(self.sides[1], Some(new_span), &new)? else {
+            return Ok(None);
+        };
+        if old_range.len() != new_range.len() || old_range.is_empty() {
+            return Ok(None);
+        }
+        let equality_work = old_range.len();
+        if !self.charge(equality_work) {
+            return Ok(None);
+        }
+        if old.tokens[old_range.clone()] != new.tokens[new_range.clone()] {
+            return Ok(None);
+        }
+        if !self.mandatory_analyses.contains_key(key) {
+            let analysis = match semantic::mandatory_match_analysis(
+                &old.tokens,
+                &new.tokens,
+                &mut self.remaining_work,
+            ) {
+                Ok(analysis) => analysis.map(std::sync::Arc::new),
+                Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => None,
+                Err(error) => return Err(error),
+            };
+            self.mandatory_analyses.insert(key.clone(), analysis);
+        }
+        let analysis = match self.mandatory_analyses.get(key) {
+            Some(Some(analysis)) => std::sync::Arc::clone(analysis),
+            _ => return Ok(None),
+        };
+        // The cache covers the parent domain, so each child token query is a
+        // binary search over parent-sized storage; charge one comparison per
+        // bit of index width before querying.
+        let query_work = old_range.len().saturating_mul(usize::BITS as usize);
+        if !self.charge(query_work) {
+            return Ok(None);
+        }
+        if analysis.mandatory_diagonal_count(old_range.start, new_range.start, old_range.len())
+            != old_range.len()
+        {
+            return Ok(None);
+        }
+        let extent = |side: usize, span: &TextSpan| -> Option<Range<usize>> {
+            let mut start = None::<usize>;
+            let mut end = None::<usize>;
+            for block in &span.blocks {
+                let index = *self.sides[side].index.get(block)?;
+                start = Some(start.map_or(index, |current: usize| current.min(index)));
+                end = Some(end.map_or(index + 1, |current: usize| current.max(index + 1)));
+            }
+            start.zip(end).map(|(start, end)| start..end)
+        };
+        let (Some(old_extent), Some(new_extent)) = (extent(0, old_span), extent(1, new_span))
+        else {
+            return Ok(None);
+        };
+        let local_key = DomainKey {
+            local: Some((old_span.clone(), new_span.clone())),
+            old: old_extent,
+            new: new_extent,
+            old_separator: key.old_separator,
+            new_separator: key.new_separator,
+        };
+        Ok(Some((local_key, old_range, new_range)))
     }
 
     fn cached_relation(&self, proposal: &ProposedRelation) -> Option<usize> {
@@ -4034,6 +4286,8 @@ impl<'a, 'document> Assessor<'a, 'document> {
             remaining_work: options.max_assessment_work,
             anchors: Vec::new(),
             domains: HashMap::new(),
+            forced_equal_relations: std::collections::HashSet::new(),
+            mandatory_analyses: HashMap::new(),
             records: Vec::new(),
             output_stop: None,
             root_relation: None,
@@ -4544,6 +4798,139 @@ mod assessor_issue_cache_tests {
             old_separator: BlockSeparator::Concatenate,
             new_separator: BlockSeparator::Concatenate,
         }
+    }
+
+    #[test]
+    fn forced_equal_claim_is_vetoed_by_crossing_change_and_move() -> Result<()> {
+        use crate::diff::{Change, ChangeKind, ChangeOccurrence, Confidence};
+        let blocks = [plain_block(1), plain_block(2)];
+        let new_blocks = [plain_block(101), plain_block(102)];
+        let old = super::super::SidePlan::inspect("old", &blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old: vec![BlockId(1)],
+                new: vec![BlockId(101)],
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::Low,
+                evidence: Vec::new(),
+                old_separator: None,
+                new_separator: None,
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let relation_old = local_span(1, 1, 3);
+        let relation_new = local_span(101, 1, 3);
+        let key = |relation_old: &TextSpan, relation_new: &TextSpan| DomainKey {
+            local: Some((relation_old.clone(), relation_new.clone())),
+            old: 0..1,
+            new: 0..1,
+            old_separator: BlockSeparator::Concatenate,
+            new_separator: BlockSeparator::Concatenate,
+        };
+        let make_assessor = || -> Result<Assessor<'_, '_>> {
+            let mut assessor = Assessor::new_with_evidence(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+                None,
+            )?;
+            let index = assessor.records.len();
+            assessor.records.push(RelationAssessment {
+                old_span: Some(relation_old.clone()),
+                new_span: Some(relation_new.clone()),
+                parent: None,
+                outcome: RelationOutcome::Established,
+                search: SearchCompleteness::Complete,
+                assumptions: vec![ComparisonAssumption::MandatoryMatchingEquality],
+                reasons: Vec::new(),
+            });
+            let local_key = key(&relation_old, &relation_new);
+            assessor.domains.insert(
+                local_key.clone(),
+                DomainProof {
+                    relation: index,
+                    unique: true,
+                    search: SearchCompleteness::Complete,
+                    edits: Vec::new(),
+                    lengths: [0, 0],
+                    strict_unique: false,
+                    stable_events: Some(Vec::new()),
+                },
+            );
+            assessor.semantic_acceptance.insert(index, local_key);
+            assessor.forced_equal_relations.insert(index);
+            Ok(assessor)
+        };
+        // The crossing occurrence overlaps tokens 1..2 of the claim without
+        // either span containing the other, so the old contained comparison
+        // and the old validator never see it.
+        let crossing = Change {
+            kind: ChangeKind::Replacement,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(local_span(1, 0, 2)),
+                new_span: Some(local_span(101, 0, 2)),
+            }],
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        };
+        assert!(
+            !contains_span(
+                &old,
+                Some(&relation_old),
+                crossing.occurrences[0].old_span.as_ref()
+            )?,
+            "the crossing occurrence must not be contained"
+        );
+        let mut assessor = make_assessor()?;
+        assert!(
+            !assessor.validate_semantic_emission(0, &[crossing])?,
+            "a crossing replacement must veto the forced-equal claim"
+        );
+        assert_eq!(assessor.records[0].outcome, RelationOutcome::Tentative);
+        assert!(
+            assessor.records[0]
+                .reasons
+                .contains(&AssessmentReason::AmbiguousEditLocation)
+        );
+        // The old validator skips moves entirely, so only the wider veto can
+        // protect the claim from a crossing move.
+        let crossing_move = Change {
+            kind: ChangeKind::Move,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(local_span(1, 0, 2)),
+                new_span: Some(local_span(102, 0, 2)),
+            }],
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        };
+        let mut moved = make_assessor()?;
+        assert!(
+            !moved.validate_semantic_emission(0, &[crossing_move])?,
+            "a crossing move must veto the forced-equal claim"
+        );
+        assert_eq!(moved.records[0].outcome, RelationOutcome::Tentative);
+        // A change on an unrelated block does not overlap and stays clean.
+        let unrelated = Change {
+            kind: ChangeKind::Replacement,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(local_span(2, 0, 1)),
+                new_span: Some(local_span(102, 0, 1)),
+            }],
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        };
+        let mut clean = make_assessor()?;
+        assert!(
+            clean.validate_semantic_emission(0, &[unrelated])?,
+            "an unrelated change must not veto the claim"
+        );
+        Ok(())
     }
 
     #[test]

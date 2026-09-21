@@ -247,6 +247,170 @@ fn build_suffix<T: Eq>(
     Ok(Some(suffix))
 }
 
+/// Unique eligible equal edge per rank of every maximum LCS matching.
+///
+/// `unique_pairs` holds the sorted `(old_index, new_index)` matched pairs
+/// (1-based token counts) whose rank has exactly one eligible edge, so every
+/// maximum matching contains them.
+pub(super) struct MandatoryMatchAnalysis {
+    unique_pairs: Vec<(usize, usize)>,
+}
+
+impl MandatoryMatchAnalysis {
+    /// True when the matched pair ending at `(old_index, new_index)`
+    /// (1-based) occurs in every maximum matching.
+    pub(super) fn pair_is_mandatory(&self, old_index: usize, new_index: usize) -> bool {
+        if old_index == 0 || new_index == 0 {
+            return false;
+        }
+        self.unique_pairs
+            .binary_search(&(old_index, new_index))
+            .is_ok()
+    }
+
+    /// Number of mandatory diagonal pairs along a slice of `length` tokens
+    /// starting at the given zero-based offsets.
+    pub(super) fn mandatory_diagonal_count(
+        &self,
+        old_start: usize,
+        new_start: usize,
+        length: usize,
+    ) -> usize {
+        (0..length)
+            .filter(|offset| self.pair_is_mandatory(old_start + offset + 1, new_start + offset + 1))
+            .count()
+    }
+}
+
+/// Computes the mandatory matched pairs of every maximum LCS matching.
+///
+/// Suffix values live in one table; prefix values stream through two rolling
+/// rows. The full work is charged before any allocation; an unaffordable
+/// analysis returns `None` without erasing the shared remainder.
+pub(super) fn mandatory_match_analysis<T: Eq>(
+    old: &[T],
+    new: &[T],
+    remaining_work: &mut usize,
+) -> Result<Option<MandatoryMatchAnalysis>> {
+    let rows = old.len().checked_add(1).ok_or_else(cells_limit_error)?;
+    let columns = new.len().checked_add(1).ok_or_else(cells_limit_error)?;
+    let cells = rows.checked_mul(columns).ok_or_else(cells_limit_error)?;
+    let interior = old
+        .len()
+        .checked_mul(new.len())
+        .ok_or_else(cells_limit_error)?;
+    let rank_capacity = old.len().min(new.len());
+    let analysis_work = interior
+        .checked_mul(3)
+        .and_then(|work| work.checked_add(old.len()))
+        .and_then(|work| work.checked_add(new.len()))
+        .and_then(|work| work.checked_add(cells))
+        .ok_or_else(cells_limit_error)?;
+    let rows_bytes = 2usize
+        .checked_mul(columns)
+        .and_then(|count| count.checked_mul(std::mem::size_of::<usize>()))
+        .ok_or_else(memory_limit_error)?;
+    let rank_bytes = rank_capacity
+        .checked_mul(std::mem::size_of::<Option<(usize, usize)>>())
+        .and_then(|bytes| bytes.checked_add(rank_capacity))
+        .ok_or_else(memory_limit_error)?;
+    // Peak live bytes: suffix table, rolling rows, the transient rank slots
+    // and flags, and the collected output while the rank slots are still
+    // alive, so rank storage is counted twice.
+    let bytes = cells
+        .checked_mul(std::mem::size_of::<usize>())
+        .and_then(|bytes| bytes.checked_add(rows_bytes))
+        .and_then(|bytes| bytes.checked_add(rank_bytes))
+        .and_then(|bytes| bytes.checked_add(rank_bytes))
+        .ok_or_else(memory_limit_error)?;
+    if bytes > MAX_SEMANTIC_MEMORY_BYTES {
+        return Err(memory_limit_error());
+    }
+    if !chargeable(*remaining_work, analysis_work) {
+        return Ok(None);
+    }
+    if !charge(remaining_work, analysis_work) {
+        return Ok(None);
+    }
+    let mut suffix = Vec::new();
+    suffix.try_reserve_exact(cells).map_err(|_| {
+        Error::Unresolved("semantic mandatory-match suffix allocation failed".to_owned())
+    })?;
+    suffix.resize(cells, 0);
+    for old_index in (0..old.len()).rev() {
+        for new_index in (0..new.len()).rev() {
+            suffix[old_index * columns + new_index] = if old[old_index] == new[new_index] {
+                suffix[(old_index + 1) * columns + new_index + 1] + 1
+            } else {
+                suffix[(old_index + 1) * columns + new_index]
+                    .max(suffix[old_index * columns + new_index + 1])
+            };
+        }
+    }
+    let lcs_length = suffix[0];
+    let mut unique_per_rank = Vec::new();
+    unique_per_rank.try_reserve_exact(lcs_length).map_err(|_| {
+        Error::Unresolved("semantic mandatory-match rank allocation failed".to_owned())
+    })?;
+    unique_per_rank.resize(lcs_length, None);
+    let mut multiple = Vec::new();
+    multiple.try_reserve_exact(lcs_length).map_err(|_| {
+        Error::Unresolved("semantic mandatory-match flag allocation failed".to_owned())
+    })?;
+    multiple.resize(lcs_length, false);
+    let mut previous = Vec::new();
+    previous.try_reserve_exact(columns).map_err(|_| {
+        Error::Unresolved("semantic mandatory-match prefix allocation failed".to_owned())
+    })?;
+    previous.resize(columns, 0);
+    let mut current = Vec::new();
+    current.try_reserve_exact(columns).map_err(|_| {
+        Error::Unresolved("semantic mandatory-match prefix allocation failed".to_owned())
+    })?;
+    current.resize(columns, 0);
+    for old_index in 1..=old.len() {
+        current[0] = 0;
+        for new_index in 1..=new.len() {
+            current[new_index] = if old[old_index - 1] == new[new_index - 1] {
+                previous[new_index - 1] + 1
+            } else {
+                previous[new_index].max(current[new_index - 1])
+            };
+            if old[old_index - 1] == new[new_index - 1]
+                && previous[new_index - 1] + 1 + suffix[old_index * columns + new_index]
+                    == lcs_length
+            {
+                let rank = previous[new_index - 1] + 1;
+                if rank <= lcs_length && !multiple[rank - 1] {
+                    let edge = (old_index, new_index);
+                    match unique_per_rank[rank - 1] {
+                        None => unique_per_rank[rank - 1] = Some(edge),
+                        Some(existing) if existing == edge => {}
+                        Some(_) => {
+                            unique_per_rank[rank - 1] = None;
+                            multiple[rank - 1] = true;
+                        }
+                    }
+                }
+            }
+        }
+        std::mem::swap(&mut previous, &mut current);
+    }
+    drop(suffix);
+    drop(previous);
+    drop(current);
+    drop(multiple);
+    let output_len = unique_per_rank.iter().filter(|slot| slot.is_some()).count();
+    let mut unique_pairs = Vec::new();
+    unique_pairs.try_reserve_exact(output_len).map_err(|_| {
+        Error::Unresolved("semantic mandatory-match output allocation failed".to_owned())
+    })?;
+    for edge in unique_per_rank.into_iter().flatten() {
+        unique_pairs.push(edge);
+    }
+    Ok(Some(MandatoryMatchAnalysis { unique_pairs }))
+}
+
 fn enumerate_paths<T, S, F>(
     old: &[T],
     new: &[T],
@@ -526,7 +690,7 @@ mod tests {
     use super::super::all_words;
     use super::{
         AtomicEdit, DP_MEMORY_RESOURCE, MAX_SEMANTIC_MEMORY_BYTES, Outcome, check,
-        preflight_memory, required_memory_bytes,
+        mandatory_match_analysis, preflight_memory, required_memory_bytes,
     };
 
     type ScriptSignature = Vec<(usize, usize, usize, usize)>;
@@ -584,6 +748,142 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn exhaustive_mandatory_pairs(
+        old: &[u8],
+        new: &[u8],
+    ) -> std::collections::BTreeSet<(usize, usize)> {
+        let columns = new.len() + 1;
+        let mut suffix = vec![0usize; (old.len() + 1) * columns];
+        for i in (0..old.len()).rev() {
+            for j in (0..new.len()).rev() {
+                suffix[i * columns + j] = if old[i] == new[j] {
+                    suffix[(i + 1) * columns + j + 1] + 1
+                } else {
+                    suffix[(i + 1) * columns + j].max(suffix[i * columns + j + 1])
+                };
+            }
+        }
+        struct Oracle<'a> {
+            old: &'a [u8],
+            new: &'a [u8],
+            suffix: &'a [usize],
+            columns: usize,
+            paths: Vec<Vec<(usize, usize)>>,
+        }
+        impl Oracle<'_> {
+            fn walk(&mut self, i: usize, j: usize, path: &mut Vec<(usize, usize)>) {
+                if i == self.old.len() && j == self.new.len() {
+                    self.paths.push(path.clone());
+                    return;
+                }
+                let target = self.suffix[i * self.columns + j];
+                if i < self.old.len()
+                    && j < self.new.len()
+                    && self.old[i] == self.new[j]
+                    && self.suffix[(i + 1) * self.columns + j + 1] + 1 == target
+                {
+                    path.push((i + 1, j + 1));
+                    self.walk(i + 1, j + 1, path);
+                    path.pop();
+                }
+                if i < self.old.len() && self.suffix[(i + 1) * self.columns + j] == target {
+                    self.walk(i + 1, j, path);
+                }
+                if j < self.new.len() && self.suffix[i * self.columns + j + 1] == target {
+                    self.walk(i, j + 1, path);
+                }
+            }
+        }
+        let mut oracle = Oracle {
+            old,
+            new,
+            suffix: &suffix,
+            columns,
+            paths: Vec::new(),
+        };
+        oracle.walk(0, 0, &mut Vec::new());
+        let paths = oracle.paths;
+        let mut mandatory = std::collections::BTreeSet::new();
+        for i in 1..=old.len() {
+            for j in 1..=new.len() {
+                if old[i - 1] == new[j - 1] && paths.iter().all(|path| path.contains(&(i, j))) {
+                    mandatory.insert((i, j));
+                }
+            }
+        }
+        mandatory
+    }
+
+    #[test]
+    fn mandatory_analysis_matches_the_exhaustive_path_oracle() {
+        for alphabet in [b"ab".as_slice(), b"a ".as_slice()] {
+            for old_word in all_words(3) {
+                for new_word in all_words(3) {
+                    let old: Vec<u8> = old_word
+                        .iter()
+                        .map(|&token| alphabet[usize::from(token)])
+                        .collect();
+                    let new: Vec<u8> = new_word
+                        .iter()
+                        .map(|&token| alphabet[usize::from(token)])
+                        .collect();
+                    let mut budget = 10_000_000;
+                    let analysis = mandatory_match_analysis(&old, &new, &mut budget)
+                        .expect("analysis completes")
+                        .expect("analysis is affordable");
+                    let expected = exhaustive_mandatory_pairs(&old, &new);
+                    let mut actual = std::collections::BTreeSet::new();
+                    for i in 1..=old.len() {
+                        for j in 1..=new.len() {
+                            if analysis.pair_is_mandatory(i, j) {
+                                actual.insert((i, j));
+                            }
+                        }
+                    }
+                    assert_eq!(actual, expected, "old {old:?} new {new:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_equal_text_without_mandatory_positions_is_not_forced() {
+        // "aaa" against "aa" has several maximum matchings; no full diagonal
+        // can be mandatory across all of them.
+        let mut budget = 10_000_000;
+        let analysis = mandatory_match_analysis(b"aaa", b"aa", &mut budget)
+            .expect("analysis completes")
+            .expect("analysis is affordable");
+        assert!(
+            analysis.mandatory_diagonal_count(0, 0, 2) < 2,
+            "repeated equal text without fixed positions must not be forced"
+        );
+    }
+
+    #[test]
+    fn forced_diagonal_requires_every_token_on_a_mandatory_pair() {
+        let mut budget = 10_000_000;
+        let analysis = mandatory_match_analysis(b"abcXdef", b"abcYdef", &mut budget)
+            .expect("analysis completes")
+            .expect("analysis is affordable");
+        assert_eq!(analysis.mandatory_diagonal_count(0, 0, 3), 3);
+        assert_eq!(analysis.mandatory_diagonal_count(4, 4, 3), 3);
+        assert_eq!(analysis.mandatory_diagonal_count(0, 0, 7), 6);
+    }
+
+    #[test]
+    fn unaffordable_analysis_keeps_the_shared_remainder() {
+        let old = b"abcdefghijklmnop";
+        let new = b"abcdefghijklmnop";
+        let mut budget = 3;
+        assert!(
+            mandatory_match_analysis(old, new, &mut budget)
+                .expect("analysis completes")
+                .is_none()
+        );
+        assert_eq!(budget, 3, "the shared remainder is not erased");
     }
 
     #[test]

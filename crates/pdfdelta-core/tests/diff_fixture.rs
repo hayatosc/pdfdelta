@@ -5,8 +5,8 @@ use pdfdelta_core::{
         BlockSeparator, ExactAnchor,
     },
     diff::{
-        ChangeKind, ChangeTag, Confidence, DiffOptions, FormattingReason, TokenRange,
-        compare_aligned,
+        ChangeKind, ChangeTag, ComparisonAssumption, Confidence, DiffOptions, FormattingReason,
+        TokenRange, compare_aligned,
     },
     layout::BlockId,
     model::{FontProgramHash, Vec2},
@@ -2071,5 +2071,160 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         [BlockId(109)]
     );
 
+    Ok(())
+}
+
+#[test]
+fn mandatory_matching_equality_establishes_fixed_equal_children() -> Result<()> {
+    // Repeated equal "Q" blocks avoid globally unique block anchors, so the
+    // parent domain stays ambiguous at the middle deletion while every maximum
+    // matching still forces both boundary Q pairs.
+    let old = [block(1, "Q"), block(2, "a a"), block(3, "Q")];
+    let new = [block(101, "Q"), block(102, "a"), block(103, "Q")];
+    let alignment = aligned(vec![
+        matched(&[1], &[101]),
+        matched(&[2], &[102]),
+        matched(&[3], &[103]),
+    ]);
+
+    let result = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
+    let assessment = result.assessment.as_ref().expect("assessment");
+
+    let mandatory = assessment
+        .relations
+        .iter()
+        .filter(|relation| {
+            relation.outcome == pdfdelta_core::diff::RelationOutcome::Established
+                && relation
+                    .assumptions
+                    .contains(&ComparisonAssumption::MandatoryMatchingEquality)
+                && relation
+                    .old_span
+                    .as_ref()
+                    .is_some_and(|span| span.blocks == [BlockId(1)])
+                && relation
+                    .new_span
+                    .as_ref()
+                    .is_some_and(|span| span.blocks == [BlockId(101)])
+        })
+        .count();
+    assert_eq!(
+        mandatory, 1,
+        "the first fixed equal child must be established: {:#?}",
+        assessment.relations
+    );
+    let second = assessment.relations.iter().any(|relation| {
+        relation.outcome == pdfdelta_core::diff::RelationOutcome::Established
+            && relation
+                .assumptions
+                .contains(&ComparisonAssumption::MandatoryMatchingEquality)
+            && relation
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(3)])
+    });
+    assert!(second, "the trailing fixed equal child must be established");
+    let ambiguous_middle = assessment.relations.iter().any(|relation| {
+        relation.outcome == pdfdelta_core::diff::RelationOutcome::Tentative
+            && relation
+                .reasons
+                .contains(&pdfdelta_core::diff::AssessmentReason::AmbiguousEditLocation)
+            && relation
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(2)])
+    });
+    assert!(
+        ambiguous_middle,
+        "the ambiguous middle deletion must stay tentative: {:#?}",
+        assessment.relations
+    );
+    Ok(())
+}
+
+#[test]
+fn repeated_equal_text_without_mandatory_positions_is_not_promoted() -> Result<()> {
+    // Three separate equal "Q" blocks against two: the deletion is ambiguous
+    // among the repeated Q blocks, so an equal Q child has no mandatory
+    // source position even though its text is equal on both sides.
+    let old = [block(1, "Q"), block(2, "Q"), block(3, "Q")];
+    let new = [block(101, "Q"), block(102, "Q")];
+    let alignment = aligned(vec![
+        matched(&[1], &[101]),
+        matched(&[2], &[102]),
+        one_sided(AlignmentKind::Deletion, &[3], &[]),
+    ]);
+
+    let result = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
+    let assessment = result.assessment.as_ref().expect("assessment");
+    assert!(
+        !assessment.relations.iter().any(|relation| {
+            relation
+                .assumptions
+                .contains(&ComparisonAssumption::MandatoryMatchingEquality)
+        }),
+        "repeated equal text without fixed positions must not be promoted: {:#?}",
+        assessment.relations
+    );
+    let ambiguous_parent = assessment.relations.iter().any(|relation| {
+        relation.outcome == pdfdelta_core::diff::RelationOutcome::Tentative
+            && relation
+                .reasons
+                .contains(&pdfdelta_core::diff::AssessmentReason::AmbiguousEditLocation)
+    });
+    assert!(
+        ambiguous_parent,
+        "a repeated-Q relation must stay ambiguous: {:#?}",
+        assessment.relations
+    );
+    let q_child_tentative = assessment.relations.iter().any(|relation| {
+        relation.outcome == pdfdelta_core::diff::RelationOutcome::Tentative
+            && relation
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(1)])
+            && relation
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(101)])
+    });
+    assert!(
+        q_child_tentative,
+        "the equal Q child without a mandatory position stays tentative: {:#?}",
+        assessment.relations
+    );
+    Ok(())
+}
+
+#[test]
+fn missing_parent_premises_block_mandatory_matching_promotion() -> Result<()> {
+    // The same shape as the positive fixture, but the parent carries a
+    // normalization issue, so the optional mandatory-match proof must not run.
+    let old = [block(1, "Q"), block(2, "a a"), block(3, "Q")];
+    let new = [block(101, "Q"), block(102, "a"), block(103, "Q")];
+    let mut issue = matched(&[2], &[102]);
+    issue.evidence = vec![AlignmentEvidence::NormalizationIssue];
+    let alignment = aligned(vec![matched(&[1], &[101]), issue, matched(&[3], &[103])]);
+
+    let result = compare_aligned(&old, &new, &alignment, DiffOptions::default())?;
+    let assessment = result.assessment.as_ref().expect("assessment");
+    assert!(
+        assessment.relations.iter().any(|relation| {
+            relation
+                .reasons
+                .contains(&pdfdelta_core::diff::AssessmentReason::NormalizationUncertainty)
+        }),
+        "the parent must carry its normalization premise: {:#?}",
+        assessment.relations
+    );
+    assert!(
+        !assessment.relations.iter().any(|relation| {
+            relation
+                .assumptions
+                .contains(&ComparisonAssumption::MandatoryMatchingEquality)
+        }),
+        "a parent with a normalization premise must not promote: {:#?}",
+        assessment.relations
+    );
     Ok(())
 }

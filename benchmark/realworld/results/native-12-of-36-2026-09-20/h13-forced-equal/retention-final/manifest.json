@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "h2_capture": {
+    "path": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h2-full-iteration-002-native",
+    "binary_sha256": "80cc5fb13105a27ef625aa582fa04cc5acf64e520abe8e57ad55bc7a8bcd4cbe",
+    "summary_sha256": "100590d2e56b7ea818b2405e017bb1ecba5b56831616865e490ac5b9c04cf509"
+  },
+  "h13_capture": {
+    "path": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h13-full-iteration-004-native",
+    "binary_sha256": "fbab3082424acec357e732e9264ce3f3711b06b0412e0824088393f68ab48cae",
+    "summary_sha256": "d48716ced37fbde504b8273f676a1af1ec63cef53eb519a65a9d7b6da5dc9b53"
+  },
+  "identical_whole_reports": [
+    "arxiv-bert-v1-to-v2",
+    "arxiv-faster-rcnn-v1-to-v3",
+    "arxiv-gpt3-v1-to-v4",
+    "arxiv-llama2-v1-to-v2",
+    "arxiv-mask-rcnn-v1-to-v3",
+    "bunka-kana-1946-to-1986",
+    "bunka-official-writing-1952-to-2022",
+    "ecb-annual-2023-to-2024",
+    "edpb-controller-processor-v1-to-v2-1",
+    "edpb-design-default-v1-to-v2",
+    "edpb-restrictions-v1-to-final",
+    "edpb-social-targeting-v1-to-v2",
+    "faa-maintenance-records-c-to-d",
+    "faa-thunderstorms-b-to-c",
+    "ipcc-synthesis-ar5-to-ar6",
+    "irs-1099-misc-2024-to-2025",
+    "irs-w2-2024-to-2025",
+    "irs-w9-2018-to-2024",
+    "mext-lower-secondary-japanese-2008-to-2017",
+    "mext-primary-japanese-2008-to-2017",
+    "mext-upper-secondary-japanese-2009-to-2018",
+    "mhlw-care-skills-original-to-revised",
+    "nasa-buckling-8007-1968-to-2020",
+    "nist-ai-rmf-draft2-to-v1",
+    "nist-authentication-63b-to-63b4",
+    "nist-contingency-34-to-r1",
+    "nist-controls-53-r4-to-r5",
+    "nist-incident-handling-r2-to-r3",
+    "nist-risk-assessment-30-to-r1",
+    "nist-risk-management-37-r1-to-r2",
+    "nist-ssdf-draft-to-final"
+  ],
+  "differing": [
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "h2_report_sha256": "b75cabbea47a8f8cf65a00e591d8eb95d0ad3a37b6ad50fc691c27633aaaa662",
+      "h13_report_sha256": "543d0e103d6c3ba24d48aa869f7903877aeb9463d5726e8e42fec4ee9ea4d6e7",
+      "proof": "deep-native-retention",
+      "audit": "retention-final/arxiv-ddpm-v1-to-v2.json"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "h2_report_sha256": "e62e6e87b3a97f2a6c8c3116f8b6a59df5a8453a7fdb21c20700e2e91c5fd326",
+      "h13_report_sha256": "451c2706d254c9642c56fa1ba5bead47f84d0dcf173c7cd02e134d5e1a1f9a8f",
+      "proof": "deep-native-retention",
+      "audit": "retention-final/irs-schedule-c-2024-to-2025.json"
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "h2_report_sha256": "6ae783e7060035b7a318feee22709473083328c5be62a434e9b6057056e1de06",
+      "h13_report_sha256": "e2cc69feac0c32457fae04b462bc5207fdbc6e5e6682e05728b6676d74525bf3",
+      "proof": "deep-native-retention",
+      "audit": "retention-final/irs-schedule-se-2024-to-2025.json"
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "h2_report_sha256": "41828ecfc2096f4ec22ffd8518e34601434be26ea3c1b97ab176c361c8341783",
+      "h13_report_sha256": "e4de27881205245039ca89d1a300f483a40b706215eb234b18df266d703941b6",
+      "proof": "deep-native-retention",
+      "audit": "retention-final/irs-w4-english-2024-to-2025.json"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "h2_report_sha256": "41dd676cc996ee14a4961790501f8d1268c5d747ccd87a2c3cdef49d47978d3d",
+      "h13_report_sha256": "6f0db4093fe9004d3e7cdb13606d686d7dce5a756e71fde74822a4b6674b3cfe",
+      "proof": "deep-native-retention",
+      "audit": "retention-final/nist-sha-1803-to-1804.json"
+    }
+  ]
+}

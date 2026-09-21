@@ -2039,7 +2039,11 @@ fn reserve_capacity<T>(output: &mut Vec<T>, additional: usize) -> Result<()> {
         .map_err(|_| super::allocation_error("closed domain recovery ranges"))
 }
 
-fn overlaps(old: &[SourceInterval], new: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
+pub(super) fn overlaps(
+    old: &[SourceInterval],
+    new: &[SourceInterval],
+    remaining: &mut usize,
+) -> Option<bool> {
     if !charge(
         remaining,
         old.len().saturating_mul(new.len()).saturating_add(1),
@@ -2056,6 +2060,34 @@ fn overlaps(old: &[SourceInterval], new: &[SourceInterval], remaining: &mut usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlap_protection_detects_partial_crossings_and_respects_budget() {
+        let interval = |block: usize, start: usize, end: usize| SourceInterval {
+            block_index: block,
+            start,
+            end,
+        };
+        let accepted = [interval(0, 10, 20)];
+        assert_eq!(
+            overlaps(&[interval(0, 15, 25)], &accepted, &mut 100),
+            Some(true)
+        );
+        assert_eq!(
+            overlaps(&[interval(0, 5, 15)], &accepted, &mut 100),
+            Some(true)
+        );
+        assert_eq!(
+            overlaps(&[interval(0, 20, 30)], &accepted, &mut 100),
+            Some(false)
+        );
+        assert_eq!(
+            overlaps(&[interval(1, 10, 20)], &accepted, &mut 100),
+            Some(false)
+        );
+        assert_eq!(overlaps(&[interval(0, 15, 25)], &accepted, &mut 0), None);
+    }
+
     use crate::{
         alignment::{
             Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
