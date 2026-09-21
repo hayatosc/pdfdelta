@@ -139,14 +139,54 @@ Across all 75 W4 boundary attempts the sufficient rule holds for **none**:
 - 23 attempts have neither cut node stable nor adjacent to a mandatory edge.
 - The fatal 143-block key (471,614)/(559,702) appears 14 times with
   `lcs = 821`, `unique_ranks = 777`; every one has equal localized slices.
-- The probe uses `locate_in_group` fixed ranges, while the callback localizes
-  through the per-edit script, so the mandatory-edge predicate cannot simply
-  replace the callback; the measurement is sufficient to reject this fast-path
-  formulation for W4.
+- Correction to the first reading: when both proposal spans are present,
+  `localize_proposal` resolves each side through `locate_in_group` and never
+  takes the missing-side loop, so its ranges are fixed and identical to the
+  probe; edits only supply absent-side ranges, which boundary proofs do not
+  have. Equal slices with stable cuts are therefore a valid-cut/no-changed-hunk
+  situation, not a probe artefact.
+- The broad "all fatal rows equal" statement was also wrong: the 143-block key
+  appears 14 times and one old493 row (ranges 152..157 / 110..115) has unequal
+  slices with zero mandatory diagonal pairs.
 
 Raw log: `traces/boundary-mandatory-w4.txt`. The analysis code and probe were
 reverted without integration. Next candidate: a narrow evaluation of the
 optimal-path DAG with a boundary-state automaton that proves the exact
 predicate without path enumeration, or a different cause from the accepted
 scorecard.
+
+## H12: forced-equal decisive negative
+
+The corrected analysis is now integrated behind a per-domain cache: the guard
+compares the localized slices first (charged), rejects unequal slices without
+building any table, and only then computes the mandatory diagonal. An
+unaffordable or resource-failed analysis is recorded as unavailable and keeps
+the existing enumeration, without erasing the shared budget. W4 measurement:
+50 of 75 attempts, including the fatal key's 16-token start slice, have every
+localized token on a mandatory matched pair with equal slices, so no nonempty
+changed hunk exists on any optimal path; the boundary and invariant proofs can
+return their negative outcomes directly. Equality promotion itself stays with
+the existing equality machinery.
+
+## H12 result: forced-equal negative leaves outputs unchanged
+
+The forced-equal decisive negative was implemented behind a per-domain cache
+with charged slice comparison, optional non-fatal analysis and bounded
+binary-search queries, and the five-pair compressed capture
+(`h12-iteration-001-native`, binary `7c1315af4c72`) is metric-identical to H2
+on W4, Schedule C, SE, W2 and 1099: W4 still resolves 5,492/6,081 with 2
+changes, C 6,619/6,634 with 11 changes, SE complete, W2 10,002/10,002 with 13
+changes and 1099 8,228/8,224 with 12 changes. Skipping the 50 forced-equal
+attempts therefore saves work but does not by itself resolve their spans,
+because those children sit inside still-ambiguous parents.
+
+The forced-equal proof is sound and work-saving but has no measured coverage
+gain, so the engine was reverted to the accepted tree. The next justified
+target is to carry the mandatory diagonal evidence into the existing
+established-local-equality path: if every localized token is forced equal on
+all optimal matchings, the span is a fixed equal correspondence whose
+ownership, order, normalization and occurrence checks should be evaluated by
+the existing equality machinery rather than left as an unresolved child of an
+ambiguous parent. That promotion must reuse existing contracts and preserve
+exact outputs elsewhere.
 
