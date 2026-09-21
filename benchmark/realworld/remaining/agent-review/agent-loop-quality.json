@@ -1,0 +1,43 @@
+{
+ "schema": "agent-review-loop-quality/v1",
+ "pair": "oecd-corporate-governance-2015-to-2023",
+ "protocol": "documented packet commands only; list 8 KiB, show 16 KiB; reviewer saw no PDF, report or bundle file",
+ "reviewer": "the assistant session that produced this record (self-evaluation)",
+ "settled_cases": 23,
+ "cases_total": 155,
+ "import": {
+  "accepted": 23,
+  "reviewed_cases": 23,
+  "unanswered_cases": 132,
+  "undetermined_cases": 0,
+  "need_more_evidence_cases": 0
+ },
+ "precision": {
+  "cases_whose_two_sides_differ": 23,
+  "new_quote_located": 23,
+  "old_quote_located": 23,
+  "old_quote_located_from_first_character": 7,
+  "note": "The sixteen others match from a fragment inside the quote; the case's inferred reading order reconstructs a space the linear glyph dump does not."
+ },
+ "recall": {
+  "old_sentences": 591,
+  "new_sentences": 981,
+  "identical_in_position": 90,
+  "changed_old_sentences": 501,
+  "quoted_by_settled_cases": 22,
+  "ratio": 0.044,
+  "ground_truth": "sentence diff of both baseline texts, sentences of 40+ characters",
+  "note": "An estimate over reflowed extracted text, not a reference annotation."
+ },
+ "engine_coverage_for_comparison": {
+  "old_compared_sources": 193,
+  "old_discovered_sources": 137926
+ },
+ "defect_found_and_fixed": "A malformed decisions file was refused as malformed_bundle with an untagged-enum message naming no field. Submissions now fail as malformed_decisions or unreadable_decisions and name what is missing.",
+ "not_established": [
+  "Any generalisation beyond this pair.",
+  "That the extraction is correct about the PDFs; precision was checked against the same extractor.",
+  "That an independent annotator would score these decisions the same way.",
+  "That a reviewer can detect an engine error, since every settled case is a difference by construction."
+ ]
+}

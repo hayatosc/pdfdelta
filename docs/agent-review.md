@@ -343,9 +343,12 @@ host's own identity:
 }
 ```
 
-`bundle_id` comes from the manifest, `case_id` and the hypothesis identifiers
-from a listing, and every `evidence_refs` entry is a `side:alias` pair that the
-case itself quotes. A reviewer that cannot decide answers `undetermined`, or
+`bundle_id` comes from the manifest and is carried by every decision, not once
+by the envelope, so a decision remains self-describing wherever it travels.
+`case_id` and the hypothesis identifiers come from a listing, and every
+`evidence_refs` entry is a `side:alias` pair that the case itself quotes. A
+submission that does not have this shape is refused as `malformed_decisions`,
+naming the field that is missing. A reviewer that cannot decide answers `undetermined`, or
 `need_more_evidence` with a `requests` entry naming the detail level it wants.
 
 ### Driving it from a host agent
@@ -415,6 +418,14 @@ through the packet — costs about 2.2 times the text, and always will, because
 that account is what the raw text does not carry. The measurement and its
 caveats are in
 `benchmark/realworld/remaining/agent-review/corpus-token-measurement.md`.
+
+One agent has read one bundle end to end under this contract and had its
+answers checked against both documents: all 23 settled findings were real
+differences, correctly quoted from their own documents, and they covered about
+4% of that pair's changed sentences. That ratio is the comparison's, not the
+packet's — the same run compared 193 of 137,926 glyphs. The record, including
+why it is weak evidence, is in
+`benchmark/realworld/remaining/agent-review/agent-loop-quality.md`.
 
 ## Trust boundary
 

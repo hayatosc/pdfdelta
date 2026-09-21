@@ -28,6 +28,7 @@ These seven checker tests establish evaluator behavior only, not real recovery.
 | Record | Observation | Consequence |
 | --- | --- | --- |
 | `paint-probe.json` | 63 successful documents among 72 bounded attempts; 30 pairs have both sides. No complete conservative projection matches. | Missing captures remain explicit; this does not establish impossibility of other proofs. |
+| `shared-evidence-coverage-diagnosis.json` | On `oecd-corporate-governance`, the shared-evidence route compares 193 of 137,926 discovered glyphs. Raising the matching work and ownership budgets 64x and keeping the discarded proposal set both leave accepted correspondences at 4. | The blocker is correspondence acceptance, not enumeration, budget or truncation. `--limit-scale` does not reach `MatchingLimits` at all. |
 | `paint-marker-probe.json` | W-2 matches all 11 pages after omitting text and marked-content operators; five other selected pairs do not. | A candidate for a full execution proof, not an inventory certificate. |
 | `paint-state-probe.json` | Schedule C/SE have changed stroke widths, lengths or positions. | Exact projected-program equality fails; nearby shapes cannot substitute for text identity. |
 | `local-order-probe.json` | Source extents and controls were located in retained native worker glyph tuples. | A glyph interval after the last paint still does not exclude text painted earlier inside the visual band. |

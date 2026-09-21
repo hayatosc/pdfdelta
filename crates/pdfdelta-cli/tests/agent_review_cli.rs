@@ -1232,3 +1232,62 @@ fn short_unexamined_material_is_quoted_because_locating_it_would_cost_more() {
         "a locator for a single short line would cost more than the line: {shown}"
     );
 }
+
+#[test]
+fn a_malformed_submission_is_refused_under_its_own_code_naming_the_missing_field() {
+    let directory = TestDirectory::new();
+    let bundle = text_bundle(&directory, "bundle");
+    let case = first_case(&bundle);
+    // A decision without its own schema and bundle_id, which the envelope does
+    // not supply on its behalf.
+    let decisions = directory.join("bad.json");
+    std::fs::write(
+        &decisions,
+        serde_json::to_vec(&serde_json::json!({
+            "decisions": [{ "case_id": case, "status": "undetermined" }],
+        }))
+        .expect("decisions"),
+    )
+    .expect("write");
+    let answer = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        directory.join("out.json").to_str().expect("path"),
+    ]);
+    assert_eq!(answer.status.code(), Some(2));
+    let answer = json(&answer);
+    assert_eq!(
+        answer["error"], "malformed_decisions",
+        "the caller's file is not the bundle: {answer}"
+    );
+    let detail = answer["detail"].as_str().expect("a detail");
+    assert!(
+        detail.contains("schema"),
+        "the refusal names the missing field: {detail}"
+    );
+    assert!(
+        detail.contains("bundle_id"),
+        "the refusal states what a decision must carry: {detail}"
+    );
+}
+
+#[test]
+fn a_missing_submission_file_is_not_reported_as_an_unreadable_bundle() {
+    let directory = TestDirectory::new();
+    let bundle = text_bundle(&directory, "bundle");
+    let answer = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        directory.join("absent.json").to_str().expect("path"),
+        "--output",
+        directory.join("out.json").to_str().expect("path"),
+    ]);
+    assert_eq!(answer.status.code(), Some(2));
+    assert_eq!(json(&answer)["error"], "unreadable_decisions");
+}

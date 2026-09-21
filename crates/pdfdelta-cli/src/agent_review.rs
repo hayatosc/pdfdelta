@@ -1270,28 +1270,58 @@ fn decode_page(
     Ok(samples)
 }
 
-/// A submitted set of external assessments.
-///
-/// Either a bare array of decisions or an object carrying them, so a host can
-/// add its own identity without changing the decisions themselves.
+/// A submitted set of external assessments, carrying the host's own identity.
 #[derive(Deserialize)]
-#[serde(untagged)]
-enum SubmittedDecisions {
-    List(Vec<AgentDecision>),
-    Envelope {
-        #[serde(default)]
-        agent: Option<serde_json::Value>,
-        decisions: Vec<AgentDecision>,
-    },
+struct DecisionEnvelope {
+    #[serde(default)]
+    agent: Option<serde_json::Value>,
+    decisions: Vec<AgentDecision>,
 }
 
-impl SubmittedDecisions {
-    fn into_parts(self) -> (Option<serde_json::Value>, Vec<AgentDecision>) {
-        match self {
-            Self::List(decisions) => (None, decisions),
-            Self::Envelope { agent, decisions } => (agent, decisions),
-        }
+/// What a submission must look like, quoted back when one does not.
+const DECISION_SHAPE: &str = "expected an array of decisions, or an object with a `decisions` array; \
+     every decision carries its own `schema` and `bundle_id`";
+
+/// Reads a submission, naming what is wrong with it.
+///
+/// A submission is the caller's file, not part of the bundle, so its failures
+/// are reported under their own error codes. The two accepted shapes are tried
+/// in order rather than as one untagged union: a union reports only that no
+/// variant matched, which never names the field a decision is missing, and a
+/// host that has to repair its own submission cannot act on that.
+fn read_decisions(
+    path: &Path,
+) -> Result<(Option<serde_json::Value>, Vec<AgentDecision>), QueryError> {
+    let refuse = |error: serde_json::Error| {
+        QueryError::new(
+            "malformed_decisions",
+            format!("{}: {error}; {DECISION_SHAPE}", path.display()),
+        )
+    };
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        QueryError::new(
+            "unreadable_decisions",
+            format!("{}: {error}", path.display()),
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(QueryError::new(
+            "unreadable_decisions",
+            format!("{} is not a regular file", path.display()),
+        ));
     }
+    let bytes = std::fs::read(path).map_err(|error| {
+        QueryError::new(
+            "unreadable_decisions",
+            format!("{}: {error}", path.display()),
+        )
+    })?;
+    let submitted: serde_json::Value = serde_json::from_slice(&bytes).map_err(refuse)?;
+    if submitted.is_array() {
+        return Ok((None, serde_json::from_value(submitted).map_err(refuse)?));
+    }
+    let envelope: DecisionEnvelope = serde_json::from_value(submitted).map_err(refuse)?;
+    Ok((envelope.agent, envelope.decisions))
 }
 
 /// Stores validated external assessments as a new artifact.
@@ -1309,8 +1339,7 @@ pub(crate) fn import(
 ) -> Result<Vec<u8>, QueryError> {
     let manifest: StoredManifest = read_json(&artifact(directory, COMPLETION_MARKER))?;
     let index: CaseIndex = manifest.read_verified(directory, CASE_INDEX)?;
-    let submitted: SubmittedDecisions = read_json(decisions)?;
-    let (agent, submitted) = submitted.into_parts();
+    let (agent, submitted) = read_decisions(decisions)?;
     let bundle = pdfdelta_core::review::BundleId::new(manifest.bundle_id.clone())
         .map_err(|error| QueryError::new("malformed_bundle", error.to_string()))?;
 
