@@ -388,7 +388,7 @@
     "raw_glyph_audit_sha256": "fd899f4fd4bf0cbe0b0473474f70b6df3d0fd58a8a55033cec88679ba8c4407a",
     "projection_audit_sha256": "e86bca090085f8db40b112628828f362abe442a026f047cab8e765e75a48d4a3",
     "endpoint_audit_sha256": "79c20fe7f94053893a54b1db211d4dc48f5c8211b08aea98e7d52511fbda6f65",
-    "region_grouping_sha256": "87e85a05a082996650ec1fd27d753c2d0b99d140060274b249b16138a89bcc68",
-    "region_grouping_script_sha256": "2b05c5022b33ced53c0388285b737e2550d1d0ec02d0b0e9e070761c07407e3d"
+    "region_grouping_sha256": "fe61c9968978671305fb8b2acff22fecf996fc56622038b55b54047b28387040",
+    "region_grouping_script_sha256": "d8f80b6e07a329718e60b518362f7ac7a07fa1f3193f74c34c0f1360e2cae2eb"
   }
 }

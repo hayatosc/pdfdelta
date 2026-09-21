@@ -52,34 +52,23 @@ input (program, encoding, code).
   sides, all mapped through the proven id map, 0 unmapped / 0 missing /
   0 added; the same 12 raw glyphs are excluded from the projected inventory on
   both sides.
-- Region grouping (corrected, evidence-correction commit): 29 regions /
-  47,979 comparable tokens asserted, all 29 emitted as compact records in
-  `nasa-region-grouping.json`. `JsonUnresolvedRegion.evidence` is empty on
-  every region; joins now require EQUAL new_span block sets because span-local
-  range numbers are not comparable across unequal multi-block spans, and all
-  29 regions report `noncomparable_overlapping_spans` (the earlier
-  block-intersection join was invalid). Equal-block matched relations:
-  reasons `normalization_uncertainty` 58 / `domain_not_closed` 58,
-  assumptions `input_reading_order` 87 / `canonical_normalization` 87 /
-  `alternative_line_break_normalization` 29, outcomes `tentative` 58 /
-  `established` 29, searches all `complete`. The report head does not contain
-  the guessed `*_extraction_complete` keys, so extraction completeness is
-  taken from the raw probe (`issues=0` on H17) and comparison completeness
-  from the capture summary (`false`); the earlier hardcoded flags are removed.
-- Review-bound distinction (corrected): `review.rs:318-343` creates a
-  separate Established relation carrying `AlternativeLineBreakNormalization`
-  for review-unit universal count bounds, while the original canonical
-  relation and candidates remain tentative. The 29 established records
-  correlate with `assessment.review_units` entries (`JsonReviewUnit`:
-  `relation`, `normalization_hypotheses`, normalization/mandatory spans,
-  `changed_count`/`unresolved_changed_count`); see
-  `review_unit_correlation` in `nasa-region-grouping.json`. They are review
-  proofs, not exact stable event signatures, so budget alone is not proven to
-  block exact output.
-- The earlier "around the recovered page 85 run" localization was
-  unsupported: the largest current representatives are pages 18, 28, 94, 25
-  and 30. That claim is removed; a representative review-unit chain and its
-  emission consumer still need a frozen-binary trace.
+- Region grouping (schema-driven, final): `extraction.old_complete` and
+  `extraction.new_complete` are read from those JSON paths (both true) and
+  `comparison_complete=false` from the capture summary. 29 regions /
+  47,979 comparable tokens with asserted unique non-overlapping coverage; 87
+  matched relations, all 87 exact comparable-range matches on equal ordered
+  block tuples. Reasons `normalization_uncertainty` 58 / `domain_not_closed`
+  58; assumptions `input_reading_order` 87 / `canonical_normalization` 87 /
+  `alternative_line_break_normalization` 29; outcomes `tentative` 58 /
+  `established` 29. All 29 records are in `nasa-region-grouping.json`.
+- Review-bound distinction: `review.rs:318-343` creates a separate
+  Established relation with `AlternativeLineBreakNormalization` for
+  review-unit universal count bounds while the original canonical relation
+  and candidates stay tentative. All 29 review units link to the 29 regions
+  (`review_unit_correlation`), so these are review proofs, not exact stable
+  event signatures; budget alone is not proven to block exact output. The
+  earlier page-85 localization claim was unsupported and removed; measured
+  representatives are pages 18, 28, 94, 25, 30.
 
 ## Preserved failures and limitations
 

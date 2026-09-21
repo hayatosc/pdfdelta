@@ -1,12 +1,13 @@
 {
   "regions": 29,
-  "relations": 5344,
   "tokens_total": 47979,
-  "gap_regions": 0,
-  "noncomparable_overlapping_spans": 29,
-  "evidence_frequency": {
-    "<none>": 29
+  "extraction": {
+    "old_complete": true,
+    "new_complete": true
   },
+  "comparison_complete": false,
+  "matched_relation_count": 87,
+  "exact_range_matches": 87,
   "matched_reason_frequency": {
     "normalization_uncertainty": 58,
     "domain_not_closed": 58
@@ -20,23 +21,13 @@
     "tentative": 58,
     "established": 29
   },
-  "matched_search_frequency": {
-    "complete": 87
-  },
-  "head_completion_keys": {
-    "new_extraction_complete": false,
-    "old_extraction_complete": false,
-    "new_extraction_complete_true": false,
-    "old_extraction_complete_true": false
-  },
-  "summary_comparison_complete": false,
   "records": [
     {
-      "blocks": [
-        122
-      ],
       "pages": [
         5
+      ],
+      "blocks": [
+        122
       ],
       "comparable_range": {
         "start": 0,
@@ -49,11 +40,6 @@
       "tokens": 462,
       "evidence": [],
       "text_prefix": "program requirements. Furthermore, it is expected that the g",
-      "matched_relation_indices": [
-        245,
-        246,
-        5315
-      ],
       "matched_relations": [
         {
           "index": 245,
@@ -68,13 +54,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            122
-          ],
           "comparable_range": {
             "start": 0,
             "end": 462
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 246,
@@ -89,13 +73,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            122
-          ],
           "comparable_range": {
             "start": 0,
             "end": 462
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5315,
@@ -108,22 +90,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            122
-          ],
           "comparable_range": {
             "start": 0,
             "end": 462
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        595
-      ],
       "pages": [
         14
+      ],
+      "blocks": [
+        595
       ],
       "comparable_range": {
         "start": 0,
@@ -136,11 +116,6 @@
       "tokens": 258,
       "evidence": [],
       "text_prefix": "Small unintended variations in the geometry that result from",
-      "matched_relation_indices": [
-        1191,
-        1192,
-        5316
-      ],
       "matched_relations": [
         {
           "index": 1191,
@@ -155,13 +130,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            595
-          ],
           "comparable_range": {
             "start": 0,
             "end": 258
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1192,
@@ -176,13 +149,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            595
-          ],
           "comparable_range": {
             "start": 0,
             "end": 258
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5316,
@@ -195,22 +166,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            595
-          ],
           "comparable_range": {
             "start": 0,
             "end": 258
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        632
-      ],
       "pages": [
         16
+      ],
+      "blocks": [
+        632
       ],
       "comparable_range": {
         "start": 0,
@@ -223,11 +192,6 @@
       "tokens": 227,
       "evidence": [],
       "text_prefix": "A form of buckling that occurs in relatively stiff cylinders",
-      "matched_relation_indices": [
-        1265,
-        1266,
-        5317
-      ],
       "matched_relations": [
         {
           "index": 1265,
@@ -242,13 +206,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            632
-          ],
           "comparable_range": {
             "start": 0,
             "end": 227
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1266,
@@ -263,13 +225,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            632
-          ],
           "comparable_range": {
             "start": 0,
             "end": 227
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5317,
@@ -282,22 +242,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            632
-          ],
           "comparable_range": {
             "start": 0,
             "end": 227
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        653
-      ],
       "pages": [
         18
+      ],
+      "blocks": [
+        653
       ],
       "comparable_range": {
         "start": 0,
@@ -310,11 +268,6 @@
       "tokens": 4188,
       "evidence": [],
       "text_prefix": "A structure is said to be unstable under static loading when",
-      "matched_relation_indices": [
-        1307,
-        1308,
-        5318
-      ],
       "matched_relations": [
         {
           "index": 1307,
@@ -329,13 +282,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            653
-          ],
           "comparable_range": {
             "start": 0,
             "end": 4188
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1308,
@@ -350,13 +301,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            653
-          ],
           "comparable_range": {
             "start": 0,
             "end": 4188
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5318,
@@ -369,22 +318,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            653
-          ],
           "comparable_range": {
             "start": 0,
             "end": 4188
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        680
-      ],
       "pages": [
         23
+      ],
+      "blocks": [
+        680
       ],
       "comparable_range": {
         "start": 0,
@@ -397,11 +344,6 @@
       "tokens": 505,
       "evidence": [],
       "text_prefix": "Considerable progress has been made towards understanding th",
-      "matched_relation_indices": [
-        1361,
-        1362,
-        5319
-      ],
       "matched_relations": [
         {
           "index": 1361,
@@ -416,13 +358,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            680
-          ],
           "comparable_range": {
             "start": 0,
             "end": 505
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1362,
@@ -437,13 +377,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            680
-          ],
           "comparable_range": {
             "start": 0,
             "end": 505
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5319,
@@ -456,22 +394,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            680
-          ],
           "comparable_range": {
             "start": 0,
             "end": 505
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        692
-      ],
       "pages": [
         25
+      ],
+      "blocks": [
+        692
       ],
       "comparable_range": {
         "start": 0,
@@ -484,11 +420,6 @@
       "tokens": 2924,
       "evidence": [],
       "text_prefix": "While initial geometric imperfections are considered to be t",
-      "matched_relation_indices": [
-        1385,
-        1386,
-        5320
-      ],
       "matched_relations": [
         {
           "index": 1385,
@@ -503,13 +434,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            692
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2924
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1386,
@@ -524,13 +453,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            692
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2924
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5320,
@@ -543,22 +470,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            692
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2924
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        718
-      ],
       "pages": [
         28
+      ],
+      "blocks": [
+        718
       ],
       "comparable_range": {
         "start": 0,
@@ -571,11 +496,6 @@
       "tokens": 4033,
       "evidence": [],
       "text_prefix": "stiffened cylinders. In one study, isogrid stiffener designs",
-      "matched_relation_indices": [
-        1437,
-        1438,
-        5321
-      ],
       "matched_relations": [
         {
           "index": 1437,
@@ -590,13 +510,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            718
-          ],
           "comparable_range": {
             "start": 0,
             "end": 4033
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1438,
@@ -611,13 +529,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            718
-          ],
           "comparable_range": {
             "start": 0,
             "end": 4033
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5321,
@@ -630,22 +546,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            718
-          ],
           "comparable_range": {
             "start": 0,
             "end": 4033
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        728
-      ],
       "pages": [
         30
+      ],
+      "blocks": [
+        728
       ],
       "comparable_range": {
         "start": 0,
@@ -658,11 +572,6 @@
       "tokens": 2798,
       "evidence": [],
       "text_prefix": "manufacturing methods used and include welding, mechanical f",
-      "matched_relation_indices": [
-        1457,
-        1458,
-        5322
-      ],
       "matched_relations": [
         {
           "index": 1457,
@@ -677,13 +586,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            728
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2798
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1458,
@@ -698,13 +605,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            728
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2798
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5322,
@@ -717,22 +622,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            728
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2798
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        730
-      ],
       "pages": [
         30
+      ],
+      "blocks": [
+        730
       ],
       "comparable_range": {
         "start": 0,
@@ -745,11 +648,6 @@
       "tokens": 1246,
       "evidence": [],
       "text_prefix": "Considerable progress has been made on the development of im",
-      "matched_relation_indices": [
-        1461,
-        1462,
-        5323
-      ],
       "matched_relations": [
         {
           "index": 1461,
@@ -764,13 +662,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            730
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1246
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1462,
@@ -785,13 +681,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            730
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1246
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5323,
@@ -804,22 +698,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            730
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1246
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        739
-      ],
       "pages": [
         31
+      ],
+      "blocks": [
+        739
       ],
       "comparable_range": {
         "start": 0,
@@ -832,11 +724,6 @@
       "tokens": 2082,
       "evidence": [],
       "text_prefix": "by including additional mid-surface rotational terms in the ",
-      "matched_relation_indices": [
-        1479,
-        1480,
-        5324
-      ],
       "matched_relations": [
         {
           "index": 1479,
@@ -851,13 +738,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            739
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2082
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1480,
@@ -872,13 +757,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            739
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2082
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5324,
@@ -891,22 +774,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            739
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2082
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        742
-      ],
       "pages": [
         32
+      ],
+      "blocks": [
+        742
       ],
       "comparable_range": {
         "start": 0,
@@ -919,11 +800,6 @@
       "tokens": 2293,
       "evidence": [],
       "text_prefix": "accurate solutions can be obtained in which all nonlinear ef",
-      "matched_relation_indices": [
-        1485,
-        1486,
-        5325
-      ],
       "matched_relations": [
         {
           "index": 1485,
@@ -938,13 +814,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            742
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2293
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1486,
@@ -959,13 +833,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            742
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2293
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5325,
@@ -978,22 +850,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            742
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2293
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        756
-      ],
       "pages": [
         34
+      ],
+      "blocks": [
+        756
       ],
       "comparable_range": {
         "start": 0,
@@ -1006,11 +876,6 @@
       "tokens": 2182,
       "evidence": [],
       "text_prefix": "(1968) [1]. The user should use this NASA SP-8007 revision f",
-      "matched_relation_indices": [
-        1513,
-        1514,
-        5326
-      ],
       "matched_relations": [
         {
           "index": 1513,
@@ -1025,13 +890,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            756
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2182
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1514,
@@ -1046,13 +909,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            756
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2182
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5326,
@@ -1065,22 +926,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            756
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2182
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        768
-      ],
       "pages": [
         36
+      ],
+      "blocks": [
+        768
       ],
       "comparable_range": {
         "start": 0,
@@ -1093,11 +952,6 @@
       "tokens": 1426,
       "evidence": [],
       "text_prefix": "A key aspect of these alternate approaches is to have some p",
-      "matched_relation_indices": [
-        1537,
-        1538,
-        5327
-      ],
       "matched_relations": [
         {
           "index": 1537,
@@ -1112,13 +966,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            768
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1426
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1538,
@@ -1133,13 +985,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            768
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1426
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5327,
@@ -1152,22 +1002,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            768
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1426
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        810
-      ],
       "pages": [
         39
+      ],
+      "blocks": [
+        810
       ],
       "comparable_range": {
         "start": 0,
@@ -1180,11 +1028,6 @@
       "tokens": 552,
       "evidence": [],
       "text_prefix": "The cylinder length, radius, and wall thickness are respecti",
-      "matched_relation_indices": [
-        1621,
-        1622,
-        5328
-      ],
       "matched_relations": [
         {
           "index": 1621,
@@ -1199,13 +1042,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            810
-          ],
           "comparable_range": {
             "start": 0,
             "end": 552
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 1622,
@@ -1220,13 +1061,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            810
-          ],
           "comparable_range": {
             "start": 0,
             "end": 552
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5328,
@@ -1239,22 +1078,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            810
-          ],
           "comparable_range": {
             "start": 0,
             "end": 552
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        1172
-      ],
       "pages": [
         51
+      ],
+      "blocks": [
+        1172
       ],
       "comparable_range": {
         "start": 0,
@@ -1267,11 +1104,6 @@
       "tokens": 2417,
       "evidence": [],
       "text_prefix": "The term orthotropic cylinders covers a wide variety of cyli",
-      "matched_relation_indices": [
-        2345,
-        2346,
-        5329
-      ],
       "matched_relations": [
         {
           "index": 2345,
@@ -1286,13 +1118,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1172
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2417
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 2346,
@@ -1307,13 +1137,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1172
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2417
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5329,
@@ -1326,22 +1154,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            1172
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2417
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        1250
-      ],
       "pages": [
         53
+      ],
+      "blocks": [
+        1250
       ],
       "comparable_range": {
         "start": 0,
@@ -1354,11 +1180,6 @@
       "tokens": 869,
       "evidence": [],
       "text_prefix": "As discussed above, more recent testing has produced bucklin",
-      "matched_relation_indices": [
-        2501,
-        2502,
-        5330
-      ],
       "matched_relations": [
         {
           "index": 2501,
@@ -1373,13 +1194,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1250
-          ],
           "comparable_range": {
             "start": 0,
             "end": 869
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 2502,
@@ -1394,13 +1213,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1250
-          ],
           "comparable_range": {
             "start": 0,
             "end": 869
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5330,
@@ -1413,22 +1230,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            1250
-          ],
           "comparable_range": {
             "start": 0,
             "end": 869
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        1901
-      ],
       "pages": [
         79
+      ],
+      "blocks": [
+        1901
       ],
       "comparable_range": {
         "start": 0,
@@ -1441,11 +1256,6 @@
       "tokens": 787,
       "evidence": [],
       "text_prefix": "uniform cylinder should be modeled and analyzed first, and t",
-      "matched_relation_indices": [
-        3803,
-        3804,
-        5331
-      ],
       "matched_relations": [
         {
           "index": 3803,
@@ -1460,13 +1270,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1901
-          ],
           "comparable_range": {
             "start": 0,
             "end": 787
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 3804,
@@ -1481,13 +1289,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1901
-          ],
           "comparable_range": {
             "start": 0,
             "end": 787
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5331,
@@ -1500,22 +1306,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            1901
-          ],
           "comparable_range": {
             "start": 0,
             "end": 787
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        1906
-      ],
       "pages": [
         80
+      ],
+      "blocks": [
+        1906
       ],
       "comparable_range": {
         "start": 0,
@@ -1528,11 +1332,6 @@
       "tokens": 1328,
       "evidence": [],
       "text_prefix": "have been shown to possess some undesirable characteristics ",
-      "matched_relation_indices": [
-        3813,
-        3814,
-        5332
-      ],
       "matched_relations": [
         {
           "index": 3813,
@@ -1547,13 +1346,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1906
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1328
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 3814,
@@ -1568,13 +1365,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1906
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1328
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5332,
@@ -1587,22 +1382,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            1906
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1328
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        1920
-      ],
       "pages": [
         82
+      ],
+      "blocks": [
+        1920
       ],
       "comparable_range": {
         "start": 0,
@@ -1615,11 +1408,6 @@
       "tokens": 1007,
       "evidence": [],
       "text_prefix": "However, situations may exist during the early stages of des",
-      "matched_relation_indices": [
-        3841,
-        3842,
-        5333
-      ],
       "matched_relations": [
         {
           "index": 3841,
@@ -1634,13 +1422,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1920
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1007
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 3842,
@@ -1655,13 +1441,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1920
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1007
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5333,
@@ -1674,22 +1458,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            1920
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1007
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        1927
-      ],
       "pages": [
         82
+      ],
+      "blocks": [
+        1927
       ],
       "comparable_range": {
         "start": 0,
@@ -1702,11 +1484,6 @@
       "tokens": 1740,
       "evidence": [],
       "text_prefix": "The OML and inner mold line (IML) geometry of cylinder can b",
-      "matched_relation_indices": [
-        3855,
-        3856,
-        5334
-      ],
       "matched_relations": [
         {
           "index": 3855,
@@ -1721,13 +1498,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1927
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1740
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 3856,
@@ -1742,13 +1517,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            1927
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1740
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5334,
@@ -1761,22 +1534,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            1927
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1740
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2000
-      ],
       "pages": [
         87
+      ],
+      "blocks": [
+        2000
       ],
       "comparable_range": {
         "start": 0,
@@ -1789,11 +1560,6 @@
       "tokens": 796,
       "evidence": [],
       "text_prefix": "should be identified to help determine the limitations and r",
-      "matched_relation_indices": [
-        4001,
-        4002,
-        5335
-      ],
       "matched_relations": [
         {
           "index": 4001,
@@ -1808,13 +1574,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2000
-          ],
           "comparable_range": {
             "start": 0,
             "end": 796
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4002,
@@ -1829,13 +1593,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2000
-          ],
           "comparable_range": {
             "start": 0,
             "end": 796
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5335,
@@ -1848,22 +1610,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2000
-          ],
           "comparable_range": {
             "start": 0,
             "end": 796
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2007
-      ],
       "pages": [
         88
+      ],
+      "blocks": [
+        2007
       ],
       "comparable_range": {
         "start": 0,
@@ -1876,11 +1636,6 @@
       "tokens": 2089,
       "evidence": [],
       "text_prefix": "In general, model validation requirements are determined by ",
-      "matched_relation_indices": [
-        4015,
-        4016,
-        5336
-      ],
       "matched_relations": [
         {
           "index": 4015,
@@ -1895,13 +1650,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2007
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2089
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4016,
@@ -1916,13 +1669,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2007
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2089
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5336,
@@ -1935,22 +1686,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2007
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2089
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2010
-      ],
       "pages": [
         89
+      ],
+      "blocks": [
+        2010
       ],
       "comparable_range": {
         "start": 0,
@@ -1963,11 +1712,6 @@
       "tokens": 1593,
       "evidence": [],
       "text_prefix": "Validation testing and data requirements follow directly fro",
-      "matched_relation_indices": [
-        4021,
-        4022,
-        5337
-      ],
       "matched_relations": [
         {
           "index": 4021,
@@ -1982,13 +1726,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2010
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1593
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4022,
@@ -2003,13 +1745,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2010
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1593
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5337,
@@ -2022,22 +1762,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2010
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1593
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2012
-      ],
       "pages": [
         89
+      ],
+      "blocks": [
+        2012
       ],
       "comparable_range": {
         "start": 0,
@@ -2050,11 +1788,6 @@
       "tokens": 1503,
       "evidence": [],
       "text_prefix": "characteristic comparing the predicted response and the meas",
-      "matched_relation_indices": [
-        4025,
-        4026,
-        5338
-      ],
       "matched_relations": [
         {
           "index": 4025,
@@ -2069,13 +1802,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2012
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1503
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4026,
@@ -2090,13 +1821,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2012
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1503
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5338,
@@ -2109,22 +1838,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2012
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1503
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2021
-      ],
       "pages": [
         90
+      ],
+      "blocks": [
+        2021
       ],
       "comparable_range": {
         "start": 0,
@@ -2137,11 +1864,6 @@
       "tokens": 1565,
       "evidence": [],
       "text_prefix": "As discussed earlier in this document, a KDF can be describe",
-      "matched_relation_indices": [
-        4043,
-        4044,
-        5339
-      ],
       "matched_relations": [
         {
           "index": 4043,
@@ -2156,13 +1878,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2021
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1565
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4044,
@@ -2177,13 +1897,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2021
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1565
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5339,
@@ -2196,22 +1914,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2021
-          ],
           "comparable_range": {
             "start": 0,
             "end": 1565
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2024
-      ],
       "pages": [
         91
+      ],
+      "blocks": [
+        2024
       ],
       "comparable_range": {
         "start": 0,
@@ -2224,11 +1940,6 @@
       "tokens": 2151,
       "evidence": [],
       "text_prefix": "than relying on experimental data, the expected buckling loa",
-      "matched_relation_indices": [
-        4049,
-        4050,
-        5340
-      ],
       "matched_relations": [
         {
           "index": 4049,
@@ -2243,13 +1954,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2024
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2151
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4050,
@@ -2264,13 +1973,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2024
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2151
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5340,
@@ -2283,22 +1990,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2024
-          ],
           "comparable_range": {
             "start": 0,
             "end": 2151
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2069
-      ],
       "pages": [
         92
+      ],
+      "blocks": [
+        2069
       ],
       "comparable_range": {
         "start": 0,
@@ -2311,11 +2016,6 @@
       "tokens": 671,
       "evidence": [],
       "text_prefix": "During the analysis-based KDF development process, the vario",
-      "matched_relation_indices": [
-        4139,
-        4140,
-        5341
-      ],
       "matched_relations": [
         {
           "index": 4139,
@@ -2330,13 +2030,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2069
-          ],
           "comparable_range": {
             "start": 0,
             "end": 671
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4140,
@@ -2351,13 +2049,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2069
-          ],
           "comparable_range": {
             "start": 0,
             "end": 671
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5341,
@@ -2370,22 +2066,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2069
-          ],
           "comparable_range": {
             "start": 0,
             "end": 671
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2086
-      ],
       "pages": [
         93
+      ],
+      "blocks": [
+        2086
       ],
       "comparable_range": {
         "start": 0,
@@ -2398,11 +2092,6 @@
       "tokens": 771,
       "evidence": [],
       "text_prefix": "Development of Shell Buckling Knockdown Factors for Stiffene",
-      "matched_relation_indices": [
-        4173,
-        4174,
-        5342
-      ],
       "matched_relations": [
         {
           "index": 4173,
@@ -2417,13 +2106,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2086
-          ],
           "comparable_range": {
             "start": 0,
             "end": 771
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4174,
@@ -2438,13 +2125,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2086
-          ],
           "comparable_range": {
             "start": 0,
             "end": 771
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5342,
@@ -2457,22 +2142,20 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2086
-          ],
           "comparable_range": {
             "start": 0,
             "end": 771
-          }
+          },
+          "exact_range": true
         }
       ]
     },
     {
-      "blocks": [
-        2089
-      ],
       "pages": [
         94
+      ],
+      "blocks": [
+        2089
       ],
       "comparable_range": {
         "start": 0,
@@ -2485,11 +2168,6 @@
       "tokens": 3516,
       "evidence": [],
       "text_prefix": "In Section III, the high-fidelity finite-element models and ",
-      "matched_relation_indices": [
-        4179,
-        4180,
-        5343
-      ],
       "matched_relations": [
         {
           "index": 4179,
@@ -2504,13 +2182,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2089
-          ],
           "comparable_range": {
             "start": 0,
             "end": 3516
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 4180,
@@ -2525,13 +2201,11 @@
             "input_reading_order",
             "canonical_normalization"
           ],
-          "blocks": [
-            2089
-          ],
           "comparable_range": {
             "start": 0,
             "end": 3516
-          }
+          },
+          "exact_range": true
         },
         {
           "index": 5343,
@@ -2544,112 +2218,17 @@
             "canonical_normalization",
             "alternative_line_break_normalization"
           ],
-          "blocks": [
-            2089
-          ],
           "comparable_range": {
             "start": 0,
             "end": 3516
-          }
+          },
+          "exact_range": true
         }
       ]
     }
   ],
   "binding": {
     "report_sha256": "8bec36a12755ebf844ec8f08fe109bc53c3e0d7dd1ff10cddc4510c2b705092f",
-    "script_sha256": "2b05c5022b33ced53c0388285b737e2550d1d0ec02d0b0e9e070761c07407e3d"
-  },
-  "review_unit_correlation": {
-    "review_units_total": 29,
-    "review_units_linked_to_29_regions": 29,
-    "linked_sample": [
-      {
-        "relation": 5315,
-        "search": "complete",
-        "normalization_hypotheses": 2,
-        "normalization_old_spans": 0,
-        "normalization_new_spans": 1,
-        "mandatory_old_spans": 0,
-        "mandatory_new_spans": 2,
-        "changed_count": {
-          "lower": 461,
-          "upper": 462
-        },
-        "unresolved_changed_count": {
-          "lower": 461,
-          "upper": 462
-        }
-      },
-      {
-        "relation": 5316,
-        "search": "complete",
-        "normalization_hypotheses": 2,
-        "normalization_old_spans": 0,
-        "normalization_new_spans": 1,
-        "mandatory_old_spans": 0,
-        "mandatory_new_spans": 2,
-        "changed_count": {
-          "lower": 257,
-          "upper": 258
-        },
-        "unresolved_changed_count": {
-          "lower": 257,
-          "upper": 258
-        }
-      },
-      {
-        "relation": 5317,
-        "search": "complete",
-        "normalization_hypotheses": 4,
-        "normalization_old_spans": 0,
-        "normalization_new_spans": 2,
-        "mandatory_old_spans": 0,
-        "mandatory_new_spans": 3,
-        "changed_count": {
-          "lower": 225,
-          "upper": 227
-        },
-        "unresolved_changed_count": {
-          "lower": 225,
-          "upper": 227
-        }
-      },
-      {
-        "relation": 5318,
-        "search": "complete",
-        "normalization_hypotheses": 2,
-        "normalization_old_spans": 0,
-        "normalization_new_spans": 1,
-        "mandatory_old_spans": 0,
-        "mandatory_new_spans": 2,
-        "changed_count": {
-          "lower": 4187,
-          "upper": 4188
-        },
-        "unresolved_changed_count": {
-          "lower": 4187,
-          "upper": 4188
-        }
-      },
-      {
-        "relation": 5319,
-        "search": "complete",
-        "normalization_hypotheses": 2,
-        "normalization_old_spans": 0,
-        "normalization_new_spans": 1,
-        "mandatory_old_spans": 0,
-        "mandatory_new_spans": 2,
-        "changed_count": {
-          "lower": 504,
-          "upper": 505
-        },
-        "unresolved_changed_count": {
-          "lower": 504,
-          "upper": 505
-        }
-      }
-    ],
-    "interpretation": "review.rs:318-343 creates a separate Established relation with AlternativeLineBreakNormalization for review-unit universal count bounds; the original canonical relation and candidates remain tentative. The 29 established records are therefore review bounds, not exact-emission acceptance, and budget alone is not proven to block exact output.",
-    "report_sha256": "8bec36a12755ebf844ec8f08fe109bc53c3e0d7dd1ff10cddc4510c2b705092f"
+    "script_sha256": "d8f80b6e07a329718e60b518362f7ac7a07fa1f3193f74c34c0f1360e2cae2eb"
   }
 }
