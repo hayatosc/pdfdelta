@@ -1,0 +1,144 @@
+{
+  "pair": "irs-w4-english-2024-to-2025",
+  "before_capture": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h14-full-iteration-005-native",
+  "after_capture": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h16-full-iteration-006-native",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 19987,
+          "tokens_after": 19987,
+          "resolved_before": 5725,
+          "resolved_after": 5947,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 222,
+          "transitions": {
+            "changed->changed": 1,
+            "equal->equal": 5724,
+            "unresolved->equal": 222,
+            "unresolved->unresolved": 14040
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 19987,
+          "tokens_after": 19987,
+          "resolved_before": 5725,
+          "resolved_after": 5947,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 222,
+          "transitions": {
+            "changed->changed": 1,
+            "equal->equal": 5724,
+            "unresolved->equal": 222,
+            "unresolved->unresolved": 14040
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 854,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 374,
+      "regions_after": 345,
+      "region_blocks": {
+        "old_before": 687,
+        "old_after": 658,
+        "new_before": 773,
+        "new_after": 744,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 21144,
+          "tokens_after": 21144,
+          "resolved_before": 6314,
+          "resolved_after": 6536,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 222,
+          "transitions": {
+            "changed->changed": 590,
+            "equal->equal": 5724,
+            "unresolved->equal": 222,
+            "unresolved->unresolved": 14608
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 21144,
+          "tokens_after": 21144,
+          "resolved_before": 6314,
+          "resolved_after": 6536,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 222,
+          "transitions": {
+            "changed->changed": 590,
+            "equal->equal": 5724,
+            "unresolved->equal": 222,
+            "unresolved->unresolved": 14608
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 941,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 374,
+      "regions_after": 345,
+      "region_blocks": {
+        "old_before": 687,
+        "old_after": 658,
+        "new_before": 773,
+        "new_after": 744,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 2,
+      "after": 2,
+      "retained": 2,
+      "identical": true
+    },
+    "formatting_only_changes": {
+      "before": 32,
+      "after": 32,
+      "retained": 32,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 3,
+      "after": 3,
+      "retained": 3,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 162,
+      "sources_accounted": 162,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 1785,
+      "sources_accounted": 1785,
+      "sources_missing": 0
+    }
+  },
+  "review": [],
+  "problems": [],
+  "retention": "pass"
+}

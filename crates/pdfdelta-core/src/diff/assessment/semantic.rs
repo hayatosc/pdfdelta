@@ -268,6 +268,30 @@ impl MandatoryMatchAnalysis {
             .is_ok()
     }
 
+    /// A mandatory matched pair that crosses the cut point `(a, b)`.
+    ///
+    /// A pair `(p, q)` (1-based) crosses when `p <= a && q > b` or
+    /// `p > a && q <= b`; every maximum matching then passes on opposite sides
+    /// of the point, so the point cannot be on any optimal script.
+    pub(super) fn crossing_witness(&self, a: usize, b: usize) -> Option<(usize, usize)> {
+        // `unique_pairs` is sorted by `(p, q)`: the last pair with `p <= a`
+        // carries the largest `q` of that prefix, and the first pair with
+        // `p > a` carries the smallest `q` of the suffix.
+        let split = self.unique_pairs.partition_point(|(p, _)| *p <= a);
+        if let Some(&pair) = self.unique_pairs.get(split.wrapping_sub(1))
+            && split > 0
+            && pair.1 > b
+        {
+            return Some(pair);
+        }
+        if let Some(&pair) = self.unique_pairs.get(split)
+            && pair.1 <= b
+        {
+            return Some(pair);
+        }
+        None
+    }
+
     /// Number of mandatory diagonal pairs along a slice of `length` tokens
     /// starting at the given zero-based offsets.
     pub(super) fn mandatory_diagonal_count(
@@ -843,6 +867,119 @@ mod tests {
                         }
                     }
                     assert_eq!(actual, expected, "old {old:?} new {new:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn binary_search_witness_matches_the_linear_scan() {
+        for alphabet in [b"ab".as_slice(), b"a ".as_slice()] {
+            for old_word in all_words(3) {
+                for new_word in all_words(3) {
+                    let old: Vec<u8> = old_word
+                        .iter()
+                        .map(|&token| alphabet[usize::from(token)])
+                        .collect();
+                    let new: Vec<u8> = new_word
+                        .iter()
+                        .map(|&token| alphabet[usize::from(token)])
+                        .collect();
+                    let mut budget = 10_000_000;
+                    let analysis = mandatory_match_analysis(&old, &new, &mut budget)
+                        .expect("analysis completes")
+                        .expect("analysis is affordable");
+                    for a in 0..=old.len() {
+                        for b in 0..=new.len() {
+                            let linear = analysis
+                                .unique_pairs
+                                .iter()
+                                .copied()
+                                .find(|(p, q)| (*p <= a && *q > b) || (*p > a && *q <= b));
+                            assert_eq!(
+                                analysis.crossing_witness(a, b).is_some(),
+                                linear.is_some(),
+                                "witness existence must match the scan: {old:?} {new:?} ({a},{b})"
+                            );
+                            if let Some((p, q)) = analysis.crossing_witness(a, b) {
+                                assert!(
+                                    (p <= a && q > b) || (p > a && q <= b),
+                                    "returned witness must cross: {old:?} {new:?} ({a},{b})"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn crossing_witness_excludes_the_cut_from_every_optimal_vertex_set() {
+        // The oracle enumerates every maximum matching independently and takes
+        // all grid vertices reachable between consecutive matched pairs,
+        // including the origin, the end and pure insertion/deletion corners.
+        for alphabet in [b"ab".as_slice(), b"a ".as_slice()] {
+            for old_word in all_words(3) {
+                for new_word in all_words(3) {
+                    let old: Vec<u8> = old_word
+                        .iter()
+                        .map(|&token| alphabet[usize::from(token)])
+                        .collect();
+                    let new: Vec<u8> = new_word
+                        .iter()
+                        .map(|&token| alphabet[usize::from(token)])
+                        .collect();
+                    let mut budget = 10_000_000;
+                    let analysis = mandatory_match_analysis(&old, &new, &mut budget)
+                        .expect("analysis completes")
+                        .expect("analysis is affordable");
+                    let mut matchings = Vec::new();
+                    enumerate_matchings(&old, &new, 0, 0, &mut Vec::new(), &mut matchings);
+                    let best = matchings
+                        .iter()
+                        .map(Vec::len)
+                        .max()
+                        .expect("empty matching");
+                    let lengths = (old.len(), new.len());
+                    let mut vertices = std::collections::BTreeSet::new();
+                    for matching in matchings.iter().filter(|matching| matching.len() == best) {
+                        let hunks = matching_hunks(&old, &new, matching);
+                        let mut previous = (0usize, 0usize);
+                        for &(match_old, match_new) in matching {
+                            for i in previous.0..=match_old {
+                                for j in previous.1..=match_new {
+                                    vertices.insert((i, j));
+                                }
+                            }
+                            previous = (match_old + 1, match_new + 1);
+                        }
+                        for i in previous.0..=old.len() {
+                            for j in previous.1..=new.len() {
+                                vertices.insert((i, j));
+                            }
+                        }
+                        for a in 0..=old.len() {
+                            for b in 0..=new.len() {
+                                if analysis.crossing_witness(a, b).is_some() {
+                                    assert!(
+                                        !independent_on_script((a, b), &hunks, lengths),
+                                        "a witnessed cut must fail the per-path point predicate: {old:?} {new:?} ({a},{b})"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    for a in 0..=old.len() {
+                        for b in 0..=new.len() {
+                            if analysis.crossing_witness(a, b).is_some() {
+                                assert!(
+                                    !vertices.contains(&(a, b)),
+                                    "a witnessed cut must be absent from every optimal vertex set: {old:?} {new:?} ({a},{b})"
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -1,0 +1,22 @@
+   Compiling pdfdelta-core v0.1.0 (/home/hayato/ghq/github.com/hayatosc/pdfdelta/crates/pdfdelta-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.60s
+     Running unittests src/lib.rs (target/debug/deps/pdfdelta_core-4ca9fa975ac0e46a)
+
+running 1 test
+test diff::assessment::assessor_issue_cache_tests::witnessed_impossible_cut_vetoes_the_invariant_proof_on_the_real_path ... FAILED
+
+failures:
+
+---- diff::assessment::assessor_issue_cache_tests::witnessed_impossible_cut_vetoes_the_invariant_proof_on_the_real_path stdout ----
+
+thread 'diff::assessment::assessor_issue_cache_tests::witnessed_impossible_cut_vetoes_the_invariant_proof_on_the_real_path' (710780) panicked at crates/pdfdelta-core/src/diff/assessment.rs:4986:9:
+the boundary consumer must reject a witnessed cut before enumeration
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    diff::assessment::assessor_issue_cache_tests::witnessed_impossible_cut_vetoes_the_invariant_proof_on_the_real_path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1383 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p pdfdelta-core --lib`

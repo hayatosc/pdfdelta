@@ -3726,6 +3726,9 @@ impl<'a, 'document> Assessor<'a, 'document> {
     ) -> Result<ProposalProof> {
         let [old, new] = proof_groups(self.sides, key)?;
         let lengths = [old.tokens.len(), new.tokens.len()];
+        if self.witnessed_impossible_cut(key, proposal, [&old, &new])? {
+            return Ok(ProposalProof::NotInvariant);
+        }
         let token_work = lengths[0].saturating_add(lengths[1]);
         let sides = self.sides;
         if !charge(&mut self.remaining_work, token_work) {
@@ -3800,6 +3803,9 @@ impl<'a, 'document> Assessor<'a, 'document> {
             return Ok(BoundaryDisplacement::Budget);
         }
         let mut exhausted = false;
+        if self.witnessed_impossible_cut(key, proposal, [&groups[0], &groups[1]])? {
+            return Ok(BoundaryDisplacement::NotProven);
+        }
         let target = [proposal.old.as_ref(), proposal.new.as_ref()];
         let outcome = semantic::check_hunks(
             &groups[0].tokens,
@@ -4075,6 +4081,66 @@ impl<'a, 'document> Assessor<'a, 'document> {
             self.forced_equal_relations.insert(index);
         }
         Ok(index)
+    }
+
+    /// Decisive negative for a fixed boundary cut, cache-only on the miss path.
+    ///
+    /// A mandatory equal pair crossing either cut point means no optimal path
+    /// passes through that point, so the boundary and invariant proofs cannot
+    /// succeed. Locating the fixed cut ranges is itself optional work and runs
+    /// only when both proposal spans exist and the domain analysis is already
+    /// cached; its group-build and query work is preflighted and charged before
+    /// it happens, and an unaffordable call leaves the shared remainder
+    /// untouched so the ordinary proof path runs unchanged. Each cut query is
+    /// one `partition_point` search, so the query charge is a conservative
+    /// `2 * usize::BITS` comparisons for the two cut points. Real
+    /// localization errors propagate unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns the localization errors from [`locate_in_group`].
+    fn witnessed_impossible_cut(
+        &mut self,
+        key: &DomainKey,
+        proposal: &ProposedRelation,
+        groups: [&GroupText; 2],
+    ) -> Result<bool> {
+        let (Some(old_span), Some(new_span)) = (proposal.old.as_ref(), proposal.new.as_ref())
+        else {
+            return Ok(false);
+        };
+        let Some(Some(analysis)) = self.mandatory_analyses.get(key) else {
+            return Ok(false);
+        };
+        // `locate_in_group` scans the parent group's block list and rebuilds
+        // prefix and child groups, so the bound counts parent blocks (including
+        // empty-token blocks) and parent tokens plus the child blocks.
+        let build_work = groups[0]
+            .blocks
+            .len()
+            .saturating_add(groups[1].blocks.len())
+            .saturating_add(groups[0].tokens.len())
+            .saturating_add(groups[1].tokens.len())
+            .saturating_add(old_span.blocks.len())
+            .saturating_add(new_span.blocks.len());
+        let query_work = usize::BITS as usize * 2;
+        let work = build_work.saturating_add(query_work);
+        if self.remaining_work < work {
+            return Ok(false);
+        }
+        charge(&mut self.remaining_work, work);
+        let Some(old_range) = locate_in_group(self.sides[0], Some(old_span), groups[0])? else {
+            return Ok(false);
+        };
+        let Some(new_range) = locate_in_group(self.sides[1], Some(new_span), groups[1])? else {
+            return Ok(false);
+        };
+        Ok(analysis
+            .crossing_witness(old_range.start, new_range.start)
+            .is_some()
+            || analysis
+                .crossing_witness(old_range.end, new_range.end)
+                .is_some())
     }
 
     /// Detects a localized child whose tokens are all mandatory matched pairs
@@ -4798,6 +4864,139 @@ mod assessor_issue_cache_tests {
             old_separator: BlockSeparator::Concatenate,
             new_separator: BlockSeparator::Concatenate,
         }
+    }
+
+    #[test]
+    fn witnessed_impossible_cut_vetoes_the_invariant_proof_on_the_real_path() -> Result<()> {
+        // Unequal parents keep a mandatory equal prefix so the off-diagonal
+        // start cut has a crossing witness, while the later differing token
+        // forces path enumeration when the veto is disabled. At the test
+        // budget the optional localization charge fits but the 24x24 suffix
+        // table does not, so only the witness can answer without enumeration.
+        let blocks: Vec<_> = (1u64..=8).map(plain_block).collect();
+        let mut new_blocks: Vec<_> = (101u64..=107).map(plain_block).collect();
+        let ab_d_block = |id: u64| {
+            let mut block = plain_block(id);
+            block.canonical.text = "ABD".to_owned();
+            block.raw.text = "ABD".to_owned();
+            block.matching = "ABD".to_owned();
+            block.matching_tokens = block
+                .canonical
+                .comparable_tokens()
+                .expect("ABD comparable tokens");
+            block
+        };
+        new_blocks.push(ab_d_block(108));
+        let old = super::super::SidePlan::inspect("old", &blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old: (1u64..=8).map(BlockId).collect(),
+                new: (101u64..=108).map(BlockId).collect(),
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::Low,
+                evidence: Vec::new(),
+                old_separator: None,
+                new_separator: None,
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let key = DomainKey {
+            local: None,
+            old: 0..8,
+            new: 0..8,
+            old_separator: BlockSeparator::Concatenate,
+            new_separator: BlockSeparator::Concatenate,
+        };
+        let off_diagonal = ProposedRelation {
+            old: Some(local_span(1, 1, 2)),
+            new: Some(local_span(101, 0, 1)),
+            span_indices: [None, None],
+            exact_recovery: false,
+        };
+        let diagonal = ProposedRelation {
+            old: Some(local_span(1, 0, 2)),
+            new: Some(local_span(101, 0, 2)),
+            span_indices: [None, None],
+            exact_recovery: false,
+        };
+        fn fresh<'a, 'document>(
+            old: &'a super::super::Side<'document>,
+            new: &'a super::super::Side<'document>,
+            alignment: &'a Alignment,
+        ) -> Result<Assessor<'a, 'document>> {
+            Assessor::new_with_evidence([old, new], alignment, None, DiffOptions::default(), None)
+        }
+        // The cached negative answers NotInvariant within 200 units while the
+        // same state without the veto exhausts on the suffix table.
+        let mut veto = fresh(&old, &new, &alignment)?;
+        assert!(
+            veto.forced_equal_child(&key, &diagonal)?.is_some(),
+            "the diagonal sibling must populate the cached analysis"
+        );
+        assert!(veto.mandatory_analyses.contains_key(&key));
+        veto.remaining_work = 200;
+        assert_eq!(
+            veto.proposal_edits_are_invariant(&off_diagonal, &key)?,
+            ProposalProof::NotInvariant,
+            "the cached crossing witness must veto without enumeration budget"
+        );
+        let mut fallback = fresh(&old, &new, &alignment)?;
+        assert!(fallback.forced_equal_child(&key, &diagonal)?.is_some());
+        fallback.remaining_work = 200;
+        assert_eq!(
+            fallback.proposal_edits_are_invariant(&diagonal, &key)?,
+            ProposalProof::Exhausted
+        );
+        // Cached but unaffordable optional work preserves the remainder: the
+        // helper refuses without spending and the ordinary path then charges.
+        let mut tight = fresh(&old, &new, &alignment)?;
+        assert!(tight.forced_equal_child(&key, &diagonal)?.is_some());
+        tight.remaining_work = 10;
+        let tight_before = tight.remaining_work;
+        let [tight_old, tight_new] = proof_groups(tight.sides, &key)?;
+        assert!(!tight.witnessed_impossible_cut(&key, &off_diagonal, [&tight_old, &tight_new])?);
+        assert_eq!(
+            tight.remaining_work, tight_before,
+            "an unaffordable optional localization must not spend"
+        );
+        // Boundary consumer: empty sidecars activate the negative-only path,
+        // so no exact-displacement mapping work is needed to reach the veto.
+        let mut boundary = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            Some(ExactDisplacementInput { old: &[], new: &[] }),
+        )?;
+        assert!(boundary.forced_equal_child(&key, &diagonal)?.is_some());
+        assert!(boundary.mandatory_analyses.contains_key(&key));
+        boundary.remaining_work = 250;
+        assert!(
+            matches!(
+                boundary.boundary_displacement_proof(&off_diagonal, &key)?,
+                BoundaryDisplacement::NotProven
+            ),
+            "the boundary consumer must reject a witnessed cut before enumeration"
+        );
+        // Cache miss falls back unchanged.
+        let mut miss = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            None,
+        )?;
+        miss.remaining_work = 0;
+        assert_eq!(
+            miss.proposal_edits_are_invariant(&off_diagonal, &key)?,
+            ProposalProof::Exhausted
+        );
+        Ok(())
     }
 
     #[test]

@@ -44,7 +44,7 @@ def main():
     if previous.keys() != current.keys():
         raise ValueError("capture summaries cover different pairs")
     lines = [
-        "# H2 to H5 native capture delta",
+        "# Native capture delta",
         "",
         f"- before: `{args.before}` sha256 `{sha256(args.before)}`",
         f"- after: `{args.after}` sha256 `{sha256(args.after)}`",
