@@ -1,0 +1,51 @@
+== font object 222 ==
+font:
+  Type = Name(Font)
+  Subtype = Name(Type1)
+  BaseFont = Name(IHBMOA+TT2Bo00)
+  Encoding = Dictionary
+  FirstChar = Int(2)
+  FontDescriptor = Dictionary
+  LastChar = Int(11)
+  Widths = Array(len 10)
+  ToUnicode = absent
+  FontFile3 stream dict:
+    Subtype = Name(Type1C)
+    Filter = Name(FlateDecode)
+    Length = Int(2305)
+  FontDescriptor:
+    Type = Name(FontDescriptor)
+    Ascent = Int(0)
+    CapHeight = Int(0)
+    CharSet = String(Literal, 59 bytes, hex 2f67313030342f673835362f67313030392f67313031302f…)
+    Descent = Int(0)
+    Flags = Int(4)
+    FontBBox = Array(len 4)
+    FontFile3 = Stream(dict_len 3)
+    FontName = Name(IHBMOA+TT2Bo00)
+    ItalicAngle = Int(0)
+    StemV = Int(0)
+  DescendantFonts = absent
+  Encoding:
+    Type = Name(Encoding)
+    Differences = Array(len 11)
+  FontDescriptor:
+    Type = Name(FontDescriptor)
+    Ascent = Int(0)
+    CapHeight = Int(0)
+    CharSet = String(Literal, 59 bytes, hex 2f67313030342f673835362f67313030392f67313031302f…)
+    Descent = Int(0)
+    Flags = Int(4)
+    FontBBox = Array(len 4)
+    FontFile3 = Stream(dict_len 3)
+    FontName = Name(IHBMOA+TT2Bo00)
+    ItalicAngle = Int(0)
+    StemV = Int(0)
+== content stream 207 ==
+decoded bytes 19155
+operations 1897
+op[54] Tc font=F1 :: Int(0)
+op[55] Tw font=F1 :: Int(0)
+op[56] Tj font=F1 :: String(Literal, 3 bytes, hex 020304…)
+op[57] ET font=F1 :: 
+op[58] q font=F1 :: 

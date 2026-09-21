@@ -1,0 +1,7 @@
+{
+  "result": "failed positional prefix comparison (preserved)",
+  "matched_prefix": 204822,
+  "lost_count": 1,
+  "added_count": 75739,
+  "reason": "positional comparison cannot align an insertion"
+}

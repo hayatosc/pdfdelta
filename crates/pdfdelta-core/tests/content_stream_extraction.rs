@@ -3157,7 +3157,7 @@ fn preserves_partial_tounicode_gaps_as_embedded_font_tokens() -> Result<()> {
 }
 
 #[test]
-fn keeps_unknown_explicit_encoding_differences_contextually_unresolved() {
+fn unknown_explicit_encoding_differences_preserve_opaque_unmapped_identity() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = embedded_simple_font(&mut pdf, b"differences font", false, None);
     pdf.objects
@@ -3190,12 +3190,31 @@ fn keeps_unknown_explicit_encoding_differences_contextually_unresolved() {
         None,
     );
 
-    assert!(matches!(
-        extract(pdf, ExtractionLimits::default()),
-        Err(Error::Unresolved(message))
-            if message.contains("content operator Tj")
-                && message.contains("no Unicode mapping or stable font identity")
-    ));
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 2);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[1].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[1].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![65]);
+    let DecodedText::Mapped(first) = &glyphs[0].text else {
+        panic!("Aacute must stay mapped");
+    };
+    assert_eq!(first, "Á");
+    assert_eq!(glyphs[1].raw_code, vec![66]);
+    let DecodedText::Unmapped {
+        font_hash,
+        glyph_id,
+    } = &glyphs[1].text
+    else {
+        panic!("UnknownGlyph must stay unmapped");
+    };
+    assert_eq!(font_hash.0.len(), 32);
+    assert_eq!(*glyph_id, 66);
+    Ok(())
 }
 
 #[test]
@@ -4405,9 +4424,44 @@ fn limits_cached_empty_form_stream_invocations() {
     ));
 }
 
+fn standard14_win_ansi_unmapped_hash(code: u8) -> Result<Vec<u8>> {
+    // Genuine unembedded Standard14 Helvetica with named /WinAnsiEncoding and
+    // the same undefined code, used to prove embedded programs never
+    // masquerade as a Standard14 identity.
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
+    let mut bytes = b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (".to_vec();
+    bytes.push(code);
+    bytes.extend_from_slice(b") Tj ET");
+    let content = pdf.add_object(Stream::new(dictionary! {}, bytes));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 1);
+    match &glyphs[0].text {
+        DecodedText::Unmapped { font_hash, .. } => Ok(font_hash.0.clone()),
+        DecodedText::Mapped(text) => {
+            Err(Error::Unresolved(format!("expected unmapped, got {text}")))
+        }
+    }
+}
+
 #[test]
-fn embedded_simple_font_with_explicit_encoding_and_unmapped_code_fails_closed_without_unmapped_identity()
--> Result<()> {
+
+fn embedded_simple_font_with_explicit_encoding_preserves_unmapped_code_with_identity() -> Result<()>
+{
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
     // Add an explicit /Encoding dictionary with an unknown /Differences glyph name that lacks a Unicode mapping
@@ -4442,24 +4496,24 @@ fn embedded_simple_font_with_explicit_encoding_and_unmapped_code_fails_closed_wi
         None,
     );
 
-    // 1. extract_outcome must report a contextual Unresolved issue with operator provenance
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-
-    // 2. into_complete() must return Err(Error::Unresolved(...))
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![65]);
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 65);
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
     Ok(())
 }
 
@@ -4501,7 +4555,7 @@ fn embedded_simple_font_without_explicit_encoding_preserves_stable_unmapped_iden
 }
 
 #[test]
-fn embedded_simple_font_with_named_encoding_and_unmapped_code_fails_closed() -> Result<()> {
+fn embedded_simple_font_with_named_encoding_preserves_unmapped_code_with_identity() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
     let font_dictionary = pdf
@@ -4532,29 +4586,29 @@ fn embedded_simple_font_with_named_encoding_and_unmapped_code_fails_closed() -> 
 
     // 1. extract_outcome must report a contextual Unresolved issue with operator provenance and zero emitted glyphs
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(outcome.document().items().is_empty());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-
-    // 2. into_complete() must return Err(Error::Unresolved(...))
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![0x81]);
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 129);
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
     Ok(())
 }
 
 #[test]
 fn cross_revision_divergent_encodings_do_not_fabricate_matching_unmapped_tokens() -> Result<()> {
-    let make_pdf = |custom_glyph_name: &[u8]| -> Result<ExtractionOutcome> {
+    let make_pdf = |custom_glyph_name: &[u8]| -> Result<(ExtractionOutcome, u32)> {
         let mut pdf = LopdfDocument::with_version("1.7");
         let font = embedded_simple_font(&mut pdf, b"shared embedded font program", false, None);
         let font_dictionary = pdf
@@ -4587,18 +4641,72 @@ fn cross_revision_divergent_encodings_do_not_fabricate_matching_unmapped_tokens(
             None,
             None,
         );
-        extract_outcome(pdf, ExtractionLimits::default())
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        Ok((outcome, content.0))
     };
 
-    let old_outcome = make_pdf(b"CustomGlyphAlpha")?;
-    let new_outcome = make_pdf(b"CustomGlyphBeta")?;
+    let (old_outcome, old_content) = make_pdf(b"CustomGlyphAlpha")?;
+    let (new_outcome, new_content) = make_pdf(b"CustomGlyphBeta")?;
 
-    // Both revisions must report unresolved extraction issues rather than claiming complete extraction
-    // with matching unmapped tokens (which would cause a false-match on code 65)
-    assert!(!old_outcome.is_complete());
-    assert!(!new_outcome.is_complete());
-    assert_eq!(old_outcome.issues().len(), 1);
-    assert_eq!(new_outcome.issues().len(), 1);
+    // Extended contract: the Differences glyph names are part of the proven
+    // selector binding, so both revisions extract completely and keep their
+    // raw glyphs as Unmapped tokens instead of failing closed. The diverging
+    // names must still produce distinct token identities, so code 65 can never
+    // become an unchanged match between the two revisions.
+    for outcome in [&old_outcome, &new_outcome] {
+        assert!(outcome.is_complete());
+        assert!(outcome.issues().is_empty());
+    }
+    let unmap = |outcome: &ExtractionOutcome| {
+        outcome
+            .document()
+            .items()
+            .iter()
+            .filter_map(|glyph| match &glyph.text {
+                DecodedText::Unmapped {
+                    font_hash,
+                    glyph_id,
+                } => Some((font_hash.clone(), *glyph_id, glyph.raw_code.clone())),
+                DecodedText::Mapped(_) => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(old_outcome.document().items().len(), 1);
+    assert_eq!(new_outcome.document().items().len(), 1);
+    assert_eq!(
+        old_outcome.document().items()[0]
+            .provenance
+            .content_stream
+            .object_number,
+        old_content
+    );
+    assert_eq!(
+        old_outcome.document().items()[0].provenance.operator_index,
+        3
+    );
+    assert_eq!(
+        new_outcome.document().items()[0]
+            .provenance
+            .content_stream
+            .object_number,
+        new_content
+    );
+    assert_eq!(
+        new_outcome.document().items()[0].provenance.operator_index,
+        3
+    );
+    let old_tokens = unmap(&old_outcome);
+    let new_tokens = unmap(&new_outcome);
+    assert_eq!(old_tokens.len(), 1);
+    assert_eq!(new_tokens.len(), 1);
+    assert_eq!(old_tokens[0].1, 65);
+    assert_eq!(new_tokens[0].1, 65);
+    assert_eq!(old_tokens[0].2, vec![65]);
+    assert_eq!(new_tokens[0].2, vec![65]);
+    assert_ne!(
+        old_tokens[0].0, new_tokens[0].0,
+        "divergent Differences bindings must not share a token identity"
+    );
     Ok(())
 }
 
@@ -4745,9 +4853,10 @@ fn standard14_font_with_differences_in_encoding_dictionary_suppresses_canonical_
 }
 
 #[test]
-fn embedded_simple_font_with_base_encoding_only_dictionary_remains_fail_closed() -> Result<()> {
+fn embedded_simple_font_with_base_encoding_only_dictionary_preserves_unmapped_code() -> Result<()> {
     // Embedded non-Standard14 TrueType font with dictionary << /Type /Encoding /BaseEncoding /WinAnsiEncoding >>
-    // Code 0x81 (129) without ToUnicode must fail-close (no stable identity fabricated)
+    // Code 0x81 (129) has no Unicode mapping; the proven encoding binding keeps
+    // the raw glyph as an opaque unmapped token instead of fabricating Unicode.
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
     let font_dictionary = pdf
@@ -4782,21 +4891,23 @@ fn embedded_simple_font_with_base_encoding_only_dictionary_remains_fail_closed()
     );
 
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(outcome.document().items().is_empty());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![0x81]);
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 129);
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
     Ok(())
 }
 
@@ -4872,8 +4983,8 @@ fn embedded_standard14_named_font(
 }
 
 #[test]
-fn embedded_program_with_standard14_name_under_base_encoding_dictionary_fails_closed() -> Result<()>
-{
+fn embedded_program_with_standard14_name_under_base_encoding_dictionary_keeps_distinct_identity()
+-> Result<()> {
     // Forged Standard 14 Helvetica with embedded FontFile2 program + BaseEncoding-only dictionary
     let mut pdf = LopdfDocument::with_version("1.7");
     let font =
@@ -4910,26 +5021,34 @@ fn embedded_program_with_standard14_name_under_base_encoding_dictionary_fails_cl
     );
 
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(outcome.document().items().is_empty());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![0x81]);
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 129);
+            let genuine = standard14_win_ansi_unmapped_hash(0x81)?;
+            assert_ne!(
+                font_hash.0, genuine,
+                "embedded program bytes must not masquerade as a Standard14 identity"
+            );
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
     Ok(())
 }
 
 #[test]
-fn embedded_program_with_standard14_name_under_named_encoding_fails_closed() -> Result<()> {
+fn embedded_program_with_standard14_name_under_named_encoding_keeps_distinct_identity() -> Result<()>
+{
     // Forged Standard 14 Helvetica with embedded FontFile2 program + named /WinAnsiEncoding
     let mut pdf = LopdfDocument::with_version("1.7");
     let font =
@@ -4960,21 +5079,28 @@ fn embedded_program_with_standard14_name_under_named_encoding_fails_closed() -> 
     );
 
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(outcome.document().items().is_empty());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![0x81]);
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 129);
+            let genuine = standard14_win_ansi_unmapped_hash(0x81)?;
+            assert_ne!(
+                font_hash.0, genuine,
+                "embedded program bytes must not masquerade as a Standard14 identity"
+            );
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
     Ok(())
 }
 
@@ -5229,7 +5355,8 @@ fn standard14_font_with_empty_differences_array_suppresses_canonical_identity() 
 }
 
 #[test]
-fn embedded_type1_program_with_standard14_name_under_named_encoding_fails_closed() -> Result<()> {
+fn embedded_type1_program_with_standard14_name_under_named_encoding_keeps_distinct_identity()
+-> Result<()> {
     // Forged Standard 14 Helvetica with /Subtype /Type1 and embedded /FontFile program + /WinAnsiEncoding
     let mut pdf = LopdfDocument::with_version("1.7");
     let program = pdf.add_object(Stream::new(
@@ -5273,21 +5400,28 @@ fn embedded_type1_program_with_standard14_name_under_named_encoding_fails_closed
     );
 
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(outcome.document().items().is_empty());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[0].raw_code, vec![0x81]);
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 129);
+            let genuine = standard14_win_ansi_unmapped_hash(0x81)?;
+            assert_ne!(
+                font_hash.0, genuine,
+                "embedded program bytes must not masquerade as a Standard14 identity"
+            );
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
     Ok(())
 }
 

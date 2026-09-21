@@ -1,0 +1,52 @@
+== font object 832 ==
+font:
+  BaseFont = Name(BCDLEE+Calibri)
+  Encoding = Name(WinAnsiEncoding)
+  FirstChar = Int(9)
+  FontDescriptor = Dictionary
+  LastChar = Int(116)
+  Name = Name(F21)
+  Subtype = Name(TrueType)
+  Type = Name(Font)
+  Widths = Array(len 108)
+  ToUnicode = absent
+  FontDescriptor:
+    Ascent = Int(750)
+    AvgWidth = Int(521)
+    CapHeight = Int(750)
+    Descent = Int(-250)
+    Flags = Int(32)
+    FontBBox = Array(len 4)
+    FontFile2 = Stream(dict_len 3)
+    FontName = Name(BCDLEE+Calibri)
+    FontWeight = Int(400)
+    ItalicAngle = Int(0)
+    MaxWidth = Int(1743)
+    StemV = Int(52)
+    Type = Name(FontDescriptor)
+    XHeight = Int(250)
+  DescendantFonts = absent
+  Encoding = Name(WinAnsiEncoding)
+  FontDescriptor:
+    Ascent = Int(750)
+    AvgWidth = Int(521)
+    CapHeight = Int(750)
+    Descent = Int(-250)
+    Flags = Int(32)
+    FontBBox = Array(len 4)
+    FontFile2 = Stream(dict_len 3)
+    FontName = Name(BCDLEE+Calibri)
+    FontWeight = Int(400)
+    ItalicAngle = Int(0)
+    MaxWidth = Int(1743)
+    StemV = Int(52)
+    Type = Name(FontDescriptor)
+    XHeight = Int(250)
+== content stream 829 ==
+decoded bytes 81621
+operations 5362
+op[4699] g font=F21 :: Int(0)
+op[4700] G font=F21 :: Int(0)
+op[4701] TJ font=F21 :: Array(len 1)
+op[4702] ET font=F21 :: 
+op[4703] Q font=F21 :: 

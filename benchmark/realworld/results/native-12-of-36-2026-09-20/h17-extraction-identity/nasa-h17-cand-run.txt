@@ -1,0 +1,5 @@
+OUT=/tmp/opencode/nasa-h17-cand-180916.json.gz
+EXIT=3
+168d563a0faed2b5cde658adf51580cb003a64bbbfafcd3e2294027e8020d36e  target/release/pdfdelta
+04e8e7271a76ed7d42740d07feaa2a0fae90df65f0ea017f4876f7b218a34074  crates/pdfdelta-core/src/pdf/font/simple.rs
+fc49ad98e6525265a9e6ddeceb108468e9afc6ee2ad8e6943f34d1a2d3edcfeb  crates/pdfdelta-core/src/pdf/font/common.rs

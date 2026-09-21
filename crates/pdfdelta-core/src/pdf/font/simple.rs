@@ -193,6 +193,7 @@ impl SimpleFontDecoder {
             ));
         }
         validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
+        let mut selector_bytes = 0usize;
         let (identity_source, type3_identity_glyph_ids) = if let Some(type3) = &type3 {
             if encoding.identity_ambiguous
                 || matches!(
@@ -252,11 +253,27 @@ impl SimpleFontDecoder {
             let source = if let Some(source) = standard14_source {
                 Some(source)
             } else if encoding.explicit_encoding {
-                // Simple fonts with an explicit /Encoding dictionary or named encoding
-                // map raw byte codes to glyph selectors through that encoding, not directly to glyph IDs
-                // in the embedded font program. Unless the code-to-glyph mapping is independently verified,
-                // unmapped codes must not receive a stable font identity solely from (font_hash, raw_code).
-                None
+                // An explicit /Encoding dictionary or named encoding maps raw codes
+                // through that encoding, so (font program, raw code) alone is not a
+                // stable selector. When the code-to-selector binding is fixed by a
+                // public named encoding or by the document's own Differences, the
+                // identity includes that canonical binding instead of refusing all
+                // explicit encodings. Unknown private encodings and ambiguous
+                // Differences keep the refusal.
+                explicit_encoding_identity_source(
+                    pdf,
+                    &dictionary,
+                    &encoding,
+                    limits,
+                    limits
+                        .max_decoded_font_bytes
+                        .saturating_sub(decoded_to_unicode_bytes),
+                    limits.max_indirections,
+                    subtype,
+                )?
+                .inspect(|source| {
+                    selector_bytes = source.selector_bytes();
+                })
             } else {
                 identity_domain(pdf, &dictionary, limits.max_indirections, subtype)?
                     .map(|domain| {
@@ -287,7 +304,13 @@ impl SimpleFontDecoder {
                 descent,
             },
             identity_source,
-            decoded_font_bytes: decoded_to_unicode_bytes,
+            decoded_font_bytes: decoded_to_unicode_bytes
+                .checked_add(selector_bytes)
+                .filter(|total| *total <= limits.max_decoded_font_bytes)
+                .ok_or(Error::LimitExceeded {
+                    resource: "decoded font bytes",
+                    limit: limits.max_decoded_font_bytes,
+                })?,
         })
     }
 
@@ -620,6 +643,80 @@ fn validate_subtype(dictionary: &PdfDict) -> Result<SimpleSubtype> {
         ))),
         _ => unresolved("font dictionary has no valid Subtype"),
     }
+}
+
+fn explicit_encoding_identity_source(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    encoding: &LoadedEncoding,
+    limits: FontDecoderLimits,
+    remaining_selector_bytes: usize,
+    max_indirections: usize,
+    subtype: SimpleSubtype,
+) -> Result<Option<FontIdentitySource>> {
+    if encoding.identity_ambiguous || matches!(encoding.base, FallbackEncoding::Unknown) {
+        return Ok(None);
+    }
+    let limit = remaining_selector_bytes.min(limits.max_decoded_font_bytes);
+    let Some(domain) = identity_domain(pdf, dictionary, max_indirections, subtype)? else {
+        return Ok(None);
+    };
+    let Some(source) = resolve_font_identity_source(pdf, dictionary, max_indirections, domain)?
+    else {
+        return Ok(None);
+    };
+    let Some((reference, domain)) = source.into_embedded() else {
+        return Ok(None);
+    };
+    // The selector binds every raw code to its glyph name through the declared
+    // encoding. Each field is length-prefixed so arbitrary name bytes (including
+    // NUL and tag-like content) remain injective, and the entry count is bound.
+    let base = encoding.base.identity_name();
+    let mut total = 8usize
+        .checked_add(8)
+        .and_then(|total| total.checked_add(base.len()))
+        .ok_or(Error::LimitExceeded {
+            resource: "simple-font selector identity bytes",
+            limit,
+        })?;
+    for mapping in encoding.differences.values() {
+        total = total
+            .checked_add(1)
+            .and_then(|total| total.checked_add(8))
+            .and_then(|total| total.checked_add(mapping.glyph_name.len()))
+            .ok_or(Error::LimitExceeded {
+                resource: "simple-font selector identity bytes",
+                limit,
+            })?;
+    }
+    if total > limit {
+        return Err(Error::LimitExceeded {
+            resource: "simple-font selector identity bytes",
+            limit,
+        });
+    }
+    let count = u64::try_from(encoding.differences.len()).map_err(|_| Error::LimitExceeded {
+        resource: "simple-font selector identity bytes",
+        limit,
+    })?;
+    let mut selector = Vec::new();
+    selector
+        .try_reserve(total)
+        .map_err(|_| Error::LimitExceeded {
+            resource: "simple-font selector identity bytes",
+            limit,
+        })?;
+    selector.extend_from_slice(&count.to_be_bytes());
+    selector.extend_from_slice(&(base.len() as u64).to_be_bytes());
+    selector.extend_from_slice(base);
+    for (code, mapping) in &encoding.differences {
+        selector.push(*code);
+        selector.extend_from_slice(&(mapping.glyph_name.len() as u64).to_be_bytes());
+        selector.extend_from_slice(&mapping.glyph_name);
+    }
+    Ok(Some(FontIdentitySource::embedded_with_selector(
+        reference, domain, selector,
+    )))
 }
 
 fn identity_domain(
@@ -1485,8 +1582,26 @@ mod tests {
     }
 
     #[test]
-    fn explicit_encodings_never_claim_program_selector_identity() -> Result<()> {
-        let font = |encoding: &[u8]| {
+    fn explicit_encodings_require_a_proven_selector_binding() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([(
+                object_ref(99),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"TrueType".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(99), b"embedded program".to_vec())]),
+        };
+        let font = |encoding: &[u8], program: bool| {
+            let mut descriptor = PdfDict::from([
+                (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                (b"Flags".to_vec(), PdfObject::Integer(32)),
+            ]);
+            if program {
+                descriptor.insert(b"FontFile2".to_vec(), PdfObject::Reference(object_ref(99)));
+            }
             PdfObject::Dictionary(PdfDict::from([
                 (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
                 (
@@ -1501,27 +1616,300 @@ mod tests {
                 ),
                 (
                     b"FontDescriptor".to_vec(),
-                    PdfObject::Dictionary(PdfDict::from([
-                        (b"Ascent".to_vec(), PdfObject::Integer(700)),
-                        (b"Descent".to_vec(), PdfObject::Integer(-200)),
-                        (b"FontFile2".to_vec(), PdfObject::Reference(object_ref(99))),
-                    ])),
+                    PdfObject::Dictionary(descriptor),
                 ),
             ]))
         };
 
-        let win_ansi =
-            SimpleFontDecoder::load(&MockPdf::default(), &font(b"WinAnsiEncoding"), LIMITS)?;
-        let standard =
-            SimpleFontDecoder::load(&MockPdf::default(), &font(b"StandardEncoding"), LIMITS)?;
+        let win_ansi = SimpleFontDecoder::load(&pdf, &font(b"WinAnsiEncoding", true), LIMITS)?
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("embedded explicit encoding needs identity".into()))?;
+        let standard = SimpleFontDecoder::load(&pdf, &font(b"StandardEncoding", true), LIMITS)?
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("embedded explicit encoding needs identity".into()))?;
+        let win_ansi_again =
+            SimpleFontDecoder::load(&pdf, &font(b"WinAnsiEncoding", true), LIMITS)?
+                .identity_source
+                .ok_or_else(|| {
+                    Error::Unresolved("embedded explicit encoding needs identity".into())
+                })?;
+        let win_ansi_hash = load_font_identity(&pdf, &win_ansi, usize::MAX)?.hash;
+        let standard_hash = load_font_identity(&pdf, &standard, usize::MAX)?.hash;
+        let win_ansi_again_hash = load_font_identity(&pdf, &win_ansi_again, usize::MAX)?.hash;
+        assert_eq!(win_ansi_hash, win_ansi_again_hash);
+        assert_ne!(
+            win_ansi_hash, standard_hash,
+            "different encodings must not share a program selector identity"
+        );
+        assert!(
+            SimpleFontDecoder::load(&pdf, &font(b"WinAnsiEncoding", false), LIMITS)?
+                .identity_source
+                .is_none(),
+            "simple fonts without an embedded program keep the refusal"
+        );
+        assert!(
+            SimpleFontDecoder::load(&pdf, &font(b"SymbolSetEncoding", true), LIMITS)?
+                .identity_source
+                .is_none(),
+            "private encodings without a public table keep the refusal"
+        );
 
-        assert!(win_ansi.identity_source.is_none());
-        assert!(standard.identity_source.is_none());
+        // Canonically equivalent declarations (named vs empty dictionary base)
+        // must produce the same selector identity.
+        let named_hash = win_ansi_hash.0.clone();
+        let dictionary_encoding = PdfObject::Dictionary(PdfDict::from([(
+            b"BaseEncoding".to_vec(),
+            PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+        )]));
+        let dictionary_font = embedded_true_type_with_encoding(object_ref(99), dictionary_encoding);
+        let dictionary_source = SimpleFontDecoder::load(&pdf, &dictionary_font, LIMITS)?
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("dictionary encoding needs identity".into()))?;
+        assert_eq!(
+            load_font_identity(&pdf, &dictionary_source, usize::MAX)?
+                .hash
+                .0,
+            named_hash,
+            "equivalent base encodings must share the selector"
+        );
+
+        // Length-prefixed serialization stays injective for arbitrary name bytes.
+        let with_differences = |differences: Vec<PdfObject>| {
+            embedded_true_type_with_encoding(
+                object_ref(99),
+                PdfObject::Dictionary(PdfDict::from([
+                    (
+                        b"BaseEncoding".to_vec(),
+                        PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+                    ),
+                    (b"Differences".to_vec(), PdfObject::Array(differences)),
+                ])),
+            )
+        };
+        let hash_of = |object: &PdfObject| -> Result<Vec<u8>> {
+            let source = SimpleFontDecoder::load(&pdf, object, LIMITS)?
+                .identity_source
+                .ok_or_else(|| Error::Unresolved("differences encoding needs identity".into()))?;
+            Ok(load_font_identity(&pdf, &source, usize::MAX)?.hash.0)
+        };
+        let joined = hash_of(&with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"ab".to_vec()),
+        ]))?;
+        let split = hash_of(&with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"a".to_vec()),
+            PdfObject::Name(b"b".to_vec()),
+        ]))?;
+        let embedded_nul = hash_of(&with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"a\0b".to_vec()),
+        ]))?;
+        let tag_like = hash_of(&with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"explicit-encoding-selector\0".to_vec()),
+        ]))?;
+        assert_ne!(joined, split, "field framing must separate joined names");
+        assert_ne!(joined, embedded_nul, "embedded NUL must not alias");
+        assert_ne!(embedded_nul, tag_like, "tag-like bytes must not alias");
+        assert_eq!(
+            hash_of(&with_differences(vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"ab".to_vec()),
+            ]))?,
+            joined,
+            "the same map must reproduce the identity"
+        );
+
+        // The framing must defeat an actual old-format delimiter collision:
+        // map A {65:"x\0B\0name\0y", 67:"z"} and map B {65:"x",
+        // 66:"y\0C\0name\0z"} collide when entries are concatenated as
+        // code + "\0name\0" + name + "\0" without lengths.
+        let adversarial_a = with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"x\0B\0name\0y".to_vec()),
+            PdfObject::Integer(67),
+            PdfObject::Name(b"z".to_vec()),
+        ]);
+        let adversarial_b = with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"x".to_vec()),
+            PdfObject::Name(b"y\0C\0name\0z".to_vec()),
+        ]);
+        let old_format = |entries: [(u8, &[u8]); 2]| -> Vec<u8> {
+            let mut bytes = Vec::new();
+            for (code, name) in entries {
+                bytes.push(code);
+                bytes.extend_from_slice(b"\0name\0");
+                bytes.extend_from_slice(name);
+                bytes.push(0);
+            }
+            bytes
+        };
+        assert_eq!(
+            old_format([(65, b"x\0B\0name\0y"), (67, b"z")]),
+            old_format([(65, b"x"), (66, b"y\0C\0name\0z")]),
+            "the retired delimiter-only format must collide on this pair"
+        );
+        assert_ne!(
+            hash_of(&adversarial_a)?,
+            hash_of(&adversarial_b)?,
+            "length framing must separate the colliding maps"
+        );
+
+        // Duplicate code entries make the encoding ambiguous and keep the refusal.
+        let ambiguous = with_differences(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"Aacute".to_vec()),
+            PdfObject::Integer(65),
+            PdfObject::Name(b"Aacute".to_vec()),
+        ]);
+        assert!(
+            SimpleFontDecoder::load(&pdf, &ambiguous, LIMITS)?
+                .identity_source
+                .is_none(),
+            "duplicate Differences codes must keep the refusal"
+        );
+
+        // The selector bytes are charged at construction so mapped-only fonts
+        // cannot skip them: WinAnsi base name selector is 8 + 8 + 8 bytes.
+        let mapped_only = embedded_true_type_with_encoding(
+            object_ref(99),
+            PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+        );
+        assert_eq!(
+            SimpleFontDecoder::load(&pdf, &mapped_only, LIMITS)?.decoded_font_bytes,
+            24,
+            "selector bytes must be charged with the decoded font bytes"
+        );
+        let mut tight = LIMITS;
+        tight.max_decoded_font_bytes = 10;
+        assert!(
+            SimpleFontDecoder::load(&pdf, &mapped_only, tight).is_err(),
+            "the selector preflight must respect the remaining byte budget"
+        );
+
+        // Cross-family collision regression: the old selector framing shared
+        // the implicit Embedded prefix (domain tag + NUL), so a crafted
+        // program equal to b"explicit-encoding-selector\0" + selector + tail
+        // reproduced the selector digest exactly. The disjoint leading family
+        // tag must keep the two identities distinct.
+        let selector_literal = {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&0u64.to_be_bytes());
+            bytes.extend_from_slice(&8u64.to_be_bytes());
+            bytes.extend_from_slice(b"win-ansi");
+            bytes
+        };
+        let mut crafted_program = b"explicit-encoding-selector\0".to_vec();
+        crafted_program.extend_from_slice(&selector_literal);
+        crafted_program.extend_from_slice(b"embedded program");
+        let implicit_crafted = MockPdf {
+            objects: HashMap::from([(
+                object_ref(55),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"TrueType".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(55), crafted_program)]),
+        };
+        let implicit_font = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
+            (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array(vec![PdfObject::Integer(600)]),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                    (b"Flags".to_vec(), PdfObject::Integer(32)),
+                    (b"FontFile2".to_vec(), PdfObject::Reference(object_ref(55))),
+                ])),
+            ),
+        ]));
+        let implicit_source = SimpleFontDecoder::load(&implicit_crafted, &implicit_font, LIMITS)?
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("implicit crafted fixture needs identity".into()))?;
+        let explicit_program = MockPdf {
+            objects: HashMap::from([(
+                object_ref(55),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"TrueType".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(55), b"embedded program".to_vec())]),
+        };
+        let explicit_font = embedded_true_type_with_encoding(
+            object_ref(55),
+            PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+        );
+        let explicit_source = SimpleFontDecoder::load(&explicit_program, &explicit_font, LIMITS)?
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("explicit fixture needs identity".into()))?;
+        assert_ne!(
+            load_font_identity(&implicit_crafted, &implicit_source, usize::MAX)?.hash,
+            load_font_identity(&explicit_program, &explicit_source, usize::MAX)?.hash,
+            "the explicit family must not collide with crafted implicit program bytes"
+        );
+
+        // Renumbering the program object must not change the identity.
+        let renumbered = MockPdf {
+            objects: HashMap::from([(
+                object_ref(7),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"TrueType".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(7), b"embedded program".to_vec())]),
+        };
+        let renumbered_font = embedded_true_type_with_encoding(
+            object_ref(7),
+            PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+        );
+        let renumbered_source = SimpleFontDecoder::load(&renumbered, &renumbered_font, LIMITS)?
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("renumbered fixture needs identity".into()))?;
+        assert_eq!(
+            load_font_identity(&renumbered, &renumbered_source, usize::MAX)?.hash,
+            win_ansi_hash,
+            "object renumbering must not change the identity"
+        );
         Ok(())
     }
 
+    fn embedded_true_type_with_encoding(program: ObjectRef, encoding: PdfObject) -> PdfObject {
+        PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
+            (
+                b"BaseFont".to_vec(),
+                PdfObject::Name(b"FixtureEmbedded".to_vec()),
+            ),
+            (b"Encoding".to_vec(), encoding),
+            (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array(vec![PdfObject::Integer(600)]),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                    (b"Flags".to_vec(), PdfObject::Integer(32)),
+                    (b"FontFile2".to_vec(), PdfObject::Reference(program)),
+                ])),
+            ),
+        ]))
+    }
+
     #[test]
-    fn selects_type1c_identity_but_keeps_explicit_encodings_unidentified() -> Result<()> {
+    fn selects_type1c_identity_with_proven_explicit_encoding_binding() -> Result<()> {
         let pdf = MockPdf {
             objects: HashMap::from([(
                 object_ref(1),
@@ -1559,17 +1947,22 @@ mod tests {
         let source = implicit
             .identity_source
             .ok_or_else(|| Error::Unresolved("Type1C fixture should have identity".into()))?;
-        assert_eq!(
-            load_font_identity(&pdf, &source, usize::MAX)?.decoded_bytes,
-            b"Type1C program".len()
-        );
+        let implicit_identity = load_font_identity(&pdf, &source, usize::MAX)?;
+        assert_eq!(implicit_identity.decoded_bytes, b"Type1C program".len());
 
         let explicit = SimpleFontDecoder::load(
             &pdf,
             &font(Some(PdfObject::Name(b"StandardEncoding".to_vec()))),
             LIMITS,
         )?;
-        assert!(explicit.identity_source.is_none());
+        let explicit_source = explicit.identity_source.ok_or_else(|| {
+            Error::Unresolved("proven explicit encoding should carry identity".into())
+        })?;
+        assert_ne!(
+            load_font_identity(&pdf, &explicit_source, usize::MAX)?.hash,
+            implicit_identity.hash,
+            "the explicit selector binding must not collapse into the implicit identity"
+        );
         Ok(())
     }
 

@@ -1,0 +1,5 @@
+issues 3
+kind=Unresolved scope=PageGlyphGap { page: PageId(9), retained_before: 36126, paint_index: Some(464) } description=content operator Tj at index 56: font code has no Unicode mapping or stable font identity
+kind=Unsupported scope=PageGlyphGap { page: PageId(11), retained_before: 43691, paint_index: Some(535) } description=non-rectangular clipping path is not a certified convex quadrilateral at content operator index 1224
+kind=Unsupported scope=PageGlyphGap { page: PageId(12), retained_before: 44671, paint_index: Some(536) } description=non-rectangular clipping path is not a certified convex quadrilateral at content operator index 1238
+document written

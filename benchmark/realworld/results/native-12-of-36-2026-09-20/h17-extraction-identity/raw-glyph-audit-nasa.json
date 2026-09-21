@@ -1,0 +1,756 @@
+{
+  "evidence_level": "executed raw-glyph audit (complete Glyph schema, invariant-validated)",
+  "failed_prefix_attempt": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/results/native-12-of-36-2026-09-20/h17-extraction-identity/raw-glyph-audit-failed-prefix.json",
+  "before_header": {
+    "complete": false,
+    "issues": 1,
+    "glyphs": 280452,
+    "max_operators": 5000000,
+    "max_total_decoded_bytes": 536870912
+  },
+  "after_header": {
+    "complete": true,
+    "issues": 0,
+    "glyphs": 280561,
+    "max_operators": 5000000,
+    "max_total_decoded_bytes": 536870912
+  },
+  "before_records": 280452,
+  "after_records": 280561,
+  "mapped_records": 280452,
+  "lost_count": 0,
+  "added_count": 109,
+  "ephemeral_fields": [
+    "id",
+    "render_order"
+  ],
+  "stable_payload_includes_font_id": true,
+  "id_offset_histogram": {
+    "0": 204822,
+    "109": 75630
+  },
+  "render_order_offset_histogram": {
+    "0": 204822,
+    "2513": 75630
+  },
+  "render_order_offset_distinct": 2,
+  "anchor": {
+    "positional_index": 204822,
+    "mapped_h17_index": 204931,
+    "differing_fields": [
+      "id",
+      "render_order"
+    ],
+    "id_offset": 109,
+    "render_order_offset": 2513
+  },
+  "added_groups": [
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4193,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4204,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4215,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4226,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4237,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4248,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4259,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4270,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4281,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4292,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4303,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4314,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4325,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4336,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4347,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4358,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4369,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4380,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4391,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4402,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4413,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4424,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4435,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4446,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4457,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4468,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4479,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4490,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4501,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4512,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4523,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4534,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4545,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4556,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4567,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4578,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4589,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4600,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4611,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4665,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4677,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4689,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4701,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4713,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4725,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4737,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4749,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4761,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4773,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4785,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4797,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4809,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4821,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4833,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4845,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4857,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4869,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4881,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4893,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4905,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4917,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4929,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4941,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4958,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4970,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4982,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 4994,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5006,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5018,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5030,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5042,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5054,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5066,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5078,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5090,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5102,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5114,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5126,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5138,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5150,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5162,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5174,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5186,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5198,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5210,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5222,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5234,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5246,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5258,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5270,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5281,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5289,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5293,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5297,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5301,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5305,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5309,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5313,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5317,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5321,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5326,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5331,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5335,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5339,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5344,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5348,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5352,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5356,
+      "count": 1
+    },
+    {
+      "stream_object": 829,
+      "generation": 0,
+      "operator_index": 5360,
+      "count": 1
+    }
+  ],
+  "added_raw_codes": [
+    "09",
+    "20",
+    "2c",
+    "2d",
+    "2e",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "38",
+    "42",
+    "54",
+    "61",
+    "63",
+    "64",
+    "65",
+    "66",
+    "67",
+    "69",
+    "6c",
+    "6d",
+    "6e",
+    "6f",
+    "70",
+    "71",
+    "72",
+    "73",
+    "74",
+    "75"
+  ],
+  "id_map_size": 280452,
+  "binding": {
+    "h16_export_sha256": "64593315561942bacafe4c9427a58f0fecbf6756477d76fb9048bb6b83f5f347",
+    "h17_export_sha256": "5e2a3c6719d708c8e391a2ba5aca18b22ac8a81500f52a3503e90552f875d94a",
+    "h16_source_archive_sha256": "1d0b0b5701155d800202dd1a33f009ba92e6c19a11522892d2f6d442cd5994fb",
+    "h17_source_archive_sha256": "71bdc122fc87fcb792330899d5f6fc0a2c9a758ed847c81ae586704eaf59f868",
+    "pdf_sha256": "299dfb8807862f174768356353f39c6bf6993596cb6f5933dd4fd23181e8837b",
+    "comparator_sha256": "4da2165cc3e4647a575264848c51113e51a69d9083c142a3c37906601d7b5ba3",
+    "probe_sha256": "dff302d8632dbeffd0efac4f995581c71972673c923732c19035e691f083e0a4"
+  },
+  "render_order_offset_explanation": {
+    "evidence": "read-only source routing, no production change",
+    "sources": [
+      "crates/pdfdelta-core/src/source/content_stream.rs:960..1010 (Do invocation snapshots; on Unsupported/Unresolved truncates partial glyphs/vector_lines/marked/displacements, resets render_order and replaces with one opaque non-text operation)",
+      "crates/pdfdelta-core/src/source/content_stream.rs:1176 emit_vector_line and 1425 emit_glyph both allocate render_order via allocate_render_order (line 1192)"
+    ],
+    "implication": "render_order counts glyph AND vector/paint allocations, so a restored invocation can add 109 document glyphs while consuming 2513 order slots; the offset 2513 need not equal the glyph-id offset 109.",
+    "not_proven": "the NASA restoration is not proven to be a whole-page restoration; it may be a Form XObject invocation. Added glyph records carry content_stream object 829 (page content), and no added glyph provenance points at a Form stream, so the added items are page-stream glyphs, while the extra order slots may include non-glyph paint/vector orders or Form internals. Whole-page restoration must not be claimed without this source proof."
+  }
+}

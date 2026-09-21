@@ -1,0 +1,143 @@
+{
+  "regions": 29,
+  "relations": 5344,
+  "joined_regions": 29,
+  "gap_regions": 0,
+  "evidence_frequency": {
+    "<none>": 29
+  },
+  "tokens_by_evidence": {
+    "<none>": 47979
+  },
+  "relation_reason_frequency": {
+    "normalization_uncertainty": 87,
+    "domain_not_closed": 58
+  },
+  "relation_assumption_frequency": {
+    "input_reading_order": 116,
+    "canonical_normalization": 116,
+    "reconstructed_spacing": 29,
+    "unmapped_font_identity": 29,
+    "alternative_line_break_normalization": 29
+  },
+  "relation_outcome_frequency": {
+    "tentative": 87,
+    "established": 29
+  },
+  "relation_search_frequency": {
+    "complete": 116
+  },
+  "work": {
+    "work_limit": 32000000,
+    "work_used": 32000000,
+    "work_by_stage": {
+      "anchor_verification": 1130101,
+      "local_views": 0,
+      "localization": 15833460,
+      "emission": 15036439
+    }
+  },
+  "largest_representatives": [
+    {
+      "blocks": [
+        653
+      ],
+      "pages": [
+        18
+      ],
+      "comparable_range": {
+        "start": 0,
+        "end": 4188
+      },
+      "text_prefix": "A structure is said to be unstable under static loading when a relatively small ",
+      "evidence": [],
+      "matched_relations": 4,
+      "relation_reasons": [
+        "domain_not_closed",
+        "normalization_uncertainty"
+      ]
+    },
+    {
+      "blocks": [
+        718
+      ],
+      "pages": [
+        28
+      ],
+      "comparable_range": {
+        "start": 0,
+        "end": 4033
+      },
+      "text_prefix": "stiffened cylinders. In one study, isogrid stiffener designs under axial compres",
+      "evidence": [],
+      "matched_relations": 4,
+      "relation_reasons": [
+        "domain_not_closed",
+        "normalization_uncertainty"
+      ]
+    },
+    {
+      "blocks": [
+        2089
+      ],
+      "pages": [
+        94
+      ],
+      "comparable_range": {
+        "start": 0,
+        "end": 3516
+      },
+      "text_prefix": "In Section III, the high-fidelity finite-element models and analysis methods use",
+      "evidence": [],
+      "matched_relations": 4,
+      "relation_reasons": [
+        "domain_not_closed",
+        "normalization_uncertainty"
+      ]
+    },
+    {
+      "blocks": [
+        692
+      ],
+      "pages": [
+        25
+      ],
+      "comparable_range": {
+        "start": 0,
+        "end": 2924
+      },
+      "text_prefix": "While initial geometric imperfections are considered to be the primary factor in",
+      "evidence": [],
+      "matched_relations": 4,
+      "relation_reasons": [
+        "domain_not_closed",
+        "normalization_uncertainty"
+      ]
+    },
+    {
+      "blocks": [
+        728
+      ],
+      "pages": [
+        30
+      ],
+      "comparable_range": {
+        "start": 0,
+        "end": 2798
+      },
+      "text_prefix": "manufacturing methods used and include welding, mechanical fastening, and bondin",
+      "evidence": [],
+      "matched_relations": 4,
+      "relation_reasons": [
+        "domain_not_closed",
+        "normalization_uncertainty"
+      ]
+    }
+  ],
+  "extraction_complete": true,
+  "comparison_complete": false,
+  "binding": {
+    "report_sha256": "8bec36a12755ebf844ec8f08fe109bc53c3e0d7dd1ff10cddc4510c2b705092f",
+    "script_sha256": "f732be6085416508fd27e4f6d12a767c47b30d97cf97eb0da58930aea1eaf686"
+  }
+}

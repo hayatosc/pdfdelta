@@ -108,6 +108,11 @@ enum FontIdentitySourceKind {
         reference: ObjectRef,
         domain: FontIdentityDomain,
     },
+    EmbeddedWithSelector {
+        reference: ObjectRef,
+        domain: FontIdentityDomain,
+        selector: Vec<u8>,
+    },
     Type3 {
         char_procs: Vec<Type3CharProcIdentitySource>,
         resources: Option<PdfObject>,
@@ -119,6 +124,34 @@ impl FontIdentitySource {
     pub(super) fn standard14(name: &'static [u8], encoding: &'static [u8]) -> Self {
         Self {
             kind: FontIdentitySourceKind::Standard14 { name, encoding },
+        }
+    }
+
+    pub(super) fn embedded_with_selector(
+        reference: ObjectRef,
+        domain: FontIdentityDomain,
+        selector: Vec<u8>,
+    ) -> Self {
+        Self {
+            kind: FontIdentitySourceKind::EmbeddedWithSelector {
+                reference,
+                domain,
+                selector,
+            },
+        }
+    }
+
+    pub(super) fn selector_bytes(&self) -> usize {
+        match &self.kind {
+            FontIdentitySourceKind::EmbeddedWithSelector { selector, .. } => selector.len(),
+            _ => 0,
+        }
+    }
+
+    pub(super) fn into_embedded(self) -> Option<(ObjectRef, FontIdentityDomain)> {
+        match self.kind {
+            FontIdentitySourceKind::Embedded { reference, domain } => Some((reference, domain)),
+            _ => None,
         }
     }
 }
@@ -247,6 +280,31 @@ pub(crate) fn load_font_identity(
             }
             digest.update(domain.tag());
             digest.update(b"\0");
+            digest.update(&stream.bytes);
+            stream.bytes.len()
+        }
+        FontIdentitySourceKind::EmbeddedWithSelector {
+            reference,
+            domain,
+            selector,
+        } => {
+            let stream = pdf.decoded_stream(*reference)?;
+            if stream.bytes.len() > max_decoded_bytes {
+                return Err(Error::LimitExceeded {
+                    resource: "decoded embedded font bytes",
+                    limit: max_decoded_bytes,
+                });
+            }
+            // The selector bytes were charged with the ToUnicode map at decoder
+            // construction; only the program bytes are newly decoded here.
+            // A disjoint leading family tag keeps these hashes separated from
+            // the implicit Embedded family, whose digest starts with the same
+            // domain tag followed by arbitrary, caller-opaque program bytes.
+            digest.update(b"embedded-with-selector\0");
+            digest.update(domain.tag());
+            digest.update(b"\0");
+            digest.update((selector.len() as u64).to_be_bytes());
+            digest.update(selector);
             digest.update(&stream.bytes);
             stream.bytes.len()
         }

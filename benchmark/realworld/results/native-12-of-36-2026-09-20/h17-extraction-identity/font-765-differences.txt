@@ -1,0 +1,7 @@
+  Subtype = Name(Type1)
+  BaseFont = Name(IHBMOA+TT2Bo00)
+  FontFile3 stream dict:
+    Subtype = Name(Type1C)
+    FontFile3 = Stream(dict_len 3)
+    Differences = Array(len 11)
+    FontFile3 = Stream(dict_len 3)

@@ -4100,4 +4100,108 @@ mod tests {
         assert!(!extraction.content_stream_cache.contains_key(&first));
         assert!(!extraction.content_stream_cache.contains_key(&second));
     }
+
+    #[test]
+    fn mapped_only_font_selectors_charge_the_shared_byte_budget() -> Result<()> {
+        let program = |object_number: u32| {
+            (
+                ObjectRef {
+                    object_number,
+                    generation: 0,
+                },
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"TrueType".to_vec()),
+                )])),
+            )
+        };
+        let font = |reference: ObjectRef| {
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
+                (
+                    b"BaseFont".to_vec(),
+                    PdfObject::Name(b"FixtureEmbedded".to_vec()),
+                ),
+                (
+                    b"Encoding".to_vec(),
+                    PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+                ),
+                (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+                (
+                    b"Widths".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(600)]),
+                ),
+                (
+                    b"FontDescriptor".to_vec(),
+                    PdfObject::Dictionary(PdfDict::from([
+                        (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                        (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                        (b"Flags".to_vec(), PdfObject::Integer(32)),
+                        (b"FontFile2".to_vec(), PdfObject::Reference(reference)),
+                    ])),
+                ),
+            ]))
+        };
+        let pdf = CountingPdf {
+            objects: HashMap::from([program(99), program(98)]),
+            terminals: HashMap::new(),
+            bytes: b"embedded program".to_vec(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let reference = |object_number| ObjectRef {
+            object_number,
+            generation: 0,
+        };
+        let selection = |name: &[u8], object_number| BoundFont {
+            object: Arc::new(font(reference(object_number))),
+            cache_key: FontCacheKey::ScopedResource {
+                scope_id: 7,
+                name: name.to_vec(),
+            },
+        };
+        // Two mapped-only fonts: the embedded program stays lazy, so only the
+        // 24-byte selector and one UTF-8 byte per mapped run are charged.
+        let mut tight = Extraction::new(
+            &pdf,
+            ExtractionLimits {
+                max_total_decoded_bytes: 40,
+                ..ExtractionLimits::default()
+            },
+        );
+        let first = tight.decode_font(&selection(b"F1", 99), b"A")?;
+        assert_eq!(first.glyphs.len(), 1);
+        assert_eq!(first.glyphs[0].mapping, UnicodeMapping::Mapped("A".into()));
+        assert_eq!(tight.decoded_bytes, 25);
+        let Err(error) = tight.decode_font(&selection(b"F2", 98), b"A") else {
+            panic!("the second selector must not fit the remaining budget");
+        };
+        assert!(
+            matches!(
+                error,
+                Error::LimitExceeded {
+                    resource: "simple-font selector identity bytes",
+                    ..
+                }
+            ),
+            "unexpected error: {error:?}"
+        );
+        assert_eq!(pdf.decoded_calls.load(Ordering::Relaxed), 0);
+        let mut sufficient = Extraction::new(
+            &pdf,
+            ExtractionLimits {
+                max_total_decoded_bytes: 50,
+                ..ExtractionLimits::default()
+            },
+        );
+        for (name, object_number) in [(b"F1".as_slice(), 99), (b"F2".as_slice(), 98)] {
+            let run = sufficient.decode_font(&selection(name, object_number), b"A")?;
+            assert_eq!(run.glyphs.len(), 1);
+            assert_eq!(run.glyphs[0].mapping, UnicodeMapping::Mapped("A".into()));
+        }
+        assert_eq!(sufficient.decoded_bytes, 50);
+        assert_eq!(pdf.decoded_calls.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
 }
