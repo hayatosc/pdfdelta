@@ -421,11 +421,21 @@ caveats are in
 
 One agent has read one bundle end to end under this contract and had its
 answers checked against both documents: all 23 settled findings were real
-differences, correctly quoted from their own documents, and they covered about
-4% of that pair's changed sentences. That ratio is the comparison's, not the
-packet's — the same run compared 193 of 137,926 glyphs. The record, including
-why it is weak evidence, is in
-`benchmark/realworld/remaining/agent-review/agent-loop-quality.md`.
+differences, correctly quoted from their own documents. What a settled review
+covers is another matter. Measured against a sentence-level diff of both
+documents, a settled review reports at best 6.7% of a pair's changed sentences
+and nothing at all on seven of eleven measurable pairs, and a reader given both
+documents' text instead found 4.9 times as many changes for 2.5 times the
+tokens — about twice the findings per token.
+
+**So the packets do not currently pay for themselves against simply reading the
+document.** That ceiling is the comparison's, not the encoding's: on one pair
+the run compared 193 of 137,926 glyphs, and a packet cannot report material
+that was never compared. What the packets have that the text does not is an
+account of their own blind spots, per page. Whether that is worth the missing
+findings is a judgement, not a measurement. Both records are in
+`benchmark/realworld/remaining/agent-review/`: `agent-loop-quality.md` and
+`head-to-head.md`.
 
 ## Trust boundary
 

@@ -204,8 +204,13 @@ settled and stops where it stopped. Measured on the registered real-world
 corpus, that costs about a quarter of the tokens that handing over both
 documents' text costs, and never more than the document; reading every case
 instead costs about 1.6 times the full text, and less than the document where
-pages the comparison never examined dominate. The measurements and their
-caveats are recorded under
+pages the comparison never examined dominate. Cost is not usefulness: measured
+against a sentence diff of both documents, a settled review reports at most
+6.7% of a pair's changed sentences today, and a reader given both documents'
+text found 4.9 times as many changes for 2.5 times the tokens. That ceiling is
+the comparison's — one pair compared 193 of its 137,926 glyphs — so the packets
+do not yet pay for themselves against reading the document. The measurements
+and their caveats are recorded under
 [`benchmark/realworld/remaining/agent-review/`](benchmark/realworld/remaining/agent-review/).
 
 Exporting a bundle changes no comparison field, no coverage count, and no exit

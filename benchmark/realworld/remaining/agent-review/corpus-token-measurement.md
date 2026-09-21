@@ -185,10 +185,12 @@ and this measurement cannot settle that.
 ## What this does not show
 
 - Nothing here measures review *quality*. It measures what a reviewer is charged
-  to read. One agent has since read one of these bundles end to end and had its
-  conclusions checked; that record is `agent-loop-quality.md` beside this file,
-  and its caveats are as important as its numbers. Independent annotation
-  against these pairs has still not been done.
+  to read, and a cheap review is not a better one. Two records beside this file
+  take up what these numbers do not: `agent-loop-quality.md`, where one agent
+  read one bundle end to end, and `head-to-head.md`, which compares a settled
+  review with reading both documents and finds the settled review behind on
+  both total findings and findings per token. Independent annotation against
+  these pairs has still not been done.
 - No pair completed, so there is no measurement of the packet path on documents
   the engine resolves well — the case where the index alone would be the whole
   review, and the case where the full review would be cheapest.
