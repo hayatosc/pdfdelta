@@ -2558,5 +2558,98 @@
   "binding": {
     "report_sha256": "8bec36a12755ebf844ec8f08fe109bc53c3e0d7dd1ff10cddc4510c2b705092f",
     "script_sha256": "2b05c5022b33ced53c0388285b737e2550d1d0ec02d0b0e9e070761c07407e3d"
+  },
+  "review_unit_correlation": {
+    "review_units_total": 29,
+    "review_units_linked_to_29_regions": 29,
+    "linked_sample": [
+      {
+        "relation": 5315,
+        "search": "complete",
+        "normalization_hypotheses": 2,
+        "normalization_old_spans": 0,
+        "normalization_new_spans": 1,
+        "mandatory_old_spans": 0,
+        "mandatory_new_spans": 2,
+        "changed_count": {
+          "lower": 461,
+          "upper": 462
+        },
+        "unresolved_changed_count": {
+          "lower": 461,
+          "upper": 462
+        }
+      },
+      {
+        "relation": 5316,
+        "search": "complete",
+        "normalization_hypotheses": 2,
+        "normalization_old_spans": 0,
+        "normalization_new_spans": 1,
+        "mandatory_old_spans": 0,
+        "mandatory_new_spans": 2,
+        "changed_count": {
+          "lower": 257,
+          "upper": 258
+        },
+        "unresolved_changed_count": {
+          "lower": 257,
+          "upper": 258
+        }
+      },
+      {
+        "relation": 5317,
+        "search": "complete",
+        "normalization_hypotheses": 4,
+        "normalization_old_spans": 0,
+        "normalization_new_spans": 2,
+        "mandatory_old_spans": 0,
+        "mandatory_new_spans": 3,
+        "changed_count": {
+          "lower": 225,
+          "upper": 227
+        },
+        "unresolved_changed_count": {
+          "lower": 225,
+          "upper": 227
+        }
+      },
+      {
+        "relation": 5318,
+        "search": "complete",
+        "normalization_hypotheses": 2,
+        "normalization_old_spans": 0,
+        "normalization_new_spans": 1,
+        "mandatory_old_spans": 0,
+        "mandatory_new_spans": 2,
+        "changed_count": {
+          "lower": 4187,
+          "upper": 4188
+        },
+        "unresolved_changed_count": {
+          "lower": 4187,
+          "upper": 4188
+        }
+      },
+      {
+        "relation": 5319,
+        "search": "complete",
+        "normalization_hypotheses": 2,
+        "normalization_old_spans": 0,
+        "normalization_new_spans": 1,
+        "mandatory_old_spans": 0,
+        "mandatory_new_spans": 2,
+        "changed_count": {
+          "lower": 504,
+          "upper": 505
+        },
+        "unresolved_changed_count": {
+          "lower": 504,
+          "upper": 505
+        }
+      }
+    ],
+    "interpretation": "review.rs:318-343 creates a separate Established relation with AlternativeLineBreakNormalization for review-unit universal count bounds; the original canonical relation and candidates remain tentative. The 29 established records are therefore review bounds, not exact-emission acceptance, and budget alone is not proven to block exact output.",
+    "report_sha256": "8bec36a12755ebf844ec8f08fe109bc53c3e0d7dd1ff10cddc4510c2b705092f"
   }
 }

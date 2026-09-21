@@ -66,12 +66,20 @@ input (program, encoding, code).
   the guessed `*_extraction_complete` keys, so extraction completeness is
   taken from the raw probe (`issues=0` on H17) and comparison completeness
   from the capture summary (`false`); the earlier hardcoded flags are removed.
-- Next falsifiable hypothesis: the 29 established alternative-line-break
-  relations suggest already-proven alternate normalization that was not
-  emitted under the saturated 32,000,000 budget (emission 15,036,439). A
-  representative relation chain and its emission consumer must be traced on
-  the frozen binary/source before treating the 29 as impossible
-  normalization.
+- Review-bound distinction (corrected): `review.rs:318-343` creates a
+  separate Established relation carrying `AlternativeLineBreakNormalization`
+  for review-unit universal count bounds, while the original canonical
+  relation and candidates remain tentative. The 29 established records
+  correlate with `assessment.review_units` entries (`JsonReviewUnit`:
+  `relation`, `normalization_hypotheses`, normalization/mandatory spans,
+  `changed_count`/`unresolved_changed_count`); see
+  `review_unit_correlation` in `nasa-region-grouping.json`. They are review
+  proofs, not exact stable event signatures, so budget alone is not proven to
+  block exact output.
+- The earlier "around the recovered page 85 run" localization was
+  unsupported: the largest current representatives are pages 18, 28, 94, 25
+  and 30. That claim is removed; a representative review-unit chain and its
+  emission consumer still need a frozen-binary trace.
 
 ## Preserved failures and limitations
 
