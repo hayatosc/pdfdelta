@@ -1,8 +1,11 @@
 # H13 forced-equal child promotion (accepted candidate)
 
-Status: candidate code complete with integration regressions, mutation control,
-all seven gates exit 0, and a final-binary full 36-pair capture. Acceptance is
-pending the full-panel retention audit result.
+Status: accepted intermediate (local commit `e04b30d`, score remains 3/36).
+All 31 pairs whose reports are not byte-identical are proven unchanged by
+whole-report logical hash, and the five differing pairs pass the deep native
+retention audit with no prior-resolved loss, no payload loss and no reviews.
+The final capture `h13-full-iteration-004-native` (binary `fbab3082424a`) is
+pinned as accepted evidence so rotation cannot remove the basis.
 
 ## Change
 
@@ -71,6 +74,22 @@ exited 0 in the final source state.
 | nist-sha-1803 | 5,924 / 5,922, 1,018 unresolved | **5,946 / 5,944, 1,013 unresolved** | 6 -> 6 |
 | all other pairs | identical metrics | identical metrics | unchanged |
 
+The 31 unchanged pairs are proven identical at the whole-report logical hash
+level (`retention-final/manifest.json` records the pair-level hashes and proof
+kind), so every payload and source multiplicity is preserved by definition.
+The five differing pairs carry deep `native_retention_audit` results: SE,
+Schedule C and arxiv-ddpm report no resolution change (their hashes differ
+only in excluded work counters), W4 gains +233 tokens per side and NIST-SHA
++22 per side with `prior_resolved_lost = 0` on both sides.
+
 `archival` note: the earlier five-pair audits and the 003 capture were
 superseded by the final-binary capture; the per-pair audit files for the final
 capture live in `retention-final/`.
+
+## Next cause
+
+H14: measure the repeated positioned-occurrence scans (`views.rs::positioned_occurrences_with`)
+on W2 and EDPB with a temporary trace before considering any posting-index
+change; H5 showed a first-token prefilter alone saved under one percent, so the
+trace must justify the index with real numbers.
+

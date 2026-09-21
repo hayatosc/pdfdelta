@@ -1,0 +1,10 @@
+Final source state gate run (all exit 0, pdfbench verify 48/48):
+
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace
+cargo test --workspace --all-features --lib
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --document-private-items
+cargo run --release -p pdfdelta-bench --bin pdfbench --locked -- verify
+git diff --check
+GATES_EXIT=0
