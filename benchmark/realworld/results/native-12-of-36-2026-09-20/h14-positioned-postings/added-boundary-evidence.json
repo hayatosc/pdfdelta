@@ -1,0 +1,648 @@
+[
+  {
+    "pair": "irs-w2-2024-to-2025",
+    "side": "old_resolution",
+    "block": 272,
+    "source_pdf_sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526",
+    "event_deltas": [
+      {
+        "event": {
+          "following": 16579,
+          "kind": "line_break",
+          "preceding": 16578
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 131,
+              "end": 171
+            },
+            "comparable_range": {
+              "start": 131,
+              "end": 171
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 132,
+            "end": 133
+          },
+          "canonical_range": {
+            "start": 131,
+            "end": 131
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(16578), following: GlyphId(16579) }]"
+        }
+      },
+      {
+        "event": {
+          "glyph_id": 16578,
+          "kind": "glyph",
+          "object": 22,
+          "operator": 317,
+          "page": 8
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 130,
+              "end": 131
+            },
+            "comparable_range": {
+              "start": 130,
+              "end": 131
+            },
+            "state": "unresolved"
+          },
+          {
+            "canonical_range": {
+              "start": 131,
+              "end": 171
+            },
+            "comparable_range": {
+              "start": 131,
+              "end": 171
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract); aggregate multiplicity grows by at most one per restored endpoint."
+      }
+    ],
+    "probe_evidence": "normalization-probe.txt (temporary in-crate prepare() probe over the hash-verified frozen inputs)"
+  },
+  {
+    "pair": "irs-w2-2024-to-2025",
+    "side": "new_resolution",
+    "block": 272,
+    "source_pdf_sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96",
+    "event_deltas": [
+      {
+        "event": {
+          "following": 16673,
+          "kind": "line_break",
+          "preceding": 16672
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 131,
+              "end": 171
+            },
+            "comparable_range": {
+              "start": 131,
+              "end": 171
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 132,
+            "end": 133
+          },
+          "canonical_range": {
+            "start": 131,
+            "end": 131
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(16672), following: GlyphId(16673) }]"
+        }
+      },
+      {
+        "event": {
+          "glyph_id": 16672,
+          "kind": "glyph",
+          "object": 22,
+          "operator": 321,
+          "page": 8
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 130,
+              "end": 131
+            },
+            "comparable_range": {
+              "start": 130,
+              "end": 131
+            },
+            "state": "unresolved"
+          },
+          {
+            "canonical_range": {
+              "start": 131,
+              "end": 171
+            },
+            "comparable_range": {
+              "start": 131,
+              "end": 171
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract); aggregate multiplicity grows by at most one per restored endpoint."
+      }
+    ],
+    "probe_evidence": "normalization-probe.txt (temporary in-crate prepare() probe over the hash-verified frozen inputs)"
+  },
+  {
+    "pair": "nist-sha-1803-to-1804",
+    "side": "old_resolution",
+    "block": 302,
+    "source_pdf_sha256": "92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d",
+    "event_deltas": [
+      {
+        "event": {
+          "following": 21709,
+          "kind": "line_break",
+          "preceding": 21708
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 91,
+              "end": 92
+            },
+            "comparable_range": {
+              "start": 91,
+              "end": 92
+            },
+            "state": "changed"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 92,
+            "end": 93
+          },
+          "canonical_range": {
+            "start": 91,
+            "end": 91
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(21708), following: GlyphId(21709) }]"
+        }
+      },
+      {
+        "event": {
+          "glyph_id": 21708,
+          "kind": "glyph",
+          "object": 27,
+          "operator": 950,
+          "page": 13
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 0,
+              "end": 91
+            },
+            "comparable_range": {
+              "start": 0,
+              "end": 91
+            },
+            "state": "equal"
+          },
+          {
+            "canonical_range": {
+              "start": 91,
+              "end": 92
+            },
+            "comparable_range": {
+              "start": 91,
+              "end": 92
+            },
+            "state": "changed"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract); aggregate multiplicity grows by at most one per restored endpoint."
+      }
+    ],
+    "probe_evidence": "normalization-probe.txt (temporary in-crate prepare() probe over the hash-verified frozen inputs)"
+  },
+  {
+    "pair": "nist-sha-1803-to-1804",
+    "side": "new_resolution",
+    "block": 283,
+    "source_pdf_sha256": "0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82",
+    "event_deltas": [
+      {
+        "event": {
+          "following": 22256,
+          "kind": "line_break",
+          "preceding": 22255
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 91,
+              "end": 92
+            },
+            "comparable_range": {
+              "start": 91,
+              "end": 92
+            },
+            "state": "changed"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 92,
+            "end": 93
+          },
+          "canonical_range": {
+            "start": 91,
+            "end": 91
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(22255), following: GlyphId(22256) }]"
+        }
+      },
+      {
+        "event": {
+          "glyph_id": 22255,
+          "kind": "glyph",
+          "object": 92,
+          "operator": 1442,
+          "page": 12
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 0,
+              "end": 91
+            },
+            "comparable_range": {
+              "start": 0,
+              "end": 91
+            },
+            "state": "equal"
+          },
+          {
+            "canonical_range": {
+              "start": 91,
+              "end": 92
+            },
+            "comparable_range": {
+              "start": 91,
+              "end": 92
+            },
+            "state": "changed"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract); aggregate multiplicity grows by at most one per restored endpoint."
+      }
+    ],
+    "probe_evidence": "normalization-probe.txt (temporary in-crate prepare() probe over the hash-verified frozen inputs)"
+  },
+  {
+    "pair": "irs-1099-misc-2024-to-2025",
+    "side": "old_resolution",
+    "block": 1,
+    "source_pdf_sha256": "d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08",
+    "event_deltas": [
+      {
+        "event": {
+          "following": 1317,
+          "kind": "line_break",
+          "preceding": 1316
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "comparable_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 1322,
+            "end": 1323
+          },
+          "canonical_range": {
+            "start": 1308,
+            "end": 1308
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(1316), following: GlyphId(1317) }]"
+        }
+      },
+      {
+        "event": {
+          "following": 893,
+          "kind": "line_break",
+          "preceding": 892
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 884,
+              "end": 975
+            },
+            "comparable_range": {
+              "start": 884,
+              "end": 975
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 893,
+            "end": 894
+          },
+          "canonical_range": {
+            "start": 884,
+            "end": 884
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(892), following: GlyphId(893) }]"
+        }
+      },
+      {
+        "event": {
+          "glyph_id": 1316,
+          "kind": "glyph",
+          "object": 1367,
+          "operator": 128,
+          "page": 0
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 1307,
+              "end": 1308
+            },
+            "comparable_range": {
+              "start": 1307,
+              "end": 1308
+            },
+            "state": "unresolved"
+          },
+          {
+            "canonical_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "comparable_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract)."
+      },
+      {
+        "event": {
+          "glyph_id": 892,
+          "kind": "glyph",
+          "object": 1367,
+          "operator": 83,
+          "page": 0
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 883,
+              "end": 884
+            },
+            "comparable_range": {
+              "start": 883,
+              "end": 884
+            },
+            "state": "unresolved"
+          },
+          {
+            "canonical_range": {
+              "start": 884,
+              "end": 975
+            },
+            "comparable_range": {
+              "start": 884,
+              "end": 975
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract)."
+      }
+    ],
+    "probe_evidence": "normalization-probe.txt (temporary in-crate prepare() probe over the hash-verified frozen inputs)"
+  },
+  {
+    "pair": "irs-1099-misc-2024-to-2025",
+    "side": "new_resolution",
+    "block": 1,
+    "source_pdf_sha256": "a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be",
+    "event_deltas": [
+      {
+        "event": {
+          "following": 1317,
+          "kind": "line_break",
+          "preceding": 1316
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "comparable_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 1322,
+            "end": 1323
+          },
+          "canonical_range": {
+            "start": 1308,
+            "end": 1308
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(1316), following: GlyphId(1317) }]"
+        }
+      },
+      {
+        "event": {
+          "following": 893,
+          "kind": "line_break",
+          "preceding": 892
+        },
+        "before_count": 0,
+        "after_count": 1,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 884,
+              "end": 975
+            },
+            "comparable_range": {
+              "start": 884,
+              "end": 975
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "restored_structural_event",
+        "observed_normalization_event": {
+          "kind": "SoftLineBreak",
+          "raw_range": {
+            "start": 893,
+            "end": 894
+          },
+          "canonical_range": {
+            "start": 884,
+            "end": 884
+          },
+          "atoms": "[LineBreak { preceding: GlyphId(892), following: GlyphId(893) }]"
+        }
+      },
+      {
+        "event": {
+          "glyph_id": 1316,
+          "kind": "glyph",
+          "object": 1454,
+          "operator": 128,
+          "page": 0
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 1307,
+              "end": 1308
+            },
+            "comparable_range": {
+              "start": 1307,
+              "end": 1308
+            },
+            "state": "unresolved"
+          },
+          {
+            "canonical_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "comparable_range": {
+              "start": 1308,
+              "end": 1394
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract)."
+      },
+      {
+        "event": {
+          "glyph_id": 892,
+          "kind": "glyph",
+          "object": 1454,
+          "operator": 83,
+          "page": 0
+        },
+        "before_count": 1,
+        "after_count": 2,
+        "delta": 1,
+        "entries_after": [
+          {
+            "canonical_range": {
+              "start": 883,
+              "end": 884
+            },
+            "comparable_range": {
+              "start": 883,
+              "end": 884
+            },
+            "state": "unresolved"
+          },
+          {
+            "canonical_range": {
+              "start": 884,
+              "end": 975
+            },
+            "comparable_range": {
+              "start": 884,
+              "end": 975
+            },
+            "state": "equal"
+          }
+        ],
+        "classification": "context_glyph_reference",
+        "context_note": "Endpoint glyph emitted again while the restored line-break event is projected for its own span (ordered deduplicated per-span contract)."
+      }
+    ],
+    "probe_evidence": "normalization-probe.txt (temporary in-crate prepare() probe over the hash-verified frozen inputs)"
+  }
+]

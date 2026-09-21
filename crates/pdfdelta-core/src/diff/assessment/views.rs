@@ -471,7 +471,7 @@ fn positioned_block(view: &View, block: usize) -> bool {
 
 /// Occurrences of a positioned candidate block's token sequence across every
 /// view.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct PositionedOccurrences {
     /// Other occurrences whose complete metadata equals the candidate's key.
     same: usize,
@@ -520,6 +520,220 @@ fn positioned_occurrences_by_position(
         remaining,
         false,
     )
+}
+
+/// Pure per-occurrence state used by both the scanning and indexed paths.
+///
+/// Returns `(same, complete, different)` for one candidate start. The caller
+/// charges its own visits before calling and computes the whole-member flag
+/// only for the first confirmed occurrence, exactly like the scanning path.
+fn occurrence_state(
+    view: &View,
+    start: usize,
+    needle_view: &View,
+    needle_range: &std::ops::Range<usize>,
+) -> (bool, bool, bool) {
+    let needle = &needle_view.group.tokens[needle_range.clone()];
+    let mut same = true;
+    let mut complete = true;
+    let mut different = false;
+    for offset in 0..needle.len() {
+        let needle_position = needle_view.token_positions[needle_range.start + offset];
+        let needle_page = needle_view.token_pages[needle_range.start + offset];
+        if let (Some(position), Some(page)) = (
+            view.token_positions[start + offset],
+            view.token_pages[start + offset],
+        ) {
+            if let (Some(needle_position), Some(needle_page)) = (needle_position, needle_page) {
+                if position != needle_position || page != needle_page {
+                    same = false;
+                    different = true;
+                    break;
+                }
+            } else {
+                complete = false;
+            }
+        } else if let (
+            Some(deny_position),
+            Some(deny_page),
+            Some(needle_position),
+            Some(needle_page),
+        ) = (
+            view.deny_positions.get(start + offset).copied().flatten(),
+            view.deny_pages.get(start + offset).copied().flatten(),
+            needle_position,
+            needle_page,
+        ) {
+            if deny_position != needle_position || deny_page != needle_page {
+                same = false;
+                different = true;
+                break;
+            }
+            complete = false;
+        } else {
+            complete = false;
+        }
+    }
+    (same, complete, different)
+}
+
+/// Upper bound on the transient positioned posting index.
+const MAX_POSITIONED_POSTING_BYTES: usize = 64 * 1024 * 1024;
+
+/// Ordered first-token postings for one side's views.
+///
+/// The optional positioned pass otherwise rescans every start of every view
+/// for every needle; the index lists exactly the starts a first-token
+/// prefilter would accept, in the same `(view, start)` order, which is exact
+/// for the equal-token mode. Builds that cannot be charged or bounded return
+/// `None` without touching the shared remainder, so callers keep the scanning
+/// path.
+pub(super) struct TokenPostings<'a> {
+    map: HashMap<&'a ComparableToken, Vec<(u32, u32)>>,
+}
+
+impl<'a> TokenPostings<'a> {
+    fn build(views: &'a [View], remaining: &mut usize) -> Option<Self> {
+        // Preflight every count and conversion before any charge or
+        // allocation. A refused index leaves the shared remainder untouched so
+        // the legacy scanning path stays usable.
+        if u32::try_from(views.len()).is_err() {
+            return None;
+        }
+        let mut total = 0usize;
+        for view in views {
+            if u32::try_from(view.group.tokens.len()).is_err() {
+                return None;
+            }
+            total = total.checked_add(view.group.tokens.len())?;
+        }
+        let work = total.checked_mul(2)?.checked_add(1)?;
+        if *remaining < work {
+            return None;
+        }
+        // Worst-case storage: postings with amortized growth, map buckets
+        // rounded to the next power of two (with a per-bucket overhead for
+        // hashes and control bytes), one Vec header per distinct token and
+        // conservative key storage. Each side may use at most half of the
+        // bounded budget so both indexes together stay inside it.
+        // Borrowed keys avoid cloning font-hash payloads; the estimate still
+        // covers buckets, pair storage and amortized growth.
+        let pair_bytes =
+            std::mem::size_of::<(&ComparableToken, Vec<(u32, u32)>)>().checked_add(16)?;
+        let buckets = total.checked_mul(2)?.checked_next_power_of_two()?;
+        let bytes = total
+            .checked_mul(std::mem::size_of::<(u32, u32)>())?
+            .checked_mul(2)?
+            .checked_add(buckets.checked_mul(pair_bytes)?)?
+            .checked_add(
+                total
+                    .checked_mul(std::mem::size_of::<Vec<(u32, u32)>>())?
+                    .checked_mul(2)?,
+            )?;
+        if bytes > MAX_POSITIONED_POSTING_BYTES / 2 {
+            return None;
+        }
+        // Preflight passed: the index build performs the charged work, so an
+        // allocation failure after this point keeps the charge while only a
+        // preflight refusal leaves the remainder untouched.
+        if !charge(remaining, work) {
+            return None;
+        }
+        let mut map = HashMap::<&ComparableToken, Vec<(u32, u32)>>::new();
+        if map.try_reserve(total).is_err() {
+            return None;
+        }
+        for (view_index, view) in views.iter().enumerate() {
+            let view_index = u32::try_from(view_index).ok()?;
+            for (start, token) in view.group.tokens.iter().enumerate() {
+                let start = u32::try_from(start).ok()?;
+                let list = map.entry(token).or_default();
+                if list.try_reserve(1).is_err() {
+                    return None;
+                }
+                list.push((view_index, start));
+            }
+        }
+        Some(Self { map })
+    }
+}
+
+/// Indexed equivalent of [`positioned_occurrences`] for the equal-token mode.
+///
+/// The first needle token's postings already list exactly the starts the
+/// scanning path's prefilter would accept, in `(view, start)` order, so the
+/// candidate sequence, `same`, `unknown` and the first match stay identical
+/// while every non-matching start is skipped without a visit.
+fn positioned_occurrences_indexed(
+    views: &[View],
+    postings: &TokenPostings,
+    needle_view: &View,
+    needle_range: &std::ops::Range<usize>,
+    self_view: usize,
+    remaining: &mut usize,
+) -> Result<Option<PositionedOccurrences>> {
+    let needle = &needle_view.group.tokens[needle_range.clone()];
+    let mut result = PositionedOccurrences {
+        same: 0,
+        unknown: false,
+        matched: None,
+    };
+    let Some(first) = needle.first() else {
+        return Ok(Some(result));
+    };
+    let Some(list) = postings.map.get(first) else {
+        return Ok(Some(result));
+    };
+    if !charge(remaining, list.len().saturating_add(1)) {
+        return Ok(None);
+    }
+    let mut last_view = None;
+    for &(view_index, start) in list {
+        let view_index = view_index as usize;
+        let start = start as usize;
+        let Some(view) = views.get(view_index) else {
+            continue;
+        };
+        let tokens = &view.group.tokens;
+        if needle.len() > tokens.len() || start + needle.len() > tokens.len() {
+            continue;
+        }
+        // Postings are ordered by view, so one comparison replaces a set.
+        if last_view != Some(view_index) {
+            last_view = Some(view_index);
+            if !charge(remaining, needle.len()) {
+                return Ok(None);
+            }
+        }
+        if !charge(remaining, needle.len().saturating_add(1)) {
+            return Ok(None);
+        }
+        if &tokens[start..start + needle.len()] != needle {
+            continue;
+        }
+        if view_index == self_view && start == needle_range.start {
+            continue;
+        }
+        let (same, complete, different) = occurrence_state(view, start, needle_view, needle_range);
+        if different {
+            continue;
+        }
+        if !complete {
+            result.unknown = true;
+        } else if same {
+            result.same = result.same.saturating_add(1).min(2);
+            if result.matched.is_none() {
+                let end = start + needle.len();
+                let whole = view
+                    .block_ranges
+                    .iter()
+                    .position(|range| range.start == start && range.end == end)
+                    .is_some_and(|block| positioned_block(view, block));
+                result.matched = Some((view_index, start..end, whole));
+            }
+        }
+    }
+    Ok(Some(result))
 }
 
 /// Shared positioned scan. `require_equal_tokens` gates the cheap first-token
@@ -575,51 +789,8 @@ fn positioned_occurrences_with(
             // stays unverifiable and vetoes the proof; it is never treated as
             // equal. The scan continues past a missing offset so a later
             // definitive mismatch is still found.
-            let mut same = true;
-            let mut complete = true;
-            let mut different = false;
-            for offset in 0..needle.len() {
-                let needle_position = needle_view.token_positions[needle_range.start + offset];
-                let needle_page = needle_view.token_pages[needle_range.start + offset];
-                if let (Some(position), Some(page)) = (
-                    view.token_positions[start + offset],
-                    view.token_pages[start + offset],
-                ) {
-                    if let (Some(needle_position), Some(needle_page)) =
-                        (needle_position, needle_page)
-                    {
-                        if position != needle_position || page != needle_page {
-                            same = false;
-                            different = true;
-                            break;
-                        }
-                    } else {
-                        complete = false;
-                    }
-                } else if let (
-                    Some(deny_position),
-                    Some(deny_page),
-                    Some(needle_position),
-                    Some(needle_page),
-                ) = (
-                    view.deny_positions.get(start + offset).copied().flatten(),
-                    view.deny_pages.get(start + offset).copied().flatten(),
-                    needle_position,
-                    needle_page,
-                ) {
-                    // Deny-only evidence: a proven difference rejects the
-                    // occurrence, a match stays unverifiable and never
-                    // promotes the occurrence to a confirmed one.
-                    if deny_position != needle_position || deny_page != needle_page {
-                        same = false;
-                        different = true;
-                        break;
-                    }
-                    complete = false;
-                } else {
-                    complete = false;
-                }
-            }
+            let (same, complete, different) =
+                occurrence_state(view, start, needle_view, needle_range);
             if different {
                 continue;
             }
@@ -806,6 +977,13 @@ fn positioned_equalities(
         }
     }
     let mut additions: Vec<(PositionedDomain, LocalDomain)> = Vec::new();
+    // One optional first-token posting index per side for this pass; a refused
+    // index leaves that side on the legacy scanning path without touching the
+    // shared remainder.
+    let postings = [
+        TokenPostings::build(views[0], remaining),
+        TokenPostings::build(views[1], remaining),
+    ];
     'views: for (old_view_index, old_view) in views[0].iter().enumerate() {
         for block in 0..old_view.block_ranges.len() {
             if !positioned_block(old_view, block) {
@@ -835,9 +1013,23 @@ fn positioned_equalities(
             }
             // The old side must not contain another occurrence at the same
             // position, and no occurrence with unverifiable metadata.
-            let Some(old_occurrences) =
-                positioned_occurrences(views[0], old_view, &old_range, old_view_index, remaining)?
-            else {
+            let Some(old_occurrences) = (match &postings[0] {
+                Some(index) => positioned_occurrences_indexed(
+                    views[0],
+                    index,
+                    old_view,
+                    &old_range,
+                    old_view_index,
+                    remaining,
+                )?,
+                None => positioned_occurrences(
+                    views[0],
+                    old_view,
+                    &old_range,
+                    old_view_index,
+                    remaining,
+                )?,
+            }) else {
                 return Ok(false);
             };
             if old_occurrences.same != 0 || old_occurrences.unknown {
@@ -847,9 +1039,19 @@ fn positioned_equalities(
             // it must cover exactly one complete eligible block and that block
             // must itself be adoptable. A substring occurrence competes but is
             // never adopted.
-            let Some(new_occurrences) =
-                positioned_occurrences(views[1], old_view, &old_range, usize::MAX, remaining)?
-            else {
+            let Some(new_occurrences) = (match &postings[1] {
+                Some(index) => positioned_occurrences_indexed(
+                    views[1],
+                    index,
+                    old_view,
+                    &old_range,
+                    usize::MAX,
+                    remaining,
+                )?,
+                None => {
+                    positioned_occurrences(views[1], old_view, &old_range, usize::MAX, remaining)?
+                }
+            }) else {
                 return Ok(false);
             };
             if new_occurrences.same != 1 || new_occurrences.unknown {
@@ -5675,6 +5877,206 @@ mod tests {
     }
 
     #[test]
+    fn indexed_scan_matches_the_scanning_oracle() -> Result<()> {
+        let needle = positioned_view(
+            "ABA",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            true,
+        );
+        let matching = positioned_view(
+            "ABA",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            false,
+        );
+        let substring = positioned_view(
+            "XABAX",
+            vec![Some(9.0), Some(0.0), Some(1.0), Some(2.0), Some(9.0)],
+            vec![Some(0), Some(0), Some(0), Some(0), Some(0)],
+            false,
+        );
+        let unknown_later = positioned_view(
+            "ABA",
+            vec![Some(0.0), None, Some(2.0)],
+            vec![Some(0), None, Some(0)],
+            false,
+        );
+        let deny = positioned_view_with_deny(
+            "AXA",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![Some(0.0), Some(5.0), Some(2.0)],
+            vec![Some(0), None, Some(0)],
+            false,
+        );
+        let views = [matching, substring, unknown_later, deny];
+        for self_view in [usize::MAX, 0] {
+            let mut budget = 1_000_000;
+            let index = TokenPostings::build(&views, &mut budget).expect("index builds");
+            let indexed = positioned_occurrences_indexed(
+                &views,
+                &index,
+                &needle,
+                &(0..3),
+                self_view,
+                &mut budget,
+            )?
+            .expect("indexed search completes");
+            let mut brute_budget = 1_000_000;
+            let brute =
+                positioned_occurrences(&views, &needle, &(0..3), self_view, &mut brute_budget)?
+                    .expect("brute search completes");
+            assert_eq!(
+                indexed.same, brute.same,
+                "same differs: {indexed:?} vs {brute:?}"
+            );
+            assert_eq!(indexed.unknown, brute.unknown);
+            assert_eq!(indexed.matched, brute.matched);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn indexed_deny_only_equal_and_different_text_enter_metadata() -> Result<()> {
+        // Equal text with only deny metadata must stay unverifiable, while a
+        // deny mismatch still proves a difference; the indexed path must
+        // reproduce both.
+        let needle = positioned_view(
+            "ABA",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            true,
+        );
+        let equal_deny = positioned_view_with_deny(
+            "ABA",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            false,
+        );
+        let mismatched_deny = positioned_view_with_deny(
+            "ABA",
+            vec![None, None, None],
+            vec![None, None, None],
+            vec![Some(0.0), Some(9.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            false,
+        );
+        for (deny, expected_unknown) in [(equal_deny, true), (mismatched_deny, false)] {
+            let views = [deny];
+            let mut budget = 1_000_000;
+            let index = TokenPostings::build(&views, &mut budget).expect("index builds");
+            let indexed = positioned_occurrences_indexed(
+                &views,
+                &index,
+                &needle,
+                &(0..3),
+                usize::MAX,
+                &mut budget,
+            )?
+            .expect("indexed search completes");
+            assert_eq!(indexed.unknown, expected_unknown, "indexed {indexed:?}");
+            let mut brute_budget = 1_000_000;
+            let brute =
+                positioned_occurrences(&views, &needle, &(0..3), usize::MAX, &mut brute_budget)?
+                    .expect("brute search completes");
+            assert_eq!(indexed.same, brute.same);
+            assert_eq!(indexed.unknown, brute.unknown);
+            assert_eq!(indexed.matched, brute.matched);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn indexed_partial_budgets_never_produce_partial_proofs() -> Result<()> {
+        let needle = positioned_view(
+            "AB",
+            vec![Some(0.0), Some(1.0)],
+            vec![Some(0), Some(0)],
+            true,
+        );
+        let first = positioned_view(
+            "AB",
+            vec![Some(0.0), Some(1.0)],
+            vec![Some(0), Some(0)],
+            false,
+        );
+        let later_unknown =
+            positioned_view("AB", vec![Some(0.0), None], vec![Some(0), None], false);
+        let views = [first, later_unknown];
+        let mut full_budget = 1_000_000;
+        let oracle =
+            positioned_occurrences(&views, &needle, &(0..2), usize::MAX, &mut full_budget)?
+                .expect("oracle search completes");
+        assert!(oracle.unknown, "the later competitor vetoes: {oracle:?}");
+        for budget in 0..40usize {
+            let mut build_budget = 1_000_000;
+            let Some(index) = TokenPostings::build(&views, &mut build_budget) else {
+                continue;
+            };
+            let mut query_budget = budget;
+            match positioned_occurrences_indexed(
+                &views,
+                &index,
+                &needle,
+                &(0..2),
+                usize::MAX,
+                &mut query_budget,
+            )? {
+                Some(result) => assert_eq!(
+                    result, oracle,
+                    "a completed indexed search must equal the oracle"
+                ),
+                None => {
+                    assert_eq!(query_budget, 0, "a cut leaves no budget behind");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn refused_index_keeps_the_shared_remainder() -> Result<()> {
+        let views = [positioned_view(
+            "ABA",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 1;
+        assert!(TokenPostings::build(&views, &mut budget).is_none());
+        assert_eq!(budget, 1, "a refused index leaves the remainder untouched");
+        Ok(())
+    }
+
+    #[test]
+    fn indexed_scan_budget_cut_is_a_cut() -> Result<()> {
+        let needle = positioned_view(
+            "ABA",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            true,
+        );
+        let views = [positioned_view(
+            "ABA",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0), Some(0), Some(0)],
+            false,
+        )];
+        let mut budget = 1_000_000;
+        let index = TokenPostings::build(&views, &mut budget).expect("index builds");
+        let mut cut = 0;
+        assert!(
+            positioned_occurrences_indexed(&views, &index, &needle, &(0..3), usize::MAX, &mut cut)?
+                .is_none(),
+            "an exhausted query budget is a cut"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn position_only_scan_matches_a_text_difference_where_text_mode_does_not() -> Result<()> {
         let needle = positioned_view(
             "ABCDE",
@@ -5733,6 +6135,67 @@ mod tests {
             result.matched.is_none(),
             "an unknown occurrence is never adopted"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_equalities_recovers_short_endings_with_a_stage_budget() -> Result<()> {
+        // Long differing fillers plus five short identical endings: every
+        // ending needle searches all long views, which the legacy scan charges
+        // start by start while the posting index visits only matching first
+        // tokens. The stage budget is calibrated between the two measured
+        // costs and the exact ending domains must close.
+        let mut old_blocks = vec![];
+        let mut new_blocks = vec![];
+        for index in 0..30u64 {
+            let old_text = format!("F{index} {}", "old".repeat(130));
+            let new_text = format!("F{index} {}", "new".repeat(130));
+            old_blocks.push(sourced_block(10 + index, &old_text));
+            new_blocks.push(sourced_block(110 + index, &new_text));
+        }
+        let mut endings = Vec::new();
+        for index in 0..5u64 {
+            let text = format!("E{index} FIN.");
+            let old_id = 200 + index;
+            let new_id = 300 + index;
+            old_blocks.push(sourced_block(old_id, &text));
+            new_blocks.push(sourced_block(new_id, &text));
+            endings.push((old_id, new_id));
+        }
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut preparation = 10_000_000;
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let old_views =
+            build_views(&old, &old_intervals, None, &mut preparation)?.expect("old views build");
+        let new_views =
+            build_views(&new, &new_intervals, None, &mut preparation)?.expect("new views build");
+        let mut cache = super::super::SourceIssueCache::new([&old, &new], &mut preparation)?
+            .expect("issue cache builds");
+        let mut domains = Vec::new();
+        // Measured on this fixture: the indexed pass spends 1,165,692 while the
+        // legacy scan spends 1,236,340, so this stage budget separates them.
+        let mut stage = 1_200_000;
+        let complete = positioned_equalities(
+            [&old, &new],
+            [&old_views, &new_views],
+            &mut stage,
+            &mut domains,
+            100,
+            &mut cache,
+        )?;
+        assert!(complete, "the positioned pass completes");
+        for (old_id, new_id) in &endings {
+            assert!(
+                domains.iter().any(|(_, domain)| {
+                    domain.source_bounded
+                        && domain.old_span.blocks == [BlockId(*old_id)]
+                        && domain.new_span.blocks == [BlockId(*new_id)]
+                }),
+                "ending {old_id}/{new_id} must close: {domains:?}"
+            );
+        }
         Ok(())
     }
 

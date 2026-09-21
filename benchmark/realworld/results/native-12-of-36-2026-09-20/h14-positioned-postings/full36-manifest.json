@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "h13_capture": {
+    "path": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h13-full-iteration-004-native",
+    "binary_sha256": "fbab3082424acec357e732e9264ce3f3711b06b0412e0824088393f68ab48cae"
+  },
+  "h14_capture": {
+    "path": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h14-full-iteration-005-native",
+    "binary_sha256": "c2c4d152d261e40329e26b1bf11ac0491456a11a6554631b8dba2e2415d8e1ad"
+  },
+  "identical_whole_reports": [
+    "arxiv-bert-v1-to-v2",
+    "arxiv-ddpm-v1-to-v2",
+    "arxiv-faster-rcnn-v1-to-v3",
+    "arxiv-gpt3-v1-to-v4",
+    "arxiv-llama2-v1-to-v2",
+    "arxiv-mask-rcnn-v1-to-v3",
+    "bunka-kana-1946-to-1986",
+    "ecb-annual-2023-to-2024",
+    "edpb-controller-processor-v1-to-v2-1",
+    "edpb-design-default-v1-to-v2",
+    "edpb-restrictions-v1-to-final",
+    "edpb-social-targeting-v1-to-v2",
+    "faa-maintenance-records-c-to-d",
+    "faa-thunderstorms-b-to-c",
+    "ipcc-synthesis-ar5-to-ar6",
+    "irs-w4-english-2024-to-2025",
+    "mext-lower-secondary-japanese-2008-to-2017",
+    "mext-primary-japanese-2008-to-2017",
+    "mext-upper-secondary-japanese-2009-to-2018",
+    "mhlw-care-skills-original-to-revised",
+    "nasa-buckling-8007-1968-to-2020",
+    "nist-ai-rmf-draft2-to-v1",
+    "nist-authentication-63b-to-63b4",
+    "nist-contingency-34-to-r1",
+    "nist-controls-53-r4-to-r5",
+    "nist-incident-handling-r2-to-r3",
+    "nist-risk-management-37-r1-to-r2",
+    "nist-ssdf-draft-to-final"
+  ],
+  "differing": [
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "h13_metrics": [
+        0,
+        0,
+        2726,
+        0
+      ],
+      "h14_metrics": [
+        0,
+        0,
+        2726,
+        0
+      ]
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "h13_metrics": [
+        8228,
+        8224,
+        110,
+        12
+      ],
+      "h14_metrics": [
+        8228,
+        8224,
+        110,
+        12
+      ]
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "h13_metrics": [
+        6619,
+        6634,
+        19,
+        11
+      ],
+      "h14_metrics": [
+        6619,
+        6634,
+        19,
+        11
+      ]
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "h13_metrics": [
+        5485,
+        5502,
+        0,
+        12
+      ],
+      "h14_metrics": [
+        5485,
+        5502,
+        0,
+        12
+      ]
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "h13_metrics": [
+        10002,
+        10002,
+        403,
+        13
+      ],
+      "h14_metrics": [
+        14471,
+        14471,
+        212,
+        13
+      ]
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "h13_metrics": [
+        0,
+        0,
+        1011,
+        0
+      ],
+      "h14_metrics": [
+        15477,
+        15467,
+        640,
+        25
+      ]
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "h13_metrics": [
+        0,
+        0,
+        4281,
+        0
+      ],
+      "h14_metrics": [
+        0,
+        0,
+        4281,
+        0
+      ]
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "h13_metrics": [
+        5946,
+        5944,
+        1013,
+        6
+      ],
+      "h14_metrics": [
+        5946,
+        5944,
+        1013,
+        6
+      ]
+    }
+  ],
+  "deep_audits": [
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "audit": "retention-final/bunka-official-writing-1952-to-2022.json"
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "audit": "retention-final/irs-1099-misc-2024-to-2025.json"
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "audit": "retention-final/irs-schedule-c-2024-to-2025.json"
+    },
+    {
+      "pair": "irs-schedule-se-2024-to-2025",
+      "audit": "retention-final/irs-schedule-se-2024-to-2025.json"
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "audit": "retention-final/irs-w2-2024-to-2025.json"
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "audit": "retention-final/irs-w9-2018-to-2024.json"
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "audit": "retention-final/nist-risk-assessment-30-to-r1.json"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "audit": "retention-final/nist-sha-1803-to-1804.json"
+    }
+  ],
+  "review_resolutions": [
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "sides": [
+        "old block 272",
+        "new block 272"
+      ],
+      "kind": "restoration_only",
+      "evidence": "added-boundary-evidence.json",
+      "observed_probe": "normalization-probe.txt"
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "sides": [
+        "old block 302",
+        "new block 283"
+      ],
+      "kind": "restoration_only",
+      "evidence": "added-boundary-evidence.json",
+      "observed_probe": "normalization-probe.txt"
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "sides": [
+        "old block 1",
+        "new block 1"
+      ],
+      "kind": "restoration_only",
+      "evidence": "added-boundary-evidence.json",
+      "observed_probe": "normalization-probe.txt"
+    }
+  ],
+  "gates": {
+    "exit": 0,
+    "log": "gates.txt"
+  }
+}

@@ -1,0 +1,131 @@
+warning: duplicated attribute
+    --> crates/pdfdelta-core/src/report/source.rs:1065:5
+     |
+1065 |     #[test]
+     |     ^^^^^^^
+     |
+     = note: `#[warn(duplicate_macro_attributes)]` on by default
+
+warning: duplicated attribute
+    --> crates/pdfdelta-core/src/report/source.rs:1251:5
+     |
+1251 |     #[test]
+     |     ^^^^^^^
+
+warning: unused imports: `ComparableToken`, `FontSizeSignature`, `PositionSignature`, and `model::TextRenderMode`
+   --> crates/pdfdelta-core/src/report/source.rs:933:13
+    |
+933 |             model::TextRenderMode,
+    |             ^^^^^^^^^^^^^^^^^^^^^
+934 |             normalize::{
+935 |                 BlockText, ComparableToken, FontSizeSignature, MappedText, NormalizationEvent,
+    |                            ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^
+936 |                 NormalizationKind, PositionSignature, ScalarRange, SourceMapEntry, TextSource,
+    |                                    ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ComparableToken`
+    --> crates/pdfdelta-core/src/report/source.rs:1102:17
+     |
+1102 |                 ComparableToken, MappedText, NormalizationEvent, NormalizationKind, ScalarRange,
+     |                 ^^^^^^^^^^^^^^^
+
+warning: `pdfdelta-core` (lib test) generated 4 warnings (run `cargo fix --lib -p pdfdelta-core --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/debug/deps/pdfdelta_core-4ca9fa975ac0e46a)
+
+running 1 test
+H14PROBE path=benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf sha256=318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526 side=Old block=272 pages=[8] events=20
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 62, end: 63 } canonical=ScalarRange { start: 62, end: 62 } atoms=[LineBreak { preceding: GlyphId(16509), following: GlyphId(16510) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 132, end: 133 } canonical=ScalarRange { start: 131, end: 131 } atoms=[LineBreak { preceding: GlyphId(16578), following: GlyphId(16579) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 236, end: 237 } canonical=ScalarRange { start: 234, end: 234 } atoms=[LineBreak { preceding: GlyphId(16680), following: GlyphId(16681) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 262, end: 263 } canonical=ScalarRange { start: 259, end: 260 } atoms=[LineBreak { preceding: GlyphId(16705), following: GlyphId(16706) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 394, end: 395 } canonical=ScalarRange { start: 391, end: 391 } atoms=[LineBreak { preceding: GlyphId(16835), following: GlyphId(16836) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 412, end: 413 } canonical=ScalarRange { start: 408, end: 409 } atoms=[LineBreak { preceding: GlyphId(16852), following: GlyphId(16853) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 474, end: 475 } canonical=ScalarRange { start: 470, end: 470 } atoms=[LineBreak { preceding: GlyphId(16913), following: GlyphId(16914) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 558, end: 559 } canonical=ScalarRange { start: 553, end: 553 } atoms=[LineBreak { preceding: GlyphId(16995), following: GlyphId(16996) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 628, end: 629 } canonical=ScalarRange { start: 622, end: 622 } atoms=[LineBreak { preceding: GlyphId(17064), following: GlyphId(17065) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 716, end: 717 } canonical=ScalarRange { start: 709, end: 709 } atoms=[LineBreak { preceding: GlyphId(17150), following: GlyphId(17151) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 784, end: 785 } canonical=ScalarRange { start: 776, end: 776 } atoms=[LineBreak { preceding: GlyphId(17217), following: GlyphId(17218) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 852, end: 853 } canonical=ScalarRange { start: 843, end: 843 } atoms=[LineBreak { preceding: GlyphId(17284), following: GlyphId(17285) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 922, end: 923 } canonical=ScalarRange { start: 912, end: 912 } atoms=[LineBreak { preceding: GlyphId(17353), following: GlyphId(17354) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 989, end: 990 } canonical=ScalarRange { start: 978, end: 978 } atoms=[LineBreak { preceding: GlyphId(17419), following: GlyphId(17420) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1060, end: 1061 } canonical=ScalarRange { start: 1048, end: 1048 } atoms=[LineBreak { preceding: GlyphId(17489), following: GlyphId(17490) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1131, end: 1132 } canonical=ScalarRange { start: 1118, end: 1118 } atoms=[LineBreak { preceding: GlyphId(17559), following: GlyphId(17560) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1259, end: 1260 } canonical=ScalarRange { start: 1245, end: 1245 } atoms=[LineBreak { preceding: GlyphId(17685), following: GlyphId(17686) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1332, end: 1333 } canonical=ScalarRange { start: 1317, end: 1317 } atoms=[LineBreak { preceding: GlyphId(17757), following: GlyphId(17758) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1406, end: 1407 } canonical=ScalarRange { start: 1390, end: 1390 } atoms=[LineBreak { preceding: GlyphId(17830), following: GlyphId(17831) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1480, end: 1481 } canonical=ScalarRange { start: 1463, end: 1463 } atoms=[LineBreak { preceding: GlyphId(17903), following: GlyphId(17904) }]
+H14PROBE path=benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf sha256=6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96 side=New block=272 pages=[8] events=21
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 62, end: 63 } canonical=ScalarRange { start: 62, end: 62 } atoms=[LineBreak { preceding: GlyphId(16603), following: GlyphId(16604) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 132, end: 133 } canonical=ScalarRange { start: 131, end: 131 } atoms=[LineBreak { preceding: GlyphId(16672), following: GlyphId(16673) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 236, end: 237 } canonical=ScalarRange { start: 234, end: 234 } atoms=[LineBreak { preceding: GlyphId(16774), following: GlyphId(16775) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 262, end: 263 } canonical=ScalarRange { start: 259, end: 260 } atoms=[LineBreak { preceding: GlyphId(16799), following: GlyphId(16800) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 394, end: 395 } canonical=ScalarRange { start: 391, end: 391 } atoms=[LineBreak { preceding: GlyphId(16929), following: GlyphId(16930) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 412, end: 413 } canonical=ScalarRange { start: 408, end: 409 } atoms=[LineBreak { preceding: GlyphId(16946), following: GlyphId(16947) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 474, end: 475 } canonical=ScalarRange { start: 470, end: 470 } atoms=[LineBreak { preceding: GlyphId(17007), following: GlyphId(17008) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 488, end: 489 } canonical=ScalarRange { start: 483, end: 484 } atoms=[LineBreak { preceding: GlyphId(17020), following: GlyphId(17021) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 557, end: 558 } canonical=ScalarRange { start: 552, end: 552 } atoms=[LineBreak { preceding: GlyphId(17088), following: GlyphId(17089) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 627, end: 628 } canonical=ScalarRange { start: 621, end: 621 } atoms=[LineBreak { preceding: GlyphId(17157), following: GlyphId(17158) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 715, end: 716 } canonical=ScalarRange { start: 708, end: 708 } atoms=[LineBreak { preceding: GlyphId(17243), following: GlyphId(17244) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 783, end: 784 } canonical=ScalarRange { start: 775, end: 775 } atoms=[LineBreak { preceding: GlyphId(17310), following: GlyphId(17311) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 851, end: 852 } canonical=ScalarRange { start: 842, end: 842 } atoms=[LineBreak { preceding: GlyphId(17377), following: GlyphId(17378) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 921, end: 922 } canonical=ScalarRange { start: 911, end: 911 } atoms=[LineBreak { preceding: GlyphId(17446), following: GlyphId(17447) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 988, end: 989 } canonical=ScalarRange { start: 977, end: 977 } atoms=[LineBreak { preceding: GlyphId(17512), following: GlyphId(17513) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1059, end: 1060 } canonical=ScalarRange { start: 1047, end: 1047 } atoms=[LineBreak { preceding: GlyphId(17582), following: GlyphId(17583) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1130, end: 1131 } canonical=ScalarRange { start: 1117, end: 1117 } atoms=[LineBreak { preceding: GlyphId(17652), following: GlyphId(17653) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1258, end: 1259 } canonical=ScalarRange { start: 1244, end: 1244 } atoms=[LineBreak { preceding: GlyphId(17778), following: GlyphId(17779) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1331, end: 1332 } canonical=ScalarRange { start: 1316, end: 1316 } atoms=[LineBreak { preceding: GlyphId(17850), following: GlyphId(17851) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1405, end: 1406 } canonical=ScalarRange { start: 1389, end: 1389 } atoms=[LineBreak { preceding: GlyphId(17923), following: GlyphId(17924) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1479, end: 1480 } canonical=ScalarRange { start: 1462, end: 1462 } atoms=[LineBreak { preceding: GlyphId(17996), following: GlyphId(17997) }]
+H14PROBE path=benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-old.pdf sha256=92e100d407091e9560f3c0bd6c70258dc2880e75af88c542d7d578e3da00d97d side=Old block=302 pages=[13] events=2
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1, end: 2 } canonical=ScalarRange { start: 1, end: 1 } atoms=[LineBreak { preceding: GlyphId(21618), following: GlyphId(21619) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 92, end: 93 } canonical=ScalarRange { start: 91, end: 91 } atoms=[LineBreak { preceding: GlyphId(21708), following: GlyphId(21709) }]
+H14PROBE path=benchmark/realworld/cache/next-dev/nist-sha-1803-to-1804-new.pdf sha256=0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82 side=New block=283 pages=[12] events=2
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 1, end: 2 } canonical=ScalarRange { start: 1, end: 1 } atoms=[LineBreak { preceding: GlyphId(22165), following: GlyphId(22166) }]
+H14PROBE   kind=SoftLineBreak raw=ScalarRange { start: 92, end: 93 } canonical=ScalarRange { start: 91, end: 91 } atoms=[LineBreak { preceding: GlyphId(22255), following: GlyphId(22256) }]
+test pipeline::h14_probe_tests::h14_probe_normalization_events ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1383 filtered out; finished in 2.16s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/debug/deps/pdfdelta_core-4ca9fa975ac0e46a)
+
+running 1 test
+H14PROBE1099 path=benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-old.pdf sha256=d1099f75d0e6ffe01282dce28eea1d522bcd4ec46f5580b3557ac6890204aa08 side=Old block=1 events=15
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 88, end: 89 } canonical=ScalarRange { start: 88, end: 88 } atoms=[LineBreak { preceding: GlyphId(98), following: GlyphId(99) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 182, end: 183 } canonical=ScalarRange { start: 181, end: 181 } atoms=[LineBreak { preceding: GlyphId(191), following: GlyphId(192) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 281, end: 282 } canonical=ScalarRange { start: 279, end: 279 } atoms=[LineBreak { preceding: GlyphId(289), following: GlyphId(290) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 368, end: 369 } canonical=ScalarRange { start: 365, end: 365 } atoms=[LineBreak { preceding: GlyphId(375), following: GlyphId(376) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 451, end: 452 } canonical=ScalarRange { start: 447, end: 447 } atoms=[LineBreak { preceding: GlyphId(457), following: GlyphId(458) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 538, end: 539 } canonical=ScalarRange { start: 533, end: 533 } atoms=[LineBreak { preceding: GlyphId(543), following: GlyphId(544) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 653, end: 654 } canonical=ScalarRange { start: 647, end: 647 } atoms=[LineBreak { preceding: GlyphId(656), following: GlyphId(657) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 743, end: 744 } canonical=ScalarRange { start: 736, end: 736 } atoms=[LineBreak { preceding: GlyphId(745), following: GlyphId(746) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 853, end: 854 } canonical=ScalarRange { start: 845, end: 845 } atoms=[LineBreak { preceding: GlyphId(853), following: GlyphId(854) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 893, end: 894 } canonical=ScalarRange { start: 884, end: 884 } atoms=[LineBreak { preceding: GlyphId(892), following: GlyphId(893) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 989, end: 990 } canonical=ScalarRange { start: 979, end: 979 } atoms=[LineBreak { preceding: GlyphId(987), following: GlyphId(988) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1078, end: 1079 } canonical=ScalarRange { start: 1067, end: 1067 } atoms=[LineBreak { preceding: GlyphId(1075), following: GlyphId(1076) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1170, end: 1171 } canonical=ScalarRange { start: 1158, end: 1158 } atoms=[LineBreak { preceding: GlyphId(1166), following: GlyphId(1167) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1258, end: 1259 } canonical=ScalarRange { start: 1245, end: 1245 } atoms=[LineBreak { preceding: GlyphId(1253), following: GlyphId(1254) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1322, end: 1323 } canonical=ScalarRange { start: 1308, end: 1308 } atoms=[LineBreak { preceding: GlyphId(1316), following: GlyphId(1317) }]
+H14PROBE1099 path=benchmark/realworld/cache/next-blind/irs-1099-misc-2024-to-2025-new.pdf sha256=a56d3bc3b224eb38ab4b85c793beed7eeafa4efa278a4833ac53918f746340be side=New block=1 events=15
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 88, end: 89 } canonical=ScalarRange { start: 88, end: 88 } atoms=[LineBreak { preceding: GlyphId(98), following: GlyphId(99) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 182, end: 183 } canonical=ScalarRange { start: 181, end: 181 } atoms=[LineBreak { preceding: GlyphId(191), following: GlyphId(192) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 281, end: 282 } canonical=ScalarRange { start: 279, end: 279 } atoms=[LineBreak { preceding: GlyphId(289), following: GlyphId(290) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 368, end: 369 } canonical=ScalarRange { start: 365, end: 365 } atoms=[LineBreak { preceding: GlyphId(375), following: GlyphId(376) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 451, end: 452 } canonical=ScalarRange { start: 447, end: 447 } atoms=[LineBreak { preceding: GlyphId(457), following: GlyphId(458) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 538, end: 539 } canonical=ScalarRange { start: 533, end: 533 } atoms=[LineBreak { preceding: GlyphId(543), following: GlyphId(544) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 653, end: 654 } canonical=ScalarRange { start: 647, end: 647 } atoms=[LineBreak { preceding: GlyphId(656), following: GlyphId(657) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 743, end: 744 } canonical=ScalarRange { start: 736, end: 736 } atoms=[LineBreak { preceding: GlyphId(745), following: GlyphId(746) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 853, end: 854 } canonical=ScalarRange { start: 845, end: 845 } atoms=[LineBreak { preceding: GlyphId(853), following: GlyphId(854) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 893, end: 894 } canonical=ScalarRange { start: 884, end: 884 } atoms=[LineBreak { preceding: GlyphId(892), following: GlyphId(893) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 989, end: 990 } canonical=ScalarRange { start: 979, end: 979 } atoms=[LineBreak { preceding: GlyphId(987), following: GlyphId(988) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1078, end: 1079 } canonical=ScalarRange { start: 1067, end: 1067 } atoms=[LineBreak { preceding: GlyphId(1075), following: GlyphId(1076) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1170, end: 1171 } canonical=ScalarRange { start: 1158, end: 1158 } atoms=[LineBreak { preceding: GlyphId(1166), following: GlyphId(1167) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1258, end: 1259 } canonical=ScalarRange { start: 1245, end: 1245 } atoms=[LineBreak { preceding: GlyphId(1253), following: GlyphId(1254) }]
+H14PROBE1099   kind=SoftLineBreak raw=ScalarRange { start: 1322, end: 1323 } canonical=ScalarRange { start: 1308, end: 1308 } atoms=[LineBreak { preceding: GlyphId(1316), following: GlyphId(1317) }]
+test pipeline::h14_probe_tests::h14_probe_1099_block1 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1381 filtered out; finished in 0.50s
+

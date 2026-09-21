@@ -94,6 +94,19 @@ pub fn project_span_sources_with_limits(
     projector.project(span)
 }
 
+/// Zero-width normalization-event ownership policy.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SpanEventPolicy {
+    /// Generic spans select zero-width events strictly inside the span.
+    Interior,
+    /// Resolution partitions select zero-width events by the comparable-token
+    /// owner: the first token at the event's canonical position (or the
+    /// preceding token for a terminal event). The span that contains that
+    /// token owns the event, so unmapped-only slices and adjacent entries
+    /// neither lose nor duplicate it.
+    ResolutionRange,
+}
+
 /// Reusable, validated source-evidence index for one document side.
 ///
 /// Build this once when projecting multiple spans from the same normalized
@@ -193,6 +206,35 @@ impl<'a> SpanSourceProjector<'a> {
     /// Returns an error for missing or inconsistent evidence, malformed
     /// ranges, or a configured resource limit.
     pub fn project(&self, span: &TextSpan) -> Result<Vec<SpanSourceEvidence>> {
+        self.project_with_policy(span, SpanEventPolicy::Interior)
+    }
+
+    /// Projects one resolution-partition span.
+    ///
+    /// Zero-width normalization events are selected by their comparable-token
+    /// owner: the first token at the event's grouped canonical position (or the
+    /// preceding token for a terminal event). The span that contains that
+    /// token owns the event, which covers unmapped-only slices and boundary
+    /// positions between adjacent entries without duplicating or dropping it.
+    /// A comparable-empty span keeps the canonical point/interior rule, and
+    /// tokens absent from the block stay with the entry ending at the event.
+    /// Every other selection rule matches [`Self::project`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the same errors as [`Self::project`].
+    pub(crate) fn project_resolution_range(
+        &self,
+        span: &TextSpan,
+    ) -> Result<Vec<SpanSourceEvidence>> {
+        self.project_with_policy(span, SpanEventPolicy::ResolutionRange)
+    }
+
+    fn project_with_policy(
+        &self,
+        span: &TextSpan,
+        policy: SpanEventPolicy,
+    ) -> Result<Vec<SpanSourceEvidence>> {
         if span
             .separator
             .is_some_and(|separator| !separator.valid_for(span.blocks.len()))
@@ -301,6 +343,7 @@ impl<'a> SpanSourceProjector<'a> {
                 });
                 canonical_offset += 1;
             }
+            let token_base = tokens.len();
             append_block_tokens(&mut tokens, block, canonical_offset);
             previous_token = last_token.or(if inserts_separator {
                 Some(ProjectedComparableToken::Scalar(' '))
@@ -315,7 +358,15 @@ impl<'a> SpanSourceProjector<'a> {
                     start: block_start + event.canonical_range.start,
                     end: block_start + event.canonical_range.end,
                 };
-                if normalization_event_selected(event_range, span.canonical_range) {
+                let selected = match policy {
+                    SpanEventPolicy::Interior => {
+                        normalization_event_selected(event_range, span.canonical_range)
+                    }
+                    SpanEventPolicy::ResolutionRange => {
+                        resolution_event_selected(event_range, span, &tokens, token_base)?
+                    }
+                };
+                if selected {
                     event_sources.push(PositionedSource {
                         canonical_position: event_range.start,
                         tie_break: if event_range.start == event_range.end {
@@ -730,6 +781,43 @@ fn normalization_event_selected(event: ScalarRange, span: ScalarRange) -> bool {
     event.start < span.end && event.end > span.start
 }
 
+/// Applies the generic predicate unless a zero-width event needs an owner.
+///
+/// The owner is the first token in the already-appended span slice whose
+/// grouped canonical position equals the event position, or the preceding
+/// token for a terminal event. The owner's grouped comparable index is
+/// compared directly with the span's comparable range, so no canonical
+/// subtraction or re-tokenization is involved.
+fn resolution_event_selected(
+    event: ScalarRange,
+    span: &TextSpan,
+    tokens: &[ProjectedToken<'_>],
+    token_base: usize,
+) -> Result<bool> {
+    if event.start != event.end {
+        return Ok(normalization_event_selected(event, span.canonical_range));
+    }
+    let slice = &tokens[token_base..];
+    let index = slice.partition_point(|token| token.canonical_position < event.start);
+    let local = if index < slice.len() && slice[index].canonical_position == event.start {
+        index
+    } else if index > 0 {
+        // Terminal policy: a trailing event belongs to the preceding token.
+        index - 1
+    } else {
+        // No token exists at or before the event in this block: keep the event
+        // with the entry that ends at its position so nothing is lost.
+        return Ok(span.canonical_range.end == event.start);
+    };
+    let grouped = token_base
+        .checked_add(local)
+        .ok_or_else(|| Error::Unresolved("span source token index overflow".to_owned()))?;
+    if span.comparable_range.start < span.comparable_range.end {
+        return Ok(grouped >= span.comparable_range.start && grouped < span.comparable_range.end);
+    }
+    Ok(normalization_event_selected(event, span.canonical_range))
+}
+
 fn push_output(
     output: &mut Vec<SpanSourceEvidence>,
     source: SpanSourceEvidence,
@@ -827,6 +915,348 @@ fn evidence_limit(limits: SpanSourceProjectionLimits) -> Error {
 mod tests {
     use super::*;
     use crate::model::{GlyphProvenance, Vec2};
+
+    fn glyph_evidence(id: u64) -> GlyphEvidence {
+        GlyphEvidence {
+            id: GlyphId(id),
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 0.0 },
+                max: Vec2 { x: 1.0, y: 1.0 },
+            },
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: id as u32,
+            },
+        }
+    }
+
+    #[test]
+    fn resolution_partition_owns_a_boundary_line_break_exactly_once() {
+        use crate::{
+            layout::{BlockId, BlockRole},
+            normalize::{
+                BlockText, MappedText, NormalizationEvent, NormalizationKind, ScalarRange,
+                SourceMapEntry, TextSource, TextSourceAtom,
+            },
+            report::TextSpan,
+        };
+        let canonical = MappedText {
+            text: "AB".to_owned(),
+            source_map: vec![
+                SourceMapEntry {
+                    output_range: ScalarRange { start: 0, end: 1 },
+                    source: TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId(10))].into(),
+                    },
+                },
+                SourceMapEntry {
+                    output_range: ScalarRange { start: 1, end: 2 },
+                    source: TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId(11))].into(),
+                    },
+                },
+            ],
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("tokens");
+        let block = BlockText {
+            block: BlockId(1),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: "AB".to_owned(),
+            matching_tokens: tokens,
+            numeric_mask_applied: false,
+            normalization_events: vec![NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                canonical_range: ScalarRange { start: 1, end: 1 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::LineBreak {
+                        preceding: GlyphId(10),
+                        following: GlyphId(11),
+                    }]
+                    .into(),
+                },
+            }],
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        };
+        let glyphs = [glyph_evidence(10), glyph_evidence(11)];
+        let projector = SpanSourceProjector::new(
+            std::slice::from_ref(&block),
+            &glyphs,
+            SpanSourceProjectionLimits::default(),
+        )
+        .expect("projector");
+        let span = |start: usize, end: usize| TextSpan {
+            blocks: vec![BlockId(1)],
+            separator: None,
+            canonical_range: ScalarRange { start, end },
+            comparable_range: crate::diff::TokenRange { start, end },
+        };
+        let left = span(0, 1);
+        let right = span(1, 2);
+        let line_breaks = |evidence: &[SpanSourceEvidence]| {
+            evidence
+                .iter()
+                .filter(|item| matches!(item, SpanSourceEvidence::LineBreak { .. }))
+                .count()
+        };
+        // The generic boundary-span contract excludes the boundary event from
+        // both sides, which is why the resolution partition must own it.
+        assert_eq!(line_breaks(&projector.project(&left).expect("left")), 0);
+        assert_eq!(line_breaks(&projector.project(&right).expect("right")), 0);
+        let left_resolution = projector
+            .project_resolution_range(&left)
+            .expect("left resolution");
+        let right_resolution = projector
+            .project_resolution_range(&right)
+            .expect("right resolution");
+        assert_eq!(line_breaks(&left_resolution), 0);
+        assert_eq!(line_breaks(&right_resolution), 1);
+        assert_eq!(
+            line_breaks(&left_resolution) + line_breaks(&right_resolution),
+            1
+        );
+    }
+
+    #[test]
+    fn resolution_ownership_covers_leading_and_terminal_events() {
+        // Leading event at canonical 0 belongs to the token starting there;
+        // terminal event at the block end belongs to the preceding token.
+        for (event_start, expected_left, expected_right) in
+            [(0usize, true, false), (2usize, false, true)]
+        {
+            let mut block = boundary_block(5);
+            block.normalization_events[0].canonical_range = ScalarRange {
+                start: event_start,
+                end: event_start,
+            };
+            let glyphs = [glyph_evidence(50), glyph_evidence(51)];
+            let projector = SpanSourceProjector::new(
+                std::slice::from_ref(&block),
+                &glyphs,
+                SpanSourceProjectionLimits::default(),
+            )
+            .expect("projector");
+            let left = TextSpan {
+                blocks: vec![BlockId(5)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 1 },
+                comparable_range: crate::diff::TokenRange { start: 0, end: 1 },
+            };
+            let right = TextSpan {
+                blocks: vec![BlockId(5)],
+                separator: None,
+                canonical_range: ScalarRange { start: 1, end: 2 },
+                comparable_range: crate::diff::TokenRange { start: 1, end: 2 },
+            };
+            let has_break = |span: &TextSpan| {
+                projector
+                    .project_resolution_range(span)
+                    .expect("resolution evidence")
+                    .iter()
+                    .any(|item| matches!(item, SpanSourceEvidence::LineBreak { .. }))
+            };
+            assert_eq!(has_break(&left), expected_left, "event {event_start} left");
+            assert_eq!(
+                has_break(&right),
+                expected_right,
+                "event {event_start} right"
+            );
+        }
+    }
+
+    #[test]
+    fn resolution_ownership_never_crosses_blocks() {
+        // A boundary event in an unrelated block must not be selected by a
+        // span that lists only the first block.
+        let blocks = [boundary_block(1), boundary_block(2)];
+        let glyphs = [
+            glyph_evidence(10),
+            glyph_evidence(11),
+            glyph_evidence(20),
+            glyph_evidence(21),
+        ];
+        let projector =
+            SpanSourceProjector::new(&blocks, &glyphs, SpanSourceProjectionLimits::default())
+                .expect("projector");
+        let span = TextSpan {
+            blocks: vec![BlockId(1)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: crate::diff::TokenRange { start: 0, end: 2 },
+        };
+        let evidence = projector
+            .project_resolution_range(&span)
+            .expect("resolution evidence");
+        let breaks = evidence
+            .iter()
+            .filter(|item| matches!(item, SpanSourceEvidence::LineBreak { .. }))
+            .count();
+        assert_eq!(breaks, 1, "only the first block's boundary event appears");
+    }
+
+    fn boundary_block(id: u64) -> BlockText {
+        use crate::{
+            layout::{BlockId, BlockRole},
+            normalize::{
+                MappedText, NormalizationEvent, NormalizationKind, ScalarRange, SourceMapEntry,
+                TextSource, TextSourceAtom,
+            },
+        };
+        let entry = |index: usize, glyph: u64| SourceMapEntry {
+            output_range: ScalarRange {
+                start: index,
+                end: index + 1,
+            },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(glyph))].into(),
+            },
+        };
+        let canonical = MappedText {
+            text: "AB".to_owned(),
+            source_map: vec![entry(0, id * 10), entry(1, id * 10 + 1)],
+            unmapped: Vec::new(),
+        };
+        let tokens = canonical.comparable_tokens().expect("tokens");
+        BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: "AB".to_owned(),
+            matching_tokens: tokens,
+            numeric_mask_applied: false,
+            normalization_events: vec![NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                canonical_range: ScalarRange { start: 1, end: 1 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::LineBreak {
+                        preceding: GlyphId(id * 10),
+                        following: GlyphId(id * 10 + 1),
+                    }]
+                    .into(),
+                },
+            }],
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    #[test]
+    fn resolution_ownership_handles_an_unmapped_boundary_slice() {
+        use crate::{
+            layout::{BlockId, BlockRole},
+            normalize::{
+                MappedText, NormalizationEvent, NormalizationKind, ScalarRange, SourceMapEntry,
+                TextSource, TextSourceAtom, UnmappedToken,
+            },
+        };
+        let entry = |index: usize, glyph: u64| SourceMapEntry {
+            output_range: ScalarRange {
+                start: index,
+                end: index + 1,
+            },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(glyph))].into(),
+            },
+        };
+        let mut canonical = MappedText {
+            text: "AB".to_owned(),
+            source_map: vec![entry(0, 10), entry(1, 11)],
+            unmapped: Vec::new(),
+        };
+        canonical.unmapped = vec![UnmappedToken {
+            scalar_index: 1,
+            font_hash: crate::model::FontProgramHash(vec![0]),
+            glyph_id: 99,
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))].into(),
+            },
+        }];
+        let tokens = canonical.comparable_tokens().expect("tokens");
+        let block = BlockText {
+            block: BlockId(7),
+            role: BlockRole::Body,
+            raw: canonical.clone(),
+            canonical,
+            matching: "AB".to_owned(),
+            matching_tokens: tokens,
+            numeric_mask_applied: false,
+            normalization_events: vec![NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                canonical_range: ScalarRange { start: 1, end: 1 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::LineBreak {
+                        preceding: GlyphId(10),
+                        following: GlyphId(11),
+                    }]
+                    .into(),
+                },
+            }],
+            issues: Vec::new(),
+            pages: vec![0],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        };
+        let glyphs = [glyph_evidence(10), glyph_evidence(11), glyph_evidence(99)];
+        let projector = SpanSourceProjector::new(
+            std::slice::from_ref(&block),
+            &glyphs,
+            SpanSourceProjectionLimits::default(),
+        )
+        .expect("projector");
+        // The unmapped token owns the boundary position: canonical 1..1 but
+        // comparable 1..2.
+        let unmapped_span = TextSpan {
+            blocks: vec![BlockId(7)],
+            separator: None,
+            canonical_range: ScalarRange { start: 1, end: 1 },
+            comparable_range: crate::diff::TokenRange { start: 1, end: 2 },
+        };
+        let evidence = projector
+            .project_resolution_range(&unmapped_span)
+            .expect("unmapped resolution evidence");
+        assert!(
+            evidence
+                .iter()
+                .any(|item| matches!(item, SpanSourceEvidence::LineBreak { .. })),
+            "the unmapped slice owns the boundary event"
+        );
+        let following_scalar_span = TextSpan {
+            blocks: vec![BlockId(7)],
+            separator: None,
+            canonical_range: ScalarRange { start: 1, end: 2 },
+            comparable_range: crate::diff::TokenRange { start: 2, end: 3 },
+        };
+        let follow = projector
+            .project_resolution_range(&following_scalar_span)
+            .expect("following resolution evidence");
+        assert!(
+            !follow
+                .iter()
+                .any(|item| matches!(item, SpanSourceEvidence::LineBreak { .. })),
+            "the following scalar slice must not duplicate it"
+        );
+    }
 
     #[test]
     fn rejects_non_finite_glyph_geometry() {

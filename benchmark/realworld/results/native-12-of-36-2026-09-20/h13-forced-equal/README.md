@@ -1,9 +1,9 @@
 # H13 forced-equal child promotion (accepted candidate)
 
 Status: accepted intermediate (local commit `e04b30d`, score remains 3/36).
-All 31 pairs whose reports are not byte-identical are proven unchanged by
-whole-report logical hash, and the five differing pairs pass the deep native
-retention audit with no prior-resolved loss, no payload loss and no reviews.
+31 reports are logically byte-identical to H2 and the five differing pairs pass
+the deep native retention audit with no prior-resolved loss, no payload loss
+and no reviews.
 The final capture `h13-full-iteration-004-native` (binary `fbab3082424a`) is
 pinned as accepted evidence so rotation cannot remove the basis.
 

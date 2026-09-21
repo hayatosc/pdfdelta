@@ -346,7 +346,7 @@ impl JsonResolutionRange {
         };
         side.resolve(&span)?;
         let sources = sources
-            .project(&span)?
+            .project_resolution_range(&span)?
             .into_iter()
             .map(JsonSpanSource::from)
             .collect();

@@ -1684,6 +1684,92 @@ fn json_report_attributes_zero_width_events_only_to_interior_or_matching_points(
 }
 
 #[test]
+fn json_resolution_partition_keeps_a_boundary_line_break_once() -> Result<()> {
+    // A zero-width line break exactly at the partition boundary between two
+    // resolution entries must appear in exactly one of them; reverting the
+    // resolution projector call would drop it from both.
+    let mut block = sourced_block(
+        1,
+        "abcd",
+        (0..4)
+            .map(|index| glyph_entry(index, index + 1, index as u64 + 1))
+            .collect(),
+    );
+    block.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::SoftLineBreak,
+        raw_range: ScalarRange { start: 2, end: 3 },
+        canonical_range: ScalarRange { start: 2, end: 2 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::LineBreak {
+                preceding: GlyphId(2),
+                following: GlyphId(3),
+            }]
+            .into(),
+        },
+    });
+    let mut comparison = empty_comparison();
+    comparison.old_coverage = Coverage {
+        resolved_tokens: 4,
+        total_tokens: 4,
+        ratio: Some(1.0),
+    };
+    comparison.assessment = Some(ComparisonAssessment {
+        localized_edits: Vec::new(),
+        review_units: Vec::new(),
+        policy_version: ASSESSMENT_POLICY_VERSION,
+        relations: Vec::new(),
+        candidates_truncated: false,
+        old_resolution: vec![
+            ResolutionRange {
+                block: BlockId(1),
+                comparable_range: TokenRange { start: 0, end: 2 },
+                canonical_range: ScalarRange { start: 0, end: 2 },
+                state: ResolutionState::Equal,
+            },
+            ResolutionRange {
+                block: BlockId(1),
+                comparable_range: TokenRange { start: 2, end: 4 },
+                canonical_range: ScalarRange { start: 2, end: 4 },
+                state: ResolutionState::Equal,
+            },
+        ],
+        new_resolution: Vec::new(),
+        work_limit: 10,
+        work_used: 2,
+        work_by_stage: AssessmentWork {
+            anchor_verification: 2,
+            ..AssessmentWork::default()
+        },
+    });
+    let mut output = Vec::new();
+    write_json(
+        &mut output,
+        &[block],
+        &[],
+        &(1..=4).map(glyph_evidence).collect::<Vec<_>>(),
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let first = json["assessment"]["old_resolution"][0]["sources"]
+        .as_array()
+        .expect("first sources");
+    let second = json["assessment"]["old_resolution"][1]["sources"]
+        .as_array()
+        .expect("second sources");
+    let breaks = |sources: &[serde_json::Value]| {
+        sources
+            .iter()
+            .filter(|source| source["kind"] == "line_break")
+            .count()
+    };
+    assert_eq!(breaks(first), 0);
+    assert_eq!(breaks(second), 1);
+    Ok(())
+}
+
+#[test]
 fn json_report_counts_typed_extraction_issues_and_omits_document_page() -> Result<()> {
     let extraction = ExtractionStatus {
         old_complete: false,

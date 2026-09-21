@@ -1,0 +1,147 @@
+{
+  "pair": "nist-sha-1803-to-1804",
+  "before_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h13-full-iteration-004-native",
+  "after_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h14-iteration-004-native",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 43483,
+          "tokens_after": 43483,
+          "resolved_before": 5946,
+          "resolved_after": 5946,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 5,
+            "equal->equal": 5941,
+            "unresolved->unresolved": 37537
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 43483,
+          "tokens_after": 43483,
+          "resolved_before": 5946,
+          "resolved_after": 5946,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 5,
+            "equal->equal": 5941,
+            "unresolved->unresolved": 37537
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 1261,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 1,
+      "structural_review": [
+        302
+      ],
+      "source_sequence_mismatches": 1,
+      "regions_before": 1013,
+      "regions_after": 1013,
+      "region_blocks": {
+        "old_before": 1125,
+        "old_after": 1125,
+        "new_before": 1182,
+        "new_after": 1182,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 48011,
+          "tokens_after": 48011,
+          "resolved_before": 5944,
+          "resolved_after": 5944,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 3,
+            "equal->equal": 5941,
+            "unresolved->unresolved": 42067
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 48011,
+          "tokens_after": 48011,
+          "resolved_before": 5944,
+          "resolved_after": 5944,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 3,
+            "equal->equal": 5941,
+            "unresolved->unresolved": 42067
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 1317,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 1,
+      "structural_review": [
+        283
+      ],
+      "source_sequence_mismatches": 1,
+      "regions_before": 1013,
+      "regions_after": 1013,
+      "region_blocks": {
+        "old_before": 1125,
+        "old_after": 1125,
+        "new_before": 1182,
+        "new_after": 1182,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 6,
+      "after": 6,
+      "retained": 6,
+      "identical": true
+    },
+    "formatting_only_changes": {
+      "before": 98,
+      "after": 98,
+      "retained": 98,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 2352,
+      "sources_accounted": 2352,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 1048,
+      "sources_accounted": 1048,
+      "sources_missing": 0
+    }
+  },
+  "review": [
+    "old_resolution: structural source events changed at block 302",
+    "new_resolution: structural source events changed at block 283"
+  ],
+  "problems": [],
+  "retention": "needs-review"
+}
