@@ -335,6 +335,7 @@
   "candidate_sources": {
     "assessment.rs": "385850188704ef47b83757534252a26c9df1151c99e5aad691f40cacaea6bcdb",
     "semantic.rs": "47023ce1c98c9996d31e48362d72ff755114a4d40ea8d749347cc232b21baeba",
-    "candidate_patch": "removed as superseded by the acceptance commit; source hashes above are the durable binding"
-  }
+    "candidate_patch": "removed as superseded by acceptance commit bef9fae1b30fd982e2e80c51d81066209fd732ed"
+  },
+  "commit": "bef9fae1b30fd982e2e80c51d81066209fd732ed"
 }

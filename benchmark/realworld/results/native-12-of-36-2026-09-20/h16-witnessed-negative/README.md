@@ -5,7 +5,7 @@ final full-panel capture (`h16-full-iteration-006-native`, binary
 `a89ba7eb31c8a1a4fe735271aeab0b485dd78c893f7921bbf1973280bb1a9c6b`) keeps
 33/36 whole reports logically byte-identical to H14, gains +222 resolved
 tokens per side on `irs-w4-english-2024-to-2025`, and passes deep retention on
-all three differ. Score remains 3/36; W4 still has 345 unresolved regions.
+all three differing pairs. Score remains 3/36; W4 still has 345 unresolved regions.
 
 ## Mechanism
 
@@ -88,6 +88,11 @@ library tests (1,401 passed, 2 pre-existing ignored), rustdoc with
 `-D warnings`, generated-fixture `pdfbench verify` (48/48), and
 `git diff --check`. The full log with source binding and per-command exit
 markers is `gates.txt`.
+
+## Acceptance commit
+
+Committed as `bef9fae1b30fd982e2e80c51d81066209fd732ed` (engine, tooling and this evidence directory; the
+H14 manifest hash bindings and the neutral delta title share the commit).
 
 ## Candidate binding
 
