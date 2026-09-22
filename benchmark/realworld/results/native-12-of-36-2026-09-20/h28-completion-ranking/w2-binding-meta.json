@@ -1,6 +1,5 @@
 {
   "probe": "H28 W2 one-sided residual binding",
-  "binary_sha256": "6686286ea31fb6efdf8ddc1c2a1e40165b6aadc565d678db5c1256cc39b981",
   "note": "temporary env-gated instrumentation in views.rs and diff/mod.rs was restored byte-exactly; tracked tree clean; release binary rebuilt to the same hash",
   "commands": [
     "H28_TRACE_PATH=/tmp/opencode/h28-w2.trace target/release/pdfdelta <w2 old> <w2 new> --native-text-only --json /tmp/opencode/h28-w2b.json.gz",
@@ -75,5 +74,31 @@
     "tentative duplicates of the same ranges carry reasons unknown_reading_order, normalization_uncertainty, domain_not_closed"
   ],
   "not_concluded": "the single-token occurrences are not ambiguous merely because they are frequent; the missing proof is that no relation is emitted for the separator between two established neighbours",
-  "next_measurement": "verify for the 58 single-token gaps that both neighbours are established at equal offsets and that raw-source atoms and normalization boundaries of the gap token match; counterexample: a gap with a non-established neighbour or differing normalization/endpoints must stay unresolved"
+  "next_measurement": "verify for the 58 single-token gaps that both neighbours are established at equal offsets and that raw-source atoms and normalization boundaries of the gap token match; counterexample: a gap with a non-established neighbour or differing normalization/endpoints must stay unresolved",
+  "baseline_binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981",
+  "instrumented_producer": {
+    "sha256": "unrecorded",
+    "note": "instrumented release binary hash and source patch were not preserved before restoration; the trace producer cannot be bound"
+  },
+  "corrected_census": {
+    "strict_join": "w2-strict-join.json",
+    "result": "0 of 29 old residuals pass the strict equality-neighbour join",
+    "reasons": {
+      "no_mirror_new_residual": 10,
+      "ambiguous_or_missing_neighbours": 11,
+      "join_failed": 8
+    },
+    "canonical_classes": {
+      "line_break_canonical": 30,
+      "glyph_canonical_matched1_events0": 12,
+      "glyph_canonical_matched5_events1": 12,
+      "glyph_canonical_matched2": 4
+    },
+    "known_gap_assertions": {
+      "gap380": "canonical '\\n' with line_break atom, raw glyph+line_break, 0 events",
+      "gap508": "canonical ' ' with glyph atom, raw glyph, 0 events"
+    },
+    "conclusion": "no sound separator-equality class: the dominant newline class is a normalization boundary (line_break atom) rather than glyph-backed equality, and no residual has a single unambiguous established equality neighbour pair",
+    "superseded": "the earlier provisional 37 count compared span lengths only and selected the last relation; w2-census-superseded-invalid.log.gz retains that invalid run"
+  }
 }

@@ -1,0 +1,11 @@
+{
+  "pair": "irs-w2-2024-to-2025",
+  "old_residuals": 24,
+  "new_residuals": 21,
+  "proven_paired_separator_candidates": [],
+  "reasons": {
+    "join_failed": 7,
+    "no_mirror_new_residual": 11,
+    "ambiguous_or_missing_neighbours": 6
+  }
+}

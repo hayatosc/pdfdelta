@@ -793,7 +793,7 @@
   "decision": {
     "hypothesis": "arxiv-ddpm two-sided spans hide a local missing premise",
     "verdict": "falsified: 2 unresolved clipping-uncertainty extraction issues, both sides incomplete, ~68k uncovered tokens; an order/consumer change cannot complete it",
-    "chosen_next_measurement": "bind the 58 single-token W2 gaps: assert both neighbours are established at equal offsets and raw-source/normalization boundary evidence matches; counterexample with a non-established neighbour or differing normalization must stay unresolved",
+    "chosen_next_measurement": "strict equality-neighbour census on two-sided classes with complete extraction (irs-schedule-c region 0..36/0..39 under the H6 caution, or nist-incident-handling 17 two-sided), because the W2 one-sided separator family fails every sound proof prerequisite",
     "beneficiaries_if_family_fix_exists": [
       "irs-w2-2024-to-2025",
       "irs-1099-misc-2024-to-2025",
@@ -810,6 +810,7 @@
       "H3": "FAA/NASA join-vs-split remains a source alternative",
       "H6": "unsupported order promotion plus competing edit decompositions",
       "H18": "no sufficient certificate in the sampled blocks only (incomplete inventory); not an absence proof"
-    }
+    },
+    "w2_verdict": "rejected on measured prerequisites: 0/29 strict joins, dominant class is normalization-boundary newline, neighbours ambiguous or unmapped"
   }
 }
