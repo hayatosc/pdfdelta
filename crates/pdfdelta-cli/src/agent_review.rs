@@ -1096,15 +1096,18 @@ fn pixel_bounds(record: &PageRecord, bounds: [f64; 4]) -> Option<[u32; 4]> {
     let right = (bounds[2] - page[0] + margin).min(page_width);
     let top = (page[3] - bounds[3] - margin).max(0.0);
     let bottom = (page[3] - bounds[1] + margin).min(page_height);
+    // The page box is accepted when its ceiling is within one pixel of the
+    // raster, so a fractional box such as 612.4 points is published as a
+    // 612-pixel raster. Rounding the far edge up would then name a column the
+    // raster does not have, and the crop would read past the end of its last
+    // row, so the mapped edges are clamped to the raster's own dimensions.
+    let right = (right.ceil() as u32).min(record.width);
+    let bottom = (bottom.ceil() as u32).min(record.height);
+    let (left, top) = (left as u32, top as u32);
     if !(left < right && top < bottom) {
         return None;
     }
-    Some([
-        left as u32,
-        top as u32,
-        right.ceil() as u32,
-        bottom.ceil() as u32,
-    ])
+    Some([left, top, right, bottom])
 }
 
 /// Produces local images for one case.
@@ -1542,6 +1545,18 @@ mod tests {
         assert_eq!(bounds[1], 0);
         assert!(bounds[2] <= record.width, "{bounds:?}");
         assert!(bounds[3] <= record.height, "{bounds:?}");
+    }
+
+    #[test]
+    fn a_fractional_page_box_never_names_a_column_the_raster_lacks() {
+        // A 612.4 x 792.6 point box is published as a 612 x 792 raster, which
+        // the one-pixel tolerance accepts. Rounding the far edge up would name
+        // column 613 and row 793, and the crop would read past its last row.
+        let record = page(612, 792, Some([0.0, 0.0, 612.4, 792.6]));
+        let bounds = pixel_bounds(&record, [600.0, 4.0, 612.4, 16.0]).expect("mapped");
+        assert!(bounds[2] <= record.width, "{bounds:?}");
+        assert!(bounds[3] <= record.height, "{bounds:?}");
+        assert!(bounds[0] < bounds[2] && bounds[1] < bounds[3], "{bounds:?}");
     }
 
     #[test]
