@@ -396,6 +396,29 @@ impl<'a> Sources<'a> {
     pub(super) fn acquire_native_order(&mut self, view: DocumentView<'a>, remaining: &mut usize) {
         self.native_order = segments::native_memberships(view, remaining);
     }
+
+    /// Returns the acquired native order as ordered glyph runs.
+    ///
+    /// Each inner vector is one retained structure run in content order. The
+    /// runs carry order evidence only; they do not assert text equality. Every
+    /// copied glyph is charged against `remaining`; an exhausted budget or a
+    /// failed reservation returns `None` so callers keep existing behavior.
+    pub(super) fn native_order_runs(
+        &self,
+        remaining: &mut usize,
+    ) -> Option<Vec<Vec<crate::model::GlyphId>>> {
+        let memberships = self.native_order.as_ref()?;
+        let mut runs = Vec::new();
+        runs.try_reserve(memberships.len()).ok()?;
+        for membership in memberships {
+            spend(remaining, membership.glyphs().len())?;
+            let mut run = Vec::new();
+            run.try_reserve(membership.glyphs().len()).ok()?;
+            run.extend_from_slice(membership.glyphs());
+            runs.push(run);
+        }
+        Some(runs)
+    }
     pub(super) fn census(
         &self,
         view: DocumentView<'_>,

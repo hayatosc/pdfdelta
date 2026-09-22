@@ -10707,6 +10707,8 @@ pub(super) fn build_sentence_recovery_plan(
     )?;
     if input.enable_sentence_edge_gate_shadow {
         let replay_input = SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             enable_known_span_sentence_shadow: false,
             enable_sentence_edge_gate_shadow: false,
             ..input
@@ -32972,6 +32974,8 @@ mod tests {
         new_intervals: &'a [Option<TrustedRunInterval>],
     ) -> SentenceRecoveryInput<'a> {
         SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: old_intervals,
             new_trusted_run_intervals: new_intervals,
             old_trusted_run_evidence: None,
@@ -38744,6 +38748,8 @@ mod tests {
         let old_intervals = [interval(1, 0, 1)];
         let new_intervals = [interval(9, 0, 1)];
         let evidence = RecoveryStructuralEvidence::new(SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: Some(old_input),

@@ -2936,6 +2936,8 @@ mod tests {
         new: &'a [Option<TrustedRunInterval>],
     ) -> SentenceRecoveryInput<'a> {
         SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: old,
             new_trusted_run_intervals: new,
             old_trusted_run_evidence: None,

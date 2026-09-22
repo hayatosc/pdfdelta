@@ -19,6 +19,12 @@ pub(super) struct Membership<'a> {
     convention: &'static str,
 }
 
+impl Membership<'_> {
+    pub(super) fn glyphs(&self) -> &[GlyphId] {
+        &self.glyphs
+    }
+}
+
 pub(super) fn native_memberships<'a>(
     view: DocumentView<'a>,
     remaining: &mut usize,

@@ -64,4 +64,5 @@ pub use text_scopes::{
     SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch, SourceFragment,
     SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview, TextScopeSpacing,
 };
+pub(crate) use text_scopes::{NativeOrderProof, with_native_order_proof};
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

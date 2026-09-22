@@ -25,10 +25,10 @@ use crate::{
         validate_block_options, validate_line_options,
     },
     model::{
-        Document, Glyph, GlyphCropStatus, GlyphDisplacement, GlyphEvidence, GlyphPathClipStatus,
-        TextRenderMode,
+        Document, Glyph, GlyphCropStatus, GlyphDisplacement, GlyphEvidence, GlyphId,
+        GlyphPathClipStatus, TextRenderMode,
     },
-    normalize::{BlockText, normalize_blocks},
+    normalize::{BlockText, MappedText, TextSourceAtom, normalize_blocks},
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
     source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
 };
@@ -200,6 +200,11 @@ struct ComparisonInstrumentation<'a> {
     enable_known_span_sentence_shadow: bool,
     enable_sentence_edge_gate_shadow: bool,
     retain_atomic_edits: bool,
+    /// Optional native structure-order proofs per side. A proof marks blocks
+    /// whose content order is established by the parser structure tree; it
+    /// carries order only and never asserts equality or layout provenance.
+    old_native_order_proof: Option<&'a crate::document::NativeOrderProof<'a>>,
+    new_native_order_proof: Option<&'a crate::document::NativeOrderProof<'a>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -589,6 +594,83 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
     diagnostics: &mut PipelineDiagnostics,
     instrumentation: ExtractionComparisonInstrumentation<'_>,
 ) -> Result<InstrumentedComparisonOutcome> {
+    compare_extraction_outcomes_with_structures_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        instrumentation,
+        (None, None),
+        None,
+    )
+}
+
+/// Work spent acquiring optional native order proofs, per side.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeOrderWork {
+    pub old_spent: usize,
+    pub new_spent: usize,
+}
+
+/// Compares extracted documents with optional native order proofs.
+///
+/// Precondition: each [`ExtractionOutcome`] must originate from the PDF passed
+/// beside it. The runtime `NativeOrderProof::binds` check prevents a proof from
+/// being applied to a different document after acquisition, but it cannot
+/// itself prove that an arbitrary supplied PDF and a caller-constructed
+/// outcome share an origin; the CLI supplies the same parsed source pair it
+/// extracted from.
+///
+/// The optional proofs are acquired from the supplied PDFs with the unchanged
+/// shared default assessment budget; absence or failure leaves the comparison
+/// exactly as before. Returns the comparison together with the per-side work
+/// spent on proof acquisition so callers can record it separately.
+///
+/// # Errors
+///
+/// Returns an error when configuration validation, layout reconstruction,
+/// alignment, exact diffing, or a resource limit fails.
+pub fn compare_extraction_outcomes_with_native_order_proofs(
+    old_pdf: Option<Box<dyn crate::pdf::ParsedPdf>>,
+    old: ExtractionOutcome,
+    new_pdf: Option<Box<dyn crate::pdf::ParsedPdf>>,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<(ComparisonOutcome, NativeOrderWork)> {
+    let mut work = NativeOrderWork::default();
+    let outcome = compare_extraction_outcomes_with_structures_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        ExtractionComparisonInstrumentation {
+            watch_queries: &[],
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: true,
+            retain_atomic_edits: false,
+        },
+        (old_pdf, new_pdf),
+        Some(&mut work),
+    )?;
+    Ok((outcome.outcome, work))
+}
+
+/// One optional parsed source per document side.
+type NativePdfPair = (
+    Option<Box<dyn crate::pdf::ParsedPdf>>,
+    Option<Box<dyn crate::pdf::ParsedPdf>>,
+);
+
+fn compare_extraction_outcomes_with_structures_inner(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+    instrumentation: ExtractionComparisonInstrumentation<'_>,
+    native_pdfs: NativePdfPair,
+    work_out: Option<&mut NativeOrderWork>,
+) -> Result<InstrumentedComparisonOutcome> {
     diagnostics.begin();
     let options = match options.validate() {
         Ok(options) => options,
@@ -606,154 +688,200 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
     let new_complete = new.is_complete();
     let (old_document, old_issues) = old.into_parts();
     let (new_document, new_issues) = new.into_parts();
-    let old_glyph_evidence = glyph_evidence(&old_document);
-    let new_glyph_evidence = glyph_evidence(&new_document);
-    if old_complete && new_complete {
-        diagnostics.completed(
-            PipelinePhase::CompletenessGate,
-            None,
-            PipelineMetrics::default(),
-        );
-        let compared = compare_validated_glyph_documents_inner(
-            &old_document,
-            &new_document,
-            options,
-            diagnostics,
-            ComparisonInstrumentation {
-                old_issue_boundaries: &[],
-                new_issue_boundaries: &[],
-                enable_sentence_recovery: true,
-                watch_queries: instrumentation.watch_queries,
-                enable_known_span_sentence_shadow: instrumentation
-                    .enable_known_span_sentence_shadow,
-                enable_sentence_edge_gate_shadow: instrumentation.enable_sentence_edge_gate_shadow,
-                retain_atomic_edits: instrumentation.retain_atomic_edits,
-            },
-        )?;
-        return Ok(InstrumentedComparisonOutcome {
-            outcome: ComparisonOutcome {
-                comparison: compared.comparison,
-                extraction: ExtractionStatus::complete(),
-                old_blocks: compared.old_blocks,
-                new_blocks: compared.new_blocks,
-                old_glyph_evidence,
-                new_glyph_evidence,
-            },
-            alignment: Some(compared.alignment),
-            recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
-            matched_atomic_diffs: compared.matched_atomic_diffs,
-            recovered_atomic_diffs: compared.recovered_atomic_diffs,
-            recovery_ownership_partition: compared.recovery_ownership_partition,
-        });
-    }
+    // One shared default assessment budget covers both optional acquisitions;
+    // per-side deltas are recorded. Each owned document is moved through the
+    // temporary validated store and handed back as a stable reference with an
+    // optional proof; the parsed sources are dropped inside the helper.
+    let (old_pdf, new_pdf) = native_pdfs;
+    let mut proof_budget = options.diff.max_assessment_work;
+    let old_before = proof_budget;
+    crate::document::with_native_order_proof(
+        old_pdf,
+        old_document,
+        &mut proof_budget,
+        |old_document, old_proof, proof_budget| {
+            let old_spent = old_before.saturating_sub(*proof_budget);
+            let new_before = *proof_budget;
+            crate::document::with_native_order_proof(
+                new_pdf,
+                new_document,
+                proof_budget,
+                |new_document, new_proof, proof_budget| {
+                    let new_spent = new_before.saturating_sub(*proof_budget);
+                    if let Some(work_out) = work_out {
+                        *work_out = NativeOrderWork {
+                            old_spent,
+                            new_spent,
+                        };
+                    }
+                    let old_glyph_evidence = glyph_evidence(old_document);
+                    let new_glyph_evidence = glyph_evidence(new_document);
+                    if old_complete && new_complete {
+                        diagnostics.completed(
+                            PipelinePhase::CompletenessGate,
+                            None,
+                            PipelineMetrics::default(),
+                        );
+                        let compared = compare_validated_glyph_documents_inner(
+                            old_document,
+                            new_document,
+                            options,
+                            diagnostics,
+                            ComparisonInstrumentation {
+                                old_native_order_proof: old_proof,
+                                new_native_order_proof: new_proof,
+                                old_issue_boundaries: &[],
+                                new_issue_boundaries: &[],
+                                enable_sentence_recovery: true,
+                                watch_queries: instrumentation.watch_queries,
+                                enable_known_span_sentence_shadow: instrumentation
+                                    .enable_known_span_sentence_shadow,
+                                enable_sentence_edge_gate_shadow: instrumentation
+                                    .enable_sentence_edge_gate_shadow,
+                                retain_atomic_edits: instrumentation.retain_atomic_edits,
+                            },
+                        )?;
+                        return Ok(InstrumentedComparisonOutcome {
+                            outcome: ComparisonOutcome {
+                                comparison: compared.comparison,
+                                extraction: ExtractionStatus::complete(),
+                                old_blocks: compared.old_blocks,
+                                new_blocks: compared.new_blocks,
+                                old_glyph_evidence,
+                                new_glyph_evidence,
+                            },
+                            alignment: Some(compared.alignment),
+                            recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
+                            matched_atomic_diffs: compared.matched_atomic_diffs,
+                            recovered_atomic_diffs: compared.recovered_atomic_diffs,
+                            recovery_ownership_partition: compared.recovery_ownership_partition,
+                        });
+                    }
 
-    diagnostics.incomplete(PipelinePhase::CompletenessGate);
+                    diagnostics.incomplete(PipelinePhase::CompletenessGate);
 
-    let has_document_issue = old_issues
-        .iter()
-        .chain(&new_issues)
-        .any(|issue| issue.scope() == ExtractionScope::Document);
+                    let has_document_issue = old_issues
+                        .iter()
+                        .chain(&new_issues)
+                        .any(|issue| issue.scope() == ExtractionScope::Document);
 
-    if !has_document_issue {
-        let old_gap_boundaries = issue_boundaries(&old_issues);
-        let new_gap_boundaries = issue_boundaries(&new_issues);
-        let mut compared = compare_validated_glyph_documents_inner(
-            &old_document,
-            &new_document,
-            options,
-            diagnostics,
-            ComparisonInstrumentation {
-                old_issue_boundaries: &old_gap_boundaries,
-                new_issue_boundaries: &new_gap_boundaries,
-                enable_sentence_recovery: false,
-                watch_queries: instrumentation.watch_queries,
-                enable_known_span_sentence_shadow: instrumentation
-                    .enable_known_span_sentence_shadow,
-                enable_sentence_edge_gate_shadow: instrumentation.enable_sentence_edge_gate_shadow,
-                retain_atomic_edits: instrumentation.retain_atomic_edits,
-            },
-        )?;
-        if !old_complete {
-            compared.comparison.old_coverage.ratio = None;
-        }
-        if !new_complete {
-            compared.comparison.new_coverage.ratio = None;
-        }
-        let issues = extraction_issue_records(old_issues, new_issues);
-        return Ok(InstrumentedComparisonOutcome {
-            outcome: ComparisonOutcome {
-                comparison: compared.comparison,
-                extraction: ExtractionStatus {
-                    old_complete,
-                    new_complete,
-                    issues,
+                    if !has_document_issue {
+                        let old_gap_boundaries = issue_boundaries(&old_issues);
+                        let new_gap_boundaries = issue_boundaries(&new_issues);
+                        let mut compared = compare_validated_glyph_documents_inner(
+                            old_document,
+                            new_document,
+                            options,
+                            diagnostics,
+                            ComparisonInstrumentation {
+                                old_native_order_proof: old_proof,
+                                new_native_order_proof: new_proof,
+                                old_issue_boundaries: &old_gap_boundaries,
+                                new_issue_boundaries: &new_gap_boundaries,
+                                enable_sentence_recovery: false,
+                                watch_queries: instrumentation.watch_queries,
+                                enable_known_span_sentence_shadow: instrumentation
+                                    .enable_known_span_sentence_shadow,
+                                enable_sentence_edge_gate_shadow: instrumentation
+                                    .enable_sentence_edge_gate_shadow,
+                                retain_atomic_edits: instrumentation.retain_atomic_edits,
+                            },
+                        )?;
+                        if !old_complete {
+                            compared.comparison.old_coverage.ratio = None;
+                        }
+                        if !new_complete {
+                            compared.comparison.new_coverage.ratio = None;
+                        }
+                        let issues = extraction_issue_records(old_issues, new_issues);
+                        return Ok(InstrumentedComparisonOutcome {
+                            outcome: ComparisonOutcome {
+                                comparison: compared.comparison,
+                                extraction: ExtractionStatus {
+                                    old_complete,
+                                    new_complete,
+                                    issues,
+                                },
+                                old_blocks: compared.old_blocks,
+                                new_blocks: compared.new_blocks,
+                                old_glyph_evidence,
+                                new_glyph_evidence,
+                            },
+                            alignment: Some(compared.alignment),
+                            recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
+                            matched_atomic_diffs: compared.matched_atomic_diffs,
+                            recovered_atomic_diffs: compared.recovered_atomic_diffs,
+                            recovery_ownership_partition: compared.recovery_ownership_partition,
+                        });
+                    }
+
+                    record_pre_layout_token_counts(
+                        old_document,
+                        new_document,
+                        options.diff,
+                        diagnostics,
+                    )?;
+                    let issues = extraction_issue_records(old_issues, new_issues);
+                    // A document-scoped issue prevents correspondence claims, but extracted
+                    // evidence on either side still belongs to the unresolved partition.
+                    let old_blocks =
+                        prepare(old_document, options, DocumentSide::Old, diagnostics, None)?
+                            .blocks;
+                    let new_blocks =
+                        prepare(new_document, options, DocumentSide::New, diagnostics, None)?
+                            .blocks;
+                    let spans = if old_blocks.is_empty() && new_blocks.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![AlignmentSpan {
+                            kind: AlignmentKind::Unresolved,
+                            old: old_blocks.iter().map(|block| block.block).collect(),
+                            new: new_blocks.iter().map(|block| block.block).collect(),
+                            score: 0.0,
+                            canonical_similarity: 0.0,
+                            score_margin: None,
+                            confidence: AlignmentConfidence::Low,
+                            evidence: vec![AlignmentEvidence::ExtractionGap],
+                            old_separator: None,
+                            new_separator: None,
+                        }]
+                    };
+                    let alignment = Alignment {
+                        spans,
+                        main_anchors: Vec::new(),
+                        move_candidates: Vec::new(),
+                    };
+                    let mut comparison =
+                        compare_aligned(&old_blocks, &new_blocks, &alignment, options.diff)?;
+                    if !old_complete {
+                        comparison.old_coverage.ratio = None;
+                    }
+                    if !new_complete {
+                        comparison.new_coverage.ratio = None;
+                    }
+                    Ok(InstrumentedComparisonOutcome {
+                        outcome: ComparisonOutcome {
+                            comparison,
+                            extraction: ExtractionStatus {
+                                old_complete,
+                                new_complete,
+                                issues,
+                            },
+                            old_blocks,
+                            new_blocks,
+                            old_glyph_evidence,
+                            new_glyph_evidence,
+                        },
+                        alignment: None,
+                        recovery_watch_diagnostics: None,
+                        matched_atomic_diffs: Vec::new(),
+                        recovered_atomic_diffs: Vec::new(),
+                        recovery_ownership_partition: None,
+                    })
                 },
-                old_blocks: compared.old_blocks,
-                new_blocks: compared.new_blocks,
-                old_glyph_evidence,
-                new_glyph_evidence,
-            },
-            alignment: Some(compared.alignment),
-            recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
-            matched_atomic_diffs: compared.matched_atomic_diffs,
-            recovered_atomic_diffs: compared.recovered_atomic_diffs,
-            recovery_ownership_partition: compared.recovery_ownership_partition,
-        });
-    }
-
-    record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
-    let issues = extraction_issue_records(old_issues, new_issues);
-    // A document-scoped issue prevents correspondence claims, but extracted
-    // evidence on either side still belongs to the unresolved partition.
-    let old_blocks = prepare(&old_document, options, DocumentSide::Old, diagnostics)?.blocks;
-    let new_blocks = prepare(&new_document, options, DocumentSide::New, diagnostics)?.blocks;
-    let spans = if old_blocks.is_empty() && new_blocks.is_empty() {
-        Vec::new()
-    } else {
-        vec![AlignmentSpan {
-            kind: AlignmentKind::Unresolved,
-            old: old_blocks.iter().map(|block| block.block).collect(),
-            new: new_blocks.iter().map(|block| block.block).collect(),
-            score: 0.0,
-            canonical_similarity: 0.0,
-            score_margin: None,
-            confidence: AlignmentConfidence::Low,
-            evidence: vec![AlignmentEvidence::ExtractionGap],
-            old_separator: None,
-            new_separator: None,
-        }]
-    };
-    let alignment = Alignment {
-        spans,
-        main_anchors: Vec::new(),
-        move_candidates: Vec::new(),
-    };
-    let mut comparison = compare_aligned(&old_blocks, &new_blocks, &alignment, options.diff)?;
-    if !old_complete {
-        comparison.old_coverage.ratio = None;
-    }
-    if !new_complete {
-        comparison.new_coverage.ratio = None;
-    }
-    Ok(InstrumentedComparisonOutcome {
-        outcome: ComparisonOutcome {
-            comparison,
-            extraction: ExtractionStatus {
-                old_complete,
-                new_complete,
-                issues,
-            },
-            old_blocks,
-            new_blocks,
-            old_glyph_evidence,
-            new_glyph_evidence,
+            )
         },
-        alignment: None,
-        recovery_watch_diagnostics: None,
-        matched_atomic_diffs: Vec::new(),
-        recovered_atomic_diffs: Vec::new(),
-        recovery_ownership_partition: None,
-    })
+    )
 }
 
 fn glyph_evidence(document: &Document<Glyph>) -> Vec<GlyphEvidence> {
@@ -782,6 +910,8 @@ fn compare_validated_glyph_documents(
         options,
         diagnostics,
         ComparisonInstrumentation {
+            old_native_order_proof: None,
+            new_native_order_proof: None,
             old_issue_boundaries: &[],
             new_issue_boundaries: &[],
             enable_sentence_recovery: true,
@@ -818,8 +948,26 @@ fn compare_validated_glyph_documents_inner(
     // new side's records exactly as a sequential early return did.
     let ((old_prepared, old_prepare_diagnostics), (new_prepared, new_prepare_diagnostics)) =
         rayon::join(
-            || prepare_with_diagnostics(old, options, DocumentSide::Old),
-            || prepare_with_diagnostics(new, options, DocumentSide::New),
+            || {
+                prepare_with_diagnostics(
+                    old,
+                    options,
+                    DocumentSide::Old,
+                    instrumentation
+                        .old_native_order_proof
+                        .filter(|proof| proof.binds(old)),
+                )
+            },
+            || {
+                prepare_with_diagnostics(
+                    new,
+                    options,
+                    DocumentSide::New,
+                    instrumentation
+                        .new_native_order_proof
+                        .filter(|proof| proof.binds(new)),
+                )
+            },
         );
     diagnostics.append(old_prepare_diagnostics);
     if old_prepared.is_ok() {
@@ -831,6 +979,7 @@ fn compare_validated_glyph_documents_inner(
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
         inferred_order_block_indices: old_inferred_order_block_indices,
+        native_order_blocks: old_native_order_blocks,
         trusted_run_intervals: old_trusted_run_intervals,
         trusted_run_descriptors: old_trusted_run_descriptors,
         trusted_region_edges: old_trusted_region_edges,
@@ -840,6 +989,7 @@ fn compare_validated_glyph_documents_inner(
         blocks: new,
         uncertain_block_indices: new_uncertain_block_indices,
         inferred_order_block_indices: new_inferred_order_block_indices,
+        native_order_blocks: new_native_order_blocks,
         trusted_run_intervals: new_trusted_run_intervals,
         trusted_run_descriptors: new_trusted_run_descriptors,
         trusted_region_edges: new_trusted_region_edges,
@@ -981,6 +1131,8 @@ fn compare_validated_glyph_documents_inner(
     let recovery = SentenceRecoveryInput {
         old_trusted_run_intervals: &old_trusted_run_intervals,
         new_trusted_run_intervals: &new_trusted_run_intervals,
+        old_native_order_blocks: &old_native_order_blocks,
+        new_native_order_blocks: &new_native_order_blocks,
         old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
             descriptors: &old_trusted_run_descriptors,
             raw_region_edges: &old_trusted_region_edges,
@@ -1440,6 +1592,7 @@ fn prepare(
     options: PipelineOptions,
     side: DocumentSide,
     diagnostics: &mut PipelineDiagnostics,
+    native_order: Option<&crate::document::NativeOrderProof<'_>>,
 ) -> Result<PreparedDocument> {
     let kept = document
         .items()
@@ -1605,10 +1758,13 @@ fn prepare(
                 .then_some(index)
         })
         .collect();
+    let native_order_blocks =
+        native_order_blocks_for(&normalized, &trusted_run_intervals, native_order);
     Ok(PreparedDocument {
         blocks: normalized,
         uncertain_block_indices,
         inferred_order_block_indices,
+        native_order_blocks,
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
@@ -1618,13 +1774,212 @@ fn prepare(
 
 /// Prepares one document side with side-local diagnostics so the old and new
 /// sides can run concurrently; the caller merges the records deterministically.
+/// Fallible all-false flags; `None` is the explicit no-proof fallback.
+fn false_flags(len: usize) -> Option<Vec<bool>> {
+    let mut flags = Vec::new();
+    flags.try_reserve_exact(len).ok()?;
+    flags.resize(len, false);
+    Some(flags)
+}
+
+/// Raw primary glyph claims of one block plus whether the block itself has
+/// complete, unique, single-scalar ownership.
+///
+/// Claims are always preserved, including duplicates and claims from otherwise
+/// invalid blocks, so global ownership stays unambiguous. `None` means only an
+/// allocation or count failure; the caller then falls back to the empty
+/// no-proof form for the whole join.
+fn raw_glyph_claims(raw: &MappedText) -> Option<(Vec<GlyphId>, bool)> {
+    let scalar_count = raw.text.chars().count();
+    let glyph_count = raw.source_map.iter().try_fold(0usize, |total, entry| {
+        total.checked_add(entry.source.atoms.len())
+    })?;
+    let mut glyphs = Vec::new();
+    glyphs.try_reserve_exact(glyph_count).ok()?;
+    let mut unique = std::collections::HashSet::new();
+    unique.try_reserve(glyph_count).ok()?;
+    let mut unique_ownership = true;
+    let mut structurally_valid = true;
+    let mut next_start = 0usize;
+    for entry in &raw.source_map {
+        if entry.output_range.start != next_start
+            || entry
+                .output_range
+                .end
+                .saturating_sub(entry.output_range.start)
+                != 1
+            || entry.output_range.end > scalar_count
+            || entry.source.atoms.is_empty()
+        {
+            structurally_valid = false;
+        }
+        for atom in &entry.source.atoms {
+            if let TextSourceAtom::Glyph(glyph) = atom {
+                if !unique.insert(*glyph) {
+                    unique_ownership = false;
+                }
+                glyphs.push(*glyph);
+            }
+        }
+        next_start = entry.output_range.end;
+    }
+    if next_start != scalar_count {
+        structurally_valid = false;
+    }
+    Some((glyphs, structurally_valid && unique_ownership))
+}
+
+/// Joins an optional native structure-order proof to normalized blocks.
+///
+/// Fails closed to all-false flags when the proof is absent, when any
+/// allocation reservation fails, or when a block's glyphs cannot be bound
+/// exactly. The join is linear in blocks and glyphs, which are already bounded
+/// by the extraction and reconstruction limits.
+fn native_order_blocks_for(
+    blocks: &[BlockText],
+    intervals: &[Option<TrustedRunInterval>],
+    proof: Option<&crate::document::NativeOrderProof<'_>>,
+) -> Vec<bool> {
+    let Some(proof) = proof else {
+        return Vec::new();
+    };
+    let mut block_glyphs = Vec::new();
+    if block_glyphs.try_reserve_exact(blocks.len()).is_err() {
+        return Vec::new();
+    }
+    let mut eligible = Vec::new();
+    if eligible.try_reserve_exact(blocks.len()).is_err() {
+        return Vec::new();
+    }
+    for (index, block) in blocks.iter().enumerate() {
+        let Some((glyphs, unique_ownership)) = raw_glyph_claims(&block.raw) else {
+            return Vec::new();
+        };
+        let normalization_ok = block
+            .normalization_events
+            .iter()
+            .all(|event| event.kind == crate::normalize::NormalizationKind::WhitespaceCollapse);
+        eligible.push(
+            block.issues.is_empty()
+                && normalization_ok
+                && unique_ownership
+                && block.canonical.unmapped.is_empty()
+                && block.line_breaks.as_ref().is_some_and(Vec::is_empty)
+                && block.page_breaks.as_ref().is_some_and(Vec::is_empty)
+                && block.pages.len() == 1
+                && intervals.get(index).copied().flatten().is_none()
+                && !glyphs.is_empty(),
+        );
+        block_glyphs.push(glyphs);
+    }
+    certified_native_order_blocks(&block_glyphs, &eligible, proof.runs())
+}
+
+/// Marks blocks whose own glyphs are a complete consecutive source subsequence.
+///
+/// Positive: every glyph of the block maps to one validated run, at strictly
+/// increasing consecutive positions in the block's own order, with unique
+/// ownership. Negative: a candidate glyph that is missing from the runs,
+/// duplicated inside or across runs, owned by another block, or separated by a
+/// gap in run positions stays uncertified. Unrelated run members do not veto
+/// the candidate, because the returned flag asserts only the block's own order.
+/// Every collection is reserved fallibly; an allocation failure returns the
+/// empty no-proof form and leaves all existing uncertainty untouched.
+fn certified_native_order_blocks(
+    block_glyphs: &[Vec<GlyphId>],
+    eligible: &[bool],
+    runs: &[Vec<GlyphId>],
+) -> Vec<bool> {
+    let Some(mut certified) = false_flags(block_glyphs.len()) else {
+        return Vec::new();
+    };
+    let Some(block_glyph_count) = block_glyphs
+        .iter()
+        .try_fold(0usize, |total, glyphs| total.checked_add(glyphs.len()))
+    else {
+        return certified;
+    };
+    let mut owner = std::collections::HashMap::new();
+    if owner.try_reserve(block_glyph_count).is_err() {
+        return certified;
+    }
+    let mut ambiguous = std::collections::HashSet::new();
+    if ambiguous.try_reserve(block_glyph_count).is_err() {
+        return certified;
+    }
+    for (index, glyphs) in block_glyphs.iter().enumerate() {
+        for glyph in glyphs {
+            if owner.insert(*glyph, index).is_some() {
+                ambiguous.insert(*glyph);
+            }
+        }
+    }
+    let Some(run_glyph_count) = runs
+        .iter()
+        .try_fold(0usize, |total, run| total.checked_add(run.len()))
+    else {
+        return certified;
+    };
+    let mut location = std::collections::HashMap::new();
+    if location.try_reserve(run_glyph_count).is_err() {
+        return certified;
+    }
+    let mut duplicated = std::collections::HashSet::new();
+    if duplicated.try_reserve(run_glyph_count).is_err() {
+        return certified;
+    }
+    for (run_index, run) in runs.iter().enumerate() {
+        for (position, glyph) in run.iter().enumerate() {
+            if location.insert(*glyph, (run_index, position)).is_some() {
+                duplicated.insert(*glyph);
+            }
+        }
+    }
+    for (index, glyphs) in block_glyphs.iter().enumerate() {
+        if !eligible.get(index).copied().unwrap_or(false) || glyphs.is_empty() {
+            continue;
+        }
+        let mut run_index = None;
+        let mut previous_position = None;
+        let mut ok = true;
+        for glyph in glyphs {
+            if ambiguous.contains(glyph) || duplicated.contains(glyph) {
+                ok = false;
+                break;
+            }
+            let Some(&(candidate_run, position)) = location.get(glyph) else {
+                ok = false;
+                break;
+            };
+            match run_index {
+                None => run_index = Some(candidate_run),
+                Some(current) if current != candidate_run => {
+                    ok = false;
+                    break;
+                }
+                Some(_) => {}
+            }
+            if previous_position.is_some_and(|previous| position != previous + 1) {
+                ok = false;
+                break;
+            }
+            previous_position = Some(position);
+        }
+        if ok {
+            certified[index] = true;
+        }
+    }
+    certified
+}
+
 fn prepare_with_diagnostics(
     document: &Document<Glyph>,
     options: PipelineOptions,
     side: DocumentSide,
+    native_order: Option<&crate::document::NativeOrderProof<'_>>,
 ) -> (Result<PreparedDocument>, PipelineDiagnostics) {
     let mut diagnostics = PipelineDiagnostics::new();
-    let prepared = prepare(document, options, side, &mut diagnostics);
+    let prepared = prepare(document, options, side, &mut diagnostics, native_order);
     (prepared, diagnostics)
 }
 
@@ -1663,6 +2018,10 @@ struct PreparedDocument {
     /// proven one; not excluded from anchoring, but every change whose span
     /// intersects one of them must be reported at low confidence.
     inferred_order_block_indices: Vec<usize>,
+    /// Blocks whose content order is proven by the native structure-order
+    /// certificate. The proof covers order only; equality still needs the
+    /// exact comparison.
+    native_order_blocks: Vec<bool>,
     trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     trusted_run_descriptors: Vec<TrustedRunDescriptor>,
     trusted_region_edges: Vec<TrustedRegionEdge>,
@@ -1707,7 +2066,7 @@ mod tests {
         pdf::ObjectRef,
     };
 
-    fn single_glyph_document() -> Document<Glyph> {
+    pub(super) fn single_glyph_document() -> Document<Glyph> {
         Document::new(vec![Glyph {
             id: GlyphId(1),
             text: DecodedText::Mapped("A".to_owned()),
@@ -1745,6 +2104,7 @@ mod tests {
             PipelineOptions::default(),
             DocumentSide::Old,
             &mut diagnostics,
+            None,
         )
         .expect("one supported line should prepare");
 
@@ -1786,5 +2146,504 @@ mod tests {
         let error = validate_trusted_run_interval_count(2, 1)
             .expect_err("missing block metadata must be rejected");
         assert!(matches!(error, Error::Unresolved(message) if message.contains("metadata length")));
+    }
+}
+
+#[cfg(test)]
+mod h27_order_certificate {
+    use super::*;
+    use crate::model::GlyphId;
+    use crate::pdf::{LopdfParser, ParseLimits, PdfParser};
+    use crate::source::{ContentStreamGlyphExtractor, ExtractionLimits, GlyphExtractor};
+
+    fn glyphs(ids: &[u64]) -> Vec<GlyphId> {
+        ids.iter().copied().map(GlyphId).collect()
+    }
+
+    fn eligible(len: usize) -> Vec<bool> {
+        vec![true; len]
+    }
+
+    #[test]
+    fn optional_acquisition_preserves_document_and_releases_source() {
+        use crate::pdf::{
+            DecodedStream, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
+        };
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        struct TrackedPdf(Arc<AtomicBool>);
+        impl Drop for TrackedPdf {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        impl ParsedPdf for TrackedPdf {
+            fn version(&self) -> PdfVersion {
+                PdfVersion { major: 1, minor: 7 }
+            }
+            fn trailer(&self) -> crate::Result<PdfDict> {
+                Ok(PdfDict::new())
+            }
+            fn resolve(&self, _reference: crate::pdf::ObjectRef) -> crate::Result<PdfObject> {
+                Ok(PdfObject::Null)
+            }
+            fn pages(&self) -> crate::Result<Vec<PageRef>> {
+                Ok(Vec::new())
+            }
+            fn page_dict(&self, _page: PageRef) -> crate::Result<PdfDict> {
+                Ok(PdfDict::new())
+            }
+            fn raw_stream(&self, _reference: crate::pdf::ObjectRef) -> crate::Result<RawStream> {
+                Ok(RawStream {
+                    dictionary: PdfDict::new(),
+                    bytes: Vec::new(),
+                })
+            }
+            fn decoded_stream(
+                &self,
+                _reference: crate::pdf::ObjectRef,
+            ) -> crate::Result<DecodedStream> {
+                Ok(DecodedStream {
+                    dictionary: PdfDict::new(),
+                    bytes: Vec::new(),
+                })
+            }
+        }
+        let document = super::tests::single_glyph_document();
+        let expected = document.clone();
+        let alive = Arc::new(AtomicBool::new(true));
+        let mut remaining = 0usize;
+        let (preserved, absent) = crate::document::with_native_order_proof(
+            Some(Box::new(TrackedPdf(alive.clone()))),
+            document,
+            &mut remaining,
+            |document, proof, _budget| {
+                assert!(
+                    !alive.load(Ordering::SeqCst),
+                    "the parsed owner must drop before the callback"
+                );
+                (document.clone(), proof.is_none())
+            },
+        );
+        assert!(absent, "an exhausted budget must leave the proof absent");
+        assert_eq!(
+            preserved, expected,
+            "the original document contents must be preserved"
+        );
+    }
+
+    #[test]
+    fn refuses_impossible_flag_length() {
+        assert!(false_flags(usize::MAX).is_none());
+    }
+
+    fn block_fixture(block: u64, raw: MappedText, pages: Vec<u32>) -> BlockText {
+        BlockText {
+            block: crate::layout::BlockId(block),
+            role: crate::layout::BlockRole::Body,
+            canonical: raw.clone(),
+            matching: raw.text.clone(),
+            matching_tokens: Vec::new(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages,
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: Some(Vec::new()),
+            page_breaks: Some(Vec::new()),
+            raw,
+        }
+    }
+
+    #[test]
+    fn wrapper_vetoes_shared_glyph_from_ineligible_block() {
+        let origin: Document<Glyph> = Document::new(Vec::new());
+        let proof =
+            crate::document::NativeOrderProof::proof_for_test(&origin, vec![vec![GlyphId(7)]])
+                .expect("fixture proof");
+        let invalid = block_fixture(1, raw_source("ab", &[(0, 1, &[7]), (1, 2, &[7])]), vec![0]);
+        let otherwise_eligible = block_fixture(2, raw_source("c", &[(0, 1, &[7])]), vec![0]);
+        assert_eq!(
+            native_order_blocks_for(&[invalid, otherwise_eligible], &[None, None], Some(&proof)),
+            vec![false, false],
+            "a glyph claimed twice by an invalid block must veto the sharing block"
+        );
+    }
+
+    #[test]
+    fn wrapper_certifies_eligible_block_next_to_unrelated_invalid() {
+        let origin: Document<Glyph> = Document::new(Vec::new());
+        let proof =
+            crate::document::NativeOrderProof::proof_for_test(&origin, vec![vec![GlyphId(7)]])
+                .expect("fixture proof");
+        let unrelated_invalid = block_fixture(1, raw_source("d", &[(0, 1, &[9])]), vec![0, 1]);
+        let eligible = block_fixture(2, raw_source("c", &[(0, 1, &[7])]), vec![0]);
+        assert_eq!(
+            native_order_blocks_for(&[unrelated_invalid, eligible], &[None, None], Some(&proof)),
+            vec![false, true],
+            "an unrelated invalid block must not hide a sound certificate"
+        );
+    }
+
+    #[test]
+    fn refuses_empty_run_list() {
+        let blocks = vec![glyphs(&[1, 2, 3])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(1), &[]),
+            vec![false]
+        );
+    }
+
+    #[test]
+    fn certifies_single_fully_covered_block() {
+        let blocks = vec![glyphs(&[1, 2, 3])];
+        let runs = vec![glyphs(&[1, 2, 3])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(1), &runs),
+            vec![true]
+        );
+    }
+
+    #[test]
+    fn certifies_ordered_multi_block_run() {
+        let blocks = vec![glyphs(&[1, 2]), glyphs(&[3, 4])];
+        let runs = vec![glyphs(&[1, 2, 3, 4])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(2), &runs),
+            vec![true, true]
+        );
+    }
+
+    #[test]
+    fn certifies_covered_block_next_to_ineligible_member() {
+        let blocks = vec![glyphs(&[1, 2]), glyphs(&[3, 4])];
+        let runs = vec![glyphs(&[1, 2, 3, 4])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &[true, false], &runs),
+            vec![true, false]
+        );
+    }
+
+    #[test]
+    fn rejects_partial_coverage() {
+        let blocks = vec![glyphs(&[1, 2, 3])];
+        let runs = vec![glyphs(&[1, 2])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(1), &runs),
+            vec![false]
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_inside_run() {
+        let blocks = vec![glyphs(&[1, 2])];
+        let runs = vec![glyphs(&[1, 1, 2])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(1), &runs),
+            vec![false]
+        );
+    }
+
+    #[test]
+    fn rejects_cross_run_duplicate() {
+        let blocks = vec![glyphs(&[1, 2]), glyphs(&[2, 3])];
+        let runs = vec![glyphs(&[1, 2]), glyphs(&[2, 3])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(2), &runs),
+            vec![false, false]
+        );
+    }
+
+    #[test]
+    fn rejects_reordered_run() {
+        let blocks = vec![glyphs(&[1, 2])];
+        let runs = vec![glyphs(&[2, 1])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(1), &runs),
+            vec![false]
+        );
+    }
+
+    #[test]
+    fn certifies_consecutive_subsequence_and_rejects_crossed_gap() {
+        let blocks = vec![glyphs(&[1, 3]), glyphs(&[2])];
+        let runs = vec![glyphs(&[1, 2, 3])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(2), &runs),
+            vec![false, true]
+        );
+    }
+
+    #[test]
+    fn ignores_unrelated_run_glyphs() {
+        let blocks = vec![glyphs(&[1, 2])];
+        let runs = vec![glyphs(&[1, 2, 99])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(1), &runs),
+            vec![true]
+        );
+    }
+
+    #[test]
+    fn rejects_ineligible_and_trusted_blocks() {
+        let blocks = vec![glyphs(&[1, 2]), glyphs(&[3, 4])];
+        let runs = vec![glyphs(&[1, 2, 3, 4])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &[false, false], &runs),
+            vec![false, false]
+        );
+    }
+
+    fn raw_source(text: &str, entries: &[(usize, usize, &[u64])]) -> MappedText {
+        MappedText {
+            text: text.to_owned(),
+            source_map: entries
+                .iter()
+                .map(|(start, end, glyphs)| crate::normalize::SourceMapEntry {
+                    output_range: crate::normalize::ScalarRange {
+                        start: *start,
+                        end: *end,
+                    },
+                    source: crate::normalize::TextSource {
+                        atoms: glyphs
+                            .iter()
+                            .map(|glyph| TextSourceAtom::Glyph(GlyphId(*glyph)))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    },
+                })
+                .collect(),
+            unmapped: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn refuses_duplicate_raw_glyph_ownership() {
+        let raw = raw_source("ab", &[(0, 1, &[7]), (1, 2, &[7])]);
+        assert!(!raw_glyph_claims(&raw).expect("h27 fixture").1);
+    }
+
+    #[test]
+    fn accepts_unique_raw_glyph_ownership() {
+        let raw = raw_source("ab", &[(0, 1, &[7]), (1, 2, &[8])]);
+        assert!(raw_glyph_claims(&raw).expect("h27 fixture").1);
+    }
+
+    #[test]
+    fn refuses_multi_scalar_source_entry() {
+        let raw = raw_source("ab", &[(0, 2, &[7])]);
+        assert!(!raw_glyph_claims(&raw).expect("h27 fixture").1);
+    }
+
+    #[test]
+    fn allows_synthetic_boundary_atoms() {
+        let raw = MappedText {
+            text: "a b".to_owned(),
+            source_map: vec![
+                crate::normalize::SourceMapEntry {
+                    output_range: crate::normalize::ScalarRange { start: 0, end: 1 },
+                    source: crate::normalize::TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId(7))].into(),
+                    },
+                },
+                crate::normalize::SourceMapEntry {
+                    output_range: crate::normalize::ScalarRange { start: 1, end: 2 },
+                    source: crate::normalize::TextSource {
+                        atoms: vec![TextSourceAtom::SyntheticSpace {
+                            preceding: GlyphId(7),
+                            following: GlyphId(8),
+                        }]
+                        .into(),
+                    },
+                },
+                crate::normalize::SourceMapEntry {
+                    output_range: crate::normalize::ScalarRange { start: 2, end: 3 },
+                    source: crate::normalize::TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId(8))].into(),
+                    },
+                },
+            ],
+            unmapped: Vec::new(),
+        };
+        assert!(raw_glyph_claims(&raw).expect("h27 fixture").1);
+    }
+
+    #[test]
+    fn rejects_ambiguous_shared_glyph() {
+        let blocks = vec![glyphs(&[1, 2]), glyphs(&[2, 3])];
+        let runs = vec![glyphs(&[1, 2])];
+        assert_eq!(
+            certified_native_order_blocks(&blocks, &eligible(2), &runs),
+            vec![false, false]
+        );
+    }
+
+    fn extract(path: &str) -> (Box<dyn crate::pdf::ParsedPdf>, ExtractionOutcome) {
+        let bytes = std::fs::read(path).expect("h27 fixture");
+        let pdf = LopdfParser
+            .parse(bytes.into(), ParseLimits::default())
+            .expect("h27 fixture");
+        let outcome = ContentStreamGlyphExtractor
+            .extract_outcome(&*pdf, ExtractionLimits::default())
+            .expect("h27 fixture");
+        (pdf, outcome)
+    }
+
+    #[test]
+    fn h27_causal_replay() {
+        let Ok(paths_file) = std::env::var("H26_PDFS") else {
+            return;
+        };
+        let paths: Vec<String> = std::fs::read_to_string(paths_file)
+            .expect("h27 fixture")
+            .lines()
+            .map(String::from)
+            .collect();
+        let (old_pdf, old_outcome) = extract(&paths[0]);
+        let (new_pdf, new_outcome) = extract(&paths[1]);
+        let (_second_old_pdf, second_old_outcome) = extract(&paths[0]);
+        let default_budget = PipelineOptions::default().diff.max_assessment_work;
+        let (flag_pdf, _) = extract(&paths[0]);
+        let mut flag_budget = default_budget;
+        let old_flags = crate::document::with_native_order_proof(
+            Some(flag_pdf),
+            old_outcome.document().clone(),
+            &mut flag_budget,
+            |document, proof, _budget| {
+                assert!(
+                    proof.is_some(),
+                    "the NIST old side must certify its native order"
+                );
+                assert!(
+                    proof.is_some_and(|proof| proof.binds(document)),
+                    "the proof must bind its originating document"
+                );
+                assert!(
+                    proof.is_some_and(|proof| !proof.binds(second_old_outcome.document())),
+                    "same-id content from a second parse must never share the proof"
+                );
+                let prepared = prepare(
+                    document,
+                    PipelineOptions::default(),
+                    DocumentSide::Old,
+                    &mut PipelineDiagnostics::new(),
+                    proof,
+                )
+                .expect("h27 fixture");
+                let index = prepared
+                    .blocks
+                    .iter()
+                    .position(|block| block.block.0 == 547)
+                    .expect("target block exists");
+                (
+                    prepared.native_order_blocks[index],
+                    prepared.trusted_run_intervals[index].map(|interval| interval.run_id.0),
+                    prepared.uncertain_block_indices.contains(&index),
+                    prepared
+                        .native_order_blocks
+                        .iter()
+                        .filter(|flag| **flag)
+                        .count(),
+                )
+            },
+        );
+        let (flag_new_pdf, _) = extract(&paths[1]);
+        let mut flag_new_budget = default_budget;
+        let new_flags = crate::document::with_native_order_proof(
+            Some(flag_new_pdf),
+            new_outcome.document().clone(),
+            &mut flag_new_budget,
+            |document, proof, _budget| {
+                assert!(
+                    proof.is_some(),
+                    "the NIST new side must certify its native order"
+                );
+                let prepared = prepare(
+                    document,
+                    PipelineOptions::default(),
+                    DocumentSide::New,
+                    &mut PipelineDiagnostics::new(),
+                    proof,
+                )
+                .expect("h27 fixture");
+                let index = prepared
+                    .blocks
+                    .iter()
+                    .position(|block| block.block.0 == 592)
+                    .expect("target block exists");
+                (
+                    prepared.native_order_blocks[index],
+                    prepared.trusted_run_intervals[index].map(|interval| interval.run_id.0),
+                    prepared.uncertain_block_indices.contains(&index),
+                    prepared
+                        .native_order_blocks
+                        .iter()
+                        .filter(|flag| **flag)
+                        .count(),
+                )
+            },
+        );
+        assert!(old_flags.0, "old block 547 must be certified");
+        assert!(new_flags.0, "new block 592 must be certified");
+        assert_eq!(
+            old_flags.1, None,
+            "certification must not synthesize a layout trusted run"
+        );
+        assert_eq!(
+            new_flags.1, None,
+            "certification must not synthesize a layout trusted run"
+        );
+        assert!(old_flags.2, "original uncertainty must be preserved");
+        assert!(new_flags.2, "original uncertainty must be preserved");
+        println!(
+            "H27 certified old547={} new592={} old_certified_blocks={} new_certified_blocks={}",
+            old_flags.0, new_flags.0, old_flags.3, new_flags.3
+        );
+        // Original-document preservation when the optional acquisition fails.
+        let mut zero_budget = 0usize;
+        let preserved = crate::document::with_native_order_proof(
+            Some(extract(&paths[0]).0),
+            old_outcome.document().clone(),
+            &mut zero_budget,
+            |document, proof, _budget| (document.items().len(), proof.is_none()),
+        );
+        assert_eq!(preserved.0, old_outcome.document().items().len());
+        assert!(
+            preserved.1,
+            "an exhausted budget must leave the proof absent"
+        );
+        let (compared, work) = compare_extraction_outcomes_with_native_order_proofs(
+            Some(old_pdf),
+            old_outcome,
+            Some(new_pdf),
+            new_outcome,
+            PipelineOptions::default(),
+            &mut PipelineDiagnostics::new(),
+        )
+        .expect("h27 fixture");
+        assert!(
+            work.old_spent > 0 || work.new_spent > 0,
+            "the production entry must acquire native order proofs"
+        );
+        println!(
+            "H27 production work old={} new={}",
+            work.old_spent, work.new_spent
+        );
+        println!(
+            "H27 unresolved={} baseline=5598 changes={} baseline_changes=0 formatting={}",
+            compared.comparison.unresolved_regions.len(),
+            compared.comparison.changes.len(),
+            compared.comparison.formatting_changes.len(),
+        );
+        assert!(
+            compared.comparison.unresolved_regions.len() < 5598,
+            "the certificate-backed consumer must reduce unresolved regions"
+        );
+        assert_eq!(
+            compared.comparison.changes.len(),
+            0,
+            "changed remainders must not be proven without the exact diff"
+        );
     }
 }

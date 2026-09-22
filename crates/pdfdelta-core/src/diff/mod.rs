@@ -2319,6 +2319,11 @@ pub(crate) struct TrustedRunRecoveryInput<'a> {
 pub(crate) struct SentenceRecoveryInput<'a> {
     pub(crate) old_trusted_run_intervals: &'a [Option<TrustedRunInterval>],
     pub(crate) new_trusted_run_intervals: &'a [Option<TrustedRunInterval>],
+    /// Per-block native structure-order certificates. A certified block has
+    /// proven content order from the retained structure tree; the certificate
+    /// carries order only and never asserts text equality.
+    pub(crate) old_native_order_blocks: &'a [bool],
+    pub(crate) new_native_order_blocks: &'a [bool],
     pub(crate) old_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
     pub(crate) new_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
     pub(crate) min_tokens: usize,
@@ -9780,6 +9785,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &intervals,
                     new_trusted_run_intervals: &[],
                     old_trusted_run_evidence: None,
@@ -10863,6 +10870,8 @@ mod tests {
             &alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
                 old_trusted_run_evidence: None,
@@ -10931,6 +10940,8 @@ mod tests {
             &alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
                 old_trusted_run_evidence: None,
@@ -11076,6 +11087,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -11130,6 +11143,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -11200,6 +11215,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -11508,6 +11525,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -12734,6 +12753,8 @@ mod tests {
         let old_intervals = trusted_run_intervals(&[Some(TrustedRunId(1))]);
         let new_intervals = trusted_run_intervals(&[Some(TrustedRunId(2))]);
         let recovery = SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: None,
@@ -12792,6 +12813,8 @@ mod tests {
             },
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &[],
                 new_trusted_run_intervals: &[],
                 old_trusted_run_evidence: None,
@@ -13362,6 +13385,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -14060,6 +14085,8 @@ mod tests {
             &alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &[],
                 new_trusted_run_intervals: &[],
                 old_trusted_run_evidence: None,
@@ -14078,6 +14105,8 @@ mod tests {
             &alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &[Some(TrustedRunInterval {
                     run_id: TrustedRunId(1),
                     start: 0,
@@ -14109,6 +14138,8 @@ mod tests {
             &alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &[Some(TrustedRunInterval {
                     run_id: TrustedRunId(1),
                     start: 0,
@@ -14160,6 +14191,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -14217,6 +14250,8 @@ mod tests {
             CompareAlignedConfig {
                 options: DiffOptions::default(),
                 recovery: Some(SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -14404,6 +14439,8 @@ mod tests {
             &alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &old_trusted_run_intervals,
                 new_trusted_run_intervals: &new_trusted_run_intervals,
                 old_trusted_run_evidence: None,
@@ -14437,6 +14474,8 @@ mod tests {
                 &alignment,
                 DiffOptions::default(),
                 SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -14577,6 +14616,8 @@ mod tests {
                 &alignment,
                 DiffOptions::default(),
                 SentenceRecoveryInput {
+                    old_native_order_blocks: &[],
+                    new_native_order_blocks: &[],
                     old_trusted_run_intervals: &old_intervals,
                     new_trusted_run_intervals: &new_intervals,
                     old_trusted_run_evidence: None,
@@ -14669,6 +14710,8 @@ mod tests {
             alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
                 old_trusted_run_evidence: None,
@@ -14685,6 +14728,8 @@ mod tests {
             alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
                 old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
@@ -14727,6 +14772,8 @@ mod tests {
             alignment,
             DiffOptions::default(),
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
                 old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
@@ -15421,6 +15468,8 @@ mod tests {
             alignment,
             options,
             SentenceRecoveryInput {
+                old_native_order_blocks: &[],
+                new_native_order_blocks: &[],
                 old_trusted_run_intervals,
                 new_trusted_run_intervals,
                 old_trusted_run_evidence: None,

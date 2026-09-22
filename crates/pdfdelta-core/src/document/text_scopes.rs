@@ -29,6 +29,203 @@ pub use domains::NativeTextDomainEquality;
 mod intervals;
 pub use intervals::NativeTextIntervalComparison;
 
+/// Validated native structure-order proof bound to exact document glyph ids.
+///
+/// Each run is an ordered content sequence from the retained structure tree.
+/// The proof carries order evidence only: it never asserts text equality and it
+/// never synthesizes layout geometry or region provenance. Every glyph id
+/// appears at most once across all runs; construction rejects empty and
+/// duplicated runs so an invalid certificate cannot be represented.
+pub(crate) struct NativeOrderProof<'a> {
+    runs: Vec<Vec<crate::model::GlyphId>>,
+    /// The originating document. The borrow keeps the origin alive for as long
+    /// as the proof exists; [`Self::binds`] compares object identity at run
+    /// time, so a proof acquired from one document never applies to another
+    /// even when both share numeric glyph ids or content.
+    origin: &'a crate::model::Document<crate::model::Glyph>,
+}
+
+impl<'a> NativeOrderProof<'a> {
+    pub(crate) fn runs(&self) -> &[Vec<crate::model::GlyphId>] {
+        &self.runs
+    }
+
+    /// Returns true only for the exact originating document object.
+    pub(crate) fn binds(&self, document: &crate::model::Document<crate::model::Glyph>) -> bool {
+        std::ptr::eq(self.origin, document)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn proof_for_test(
+        origin: &'a crate::model::Document<crate::model::Glyph>,
+        runs: Vec<Vec<crate::model::GlyphId>>,
+    ) -> Option<Self> {
+        let mut remaining = 32_000_000usize;
+        Self::validate(runs, origin, &mut remaining)
+    }
+
+    fn validate(
+        runs: Vec<Vec<crate::model::GlyphId>>,
+        origin: &'a crate::model::Document<crate::model::Glyph>,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        if runs.is_empty() {
+            return None;
+        }
+        let total = runs
+            .iter()
+            .try_fold(0usize, |total, run| total.checked_add(run.len()))?;
+        spend(remaining, total.checked_add(runs.len())?)?;
+        let mut seen = std::collections::HashSet::new();
+        seen.try_reserve(total).ok()?;
+        for run in &runs {
+            if run.is_empty() {
+                return None;
+            }
+            for glyph in run {
+                if !seen.insert(*glyph) {
+                    return None;
+                }
+            }
+        }
+        Some(Self { runs, origin })
+    }
+}
+
+/// Runs `use_proof` with an optional native order proof for `native`.
+///
+/// The same document contents are moved into a temporary validated store for
+/// acquisition and handed back as a stable local reference before the proof is
+/// created, so no glyph storage is duplicated and the proof binds to that
+/// final address. Acquisition, validation, and binding stay inside this
+/// function; the proof type is never constructed elsewhere. `None` means the
+/// optional proof is unavailable and existing behavior is unchanged.
+pub(crate) fn with_native_order_proof<R>(
+    pdf: Option<Box<dyn crate::pdf::ParsedPdf>>,
+    native: crate::model::Document<crate::model::Glyph>,
+    remaining: &mut usize,
+    use_proof: impl FnOnce(
+        &crate::model::Document<crate::model::Glyph>,
+        Option<&NativeOrderProof<'_>>,
+        &mut usize,
+    ) -> R,
+) -> R {
+    // Every temporary store, index, and source lives inside `acquire_runs`, so
+    // the callback sees only the restored document and the optional proof.
+    let (native, runs) = acquire_runs(pdf, native, remaining);
+    let proof = runs.and_then(|runs| NativeOrderProof::validate(runs, &native, remaining));
+    use_proof(&native, proof.as_ref(), remaining)
+}
+
+/// Acquires native order runs while keeping every temporary owned locally.
+///
+/// Always returns the same document contents, whether acquisition succeeds or
+/// fails, and drops the parsed source and all temporary stores before
+/// returning. `None` runs mean the optional proof is unavailable.
+fn acquire_runs(
+    pdf: Option<Box<dyn crate::pdf::ParsedPdf>>,
+    native: crate::model::Document<crate::model::Glyph>,
+    remaining: &mut usize,
+) -> (
+    crate::model::Document<crate::model::Glyph>,
+    Option<Vec<Vec<crate::model::GlyphId>>>,
+) {
+    use crate::document::{
+        BackendIdentity, BackendKind, DocumentGraph, EvidenceLimits, EvidenceStore, PageEvidence,
+    };
+    let Some(pdf) = pdf else {
+        return (native, None);
+    };
+    if spend(
+        remaining,
+        native
+            .items()
+            .len()
+            .saturating_add(native.vector_lines().len()),
+    )
+    .is_none()
+    {
+        return (native, None);
+    }
+    let Some(structure) = super::extract_structure_evidence(
+        pdf.as_ref(),
+        &native,
+        0,
+        0,
+        super::StructureLimits::default(),
+    )
+    .ok() else {
+        return (native, None);
+    };
+    drop(pdf);
+    if spend(remaining, structure_cost(&structure)).is_none() {
+        return (native, None);
+    }
+    let mut page_ids = BTreeSet::new();
+    page_ids.extend(native.items().iter().map(|glyph| glyph.page));
+    page_ids.extend(native.last_non_text_paint().keys().copied());
+    page_ids.extend(native.vector_lines().iter().map(|line| line.page));
+    if spend(remaining, page_ids.len()).is_none() {
+        return (native, None);
+    }
+    let mut pages = Vec::new();
+    if pages.try_reserve(page_ids.len()).is_err() {
+        return (native, None);
+    }
+    for page in page_ids {
+        pages.push(PageEvidence { page, bounds: None });
+    }
+    let store = EvidenceStore {
+        revision: "native-order-proof".into(),
+        backends: vec![BackendIdentity {
+            kind: BackendKind::NativeParser,
+            name: "parser".into(),
+            version: "1".into(),
+            profile: "native".into(),
+            model: None,
+        }],
+        pages,
+        native,
+        rendered: Vec::new(),
+        structured: structure.elements,
+        inventories: vec![structure.inventory],
+        key_inventories: vec![structure.key_inventory],
+        native_structures: vec![structure.native_inventory],
+        issues: structure.issues,
+    };
+    let Some(index) = store.validate_indexed(EvidenceLimits::default()).ok() else {
+        let EvidenceStore { native, .. } = store;
+        return (native, None);
+    };
+    let graph = DocumentGraph::default();
+    let mut sources = native::Sources::new(&index);
+    sources.acquire_native_order(
+        DocumentView {
+            evidence: &store,
+            graph: &graph,
+        },
+        remaining,
+    );
+    let runs = sources.native_order_runs(remaining);
+    let EvidenceStore { native, .. } = store;
+    (native, runs)
+}
+
+/// Bounds the structure evidence retained by the proof store.
+fn structure_cost(structure: &super::StructureEvidence) -> usize {
+    let mut cost = structure
+        .elements
+        .len()
+        .saturating_add(structure.issues.len());
+    for element in &structure.elements {
+        if let super::StructuredValue::StructureElement { content, .. } = &element.value {
+            cost = cost.saturating_add(content.as_ref().map_or(0, Vec::len));
+        }
+        cost = cost.saturating_add(1);
+    }
+    cost.saturating_add(structure.inventory.sources.len())
+}
+
 /// Content of corresponding intervals under the stated comparison convention.
 /// Inferred paragraph groups have no certified interval boundaries. Otherwise,
 /// the enclosing scope retains the parent correspondence. Boundary indexes

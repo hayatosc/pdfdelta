@@ -2319,6 +2319,8 @@ mod tests {
         let old_intervals = vec![None; old_blocks.len()];
         let new_intervals = vec![None; new_blocks.len()];
         let recovery = crate::diff::SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: None,
@@ -2462,6 +2464,8 @@ mod tests {
         let old_intervals = vec![None; old_blocks.len()];
         let new_intervals = vec![None; new_blocks.len()];
         let recovery = crate::diff::SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: None,
@@ -2596,6 +2600,8 @@ mod tests {
         let old_intervals = vec![interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
         let new_intervals = vec![interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
         let recovery = crate::diff::SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: None,
@@ -2847,6 +2853,8 @@ mod tests {
         let old_intervals = vec![None; old_blocks.len()];
         let new_intervals = vec![None; new_blocks.len()];
         let recovery = crate::diff::SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: None,
@@ -3265,6 +3273,8 @@ mod tests {
             .map(|index| interval(2, index, index + 1))
             .collect::<Vec<_>>();
         let recovery = crate::diff::SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: &old_intervals,
             new_trusted_run_intervals: &new_intervals,
             old_trusted_run_evidence: None,

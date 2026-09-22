@@ -45,6 +45,10 @@ struct View {
     block_indices: Vec<usize>,
     group: GroupText,
     source_bounded: bool,
+    /// Content order proven by the native structure-order certificate. The
+    /// proof covers order only; equality still requires the exact comparison,
+    /// and the block keeps every normalization and source-issue veto.
+    order_certified: bool,
     /// Every source position signature describes horizontal left-to-right text.
     /// A source-bounded whole-view anchor may only close its own domain for
     /// such text; vertical or tilted blocks stay unresolved.
@@ -147,6 +151,18 @@ pub(super) fn discover(
             "trusted run interval metadata must match normalized blocks",
         ));
     }
+    // An empty slice is the explicit "no native order proof" form used by
+    // every caller that has no certificate; a nonempty slice must still match
+    // the normalized blocks exactly.
+    if (!recovery.old_native_order_blocks.is_empty()
+        && recovery.old_native_order_blocks.len() != sides[0].blocks.len())
+        || (!recovery.new_native_order_blocks.is_empty()
+            && recovery.new_native_order_blocks.len() != sides[1].blocks.len())
+    {
+        return Err(super::invalid(
+            "native order metadata must match normalized blocks or be empty",
+        ));
+    }
     if *remaining_work == 0 || sides.iter().any(|side| side.blocks.is_empty()) {
         return Ok(Discovery::default());
     }
@@ -164,6 +180,7 @@ pub(super) fn discover(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
+        recovery.old_native_order_blocks,
         remaining_work,
     )?
     else {
@@ -173,6 +190,7 @@ pub(super) fn discover(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
+        recovery.new_native_order_blocks,
         remaining_work,
     )?
     else {
@@ -2520,6 +2538,7 @@ fn discover_translations_mode(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
+        recovery.old_native_order_blocks,
         remaining_work,
     )?
     else {
@@ -2529,6 +2548,7 @@ fn discover_translations_mode(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
+        recovery.new_native_order_blocks,
         remaining_work,
     )?
     else {
@@ -3594,6 +3614,7 @@ pub(super) fn discover_bracketed_domains(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
+        recovery.old_native_order_blocks,
         remaining_work,
     )?
     else {
@@ -3603,6 +3624,7 @@ pub(super) fn discover_bracketed_domains(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
+        recovery.new_native_order_blocks,
         remaining_work,
     )?
     else {
@@ -4064,6 +4086,7 @@ fn build_views(
     side: &Side<'_>,
     intervals: &[Option<TrustedRunInterval>],
     descriptors: Option<&[TrustedRunDescriptor]>,
+    native_order_blocks: &[bool],
     remaining_work: &mut usize,
 ) -> Result<Option<Vec<View>>> {
     let mut runs = HashMap::<TrustedRunId, Vec<RunMember>>::new();
@@ -4140,6 +4163,7 @@ fn build_views(
             block_indices,
             group,
             source_bounded: false,
+            order_certified: true,
             horizontal_text: false,
             position_signatures: Vec::new(),
             page: None,
@@ -4206,6 +4230,10 @@ fn build_views(
             block_indices: vec![block_index],
             group,
             source_bounded,
+            order_certified: native_order_blocks
+                .get(block_index)
+                .copied()
+                .unwrap_or(false),
             horizontal_text,
             position_signatures,
             page,
@@ -5172,11 +5200,20 @@ fn close_domain(
     let new_view = new_views.get(first.new_view)?;
     if anchors.len() == 1 {
         let anchor = anchors[0];
+        // A single anchor cannot close the unanchored remainder of a
+        // source-bounded view. When the anchor covers the whole view there is
+        // no remainder, and the anchor's unique source range already proves
+        // the view's equality; that whole-view certificate is preserved
+        // whenever its existing conditions and charging pass.
+        //
+        // A certified native order proves the sequence on which the anchor
+        // sits, so a partial anchor resolves its own equal span exactly as it
+        // does in a trusted run; adjacent gaps stay uncertain and no remainder
+        // equality is asserted. Such a relaxed domain never inherits the
+        // whole-view source-bound certificate.
+        let native_order_admits = old_view.order_certified && new_view.order_certified;
+        let mut whole_view_certificate = old_view.source_bounded && new_view.source_bounded;
         if old_view.source_bounded || new_view.source_bounded {
-            // A single anchor cannot close the unanchored remainder of a
-            // source-bounded view. When the anchor covers the whole view there
-            // is no remainder, and the anchor's unique source range already
-            // proves the view's equality.
             let signatures = old_view.position_signatures.len();
             let covers_whole_view = anchor.old_start == 0
                 && anchor.old_end == old_view.group.tokens.len()
@@ -5189,18 +5226,15 @@ fn close_domain(
                 && old_view.page == new_view.page
                 && (charge(remaining, signatures)
                     && old_view.position_signatures == new_view.position_signatures);
-            if !covers_whole_view {
+            if !covers_whole_view && !native_order_admits {
                 return None;
             }
+            whole_view_certificate = whole_view_certificate && covers_whole_view;
         }
-        // One independently unique anchor proves only its own equal source
-        // range. It cannot close either adjacent gap or the rest of the run;
-        // a source-bounded view is admitted only when the anchor is that whole
-        // view, so no unanchored remainder exists.
         return Some(LocalDomain {
             old_span: old_view.group.span(anchor.old_start, anchor.old_end),
             new_span: new_view.group.span(anchor.new_start, anchor.new_end),
-            source_bounded: old_view.source_bounded && new_view.source_bounded,
+            source_bounded: whole_view_certificate,
         });
     }
 
@@ -5553,10 +5587,10 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut work = 10_000_000;
-        let views = build_views(&old, &intervals, Some(&descriptors), &mut work)
+        let views = build_views(&old, &intervals, Some(&descriptors), &[], &mut work)
             .expect("views build")
             .expect("views available");
-        let new_views = build_views(&new, &intervals, Some(&descriptors), &mut work)
+        let new_views = build_views(&new, &intervals, Some(&descriptors), &[], &mut work)
             .expect("views build")
             .expect("views available");
         let tokens = views[0].group.tokens.clone();
@@ -5618,6 +5652,7 @@ mod tests {
             &multi_old_side,
             &multi_intervals,
             Some(&multi_descriptors),
+            &[],
             &mut work2,
         )
         .expect("views build")
@@ -5626,6 +5661,7 @@ mod tests {
             &multi_new_side,
             &multi_intervals,
             Some(&multi_descriptors),
+            &[],
             &mut work2,
         )
         .expect("views build")
@@ -5775,10 +5811,10 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut build_work = 10_000_000;
-        let views = build_views(&old, &intervals, Some(&descriptors), &mut build_work)
+        let views = build_views(&old, &intervals, Some(&descriptors), &[], &mut build_work)
             .expect("views build")
             .expect("views available");
-        let new_views = build_views(&new, &intervals, Some(&descriptors), &mut build_work)
+        let new_views = build_views(&new, &intervals, Some(&descriptors), &[], &mut build_work)
             .expect("views build")
             .expect("views available");
         let aa = vec![
@@ -5837,9 +5873,15 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut work = 50_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
+        let views = build_views(
+            &fixture_side,
+            &intervals,
+            Some(&descriptors),
+            &[],
+            &mut work,
+        )
+        .expect("views build")
+        .expect("views available");
         let mut build_work = 50_000_000;
         let postings = TokenPostings::build(&views, &mut build_work).expect("compact path builds");
         let a = crate::normalize::ComparableToken::Scalar('A');
@@ -5877,6 +5919,7 @@ mod tests {
             &diverse_side,
             &intervals,
             Some(&descriptors),
+            &[],
             &mut diverse_work,
         )
         .expect("views build")
@@ -5900,9 +5943,15 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut work = 100_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
+        let views = build_views(
+            &fixture_side,
+            &intervals,
+            Some(&descriptors),
+            &[],
+            &mut work,
+        )
+        .expect("views build")
+        .expect("views available");
         let needle_range = 72..80;
         let mut oracle_work = 100_000_000;
         let oracle = positioned_occurrences(
@@ -5959,9 +6008,15 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut work = 10_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
+        let views = build_views(
+            &fixture_side,
+            &intervals,
+            Some(&descriptors),
+            &[],
+            &mut work,
+        )
+        .expect("views build")
+        .expect("views available");
         let opaque = vec![crate::normalize::ComparableToken::Unmapped {
             font_hash: crate::model::FontProgramHash(vec![0u8; 4096]),
             glyph_id: 1,
@@ -6033,9 +6088,15 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut work = 10_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
+        let views = build_views(
+            &fixture_side,
+            &intervals,
+            Some(&descriptors),
+            &[],
+            &mut work,
+        )
+        .expect("views build")
+        .expect("views available");
         let mut base = std::collections::HashMap::new();
         for (view_index, view) in views.iter().enumerate() {
             for (start, token) in view.group.tokens.iter().enumerate() {
@@ -6091,9 +6152,15 @@ mod tests {
             let intervals = [interval(1, 0, 1)];
             let descriptors = [mixed_role_descriptor(1, 1)];
             let mut work = 10_000_000;
-            let mut views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-                .expect("views build")
-                .expect("views available");
+            let mut views = build_views(
+                &fixture_side,
+                &intervals,
+                Some(&descriptors),
+                &[],
+                &mut work,
+            )
+            .expect("views build")
+            .expect("views available");
             let known_position = views[0].token_positions[0];
             for index in 0..views[0].token_pages.len() {
                 views[0].token_pages[index] = Some(needle_page);
@@ -6180,9 +6247,15 @@ mod tests {
         let intervals = [interval(1, 0, 1)];
         let descriptors = [mixed_role_descriptor(1, 1)];
         let mut work = 10_000_000;
-        let mut views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
+        let mut views = build_views(
+            &fixture_side,
+            &intervals,
+            Some(&descriptors),
+            &[],
+            &mut work,
+        )
+        .expect("views build")
+        .expect("views available");
         for (index, page) in views[0].token_pages.iter_mut().enumerate() {
             *page = Some(u32::try_from(index).expect("test page"));
         }
@@ -6255,6 +6328,7 @@ mod tests {
             &fixture_side,
             &intervals,
             Some(&descriptors),
+            &[],
             &mut unknown_work,
         )
         .expect("views build")
@@ -6297,6 +6371,7 @@ mod tests {
             &absent_side,
             &intervals,
             Some(&descriptors),
+            &[],
             &mut absent_work,
         )
         .expect("views build")
@@ -6321,6 +6396,8 @@ mod tests {
         new: &'a [Option<TrustedRunInterval>],
     ) -> SentenceRecoveryInput<'a> {
         SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
             old_trusted_run_intervals: old,
             new_trusted_run_intervals: new,
             old_trusted_run_evidence: None,
@@ -6829,7 +6906,7 @@ mod tests {
     fn deny_metadata_rejects_a_distant_occurrence_through_view_build() -> Result<()> {
         let blocks = [line_break_block()];
         let source = side(&blocks);
-        let views = build_views(&source, &[None], None, &mut 100_000)
+        let views = build_views(&source, &[None], None, &[], &mut 100_000)
             .expect("valid source views")
             .expect("view construction fits its budget");
         assert!(
@@ -7033,7 +7110,7 @@ mod tests {
                 while high - low > 1 {
                     let mid = low + (high - low) / 2;
                     let mut remaining = mid;
-                    let result = build_views(source, intervals, None, &mut remaining)
+                    let result = build_views(source, intervals, None, &[], &mut remaining)
                         .expect("valid source views");
                     if result.is_some_and(|views| views.len() == count) {
                         high = mid;
@@ -7053,7 +7130,7 @@ mod tests {
         // fits while the whole build must be withheld: the cut happens inside
         // the pass, not at its start. The exact phase is not asserted.
         let mut remaining = both_minimum - 1;
-        let result = build_views(&two_source, &[None, None], None, &mut remaining)
+        let result = build_views(&two_source, &[None, None], None, &[], &mut remaining)
             .expect("valid source views");
         assert!(
             result.is_none(),
@@ -7190,6 +7267,7 @@ mod tests {
             block_indices: vec![0],
             group,
             source_bounded: true,
+            order_certified: false,
             horizontal_text: true,
             position_signatures: Vec::new(),
             page: None,
@@ -7501,10 +7579,10 @@ mod tests {
         let mut preparation = 10_000_000;
         let old_intervals = vec![None; old_blocks.len()];
         let new_intervals = vec![None; new_blocks.len()];
-        let old_views =
-            build_views(&old, &old_intervals, None, &mut preparation)?.expect("old views build");
-        let new_views =
-            build_views(&new, &new_intervals, None, &mut preparation)?.expect("new views build");
+        let old_views = build_views(&old, &old_intervals, None, &[], &mut preparation)?
+            .expect("old views build");
+        let new_views = build_views(&new, &new_intervals, None, &[], &mut preparation)?
+            .expect("new views build");
         let mut cache = super::super::SourceIssueCache::new([&old, &new], &mut preparation)?
             .expect("issue cache builds");
         let mut domains = Vec::new();
@@ -11917,7 +11995,7 @@ mod tests {
         ] {
             let blocks = [block(1, &text)];
             let source = side(&blocks);
-            let views = build_views(&source, &[None], None, &mut 120_000)
+            let views = build_views(&source, &[None], None, &[], &mut 120_000)
                 .expect("valid source views")
                 .expect("view construction fits its budget");
             let needle = anchor
@@ -12835,5 +12913,141 @@ mod tests {
             assert_eq!(budget, 0);
         }
         Ok(())
+    }
+    #[test]
+    fn native_order_relaxes_single_partial_source_bounded_anchor() {
+        let mut remaining = 1_000_000usize;
+        let mut strict_anchors = vec![AnchorHit {
+            input_index: 0,
+            old_view: 0,
+            new_view: 0,
+            old_start: 0,
+            old_end: 3,
+            new_start: 0,
+            new_end: 3,
+        }];
+        let strict = close_domain(
+            &[positioned_view(
+                "abcXYZ",
+                vec![None; 6],
+                vec![None; 6],
+                false,
+            )],
+            &[positioned_view(
+                "abcZZZ",
+                vec![None; 6],
+                vec![None; 6],
+                false,
+            )],
+            &mut strict_anchors,
+            &mut remaining,
+        );
+        assert!(
+            strict.is_none(),
+            "without a certificate a partial source-bounded anchor stays rejected"
+        );
+
+        let mut certified_old = positioned_view("abcXYZ", vec![None; 6], vec![None; 6], false);
+        let mut certified_new = positioned_view("abcZZZ", vec![None; 6], vec![None; 6], false);
+        certified_old.order_certified = true;
+        certified_new.order_certified = true;
+        let mut relaxed_anchors = vec![AnchorHit {
+            input_index: 0,
+            old_view: 0,
+            new_view: 0,
+            old_start: 0,
+            old_end: 3,
+            new_start: 0,
+            new_end: 3,
+        }];
+        let relaxed = close_domain(
+            &[certified_old],
+            &[certified_new],
+            &mut relaxed_anchors,
+            &mut remaining,
+        )
+        .expect("certified order admits the anchor-only domain");
+        assert!(
+            !relaxed.source_bounded,
+            "the partial domain never inherits the whole-view certificate"
+        );
+        assert_eq!(
+            relaxed.old_span.comparable_range,
+            crate::diff::TokenRange { start: 0, end: 3 }
+        );
+        assert_eq!(
+            relaxed.new_span.comparable_range,
+            crate::diff::TokenRange { start: 0, end: 3 }
+        );
+
+        let mut one_sided_old = positioned_view("abcXYZ", vec![None; 6], vec![None; 6], false);
+        let one_sided_new = positioned_view("abcZZZ", vec![None; 6], vec![None; 6], false);
+        one_sided_old.order_certified = true;
+        let mut one_sided_anchors = vec![AnchorHit {
+            input_index: 0,
+            old_view: 0,
+            new_view: 0,
+            old_start: 0,
+            old_end: 3,
+            new_start: 0,
+            new_end: 3,
+        }];
+        assert!(
+            close_domain(
+                &[one_sided_old],
+                &[one_sided_new],
+                &mut one_sided_anchors,
+                &mut remaining,
+            )
+            .is_none(),
+            "a certificate on one side only must not relax the guard"
+        );
+    }
+    #[test]
+    fn native_order_preserves_whole_view_certificate_when_positions_pass() {
+        let mut remaining = 1_000_000usize;
+        let signatures = (0..3)
+            .map(|index| {
+                PositionSignature::new(
+                    Vec2 {
+                        x: index as f64,
+                        y: 0.0,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("valid position")
+            })
+            .collect::<Vec<_>>();
+        let mut old_view = positioned_view("abc", vec![Some(0.0); 3], vec![Some(0); 3], false);
+        let mut new_view = positioned_view("abc", vec![Some(0.0); 3], vec![Some(0); 3], false);
+        for view in [&mut old_view, &mut new_view] {
+            view.position_signatures = signatures.clone();
+            view.page = Some(0);
+            view.horizontal_text = true;
+            view.order_certified = true;
+        }
+        let mut anchors = vec![AnchorHit {
+            input_index: 0,
+            old_view: 0,
+            new_view: 0,
+            old_start: 0,
+            old_end: 3,
+            new_start: 0,
+            new_end: 3,
+        }];
+        let domain = close_domain(&[old_view], &[new_view], &mut anchors, &mut remaining)
+            .expect("whole-view certificate remains accepted");
+        assert!(
+            domain.source_bounded,
+            "a passing whole-view certificate must survive optional native order"
+        );
+        assert_eq!(
+            domain.old_span.comparable_range,
+            crate::diff::TokenRange { start: 0, end: 3 }
+        );
+        assert_eq!(
+            domain.new_span.comparable_range,
+            crate::diff::TokenRange { start: 0, end: 3 }
+        );
     }
 }

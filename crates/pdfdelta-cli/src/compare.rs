@@ -7,10 +7,9 @@ use std::{
 use pdfdelta_core::{
     Error,
     model::Document,
-    pdf::ParseLimits,
+    pdf::{ParseLimits, ParsedPdf},
     pipeline::{
-        PipelineDiagnostics, PipelineOptions,
-        compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics,
+        PipelineDiagnostics, PipelineOptions, compare_extraction_outcomes_with_native_order_proofs,
     },
     report::{DifferenceStatus, ReportSummary, TextReportOptions, render_text, summarize},
     source::{
@@ -289,7 +288,8 @@ pub fn compare_documents_traced<W: Write>(
                    side: &str,
                    trace_side: TraceSide,
                    trace: &mut ExecutionTrace,
-                   retained: &mut Option<Arc<[u8]>>| {
+                   retained: &mut Option<Arc<[u8]>>,
+                   parsed_out: &mut Option<Box<dyn ParsedPdf>>| {
         extract_comparison_outcome(
             side,
             trace_side,
@@ -303,10 +303,13 @@ pub fn compare_documents_traced<W: Write>(
             },
             trace,
             retained,
+            parsed_out,
         )
     };
     let mut old_bytes = None;
     let mut new_bytes = None;
+    let mut old_parsed = None;
+    let mut new_parsed = None;
     let (old_result, new_result) = rayon::join(
         || {
             extract(
@@ -317,6 +320,7 @@ pub fn compare_documents_traced<W: Write>(
                 TraceSide::Old,
                 &mut old_trace,
                 &mut old_bytes,
+                &mut old_parsed,
             )
         },
         || {
@@ -328,6 +332,7 @@ pub fn compare_documents_traced<W: Write>(
                 TraceSide::New,
                 &mut new_trace,
                 &mut new_bytes,
+                &mut new_parsed,
             )
         },
     );
@@ -354,12 +359,22 @@ pub fn compare_documents_traced<W: Write>(
         }
     };
     let mut pipeline_diagnostics = PipelineDiagnostics::new();
-    let outcome_result = compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics(
+    let outcome_result = compare_extraction_outcomes_with_native_order_proofs(
+        old_parsed,
         old,
+        new_parsed,
         new,
         pipeline_options,
         &mut pipeline_diagnostics,
-    );
+    )
+    .map(|(outcome, work)| {
+        trace.complete(
+            "native_order_proof",
+            None,
+            [("old_spent", work.old_spent), ("new_spent", work.new_spent)],
+        );
+        outcome
+    });
     trace.extend_pipeline(&pipeline_diagnostics);
     let outcome = outcome_result.map_err(|error| {
         format!(
@@ -569,6 +584,7 @@ pub fn extract_comparison_outcome(
     context: &ExtractionContext<'_>,
     trace: &mut ExecutionTrace,
     retained: &mut Option<Arc<[u8]>>,
+    parsed_out: &mut Option<Box<dyn ParsedPdf>>,
 ) -> Result<ExtractionOutcome, String> {
     // Wall-clock durations mirror the pipeline phases' duration_us metric so
     // the extraction cost is visible in the trace; the metric is
@@ -618,6 +634,7 @@ pub fn extract_comparison_outcome(
     // because the key covers every extraction-determining input. The traced
     // phases inside `extract_fresh` therefore run only on a miss.
     let parse_bytes = bytes.clone();
+    let mut fresh_parsed: Option<Box<dyn ParsedPdf>> = None;
     let mut extract_fresh = || -> Result<ExtractionOutcome, String> {
         let parse_started = std::time::Instant::now();
         let parsed = match parse_lopdf(parse_bytes.clone(), context.parse_limits, context.password)
@@ -679,6 +696,7 @@ pub fn extract_comparison_outcome(
                         Some(extraction_duration),
                     );
                 }
+                fresh_parsed = Some(parsed);
                 Ok(outcome)
             }
             Err(error) => {
@@ -701,6 +719,15 @@ pub fn extract_comparison_outcome(
         )?,
         None => (extract_fresh()?, false),
     };
+    // A cache miss keeps the parsed document produced by the fresh extraction;
+    // a cache hit returns only the extraction outcome, so the retained bytes
+    // are parsed again for the optional native order proof. Failure leaves the
+    // proof absent without changing the cached comparison.
+    *parsed_out = fresh_parsed.or_else(|| {
+        cached
+            .then(|| parse_lopdf(bytes.clone(), context.parse_limits, context.password).ok())
+            .flatten()
+    });
     if cached {
         trace.skip_phase("pdf_parse", Some(trace_side), "extraction_cache_hit");
         if outcome.is_complete() {
