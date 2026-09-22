@@ -1,0 +1,140 @@
+{
+  "pair": "nist-sha-1803-to-1804",
+  "before_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h24b-merged-full-iteration-011-native",
+  "after_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h27-native-order-full-iteration-013-native",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 43483,
+          "tokens_after": 43483,
+          "resolved_before": 19596,
+          "resolved_after": 19596,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 33,
+            "equal->equal": 19563,
+            "unresolved->unresolved": 23887
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 43483,
+          "tokens_after": 43483,
+          "resolved_before": 19596,
+          "resolved_after": 19596,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 33,
+            "equal->equal": 19563,
+            "unresolved->unresolved": 23887
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 1261,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 704,
+      "regions_after": 704,
+      "region_blocks": {
+        "old_before": 1069,
+        "old_after": 1069,
+        "new_before": 1125,
+        "new_after": 1125,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 48011,
+          "tokens_after": 48011,
+          "resolved_before": 19632,
+          "resolved_after": 19632,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 77,
+            "equal->equal": 19555,
+            "unresolved->unresolved": 28379
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 48011,
+          "tokens_after": 48011,
+          "resolved_before": 19632,
+          "resolved_after": 19632,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 77,
+            "equal->equal": 19555,
+            "unresolved->unresolved": 28379
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 1317,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 704,
+      "regions_after": 704,
+      "region_blocks": {
+        "old_before": 1069,
+        "old_after": 1069,
+        "new_before": 1125,
+        "new_after": 1125,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 57,
+      "after": 57,
+      "retained": 57,
+      "identical": true
+    },
+    "formatting_only_changes": {
+      "before": 118,
+      "after": 118,
+      "retained": 118,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 2178,
+      "sources_accounted": 2178,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 1042,
+      "sources_accounted": 1042,
+      "sources_missing": 0
+    }
+  },
+  "review": [],
+  "problems": [],
+  "retention": "pass"
+}

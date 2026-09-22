@@ -1,0 +1,842 @@
+{
+  "capture": "h27-native-order-full-iteration-013-native",
+  "binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981",
+  "source_head": "7592503165c6453b599d8c9ea6c506baba7b4238",
+  "source_diff_sha256": "6fc41176c6d58d76a1725fa0bc8467da6ca987d78376cb7dbb346fdda47d22d4",
+  "local_checkpoint_commit": "42fae694ed60dc542c5b4fede8305b71321d7297",
+  "route": "native",
+  "limit_scale": 1,
+  "timeout_seconds": 180,
+  "denominator": 36,
+  "captured": 36,
+  "failed": 0,
+  "complete": 3,
+  "identical_to_full011": 25,
+  "differing": 11,
+  "differing_pairs": [
+    "irs-schedule-se-2024-to-2025",
+    "irs-schedule-c-2024-to-2025",
+    "irs-w9-2018-to-2024",
+    "irs-w4-english-2024-to-2025",
+    "irs-1099-misc-2024-to-2025",
+    "nist-sha-1803-to-1804",
+    "edpb-controller-processor-v1-to-v2-1",
+    "nist-authentication-63b-to-63b4",
+    "nist-incident-handling-r2-to-r3",
+    "nist-ai-rmf-draft2-to-v1",
+    "nist-risk-assessment-30-to-r1"
+  ],
+  "controls": [
+    "irs-schedule-se-2024-to-2025",
+    "faa-thunderstorms-b-to-c",
+    "bunka-kana-1946-to-1986"
+  ],
+  "control_notes": {
+    "faa-thunderstorms-b-to-c": "whole report identical to full011",
+    "bunka-kana-1946-to-1986": "whole report identical to full011",
+    "irs-schedule-se-2024-to-2025": "report differs; retention audit pass"
+  },
+  "gains_vs_full011": {
+    "irs-w9-2018-to-2024": "+138/+138 resolved",
+    "irs-w4-english-2024-to-2025": "+227/+227 resolved",
+    "nist-authentication-63b-to-63b4": "+144/+144 resolved, 5598->5588 unresolved, 0 changes"
+  },
+  "memory_evidence": {
+    "interrupted_attempt": "full012 terminated after 29 pairs; shared slice oom_kill=1; killed pair nist-controls-53-r4-to-r5 (11.4MB inputs) with anon-rss 5.77GB",
+    "fix": "document moved through temporary validated store without glyph duplication; parsed sources released before comparison",
+    "memcheck": "nist-controls-53 captured 132.98s under unchanged 6GB cap, no new oom events",
+    "final": "full013 nist-controls 134.06s, maxRSS 5667504KiB; cumulative slice oom 4/oom_kill 3 unchanged by full013"
+  },
+  "rows": {
+    "irs-schedule-se-2024-to-2025": {
+      "full011_logical": "5b17ca3530283aae461a2e4a09d160495d9542f749738c8351058e32a815240c",
+      "full013_logical": "bcaf1a9d807eaf6f6461f98eadcc479e3cc31c0ebda66b519206ca032dc4425c",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        5485,
+        5502
+      ],
+      "full011_resolved_old_new": [
+        5485,
+        5502
+      ],
+      "unresolved": 0,
+      "full011_unresolved": 0,
+      "changes": 12,
+      "full011_changes": 12,
+      "complete": true,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-schedule-se.json",
+        "sha256": "022081384471f768743a6acb6e98019c68dff5ea54e3758b576acbb0277d99f9",
+        "retention": "pass",
+        "reused": true,
+        "reason": "full013 logical hash equals the targeted audited hash",
+        "targeted_after_logical": "bcaf1a9d807eaf6f6461f98eadcc479e3cc31c0ebda66b519206ca032dc4425c"
+      }
+    },
+    "irs-schedule-c-2024-to-2025": {
+      "full011_logical": "e0ac226e810a2ff01661c70e8446a71d071683bd337a88e102285ec189a967e0",
+      "full013_logical": "5d83468487b95c516dc5ef00bd13d2c3a88b22f153916d50ed72be62c51877d2",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        6619,
+        6634
+      ],
+      "full011_resolved_old_new": [
+        6619,
+        6634
+      ],
+      "unresolved": 19,
+      "full011_unresolved": 19,
+      "changes": 11,
+      "full011_changes": 11,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-irs-schedule-c-2024-to-2025.json",
+        "sha256": "81f9976a9636249f5528620a34cb7d34132b5823641c80f8b0de583bc98c4b60",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "irs-w9-2018-to-2024": {
+      "full011_logical": "f33e02b40c4c6bac729dcdd9487f931019bba67c3d0ce0c974b4f8880e25052d",
+      "full013_logical": "4131ec12443086ca2d60cf7070872c1362bf56087f494a4b00bceada94af173b",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        16952,
+        16889
+      ],
+      "full011_resolved_old_new": [
+        16814,
+        16751
+      ],
+      "unresolved": 570,
+      "full011_unresolved": 580,
+      "changes": 56,
+      "full011_changes": 56,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-irs-w9-2018-to-2024.json",
+        "sha256": "0208723917f3d51a9fa47214eb3a30cf6c1487fea754dd84086cc07c35ff8011",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "irs-w4-english-2024-to-2025": {
+      "full011_logical": "08389bbb3ae02372fa6e4742bbee8578d3495d2044a8c28b50772ccaa6d07b99",
+      "full013_logical": "ce8cb04bb1ac9bc3522ebb114b7895e2c22148739e09105f57b39849ded2acdb",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        9044,
+        9633
+      ],
+      "full011_resolved_old_new": [
+        8817,
+        9406
+      ],
+      "unresolved": 485,
+      "full011_unresolved": 491,
+      "changes": 15,
+      "full011_changes": 15,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-irs-w4-english-2024-to-2025.json",
+        "sha256": "a05b56d53bbabee28642a670bd68630d934393e151e6be7c2892f1b9d5f18a9b",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "edpb-restrictions-v1-to-final": {
+      "full011_logical": "5368064a22b3c67854fd2810643cfcfdf1c161e1d41dab791e81df7147eed4d4",
+      "full013_logical": "5368064a22b3c67854fd2810643cfcfdf1c161e1d41dab791e81df7147eed4d4",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        24753,
+        24887
+      ],
+      "full011_resolved_old_new": [
+        24753,
+        24887
+      ],
+      "unresolved": 771,
+      "full011_unresolved": 771,
+      "changes": 65,
+      "full011_changes": 65,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "edpb-social-targeting-v1-to-v2": {
+      "full011_logical": "69a1362438d103c5e7126834b5e25077d88d811a6cfca88c3d28067d7aae4538",
+      "full013_logical": "69a1362438d103c5e7126834b5e25077d88d811a6cfca88c3d28067d7aae4538",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        5151,
+        5150
+      ],
+      "full011_resolved_old_new": [
+        5151,
+        5150
+      ],
+      "unresolved": 896,
+      "full011_unresolved": 896,
+      "changes": 2,
+      "full011_changes": 2,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "edpb-design-default-v1-to-v2": {
+      "full011_logical": "b40eccc39af29628f90e3e9d4f426ed0d6d513541bf9f1037214fe1136cdf8d5",
+      "full013_logical": "b40eccc39af29628f90e3e9d4f426ed0d6d513541bf9f1037214fe1136cdf8d5",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        16642,
+        16566
+      ],
+      "full011_resolved_old_new": [
+        16642,
+        16566
+      ],
+      "unresolved": 1590,
+      "full011_unresolved": 1590,
+      "changes": 94,
+      "full011_changes": 94,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "irs-1099-misc-2024-to-2025": {
+      "full011_logical": "92d9a43002b5d089df38f90de310ce32fafc7beae47795d4122ad90c5d8e6efa",
+      "full013_logical": "3498b61940a08b25043a801b5db7662476438eebf2088a663d9d40c81db83561",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        8228,
+        8224
+      ],
+      "full011_resolved_old_new": [
+        8228,
+        8224
+      ],
+      "unresolved": 110,
+      "full011_unresolved": 110,
+      "changes": 12,
+      "full011_changes": 12,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-irs-1099-misc-2024-to-2025.json",
+        "sha256": "3aa88bb4f564f6f876aba5744635546e45918313586c7dea84c7e2c43d8d688f",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "nist-sha-1803-to-1804": {
+      "full011_logical": "9123288b88e1d92ac5916a586565a6dd6488679ba08c35e411e2960e3fd2ab35",
+      "full013_logical": "95ca2ea1d8b9f1964ed0777a0167baa59e936d4af6a9b8de2c2acab6ae9d3fe0",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        19596,
+        19632
+      ],
+      "full011_resolved_old_new": [
+        19596,
+        19632
+      ],
+      "unresolved": 704,
+      "full011_unresolved": 704,
+      "changes": 57,
+      "full011_changes": 57,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-nist-sha-1803-to-1804.json",
+        "sha256": "27c1dacf4713693e10d125990c3c396ff5c28fb05f2f6711d0e38369c68fab68",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "faa-thunderstorms-b-to-c": {
+      "full011_logical": "509d4e6c5a181595935a7403347465f7bb1543a879063166fb5e921573f598e5",
+      "full013_logical": "509d4e6c5a181595935a7403347465f7bb1543a879063166fb5e921573f598e5",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        27731
+      ],
+      "full011_resolved_old_new": [
+        0,
+        27731
+      ],
+      "unresolved": 0,
+      "full011_unresolved": 0,
+      "changes": 286,
+      "full011_changes": 286,
+      "complete": true,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "arxiv-bert-v1-to-v2": {
+      "full011_logical": "0a18e4960537d398db2ca1bd96d5b090bcf2f8664e25682ec238752005eb7e60",
+      "full013_logical": "0a18e4960537d398db2ca1bd96d5b090bcf2f8664e25682ec238752005eb7e60",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        9131,
+        9147
+      ],
+      "full011_resolved_old_new": [
+        9131,
+        9147
+      ],
+      "unresolved": 950,
+      "full011_unresolved": 950,
+      "changes": 29,
+      "full011_changes": 29,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "faa-maintenance-records-c-to-d": {
+      "full011_logical": "ff6a36a22f5c3ee282f9bed9adbbcd76dd4c61990a5da25d45093965dd8a8fc2",
+      "full013_logical": "ff6a36a22f5c3ee282f9bed9adbbcd76dd4c61990a5da25d45093965dd8a8fc2",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        62117
+      ],
+      "full011_resolved_old_new": [
+        0,
+        62117
+      ],
+      "unresolved": 3,
+      "full011_unresolved": 3,
+      "changes": 566,
+      "full011_changes": 566,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "edpb-controller-processor-v1-to-v2-1": {
+      "full011_logical": "01cbcd9454cc066024cd380615e2f8f187d97cfe109afc2e62b61934396820cc",
+      "full013_logical": "8e090deb33c2b4a2c4aa527bb1175e9cecbb019a78f18da004bde632312cdf42",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        70450,
+        70676
+      ],
+      "full011_resolved_old_new": [
+        70450,
+        70676
+      ],
+      "unresolved": 1846,
+      "full011_unresolved": 1846,
+      "changes": 48,
+      "full011_changes": 48,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-edpb-controller-processor-v1-to-v2-1.json",
+        "sha256": "b6df631cf9b75e7305517cb2d3fbaa767cea7e74945bb678a958bbe89249ce64",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "nist-ssdf-draft-to-final": {
+      "full011_logical": "6bf6d33ec8f0b440ba51bf33b3aadcb9783c4dd3866dadaca052ab5db4d23e45",
+      "full013_logical": "6bf6d33ec8f0b440ba51bf33b3aadcb9783c4dd3866dadaca052ab5db4d23e45",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 4108,
+      "full011_unresolved": 4108,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "bunka-kana-1946-to-1986": {
+      "full011_logical": "9faf042b941a06aebdfd714ffd66556c3d9858398c9915977e38555a07540a53",
+      "full013_logical": "9faf042b941a06aebdfd714ffd66556c3d9858398c9915977e38555a07540a53",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        5484
+      ],
+      "full011_resolved_old_new": [
+        0,
+        5484
+      ],
+      "unresolved": 0,
+      "full011_unresolved": 0,
+      "changes": 525,
+      "full011_changes": 525,
+      "complete": true,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "nist-authentication-63b-to-63b4": {
+      "full011_logical": "6d89b1eb24a3bf7f521aea579a432ccec6360c56c61cbac9cfb78e76820bca4e",
+      "full013_logical": "a5b7418bb1b59c96e3edee0633c0967172af75929cf6e93e2ae3e235bbfeaa44",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        15982,
+        15981
+      ],
+      "full011_resolved_old_new": [
+        15838,
+        15837
+      ],
+      "unresolved": 5588,
+      "full011_unresolved": 5598,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-final-nist.json",
+        "sha256": "2926b08a05ccd6b1601352eb8e3cb612f39002afc4b59abe129e0381f1269b6b",
+        "retention": "pass",
+        "reused": true,
+        "reason": "full013 logical hash equals the targeted audited hash",
+        "targeted_after_logical": "a5b7418bb1b59c96e3edee0633c0967172af75929cf6e93e2ae3e235bbfeaa44"
+      }
+    },
+    "bunka-official-writing-1952-to-2022": {
+      "full011_logical": "d9d459fccd3e7490cfe8ac21c34c7a17d1a20997929800299f402d85445f7556",
+      "full013_logical": "d9d459fccd3e7490cfe8ac21c34c7a17d1a20997929800299f402d85445f7556",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 2726,
+      "full011_unresolved": 2726,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "irs-w2-2024-to-2025": {
+      "full011_logical": "eaf409720864d5c1b5731ecd7f0bc7c0997af0b8d637b27b74bcf7ecf0772ddc",
+      "full013_logical": "eaf409720864d5c1b5731ecd7f0bc7c0997af0b8d637b27b74bcf7ecf0772ddc",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        14471,
+        14471
+      ],
+      "full011_resolved_old_new": [
+        14471,
+        14471
+      ],
+      "unresolved": 212,
+      "full011_unresolved": 212,
+      "changes": 13,
+      "full011_changes": 13,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "nist-incident-handling-r2-to-r3": {
+      "full011_logical": "ce099ca93147e945d804c03cda5ac610b30b6c8293f93cc6403c0c7cb39e4412",
+      "full013_logical": "068c8f18a73e1bbf3937ee7b0ef5b39b8e4423114a07fdcdf3a7f35caa017a0c",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        2650,
+        2655
+      ],
+      "full011_resolved_old_new": [
+        2650,
+        2655
+      ],
+      "unresolved": 5237,
+      "full011_unresolved": 5237,
+      "changes": 14,
+      "full011_changes": 14,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-nist-incident-handling-r2-to-r3.json",
+        "sha256": "7bf3364b87fd67ec76de05f175e1f8ea7648f70bdd888290924f04a0214db14d",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "mext-upper-secondary-japanese-2009-to-2018": {
+      "full011_logical": "edae1da13c930b090a84426c5056b0ee579e05471cfed6bb6158f0e939f23926",
+      "full013_logical": "edae1da13c930b090a84426c5056b0ee579e05471cfed6bb6158f0e939f23926",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        13042,
+        13039
+      ],
+      "full011_resolved_old_new": [
+        13042,
+        13039
+      ],
+      "unresolved": 1604,
+      "full011_unresolved": 1604,
+      "changes": 155,
+      "full011_changes": 155,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "nist-ai-rmf-draft2-to-v1": {
+      "full011_logical": "c09e9f0ba31b10573295c12815623a6fab674457851fc59223531b05fb7acadc",
+      "full013_logical": "f6f0ea0a81c8f35c05cfbfa30c1afef49959df537cb5fdf26a05435b330ceb41",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        11724,
+        11644
+      ],
+      "full011_resolved_old_new": [
+        11724,
+        11644
+      ],
+      "unresolved": 1331,
+      "full011_unresolved": 1331,
+      "changes": 68,
+      "full011_changes": 68,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-nist-ai-rmf-draft2-to-v1.json",
+        "sha256": "80ac05bd47b8c88d8eeaa82369b1c418146f14b6d8c2e2ce3b67eca752c22be7",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "nist-risk-management-37-r1-to-r2": {
+      "full011_logical": "66981a73bae40dd2a705deec3c2fb45b2a9f1fd71fabb60827798ea6c88b585f",
+      "full013_logical": "66981a73bae40dd2a705deec3c2fb45b2a9f1fd71fabb60827798ea6c88b585f",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 9688,
+      "full011_unresolved": 9688,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "nist-risk-assessment-30-to-r1": {
+      "full011_logical": "d8015b325aae5fc1e3451326592120254bfbd9e433cff522d521fd6f6fe999c2",
+      "full013_logical": "d7ce1cd227631a837727181086ff4cf231b6b460fb5670d8bf2e57ba36bb18cb",
+      "identical_to_full011": false,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 4281,
+      "full011_unresolved": 4281,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h27-native-order/retention-full013-nist-risk-assessment-30-to-r1.json",
+        "sha256": "5fc20e5c8756489d3dbd965ce9c63be57cfd1e5bbc03cb83319aca6b8a10f578",
+        "retention": "pass",
+        "problems": 0
+      }
+    },
+    "nasa-buckling-8007-1968-to-2020": {
+      "full011_logical": "e7790e7e41f0aaecc31ebd3e25fd1015848f589ea189e3bf5b322813fecc2da6",
+      "full013_logical": "e7790e7e41f0aaecc31ebd3e25fd1015848f589ea189e3bf5b322813fecc2da6",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        232548
+      ],
+      "full011_resolved_old_new": [
+        0,
+        232548
+      ],
+      "unresolved": 29,
+      "full011_unresolved": 29,
+      "changes": 2628,
+      "full011_changes": 2628,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "ecb-annual-2023-to-2024": {
+      "full011_logical": "b5912b51d683c8c6b6355bc9b63c74eebbadfb098820e0aff869976423081c1b",
+      "full013_logical": "b5912b51d683c8c6b6355bc9b63c74eebbadfb098820e0aff869976423081c1b",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 15988,
+      "full011_unresolved": 15988,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "mext-primary-japanese-2008-to-2017": {
+      "full011_logical": "a8f382231ddbb4c9da0b2f0f2f59e2130e3ba6cbc26065f34a16770d3fb58cce",
+      "full013_logical": "a8f382231ddbb4c9da0b2f0f2f59e2130e3ba6cbc26065f34a16770d3fb58cce",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        6171,
+        6229
+      ],
+      "full011_resolved_old_new": [
+        6171,
+        6229
+      ],
+      "unresolved": 7054,
+      "full011_unresolved": 7054,
+      "changes": 92,
+      "full011_changes": 92,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "nist-contingency-34-to-r1": {
+      "full011_logical": "57beac33b75c686602bc7562a815c0d58c13637c7dff8c22d75cfbd533d55c23",
+      "full013_logical": "57beac33b75c686602bc7562a815c0d58c13637c7dff8c22d75cfbd533d55c23",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 5755,
+      "full011_unresolved": 5755,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "mext-lower-secondary-japanese-2008-to-2017": {
+      "full011_logical": "61d2293943981bd8cb1461648de805a674d82055f663f13bef16fbc506ed97aa",
+      "full013_logical": "61d2293943981bd8cb1461648de805a674d82055f663f13bef16fbc506ed97aa",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        2603,
+        2814
+      ],
+      "full011_resolved_old_new": [
+        2603,
+        2814
+      ],
+      "unresolved": 8037,
+      "full011_unresolved": 8037,
+      "changes": 56,
+      "full011_changes": 56,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "arxiv-faster-rcnn-v1-to-v3": {
+      "full011_logical": "9115e6a554d341c126535cbacdd6dc416a45bf35679d8e2ed46f0c55e8843ab3",
+      "full013_logical": "9115e6a554d341c126535cbacdd6dc416a45bf35679d8e2ed46f0c55e8843ab3",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        1181,
+        1218
+      ],
+      "full011_resolved_old_new": [
+        1181,
+        1218
+      ],
+      "unresolved": 34,
+      "full011_unresolved": 34,
+      "changes": 20,
+      "full011_changes": 20,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "nist-controls-53-r4-to-r5": {
+      "full011_logical": "f2e621edfc126a9671eeb2564d0ffb3314768b5e9439d937368bb1a097f5afab",
+      "full013_logical": "f2e621edfc126a9671eeb2564d0ffb3314768b5e9439d937368bb1a097f5afab",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 904,
+      "full011_unresolved": 904,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "arxiv-gpt3-v1-to-v4": {
+      "full011_logical": "9b256b5376eb983594b24c8d6e47400d1ab8b8af280bc9f5a817673f0247998f",
+      "full013_logical": "9b256b5376eb983594b24c8d6e47400d1ab8b8af280bc9f5a817673f0247998f",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 2725,
+      "full011_unresolved": 2725,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "arxiv-mask-rcnn-v1-to-v3": {
+      "full011_logical": "109fd626792162b01d8a5d64ce97aa12a9392942dde03e221a48de5ee8b8626d",
+      "full013_logical": "109fd626792162b01d8a5d64ce97aa12a9392942dde03e221a48de5ee8b8626d",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 1776,
+      "full011_unresolved": 1776,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "ipcc-synthesis-ar5-to-ar6": {
+      "full011_logical": "3f5648502c013b3f4c786075682500bf088cfb54b7aa8fd7d0cd3fed85653f54",
+      "full013_logical": "3f5648502c013b3f4c786075682500bf088cfb54b7aa8fd7d0cd3fed85653f54",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 22,
+      "full011_unresolved": 22,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "arxiv-ddpm-v1-to-v2": {
+      "full011_logical": "543d0e103d6c3ba24d48aa869f7903877aeb9463d5726e8e42fec4ee9ea4d6e7",
+      "full013_logical": "543d0e103d6c3ba24d48aa869f7903877aeb9463d5726e8e42fec4ee9ea4d6e7",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        15384,
+        15382
+      ],
+      "full011_resolved_old_new": [
+        15384,
+        15382
+      ],
+      "unresolved": 122,
+      "full011_unresolved": 122,
+      "changes": 35,
+      "full011_changes": 35,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "arxiv-llama2-v1-to-v2": {
+      "full011_logical": "142fbdc8b85c1e26652e65b51106dadd633b6e4dfbe16184bd805241e284b036",
+      "full013_logical": "142fbdc8b85c1e26652e65b51106dadd633b6e4dfbe16184bd805241e284b036",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 3014,
+      "full011_unresolved": 3014,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    },
+    "mhlw-care-skills-original-to-revised": {
+      "full011_logical": "ffd026afdab3292bd53dcb240a6cc358dd21b2aaac6c6af396089f0b5e81fcc7",
+      "full013_logical": "ffd026afdab3292bd53dcb240a6cc358dd21b2aaac6c6af396089f0b5e81fcc7",
+      "identical_to_full011": true,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "full011_resolved_old_new": [
+        0,
+        0
+      ],
+      "unresolved": 265,
+      "full011_unresolved": 265,
+      "changes": 0,
+      "full011_changes": 0,
+      "complete": false,
+      "pdf_old": null,
+      "pdf_new": null
+    }
+  }
+}
