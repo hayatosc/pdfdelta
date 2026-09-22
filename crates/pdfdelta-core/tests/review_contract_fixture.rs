@@ -38,6 +38,7 @@ fn fixture(parts: &[&str], inventory_complete: bool) -> (EvidenceStore, Document
             backend: 0,
             value: StructuredValue::StructureElement {
                 content: None,
+                declared_text: None,
                 identifier: None,
                 glyphs: Vec::new(),
                 role: "paragraph".into(),

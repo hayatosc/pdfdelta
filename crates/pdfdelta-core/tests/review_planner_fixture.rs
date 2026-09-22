@@ -71,6 +71,7 @@ fn build(options: Build<'_>) -> Fixture {
             backend: 0,
             value: StructuredValue::StructureElement {
                 content: None,
+                declared_text: None,
                 identifier: None,
                 glyphs: Vec::new(),
                 role: "paragraph".into(),
@@ -694,6 +695,7 @@ fn table(rows: &[&[&str]]) -> Fixture {
             backend: 0,
             value: StructuredValue::StructureElement {
                 content: None,
+                declared_text: None,
                 identifier: None,
                 glyphs: Vec::new(),
                 role: role.into(),
