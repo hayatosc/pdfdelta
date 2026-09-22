@@ -59,6 +59,9 @@ pub struct ScopeViewComparison {
     pub structural_correspondences: Vec<usize>,
     /// Conditional local results never imply that an entire PDF is complete.
     pub unresolved: Vec<String>,
+    /// Classification of each retained message, aligned by index.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub obligations: Vec<super::UnresolvedObligation>,
     #[serde(default)]
     pub extraction_dependencies: Vec<super::ExtractionDependency>,
     /// Non-owning comparisons of closed intervals or inferred paragraph groups. Excluded from
@@ -107,6 +110,9 @@ pub struct DocumentViewComparison {
     pub scopes: Vec<ComparedScope>,
     pub relations: Vec<super::RelationComparison>,
     pub relation_unresolved: Vec<String>,
+    /// Classification of each retained relationship message, aligned by index.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relation_obligations: Vec<super::UnresolvedObligation>,
     /// Raw key-domain facts do not discharge text or semantic relationship claims.
     #[serde(default)]
     pub key_presence: Option<super::KeyPresenceComparison>,
@@ -172,6 +178,7 @@ pub fn compare_document_views(
     let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let mut document = DocumentViewComparison {
+        relation_obligations: Vec::new(),
         key_presence: Some(super::compare_document_keys(
             old.evidence,
             new.evidence,
@@ -411,6 +418,7 @@ fn compare_validated_scope(
         limits.matching,
     )?;
     let mut result = ScopeViewComparison {
+        obligations: Vec::new(),
         counterpart_decisions: matching.counterpart_decisions(),
         candidates,
         matching,
@@ -428,16 +436,22 @@ fn compare_validated_scope(
         source_cut_search: None,
     };
     if !source_candidates_exhaustive && incomplete_source_nodes.is_none() {
-        result
-            .unresolved
-            .push("scope candidate enumeration is incomplete".into());
+        result.retain_unresolved(
+            super::UnresolvedObligation::new(
+                super::UnresolvedReason::ScopeCandidateEnumerationIncomplete,
+            ),
+            "scope candidate enumeration is incomplete",
+        );
         return Ok(result);
     }
     let pending_source = if source_candidates_exhaustive {
         Default::default()
     } else {
-        result.unresolved.push(
-            "source candidate enumeration is incomplete in retained dependency regions".into(),
+        result.retain_unresolved(
+            super::UnresolvedObligation::new(
+                super::UnresolvedReason::SourceCandidateEnumerationIncomplete,
+            ),
+            "source candidate enumeration is incomplete in retained dependency regions",
         );
         super::dependencies::pending_source_proposals(
             old.graph,
@@ -453,9 +467,12 @@ fn compare_validated_scope(
         if result.visual_search.exhaustive {
             (Default::default(), Default::default())
         } else {
-            result
-                .unresolved
-                .push("visual candidate enumeration is incomplete".into());
+            result.retain_unresolved(
+                super::UnresolvedObligation::new(
+                    super::UnresolvedReason::VisualCandidateEnumerationIncomplete,
+                ),
+                "visual candidate enumeration is incomplete",
+            );
             (
                 candidate_dependencies(old.graph, |node| {
                     matches!(node.content, NodeContent::Visual { .. })
@@ -466,9 +483,12 @@ fn compare_validated_scope(
             )
         };
     if !result.text_search.exhaustive {
-        result
-            .unresolved
-            .push("text candidate enumeration is incomplete".into());
+        result.retain_unresolved(
+            super::UnresolvedObligation::new(
+                super::UnresolvedReason::TextCandidateEnumerationIncomplete,
+            ),
+            "text candidate enumeration is incomplete",
+        );
         old_pending_dependencies.extend(candidate_dependencies(old.graph, |node| {
             result.text_search.old_nodes.contains(&node.id)
         }));
@@ -477,9 +497,12 @@ fn compare_validated_scope(
         }));
     }
     if !structure_search.exhaustive {
-        result
-            .unresolved
-            .push("structural candidate enumeration is incomplete".into());
+        result.retain_unresolved(
+            super::UnresolvedObligation::new(
+                super::UnresolvedReason::StructuralCandidateEnumerationIncomplete,
+            ),
+            "structural candidate enumeration is incomplete",
+        );
         old_pending_dependencies.extend(candidate_dependencies(old.graph, |node| {
             structure_search.old.contains(&node.id)
         }));
@@ -487,31 +510,59 @@ fn compare_validated_scope(
             structure_search.new.contains(&node.id)
         }));
     }
-    for component in &result.matching.components {
+    // The component scan borrows `result.matching`, so obligations are recorded
+    // through the two aligned fields directly rather than through the whole
+    // comparison.
+    let ScopeViewComparison {
+        unresolved,
+        obligations,
+        matching,
+        candidates,
+        text_search,
+        text_boundary_correspondences,
+        accepted_correspondences,
+        structural_correspondences,
+        comparisons,
+        ..
+    } = &mut result;
+    let mut sink = super::UnresolvedSink::new(unresolved, obligations);
+    for (component_index, component) in matching.components.iter().enumerate() {
         if component
             .proposals
             .iter()
             .any(|index| pending_source.contains(index))
         {
-            result
-                .unresolved
-                .push("a correspondence component depends on omitted source candidates".into());
+            sink.retain(
+                super::UnresolvedObligation::for_component(
+                    super::UnresolvedReason::ComponentDependsOnOmittedCandidates,
+                    component_index,
+                ),
+                "a correspondence component depends on omitted source candidates",
+            );
             continue;
         }
         if !component.exhaustive {
-            result
-                .unresolved
-                .push("a correspondence conflict component exceeded its search budget".into());
+            sink.retain(
+                super::UnresolvedObligation::for_component(
+                    super::UnresolvedReason::ComponentSearchBudget,
+                    component_index,
+                ),
+                "a correspondence conflict component exceeded its search budget",
+            );
         } else if component.mandatory.is_empty() {
-            result
-                .unresolved
-                .push("a correspondence conflict component has competing optima".into());
+            sink.retain(
+                super::UnresolvedObligation::for_component(
+                    super::UnresolvedReason::CompetingOptima,
+                    component_index,
+                ),
+                "a correspondence conflict component has competing optima",
+            );
         }
         for index in &component.mandatory {
-            let proposal = &result.candidates.proposals[*index];
+            let proposal = &candidates.proposals[*index];
             // Source-only mandatory matches survive every inferred supplier.
             // Other claims still depend on complete rival enumeration.
-            if !result.text_search.protected_correspondences.contains(index)
+            if !text_search.protected_correspondences.contains(index)
                 && (proposal
                     .old
                     .iter()
@@ -521,16 +572,26 @@ fn compare_validated_scope(
                         .iter()
                         .any(|node| new_pending_dependencies.contains(node)))
             {
-                result.unresolved.push(format!(
-                    "correspondence {index} depends on unexamined correspondence rivals",
-                ));
+                sink.retain(
+                    super::UnresolvedObligation::for_proposal(
+                        super::UnresolvedReason::UnexaminedRivals,
+                        *index,
+                    ),
+                    format!("correspondence {index} depends on unexamined correspondence rivals"),
+                );
                 continue;
             }
             if proposal.basis == ProposalBasis::LiteralContentWithPadding {
-                result.text_boundary_correspondences.push(*index);
-                result.unresolved.push(format!(
-                    "correspondence {index} proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved"
-                ));
+                text_boundary_correspondences.push(*index);
+                sink.retain(
+                    super::UnresolvedObligation::for_proposal(
+                        super::UnresolvedReason::UnpaddedTextBoundaryOnly,
+                        *index,
+                    ),
+                    format!(
+                        "correspondence {index} proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved"
+                    ),
+                );
                 continue;
             }
             let a = old_nodes[&proposal.old[0]];
@@ -539,8 +600,8 @@ fn compare_validated_scope(
                 (&a.content, &b.content),
                 (NodeContent::Container, NodeContent::Container)
             ) {
-                result.accepted_correspondences.push(*index);
-                result.structural_correspondences.push(*index);
+                accepted_correspondences.push(*index);
+                structural_correspondences.push(*index);
                 continue;
             }
             let local = if proposal.old.len() != 1 || proposal.new.len() != 1 {
@@ -552,16 +613,20 @@ fn compare_validated_scope(
             };
             match local {
                 Ok(mut comparison) => {
-                    if result.matching.inferred_proposals.contains(index) {
+                    if matching.inferred_proposals.contains(index) {
                         comparison.interpretation = InterpretationStatus::Inferred;
                     }
-                    result.accepted_correspondences.push(*index);
-                    result.comparisons.push(comparison);
+                    accepted_correspondences.push(*index);
+                    comparisons.push(comparison);
                 }
                 Err(error @ (crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_))) => {
-                    result
-                        .unresolved
-                        .push(format!("local correspondence {index}: {error}"));
+                    sink.retain(
+                        super::UnresolvedObligation::for_proposal(
+                            super::UnresolvedReason::TextComparisonLimit,
+                            *index,
+                        ),
+                        format!("local correspondence {index}: {error}"),
+                    );
                 }
                 Err(error) => return Err(error),
             }

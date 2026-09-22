@@ -158,6 +158,67 @@ and 20 million source-location work units; failure may leave an incomplete direc
 without `index.html`. Review output does not change the comparison result or exit
 code. It is unavailable with `--native-text-only`.
 
+Add `--agent-review DIRECTORY` to write an agent review bundle instead: a small
+manifest, one packet per unresolved case, and the source PDFs, for a calling
+agent to read back in bounded pieces.
+
+```bash
+pdfdelta old.pdf new.pdf --channels text --agent-review review-run
+pdfdelta review list review-run --max-output-bytes 8192
+pdfdelta review show review-run --case R17 --detail text --max-output-bytes 16384
+```
+
+A case is a decision to make — which counterpart corresponds, whether content
+changed within an accepted one, what a region with no acquired text contains —
+with the reasons the engine could not settle it, the competing hypotheses it
+found, and four separate completeness observations. Every response is complete
+JSON inside the requested byte budget; records that do not fit are counted and
+reached through a cursor, never cut in half. A comparison that exits 3 still
+publishes a usable bundle, and `review list` and `review show` exit 0 on a
+successful read while carrying the engine's own status inside the payload.
+
+Material the comparison discovered but never reached is located rather than
+quoted: a text answer gives its page, its length, and the `--detail quote`
+action that returns it, so reading every case does not mean paying for the
+whole document to learn that nothing examined it.
+
+`review show --detail context` adds enclosing headings, neighbours, table
+structure, and other occurrences of the same text, and `review render` cuts
+images out of the page rasters the comparison retained — never a fresh
+rendering, and never a crop mapped onto a raster whose geometry does not match
+the page box it came from. Pages are rendered at 72 dpi, so small type may not
+be legible; that case is answerable only as undetermined rather than by
+enlarging a crop.
+
+`review import` validates the answers that come back — schema, bundle and case
+identity, references and their document side, and claims that contradict each
+other — and stores them as a new file that keeps the engine's outcome and the
+external answers in separate sections. A submission with any invalid decision
+stores nothing, and the bundle itself is never modified.
+
+`pdfbench audit-agent-review` gates the contract in ordinary CI: it checks the
+packet invariants and measures what a review costs to read, in bytes, without
+running a model or calling any external service. Each case carries the engine's own
+finding and the listing is ordered by it, so a reviewer reads what the engine
+settled and stops where it stopped. Measured on the registered real-world
+corpus, that costs about a quarter of the tokens that handing over both
+documents' text costs, and never more than the document; reading every case
+instead costs about 1.6 times the full text, and less than the document where
+pages the comparison never examined dominate. Cost is not usefulness: measured
+against a sentence diff of both documents, a settled review reports at most
+6.7% of a pair's changed sentences today, and a reader given both documents'
+text found 4.9 times as many changes for 2.5 times the tokens. That ceiling is
+the comparison's — one pair compared 193 of its 137,926 glyphs — so the packets
+do not yet pay for themselves against reading the document. The measurements
+and their caveats are recorded under
+[`benchmark/realworld/remaining/agent-review/`](benchmark/realworld/remaining/agent-review/).
+
+Exporting a bundle changes no comparison field, no coverage count, and no exit
+status, and an external reviewer's answer is never merged into the engine's
+result. `--agent-review` works with the default
+channels and with `--native-text-only`, but not together with `--review`.
+[`docs/agent-review.md`](docs/agent-review.md) documents the contract.
+
 The established native-glyph pipeline remains available with `--native-text-only`, including its version 11 JSON reports and frozen regression cases. This explicit adapter cannot be combined with channel selection. The existing detailed text-pipeline descriptions and acceptance results below refer to that native-only contract. They do not establish completeness for image text, forms, or relationships.
 
 Every `--channels` selection uses the common evidence pipeline. Text selection retains rendered evidence without recognizing image text. Image invocations, inline images, painted paths, and shading operations leave their pages' text inventories incomplete until a provider can establish coverage beyond native glyphs. This includes nested forms and text drawn as outlines. Unused image resources, unpainted paths, and clipping alone do not create paint markers. The marker also retains the render-order boundary of the last non-text paint: earlier glyph boxes cannot establish visible-text coverage because later paint may cover them. The marker preserves native glyphs and their provenance; it does not claim to recognize image text or prove visibility under clipping. Extraction caches use format version 13 so older acquisition and paint-bound evidence is not reused. Filled cubic paths retain outward-rounded bounds enclosing all control points, including shorthand curves; an existing Form clip remains the enclosing bound when available. These bounds can exclude disjoint paint from a local text region, but do not identify painted content or certify curved strokes, clipping, or complete page inventories.

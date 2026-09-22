@@ -1,0 +1,127 @@
+{
+ "schema": "agent-review-head-to-head/v1",
+ "question": "Does reading the packets find more of a document's changes, per token, than reading both documents' text?",
+ "answer": "No, on this corpus in this engine state. The reader arm found 4.9 times as many changes for 2.5 times the tokens, so it is also about twice as efficient per token.",
+ "ground_truth": "Sentence-level diff of both baseline texts, sentences of 40+ characters, written by pdfbench audit-agent-review --baseline-text. An estimate over reflowed extracted text, not a reference annotation.",
+ "scorer": "benchmark/realworld/remaining/agent-review/score-headtohead.py, written before either arm was run",
+ "reader_arm": {
+  "pair": "oasis-odf-packages-v1-2-to-v1-3",
+  "protocol": "The reader had never opened this bundle's cases. It read both baseline texts in full and submitted 49 old-side fragments naming the differences it found.",
+  "tokens": 33062,
+  "changed_old_sentences": 120,
+  "found": 39,
+  "recall": 0.325,
+  "fragments_matching_no_changed_sentence": 12,
+  "note": "Those twelve are differences the reader named that the sentence diff did not classify as a changed old-side sentence, so the reader's true recall is if anything understated."
+ },
+ "packet_arm_same_pair": {
+  "tokens": 13143,
+  "settled_cases": 17,
+  "found": 8,
+  "recall": 0.0667
+ },
+ "per_thousand_tokens": {
+  "reader_percent": 0.98,
+  "packet_percent": 0.51
+ },
+ "packet_arm_whole_corpus": [
+  {
+   "pair": "ecma-109-ed10-to-ed11",
+   "settled_cases": 4,
+   "changed_old_sentences": 98,
+   "found": 2,
+   "recall": 0.0204,
+   "full_text_tokens": 26853
+  },
+  {
+   "pair": "hmrc-sa100-2023-to-2024",
+   "settled_cases": 0,
+   "changed_old_sentences": 20,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 8059
+  },
+  {
+   "pair": "irs-form-1040-2024-to-2025",
+   "settled_cases": 0,
+   "changed_old_sentences": 21,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 4248
+  },
+  {
+   "pair": "irs-w4-korean-2024-to-2025",
+   "settled_cases": 0,
+   "changed_old_sentences": 15,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 20181
+  },
+  {
+   "pair": "kicad-getting-started-7-to-8",
+   "settled_cases": 0,
+   "changed_old_sentences": 75,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 23251
+  },
+  {
+   "pair": "nasa-systems-engineering-handbook-rev1-to-rev2",
+   "settled_cases": 0,
+   "changed_old_sentences": 5239,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 246808
+  },
+  {
+   "pair": "nist-csf-v1-1-to-v2-0",
+   "settled_cases": 0,
+   "changed_old_sentences": 589,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 44883
+  },
+  {
+   "pair": "oasis-odf-packages-v1-2-to-v1-3",
+   "settled_cases": 17,
+   "changed_old_sentences": 120,
+   "found": 8,
+   "recall": 0.0667,
+   "full_text_tokens": 33062
+  },
+  {
+   "pair": "oecd-corporate-governance-2015-to-2023",
+   "settled_cases": 23,
+   "changed_old_sentences": 501,
+   "found": 22,
+   "recall": 0.0439,
+   "full_text_tokens": 56334
+  },
+  {
+   "pair": "unicode-standard-15-to-16",
+   "settled_cases": 0,
+   "changed_old_sentences": 11483,
+   "found": 0,
+   "recall": 0.0,
+   "full_text_tokens": 1255715
+  },
+  {
+   "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+   "settled_cases": 26,
+   "changed_old_sentences": 118,
+   "found": 6,
+   "recall": 0.0508,
+   "full_text_tokens": 44041
+  }
+ ],
+ "packet_arm_best_recall": 0.0667,
+ "packet_arm_pairs_at_zero": 7,
+ "packet_arm_pairs_measured": 11,
+ "why": "A settled review can only report what the comparison examined. On oecd that was 193 of 137,926 glyphs. The ceiling is the engine's, not the packet encoding's, which is why seven of eleven measurable pairs report nothing at all.",
+ "what_the_packet_still_has": "The reader found 39 of 120 changes and had no way to know it had missed 81. The packet reported 8 and said how much it never examined. Whether that guarantee is worth the other 31 findings is a judgement this measurement does not make.",
+ "not_established": [
+  "That the packet format is at fault. Its precision was 23 of 23 on a separate pair.",
+  "Any result for an engine state that settles most of a document; no corpus pair produced a complete comparison.",
+  "A second reader arm. The head-to-head is one pair, by one reader, which also wrote the scorer."
+ ]
+}

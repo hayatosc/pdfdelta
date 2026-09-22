@@ -193,9 +193,9 @@ pub(super) fn compare_relations(
         }
     }
     if unmatched {
-        result.relation_unresolved.push(
-            "typed relationships have endpoints without established relationship-compatible correspondences"
-                .into(),
+        result.retain_relation_unresolved(
+            super::UnresolvedObligation::new(super::UnresolvedReason::RelationEndpointsUnmatched),
+            "typed relationships have endpoints without established relationship-compatible correspondences",
         );
     }
     let keys = left
@@ -261,9 +261,9 @@ pub(super) fn compare_relations(
         });
     }
     if incomplete {
-        result.relation_unresolved.push(
-            "an absent typed relationship cannot be established from incomplete graph relations"
-                .into(),
+        result.retain_relation_unresolved(
+            super::UnresolvedObligation::new(super::UnresolvedReason::RelationGraphIncomplete),
+            "an absent typed relationship cannot be established from incomplete graph relations",
         );
     }
 }

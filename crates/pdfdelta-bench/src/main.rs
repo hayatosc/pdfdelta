@@ -8,6 +8,7 @@ use std::{
 
 use clap::{Parser, Subcommand, ValueEnum};
 use pdfdelta_bench::{
+    agent_review::audit_bundle_with_baseline,
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
     candidate_profile::{
         CandidateProfileGenerator, CandidateProfileRecord, DEFAULT_SYNTHETIC_PROFILE_BLOCKS,
@@ -47,6 +48,27 @@ struct Cli {
 enum Command {
     /// Run all built-in acceptance cases across both PDF renderers.
     Verify,
+    /// Audit an exported agent review bundle and measure what it costs to read.
+    ///
+    /// Runs no model and calls no external service; the figures are bytes.
+    AuditAgentReview {
+        /// Bundle directory written by `pdfdelta --agent-review`.
+        #[arg(long)]
+        bundle: PathBuf,
+        /// The engine's own JSON report for the same comparison, as a baseline.
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// A host's own usage record, carried through unchanged.
+        #[arg(long)]
+        host_usage: Option<PathBuf>,
+        /// Directory to write the measured baseline text into, for an external
+        /// tokenizer to count.
+        #[arg(long)]
+        baseline_text: Option<PathBuf>,
+        /// Write the audit to a new file instead of standard output.
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
     /// Score a multi-channel CLI report against a hash-bound graph annotation.
     EvaluateDocument {
         /// Versioned annotation with input hashes and pair provenance.
@@ -522,6 +544,34 @@ fn main() -> ExitCode {
     let mut stdout = stdout.lock();
     let result = match cli.command {
         None | Some(Command::Verify) => verify(&mut stdout),
+        Some(Command::AuditAgentReview {
+            bundle,
+            report,
+            host_usage,
+            baseline_text,
+            output,
+        }) => (|| {
+            let audit = audit_bundle_with_baseline(
+                &bundle,
+                report.as_deref(),
+                host_usage.as_deref(),
+                baseline_text.as_deref(),
+            )
+            .map_err(|error| error.to_string())?;
+            let mut encoded =
+                serde_json::to_vec_pretty(&audit).map_err(|error| error.to_string())?;
+            encoded.push(b'\n');
+            match output {
+                Some(path) => {
+                    publish_new_file(&path, &encoded).map_err(|error| error.to_string())?;
+                }
+                None => stdout
+                    .write_all(&encoded)
+                    .map_err(|error| error.to_string())?,
+            }
+            // A violated invariant is a failure, so it can gate a change.
+            Ok(u8::from(!audit.sound()))
+        })(),
         Some(Command::EvaluateDocument { annotation, report }) => {
             evaluate_document(&mut stdout, &annotation, &report)
         }

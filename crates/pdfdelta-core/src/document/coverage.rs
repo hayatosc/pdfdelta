@@ -31,6 +31,146 @@ pub struct ChannelCoverage {
     pub complete: bool,
 }
 
+/// One side's source accounting for one channel, with the references retained.
+///
+/// Counts alone cannot say *which* evidence remains unexamined, so a reviewer's
+/// obligations cannot be enumerated from [`ChannelCoverage`]. This type keeps
+/// the sets that produce those counts. Membership is discovery and comparison
+/// bookkeeping, never ownership of the material.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SideSourceAccounting {
+    /// Whether channel discovery itself closed. When false, the amount of
+    /// undiscovered evidence is unknown and `discovered` is not a denominator.
+    pub inventory_complete: bool,
+    pub discovered: BTreeSet<SourceRef>,
+    /// References reached by a conditional comparison. This may include
+    /// references outside `discovered`, which discharge no discovery obligation.
+    pub compared: BTreeSet<SourceRef>,
+    /// Stored-field references accounted for by validated native key presence.
+    pub presence: BTreeSet<SourceRef>,
+}
+
+impl SideSourceAccounting {
+    /// Discovered references that no conditional comparison or key presence
+    /// accounted for, in stable order.
+    ///
+    /// These are exactly the obligations a review packet must explain, either
+    /// as a case or as an explicit gap.
+    pub fn uncompared(&self) -> impl Iterator<Item = SourceRef> + '_ {
+        self.discovered
+            .iter()
+            .filter(|source| !self.compared.contains(source) && !self.presence.contains(source))
+            .copied()
+    }
+
+    fn compared_count(&self) -> usize {
+        self.discovered.intersection(&self.compared).count()
+    }
+}
+
+/// Both sides' source accounting for one selected channel.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChannelSourceAccounting {
+    pub channel: Channel,
+    pub old: SideSourceAccounting,
+    pub new: SideSourceAccounting,
+}
+
+impl ChannelSourceAccounting {
+    /// The same completeness rule [`ChannelCoverage::complete`] reports.
+    #[must_use]
+    pub fn complete(&self) -> bool {
+        self.old.inventory_complete
+            && self.new.inventory_complete
+            && self.old.uncompared().next().is_none()
+            && self.new.uncompared().next().is_none()
+    }
+
+    fn coverage(&self) -> ChannelCoverage {
+        let old_compared_sources = self.old.compared_count();
+        let new_compared_sources = self.new.compared_count();
+        let old_presence_sources = self.old.presence.len();
+        let new_presence_sources = self.new.presence.len();
+        ChannelCoverage {
+            channel: self.channel,
+            old_inventory_complete: self.old.inventory_complete,
+            new_inventory_complete: self.new.inventory_complete,
+            old_discovered_sources: self.old.discovered.len(),
+            new_discovered_sources: self.new.discovered.len(),
+            old_compared_sources,
+            new_compared_sources,
+            old_presence_sources,
+            new_presence_sources,
+            old_uncompared_sources: self.old.discovered.len()
+                - old_compared_sources
+                - old_presence_sources,
+            new_uncompared_sources: self.new.discovered.len()
+                - new_compared_sources
+                - new_presence_sources,
+            complete: self.complete(),
+        }
+    }
+}
+
+/// Enumerate the discovered, compared, and unexamined references per channel.
+///
+/// Inputs must be the validated stores and graphs used to produce `comparison`.
+/// This is the same accounting [`document_coverage`] summarizes, exposed so
+/// that unexamined evidence can be located rather than merely counted.
+#[must_use]
+pub fn document_source_accounting(
+    old: DocumentView<'_>,
+    new: DocumentView<'_>,
+    comparison: &DocumentViewComparison,
+    channels: &BTreeSet<Channel>,
+) -> Vec<ChannelSourceAccounting> {
+    channels
+        .iter()
+        .map(|channel| {
+            let (old_inventory, old_discovered, old_compared) =
+                side_coverage(old, comparison, *channel, true);
+            let (new_inventory, new_discovered, new_compared) =
+                side_coverage(new, comparison, *channel, false);
+            let presence = |old: bool, discovered: &BTreeSet<_>, compared: &BTreeSet<_>| {
+                if *channel != Channel::Forms {
+                    return BTreeSet::new();
+                }
+                let Some(keys) = &comparison.key_presence else {
+                    return BTreeSet::new();
+                };
+                comparison
+                    .keyed_element_operations()
+                    .filter(|operation| {
+                        let claim = &keys.claims[operation.claim];
+                        claim.domain == super::KeyDomain::PdfFieldName
+                            && (claim.side == super::PresenceSide::Old) == old
+                            && discovered.contains(&operation.identity_source)
+                            && !compared.contains(&operation.identity_source)
+                    })
+                    .map(|operation| operation.identity_source)
+                    .collect()
+            };
+            let old_presence = presence(true, &old_discovered, &old_compared);
+            let new_presence = presence(false, &new_discovered, &new_compared);
+            ChannelSourceAccounting {
+                channel: *channel,
+                old: SideSourceAccounting {
+                    inventory_complete: old_inventory,
+                    discovered: old_discovered,
+                    compared: old_compared,
+                    presence: old_presence,
+                },
+                new: SideSourceAccounting {
+                    inventory_complete: new_inventory,
+                    discovered: new_discovered,
+                    compared: new_compared,
+                    presence: new_presence,
+                },
+            }
+        })
+        .collect()
+}
+
 /// Measure selected channels against their discovery inventories.
 ///
 /// Inputs must be the validated stores and graphs used to produce `comparison`.
@@ -44,59 +184,9 @@ pub fn document_coverage(
     comparison: &DocumentViewComparison,
     channels: &BTreeSet<Channel>,
 ) -> Vec<ChannelCoverage> {
-    channels
+    document_source_accounting(old, new, comparison, channels)
         .iter()
-        .map(|channel| {
-            let (old_inventory, old_discovered, old_compared) =
-                side_coverage(old, comparison, *channel, true);
-            let (new_inventory, new_discovered, new_compared) =
-                side_coverage(new, comparison, *channel, false);
-            let presence = |old: bool, discovered: &BTreeSet<_>, compared: &BTreeSet<_>| {
-                if *channel != Channel::Forms {
-                    return 0;
-                }
-                let Some(keys) = &comparison.key_presence else {
-                    return 0;
-                };
-                comparison
-                    .keyed_element_operations()
-                    .filter(|operation| {
-                        let claim = &keys.claims[operation.claim];
-                        claim.domain == super::KeyDomain::PdfFieldName
-                            && (claim.side == super::PresenceSide::Old) == old
-                            && discovered.contains(&operation.identity_source)
-                            && !compared.contains(&operation.identity_source)
-                    })
-                    .map(|operation| operation.identity_source)
-                    .collect::<BTreeSet<_>>()
-                    .len()
-            };
-            let old_presence_sources = presence(true, &old_discovered, &old_compared);
-            let new_presence_sources = presence(false, &new_discovered, &new_compared);
-            let old_compared_sources = old_discovered.intersection(&old_compared).count();
-            let new_compared_sources = new_discovered.intersection(&new_compared).count();
-            let old_uncompared_sources =
-                old_discovered.len() - old_compared_sources - old_presence_sources;
-            let new_uncompared_sources =
-                new_discovered.len() - new_compared_sources - new_presence_sources;
-            ChannelCoverage {
-                channel: *channel,
-                old_inventory_complete: old_inventory,
-                new_inventory_complete: new_inventory,
-                old_discovered_sources: old_discovered.len(),
-                new_discovered_sources: new_discovered.len(),
-                old_compared_sources,
-                new_compared_sources,
-                old_presence_sources,
-                new_presence_sources,
-                old_uncompared_sources,
-                new_uncompared_sources,
-                complete: old_inventory
-                    && new_inventory
-                    && old_uncompared_sources == 0
-                    && new_uncompared_sources == 0,
-            }
-        })
+        .map(ChannelSourceAccounting::coverage)
         .collect()
 }
 

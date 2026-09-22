@@ -5,6 +5,7 @@ use std::{
 
 use clap::{CommandFactory, Parser};
 
+mod agent_review;
 mod args;
 mod compare;
 mod evidence_compare;
@@ -24,6 +25,63 @@ use crate::{
     compare::{ExitStatus, compare_documents, report_fatal_error},
     inspect::inspect_document,
 };
+
+/// Answers one bounded query against an existing bundle.
+///
+/// A successful read exits 0 whatever the original comparison concluded: the
+/// engine's own status travels inside the payload, so a caller never confuses
+/// "this bundle was readable" with "the comparison was complete".
+fn review_query<W: Write>(action: args::ReviewCommand, diagnostics: &mut W) -> ExitCode {
+    let answer = match action {
+        args::ReviewCommand::List {
+            directory,
+            cursor,
+            max_output_bytes,
+        } => agent_review::list(&directory, cursor.as_deref(), max_output_bytes),
+        args::ReviewCommand::Import {
+            directory,
+            decisions,
+            output,
+            max_output_bytes,
+        } => agent_review::import(&directory, &decisions, &output, max_output_bytes),
+        args::ReviewCommand::Render {
+            directory,
+            case,
+            output,
+            max_output_bytes,
+        } => agent_review::render(&directory, &case, &output, max_output_bytes),
+        args::ReviewCommand::Show {
+            directory,
+            case,
+            detail,
+            cursor,
+            max_output_bytes,
+        } => agent_review::show(
+            &directory,
+            &case,
+            detail.into(),
+            cursor.as_deref(),
+            max_output_bytes,
+        ),
+    };
+    match answer {
+        Ok(payload) => match agent_review::emit(&payload) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                report_fatal_error(diagnostics, &error);
+                ExitCode::from(ExitStatus::ExecutionError.code())
+            }
+        },
+        Err(error) => {
+            // The failure itself is a bounded JSON document, so a caller can
+            // parse the refusal with the same reader it uses for answers.
+            let encoded = serde_json::to_vec(&error)
+                .unwrap_or_else(|_| br#"{"error":"encoding_failed"}"#.to_vec());
+            let _ = agent_review::emit(&encoded);
+            ExitCode::from(ExitStatus::ExecutionError.code())
+        }
+    }
+}
 
 fn main() -> ExitCode {
     let stderr = io::stderr();
@@ -72,6 +130,7 @@ fn main() -> ExitCode {
                 ExitCode::from(ExitStatus::ExecutionError.code())
             }
         },
+        Some(Command::Review { action }) => review_query(action, &mut stderr),
         Some(Command::Completions { shell }) => {
             let mut cmd = Cli::command();
             let name = cmd.get_name().to_string();
@@ -95,6 +154,8 @@ fn main() -> ExitCode {
                 options: args::ComparisonOptions {
                     json_path: cli.json.as_deref(),
                     review_dir: cli.review.as_deref(),
+                    agent_review_dir: cli.agent_review.as_deref(),
+                    limit_scale: cli.limit_scale,
                     output_path: cli.output.as_deref(),
                     strict: cli.strict,
                     quiet: cli.quiet,
