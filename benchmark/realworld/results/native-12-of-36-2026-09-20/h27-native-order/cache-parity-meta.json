@@ -39,6 +39,21 @@
       "none": "9faf042b941a06aebdfd714ffd66556c3d9858398c9915977e38555a07540a53"
     },
     "cache_dir": "/tmp/opencode/h27-extraction-cache-final2",
-    "expected_cli_exit_code": 1
+    "expected_cli_exit_code": 1,
+    "actual_commands": [
+      "target/release/pdfdelta <old> <new> --native-text-only --json /tmp/opencode/h27-f2-cold.json.gz --extraction-cache-dir /tmp/opencode/h27-extraction-cache-final2",
+      "target/release/pdfdelta <old> <new> --native-text-only --json /tmp/opencode/h27-f2-warm.json.gz --extraction-cache-dir /tmp/opencode/h27-extraction-cache-final2",
+      "target/release/pdfdelta <old> <new> --native-text-only --json /tmp/opencode/h27-f2-none.json.gz"
+    ],
+    "observed_exits": {
+      "cold": 1,
+      "warm": 1,
+      "none": 1
+    },
+    "outputs": [
+      "/tmp/opencode/h27-f2-cold.json.gz",
+      "/tmp/opencode/h27-f2-warm.json.gz",
+      "/tmp/opencode/h27-f2-none.json.gz"
+    ]
   }
 }
