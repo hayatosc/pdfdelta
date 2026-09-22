@@ -686,8 +686,14 @@ const MAX_POSITIONED_POSTING_BYTES: usize = 64 * 1024 * 1024;
 /// for the equal-token mode. Only precheck refusals leave the shared remainder
 /// untouched; failures after the count phase has started keep the work actually
 /// spent. Callers keep the scanning path on any refusal.
+type PageKey<'a> = (&'a ComparableToken, Option<u32>);
+type PostingSlice<'a> = &'a [(u32, u32)];
+type PostingList = Vec<(u32, u32)>;
+type PageMap<'a> = HashMap<PageKey<'a>, PostingList>;
+
 pub(super) struct TokenPostings<'a> {
     map: HashMap<&'a ComparableToken, Vec<(u32, u32)>>,
+    page_map: Option<PageMap<'a>>,
 }
 
 /// Conservative full bound for the compact postings build: posting pairs
@@ -780,7 +786,10 @@ impl<'a> TokenPostings<'a> {
                 map.get_mut(token)?.push((view_index, start));
             }
         }
-        Some(Self { map })
+        Some(Self {
+            page_map: build_page_index(views, &map, remaining, limit_bytes),
+            map,
+        })
     }
 
     fn build(views: &'a [View], remaining: &mut usize) -> Option<Self> {
@@ -849,7 +858,196 @@ impl<'a> TokenPostings<'a> {
                 list.push((view_index, start));
             }
         }
-        Some(Self { map })
+        Some(Self {
+            page_map: build_page_index(views, &map, remaining, MAX_POSITIONED_POSTING_BYTES / 2),
+            map,
+        })
+    }
+}
+
+fn map_bucket_bound(entries: usize, key_meta: usize) -> Option<usize> {
+    entries
+        .checked_mul(2)?
+        .checked_next_power_of_two()?
+        .checked_mul(key_meta)
+}
+
+/// Bounded two-pass page index over borrowed `(token, effective page)` keys.
+///
+/// The combined transient bound covers the base map's rounded bucket capacity
+/// and every posting `Vec` capacity, the count map's rounded buckets, the
+/// future final map's rounded buckets and the posting storage. A refusal
+/// before the count phase leaves the shared remainder untouched; once the
+/// count phase has started, spent work stays spent. Fallible reservations are
+/// used for every container.
+fn build_page_index<'a>(
+    views: &'a [View],
+    base: &HashMap<&'a ComparableToken, Vec<(u32, u32)>>,
+    remaining: &mut usize,
+    limit_bytes: usize,
+) -> Option<PageMap<'a>> {
+    u32::try_from(views.len()).ok()?;
+    let pair = std::mem::size_of::<(u32, u32)>();
+    let base_key_meta =
+        std::mem::size_of::<(&ComparableToken, Vec<(u32, u32)>)>().checked_add(16)?;
+    let count_key_meta =
+        std::mem::size_of::<((&ComparableToken, Option<u32>), u32)>().checked_add(16)?;
+    let final_key_meta = std::mem::size_of::<((&ComparableToken, Option<u32>), Vec<(u32, u32)>)>()
+        .checked_add(16)?;
+    let mut total = 0usize;
+    for view in views {
+        u32::try_from(view.group.tokens.len()).ok()?;
+        total = total.checked_add(view.group.tokens.len())?;
+    }
+    u32::try_from(total).ok()?;
+    let base_bound = map_bucket_bound(base.capacity(), base_key_meta)?.checked_add(
+        base.values().try_fold(0usize, |sum, list| {
+            sum.checked_add(list.capacity().checked_mul(pair)?)
+        })?,
+    )?;
+    let posting_storage = total.checked_mul(pair)?.checked_mul(2)?;
+    let minimum = base_bound.checked_add(posting_storage)?;
+    if minimum > limit_bytes {
+        return None;
+    }
+    let required = total.checked_mul(3)?.checked_add(1)?;
+    if *remaining < required {
+        return None;
+    }
+    let mut counts = HashMap::<PageKey<'a>, u32>::new();
+    let mut distinct = 0usize;
+    for view in views {
+        for (start, token) in view.group.tokens.iter().enumerate() {
+            if !charge(remaining, 1) {
+                return None;
+            }
+            let page = effective_page(view, start);
+            if !counts.contains_key(&(token, page)) {
+                distinct = distinct.checked_add(1)?;
+                let count_bound = map_bucket_bound(distinct, count_key_meta)?;
+                let final_bound = map_bucket_bound(distinct, final_key_meta)?;
+                let transient = base_bound
+                    .checked_add(count_bound)?
+                    .checked_add(final_bound)?
+                    .checked_add(posting_storage)?;
+                if transient > limit_bytes {
+                    return None;
+                }
+                if counts.try_reserve(1).is_err() {
+                    return None;
+                }
+                counts.insert((token, page), 0);
+            }
+            let count = counts.get_mut(&(token, page)).expect("count inserted");
+            *count = count.checked_add(1)?;
+        }
+    }
+    let final_bound = map_bucket_bound(distinct, final_key_meta)?;
+    if base_bound
+        .checked_add(final_bound)?
+        .checked_add(posting_storage)?
+        > limit_bytes
+    {
+        return None;
+    }
+    let mut page_map = PageMap::new();
+    if page_map.try_reserve(distinct).is_err() {
+        return None;
+    }
+    for (&key, &count) in &counts {
+        if !charge(remaining, 1) {
+            return None;
+        }
+        if page_map.try_reserve(1).is_err() {
+            return None;
+        }
+        let mut list = Vec::new();
+        if list
+            .try_reserve_exact(usize::try_from(count).ok()?)
+            .is_err()
+        {
+            return None;
+        }
+        page_map.insert(key, list);
+    }
+    drop(counts);
+    for (view_index, view) in views.iter().enumerate() {
+        let view_index = u32::try_from(view_index).ok()?;
+        for (start, token) in view.group.tokens.iter().enumerate() {
+            if !charge(remaining, 1) {
+                return None;
+            }
+            let start = u32::try_from(start).ok()?;
+            page_map
+                .get_mut(&(token, effective_page(view, start as usize)))?
+                .push((view_index, start));
+        }
+    }
+    Some(page_map)
+}
+
+struct MergedPostings<'a> {
+    first: &'a [(u32, u32)],
+    second: &'a [(u32, u32)],
+    i: usize,
+    j: usize,
+}
+
+impl Iterator for MergedPostings<'_> {
+    type Item = (u32, u32);
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.first.get(self.i), self.second.get(self.j)) {
+            (Some(a), Some(b)) => {
+                if a <= b {
+                    self.i += 1;
+                    Some(*a)
+                } else {
+                    self.j += 1;
+                    Some(*b)
+                }
+            }
+            (Some(a), None) => {
+                self.i += 1;
+                Some(*a)
+            }
+            (None, Some(b)) => {
+                self.j += 1;
+                Some(*b)
+            }
+            (None, None) => None,
+        }
+    }
+}
+
+/// Effective page of one candidate start, using the exact
+/// [`occurrence_state`] precedence: a complete token position+page pair first,
+/// then a complete deny position+page pair, otherwise unknown.
+fn effective_page(view: &View, start: usize) -> Option<u32> {
+    if view.token_positions.get(start).copied().flatten().is_some()
+        && let Some(Some(page)) = view.token_pages.get(start).copied()
+    {
+        return Some(page);
+    }
+    if view.deny_positions.get(start).copied().flatten().is_some()
+        && let Some(Some(page)) = view.deny_pages.get(start).copied()
+    {
+        return Some(page);
+    }
+    None
+}
+
+/// Needle page is known only from a complete token position+page pair.
+fn needle_page(view: &View, range: &std::ops::Range<usize>) -> Option<u32> {
+    if view
+        .token_positions
+        .get(range.start)
+        .copied()
+        .flatten()
+        .is_some()
+    {
+        view.token_pages.get(range.start).copied().flatten()
+    } else {
+        None
     }
 }
 
@@ -858,7 +1056,9 @@ impl<'a> TokenPostings<'a> {
 /// The first needle token's postings already list exactly the starts the
 /// scanning path's prefilter would accept, in `(view, start)` order, so the
 /// candidate sequence, `same`, `unknown` and the first match stay identical
-/// while every non-matching start is skipped without a visit.
+/// while every non-matching start is skipped without a visit. When the needle
+/// page is known, the matching-page and unknown-page lists are merged in that
+/// same order.
 fn positioned_occurrences_indexed(
     views: &[View],
     postings: &TokenPostings,
@@ -876,14 +1076,36 @@ fn positioned_occurrences_indexed(
     let Some(first) = needle.first() else {
         return Ok(Some(result));
     };
-    let Some(list) = postings.map.get(first) else {
+    let needle_pg = needle_page(needle_view, needle_range);
+    let (same_list, unknown_list): (PostingSlice<'_>, PostingSlice<'_>) =
+        match (needle_pg, postings.page_map.as_ref()) {
+            (Some(page), Some(page_map)) => (
+                page_map
+                    .get(&(first, Some(page)))
+                    .map_or(&[], Vec::as_slice),
+                page_map.get(&(first, None)).map_or(&[], Vec::as_slice),
+            ),
+            _ => (postings.map.get(first).map_or(&[], Vec::as_slice), &[]),
+        };
+    if same_list.is_empty() && unknown_list.is_empty() {
         return Ok(Some(result));
-    };
-    if !charge(remaining, list.len().saturating_add(1)) {
+    }
+    if !charge(
+        remaining,
+        same_list
+            .len()
+            .saturating_add(unknown_list.len())
+            .saturating_add(1),
+    ) {
         return Ok(None);
     }
     let mut last_view = None;
-    for &(view_index, start) in list {
+    for (view_index, start) in (MergedPostings {
+        first: same_list,
+        second: unknown_list,
+        i: 0,
+        j: 0,
+    }) {
         let view_index = view_index as usize;
         let start = start as usize;
         let Some(view) = views.get(view_index) else {
@@ -905,6 +1127,15 @@ fn positioned_occurrences_indexed(
         // still costs at least the retired full length plus one.
         if !charge(remaining, 1) {
             return Ok(None);
+        }
+        // Known different page: sound negative exclusion. The visit is
+        // already charged; no token comparison is spent and the candidate
+        // cannot be a positive occurrence.
+        if matches!(
+            (needle_pg, effective_page(view, start)),
+            (Some(needle), Some(candidate)) if needle != candidate
+        ) {
+            continue;
         }
         let candidate = &tokens[start..start + needle.len()];
         let mut matched = 0usize;
@@ -5793,6 +6024,296 @@ mod tests {
             with_spare > without_spare,
             "spare vector capacity must be counted in the producer helper"
         );
+    }
+
+    #[test]
+    fn h24b_build_page_index_small_limit_refusal() {
+        let blocks = vec![sourced_block(1, &"ABCD".repeat(2000))];
+        let fixture_side = side(&blocks);
+        let intervals = [interval(1, 0, 1)];
+        let descriptors = [mixed_role_descriptor(1, 1)];
+        let mut work = 10_000_000;
+        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
+            .expect("views build")
+            .expect("views available");
+        let mut base = std::collections::HashMap::new();
+        for (view_index, view) in views.iter().enumerate() {
+            for (start, token) in view.group.tokens.iter().enumerate() {
+                base.entry(token).or_insert_with(Vec::new).push((
+                    u32::try_from(view_index).expect("test view index"),
+                    u32::try_from(start).expect("test start"),
+                ));
+            }
+        }
+        let mut untouched = 4_000usize;
+        assert!(build_page_index(&views, &base, &mut untouched, 8).is_none());
+        assert_eq!(untouched, 4_000, "preflight refusal keeps the remainder");
+        let mut generous = 4_000_000usize;
+        let page_map = build_page_index(&views, &base, &mut generous, 1_000_000)
+            .expect("a generous limit builds the page index");
+        assert_eq!(
+            page_map.len(),
+            base.len(),
+            "one page key per distinct token"
+        );
+        let pair = std::mem::size_of::<(u32, u32)>();
+        let base_key_meta =
+            std::mem::size_of::<(&crate::normalize::ComparableToken, Vec<(u32, u32)>)>() + 16;
+        let base_bound = map_bucket_bound(base.capacity(), base_key_meta).expect("test bound")
+            + base
+                .values()
+                .map(|list| list.capacity() * pair)
+                .sum::<usize>();
+        let posting_storage = views[0].group.tokens.len() * pair * 2;
+        let minimum = base_bound + posting_storage;
+        let mut started = 100_000_000usize;
+        let before = started;
+        assert!(
+            build_page_index(&views, &base, &mut started, minimum + 1).is_none(),
+            "a limit just above the minimum still refuses once buckets are counted"
+        );
+        assert!(started < before, "post-start refusal keeps spent work");
+        let mut work_only = 1usize;
+        assert!(build_page_index(&views, &base, &mut work_only, 1_000_000).is_none());
+        assert_eq!(work_only, 1, "work preflight refusal keeps the remainder");
+    }
+
+    #[test]
+    fn h24b_page_metadata_precedence_oracle() {
+        for needle_page in [70_000u32, u32::MAX] {
+            let other = if needle_page == u32::MAX {
+                1
+            } else {
+                needle_page + 1
+            };
+            let blocks = vec![sourced_block(1, "AAAAAAA")];
+            let fixture_side = side(&blocks);
+            let intervals = [interval(1, 0, 1)];
+            let descriptors = [mixed_role_descriptor(1, 1)];
+            let mut work = 10_000_000;
+            let mut views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
+                .expect("views build")
+                .expect("views available");
+            let known_position = views[0].token_positions[0];
+            for index in 0..views[0].token_pages.len() {
+                views[0].token_pages[index] = Some(needle_page);
+                views[0].deny_positions[index] = None;
+                views[0].deny_pages[index] = None;
+            }
+            views[0].token_pages[0] = Some(needle_page);
+            views[0].token_pages[1] = Some(other);
+            views[0].token_positions[2] = None;
+            views[0].token_pages[2] = Some(5);
+            views[0].token_positions[3] = None;
+            views[0].token_pages[3] = None;
+            views[0].deny_positions[3] = known_position;
+            views[0].deny_pages[3] = Some(needle_page);
+            views[0].token_positions[4] = None;
+            views[0].token_pages[4] = None;
+            views[0].deny_positions[4] = known_position;
+            views[0].deny_pages[4] = Some(other);
+            views[0].token_pages[5] = Some(needle_page);
+            views[0].deny_positions[5] = known_position;
+            views[0].deny_pages[5] = Some(other);
+            views[0].token_pages[6] = Some(other);
+            views[0].deny_positions[6] = known_position;
+            views[0].deny_pages[6] = Some(needle_page);
+            let needle_range = 0..1;
+            let mut oracle_work = 10_000_000;
+            let oracle = positioned_occurrences(
+                &views,
+                &views[0],
+                &needle_range,
+                usize::MAX,
+                &mut oracle_work,
+            )
+            .expect("oracle bounded")
+            .expect("oracle completes");
+            let postings = {
+                let mut build_work = 10_000_000;
+                TokenPostings::build(&views, &mut build_work).expect("index builds")
+            };
+            assert!(postings.page_map.is_some());
+            let mut indexed_work = 10_000_000;
+            let indexed = positioned_occurrences_indexed(
+                &views,
+                &postings,
+                &views[0],
+                &needle_range,
+                usize::MAX,
+                &mut indexed_work,
+            )
+            .expect("indexed bounded")
+            .expect("indexed completes");
+            assert_eq!(
+                indexed.same, 2,
+                "same is capped at 2 for needle page {needle_page}"
+            );
+            assert!(indexed.unknown, "an incomplete position stays unknown");
+            assert_eq!(
+                indexed
+                    .matched
+                    .clone()
+                    .map(|(view, range, _)| (view, range.start)),
+                Some((0, 0))
+            );
+            assert_eq!(indexed.same, oracle.same, "parity for {needle_page}");
+            assert_eq!(
+                indexed.unknown, oracle.unknown,
+                "unknown parity for {needle_page}"
+            );
+            assert_eq!(
+                indexed.matched, oracle.matched,
+                "matched parity for {needle_page}"
+            );
+        }
+    }
+
+    #[test]
+    fn h24b_bounded_budget_page_partition() {
+        let mut text = String::new();
+        for _ in 0..200 {
+            text.push('A');
+        }
+        let blocks = vec![sourced_block(1, &text)];
+        let fixture_side = side(&blocks);
+        let intervals = [interval(1, 0, 1)];
+        let descriptors = [mixed_role_descriptor(1, 1)];
+        let mut work = 10_000_000;
+        let mut views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
+            .expect("views build")
+            .expect("views available");
+        for (index, page) in views[0].token_pages.iter_mut().enumerate() {
+            *page = Some(u32::try_from(index).expect("test page"));
+        }
+        let needle_range = 198..200;
+        let mut oracle_work = 10_000_000;
+        let oracle = positioned_occurrences(
+            &views,
+            &views[0],
+            &needle_range,
+            usize::MAX,
+            &mut oracle_work,
+        )
+        .expect("oracle bounded")
+        .expect("oracle completes");
+        let postings = {
+            let mut build_work = 10_000_000;
+            TokenPostings::build(&views, &mut build_work).expect("index builds")
+        };
+        assert!(postings.page_map.is_some());
+        let mut ample_work = 10_000_000;
+        let ample = positioned_occurrences_indexed(
+            &views,
+            &postings,
+            &views[0],
+            &needle_range,
+            usize::MAX,
+            &mut ample_work,
+        )
+        .expect("indexed bounded")
+        .expect("indexed completes");
+        assert_eq!(ample.same, oracle.same);
+        assert_eq!(ample.matched, oracle.matched);
+        let measured = 10_000_000 - ample_work;
+        let mut exact_work = measured;
+        assert!(
+            positioned_occurrences_indexed(
+                &views,
+                &postings,
+                &views[0],
+                &needle_range,
+                usize::MAX,
+                &mut exact_work,
+            )
+            .expect("bounded")
+            .is_some(),
+            "the exact measured budget fits the page-indexed query"
+        );
+        let no_page = TokenPostings {
+            map: postings.map.clone(),
+            page_map: None,
+        };
+        let mut base_work = measured;
+        assert!(
+            positioned_occurrences_indexed(
+                &views,
+                &no_page,
+                &views[0],
+                &needle_range,
+                usize::MAX,
+                &mut base_work,
+            )
+            .expect("bounded")
+            .is_none(),
+            "the same budget without the page index must refuse"
+        );
+        // Unknown needle page keeps the base path (fresh fixture so the page
+        // index is built from the same mutated metadata).
+        let mut unknown_work = 10_000_000;
+        let mut unknown_views = build_views(
+            &fixture_side,
+            &intervals,
+            Some(&descriptors),
+            &mut unknown_work,
+        )
+        .expect("views build")
+        .expect("views available");
+        for (index, page) in unknown_views[0].token_pages.iter_mut().enumerate() {
+            *page = Some(u32::try_from(index).expect("test page"));
+        }
+        unknown_views[0].token_positions[198] = None;
+        let mut unknown_oracle_work = 10_000_000;
+        let unknown_oracle = positioned_occurrences(
+            &unknown_views,
+            &unknown_views[0],
+            &needle_range,
+            usize::MAX,
+            &mut unknown_oracle_work,
+        )
+        .expect("oracle bounded")
+        .expect("oracle completes");
+        let unknown_postings = {
+            let mut build_work = 10_000_000;
+            TokenPostings::build(&unknown_views, &mut build_work).expect("index builds")
+        };
+        let mut unknown_query_work = 10_000_000;
+        let unknown = positioned_occurrences_indexed(
+            &unknown_views,
+            &unknown_postings,
+            &unknown_views[0],
+            &needle_range,
+            usize::MAX,
+            &mut unknown_query_work,
+        )
+        .expect("bounded")
+        .expect("unknown needle completes");
+        assert_eq!(unknown.same, unknown_oracle.same);
+        // A needle whose first token is absent returns without charging.
+        let absent_blocks = vec![sourced_block(9, "Z")];
+        let absent_side = side(&absent_blocks);
+        let mut absent_work = 10_000_000;
+        let absent_views = build_views(
+            &absent_side,
+            &intervals,
+            Some(&descriptors),
+            &mut absent_work,
+        )
+        .expect("views build")
+        .expect("views available");
+        let mut zero_work = 0usize;
+        let absent = positioned_occurrences_indexed(
+            &views,
+            &postings,
+            &absent_views[0],
+            &(0..1),
+            usize::MAX,
+            &mut zero_work,
+        )
+        .expect("bounded")
+        .expect("absent token returns without charging");
+        assert_eq!(absent.same, 0);
+        assert_eq!(zero_work, 0, "empty posting lookup must not charge");
     }
 
     fn recovery<'a>(

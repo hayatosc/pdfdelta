@@ -1,0 +1,39 @@
+{
+  "binary_sha256": "62e5304fa282fa87e4646b277da833c2f50d26d06c5d27f3958eb4163890d1a8",
+  "views_rs_sha256": "c67bdd99d3adf20317d3a0c065538356ad19b2dc50a0ededd29636271e214fe1",
+  "report_stored_gzip_sha256": "195fdfe90676c47580bfb1cf17fcd83b315f28dc5041c7c85f70536ade549417",
+  "report_logical_sha256": "6d89b1eb24a3bf7f521aea579a432ccec6360c56c61cbac9cfb78e76820bca4e",
+  "logical_matches_accepted": false,
+  "new": {
+    "old_alignment_coverage": {
+      "resolved_tokens": 15838,
+      "total_tokens": 198540,
+      "ratio": 0.07977233806789563
+    },
+    "new_alignment_coverage": {
+      "resolved_tokens": 15837,
+      "total_tokens": 283973,
+      "ratio": 0.05576938652618383
+    },
+    "unresolved_regions": 5598,
+    "tentative_candidates": 1921,
+    "content_changes": 0,
+    "comparison_complete": false
+  },
+  "h22_full009": {
+    "old_alignment_coverage": {
+      "resolved_tokens": 197,
+      "total_tokens": 198540,
+      "ratio": 0.0009922433766495417
+    },
+    "new_alignment_coverage": {
+      "resolved_tokens": 197,
+      "total_tokens": 283973,
+      "ratio": 0.0006937279248379248
+    },
+    "unresolved_regions": 6040,
+    "tentative_candidates": 1921,
+    "content_changes": 0,
+    "comparison_complete": false
+  }
+}

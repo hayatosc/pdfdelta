@@ -27,6 +27,8 @@ verifies:
 
 import argparse
 import json
+
+import ijson
 import sys
 from collections import Counter
 from pathlib import Path
@@ -46,10 +48,83 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
-def load_report(capture_dir, pair):
-    path = capture.resolve_report_path(capture_dir / pair / f"{pair}-native.json")
+def project_region(item):
+    span = lambda s: {"blocks": (s or {}).get("blocks") or []}
+    return {"old_span": span(item.get("old_span")), "new_span": span(item.get("new_span"))}
+
+
+def project_resolution(item):
+    return {
+        "block": item["block"],
+        "state": item.get("state"),
+        "canonical_range": item.get("canonical_range"),
+        "comparable_range": item.get("comparable_range"),
+        "sources": item.get("sources") or [],
+    }
+
+
+REQUIRED_TOP_LEVEL = (
+    "unresolved_regions",
+    "assessment",
+    "change_candidates",
+    "changes",
+    "formatting_only_changes",
+    "proven_changed_regions",
+)
+
+
+def validate_top_level(path):
+    """Missing or wrongly typed required containers are errors, never empty successes."""
+    arrays = {key: False for key in REQUIRED_TOP_LEVEL if key != "assessment"}
+    arrays["assessment.old_resolution"] = False
+    arrays["assessment.new_resolution"] = False
+    assessment_map = False
     with capture.open_report(path) as stream:
-        return json.load(stream)
+        for prefix, event, _value in ijson.parse(stream, use_float=True):
+            if prefix == "assessment" and event == "start_map":
+                assessment_map = True
+            if prefix in arrays:
+                if event == "start_array":
+                    arrays[prefix] = True
+                elif event in ("start_map", "string", "number", "boolean", "null"):
+                    raise ValueError(f"required array {prefix} has wrong type {event}")
+    missing = [key for key, ok in arrays.items() if not ok]
+    if not assessment_map:
+        missing.append("assessment")
+    if missing:
+        raise ValueError(f"report is missing required containers: {missing}")
+
+
+def load_report(capture_dir, pair):
+    """Streams only the arrays the audit consumes, never a full report DOM."""
+    path = capture.resolve_report_path(capture_dir / pair / f"{pair}-native.json")
+    report = {
+        "unresolved_regions": [],
+        "assessment": {"old_resolution": [], "new_resolution": []},
+        "change_candidates": [],
+        "_candidate_sources": {"old_span": set(), "new_span": set()},
+    }
+    with capture.open_report(path) as stream:
+        for item in ijson.items(stream, "unresolved_regions.item", use_float=True):
+            report["unresolved_regions"].append(project_region(item))
+    for side in ("old_resolution", "new_resolution"):
+        with capture.open_report(path) as stream:
+            for item in ijson.items(stream, f"assessment.{side}.item", use_float=True):
+                report["assessment"][side].append(project_resolution(item))
+    with capture.open_report(path) as stream:
+        for item in ijson.items(stream, "change_candidates.item", use_float=True):
+            for occurrence in item.get("occurrences") or []:
+                for side_key in ("old_span", "new_span"):
+                    for source in (occurrence.get(side_key) or {}).get("sources") or []:
+                        if source.get("kind") == "glyph":
+                            report["_candidate_sources"][side_key].add(canonical(source))
+    validate_top_level(path)
+    for member in ("changes", "formatting_only_changes", "proven_changed_regions"):
+        report[member] = []
+        with capture.open_report(path) as stream:
+            for item in ijson.items(stream, f"{member}.item", use_float=True):
+                report[member].append(item)
+    return report
 
 
 def state_tokens(entries, coordinate, problems, label):
@@ -274,9 +349,16 @@ def span_events(entry, side_key):
 
 def tentative_accounting(before, after, side, side_key):
     reported = set()
-    for entry in before.get("change_candidates") or []:
-        reported |= span_events(entry, side_key)
+    compact = before.get("_candidate_sources")
+    if compact is not None:
+        reported |= compact.get(side_key) or set()
+    else:
+        for entry in before.get("change_candidates") or []:
+            reported |= span_events(entry, side_key)
     available = set()
+    compact_after = after.get("_candidate_sources")
+    if compact_after is not None:
+        available |= compact_after.get(side_key) or set()
     for entry in after["assessment"][side]:
         for source in entry.get("sources") or []:
             if source.get("kind") == "glyph":

@@ -1,0 +1,21 @@
+{
+  "capture_exit": 0,
+  "binary_sha256": "b085c3395f4fc119d4c37dead44b37d4179f582620661b9c880e43b49c6f10eb",
+  "instrumented_source_gz": "h23p_corrected_views_instrumented.rs.gz",
+  "instrumented_source_sha256": "f03b68de3136f3954240184683b04d2b647c1dff7c7dc605996b6351e977ccd9",
+  "trace_sha256": "c2b7f17fd2add8f31befb67c42f4769fa9e5fc9837bab2120d97f511f62be874",
+  "capture_log_sha256": "63ab829b97b9f33f055320488dc28abac4b74303c035c135acceb4ac2be9ad9c",
+  "report_stored_gzip_sha256": "68c7cbbfd16b892fbf490d51cc134469c5d11c814a56ef695b711038517b9f78",
+  "report_logical_sha256": "c9de5a575c3833127a7163b52981cdfd1160d8970bb4a348df2d2e31c666897a",
+  "logical_matches_accepted": true,
+  "key_census": [
+    "h23p_keys side=0 postings=198542 distinct=5186 work=0 q_old=1 q_new=0 posting_req=65 posting_act=65 view_req=44 view_act=44 visit_req=1 visit_act=1 compare_req=0 compare_act=0 matched=0 shadow_diff_old=0 shadow_diff_new=0 shadow_cmp_act_old=0 shadow_cmp_act_new=0 page_diff_old=0 page_diff_new=0 page_cmp_act_old=0 page_cmp_act_new=0 page_unknown_old=0 page_unknown_new=0 first_fail=",
+    "h23p_keys side=1 postings=250000 distinct=7289 refused_cap work=0 q_old=1 q_new=1 posting_req=177 posting_act=177 view_req=1936 view_act=1936 visit_req=61 visit_act=61 compare_req=203 compare_act=203 matched=1 shadow_diff_old=51 shadow_diff_new=1 shadow_cmp_act_old=143 shadow_cmp_act_new=0 page_diff_old=47 page_diff_new=1 page_cmp_act_old=112 page_cmp_act_new=0 page_unknown_old=8 page_unknown_new=0 first_fail="
+  ],
+  "final_snapshot": "h23_fail work=0 q_old=194 q_new=159 posting_req=2152391 posting_act=2152391 view_req=1494359 view_act=1494359 visit_req=2061754 visit_act=2061753 compare_req=3327055 compare_act=3327055 matched=968530 shadow_diff_old=1337447 shadow_diff_new=606374 shadow_cmp_act_old=1858810 shadow_cmp_act_new=1273949 page_diff_old=1327529 page_diff_new=599166 page_cmp_act_old=1843697 page_cmp_act_new=1258294 page_unknown_old=73676 page_unknown_new=44062 first_fail=indexed_visit_charge len=39",
+  "pre_failure_snapshot": "h23_end work=11499 q_old=194 q_new=158 posting_req=2148295 posting_act=2148295 view_req=1492175 view_act=1492175 visit_req=2060240 visit_act=2060240 compare_req=3323349 compare_act=3323349 matched=968530 shadow_diff_old=1337447 shadow_diff_new=604889 shadow_cmp_act_old=1858810 shadow_cmp_act_new=1270342 page_diff_old=1327529 page_diff_new=597689 page_cmp_act_old=1843697 page_cmp_act_new=1254706 page_unknown_old=73676 page_unknown_new=44034 first_fail=",
+  "restored": {
+    "views": "35b36d8540319c4782960ddd550f269a22f2c91317a31fd008e1e3bc9c07eb16",
+    "anchors": "00b1a2be3eb2ee59261b2913b23aa37eb289aa7a4fc6b69b29ddf8488f9c5823"
+  }
+}

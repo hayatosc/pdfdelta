@@ -388,3 +388,5 @@ the same sources. A useful result must retain raw glyph provenance, ambiguous
 reading orders and unknown image/path text. That experiment should remain
 separate from the strict completion count; neither an external baseline nor a
 new completion definition has been substituted in this change.
+
+Heavy jobs run through `run-bounded.sh` (shared 6GB slice, swap 0, recurring cleanup); see `RESOURCE-WORKFLOW.md` in this directory.

@@ -1,0 +1,13 @@
+{
+  "views_before_sha256": "e86cd2acdf7e5c8c011555fc421497a67be330646a40df4cdeb9086376eac479",
+  "views_instrumented_sha256": "d255b0533b4b41947fb2100c2957af11925b3334bf4f981ad648d4617d71d674",
+  "instrumented_source_gz": "h23_views_instrumented.rs.gz",
+  "instrumented_source_sha256": "f0690971d26070c693bd108a3db128530014e05fb5bc35a4219c51cbaff2d15e",
+  "env_gate": "H23_TRACE_PATH",
+  "emission": "first fail and normal end",
+  "shadow": "every in-range candidate before comparison; compare charges attributed when different",
+  "labels": [
+    "h23_fail",
+    "h23_end"
+  ]
+}

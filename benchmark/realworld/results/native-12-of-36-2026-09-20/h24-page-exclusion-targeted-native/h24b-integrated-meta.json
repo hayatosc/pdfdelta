@@ -1,0 +1,13 @@
+{
+  "status": "HISTORICAL metadata (superseded): clippy101/source542... belonged to an earlier draft; final gate evidence is h22n-gates-meta.json and the post-format source c67bdd99...",
+  "clippy_exit": 101,
+  "focused_exit": 0,
+  "lib_exit": 0,
+  "views_rs_sha256": "542ff702aa2b04909e6df9a8c1f9cb3b64e0467e29637ae058e0f28b0469bc5d",
+  "source_gz_sha256": "c77c39f9f527a3ac3ceecb46fef70cfd2ac896a85402a9e55acf67074ecf0660",
+  "tests": [
+    "h24b_build_page_index_small_limit_refusal (+ work-only preflight refusal)",
+    "h24b_page_metadata_precedence_oracle (all-A fixture: needle known, other page, token-page-without-position unknown, deny-same unknown, deny-different negative, normal-wins over conflicting deny both directions; needle pages 70000 and u32::MAX; same=2 cap, unknown=true, matched first 0, scanner parity)",
+    "h24b_bounded_budget_page_partition (many distinct-page A starts + one matching page: exact measured budget Some, same budget page_map None None, ample equal, unknown needle base path, absent token 0-budget fast return)"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "status": "standalone bounded build_page_index helper + direct small-limit refusal test; NOT integrated into TokenPostings/call sites; no capture",
+  "test": "h24b_build_page_index_small_limit_refusal (preflight refusal keeps remainder; generous limit builds exact page keys; limit just above minimum refuses after start and keeps spent work)",
+  "focused_exit": 0,
+  "views_rs_sha256": "978cf72919344df9beb492bdc6d3a0f5b6c45a60e426e16456d43296d7359701",
+  "source_gz": "h24b_builder_views.rs.gz",
+  "source_gz_sha256": "5d8e8163e544b39fb9c06516c4045df5b78f82d50ab982837b6b7ab394c6b9d5",
+  "bounds": "base bucket bound via map_bucket_bound(base.capacity(), base_key_meta) plus every posting Vec capacity; count-key meta size_of<((&Token,Option<u32>),u32)>+16; final-key meta size_of<((&Token,Option<u32>),Vec)>+16; posting storage total*pair*2; views.len and total u32 checked; fallible reservations; preflight refusal uncharged, post-start refusal keeps spent work"
+}

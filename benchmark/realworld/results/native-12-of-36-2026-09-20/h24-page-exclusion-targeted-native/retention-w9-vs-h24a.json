@@ -1,0 +1,140 @@
+{
+  "pair": "irs-w9-2018-to-2024",
+  "before_capture": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h24-page-exclusion-targeted-native",
+  "after_capture": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h24b-page-index-regression-native",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 34865,
+          "tokens_after": 34865,
+          "resolved_before": 16814,
+          "resolved_after": 16814,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 154,
+            "equal->equal": 16660,
+            "unresolved->unresolved": 18051
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 34865,
+          "tokens_after": 34865,
+          "resolved_before": 16814,
+          "resolved_after": 16814,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 154,
+            "equal->equal": 16660,
+            "unresolved->unresolved": 18051
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 349,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 580,
+      "regions_after": 580,
+      "region_blocks": {
+        "old_before": 258,
+        "old_after": 258,
+        "new_before": 268,
+        "new_after": 268,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 37481,
+          "tokens_after": 37481,
+          "resolved_before": 16751,
+          "resolved_after": 16751,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 92,
+            "equal->equal": 16659,
+            "unresolved->unresolved": 20730
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 37481,
+          "tokens_after": 37481,
+          "resolved_before": 16751,
+          "resolved_after": 16751,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "changed->changed": 92,
+            "equal->equal": 16659,
+            "unresolved->unresolved": 20730
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 363,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 580,
+      "regions_after": 580,
+      "region_blocks": {
+        "old_before": 258,
+        "old_after": 258,
+        "new_before": 268,
+        "new_after": 268,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 56,
+      "after": 56,
+      "retained": 56,
+      "identical": true
+    },
+    "formatting_only_changes": {
+      "before": 13,
+      "after": 13,
+      "retained": 13,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 1003,
+      "sources_accounted": 1003,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 2836,
+      "sources_accounted": 2836,
+      "sources_missing": 0
+    }
+  },
+  "review": [],
+  "problems": [],
+  "retention": "pass"
+}

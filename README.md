@@ -233,3 +233,5 @@ terms; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 ## Specification
 
 [`SPEC.md`](SPEC.md) is the technical specification and roadmap.
+
+Heavy jobs run through `run-bounded.sh` (shared 6GB slice, swap 0, recurring cleanup); see `RESOURCE-WORKFLOW.md` in this directory.

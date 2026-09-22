@@ -1,0 +1,4 @@
+{
+  "h24b_status": "NOT implemented: repeated builder patches failed (constructor/limit wiring and file corruption); source restored to the H24A provisional state. Required corrected builder (per review): count-key meta size_of<((&Token,Option<u32>),u32)>+16; final-key meta size_of<((&Token,Option<u32>),Vec)>+16; base bucket bound via map_bucket_bound(base.capacity(), base_key_meta); views.len u32 preflight; two-pass page-key counting with per-new-key combined bound and try_reserve; compact builder threads its injected limit while the fast path uses MAX/2; helpers attached before the indexed doc comment; plus a small-limit builder refusal test.",
+  "views_rs_sha256": "b6523eeb220cdbd3306d81fbe408f1e851ab88ff9c692696b890ff452f0517b6"
+}

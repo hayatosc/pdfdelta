@@ -1,0 +1,74 @@
+{
+  "retired_candidates": {
+    "h13-full-iteration-004-native": {
+      "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h13-full-iteration-004-native",
+      "binary_sha256": "fbab3082424acec357e732e9264ce3f3711b06b0412e0824088393f68ab48cae",
+      "summary_sha256": "d48716ced37fbde504b8273f676a1af1ec63cef53eb519a65a9d7b6da5dc9b53",
+      "production_archive_sha256": "4c35c166f95779d3665cdacdd7d7f39b98bb889b2de12596144f46dc54e7ddd2",
+      "production_archive_bytes": 2204690,
+      "sample_report_logical_sha256": "3a0063083c2d0a44889eb97b88717bd66279c81fd8fe3dbd07bdcc47a280017d"
+    },
+    "h14-full-iteration-005-native": {
+      "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h14-full-iteration-005-native",
+      "binary_sha256": "c2c4d152d261e40329e26b1bf11ac0491456a11a6554631b8dba2e2415d8e1ad",
+      "summary_sha256": "29aa561c3585bda70d9713cd6653bf0b0b93d02c3a74fa444fcb45be37f03beb",
+      "production_archive_sha256": "1a7a9a8930ce7e9a30dbfb4d32f53ad6d2ddf6d40471d297163484b8e5ca3dab",
+      "production_archive_bytes": 2212458,
+      "evidence_recorded_binary_sha256": "c2c4d152d261e40329e26b1bf11ac0491456a11a6554631b8dba2e2415d8e1ad",
+      "binary_verified": true,
+      "sample_report_logical_sha256": "3a0063083c2d0a44889eb97b88717bd66279c81fd8fe3dbd07bdcc47a280017d"
+    },
+    "h16-full-iteration-006-native": {
+      "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h16-full-iteration-006-native",
+      "binary_sha256": "a89ba7eb31c8a1a4fe735271aeab0b485dd78c893f7921bbf1973280bb1a9c6b",
+      "summary_sha256": "06e629cbb75af7c1bde53296952e5ec5d74ae82eb7ad030dcbc5854c98cf129b",
+      "production_archive_sha256": "1d0b0b5701155d800202dd1a33f009ba92e6c19a11522892d2f6d442cd5994fb",
+      "production_archive_bytes": 2216092,
+      "evidence_recorded_binary_sha256": "a89ba7eb31c8a1a4fe735271aeab0b485dd78c893f7921bbf1973280bb1a9c6b",
+      "binary_verified": true,
+      "sample_report_logical_sha256": "3a0063083c2d0a44889eb97b88717bd66279c81fd8fe3dbd07bdcc47a280017d"
+    },
+    "h17-full-iteration-008-native": {
+      "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h17-full-iteration-008-native",
+      "binary_sha256": "a297b88f5d9eb652b5e989adcad47d3e4b53c6a8fb81f11b340a28cfddbc2441",
+      "summary_sha256": "c5d9472611888f50cac8646b256a30925d89744a541840398974874fdccf3ff4",
+      "production_archive_sha256": "71bdc122fc87fcb792330899d5f6fc0a2c9a758ed847c81ae586704eaf59f868",
+      "production_archive_bytes": 2220851,
+      "evidence_recorded_binary_sha256": "a297b88f5d9eb652b5e989adcad47d3e4b53c6a8fb81f11b340a28cfddbc2441",
+      "binary_verified": true,
+      "sample_report_logical_sha256": "3a0063083c2d0a44889eb97b88717bd66279c81fd8fe3dbd07bdcc47a280017d"
+    }
+  },
+  "note": "compact archive hashes recorded before unpin; full captures removed by managed rotation",
+  "label": "fingerprint metadata only: compact hash/size record; the removed captures themselves are not archived here",
+  "removed": [
+    {
+      "name": "h13-full-iteration-004-native",
+      "bytes": 1851042853
+    },
+    {
+      "name": "h17-full-iteration-008-native",
+      "bytes": 1871296333
+    },
+    {
+      "name": "h16-full-iteration-006-native",
+      "bytes": 1852680674
+    },
+    {
+      "name": "h14-full-iteration-005-native",
+      "bytes": 1852709435
+    }
+  ],
+  "removed_total_bytes": 7427729295,
+  "committed_retention_evidence": [
+    "benchmark/realworld/results/native-12-of-36-2026-09-20/h14-positioned-postings/",
+    "benchmark/realworld/results/native-12-of-36-2026-09-20/h16-witnessed-negative/",
+    "benchmark/realworld/results/native-12-of-36-2026-09-20/h17-extraction-identity/"
+  ],
+  "preserved_checks": {
+    "h22_full009_pinned": true,
+    "baseline_h2_pinned": true,
+    "current_proposal_binary_exists": true,
+    "current_proposal_views_sha256": "c67bdd99d3adf20317d3a0c065538356ad19b2dc50a0ededd29636271e214fe1"
+  }
+}

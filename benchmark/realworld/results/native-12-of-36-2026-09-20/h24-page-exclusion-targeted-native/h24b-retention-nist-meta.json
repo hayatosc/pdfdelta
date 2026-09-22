@@ -1,0 +1,23 @@
+{
+  "retention": "pass",
+  "prior_resolved_lost": [
+    0,
+    0
+  ],
+  "newly_resolved": [
+    15641,
+    15640
+  ],
+  "review": 0,
+  "problems": 0,
+  "process_max_rss_kib": 2033472,
+  "slice_memory_peak_bytes": 2094702592,
+  "slice_memory_events": {
+    "low": 0,
+    "high": 0,
+    "max": 0
+  },
+  "audit_script_sha256": "b980fd5fc362a8bb6cf8a3d6ae9cce7f70b6781884c8e2d5b12eb2b322dc4c96",
+  "log_sha256": "ef5b1d8f346b5e8acf59d1ae8278adaf5d9e0b3a39c6383dc2b94af442ee7f36",
+  "invocation": "run-bounded.sh /usr/bin/time -v env PYTHONPATH=<uv archive site-packages> python3 native_retention_audit.py ..."
+}

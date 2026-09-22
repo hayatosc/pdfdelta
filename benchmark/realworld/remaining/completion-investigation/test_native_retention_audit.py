@@ -289,5 +289,153 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(audit.classify_retention(["problem"], ["review"], 1), "fail")
 
 
+
+
+class LoaderProjectionTests(unittest.TestCase):
+    def _report(self):
+        return {
+            "unresolved_regions": [
+                {"old_span": {"blocks": [1], "sources": [{"kind": "glyph", "glyph_id": 9}]},
+                 "new_span": {"blocks": [2]}, "text": "irrelevant"},
+            ],
+            "assessment": {
+                "old_resolution": [
+                    {"block": 1, "state": "changed", "canonical_range": {"start": 1, "end": 2},
+                     "comparable_range": {"start": 1, "end": 2},
+                     "sources": [{"kind": "glyph", "glyph_id": 5}], "text": "x" * 100000},
+                ],
+                "new_resolution": [
+                    {"block": 2, "state": "changed", "canonical_range": {"start": 0, "end": 1},
+                     "comparable_range": {"start": 0, "end": 1},
+                     "sources": [{"kind": "glyph", "glyph_id": 6}]},
+                ],
+            },
+            "change_candidates": [
+                {"occurrences": [{"old_span": {"blocks": [1], "sources": [{"kind": "glyph", "glyph_id": 7}]},
+                                  "new_span": {"blocks": [2], "sources": [{"kind": "glyph", "glyph_id": 8}]}}]},
+            ],
+            "changes": [{"payload": 1.5}],
+            "formatting_only_changes": [{"payload": "B"}],
+            "proven_changed_regions": [{"payload": "C"}],
+        }
+
+    def _write(self, directory, pair, report):
+        target = directory / pair
+        target.mkdir(parents=True, exist_ok=True)
+        import gzip, json
+        with gzip.open(target / f"{pair}-native.json.gz", "wt") as stream:
+            json.dump(report, stream)
+
+    def test_projection_retains_exact_semantics(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            report = self._report()
+            self._write(directory, "pair", report)
+            loaded = audit.load_report(directory, "pair")
+            self.assertNotIn("text", loaded["unresolved_regions"][0])
+            self.assertEqual(loaded["unresolved_regions"][0]["old_span"]["blocks"], [1])
+            self.assertNotIn("sources", loaded["unresolved_regions"][0]["old_span"])
+            self.assertNotIn("text", loaded["assessment"]["old_resolution"][0])
+            self.assertIsInstance(loaded["changes"][0]["payload"], float)
+            self.assertEqual(loaded["changes"][0]["payload"], 1.5)
+            self.assertEqual(loaded["_candidate_sources"]["old_span"],
+                             {audit.canonical({"kind": "glyph", "glyph_id": 7})})
+            problems = []
+            retained = audit.exact_retention(problems, "changes", loaded, loaded)
+            self.assertTrue(retained["identical"])
+            self.assertEqual(problems, [])
+
+    def test_removed_and_duplicated_certified_payloads_fail(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            before = self._report()
+            after = self._report()
+            after["changes"] = []
+            self._write(directory, "pair", before)
+            before_loaded = audit.load_report(directory, "pair")
+            self._write(directory, "pair", after)
+            after_loaded = audit.load_report(directory, "pair")
+            problems = []
+            retained = audit.exact_retention(problems, "changes", before_loaded, after_loaded)
+            self.assertFalse(retained["identical"])
+            self.assertTrue(problems)
+            # Actual count loss: two identical payloads before, one after.
+            before2 = self._report()
+            before2["changes"] = [{"payload": "A"}, {"payload": "A"}]
+            after2 = self._report()
+            after2["changes"] = [{"payload": "A"}]
+            self._write(directory, "pair", before2)
+            before2_loaded = audit.load_report(directory, "pair")
+            self._write(directory, "pair", after2)
+            after2_loaded = audit.load_report(directory, "pair")
+            problems = []
+            retained = audit.exact_retention(problems, "changes", before2_loaded, after2_loaded)
+            self.assertFalse(retained["identical"])
+            self.assertTrue(problems)
+
+    def test_missing_candidate_source_is_reported(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            before = self._report()
+            after = self._report()
+            after["assessment"]["old_resolution"] = []
+            after["changes"] = []
+            after["formatting_only_changes"] = []
+            after["proven_changed_regions"] = []
+            after["change_candidates"] = []
+            self._write(directory, "pair", before)
+            before_loaded = audit.load_report(directory, "pair")
+            self._write(directory, "pair", after)
+            after_loaded = audit.load_report(directory, "pair")
+            accounting = audit.tentative_accounting(before_loaded, after_loaded, "old_resolution", "old_span")
+            self.assertEqual(accounting["sources_missing"], 1)
+
+    def test_missing_required_key_is_an_error(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            report = self._report()
+            del report["changes"]
+            self._write(directory, "pair", report)
+            with self.assertRaises(ValueError):
+                audit.load_report(directory, "pair")
+
+
+
+    def test_tentative_accounting_parity_and_self_consistency(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            report = self._report()
+            self._write(directory, "pair", report)
+            loaded = audit.load_report(directory, "pair")
+            self.assertEqual(
+                audit.tentative_accounting(loaded, loaded, "old_resolution", "old_span")["sources_missing"],
+                0,
+            )
+            legacy = report
+            legacy_accounting = audit.tentative_accounting(legacy, legacy, "old_resolution", "old_span")
+            projected_accounting = audit.tentative_accounting(loaded, loaded, "old_resolution", "old_span")
+            self.assertEqual(legacy_accounting, projected_accounting)
+
+    def test_wrong_array_type_is_an_error(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            report = self._report()
+            report["changes"] = {"payload": "not an array"}
+            self._write(directory, "pair", report)
+            with self.assertRaises(ValueError):
+                audit.load_report(directory, "pair")
+
 if __name__ == "__main__":
     unittest.main()
