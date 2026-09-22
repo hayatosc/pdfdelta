@@ -19,7 +19,7 @@ and then delegates to `housekeeping.py --run` inside the same slice.
   the task tmp); anything unproven is kept and the job refuses.
 - Check-only is read-only. Empty commands and check-only+run are rejected.
 
-Tests: `test_housekeeping.py` (8 cases: protections, failed rotation, caps,
+Tests: `test_housekeeping.py` (9 cases: protections, failed rotation, caps,
 check-only read-only, relative root sizing, run_job exit preservation with
 pre/post rotation, tmp marker validation, target/tmp refusal) and
 `test_native_retention_audit.py` (31 cases, including the streaming-projection
@@ -27,21 +27,25 @@ loader regressions and candidate-source accounting).
 
 ## Startup from a cold boot
 
-`run-bounded.sh` recreates the runtime slice if its cgroup is missing: it sets
-`MemoryMax`/`MemorySwapMax` at runtime, and if no control group exists it
-creates one with an empty scope, then reads and verifies the kernel values
-before any heavy child runs. Verified with an isolated `pdfdelta-smoke.slice`
-(same 6e9/swap0 properties): cgroup created, `memory.max` and
-`memory.swap.max` read back correctly, then stopped. The shared slice is never
-stopped for this test.
+`run-bounded.sh` recreates the runtime slice if its cgroup is missing by
+starting the slice unit and setting `MemoryMax`/`MemorySwapMax` at runtime, then
+reading and verifying the kernel values before any heavy child runs. An
+empty-scope creation alone did not prove the parent cap and is not used.
+Verified with an isolated `pdfdelta-smoke.slice`: `systemctl --user start` plus
+runtime `set-property`, kernel `memory.max` read back as 5999996928 and
+`memory.swap.max` as 0, then stopped. The shared slice is never stopped for
+this test.
 
 ## Reproducible ijson dependency
 
 The audit tooling needs `ijson` (one j). A machine-independent invocation is:
 
 ```
-uv run --with ijson python3 native_retention_audit.py ...
+run-bounded.sh uv run --with ijson python3 native_retention_audit.py ...
 ```
+
+The wrapper is mandatory for heavy audits so the shared 6GB cap and cleanup
+apply; an unbounded `uv run` is not a supported invocation.
 
 Do not commit machine-specific uv cache paths; the wrapper environment only
 needs a Python with `ijson` importable.

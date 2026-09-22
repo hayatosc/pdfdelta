@@ -461,6 +461,9 @@ pub(in crate::document) fn append(
             old_boundaries: Default::default(), new_boundaries: Default::default(),
             candidate_search_exhaustive: Some(false), spacing: None,
             comparison: LocalViewComparison {
+                obligations: vec![super::super::UnresolvedObligation::new(
+                    super::super::UnresolvedReason::InferredGroupSuggestion,
+                )],
                 operation: Some(TypedOperation::TextChanged {
                     old: Some(suggestion.old.iter().map(|id| left.paragraphs[id].text.as_str()).collect()),
                     new: Some(suggestion.new.iter().map(|id| right.paragraphs[id].text.as_str()).collect()),

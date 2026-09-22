@@ -1,0 +1,66 @@
+{
+  "schema": "agent-review-legibility/v1",
+  "profile": "hayro/0.7.1/page-rgb-white-72dpi-annotations-v1",
+  "fixture": "4 pt Helvetica on US Letter, one changed value",
+  "crop_pixels": [
+    122,
+    12
+  ],
+  "glyph_stroke_pixels": 3,
+  "legible": false,
+  "render_worker_max_pixels": 8000000,
+  "retained_raster_bytes_limit": 268435456,
+  "profiles": [
+    {
+      "dpi": 72,
+      "samples": [
+        612,
+        792
+      ],
+      "pixels": 484704,
+      "rgb_bytes": 1454112,
+      "within_limits": true
+    },
+    {
+      "dpi": 150,
+      "samples": [
+        1275,
+        1650
+      ],
+      "pixels": 2103750,
+      "rgb_bytes": 6311250,
+      "within_limits": true
+    },
+    {
+      "dpi": 288,
+      "samples": [
+        2448,
+        3168
+      ],
+      "pixels": 7755264,
+      "rgb_bytes": 23265792,
+      "within_limits": true
+    },
+    {
+      "dpi": 300,
+      "samples": [
+        2550,
+        3300
+      ],
+      "pixels": 8415000,
+      "rgb_bytes": 25245000,
+      "within_limits": false
+    },
+    {
+      "dpi": 600,
+      "samples": [
+        5100,
+        6600
+      ],
+      "pixels": 33660000,
+      "rgb_bytes": 100980000,
+      "within_limits": false
+    }
+  ],
+  "implemented": false
+}

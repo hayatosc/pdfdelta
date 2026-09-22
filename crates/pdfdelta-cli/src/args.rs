@@ -55,6 +55,13 @@ pub struct Cli {
     )]
     pub review: Option<PathBuf>,
 
+    /// Create an agent review bundle: a manifest, per-case packets, and the
+    /// source PDFs, for bounded retrieval with `pdfdelta review`.
+    ///
+    /// The comparison result, its coverage, and its exit status are unchanged.
+    #[arg(long, value_name = "DIR", requires = "new", conflicts_with = "review")]
+    pub agent_review: Option<PathBuf>,
+
     /// Write the human-readable comparison report to a file instead of standard output.
     #[arg(short = 'o', long, value_name = "PATH", requires = "new")]
     pub output: Option<PathBuf>,
@@ -191,12 +198,130 @@ pub enum Command {
         svg: Option<PathBuf>,
     },
 
+    /// Read an existing agent review bundle within an explicit byte budget.
+    ///
+    /// A path whose first component is literally `review` must be written as
+    /// `./review` so it is not read as this subcommand.
+    Review {
+        #[command(subcommand)]
+        action: ReviewCommand,
+    },
+
     /// Generate shell completion script for the specified shell.
     Completions {
         /// Target shell to generate completions for.
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ReviewCommand {
+    /// List unretrieved cases, newest budget first.
+    List {
+        /// The bundle directory written by `--agent-review`.
+        #[arg(value_name = "DIR")]
+        directory: PathBuf,
+
+        /// Continue a previous listing of the same bundle.
+        #[arg(long, value_name = "CURSOR")]
+        cursor: Option<String>,
+
+        /// Hard cap on the encoded JSON response, including its metadata.
+        #[arg(long, value_name = "BYTES", default_value_t = 8192, value_parser = parse_output_budget)]
+        max_output_bytes: usize,
+    },
+
+    /// Produce local images for one case from the bundle's retained pages.
+    Render {
+        /// The bundle directory written by `--agent-review`.
+        #[arg(value_name = "DIR")]
+        directory: PathBuf,
+
+        /// Case identifier from a listing.
+        #[arg(long, value_name = "CASE")]
+        case: String,
+
+        /// New directory to write the images into.
+        #[arg(long, value_name = "DIR")]
+        output: PathBuf,
+
+        /// Hard cap on the encoded JSON response, including its metadata.
+        #[arg(long, value_name = "BYTES", default_value_t = 16384, value_parser = parse_output_budget)]
+        max_output_bytes: usize,
+    },
+
+    /// Validate external assessments and store them as a new artifact.
+    Import {
+        /// The bundle directory the assessments answer.
+        #[arg(value_name = "DIR")]
+        directory: PathBuf,
+
+        /// JSON file holding the assessments.
+        #[arg(long, value_name = "PATH")]
+        decisions: PathBuf,
+
+        /// New file to write the validated result to.
+        #[arg(long, value_name = "PATH")]
+        output: PathBuf,
+
+        /// Hard cap on the encoded JSON response, including its metadata.
+        #[arg(long, value_name = "BYTES", default_value_t = 8192, value_parser = parse_output_budget)]
+        max_output_bytes: usize,
+    },
+
+    /// Read one case at one detail level.
+    Show {
+        /// The bundle directory written by `--agent-review`.
+        #[arg(value_name = "DIR")]
+        directory: PathBuf,
+
+        /// Case identifier from a listing.
+        #[arg(long, value_name = "CASE")]
+        case: String,
+
+        /// How much of the case to return.
+        #[arg(long, value_enum, default_value = "text")]
+        detail: ReviewDetail,
+
+        /// Continue a previous paged view of the same case.
+        #[arg(long, value_name = "CURSOR")]
+        cursor: Option<String>,
+
+        /// Hard cap on the encoded JSON response, including its metadata.
+        #[arg(long, value_name = "BYTES", default_value_t = 16384, value_parser = parse_output_budget)]
+        max_output_bytes: usize,
+    },
+}
+
+/// Detail levels this build serves.
+///
+/// Visual retrieval is served by `review render` rather than by a detail level,
+/// so it is not offered here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum ReviewDetail {
+    /// Identity, question, location, and what the case still needs.
+    Index,
+    /// The question, both sides' retained text, reasons, and evidence.
+    Text,
+    /// The quoted text of material the comparison never examined.
+    Quote,
+    /// Enclosing headings, neighbours, table structure, and other occurrences.
+    Context,
+    /// The competing hypotheses.
+    Alternatives,
+}
+
+impl From<ReviewDetail> for pdfdelta_core::review::Detail {
+    fn from(detail: ReviewDetail) -> Self {
+        match detail {
+            ReviewDetail::Index => Self::Index,
+            ReviewDetail::Text => Self::Text,
+            ReviewDetail::Quote => Self::Quote,
+            ReviewDetail::Context => Self::Context,
+            ReviewDetail::Alternatives => Self::Alternatives,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
@@ -226,6 +351,11 @@ pub fn resolve_color(choice: ColorChoice) -> bool {
 pub struct ComparisonOptions<'a> {
     pub json_path: Option<&'a Path>,
     pub review_dir: Option<&'a Path>,
+    pub agent_review_dir: Option<&'a Path>,
+    /// Resource-limit scale, retained because it is part of what a review
+    /// bundle's identity is bound to: a different search budget can produce a
+    /// different comparison from the same inputs.
+    pub limit_scale: f64,
     pub output_path: Option<&'a Path>,
     pub strict: bool,
     pub quiet: bool,
@@ -253,6 +383,23 @@ pub struct ComparisonInput<'a> {
     pub font_identities: &'a [String],
 }
 
+/// Rejects a budget too small to carry any answer.
+///
+/// Refusing here is clearer than accepting the value and failing on every
+/// query with a budget error.
+fn parse_output_budget(value: &str) -> Result<usize, String> {
+    let budget = value
+        .parse::<usize>()
+        .map_err(|error| format!("invalid output budget {value:?}: {error}"))?;
+    if budget < crate::agent_review::MIN_OUTPUT_BYTES {
+        return Err(format!(
+            "an output budget of {budget} bytes cannot carry a response; the minimum is {}",
+            crate::agent_review::MIN_OUTPUT_BYTES
+        ));
+    }
+    Ok(budget)
+}
+
 fn parse_limit_scale(value: &str) -> Result<f64, String> {
     let scale = value
         .parse::<f64>()
@@ -264,7 +411,7 @@ fn parse_limit_scale(value: &str) -> Result<f64, String> {
 mod tests {
     use clap::Parser;
 
-    use super::{Cli, ColorChoice, Command};
+    use super::{Cli, ColorChoice, Command, ReviewCommand, ReviewDetail};
 
     #[test]
     fn parses_strict_comparison_mode() {
@@ -499,6 +646,125 @@ mod tests {
                 ..
             }) if path == std::path::Path::new("debug.svg")
         ));
+    }
+
+    #[test]
+    fn agent_review_pairs_with_the_native_text_contract_but_not_the_html_bundle() {
+        let native = Cli::try_parse_from([
+            "pdfdelta",
+            "old.pdf",
+            "new.pdf",
+            "--native-text-only",
+            "--agent-review",
+            "run",
+        ])
+        .expect("the native-text contract publishes its own bundle");
+        assert!(native.native_text_only);
+        assert_eq!(
+            native.agent_review.as_deref(),
+            Some(std::path::Path::new("run"))
+        );
+
+        // Two bundles in one run would publish into two destinations from one
+        // comparison; the first version refuses the combination outright.
+        assert!(
+            Cli::try_parse_from([
+                "pdfdelta",
+                "old.pdf",
+                "new.pdf",
+                "--review",
+                "a",
+                "--agent-review",
+                "b",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn the_review_subcommand_takes_precedence_over_a_positional_named_review() {
+        let query = Cli::try_parse_from(["pdfdelta", "review", "list", "bundle"])
+            .expect("review list should parse");
+        assert!(matches!(
+            query.command,
+            Some(Command::Review {
+                action: ReviewCommand::List { .. }
+            })
+        ));
+
+        // A file actually named `review` therefore has to be spelled with a
+        // path prefix, which the subcommand's help states.
+        let comparison = Cli::try_parse_from(["pdfdelta", "./review", "new.pdf"])
+            .expect("a prefixed path is still a comparison");
+        assert_eq!(
+            comparison.old.as_deref(),
+            Some(std::path::Path::new("./review"))
+        );
+        assert!(comparison.command.is_none());
+    }
+
+    #[test]
+    fn an_output_budget_below_the_minimum_is_rejected() {
+        assert!(
+            Cli::try_parse_from([
+                "pdfdelta",
+                "review",
+                "list",
+                "bundle",
+                "--max-output-bytes",
+                "16"
+            ])
+            .is_err()
+        );
+        let accepted = Cli::try_parse_from([
+            "pdfdelta",
+            "review",
+            "show",
+            "bundle",
+            "--case",
+            "R17",
+            "--detail",
+            "alternatives",
+            "--max-output-bytes",
+            "4096",
+        ])
+        .expect("a sufficient budget parses");
+        assert!(matches!(
+            accepted.command,
+            Some(Command::Review {
+                action: ReviewCommand::Show {
+                    detail: ReviewDetail::Alternatives,
+                    max_output_bytes: 4096,
+                    ..
+                }
+            })
+        ));
+    }
+
+    #[test]
+    fn unserved_detail_levels_are_not_offered() {
+        let context = Cli::try_parse_from([
+            "pdfdelta", "review", "show", "bundle", "--case", "R17", "--detail", "context",
+        ])
+        .expect("context retrieval is served");
+        assert!(matches!(
+            context.command,
+            Some(Command::Review {
+                action: ReviewCommand::Show {
+                    detail: ReviewDetail::Context,
+                    ..
+                }
+            })
+        ));
+
+        // Images are produced by `review render`, so `--detail visual` is not
+        // a request this parser accepts.
+        assert!(
+            Cli::try_parse_from([
+                "pdfdelta", "review", "show", "bundle", "--case", "R17", "--detail", "visual",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

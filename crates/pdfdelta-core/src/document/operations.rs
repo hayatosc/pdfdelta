@@ -85,6 +85,11 @@ pub struct LocalViewComparison {
     pub pixel_mask: Option<ExactPixelMask>,
     /// A content change can be known even when its character mask is unresolved.
     pub unresolved: Vec<String>,
+    /// Classification of each retained message, aligned by index. Older
+    /// results carry none; a missing entry means the reason is unclassified,
+    /// never that the message is absent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub obligations: Vec<super::UnresolvedObligation>,
     /// False if the selected local comparison could not determine equality/change.
     pub compared: bool,
 }
@@ -151,6 +156,7 @@ pub(super) fn compare_local_views_with_work(
     remaining_work: &mut usize,
 ) -> Result<LocalViewComparison> {
     let mut result = LocalViewComparison {
+        obligations: Vec::new(),
         old: vec![old.id],
         new: vec![new.id],
         interpretation: if old.basis.is_inferred() || new.basis.is_inferred() {
@@ -187,8 +193,16 @@ pub(super) fn compare_local_views_with_work(
                 if let (FieldValue::Text(a), FieldValue::Text(b)) = (a, b) {
                     let a = field_text(a, &old.sources, limits)?;
                     let b = field_text(b, &new.sources, limits)?;
-                    result.text_mask =
-                        compare_text(&a, &b, limits, remaining_work, &mut result.unresolved)?;
+                    result.text_mask = compare_text(
+                        &a,
+                        &b,
+                        limits,
+                        remaining_work,
+                        &mut super::UnresolvedSink::new(
+                            &mut result.unresolved,
+                            &mut result.obligations,
+                        ),
+                    )?;
                 }
             }
         }
@@ -214,18 +228,25 @@ pub(super) fn compare_local_views_with_work(
                             });
                         }
                     } else {
-                        result
-                            .unresolved
-                            .push("pixel mask output limit reached".into());
+                        result.retain_unresolved(
+                            super::UnresolvedObligation::new(
+                                super::UnresolvedReason::PixelMaskOutputLimit,
+                            ),
+                            "pixel mask output limit reached",
+                        );
                     }
                 }
-                _ => result.unresolved.push(
-                    "render regions require the same declared profile and sample grid".into(),
+                _ => result.retain_unresolved(
+                    super::UnresolvedObligation::new(
+                        super::UnresolvedReason::IncompatibleRenderProfile,
+                    ),
+                    "render regions require the same declared profile and sample grid",
                 ),
             }
         }
-        _ => result.unresolved.push(
-            "local content types require a structural comparison or additional evidence".into(),
+        _ => result.retain_unresolved(
+            super::UnresolvedObligation::new(super::UnresolvedReason::UnsupportedLocalContent),
+            "local content types require a structural comparison or additional evidence",
         ),
     }
     Ok(result)
@@ -332,6 +353,7 @@ pub(super) fn compare_text_groups_with_work(
         }
     }
     let mut result = LocalViewComparison {
+        obligations: Vec::new(),
         old: old.iter().map(|node| node.id).collect(),
         new: new.iter().map(|node| node.id).collect(),
         interpretation: if old.iter().chain(new).any(|node| node.basis.is_inferred()) {
@@ -356,7 +378,10 @@ pub(super) fn compare_text_groups_with_work(
         Err(error @ (crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)))
             if layout_space_alternatives =>
         {
-            result.unresolved.push(error.to_string());
+            result.retain_unresolved(
+                super::UnresolvedObligation::new(super::UnresolvedReason::TextComparisonLimit),
+                error.to_string(),
+            );
         }
         outcome => outcome?,
     }
@@ -372,15 +397,18 @@ pub(super) fn compare_text_groups_with_work(
             old: a.display_text(),
             new: b.display_text(),
         });
-        result.unresolved.push(
-            "source token multiplicity proves change; exact normalization masks remain unresolved"
-                .into(),
+        result.retain_unresolved(
+            super::UnresolvedObligation::new(super::UnresolvedReason::MultiplicityProofWithoutMask),
+            "source token multiplicity proves change; exact normalization masks remain unresolved",
         );
     }
     if uncertain_spacing {
-        result
-            .unresolved
-            .push("layout-derived space boundaries retain both spacing interpretations".into());
+        result.retain_unresolved(
+            super::UnresolvedObligation::new(
+                super::UnresolvedReason::SpacingInterpretationsRetained,
+            ),
+            "layout-derived space boundaries retain both spacing interpretations",
+        );
     }
     Ok(result)
 }
@@ -522,7 +550,14 @@ fn compare_text_content(
     limits: LocalComparisonLimits,
     remaining_work: &mut usize,
 ) -> Result<()> {
-    result.text_mask = compare_text(old, new, limits, remaining_work, &mut result.unresolved)?;
+    let mask = compare_text(
+        old,
+        new,
+        limits,
+        remaining_work,
+        &mut super::UnresolvedSink::new(&mut result.unresolved, &mut result.obligations),
+    )?;
+    result.text_mask = mask;
     if let Some(mask) = &result.text_mask {
         result.compared = true;
         if mask.claims.changed_source_lower > 0 {
@@ -532,9 +567,12 @@ fn compare_text_content(
             });
         } else if mask.claims.changed_source_upper > 0 {
             result.compared = false;
-            result
-                .unresolved
-                .push("permitted normalization interpretations disagree on text equality".into());
+            result.retain_unresolved(
+                super::UnresolvedObligation::new(
+                    super::UnresolvedReason::NormalizationInterpretationsDisagree,
+                ),
+                "permitted normalization interpretations disagree on text equality",
+            );
         }
     }
     Ok(())
@@ -566,7 +604,7 @@ fn compare_text(
     new: &TextView,
     limits: LocalComparisonLimits,
     remaining_work: &mut usize,
-    unresolved: &mut Vec<String>,
+    unresolved: &mut super::UnresolvedSink<'_>,
 ) -> Result<Option<ExactTextMask>> {
     bounded(
         old.tokens.len().saturating_add(new.tokens.len()),
@@ -582,8 +620,12 @@ fn compare_text(
     // list of optional characters is not such a certificate.
     let (Some(old_optional), Some(new_optional)) = (old.optional_tokens(), new.optional_tokens())
     else {
-        unresolved
-            .push("local text normalization has no source-validated interpretation family".into());
+        unresolved.retain(
+            super::UnresolvedObligation::new(
+                super::UnresolvedReason::NormalizationInterpretationMissing,
+            ),
+            "local text normalization has no source-validated interpretation family",
+        );
         return Ok(None);
     };
     let claims = local_text_claims(
@@ -600,7 +642,10 @@ fn compare_text(
         remaining_work,
     )?;
     let Some(claims) = claims else {
-        unresolved.push("local character proof did not finish within its work budget".into());
+        unresolved.retain(
+            super::UnresolvedObligation::new(super::UnresolvedReason::LocalProofBudget),
+            "local character proof did not finish within its work budget",
+        );
         return Ok(None);
     };
     let project = |mask: &[bool], view: &TextView| {

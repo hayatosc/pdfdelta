@@ -150,10 +150,9 @@ pub fn compare(
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
     let started = std::time::Instant::now();
-    let (old, old_bytes, old_images) =
-        collect(old_input, cache_dir, options, output.review_dir.is_some())?;
-    let (new, new_bytes, new_images) =
-        collect(new_input, cache_dir, options, output.review_dir.is_some())?;
+    let retain_inputs = output.review_dir.is_some() || output.agent_review_dir.is_some();
+    let (old, old_bytes, old_images) = collect(old_input, cache_dir, options, retain_inputs)?;
+    let (new, new_bytes, new_images) = collect(new_input, cache_dir, options, retain_inputs)?;
     let image_diff = match (old_images, new_images) {
         (Some(old), Some(new)) => {
             let comparison = compare_images(&old, &new).map_err(|error| error.to_string())?;
@@ -217,9 +216,12 @@ pub fn compare(
     )
     .map_err(|error| error.to_string())?;
     if !table_refinements.exhaustive {
-        comparison
-            .relation_unresolved
-            .push("counterpart table refinement search is incomplete".into());
+        comparison.retain_relation_unresolved(
+            pdfdelta_core::document::UnresolvedObligation::new(
+                pdfdelta_core::document::UnresolvedReason::CounterpartRefinementIncomplete,
+            ),
+            "counterpart table refinement search is incomplete",
+        );
     }
     let selected_nodes = pdfdelta_core::document::selected_nodes(
         &old_graph,
@@ -312,6 +314,50 @@ pub fn compare(
             serde_json::to_writer_pretty(writer, &report)
                 .map_err(|error| format!("cannot write document report: {error}"))
         })?;
+    }
+    if let Some(directory) = output.agent_review_dir {
+        let (Some(old_bytes), Some(new_bytes)) = (&old_bytes, &new_bytes) else {
+            return Err("review source bytes were not retained".into());
+        };
+        // The plan is projected from this run's own evidence, so its references
+        // point at the material this comparison actually examined.
+        let plan = pdfdelta_core::review::plan_shared_evidence(
+            &pdfdelta_core::review::SharedEvidenceReview {
+                identity: bundle_identity(
+                    old_bytes,
+                    new_bytes,
+                    &old,
+                    &new,
+                    &options.channels,
+                    output.limit_scale,
+                ),
+                outcome: engine_outcome(&report),
+                old: DocumentView {
+                    evidence: &old,
+                    graph: &old_graph,
+                },
+                new: DocumentView {
+                    evidence: &new,
+                    graph: &new_graph,
+                },
+                comparison: &report.comparison,
+                channels: &options.channels,
+            },
+            pdfdelta_core::review::PlannerLimits::default(),
+        );
+        crate::agent_review::write(
+            directory,
+            &plan,
+            crate::agent_review::SourceDocument {
+                name: old_input.path,
+                bytes: old_bytes,
+            },
+            crate::agent_review::SourceDocument {
+                name: new_input.path,
+                bytes: new_bytes,
+            },
+            &page_rasters(&old, &new),
+        )?;
     }
     if let Some(directory) = output.review_dir {
         let (Some(old_bytes), Some(new_bytes)) = (old_bytes, new_bytes) else {
@@ -447,6 +493,115 @@ pub fn compare(
         ],
     );
     Ok((if !complete { 3 } else { u8::from(changes > 0) }, !complete))
+}
+
+/// The composited page rasters this run retained, ready to publish.
+///
+/// These are the samples the comparison examined, in the profile the renderer
+/// declared; nothing is re-rendered for the bundle.
+fn page_rasters<'a>(
+    old: &'a EvidenceStore,
+    new: &'a EvidenceStore,
+) -> Vec<crate::agent_review::PageRaster<'a>> {
+    use pdfdelta_core::review::Side;
+
+    let mut rasters = Vec::new();
+    for (side, store) in [(Side::Old, old), (Side::New, new)] {
+        for region in store
+            .rendered
+            .iter()
+            .filter(|region| region.composited_page)
+        {
+            let backend = store.backends.get(region.backend).map_or_else(
+                || "unknown".to_owned(),
+                |backend| format!("{}/{}/{}", backend.name, backend.version, backend.profile),
+            );
+            rasters.push(crate::agent_review::PageRaster {
+                side,
+                page: region.page,
+                page_bounds: store
+                    .pages
+                    .iter()
+                    .find(|page| page.page == region.page)
+                    .and_then(|page| page.bounds)
+                    .map(|bounds| [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]),
+                width: region.raster.width,
+                height: region.raster.height,
+                rgb: &region.raster.rgb,
+                backend,
+            });
+        }
+    }
+    rasters
+}
+
+/// The engine's own verdict, copied for the bundle without recomputation.
+fn engine_outcome(report: &DocumentReport<'_>) -> pdfdelta_core::review::EngineOutcome {
+    use pdfdelta_core::review::{EngineOutcome, EngineStatus};
+
+    EngineOutcome {
+        status: if report.comparison_complete {
+            if report.typed_changes > 0 {
+                EngineStatus::CompleteChanged
+            } else {
+                EngineStatus::CompleteUnchanged
+            }
+        } else {
+            EngineStatus::Incomplete
+        },
+        comparison_complete: report.comparison_complete,
+        typed_changes: report.typed_changes,
+        inferred_changes: report.inferred_changes,
+        scope_content_changes: report.scope_content_changes,
+        inferred_scope_changes: report.inferred_scope_changes,
+    }
+}
+
+/// Binds a bundle to its inputs, its evidence selection, and this run's
+/// evidence snapshot. Wall-clock time and durations are deliberately excluded.
+fn bundle_identity(
+    old_bytes: &[u8],
+    new_bytes: &[u8],
+    old: &EvidenceStore,
+    new: &EvidenceStore,
+    channels: &BTreeSet<Channel>,
+    limit_scale: f64,
+) -> pdfdelta_core::review::BundleIdentity {
+    use sha2::{Digest, Sha256};
+
+    let digest = |bytes: &[u8]| crate::fs::lowercase_hex(&Sha256::digest(bytes));
+    let backend = |identity: &BackendIdentity| {
+        format!(
+            "{}/{}/{}",
+            identity.name, identity.version, identity.profile
+        )
+    };
+    pdfdelta_core::review::BundleIdentity {
+        policy_version: pdfdelta_core::review::POLICY_VERSION,
+        schema: pdfdelta_core::review::REVIEW_SCHEMA.into(),
+        old_sha256: digest(old_bytes),
+        new_sha256: digest(new_bytes),
+        old_bytes: old_bytes.len(),
+        new_bytes: new_bytes.len(),
+        options: format!(
+            "channels={};limit_scale={limit_scale}",
+            channels
+                .iter()
+                .map(|channel| format!("{channel:?}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        old_revision: old.revision.clone(),
+        new_revision: new.revision.clone(),
+        backends: old
+            .backends
+            .iter()
+            .chain(&new.backends)
+            .map(backend)
+            .collect(),
+        pipeline: pdfdelta_core::review::PipelineContract::SharedEvidence,
+        selected_channels: channels.clone(),
+    }
 }
 
 type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>, Option<ImageInventory>);

@@ -180,7 +180,17 @@ pub(super) fn apply<'a>(
     let old_sources = source_map(old, &mut remaining);
     let new_sources = source_map(new, &mut remaining);
     for scope in scopes {
-        for (index, comparison) in scope.comparisons.iter_mut().enumerate() {
+        // The scan holds a mutable borrow of the scope's comparisons, so
+        // scope-level obligations are recorded through their aligned fields.
+        let ScopeViewComparison {
+            comparisons,
+            unresolved,
+            obligations,
+            extraction_dependencies,
+            ..
+        } = scope;
+        let mut sink = super::UnresolvedSink::new(unresolved, obligations);
+        for (index, comparison) in comparisons.iter_mut().enumerate() {
             // Value and visual channels do not acquire native glyph-gap dependencies.
             if comparison
                 .old
@@ -208,16 +218,23 @@ pub(super) fn apply<'a>(
             comparison.operation = None;
             comparison.text_mask = None;
             comparison.compared = false;
-            let reason = if limited {
-                "extraction dependency search exceeded its work budget"
+            let (classified, reason) = if limited {
+                (
+                    super::UnresolvedReason::ExtractionDependencyBudget,
+                    "extraction dependency search exceeded its work budget",
+                )
             } else {
-                "text comparison crosses an unresolved extraction boundary"
+                (
+                    super::UnresolvedReason::ExtractionBoundary,
+                    "text comparison crosses an unresolved extraction boundary",
+                )
             };
-            comparison.unresolved.push(reason.into());
-            scope
-                .unresolved
-                .push(format!("local comparison {index}: {reason}"));
-            scope.extraction_dependencies.push(ExtractionDependency {
+            comparison.retain_unresolved(super::UnresolvedObligation::new(classified), reason);
+            sink.retain(
+                super::UnresolvedObligation::for_comparison(classified, index),
+                format!("local comparison {index}: {reason}"),
+            );
+            extraction_dependencies.push(ExtractionDependency {
                 comparison: index,
                 old_issues,
                 new_issues,
