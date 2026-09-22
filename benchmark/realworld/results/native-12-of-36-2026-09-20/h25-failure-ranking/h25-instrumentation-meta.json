@@ -1,0 +1,11 @@
+{
+  "patch": "h25-instrumentation.patch.gz",
+  "patch_sha256": "a7b21a042d84dbfdbeb311f55a830c67cf63b24e7f10023cbf6acd56826bd563",
+  "instrumented_source_sha256": "87430dcbc0cb8ecc8daad0f56e00cb8c8900234baa24d0bc9b0001920d628e8a",
+  "applies_to": "crates/pdfdelta-core/src/diff/assessment/views.rs at c67bdd99 (restored clean tree)",
+  "run3_binary_sha256": "6491e605977520b6 (instrumented, run3 flags probe)",
+  "run_command": "H23_TRACE_PATH=<trace> run-bounded.sh env PYTHONPATH=<uv site-packages> python3 capture.py target/release/pdfdelta <out> --pair nist-authentication-63b-to-63b4 --route native",
+  "row_cap": 4096,
+  "final_aggregate_file": "<trace>.final",
+  "first_failure_file": "<trace>.firstfail"
+}

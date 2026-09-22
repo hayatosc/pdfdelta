@@ -1,0 +1,31 @@
+{
+  "pair": "nist-authentication-63b-to-63b4",
+  "route": "native",
+  "limits": "default (32M, limit scale 1, 180s)",
+  "instrumented_binary_sha256": "6491e605977520b6b1becc875bd733065fe5ddcc5aac1120454182a5199af14c",
+  "report_sha256_run3": "6d89b1eb24a3bf7f521aea579a432ccec6360c56c61cbac9cfb78e76820bca4e",
+  "first_fail": "close_domain_single_incomplete",
+  "first_fail_work_remaining": 10339363,
+  "indexed_counters_at_first_fail": "all zero (discovery uses anchor path)",
+  "final_aggregate": "q_old=1526 q_new=1306 posting/view/visit/compare req==act matched=412867",
+  "single_incomplete_rows": 50,
+  "both_page_and_sig": 18,
+  "missing_page_or_sig": 32,
+  "old_whole": 6,
+  "new_whole": 5,
+  "trace_sha256": "85397fe6f008612550582d66ea8d892abeaff4ca88d2be2307f91eb0eabbfe12",
+  "scope_limits": [
+    "no budget exhaustion applies only to the traced first rejection and the instrumented indexed query counters at that point",
+    "later pipeline stages after the first refusal were not traced",
+    "the first refusal (old0..16/new323..339) is unrelated to the historical 845..1021/190..366 target; that target is still unbound",
+    "no claim that no sound missing proof exists anywhere: 32/50 flag rows lack page/signature data, 18/50 have page+signature but partial coverage; whether a native-order certificate exists for those is untested (H26)"
+  ],
+  "actual_production_patch": {
+    "file": "h25-production.patch.gz",
+    "sha256": "a63a6ca38b9975883f7f141150ae23fb3eb80e3d84192d590f359c7b617812d9",
+    "source": "/tmp/opencode/h25-instr-out/production.patch"
+  },
+  "production_archive_sha256": "699b3cd835ad4b07f003ffd9afd92b7cd6da1c5fbab401c440abd5269926cdd0",
+  "summary_json_sha256": "a39f69d9349fe89f2edb945a10866d37247f75b79ad0987476b0511a66a2ba4b",
+  "runs_json_sha256": "3c6560e35d590a70ee29427a3a9c8366e02e7c2f209967a272a020a5040f53c8"
+}
