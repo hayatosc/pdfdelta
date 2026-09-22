@@ -1,0 +1,805 @@
+{
+  "source": {
+    "capture": "h27-native-order-full-iteration-013-native",
+    "head": "7592503165c6453b599d8c9ea6c506baba7b4238",
+    "binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981",
+    "diff_sha256": "6fc41176c6d58d76a1725fa0bc8467da6ca987d78376cb7dbb346fdda47d22d4"
+  },
+  "complete_pairs": [
+    "irs-schedule-se-2024-to-2025",
+    "faa-thunderstorms-b-to-c",
+    "bunka-kana-1946-to-1986"
+  ],
+  "ranking": [
+    {
+      "pair": "faa-maintenance-records-c-to-d",
+      "unresolved": 3,
+      "candidates": 3,
+      "changes": 566,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        62117
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 0,
+        "old_only": 0,
+        "new_only": 3
+      },
+      "cause_family": "source_alternative",
+      "cause_detail": "H3 joined-vs-split remains a source alternative; H18 found no sufficient certificate in a small sample only",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "irs-schedule-c-2024-to-2025",
+      "unresolved": 19,
+      "candidates": 4,
+      "changes": 11,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        6619,
+        6634
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 1,
+        "old_only": 9,
+        "new_only": 9
+      },
+      "cause_family": "order_and_edit_decomposition",
+      "cause_detail": "H6 double obstacle: unsupported promotion of untrusted order + competing edit decompositions (rows 126/129/133, block 228)",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nasa-buckling-8007-1968-to-2020",
+      "unresolved": 29,
+      "candidates": 29,
+      "changes": 2628,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        232548
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 0,
+        "old_only": 0,
+        "new_only": 29
+      },
+      "cause_family": "source_alternative",
+      "cause_detail": "same family as FAA; old side has no native text",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "irs-1099-misc-2024-to-2025",
+      "unresolved": 110,
+      "candidates": 2,
+      "changes": 12,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        8228,
+        8224
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 1,
+        "old_only": 55,
+        "new_only": 54
+      },
+      "cause_family": "one_sided_ownership",
+      "cause_detail": "109/110 regions one-sided; one large two-sided span 0..2085/0..1961",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "irs-w2-2024-to-2025",
+      "unresolved": 212,
+      "candidates": 6,
+      "changes": 13,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        14471,
+        14471
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 4,
+        "old_only": 104,
+        "new_only": 104
+      },
+      "cause_family": "one_sided_ownership",
+      "cause_detail": "208/212 regions one-sided; ownership/order family",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "irs-w4-english-2024-to-2025",
+      "unresolved": 485,
+      "candidates": 57,
+      "changes": 15,
+      "proven_changed_regions": 3,
+      "resolved_old_new": [
+        9044,
+        9633
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "irs-w9-2018-to-2024",
+      "unresolved": 570,
+      "candidates": 76,
+      "changes": 56,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        16952,
+        16889
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-sha-1803-to-1804",
+      "unresolved": 704,
+      "candidates": 148,
+      "changes": 57,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        19596,
+        19632
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "unresolved": 771,
+      "candidates": 80,
+      "changes": 65,
+      "proven_changed_regions": 21,
+      "resolved_old_new": [
+        24753,
+        24887
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "edpb-social-targeting-v1-to-v2",
+      "unresolved": 896,
+      "candidates": 98,
+      "changes": 2,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        5151,
+        5150
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-controls-53-r4-to-r5",
+      "unresolved": 904,
+      "candidates": 273,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "arxiv-bert-v1-to-v2",
+      "unresolved": 950,
+      "candidates": 221,
+      "changes": 29,
+      "proven_changed_regions": 1,
+      "resolved_old_new": [
+        9131,
+        9147
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-ai-rmf-draft2-to-v1",
+      "unresolved": 1331,
+      "candidates": 7,
+      "changes": 68,
+      "proven_changed_regions": 105,
+      "resolved_old_new": [
+        11724,
+        11644
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "unresolved": 1590,
+      "candidates": 398,
+      "changes": 94,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        16642,
+        16566
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "mext-upper-secondary-japanese-2009-to-2018",
+      "unresolved": 1604,
+      "candidates": 24,
+      "changes": 155,
+      "proven_changed_regions": 3,
+      "resolved_old_new": [
+        13042,
+        13039
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "arxiv-mask-rcnn-v1-to-v3",
+      "unresolved": 1776,
+      "candidates": 186,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "unresolved": 1846,
+      "candidates": 130,
+      "changes": 48,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        70450,
+        70676
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "arxiv-gpt3-v1-to-v4",
+      "unresolved": 2725,
+      "candidates": 226,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "bunka-official-writing-1952-to-2022",
+      "unresolved": 2726,
+      "candidates": 814,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "arxiv-llama2-v1-to-v2",
+      "unresolved": 3014,
+      "candidates": 147,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-ssdf-draft-to-final",
+      "unresolved": 4108,
+      "candidates": 1154,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-risk-assessment-30-to-r1",
+      "unresolved": 4281,
+      "candidates": 1350,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": {
+        "two_sided": 0,
+        "old_only": 32,
+        "new_only": 4249
+      },
+      "cause_family": "one_sided_ownership",
+      "cause_detail": "4249 new-only regions; old side resolves zero tokens",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-incident-handling-r2-to-r3",
+      "unresolved": 5237,
+      "candidates": 1839,
+      "changes": 14,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        2650,
+        2655
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 17,
+        "old_only": 3307,
+        "new_only": 1913
+      },
+      "cause_family": "one_sided_ownership",
+      "cause_detail": "3307 old-only + 1913 new-only vs 17 two-sided",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-authentication-63b-to-63b4",
+      "unresolved": 5588,
+      "candidates": 1921,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        15982,
+        15981
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-contingency-34-to-r1",
+      "unresolved": 5755,
+      "candidates": 1791,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "mext-primary-japanese-2008-to-2017",
+      "unresolved": 7054,
+      "candidates": 1,
+      "changes": 92,
+      "proven_changed_regions": 29,
+      "resolved_old_new": [
+        6171,
+        6229
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "mext-lower-secondary-japanese-2008-to-2017",
+      "unresolved": 8037,
+      "candidates": 6,
+      "changes": 56,
+      "proven_changed_regions": 29,
+      "resolved_old_new": [
+        2603,
+        2814
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "nist-risk-management-37-r1-to-r2",
+      "unresolved": 9688,
+      "candidates": 3669,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "ecb-annual-2023-to-2024",
+      "unresolved": 15988,
+      "candidates": 4416,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        true
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "unclassified",
+      "cause_detail": "not probed",
+      "unresolved_reasons": {}
+    },
+    {
+      "pair": "ipcc-synthesis-ar5-to-ar6",
+      "unresolved": 22,
+      "candidates": 2,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        true,
+        false
+      ],
+      "unresolved_extraction_issues": 0,
+      "unsupported_extraction_issues": 1,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "no_native_text",
+      "cause_detail": "both sides resolve zero tokens",
+      "unresolved_reasons": {
+        "unsupported": 1
+      }
+    },
+    {
+      "pair": "arxiv-faster-rcnn-v1-to-v3",
+      "unresolved": 34,
+      "candidates": 9,
+      "changes": 20,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        1181,
+        1218
+      ],
+      "extraction_complete": [
+        false,
+        false
+      ],
+      "unresolved_extraction_issues": 2,
+      "unsupported_extraction_issues": 2,
+      "difference_status": "detected",
+      "anatomy": null,
+      "cause_family": "intrinsic_extraction_refusal",
+      "cause_detail": "unsupported clipping and unresolved extraction issues",
+      "unresolved_reasons": {
+        "unresolved": 2,
+        "unsupported": 2
+      }
+    },
+    {
+      "pair": "arxiv-ddpm-v1-to-v2",
+      "unresolved": 122,
+      "candidates": 36,
+      "changes": 35,
+      "proven_changed_regions": 8,
+      "resolved_old_new": [
+        15384,
+        15382
+      ],
+      "extraction_complete": [
+        false,
+        false
+      ],
+      "unresolved_extraction_issues": 2,
+      "unsupported_extraction_issues": 0,
+      "difference_status": "detected",
+      "anatomy": {
+        "two_sided": 115,
+        "old_only": 0,
+        "new_only": 7
+      },
+      "cause_family": "extraction_prerequisite",
+      "cause_detail": "2 unresolved clipping-uncertainty issues; both sides incomplete; ~68k uncovered tokens",
+      "unresolved_reasons": {
+        "unresolved": 2
+      }
+    },
+    {
+      "pair": "mhlw-care-skills-original-to-revised",
+      "unresolved": 265,
+      "candidates": 29,
+      "changes": 0,
+      "proven_changed_regions": 0,
+      "resolved_old_new": [
+        0,
+        0
+      ],
+      "extraction_complete": [
+        false,
+        false
+      ],
+      "unresolved_extraction_issues": 13,
+      "unsupported_extraction_issues": 2,
+      "difference_status": "indeterminate",
+      "anatomy": null,
+      "cause_family": "no_native_text",
+      "cause_detail": "both sides resolve zero tokens",
+      "unresolved_reasons": {
+        "unsupported": 2,
+        "unresolved": 13
+      }
+    }
+  ],
+  "decision": {
+    "hypothesis": "arxiv-ddpm two-sided spans hide a local missing premise",
+    "verdict": "falsified: 2 unresolved clipping-uncertainty extraction issues, both sides incomplete, ~68k uncovered tokens; an order/consumer change cannot complete it",
+    "chosen_next_measurement": "bind one old-only and one new-only unresolved region of irs-w2 (fully extracted, 212 regions, 208 one-sided) to exact blocks and trace the guard that leaves one-sided regions unresolved instead of proven insertions/deletions",
+    "beneficiaries_if_family_fix_exists": [
+      "irs-w2-2024-to-2025",
+      "irs-1099-misc-2024-to-2025",
+      "irs-schedule-c-2024-to-2025"
+    ],
+    "acceptance": [
+      "no prior-resolved loss",
+      "established changes preserved",
+      "audited gains explained",
+      "full36 capture required",
+      "no production trust/predicate change before the measured mechanism"
+    ],
+    "rejected_priors": {
+      "H3": "FAA/NASA join-vs-split remains a source alternative",
+      "H6": "unsupported order promotion plus competing edit decompositions",
+      "H18": "no sufficient certificate in the sampled blocks only (incomplete inventory); not an absence proof"
+    }
+  }
+}
