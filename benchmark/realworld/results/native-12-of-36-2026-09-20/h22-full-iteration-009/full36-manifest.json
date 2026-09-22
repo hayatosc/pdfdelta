@@ -1,0 +1,857 @@
+{
+  "version": 1,
+  "capture": "h22-full-iteration-009-native",
+  "binary_sha256": "3e24da968876782640438e5d119f18b98f8711bc318e1ebe0244be9f5d69173a",
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "identical_whole_reports": [
+    "arxiv-ddpm-v1-to-v2",
+    "arxiv-faster-rcnn-v1-to-v3",
+    "arxiv-gpt3-v1-to-v4",
+    "arxiv-llama2-v1-to-v2",
+    "bunka-kana-1946-to-1986",
+    "ecb-annual-2023-to-2024",
+    "faa-maintenance-records-c-to-d",
+    "faa-thunderstorms-b-to-c",
+    "ipcc-synthesis-ar5-to-ar6",
+    "mext-lower-secondary-japanese-2008-to-2017",
+    "mext-primary-japanese-2008-to-2017",
+    "mext-upper-secondary-japanese-2009-to-2018",
+    "mhlw-care-skills-original-to-revised",
+    "nasa-buckling-8007-1968-to-2020",
+    "nist-authentication-63b-to-63b4",
+    "nist-controls-53-r4-to-r5",
+    "nist-incident-handling-r2-to-r3",
+    "nist-risk-management-37-r1-to-r2",
+    "nist-ssdf-draft-to-final"
+  ],
+  "differing": [
+    "arxiv-bert-v1-to-v2",
+    "arxiv-mask-rcnn-v1-to-v3",
+    "bunka-official-writing-1952-to-2022",
+    "edpb-controller-processor-v1-to-v2-1",
+    "edpb-design-default-v1-to-v2",
+    "edpb-restrictions-v1-to-final",
+    "edpb-social-targeting-v1-to-v2",
+    "irs-1099-misc-2024-to-2025",
+    "irs-schedule-c-2024-to-2025",
+    "irs-schedule-se-2024-to-2025",
+    "irs-w2-2024-to-2025",
+    "irs-w4-english-2024-to-2025",
+    "irs-w9-2018-to-2024",
+    "nist-ai-rmf-draft2-to-v1",
+    "nist-contingency-34-to-r1",
+    "nist-risk-assessment-30-to-r1",
+    "nist-sha-1803-to-1804"
+  ],
+  "metrics": {
+    "arxiv-bert-v1-to-v2": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 8568,
+          "total_tokens": 53808,
+          "ratio": 0.1592328278322926
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 8584,
+          "total_tokens": 62867,
+          "ratio": 0.13654222406031782
+        },
+        "unresolved_regions": 951,
+        "tentative_candidates": 222,
+        "content_changes": 22,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 6133,
+          "total_tokens": 53808,
+          "ratio": 0.11397933392804044
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 6133,
+          "total_tokens": 62867,
+          "ratio": 0.09755515612324431
+        },
+        "unresolved_regions": 723,
+        "tentative_candidates": 228,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "arxiv-mask-rcnn-v1-to-v3": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 45920,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 59997,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 1776,
+        "tentative_candidates": 186,
+        "content_changes": 0,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 45920,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 59997,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 1776,
+        "tentative_candidates": 186,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "bunka-official-writing-1952-to-2022": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 5709,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 67376,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 2726,
+        "tentative_candidates": 814,
+        "content_changes": 0,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 5709,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 67376,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 2726,
+        "tentative_candidates": 814,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "edpb-controller-processor-v1-to-v2-1": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 68765,
+          "total_tokens": 153416,
+          "ratio": 0.4482257391667101
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 68925,
+          "total_tokens": 174613,
+          "ratio": 0.3947300601902493
+        },
+        "unresolved_regions": 1895,
+        "tentative_candidates": 145,
+        "content_changes": 15,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 153416,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 174613,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 3160,
+        "tentative_candidates": 150,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "edpb-design-default-v1-to-v2": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 16159,
+          "total_tokens": 81344,
+          "ratio": 0.1986501770259638
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 16084,
+          "total_tokens": 94542,
+          "ratio": 0.17012544689132872
+        },
+        "unresolved_regions": 1598,
+        "tentative_candidates": 399,
+        "content_changes": 90,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 81344,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 94542,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 1755,
+        "tentative_candidates": 460,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "edpb-restrictions-v1-to-final": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 24745,
+          "total_tokens": 53297,
+          "ratio": 0.46428504418635197
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 24878,
+          "total_tokens": 56965,
+          "ratio": 0.43672430439743704
+        },
+        "unresolved_regions": 779,
+        "tentative_candidates": 80,
+        "content_changes": 63,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 53297,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 56965,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 1234,
+        "tentative_candidates": 110,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "edpb-social-targeting-v1-to-v2": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 5151,
+          "total_tokens": 139608,
+          "ratio": 0.036896166408801785
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 5150,
+          "total_tokens": 146052,
+          "ratio": 0.03526141374305042
+        },
+        "unresolved_regions": 896,
+        "tentative_candidates": 98,
+        "content_changes": 2,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 5151,
+          "total_tokens": 139608,
+          "ratio": 0.036896166408801785
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 5150,
+          "total_tokens": 146052,
+          "ratio": 0.03526141374305042
+        },
+        "unresolved_regions": 896,
+        "tentative_candidates": 98,
+        "content_changes": 2,
+        "comparison_complete": false
+      }
+    },
+    "irs-1099-misc-2024-to-2025": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 8228,
+          "total_tokens": 11018,
+          "ratio": 0.7467779996369577
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 8224,
+          "total_tokens": 10767,
+          "ratio": 0.7638153617535061
+        },
+        "unresolved_regions": 110,
+        "tentative_candidates": 2,
+        "content_changes": 12,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 8228,
+          "total_tokens": 11018,
+          "ratio": 0.7467779996369577
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 8224,
+          "total_tokens": 10767,
+          "ratio": 0.7638153617535061
+        },
+        "unresolved_regions": 110,
+        "tentative_candidates": 2,
+        "content_changes": 12,
+        "comparison_complete": false
+      }
+    },
+    "irs-schedule-c-2024-to-2025": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 6619,
+          "total_tokens": 6774,
+          "ratio": 0.9771183938588721
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 6634,
+          "total_tokens": 6780,
+          "ratio": 0.9784660766961651
+        },
+        "unresolved_regions": 19,
+        "tentative_candidates": 4,
+        "content_changes": 11,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 6619,
+          "total_tokens": 6774,
+          "ratio": 0.9771183938588721
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 6634,
+          "total_tokens": 6780,
+          "ratio": 0.9784660766961651
+        },
+        "unresolved_regions": 19,
+        "tentative_candidates": 4,
+        "content_changes": 11,
+        "comparison_complete": false
+      }
+    },
+    "irs-schedule-se-2024-to-2025": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 5485,
+          "total_tokens": 5485,
+          "ratio": 1.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 5502,
+          "total_tokens": 5502,
+          "ratio": 1.0
+        },
+        "unresolved_regions": 0,
+        "tentative_candidates": 0,
+        "content_changes": 12,
+        "comparison_complete": true
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 5485,
+          "total_tokens": 5485,
+          "ratio": 1.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 5502,
+          "total_tokens": 5502,
+          "ratio": 1.0
+        },
+        "unresolved_regions": 0,
+        "tentative_candidates": 0,
+        "content_changes": 12,
+        "comparison_complete": true
+      }
+    },
+    "irs-w2-2024-to-2025": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 14471,
+          "total_tokens": 20495,
+          "ratio": 0.7060746523542327
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 14471,
+          "total_tokens": 20588,
+          "ratio": 0.702885175830581
+        },
+        "unresolved_regions": 212,
+        "tentative_candidates": 6,
+        "content_changes": 13,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 14471,
+          "total_tokens": 20495,
+          "ratio": 0.7060746523542327
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 14471,
+          "total_tokens": 20588,
+          "ratio": 0.702885175830581
+        },
+        "unresolved_regions": 212,
+        "tentative_candidates": 6,
+        "content_changes": 13,
+        "comparison_complete": false
+      }
+    },
+    "irs-w4-english-2024-to-2025": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 8817,
+          "total_tokens": 19987,
+          "ratio": 0.44113673888027216
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 9406,
+          "total_tokens": 21144,
+          "ratio": 0.44485433219825954
+        },
+        "unresolved_regions": 491,
+        "tentative_candidates": 57,
+        "content_changes": 15,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 5947,
+          "total_tokens": 19987,
+          "ratio": 0.29754340321208783
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 6536,
+          "total_tokens": 21144,
+          "ratio": 0.30911842603102535
+        },
+        "unresolved_regions": 345,
+        "tentative_candidates": 60,
+        "content_changes": 2,
+        "comparison_complete": false
+      }
+    },
+    "irs-w9-2018-to-2024": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 16740,
+          "total_tokens": 34865,
+          "ratio": 0.48013767388498496
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 16679,
+          "total_tokens": 37481,
+          "ratio": 0.4449987993916918
+        },
+        "unresolved_regions": 587,
+        "tentative_candidates": 76,
+        "content_changes": 55,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 15477,
+          "total_tokens": 34865,
+          "ratio": 0.4439122328983221
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 15467,
+          "total_tokens": 37481,
+          "ratio": 0.4126624156239161
+        },
+        "unresolved_regions": 640,
+        "tentative_candidates": 80,
+        "content_changes": 25,
+        "comparison_complete": false
+      }
+    },
+    "nist-ai-rmf-draft2-to-v1": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 11724,
+          "total_tokens": 86069,
+          "ratio": 0.1362162915800114
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 11644,
+          "total_tokens": 105449,
+          "ratio": 0.11042304810856433
+        },
+        "unresolved_regions": 1331,
+        "tentative_candidates": 7,
+        "content_changes": 68,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 86069,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 105449,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 765,
+        "tentative_candidates": 9,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "nist-contingency-34-to-r1": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 1271,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 387499,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 5755,
+        "tentative_candidates": 1791,
+        "content_changes": 0,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 1271,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 387499,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 5755,
+        "tentative_candidates": 1791,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "nist-risk-assessment-30-to-r1": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 1164,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 318399,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 4281,
+        "tentative_candidates": 1350,
+        "content_changes": 0,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 1164,
+          "ratio": 0.0
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 0,
+          "total_tokens": 318399,
+          "ratio": 0.0
+        },
+        "unresolved_regions": 4281,
+        "tentative_candidates": 1350,
+        "content_changes": 0,
+        "comparison_complete": false
+      }
+    },
+    "nist-sha-1803-to-1804": {
+      "new": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 17436,
+          "total_tokens": 43483,
+          "ratio": 0.4009842927120944
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 17457,
+          "total_tokens": 48011,
+          "ratio": 0.36360417404344836
+        },
+        "unresolved_regions": 746,
+        "tentative_candidates": 151,
+        "content_changes": 24,
+        "comparison_complete": false
+      },
+      "full008": {
+        "old_alignment_coverage": {
+          "resolved_tokens": 5946,
+          "total_tokens": 43483,
+          "ratio": 0.1367430950026447
+        },
+        "new_alignment_coverage": {
+          "resolved_tokens": 5944,
+          "total_tokens": 48011,
+          "ratio": 0.12380496136302098
+        },
+        "unresolved_regions": 1013,
+        "tentative_candidates": 155,
+        "content_changes": 6,
+        "comparison_complete": false
+      }
+    }
+  },
+  "retention_audits": {
+    "arxiv-bert-v1-to-v2": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        2435,
+        2451
+      ],
+      "review": [],
+      "problems": []
+    },
+    "arxiv-mask-rcnn-v1-to-v3": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "bunka-official-writing-1952-to-2022": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "edpb-controller-processor-v1-to-v2-1": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        68765,
+        68925
+      ],
+      "review": [],
+      "problems": []
+    },
+    "edpb-design-default-v1-to-v2": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        16159,
+        16084
+      ],
+      "review": [],
+      "problems": []
+    },
+    "edpb-restrictions-v1-to-final": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        24745,
+        24878
+      ],
+      "review": [],
+      "problems": []
+    },
+    "edpb-social-targeting-v1-to-v2": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "irs-1099-misc-2024-to-2025": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "irs-schedule-c-2024-to-2025": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "irs-schedule-se-2024-to-2025": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "irs-w2-2024-to-2025": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "irs-w4-english-2024-to-2025": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        2870,
+        2870
+      ],
+      "review": [],
+      "problems": []
+    },
+    "irs-w9-2018-to-2024": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        1263,
+        1212
+      ],
+      "review": [],
+      "problems": []
+    },
+    "nist-ai-rmf-draft2-to-v1": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        11724,
+        11644
+      ],
+      "review": [],
+      "problems": []
+    },
+    "nist-contingency-34-to-r1": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "nist-risk-assessment-30-to-r1": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        0,
+        0
+      ],
+      "review": [],
+      "problems": []
+    },
+    "nist-sha-1803-to-1804": {
+      "retention": "pass",
+      "prior_resolved_lost": [
+        0,
+        0
+      ],
+      "newly_resolved": [
+        11490,
+        11513
+      ],
+      "review": [],
+      "problems": []
+    }
+  },
+  "source_bindings": {
+    "views_rs_sha256": "e86cd2acdf7e5c8c011555fc421497a67be330646a40df4cdeb9086376eac479",
+    "anchors_rs_sha256": "00b1a2be3eb2ee59261b2913b23aa37eb289aa7a4fc6b69b29ddf8488f9c5823",
+    "h22_source_archive_sha256": "1c312279e1377745cede6108302fcdacdb2a88d5ab13b881901a3f833412267c",
+    "h22_production_patch_sha256": "b6d486cc83c54f673330c5cef140231291f1993826c8e16167ac8ce60768b3c4",
+    "summary_sha256": "a48f92302c9c91a4cc839d4a208f3a69d8043e6952f7dbfe4a400a584c033645",
+    "gates_meta_sha256": "96e0960c091db406c18676f7dda6f4a728121ac8f2743b3ffb2037c9bc27e01f"
+  }
+}

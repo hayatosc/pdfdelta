@@ -214,8 +214,9 @@ pub(super) fn discover(
             .or_default()
             .push(anchor);
     }
+    h20diag_trace("seeds_done", *remaining_work, &format!("pair_anchors={}", pair_anchors.values().map(Vec::len).sum::<usize>()));
     let mut needle_owned: Vec<(usize, Vec<ComparableToken>)> = Vec::new();
-    let mut retained_bytes = 0usize;
+    let mut retained_tokens = 0usize;
     let mut overflow_from = None;
     for (input_index, (old_anchor, new_anchor)) in exact_anchors.iter().enumerate() {
         let Some(old_tokens) = anchor_tokens(old_anchor, remaining_work, issue_cache.side(0))?
@@ -239,26 +240,18 @@ pub(super) fn discover(
         if old_tokens != new_tokens {
             continue;
         }
-        if !charge(remaining_work, new_tokens.len()) {
-            return Ok(Discovery::default());
-        }
-        let capacity = new_tokens.capacity();
-        let Some(query_bytes) = explicit_anchor_retained_bytes(&new_tokens, capacity, 1) else {
+        let Some(total) = retained_tokens.checked_add(new_tokens.len()) else {
             overflow_from = Some(input_index);
             break;
         };
-        let Some(total) = retained_bytes.checked_add(query_bytes) else {
-            overflow_from = Some(input_index);
-            break;
-        };
-        if total > EXPLICIT_ANCHOR_RETAINED_LIMIT {
+        if !explicit_anchor_retention_allows(total, needle_owned.len() + 1) {
             overflow_from = Some(input_index);
             break;
         }
         if needle_owned.try_reserve(1).is_err() {
             return Err(super::allocation_error("explicit anchor needles"));
         }
-        retained_bytes = total;
+        retained_tokens = total;
         needle_owned.push((input_index, new_tokens));
     }
     let mut needles: Vec<(usize, &[ComparableToken])> = Vec::new();
@@ -270,6 +263,9 @@ pub(super) fn discover(
             .iter()
             .map(|(i, tokens)| (*i, tokens.as_slice())),
     );
+    h20diag_trace("needles_prepared", *remaining_work,
+        &format!("queries={} retained_tokens={retained_tokens} overflow_from={overflow_from:?}", needles.len()));
+    h20diag_trace("batch_call", *remaining_work, "");
     let Some(matches) = anchors::search_explicit_anchors(
         [&old_views, &new_views],
         &needles,
@@ -277,8 +273,10 @@ pub(super) fn discover(
         remaining_work,
     )?
     else {
+        h20diag_trace("batch_none", *remaining_work, "");
         return Ok(Discovery::default());
     };
+    h20diag_trace("batch_ok", *remaining_work, &format!("matches={}", matches.len()));
     for (input_index, old_occurrences, new_occurrences) in matches {
         let (Some(old_occurrence), Some(new_occurrence)) = (
             unique_occurrence(old_occurrences),
@@ -313,6 +311,8 @@ pub(super) fn discover(
                 new_end: new_occurrence.end,
             });
     }
+    h20diag_trace("explicit_matches_added", *remaining_work,
+        &format!("pair_anchors={}", pair_anchors.values().map(Vec::len).sum::<usize>()));
     if let Some(from) = overflow_from {
         // Bounded fallback: process the remaining anchors with the existing KMP
         // search instead of retaining unbounded needle memory.
@@ -377,9 +377,13 @@ pub(super) fn discover(
         }
     }
 
+    h20diag_trace("source_end_call", *remaining_work, "");
     if !add_source_end_anchors([&old_views, &new_views], &mut pair_anchors, remaining_work)? {
+        h20diag_trace("source_end_fail", *remaining_work, "");
         return Ok(Discovery::default());
     }
+    h20diag_trace("source_end_ok", *remaining_work,
+        &format!("pair_anchors={}", pair_anchors.values().map(Vec::len).sum::<usize>()));
 
     let mut exact_domains = Vec::new();
     for anchor in pair_anchors
@@ -408,8 +412,10 @@ pub(super) fn discover(
         });
     }
     let Some(chains) = ordered_chains(pair_anchors, remaining_work, max_ranges) else {
+        h20diag_trace("ordered_chains_fail", *remaining_work, "");
         return Ok(Discovery::default());
     };
+    h20diag_trace("ordered_chains_ok", *remaining_work, &format!("chains={}", chains.len()));
     let mut domains = Vec::new();
     let mut domain_anchors = Vec::new();
     for mut anchors in chains {
@@ -494,12 +500,16 @@ pub(super) fn discover(
             ));
         }
     }
+    h20diag_trace("close_loop_done", *remaining_work, &format!("domains={}", domains.len()));
     let Some(competing) = competing_domains(sides, &domains, remaining_work, max_ranges)? else {
+        h20diag_trace("competing_fail", *remaining_work, "");
         return Ok(Discovery::default());
     };
+    h20diag_trace("competing_ok", *remaining_work, &format!("competing={}", competing.len()));
     // Competition is checked on complete chains before adjacent comparisons
     // share their already verified equal anchors. A difficult gap must not
     // invalidate a separate gap whose boundaries and localization are exact.
+    h20diag_trace("localization_call", *remaining_work, &format!("domains={}", domains.len()));
     let mut localized = Vec::new();
     for (index, ((key, domain), anchors)) in domains.into_iter().zip(domain_anchors).enumerate() {
         if competing.contains(&index) {
@@ -521,6 +531,7 @@ pub(super) fn discover(
                 )
             {
                 *remaining_work = 0;
+                h20diag_trace("localization_fail", *remaining_work, &format!("localized={}", localized.len()));
                 return Ok(Discovery::default());
             }
             let old_span = old_views[pair[0].old_view]
@@ -544,7 +555,9 @@ pub(super) fn discover(
     // exhausted budget drops only its own unproven additions; the completed
     // anchor domains and exact anchors are kept, and the caller records the
     // work limit from the shared budget.
-    let _positioned_complete = positioned_equalities(
+    h20diag_trace("localization_done", *remaining_work, &format!("localized={} exact_domains={}", localized.len(), exact_domains.len()));
+    h20diag_trace("positioned_call", *remaining_work, &format!("localized={}", localized.len()));
+    let positioned_complete = positioned_equalities(
         sides,
         [&old_views, &new_views],
         remaining_work,
@@ -552,8 +565,12 @@ pub(super) fn discover(
         max_ranges,
         &mut issue_cache,
     )?;
+    h20diag_trace("positioned_done", *remaining_work,
+        &format!("complete={positioned_complete} localized={}", localized.len()));
     localized.sort_unstable_by_key(|(key, _)| *key);
     localized.truncate(max_ranges);
+    h20diag_trace("discover_return", *remaining_work,
+        &format!("domains={} anchors={}", localized.len(), exact_domains.len()));
     Ok(Discovery {
         domains: localized.into_iter().map(|(_, domain)| domain).collect(),
         anchors: exact_domains,
@@ -683,106 +700,14 @@ const MAX_POSITIONED_POSTING_BYTES: usize = 64 * 1024 * 1024;
 /// The optional positioned pass otherwise rescans every start of every view
 /// for every needle; the index lists exactly the starts a first-token
 /// prefilter would accept, in the same `(view, start)` order, which is exact
-/// for the equal-token mode. Only precheck refusals leave the shared remainder
-/// untouched; failures after the count phase has started keep the work actually
-/// spent. Callers keep the scanning path on any refusal.
+/// for the equal-token mode. Builds that cannot be charged or bounded return
+/// `None` without touching the shared remainder, so callers keep the scanning
+/// path.
 pub(super) struct TokenPostings<'a> {
     map: HashMap<&'a ComparableToken, Vec<(u32, u32)>>,
 }
 
-/// Conservative full bound for the compact postings build: posting pairs
-/// (amortized growth), both hash maps' rounded bucket capacities and their
-/// control/hash overhead, and one list header per distinct key.
-fn compact_postings_bound(distinct: usize, total: usize) -> Option<usize> {
-    let buckets = distinct.checked_mul(2)?.checked_next_power_of_two()?;
-    let key_bytes = std::mem::size_of::<(&ComparableToken, u32)>().checked_add(24)?;
-    let pair_bytes = std::mem::size_of::<(&ComparableToken, Vec<(u32, u32)>)>().checked_add(16)?;
-    let list_bytes = std::mem::size_of::<Vec<(u32, u32)>>().checked_add(16)?;
-    total
-        .checked_mul(std::mem::size_of::<(u32, u32)>())?
-        .checked_mul(2)?
-        .checked_add(buckets.checked_mul(key_bytes)?)?
-        .checked_add(buckets.checked_mul(pair_bytes)?)?
-        .checked_add(distinct.checked_mul(list_bytes)?)
-}
-
 impl<'a> TokenPostings<'a> {
-    fn build_compact(views: &'a [View], remaining: &mut usize, limit_bytes: usize) -> Option<Self> {
-        let mut total = 0usize;
-        for view in views {
-            u32::try_from(view.group.tokens.len()).ok()?;
-            total = total.checked_add(view.group.tokens.len())?;
-        }
-        u32::try_from(total).ok()?;
-        let minimum = total
-            .checked_mul(std::mem::size_of::<(u32, u32)>())?
-            .checked_mul(2)?;
-        if minimum > limit_bytes {
-            return None;
-        }
-        let required = total.checked_mul(3)?.checked_add(1)?;
-        if *remaining < required {
-            return None;
-        }
-        let mut counts = HashMap::<&ComparableToken, u32>::new();
-        let mut distinct = 0usize;
-        for view in views {
-            for token in &view.group.tokens {
-                if !charge(remaining, 1) {
-                    return None;
-                }
-                if !counts.contains_key(token) {
-                    distinct = distinct.checked_add(1)?;
-                    let bound = compact_postings_bound(distinct, total)?;
-                    if bound > limit_bytes {
-                        return None;
-                    }
-                    if counts.try_reserve(1).is_err() {
-                        return None;
-                    }
-                    counts.insert(token, 0);
-                }
-                let count = counts.get_mut(token).expect("count inserted");
-                *count = count.checked_add(1)?;
-            }
-        }
-        if compact_postings_bound(distinct, total)? > limit_bytes {
-            return None;
-        }
-        let mut map = HashMap::<&ComparableToken, Vec<(u32, u32)>>::new();
-        if map.try_reserve(distinct).is_err() {
-            return None;
-        }
-        for (&token, &count) in &counts {
-            if !charge(remaining, 1) {
-                return None;
-            }
-            if map.try_reserve(1).is_err() {
-                return None;
-            }
-            let mut list = Vec::new();
-            if list
-                .try_reserve_exact(usize::try_from(count).ok()?)
-                .is_err()
-            {
-                return None;
-            }
-            map.insert(token, list);
-        }
-        drop(counts);
-        for (view_index, view) in views.iter().enumerate() {
-            let view_index = u32::try_from(view_index).ok()?;
-            for (start, token) in view.group.tokens.iter().enumerate() {
-                if !charge(remaining, 1) {
-                    return None;
-                }
-                let start = u32::try_from(start).ok()?;
-                map.get_mut(token)?.push((view_index, start));
-            }
-        }
-        Some(Self { map })
-    }
-
     fn build(views: &'a [View], remaining: &mut usize) -> Option<Self> {
         // Preflight every count and conversion before any charge or
         // allocation. A refused index leaves the shared remainder untouched so
@@ -799,6 +724,7 @@ impl<'a> TokenPostings<'a> {
         }
         let work = total.checked_mul(2)?.checked_add(1)?;
         if *remaining < work {
+            h20diag_trace("postings_refused_work", *remaining, &format!("needed={work} total={total}"));
             return None;
         }
         // Worst-case storage: postings with amortized growth, map buckets
@@ -821,12 +747,8 @@ impl<'a> TokenPostings<'a> {
                     .checked_mul(2)?,
             )?;
         if bytes > MAX_POSITIONED_POSTING_BYTES / 2 {
-            // The worst-case estimate exceeds the per-side budget while the
-            // compact two-pass build may still fit: count distinct borrowed
-            // keys first, then allocate exact posting capacities and fill in
-            // original (view, start) order. Preflight refusals keep the shared
-            // remainder untouched; failures after charging keep the spent work.
-            return Self::build_compact(views, remaining, MAX_POSITIONED_POSTING_BYTES / 2);
+            h20diag_trace("postings_refused_bytes", *remaining, &format!("bytes={bytes} limit={MAX_POSITIONED_POSTING_BYTES} total={total}"));
+            return None;
         }
         // Preflight passed: the index build performs the charged work, so an
         // allocation failure after this point keeps the charge while only a
@@ -900,24 +822,10 @@ fn positioned_occurrences_indexed(
                 return Ok(None);
             }
         }
-        // Charge one visit and each token comparison immediately before
-        // comparing, stopping at the first mismatch; a fully equal sequence
-        // still costs at least the retired full length plus one.
-        if !charge(remaining, 1) {
+        if !charge(remaining, needle.len().saturating_add(1)) {
             return Ok(None);
         }
-        let candidate = &tokens[start..start + needle.len()];
-        let mut matched = 0usize;
-        while matched < needle.len() {
-            if !charge(remaining, 1) {
-                return Ok(None);
-            }
-            if candidate[matched] != needle[matched] {
-                break;
-            }
-            matched += 1;
-        }
-        if matched != needle.len() {
+        if &tokens[start..start + needle.len()] != needle {
             continue;
         }
         if view_index == self_view && start == needle_range.start {
@@ -4452,6 +4360,7 @@ fn add_source_end_anchors(
             .zip(new.group.tokens.iter().rev())
         {
             if !charge(remaining, 1) {
+                h20diag_trace("source_end_charge_budget", *remaining, &format!("pair=({old_view},{new_view}) hits={}", hits.len()));
                 return Ok(false);
             }
             if old_token != new_token {
@@ -4480,7 +4389,10 @@ fn add_source_end_anchors(
         for side in 0..2 {
             occurrences[side] = match search_views(views[side], tokens, remaining)? {
                 SearchResult::Complete(summary) => unique_occurrence(summary),
-                SearchResult::BudgetExceeded => return Ok(false),
+                SearchResult::BudgetExceeded => {
+                    h20diag_trace("source_end_search_budget", *remaining, &format!("pair=({old_view},{new_view}) side={side} hits={}", hits.len()));
+                    return Ok(false);
+                }
             };
         }
         let [Some(old_end), Some(new_end)] = occurrences else {
@@ -4684,31 +4596,26 @@ fn anchor_tokens(
     Ok(Some(tokens))
 }
 
-/// Shared bound for retained explicit-anchor query state.
-///
-/// Covers the actual owned token vector capacity, every owned `Unmapped`
-/// font-program hash payload (which may be arbitrarily larger than the usual
-/// 32 bytes) and a conservative per-query metadata allowance (owner,
-/// reference, result, bucket and index entries). Any overflow fails closed and
-/// the producer keeps the bounded KMP fallback. Producer and batch admission
-/// use the same computation; the batch sees borrowed slices so its capacity is
-/// the slice length, which never exceeds the producer's retained capacity.
-pub(super) fn explicit_anchor_retained_bytes(
-    tokens: &[ComparableToken],
-    capacity: usize,
-    queries: usize,
-) -> Option<usize> {
+/// Shared bound for retained explicit-anchor query state: token payload plus
+/// a conservative per-query metadata allowance (owner, reference, result,
+/// bucket and index entries). Overflow keeps the bounded KMP fallback.
+pub(super) fn explicit_anchor_retention_allows(needle_tokens: usize, queries: usize) -> bool {
+    const EXTRA_BYTES: usize = 64 * 1024 * 1024;
     const PER_QUERY_BYTES: usize = 512;
-    let mut bytes = capacity.checked_mul(std::mem::size_of::<ComparableToken>())?;
-    for token in tokens {
-        if let ComparableToken::Unmapped { font_hash, .. } = token {
-            bytes = bytes.checked_add(font_hash.0.capacity())?;
-        }
-    }
-    bytes.checked_add(queries.checked_mul(PER_QUERY_BYTES)?)
+    let tokens_bytes = needle_tokens.saturating_mul(std::mem::size_of::<ComparableToken>());
+    let query_bytes = queries.saturating_mul(PER_QUERY_BYTES);
+    tokens_bytes.saturating_add(query_bytes) <= EXTRA_BYTES
 }
 
-pub(super) const EXPLICIT_ANCHOR_RETAINED_LIMIT: usize = 64 * 1024 * 1024;
+fn h20diag_trace(label: &str, work: usize, counts: &str) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    let Ok(path) = std::env::var("H20_TRACE_PATH") else { return };
+    if CALLS.fetch_add(1, Ordering::Relaxed) >= 256 { return; }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = std::io::Write::write_fmt(&mut file, format_args!("{label} work={work} {counts}\n"));
+    }
+}
 
 fn search_views(
     views: &[View],
@@ -5596,205 +5503,6 @@ mod tests {
         );
         assert_eq!(refuses, 0, "refusal must consume the remaining budget");
     }
-    #[test]
-    fn h21_compact_postings_fallback_orders_and_bounds() {
-        // 200k low-diversity tokens: the existing worst-case estimate exceeds
-        // the per-side bound while the compact build fits.
-        let big = "AB".repeat(100_000);
-        let blocks = vec![block(1, &big)];
-        let fixture_side = side(&blocks);
-        let intervals = [interval(1, 0, 1)];
-        let descriptors = [mixed_role_descriptor(1, 1)];
-        let mut work = 50_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
-        let mut build_work = 50_000_000;
-        let postings = TokenPostings::build(&views, &mut build_work).expect("compact path builds");
-        let a = crate::normalize::ComparableToken::Scalar('A');
-        let list = postings.map.get(&a).expect("A posting list");
-        let expected: Vec<(u32, u32)> = views[0]
-            .group
-            .tokens
-            .iter()
-            .enumerate()
-            .filter(|(_, token)| **token == a)
-            .map(|(index, _)| (0u32, index as u32))
-            .collect();
-        assert_eq!(
-            list, &expected,
-            "compact posting order matches scanner order"
-        );
-
-        // Memory preflight refusal keeps the remainder untouched.
-        let mut poor = 100usize;
-        assert!(TokenPostings::build(&views, &mut poor).is_none());
-        assert_eq!(poor, 100, "work precheck refusal keeps the remainder");
-        let mut memory_poor = 10_000usize;
-        assert!(
-            TokenPostings::build_compact(&views, &mut memory_poor, 8).is_none(),
-            "a limit below the minimum posting bytes refuses"
-        );
-        assert_eq!(memory_poor, 10_000, "memory precheck keeps the remainder");
-
-        // High-diversity post-count refusal with a small private limit keeps
-        // the work actually spent.
-        let diverse = vec![block(1, "abcdefghij")];
-        let diverse_side = side(&diverse);
-        let mut diverse_work = 5_000;
-        let diverse_views = build_views(
-            &diverse_side,
-            &intervals,
-            Some(&descriptors),
-            &mut diverse_work,
-        )
-        .expect("views build")
-        .expect("views available");
-        let mut limited = 10_000usize;
-        assert!(
-            TokenPostings::build_compact(&diverse_views, &mut limited, 400).is_none(),
-            "a limit between the minimum and full bound refuses distinct keys"
-        );
-        assert!(limited < 10_000, "post-count refusal keeps the spent work");
-    }
-
-    #[test]
-    fn h22_prefix_charging_equivalence_and_budget() {
-        // Eight early mismatches (cost 3 each), one late mismatch (cost 9) and
-        // one full match (cost 9); posting charge 11, first-view charge 8:
-        // 11 + 8 + 24 + 9 + 9 = 61 is the exact boundary.
-        let text = format!("{}{}{}", "ABxxxxxx".repeat(8), "ACDDDDDX", "ACDDDDDD");
-        let blocks = vec![sourced_block(1, &text)];
-        let fixture_side = side(&blocks);
-        let intervals = [interval(1, 0, 1)];
-        let descriptors = [mixed_role_descriptor(1, 1)];
-        let mut work = 100_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
-        let needle_range = 72..80;
-        let mut oracle_work = 100_000_000;
-        let oracle = positioned_occurrences(
-            &views,
-            &views[0],
-            &needle_range,
-            usize::MAX,
-            &mut oracle_work,
-        )
-        .expect("oracle stays bounded")
-        .expect("ample budget completes");
-        assert_eq!(oracle.same, 1);
-        assert!(oracle.matched.is_some());
-        let postings = {
-            let mut build_work = 100_000_000;
-            TokenPostings::build(&views, &mut build_work).expect("index builds")
-        };
-        let mut boundary = 61usize;
-        let indexed = positioned_occurrences_indexed(
-            &views,
-            &postings,
-            &views[0],
-            &needle_range,
-            usize::MAX,
-            &mut boundary,
-        )
-        .expect("indexed stays bounded")
-        .expect("61 must fit the accounted work");
-        assert_eq!(indexed.same, oracle.same);
-        assert_eq!(indexed.unknown, oracle.unknown);
-        assert_eq!(indexed.matched, oracle.matched);
-        let mut below = 60usize;
-        assert!(
-            positioned_occurrences_indexed(
-                &views,
-                &postings,
-                &views[0],
-                &needle_range,
-                usize::MAX,
-                &mut below,
-            )
-            .expect("stays bounded")
-            .is_none(),
-            "60 must refuse"
-        );
-        assert_eq!(below, 0, "refusal must consume the remaining budget");
-    }
-
-    #[test]
-    fn h22_retained_bound_batch_admission() {
-        let text = "ABABABABABCD".to_string();
-        let blocks = vec![block(1, &text)];
-        let fixture_side = side(&blocks);
-        let intervals = [interval(1, 0, 1)];
-        let descriptors = [mixed_role_descriptor(1, 1)];
-        let mut work = 10_000_000;
-        let views = build_views(&fixture_side, &intervals, Some(&descriptors), &mut work)
-            .expect("views build")
-            .expect("views available");
-        let opaque = vec![crate::normalize::ComparableToken::Unmapped {
-            font_hash: crate::model::FontProgramHash(vec![0u8; 4096]),
-            glyph_id: 1,
-        }];
-        let per_query =
-            explicit_anchor_retained_bytes(&opaque, opaque.len(), 1).expect("bytes stay numeric");
-        let limit = per_query + 512;
-        let one: Vec<(usize, &[crate::normalize::ComparableToken])> = vec![(0, opaque.as_slice())];
-        let mut one_work = 10_000_000;
-        assert!(
-            super::anchors::search_explicit_anchors_with_limit(
-                [&views, &views],
-                &one,
-                1,
-                &mut one_work,
-                limit,
-            )
-            .expect("bounded")
-            .is_some(),
-            "one opaque query fits the small limit"
-        );
-        let two: Vec<(usize, &[crate::normalize::ComparableToken])> =
-            vec![(0, opaque.as_slice()), (1, opaque.as_slice())];
-        let mut two_work = 10_000_000;
-        assert!(
-            super::anchors::search_explicit_anchors_with_limit(
-                [&views, &views],
-                &two,
-                1,
-                &mut two_work,
-                limit,
-            )
-            .expect("bounded")
-            .is_none(),
-            "two individually fitting opaque queries must fail jointly"
-        );
-        let scalar = vec![crate::normalize::ComparableToken::Scalar('A'); 2];
-        let scalar_needles: Vec<(usize, &[crate::normalize::ComparableToken])> =
-            vec![(0, scalar.as_slice())];
-        let mut scalar_work = 10_000_000;
-        assert!(
-            super::anchors::search_explicit_anchors_with_limit(
-                [&views, &views],
-                &scalar_needles,
-                1,
-                &mut scalar_work,
-                limit,
-            )
-            .expect("bounded")
-            .is_some(),
-            "ordinary scalar queries fit"
-        );
-        let mut spare = vec![crate::normalize::ComparableToken::Scalar('A')];
-        spare.reserve(64);
-        let with_spare =
-            explicit_anchor_retained_bytes(&spare, spare.capacity(), 1).expect("numeric");
-        let without_spare =
-            explicit_anchor_retained_bytes(&spare, spare.len(), 1).expect("numeric");
-        assert!(
-            with_spare > without_spare,
-            "spare vector capacity must be counted in the producer helper"
-        );
-    }
-
     fn recovery<'a>(
         old: &'a [Option<TrustedRunInterval>],
         new: &'a [Option<TrustedRunInterval>],

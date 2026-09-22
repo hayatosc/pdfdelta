@@ -1,0 +1,148 @@
+{
+  "pair": "irs-w9-2018-to-2024",
+  "before_capture": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h17-full-iteration-008-native",
+  "after_capture": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/cache/native-12-of-36-2026-09-20/h22-full-iteration-009-native",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 34865,
+          "tokens_after": 34865,
+          "resolved_before": 15477,
+          "resolved_after": 16740,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 1263,
+          "transitions": {
+            "changed->changed": 46,
+            "equal->equal": 15431,
+            "unresolved->changed": 106,
+            "unresolved->equal": 1157,
+            "unresolved->unresolved": 18125
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 34865,
+          "tokens_after": 34865,
+          "resolved_before": 15477,
+          "resolved_after": 16740,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 1263,
+          "transitions": {
+            "changed->changed": 46,
+            "equal->equal": 15431,
+            "unresolved->changed": 106,
+            "unresolved->equal": 1157,
+            "unresolved->unresolved": 18125
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 349,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 640,
+      "regions_after": 587,
+      "region_blocks": {
+        "old_before": 275,
+        "old_after": 262,
+        "new_before": 285,
+        "new_after": 271,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 37481,
+          "tokens_after": 37481,
+          "resolved_before": 15467,
+          "resolved_after": 16679,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 1212,
+          "transitions": {
+            "changed->changed": 37,
+            "equal->equal": 15430,
+            "unresolved->changed": 55,
+            "unresolved->equal": 1157,
+            "unresolved->unresolved": 20802
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 37481,
+          "tokens_after": 37481,
+          "resolved_before": 15467,
+          "resolved_after": 16679,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 1212,
+          "transitions": {
+            "changed->changed": 37,
+            "equal->equal": 15430,
+            "unresolved->changed": 55,
+            "unresolved->equal": 1157,
+            "unresolved->unresolved": 20802
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 363,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 640,
+      "regions_after": 587,
+      "region_blocks": {
+        "old_before": 275,
+        "old_after": 262,
+        "new_before": 285,
+        "new_after": 271,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 25,
+      "after": 55,
+      "retained": 25,
+      "identical": false
+    },
+    "formatting_only_changes": {
+      "before": 13,
+      "after": 13,
+      "retained": 13,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 1092,
+      "sources_accounted": 1092,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 2838,
+      "sources_accounted": 2838,
+      "sources_missing": 0
+    }
+  },
+  "review": [],
+  "problems": [],
+  "retention": "pass"
+}

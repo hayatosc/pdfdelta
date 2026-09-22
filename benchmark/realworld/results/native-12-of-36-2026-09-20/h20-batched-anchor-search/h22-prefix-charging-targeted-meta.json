@@ -1,0 +1,17 @@
+{
+  "binary_sha256": "6af5d91b33b65382370d6189e68f0d609aa3c6fbd705b3a25a42c3e15ea38a54",
+  "views_rs_sha256": "c22e9a5bb877e1d4173b86ffda2ac5a75e37d918105c3452f5cc959e33d895fb",
+  "capture": "h22-prefix-charging-targeted-native",
+  "measured": {
+    "controls": "SE/bunka/FAA complete unchanged",
+    "nist": "unchanged 197/197,6040,1921,0",
+    "w2": "unchanged",
+    "w9": "old15477->16740 new15467->16679 unresolved640->587 changes25->55",
+    "w4": "old5947->8817 new6536->9406 unresolved345->491 changes2->15"
+  },
+  "capture_log_sha256": "716d2877fd14c264a988f5f6eb1499ae3f9bc37565c7e23c19ac3b2720c9dc6b",
+  "retention_audits": {
+    "irs-w9-2018-to-2024": "467ca5159551d7d11589e7c023c15474bc9d3682bff31a80de9e0e503ac5c2d8",
+    "irs-w4-english-2024-to-2025": "476b2b7b274c41264f61fc49c1fed24cacbb4a946d8648d9f33cb8d607fa58b7"
+  }
+}

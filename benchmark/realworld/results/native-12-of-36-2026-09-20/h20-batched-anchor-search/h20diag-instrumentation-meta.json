@@ -1,0 +1,28 @@
+{
+  "views_rs_before_sha256": "63270f723fa69e56d410ad8596ec59fd4cc6efa37bd6b6e87fa7758e67e3203c",
+  "views_rs_instrumented_sha256": "985c740e0349d0f25b8b42017e4ca141dd0f0d3ba26f80bb0100ee9047e052bb",
+  "instrumented_source": "benchmark/realworld/results/native-12-of-36-2026-09-20/h20-batched-anchor-search/h20diag_views_instrumented.rs",
+  "instrumented_source_sha256": "985c740e0349d0f25b8b42017e4ca141dd0f0d3ba26f80bb0100ee9047e052bb",
+  "env_gate": "H20_TRACE_PATH",
+  "bound": 256,
+  "backup": "/tmp/opencode/views.rs.pre-h20diag",
+  "labels": [
+    "seeds_done",
+    "needles_prepared",
+    "batch_call",
+    "batch_none",
+    "batch_ok",
+    "explicit_matches_added",
+    "source_end_call",
+    "source_end_fail",
+    "source_end_ok",
+    "source_end_charge_budget",
+    "source_end_search_budget",
+    "ordered_chains_fail",
+    "ordered_chains_ok",
+    "close_loop_done",
+    "competing_fail",
+    "competing_ok"
+  ],
+  "status": "patch applied in tree, not yet built or run"
+}

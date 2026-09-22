@@ -1,0 +1,23 @@
+{
+  "views_rs_before_sha256": "f3fe4a61d3afd51d309030a181a5c7614d8cef4139e7d56168c956b70c51b4b1",
+  "assessment_rs_before_sha256": "385850188704ef47b83757534252a26c9df1151c99e5aad691f40cacaea6bcdb",
+  "views_rs_after_restore_sha256": "f3fe4a61d3afd51d309030a181a5c7614d8cef4139e7d56168c956b70c51b4b1",
+  "assessment_rs_after_restore_sha256": "385850188704ef47b83757534252a26c9df1151c99e5aad691f40cacaea6bcdb",
+  "byte_exact": true,
+  "env_gate": "H21_TRACE_PATH",
+  "labels": [
+    "postings_worstcase",
+    "postings_compact_minimum_refused",
+    "postings_compact_bound_refused",
+    "postings_compact_built",
+    "localization_done",
+    "positioned_call",
+    "positioned_done",
+    "discover_return",
+    "assessor_after_views",
+    "reassessment_guard"
+  ],
+  "limitation": "positioned per-query visits and last needle length are not exposed by the current seam; only completion flag and work are traced",
+  "trace": "h21diag.trace.gz",
+  "capture_log": "h21diag-capture.log.gz"
+}

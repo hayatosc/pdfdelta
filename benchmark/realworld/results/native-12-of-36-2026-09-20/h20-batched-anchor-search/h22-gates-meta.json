@@ -1,0 +1,18 @@
+{
+  "exits": {
+    "workspace": 0,
+    "allfeatures": 0,
+    "rustdoc": 0,
+    "verify": 0,
+    "diffcheck": 0
+  },
+  "views_rs_sha256": "c22e9a5bb877e1d4173b86ffda2ac5a75e37d918105c3452f5cc959e33d895fb",
+  "anchors_rs_sha256": "3523deadd14ecaec7f20786ad8685d32d2f04417c4443a7b4e5ead289bd11571",
+  "logs": {
+    "h22-gate-workspace.log.gz": "1a7820d7218bfe486569d9f0e67ec79f8eb6d26b4fc034b1f0cfd2fd306dc06f",
+    "h22-gate-allfeatures.log.gz": "7b857d1aeeb929ef45a56ab82fd861a806ce1e3e70257c3f1e3868949055ec86",
+    "h22-gate-rustdoc.log.gz": "6251bb464584cb253235ff4b6e2ec1d33d23587722149537632c8d44600be39d",
+    "h22-gate-verify.log.gz": "6472fb72cde7c143ad2f613697323ef552913f887b59434ef0feecadffde68b0",
+    "h22-gate-diffcheck.log.gz": "87152a3ceceb291a320ece0a356d325e402494ecc95c50fe7037b7a1aa75fc60"
+  }
+}

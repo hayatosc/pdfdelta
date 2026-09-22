@@ -1,0 +1,16 @@
+{
+  "fmt_exit": 0,
+  "fmt_check_exit": 0,
+  "focused_exit": 0,
+  "lib_exit": 0,
+  "clippy_exit": 0,
+  "views_rs_sha256": "c22e9a5bb877e1d4173b86ffda2ac5a75e37d918105c3452f5cc959e33d895fb",
+  "anchors_rs_sha256": "3523deadd14ecaec7f20786ad8685d32d2f04417c4443a7b4e5ead289bd11571",
+  "logs": {
+    "h22-focused.log.gz": "01a252b0e37ff98e9c8c415de850603d2e0e909742fc99d242442ce5f0125ef7",
+    "h22-lib.log.gz": "b3f35721893cf56b6adc8d2488864b05a82f0303e67d6bf7f03c40fb33059e66",
+    "h22-clippy.log.gz": "4bf0f812ad730da87c3dd689151d06f41707b1c856866bd9be97f52aa9e3be58"
+  },
+  "mutation_control": "old full precharge reinstated fails at 61 (exit 101); byte-exact restore passes (exit 0)",
+  "next": "7-pair measurement at default limits"
+}
