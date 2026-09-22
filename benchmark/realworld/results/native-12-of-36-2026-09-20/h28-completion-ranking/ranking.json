@@ -111,7 +111,7 @@
         "old_only": 55,
         "new_only": 54
       },
-      "cause_family": "one_sided_ownership",
+      "cause_family": "one_sided_residual (hypothesis)",
       "cause_detail": "109/110 regions one-sided; one large two-sided span 0..2085/0..1961",
       "unresolved_reasons": {}
     },
@@ -137,8 +137,8 @@
         "old_only": 104,
         "new_only": 104
       },
-      "cause_family": "one_sided_ownership",
-      "cause_detail": "208/212 regions one-sided; ownership/order family",
+      "cause_family": "one_sided_residual (hypothesis)",
+      "cause_detail": "measured: dominant residuals are single-token one-sided gaps between established relations at equal offsets; representative tokens are identical newline/space with identical context; no relation is emitted for the separator",
       "unresolved_reasons": {}
     },
     {
@@ -515,7 +515,7 @@
         "old_only": 32,
         "new_only": 4249
       },
-      "cause_family": "one_sided_ownership",
+      "cause_family": "one_sided_residual (hypothesis)",
       "cause_detail": "4249 new-only regions; old side resolves zero tokens",
       "unresolved_reasons": {}
     },
@@ -541,7 +541,7 @@
         "old_only": 3307,
         "new_only": 1913
       },
-      "cause_family": "one_sided_ownership",
+      "cause_family": "one_sided_residual (hypothesis)",
       "cause_detail": "3307 old-only + 1913 new-only vs 17 two-sided",
       "unresolved_reasons": {}
     },
@@ -699,7 +699,12 @@
       "cause_detail": "both sides resolve zero tokens",
       "unresolved_reasons": {
         "unsupported": 1
-      }
+      },
+      "total_old_new": [
+        615835,
+        639893
+      ],
+      "emptiness_note": "resolved zero tokens despite nonzero validated totals; blocker is extraction refusal plus comparison, not absent native text"
     },
     {
       "pair": "arxiv-faster-rcnn-v1-to-v3",
@@ -777,13 +782,18 @@
       "unresolved_reasons": {
         "unsupported": 2,
         "unresolved": 13
-      }
+      },
+      "total_old_new": [
+        82214,
+        99828
+      ],
+      "emptiness_note": "resolved zero tokens despite nonzero validated totals; blocker is extraction refusal plus comparison, not absent native text"
     }
   ],
   "decision": {
     "hypothesis": "arxiv-ddpm two-sided spans hide a local missing premise",
     "verdict": "falsified: 2 unresolved clipping-uncertainty extraction issues, both sides incomplete, ~68k uncovered tokens; an order/consumer change cannot complete it",
-    "chosen_next_measurement": "bind one old-only and one new-only unresolved region of irs-w2 (fully extracted, 212 regions, 208 one-sided) to exact blocks and trace the guard that leaves one-sided regions unresolved instead of proven insertions/deletions",
+    "chosen_next_measurement": "bind the 58 single-token W2 gaps: assert both neighbours are established at equal offsets and raw-source/normalization boundary evidence matches; counterexample with a non-established neighbour or differing normalization must stay unresolved",
     "beneficiaries_if_family_fix_exists": [
       "irs-w2-2024-to-2025",
       "irs-1099-misc-2024-to-2025",

@@ -1,0 +1,79 @@
+{
+  "probe": "H28 W2 one-sided residual binding",
+  "binary_sha256": "6686286ea31fb6efdf8ddc1c2a1e40165b6aadc565d678db5c1256cc39b981",
+  "note": "temporary env-gated instrumentation in views.rs and diff/mod.rs was restored byte-exactly; tracked tree clean; release binary rebuilt to the same hash",
+  "commands": [
+    "H28_TRACE_PATH=/tmp/opencode/h28-w2.trace target/release/pdfdelta <w2 old> <w2 new> --native-text-only --json /tmp/opencode/h28-w2b.json.gz",
+    "H28_W2_PDFS=<abs paths> cargo test -p pdfdelta-core --lib w2_gap_tokens_and_counterparts -- --nocapture"
+  ],
+  "emission_sites": {
+    "siteE_subrange_remainder": 58,
+    "siteD_whole_block_remainder": 22,
+    "siteB_alignment_unresolved": 6,
+    "siteA_alignment_atomic": 5
+  },
+  "final_residual_distribution_top": [
+    [
+      "1b/1t one-sided",
+      58
+    ],
+    [
+      "1b/4t one-sided",
+      24
+    ],
+    [
+      "1b/5t one-sided",
+      14
+    ]
+  ],
+  "representative_binding": {
+    "old": {
+      "block": 1,
+      "comparable": [
+        380,
+        381
+      ],
+      "token": "Scalar('\\n')",
+      "context": "rds.\\nNote",
+      "occurrences_in_new": 38
+    },
+    "new": {
+      "block": 1,
+      "comparable": [
+        380,
+        381
+      ],
+      "token": "Scalar('\\n')",
+      "context": "rds.\\nNote",
+      "occurrences_in_old": 37
+    },
+    "old_508": {
+      "block": 1,
+      "comparable": [
+        508,
+        509
+      ],
+      "token": "Scalar(' ')",
+      "context": "orm. The ",
+      "occurrences_in_new": 3207
+    },
+    "new_508": {
+      "block": 1,
+      "comparable": [
+        508,
+        509
+      ],
+      "token": "Scalar(' ')",
+      "context": "orm. The ",
+      "occurrences_in_old": 3198
+    }
+  },
+  "bound_relations": "w2-bound-relations.json",
+  "observed": [
+    "the gap tokens are identical on both sides with identical local context",
+    "established relations cover [0,380), [381,452), [452,508), [509,633) on both sides at equal offsets, leaving exactly [380,381) and [508,509) uncovered",
+    "tentative duplicates of the same ranges carry reasons unknown_reading_order, normalization_uncertainty, domain_not_closed"
+  ],
+  "not_concluded": "the single-token occurrences are not ambiguous merely because they are frequent; the missing proof is that no relation is emitted for the separator between two established neighbours",
+  "next_measurement": "verify for the 58 single-token gaps that both neighbours are established at equal offsets and that raw-source atoms and normalization boundaries of the gap token match; counterexample: a gap with a non-established neighbour or differing normalization/endpoints must stay unresolved"
+}

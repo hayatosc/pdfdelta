@@ -1,0 +1,289 @@
+[
+  {
+    "ob": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "os": 0,
+    "oe": 20750,
+    "nb": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "ns": 0,
+    "ne": 20843,
+    "outcome": "tentative",
+    "search": "complete",
+    "reasons": [
+      "unknown_reading_order",
+      "normalization_uncertainty"
+    ],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing"
+    ]
+  },
+  {
+    "ob": [
+      1,
+      2,
+      3
+    ],
+    "os": 0,
+    "oe": 1578,
+    "nb": [
+      1,
+      2,
+      3
+    ],
+    "ns": 0,
+    "ne": 1578,
+    "outcome": "tentative",
+    "search": "complete",
+    "reasons": [
+      "unknown_reading_order",
+      "normalization_uncertainty",
+      "domain_not_closed"
+    ],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 0,
+    "oe": 380,
+    "nb": [
+      1
+    ],
+    "ns": 0,
+    "ne": 380,
+    "outcome": "tentative",
+    "search": "complete",
+    "reasons": [
+      "unknown_reading_order",
+      "normalization_uncertainty",
+      "domain_not_closed"
+    ],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 509,
+    "oe": 633,
+    "nb": [
+      1
+    ],
+    "ns": 509,
+    "ne": 633,
+    "outcome": "tentative",
+    "search": "complete",
+    "reasons": [
+      "unknown_reading_order",
+      "normalization_uncertainty",
+      "domain_not_closed"
+    ],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 381,
+    "oe": 452,
+    "nb": [
+      1
+    ],
+    "ns": 381,
+    "ne": 452,
+    "outcome": "tentative",
+    "search": "complete",
+    "reasons": [
+      "unknown_reading_order",
+      "normalization_uncertainty",
+      "domain_not_closed"
+    ],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 452,
+    "oe": 508,
+    "nb": [
+      1
+    ],
+    "ns": 452,
+    "ne": 508,
+    "outcome": "tentative",
+    "search": "complete",
+    "reasons": [
+      "unknown_reading_order",
+      "normalization_uncertainty",
+      "domain_not_closed"
+    ],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing"
+    ]
+  },
+  {
+    "ob": [
+      0,
+      1
+    ],
+    "os": 11,
+    "oe": 391,
+    "nb": [
+      0,
+      1
+    ],
+    "ns": 11,
+    "ne": 391,
+    "outcome": "established",
+    "search": "complete",
+    "reasons": [],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing",
+      "local_evidence_boundaries"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 0,
+    "oe": 380,
+    "nb": [
+      1
+    ],
+    "ns": 0,
+    "ne": 380,
+    "outcome": "established",
+    "search": "complete",
+    "reasons": [],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing",
+      "local_evidence_boundaries"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 509,
+    "oe": 633,
+    "nb": [
+      1
+    ],
+    "ns": 509,
+    "ne": 633,
+    "outcome": "established",
+    "search": "complete",
+    "reasons": [],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing",
+      "local_evidence_boundaries"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 381,
+    "oe": 452,
+    "nb": [
+      1
+    ],
+    "ns": 381,
+    "ne": 452,
+    "outcome": "established",
+    "search": "complete",
+    "reasons": [],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing",
+      "local_evidence_boundaries"
+    ]
+  },
+  {
+    "ob": [
+      0,
+      1
+    ],
+    "os": 463,
+    "oe": 519,
+    "nb": [
+      0,
+      1
+    ],
+    "ns": 463,
+    "ne": 519,
+    "outcome": "established",
+    "search": "complete",
+    "reasons": [],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing",
+      "local_evidence_boundaries"
+    ]
+  },
+  {
+    "ob": [
+      1
+    ],
+    "os": 452,
+    "oe": 508,
+    "nb": [
+      1
+    ],
+    "ns": 452,
+    "ne": 508,
+    "outcome": "established",
+    "search": "complete",
+    "reasons": [],
+    "assumptions": [
+      "input_reading_order",
+      "canonical_normalization",
+      "reconstructed_spacing",
+      "local_evidence_boundaries"
+    ]
+  }
+]
