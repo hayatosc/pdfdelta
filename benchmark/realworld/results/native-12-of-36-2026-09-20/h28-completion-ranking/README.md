@@ -91,20 +91,16 @@ or whose normalization/endpoints differ must stay unresolved. Evidence:
 `w2-trace.txt.gz`, `w2-site-counts.txt`, `w2-gap-diagnostic.log.gz`,
 `w2-bound-relations.json`, `w2-binding-meta.json`.
 
-## Corrected W2 census and verdict
+## W2 census retraction (invalid diagnostic)
 
-The provisional 37 count compared neighbour span lengths only and selected the
-last relation; it is superseded. With the strict join (single established
-equality neighbour on each side, same block pair, mirrored offsets, gap
-unowned) 0 of 29 old residuals pass: 10 lack a mirrored new residual, 11 have
-ambiguous or missing neighbours, and 8 fail the block-pair/offset join.
+Both the provisional 37 count and the strict-join zero result are invalid: the
+strict join compared relation group coordinates with single-block local
+offsets and selected relations without projection or an equality signature.
+The zero result is not a falsification.
 
-Corrected canonical classes for the 58 single-token residuals: 30 are
-canonical newlines whose canonical atom is a line break with raw
-glyph+line_break endpoints and no normalization event; 12 are glyph-backed
-with one raw match and no event; 12 have a touching normalization event; 4
-map to glyph+line_break with two raw matches. The dominant newline class is a
-normalization boundary, not a glyph-backed equality, so proving it equal would
-be normalization lifting. W2's one-sided separator family is therefore
-rejected as a sound completion path and the ranking moves to two-sided classes
-with complete extraction.
+The atom census (canonical vs raw classes, endpoints, events) remains valid
+and shows 30 of 58 residuals are canonical newlines with line-break atoms.
+Whether that class is provable is still open: the next probe must first project
+relation spans with the core projection and establish equality from the
+internal proof signature, asserting the known mapping [blocks 0,1] group
+11..391 -> block1 local 0..380 before classifying residuals.

@@ -82,7 +82,7 @@
   },
   "corrected_census": {
     "strict_join": "w2-strict-join.json",
-    "result": "0 of 29 old residuals pass the strict equality-neighbour join",
+    "result": "not a falsification; the strict join compared relation group offsets with single-block local offsets and selected relations without a projection or equality signature",
     "reasons": {
       "no_mirror_new_residual": 10,
       "ambiguous_or_missing_neighbours": 11,
@@ -99,6 +99,17 @@
       "gap508": "canonical ' ' with glyph atom, raw glyph, 0 events"
     },
     "conclusion": "no sound separator-equality class: the dominant newline class is a normalization boundary (line_break atom) rather than glyph-backed equality, and no residual has a single unambiguous established equality neighbour pair",
-    "superseded": "the earlier provisional 37 count compared span lengths only and selected the last relation; w2-census-superseded-invalid.log.gz retains that invalid run"
+    "superseded": "the earlier provisional 37 count compared span lengths only and selected the last relation; w2-census-superseded-invalid.log.gz retains that invalid run",
+    "status": "INVALID / failed diagnostic: group and block-local coordinate spaces were compared directly",
+    "required_probe": {
+      "where": "temporary in-crate test inside diff/assessment with access to assessment::project and the internal relation/equality struct",
+      "steps": [
+        "project relation spans to block-local intervals using the core projection, not hand-rolled arithmetic",
+        "derive the other-side block and offset from the left/right equality mappings",
+        "determine equality from the stable internal proof signature; equivalent duplicate relations with the same projected mapping are not conflicts",
+        "record relation IDs and reject only conflicting projected mappings"
+      ],
+      "assertion": "the known relation [blocks 0,1] group 11..391 must project to block1 local 0..380 before any residual claim"
+    }
   }
 }
