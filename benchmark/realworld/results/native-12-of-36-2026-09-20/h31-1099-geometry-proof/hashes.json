@@ -1,0 +1,38 @@
+{
+  "artifacts": {
+    "h31-hook-v5.diff.gz": "18043f3de416a26b221237b73446e45967797bbba3b50b903f1a56be43e5bd7d",
+    "h31-proof.jsonl.gz": "8254291fcce6be030ec1bd7ecca9e388e505c1d205abb1b06cd5c038bfbad6d7",
+    "h31-run.log.gz": "bdf873d11733904281244fe2988ae94bc35f2c50f147cb0b907e4bde24123cca",
+    "h31b-hook.diff.gz": "7cb6f61da4f167f3c53b43e2027db6b3a4d6a3f6a514dccbc7b03b4886ecbcdf",
+    "h31b-run.log.gz": "80320b1c39997a46e2bc01e378052554b34bca38bfe5594d5da02838c71e9f9e",
+    "h31b-source.jsonl.gz": "0fc83c89c054aa0fe5140d214d24e3deec5cd698028d1768d6a353f4774db3d1",
+    "h31e-certificate.jsonl.gz": "080d73c71c9aa3f8b810730d426e7051cfc0dd0c2671b1bbec78240dfa3e77b4",
+    "h31e-hook.diff.gz": "4f4d2832c46baa8222d7c9998ba579f2e2ee79a1aa512382c58aa31a1e63fef5",
+    "h31e-run.log.gz": "e6811054ed9a12265a1b4ac08d5c28b82733827442e20f00288efd5866059afc"
+  },
+  "base_head": "0329bbacfe81a1c048cbce2174e3dbbf25f1771f",
+  "h31b": {
+    "base_head": "0329bbacfe81a1c048cbce2174e3dbbf25f1771f",
+    "jsonl_lines": 8,
+    "jsonl_valid_lines": 8,
+    "probe_rc": 0,
+    "test_exe_sha256": "dc253aa739dad309c0a0e18911bdf9ea4c331e0e5fc073af5f258aebf2aaba8c",
+    "unresolved_after": 117
+  },
+  "h31e": {
+    "base_head": "0329bbacfe81a1c048cbce2174e3dbbf25f1771f",
+    "budget_consumed_copy": 207781,
+    "jsonl_lines": 6,
+    "jsonl_valid_lines": 6,
+    "live_verdict": "Isomorphic",
+    "probe_rc": 0,
+    "test_exe_sha256": "bbbd221d9da9720025fd1dc16a878811c08fb061860dacd355b5f7422b51c11e",
+    "unresolved_after": 117,
+    "whole_document_remaining_work": 15514428
+  },
+  "jsonl_lines": 303,
+  "jsonl_valid_lines": 303,
+  "probe_rc": 0,
+  "test_exe_sha256": "4cb9b8a95f0bb64914bbf7baa459fca952347e7207fccb02c1c4aed41daed8b9",
+  "unresolved_after": 117
+}
