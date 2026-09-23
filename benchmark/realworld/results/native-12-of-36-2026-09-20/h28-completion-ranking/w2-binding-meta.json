@@ -129,5 +129,105 @@
     "restored": true,
     "restored_binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981",
     "required_next": "temporary hook inside Assessor.finish emitting internal TextSpan plus DomainProof (edits/unique/strict_unique/search) per relation with real per-side separators, then join with the final unresolved partitions"
+  },
+  "assessor_hook_measurement": {
+    "status": "usable measurement obtained via cfg(test) hook at the end of assessment::finish; no production change",
+    "inputs": {
+      "old": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf",
+      "new": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf"
+    },
+    "reproduced": {
+      "unresolved": 212,
+      "changes": 13,
+      "work_old": 291416,
+      "work_new": 297503
+    },
+    "known_projection_assertion": "[blocks 0,1] group 11..391 -> block1 local 0..380 held for relation 163",
+    "records": [
+      {
+        "id": 163,
+        "span": "[0,1] 11..391",
+        "proj": "block1 0..380",
+        "token_equal": true,
+        "domain": "edits=0 unique strict Complete stable=None"
+      },
+      {
+        "id": 164,
+        "span": "[1] 0..380",
+        "proj": "block1 0..380",
+        "token_equal": true,
+        "domain": "no_domain"
+      },
+      {
+        "id": 177,
+        "span": "[0,1] 392..463",
+        "proj": "block1 381..452",
+        "token_equal": true,
+        "domain": "edits=0 unique strict Complete stable=None"
+      },
+      {
+        "id": 178,
+        "span": "[1] 381..452",
+        "proj": "block1 381..452",
+        "token_equal": true,
+        "domain": "no_domain"
+      },
+      {
+        "id": 179,
+        "span": "[0,1] 463..519",
+        "proj": "block1 452..508",
+        "token_equal": true,
+        "domain": "edits=0 unique strict Complete stable=None"
+      },
+      {
+        "id": 180,
+        "span": "[1] 452..508",
+        "proj": "block1 452..508",
+        "token_equal": true,
+        "domain": "no_domain"
+      },
+      {
+        "id": 165,
+        "span": "[0,1] 520..644",
+        "proj": "block1 509..633",
+        "token_equal": true,
+        "domain": "edits=0 unique strict Complete stable=None"
+      },
+      {
+        "id": 166,
+        "span": "[1] 509..633",
+        "proj": "block1 509..633",
+        "token_equal": true,
+        "domain": "no_domain"
+      },
+      {
+        "id": 1080,
+        "span": "[0,1] 392..917",
+        "proj": "block1 381..906",
+        "token_equal": true,
+        "domain": "edits=0 unique strict Complete stable=None (spans gap508)"
+      },
+      {
+        "id": 1076,
+        "span": "[0,1] 0..391",
+        "proj": "block0 0..11 + block1 0..380",
+        "token_equal": true,
+        "domain": "edits=0 unique strict Complete stable=None"
+      }
+    ],
+    "duplicates": [
+      "1076 and 1077 are identical projected mappings; 1080 and 1081 likewise"
+    ],
+    "observed_blocker": "equality domains bracket or even span the separator gaps with edits=0/unique/strict/Complete, yet the final unresolved partition still contains 380..381 and 508..509; the separator is not committed by domain adoption/ownership",
+    "not_concluded": "no claim that adoption is wrong or that a consumer is justified; ownership.equal/changed and candidate/proven overlaps still need the next measurement",
+    "artifacts": {
+      "hook_patch": "probes/w2-assessor-hook.patch.gz",
+      "test_source": "probes/w2_assessor_probe_test.rs",
+      "dump": "probes/w2-assessor-dump.txt.gz",
+      "log": "probes/w2-assessor-probe.log.gz",
+      "hook_patch_sha256": "81f3e389d9c002a35d1ec7e4df7c079eba470b3b5135413425bd4b649070355f",
+      "dump_sha256": "71746398f6200d5ee06ef9588347cd6d49d2fbbb0a3b8181db43ae122ef0bdfd"
+    },
+    "restored_binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981"
   }
 }
