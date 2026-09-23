@@ -7,18 +7,27 @@
   "baseline": "h29-raw-cut-only-full-iteration-016-native",
   "binary_sha256": "25bf6930760cbde61d29d1bea7d4bd4badf7c8792e6a980dad45bae08645901a",
   "capture": "h29-raw-cut-only-full-iteration-016-native",
+  "capture_script": {
+    "path": "/home/hayato/ghq/github.com/hayatosc/pdfdelta/benchmark/realworld/remaining/completion-investigation/capture.py",
+    "sha256": "1cd9abf5c6732e7b45ec4ed3d52333eb3dd27cbd3361af2c9366546241365cb7"
+  },
   "capture_summary_sha256": "04a2180579060c4a028b917d3118fc3d36d0dc47636663c14ed7e963cffffe9d",
   "captured": 36,
   "complete": 3,
   "denominator": 36,
+  "driver": {
+    "path": "benchmark/realworld/next/development/capture-comparisons.py",
+    "sha256": "fb4d63631abaed237589fc89a0a4f10a4e146ca6769b4a0bfe0e40a0cdf585ab"
+  },
   "failed": 0,
-  "gates_artifact": "gates/h29-repair-g1..g7.log.gz",
-  "input_entries": 36,
+  "gates_artifact": "gates.json",
+  "input_entries": 72,
+  "input_pairs": 36,
   "iteration": "full016",
   "limit_scale": 1,
+  "memory_max_bytes": 5999996928,
   "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
   "pinned": true,
-  "production_commit": "5e244bb5d11f5568cfe304b6cbe22890e3915af7",
   "production_diff_sha256": "dcbb2e8221e59dd382072eb67614046d8c3d5616532337386843f6ae49485862",
   "production_patch_sha256": "dcbb2e8221e59dd382072eb67614046d8c3d5616532337386843f6ae49485862",
   "route": "native",
@@ -348,256 +357,14 @@
       "status": "captured"
     }
   },
+  "source_archive": {
+    "path": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h29-raw-cut-only-full-iteration-016-native/production.tar.gz",
+    "sha256": "4e0bee0d5fb37c9b00795452986a279f7c81e00dd6df6398eee67793ed9eca14"
+  },
   "source_base_head": "5e244bb5d11f5568cfe304b6cbe22890e3915af7",
   "summary_sha256": "04a2180579060c4a028b917d3118fc3d36d0dc47636663c14ed7e963cffffe9d",
+  "swap_max_bytes": 0,
   "timeout_seconds": 180,
-  "verification": {
-    "1099_missing_27_review_units": "all 27 appear as skip-resolved in the instrumented review::collect run (421 skip-resolved, 9 emitted, budget_stop false); masks fully resolved, no budget loss",
-    "1099_review_hook_patch_sha256": "aaa7ada57e989c5651a938bed9f658885315cc858a9ffd79c2c9dacb1bcbe96f",
-    "1099_review_instrumented_testexe_sha256": "0992c2747671f06a0daa93a25955af175f77f24a8e998b6f8ef61b6c344a4f67",
-    "1099_review_trace_sha256": "8e3350ac76d2a6c27f05fb837383dc83777f6d83d707e8736995485505e8f266",
-    "1099_review_units": 9,
-    "1099_review_units_sha256_prefix": "0fd8149c8d7b",
-    "1099_unresolved": 117,
-    "1099_vs_full015": "identical review units; work-only report delta",
-    "1099_work_used": 30323601,
-    "controls_identical_to_full015": [
-      "faa-thunderstorms-b-to-c",
-      "bunka-kana-1946-to-1986"
-    ],
-    "mext_review_units": 22,
-    "mext_review_units_sha256_prefix": "89188c816fe9",
-    "mext_vs_full014": "identical ordered review units",
-    "retention_audits": "loss 0 / review [] / problems [] for mext, 1099, schedule-se (new vs full015)",
-    "rows_detail": [
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "irs-schedule-se-2024-to-2025",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "irs-schedule-c-2024-to-2025",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "irs-w9-2018-to-2024",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "irs-w4-english-2024-to-2025",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "edpb-restrictions-v1-to-final",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "edpb-social-targeting-v1-to-v2",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "edpb-design-default-v1-to-v2",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "irs-1099-misc-2024-to-2025",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-sha-1803-to-1804",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "faa-thunderstorms-b-to-c",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "arxiv-bert-v1-to-v2",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "faa-maintenance-records-c-to-d",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "edpb-controller-processor-v1-to-v2-1",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-ssdf-draft-to-final",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "bunka-kana-1946-to-1986",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-authentication-63b-to-63b4",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "bunka-official-writing-1952-to-2022",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "irs-w2-2024-to-2025",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-incident-handling-r2-to-r3",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "mext-upper-secondary-japanese-2009-to-2018",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-ai-rmf-draft2-to-v1",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-risk-management-37-r1-to-r2",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-risk-assessment-30-to-r1",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nasa-buckling-8007-1968-to-2020",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "ecb-annual-2023-to-2024",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "mext-primary-japanese-2008-to-2017",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-contingency-34-to-r1",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "mext-lower-secondary-japanese-2008-to-2017",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "arxiv-faster-rcnn-v1-to-v3",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "nist-controls-53-r4-to-r5",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "arxiv-gpt3-v1-to-v4",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "arxiv-mask-rcnn-v1-to-v3",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "ipcc-synthesis-ar5-to-ar6",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "arxiv-ddpm-v1-to-v2",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "arxiv-llama2-v1-to-v2",
-        "report_gzip_sha256": null
-      },
-      {
-        "exit": 0,
-        "inputs": null,
-        "pair": "mhlw-care-skills-original-to-revised",
-        "report_gzip_sha256": null
-      }
-    ],
-    "vs_full014_differ": [
-      "irs-1099-misc-2024-to-2025"
-    ],
-    "vs_full014_identical": 35,
-    "vs_full015_differ": [
-      "irs-1099-misc-2024-to-2025",
-      "irs-schedule-c-2024-to-2025",
-      "irs-schedule-se-2024-to-2025",
-      "mext-lower-secondary-japanese-2008-to-2017",
-      "nist-risk-assessment-30-to-r1"
-    ]
-  },
-  "version": 1
+  "version": 1,
+  "work_limit": 32000000
 }
