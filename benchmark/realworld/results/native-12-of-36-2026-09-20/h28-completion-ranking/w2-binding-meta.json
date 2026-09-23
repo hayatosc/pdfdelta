@@ -529,74 +529,95 @@
         "n": 1,
         "before": 8015884,
         "old": 41397,
-        "new": 714797
+        "new": null,
+        "after_old": 7974487
       },
       {
         "n": 2,
         "before": 7965417,
         "old": 351980,
-        "new": 1583750
+        "new": 353747,
+        "after_old": 7613437
       },
       {
         "n": 3,
         "before": 7198395,
         "old": 101160,
-        "new": 2119072
+        "new": null,
+        "after_old": 7097235
       },
       {
         "n": 4,
         "before": 7095982,
         "old": 41397,
-        "new": 3114084
+        "new": null,
+        "after_old": 7054585
       },
       {
         "n": 5,
         "before": 7026297,
         "old": 497003,
-        "new": 3344147
+        "new": 499607,
+        "after_old": 6529294
       },
       {
         "n": 6,
         "before": 6005338,
         "old": 512239,
-        "new": 3360793
+        "new": 514936,
+        "after_old": 5493099
       },
       {
         "n": 7,
         "before": 4937111,
         "old": 497003,
-        "new": 3365069
+        "new": 499607,
+        "after_old": 4440108
       },
       {
         "n": 8,
         "before": 3924427,
         "old": 368710,
-        "new": 3555717
+        "new": 370570,
+        "after_old": 3555717
       },
       {
         "n": 9,
         "before": 3128916,
         "old": 497003,
-        "new": null
+        "new": 499607,
+        "after_old": 2631913
       },
       {
         "n": 10,
         "before": 2071649,
         "old": 497003,
-        "new": null
+        "new": 499607,
+        "after_old": 1574646
       },
       {
         "n": 11,
         "before": 1057012,
         "old": 41397,
-        "new": null
+        "new": null,
+        "after_old": 1015615
       },
       {
         "n": 12,
         "before": 986576,
         "old": 497003,
-        "new": null
+        "new": 489573,
+        "after_old": 489573,
+        "exhausted": true
       }
-    ]
+    ],
+    "delta_assertions": "sequential parse of stages8 with expected new-cost list asserted; n12 is partial (EXHAUSTED), not a completed scan",
+    "producer": {
+      "pilot_binary_sha256": "0a019a3cdfbd5d7070a93353f56870a9ccd57851d217780e594a544b7223d3a0",
+      "instrumented_binary_sha256": "unrecorded",
+      "source_head_at_measurement": "9bf6115c4b4a123b431f154e1f76deb410a2f70f",
+      "reproduction": "probes/w2-positioned-mode.patch.gz applied to HEAD 9bf6115 + probes/w2_assessor_probe_test.rs; command: H28_STAGE_PATH=<txt> H28_W2_PDFS=<abs> cargo test -p pdfdelta-core --lib w2_assessor_probe -- --nocapture",
+      "note": "production source unchanged after pilot binary 0a019a3c; only differential tests and metadata changed since"
+    }
   }
 }
