@@ -619,5 +619,18 @@
       "reproduction": "probes/w2-positioned-mode.patch.gz applied to HEAD 9bf6115 + probes/w2_assessor_probe_test.rs; command: H28_STAGE_PATH=<txt> H28_W2_PDFS=<abs> cargo test -p pdfdelta-core --lib w2_assessor_probe -- --nocapture",
       "note": "production source unchanged after pilot binary 0a019a3c; only differential tests and metadata changed since"
     }
+  },
+  "pf2_gates": {
+    "source": "56b0901a3e5e8dfb543923f8a90b55839929212e",
+    "binary": "0a019a3cdfbd5d7070a93353f56870a9ccd57851d217780e594a544b7223d3a0",
+    "logs": {
+      "pf2-gate-1.log.gz": "7aba8b1ebceb7ccaa05d950b354d9f1f3f2b84c403a988f7ba09d4a776a4705a",
+      "pf2-gate-2.log.gz": "5147ed59a1fe5e2a6c5af0eebc1e355ff04bd0499231c3803d8c84dd8ace729d",
+      "pf2-gate-3.log.gz": "706a40df53347db800b9b8d8c5434b23b56c876f6850f7e52181084a564b3b31",
+      "pf2-gate-4.log.gz": "edf24b1c7b17c5c820a511e59250c56e7f7092b5220b4dd7359810cd6d1e1427",
+      "pf2-gate-5.log.gz": "8a229b29ff049883275324479b57c3b3f6da4bffadf08b929ac8f5efb79dfa4a",
+      "pf2-gate-6.log.gz": "50c0e7ff3dc44d91d341d4602fe0a1bc4f306a5a36e87ffb1fb43a8ffa3fb72f",
+      "pf2-gate-7.log.gz": "509124a1796a1f4f063f1ef829b8e612817162e934dd34b20a9f8a22307b21d6"
+    }
   }
 }
