@@ -1231,7 +1231,7 @@ impl Assessor<'_, '_> {
     /// complete source-side key with the sort charged, duplicates are removed
     /// from the sorted order, and the result is `None` when the shared budget
     /// is exhausted.
-    fn collect_established_blocks(
+    pub(super) fn collect_established_blocks(
         &mut self,
         ownership: &[Ownership; 2],
     ) -> Result<Option<Vec<super::views::EstablishedBlock>>> {
@@ -1716,7 +1716,10 @@ impl Assessor<'_, '_> {
     /// returns the transient copy the tail pass needs while it projects and
     /// re-checks ownership. Every allocation is fallible, and the caller has
     /// already charged the shared budget for the copy work.
-    fn copy_recorded_spans(&self, relation: usize) -> Result<Option<(TextSpan, TextSpan)>> {
+    pub(super) fn copy_recorded_spans(
+        &self,
+        relation: usize,
+    ) -> Result<Option<(TextSpan, TextSpan)>> {
         let (Some(old), Some(new)) = (
             self.records[relation].old_span.as_ref(),
             self.records[relation].new_span.as_ref(),
@@ -2184,7 +2187,10 @@ mod tests {
             BlockSeparator,
         },
         diff::{Change, ChangeKind, ChangedRegionProof, Confidence, DiffOptions},
-        diff::{TextSpan, assessment::views::LocalDomain},
+        diff::{
+            TextSpan,
+            assessment::{DomainKey, DomainProof, views::LocalDomain},
+        },
         layout::{BlockId, BlockRole},
         model::{GlyphId, Vec2},
         normalize::{
@@ -6421,6 +6427,786 @@ mod tests {
         let (_, source_positions, internal_break, accepted, _) =
             run_deleted_break_fragment(&[old], &new_blocks, |_, _| {}, &[], usize::MAX)?;
         assert!(!source_positions && !internal_break && accepted.is_empty());
+        Ok(())
+    }
+    fn suffix_test_block(id: u64, text: &str, x: f64, y: f64) -> BlockText {
+        let mut block = sourced_block(id, text);
+        let count = block
+            .canonical
+            .comparable_tokens()
+            .expect("source-backed fixture tokens")
+            .len();
+        let signatures = (0..count)
+            .map(|index| {
+                PositionSignature::new(
+                    Vec2 {
+                        x: x + index as f64 * 10.0,
+                        y,
+                    },
+                    Vec2 { x: 1.0, y: 0.0 },
+                )
+                .expect("valid position")
+            })
+            .collect();
+        block.position_signatures = Some(signatures);
+        block
+    }
+
+    struct SuffixOutcome {
+        old_accepted: Vec<SourceInterval>,
+        new_accepted: Vec<SourceInterval>,
+        records: usize,
+        premise: bool,
+        seed_untouched: bool,
+        remaining_work: usize,
+    }
+
+    fn run_suffix_case(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        options: DiffOptions,
+        prepare: impl FnOnce(&mut super::super::Assessor<'_, '_>, &mut [Ownership; 2]),
+    ) -> Result<SuffixOutcome> {
+        run_suffix_case_full(old_blocks, new_blocks, options, 0, &[], &[], prepare)
+    }
+
+    fn run_suffix_case_full(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        options: DiffOptions,
+        seed_start: usize,
+        candidates: &[ChangeCandidate],
+        proven: &[ProvenChangedRegion],
+        prepare: impl FnOnce(&mut super::super::Assessor<'_, '_>, &mut [Ownership; 2]),
+    ) -> Result<SuffixOutcome> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let old_ids = old_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let new_ids = new_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let alignment = unresolved_alignment(&old_ids, &new_ids);
+        let mut assessor = super::super::Assessor::new([&old, &new], &alignment, None, options)?;
+        let seed_old = old_blocks[0]
+            .canonical
+            .comparable_tokens()
+            .expect("seed old tokens")
+            .len();
+        let seed_new = new_blocks[0]
+            .canonical
+            .comparable_tokens()
+            .expect("seed new tokens")
+            .len();
+        let anchor_old = old_blocks[1]
+            .canonical
+            .comparable_tokens()
+            .expect("anchor old tokens")
+            .len();
+        let anchor_new = new_blocks[1]
+            .canonical
+            .comparable_tokens()
+            .expect("anchor new tokens")
+            .len();
+        assessor.records = vec![
+            crate::diff::RelationAssessment {
+                old_span: Some(strict_closed_fragment_span(1, seed_start, seed_old)),
+                new_span: Some(strict_closed_fragment_span(101, seed_start, seed_new)),
+                parent: None,
+                outcome: RelationOutcome::Established,
+                search: SearchCompleteness::Complete,
+                assumptions: Vec::new(),
+                reasons: Vec::new(),
+            },
+            crate::diff::RelationAssessment {
+                old_span: Some(strict_closed_fragment_span(2, 0, anchor_old)),
+                new_span: Some(strict_closed_fragment_span(102, 0, anchor_new)),
+                parent: None,
+                outcome: RelationOutcome::Established,
+                search: SearchCompleteness::Complete,
+                assumptions: Vec::new(),
+                reasons: Vec::new(),
+            },
+        ];
+        let proof = |relation: usize, old_len: usize, new_len: usize| DomainProof {
+            relation,
+            unique: true,
+            search: SearchCompleteness::Complete,
+            edits: Vec::new(),
+            lengths: [old_len, new_len],
+            strict_unique: true,
+            stable_events: None,
+        };
+        assessor.domains.insert(
+            DomainKey {
+                local: Some((
+                    strict_closed_fragment_span(1, seed_start, seed_old),
+                    strict_closed_fragment_span(101, seed_start, seed_new),
+                )),
+                old: 0..1,
+                new: 0..1,
+                old_separator: BlockSeparator::Space,
+                new_separator: BlockSeparator::Space,
+            },
+            proof(0, seed_old - seed_start, seed_new - seed_start),
+        );
+        assessor.domains.insert(
+            DomainKey {
+                local: Some((
+                    strict_closed_fragment_span(2, 0, anchor_old),
+                    strict_closed_fragment_span(102, 0, anchor_new),
+                )),
+                old: 1..2,
+                new: 1..2,
+                old_separator: BlockSeparator::Space,
+                new_separator: BlockSeparator::Space,
+            },
+            proof(1, anchor_old, anchor_new),
+        );
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        ownership[0].accepted.push(SourceInterval {
+            block_index: 1,
+            start: 0,
+            end: anchor_old,
+        });
+        ownership[1].accepted.push(SourceInterval {
+            block_index: 1,
+            start: 0,
+            end: anchor_new,
+        });
+        prepare(&mut assessor, &mut ownership);
+        let limit = assessor.options.max_assessment_ranges;
+        assessor.recover_suffix_translations(&mut ownership, candidates, proven, limit)?;
+        let premise = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::RigidSuffixTranslation)
+        });
+        let seed_untouched = assessor.records[0].assumptions.is_empty();
+        Ok(SuffixOutcome {
+            old_accepted: ownership[0].accepted.clone(),
+            new_accepted: ownership[1].accepted.clone(),
+            records: assessor.records.len(),
+            premise,
+            seed_untouched,
+            remaining_work: assessor.remaining_work,
+        })
+    }
+
+    #[test]
+    fn suffix_translation_adopts_with_independent_anchor() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+        ];
+        let outcome = run_suffix_case(&old_blocks, &new_blocks, DiffOptions::default(), |_, _| {})?;
+        assert!(outcome.premise);
+        assert!(outcome.seed_untouched);
+        assert_eq!(outcome.records, 3, "one whole-suffix relation was recorded");
+        assert!(
+            outcome
+                .old_accepted
+                .iter()
+                .any(|interval| interval.block_index == 0
+                    && interval.start == 0
+                    && interval.end == 6)
+        );
+        assert!(
+            outcome
+                .new_accepted
+                .iter()
+                .any(|interval| interval.block_index == 0
+                    && interval.start == 0
+                    && interval.end == 6)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_requires_anchor_with_same_delta() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 60.0),
+        ];
+        let outcome = run_suffix_case(&old_blocks, &new_blocks, DiffOptions::default(), |_, _| {})?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.old_accepted.len(), 1);
+        assert_eq!(outcome.new_accepted.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_tentative_anchor() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+        ];
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, _| {
+                assessor.records[1].outcome = RelationOutcome::Tentative;
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_owned_seed_overlap() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+        ];
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |_, ownership| {
+                ownership[0].accepted.push(SourceInterval {
+                    block_index: 0,
+                    start: 2,
+                    end: 4,
+                });
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.old_accepted.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_stationary_negative_zero_delta() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 0.0),
+            suffix_test_block(2, "GHIJKL", 100.0, -10.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, -0.0),
+            suffix_test_block(102, "GHIJKL", 100.0, -10.0),
+        ];
+        let outcome = run_suffix_case(&old_blocks, &new_blocks, DiffOptions::default(), |_, _| {})?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_competing_occurrence() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+            suffix_test_block(103, "ABCDEF", 100.0, 80.0),
+        ];
+        let outcome = run_suffix_case(&old_blocks, &new_blocks, DiffOptions::default(), |_, _| {})?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_adopts_nothing_at_output_record_limit() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+        ];
+        let options = DiffOptions {
+            max_assessment_ranges: 3,
+            ..DiffOptions::default()
+        };
+        let outcome = run_suffix_case(&old_blocks, &new_blocks, options, |_, _| {})?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2, "no output-limit placeholder was added");
+        assert_eq!(outcome.old_accepted.len(), 1);
+        assert_eq!(outcome.new_accepted.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_adopts_nothing_without_budget() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 100.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 90.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+        ];
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, _| {
+                assessor.remaining_work = 0;
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.old_accepted.len(), 1);
+        Ok(())
+    }
+    fn add_owned_reference(
+        assessor: &mut super::super::Assessor<'_, '_>,
+        ownership: &mut [Ownership; 2],
+        block_id: u64,
+        index: usize,
+        len: usize,
+    ) {
+        let relation = assessor.records.len();
+        assessor.records.push(crate::diff::RelationAssessment {
+            old_span: Some(strict_closed_fragment_span(block_id, 0, len)),
+            new_span: Some(strict_closed_fragment_span(block_id + 100, 0, len)),
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: Vec::new(),
+            reasons: Vec::new(),
+        });
+        assessor.domains.insert(
+            DomainKey {
+                local: Some((
+                    strict_closed_fragment_span(block_id, 0, len),
+                    strict_closed_fragment_span(block_id + 100, 0, len),
+                )),
+                old: index..index + 1,
+                new: index..index + 1,
+                old_separator: BlockSeparator::Space,
+                new_separator: BlockSeparator::Space,
+            },
+            DomainProof {
+                relation,
+                unique: true,
+                search: SearchCompleteness::Complete,
+                edits: Vec::new(),
+                lengths: [len, len],
+                strict_unique: true,
+                stable_events: None,
+            },
+        );
+        ownership[0].accepted.push(SourceInterval {
+            block_index: index,
+            start: 0,
+            end: len,
+        });
+        ownership[1].accepted.push(SourceInterval {
+            block_index: index,
+            start: 0,
+            end: len,
+        });
+    }
+
+    fn fragment_fixture() -> ([BlockText; 2], [BlockText; 2]) {
+        (
+            [
+                suffix_test_block(1, "ABCDEF", 100.0, 90.0),
+                suffix_test_block(2, "GHIJKL", 100.0, 80.0),
+            ],
+            [
+                suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+                suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+            ],
+        )
+    }
+
+    #[test]
+    fn suffix_translation_rejects_same_block_prefix_obstacle() -> Result<()> {
+        let (mut old_blocks, new_blocks) = fragment_fixture();
+        old_blocks[0] = suffix_test_block(1, "ZBCDEF", 100.0, 90.0);
+        old_blocks[0]
+            .position_signatures
+            .as_mut()
+            .expect("geometry")[0] =
+            PositionSignature::new(Vec2 { x: 130.0, y: 85.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let mut new_seed = suffix_test_block(101, "QBCDEF", 100.0, 80.0);
+        new_seed.position_signatures.as_mut().expect("geometry")[0] =
+            PositionSignature::new(Vec2 { x: 130.0, y: 80.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let new_blocks = [new_seed, new_blocks[1].clone()];
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            1,
+            &[],
+            &[],
+            |_, _| {},
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_adopts_fragment_seed_with_clear_prefix() -> Result<()> {
+        let (mut old_blocks, new_blocks) = fragment_fixture();
+        old_blocks[0] = suffix_test_block(1, "ZBCDEF", 100.0, 90.0);
+        old_blocks[0]
+            .position_signatures
+            .as_mut()
+            .expect("geometry")[0] =
+            PositionSignature::new(Vec2 { x: 130.0, y: 70.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let mut new_seed = suffix_test_block(101, "QBCDEF", 100.0, 80.0);
+        new_seed.position_signatures.as_mut().expect("geometry")[0] =
+            PositionSignature::new(Vec2 { x: 130.0, y: 60.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let new_blocks = [new_seed, new_blocks[1].clone()];
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            1,
+            &[],
+            &[],
+            |_, _| {},
+        )?;
+        assert!(outcome.premise);
+        assert!(
+            outcome
+                .old_accepted
+                .iter()
+                .any(|interval| interval.block_index == 0
+                    && interval.start == 1
+                    && interval.end == 6)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_accepted_overlap_only_in_expanded_suffix() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            1,
+            &[],
+            &[],
+            |_, ownership| {
+                ownership[0].accepted.push(SourceInterval {
+                    block_index: 0,
+                    start: 0,
+                    end: 1,
+                });
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.old_accepted.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_adopts_when_expanded_suffix_is_clear() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            1,
+            &[],
+            &[],
+            |_, _| {},
+        )?;
+        assert!(outcome.premise);
+        assert!(
+            outcome
+                .old_accepted
+                .iter()
+                .any(|interval| interval.block_index == 0
+                    && interval.start == 0
+                    && interval.end == 6)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_crossing_reference() -> Result<()> {
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 90.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 80.0),
+            suffix_test_block(3, "MNOPQR", 500.0, 95.0),
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+            suffix_test_block(103, "MNOPQR", 500.0, 60.0),
+        ];
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, ownership| {
+                add_owned_reference(assessor, ownership, 3, 2, 6);
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_reference_without_geometry() -> Result<()> {
+        let mut reference = suffix_test_block(3, "MNOPQR", 500.0, 95.0);
+        reference.position_signatures = None;
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 90.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 80.0),
+            reference,
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+            suffix_test_block(103, "MNOPQR", 500.0, 60.0),
+        ];
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, ownership| {
+                add_owned_reference(assessor, ownership, 3, 2, 6);
+            },
+        )?;
+        assert!(!outcome.premise);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_two_token_obstacle_straddling_band() -> Result<()> {
+        let mut obstacle = suffix_test_block(3, "MN", 80.0, 85.0);
+        obstacle.position_signatures.as_mut().expect("geometry")[1] =
+            PositionSignature::new(Vec2 { x: 170.0, y: 85.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let old_blocks = [
+            suffix_test_block(1, "ABCDEF", 100.0, 90.0),
+            suffix_test_block(2, "GHIJKL", 100.0, 80.0),
+            obstacle,
+        ];
+        let new_blocks = [
+            suffix_test_block(101, "ABCDEF", 100.0, 80.0),
+            suffix_test_block(102, "GHIJKL", 100.0, 70.0),
+            suffix_test_block(103, "MN", 80.0, 60.0),
+        ];
+        let outcome = run_suffix_case(&old_blocks, &new_blocks, DiffOptions::default(), |_, _| {})?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_changed_overlap() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |_, ownership| {
+                ownership[0].changed.push(SourceInterval {
+                    block_index: 0,
+                    start: 2,
+                    end: 4,
+                });
+            },
+        )?;
+        assert!(!outcome.premise);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_candidate_overlap() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let candidate = ChangeCandidate {
+            change: crate::diff::Change::single_occurrence(
+                crate::diff::ChangeKind::Replacement,
+                Some(strict_closed_fragment_span(1, 2, 4)),
+                Some(strict_closed_fragment_span(101, 2, 4)),
+                Confidence::High,
+                Vec::new(),
+            ),
+            relation: 0,
+            alternative_group: 0,
+        };
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            0,
+            &[candidate],
+            &[],
+            |_, _| {},
+        )?;
+        assert!(!outcome.premise);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_proven_overlap() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let proven = [ProvenChangedRegion {
+            old_span: Some(strict_closed_fragment_span(1, 2, 4)),
+            new_span: None,
+            proof: ChangedRegionProof::OneSidedNonEmptyRange,
+            confidence: Confidence::High,
+        }];
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            0,
+            &[],
+            &proven,
+            |_, _| {},
+        )?;
+        assert!(!outcome.premise);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_stops_on_seed_copy_exhaustion() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, _| {
+                assessor.remaining_work = 3;
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.remaining_work, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_stops_in_anchor_or_veto_scan_exhaustion() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, _| {
+                assessor.remaining_work = 25;
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.old_accepted.len(), 1);
+        assert_eq!(outcome.remaining_work, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_stops_mid_proof_on_exhaustion() -> Result<()> {
+        let (old_blocks, new_blocks) = fragment_fixture();
+        let outcome = run_suffix_case(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            |assessor, _| {
+                assessor.remaining_work = 60;
+            },
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
+        assert_eq!(outcome.old_accepted.len(), 1);
+        assert_eq!(
+            outcome.remaining_work, 0,
+            "the mid-proof run consumed the budget"
+        );
+        Ok(())
+    }
+    #[test]
+    fn suffix_translation_rejects_prefix_touching_gap_boundary() -> Result<()> {
+        let (mut old_blocks, new_blocks) = fragment_fixture();
+        old_blocks[0] = suffix_test_block(1, "ZBCDEF", 100.0, 90.0);
+        old_blocks[0]
+            .position_signatures
+            .as_mut()
+            .expect("geometry")[0] =
+            PositionSignature::new(Vec2 { x: 130.0, y: 90.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let mut new_seed = suffix_test_block(101, "QBCDEF", 100.0, 80.0);
+        new_seed.position_signatures.as_mut().expect("geometry")[0] =
+            PositionSignature::new(Vec2 { x: 130.0, y: 80.0 }, Vec2 { x: 1.0, y: 0.0 })
+                .expect("valid position");
+        let new_blocks = [new_seed, new_blocks[1].clone()];
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            1,
+            &[],
+            &[],
+            |_, _| {},
+        )?;
+        assert!(
+            !outcome.premise,
+            "boundary contact must veto conservatively"
+        );
+        assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn suffix_translation_rejects_prefix_straddling_gap() -> Result<()> {
+        let mut old_seed = suffix_test_block(1, "ZZBCDEF", 100.0, 90.0);
+        let signatures = old_seed.position_signatures.as_mut().expect("geometry");
+        signatures[0] = PositionSignature::new(Vec2 { x: 130.0, y: 85.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid position");
+        signatures[1] = PositionSignature::new(Vec2 { x: 140.0, y: 95.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid position");
+        let old_blocks = [old_seed, suffix_test_block(2, "GHIJKL", 100.0, 80.0)];
+        let mut new_seed = suffix_test_block(101, "QQBCDEF", 100.0, 80.0);
+        let signatures = new_seed.position_signatures.as_mut().expect("geometry");
+        signatures[0] = PositionSignature::new(Vec2 { x: 130.0, y: 60.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid position");
+        signatures[1] = PositionSignature::new(Vec2 { x: 140.0, y: 60.0 }, Vec2 { x: 1.0, y: 0.0 })
+            .expect("valid position");
+        let new_blocks = [new_seed, suffix_test_block(102, "GHIJKL", 100.0, 70.0)];
+        let outcome = run_suffix_case_full(
+            &old_blocks,
+            &new_blocks,
+            DiffOptions::default(),
+            2,
+            &[],
+            &[],
+            |_, _| {},
+        )?;
+        assert!(!outcome.premise);
+        assert_eq!(outcome.records, 2);
         Ok(())
     }
 }

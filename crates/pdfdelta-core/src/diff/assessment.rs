@@ -15,6 +15,7 @@ mod normalization;
 mod raw_source;
 mod review;
 mod semantic;
+mod suffix;
 mod validation;
 mod views;
 
@@ -120,6 +121,15 @@ pub enum ComparisonAssumption {
     /// correspondence closure is independent; only the edit location is
     /// proven by the exact displacement.
     ExactTextDisplacement,
+    /// A maximal literal, same-direction, exact-delta suffix of a source block
+    /// reaching both original block ends is related by one raw rigid
+    /// translation that matches an independently established whole-block
+    /// correspondence with the same exact delta on the same page. The suffix
+    /// premise claims only the selected source correspondence: the unselected
+    /// same-block prefix, the outside endpoints of cut-adjacent breaks and any
+    /// geometry outside the range stay unclaimed, and no reading order or
+    /// pixel tolerance is involved.
+    RigidSuffixTranslation,
     /// Every token of a localized child span lies on a mandatory matched pair
     /// of the parent domain's maximum LCS matchings: the equal correspondence
     /// is fixed on every optimal path even though the parent edit location
@@ -2474,6 +2484,12 @@ pub(super) fn finish(
     // pass re-checks the latest ownership and never rewrites a record, so an
     // exhausted budget leaves the remaining fragments pending.
     assessor.recover_equal_fragments(&mut ownership, &candidates, &proven_changed_regions)?;
+    assessor.recover_suffix_translations(
+        &mut ownership,
+        &candidates,
+        &proven_changed_regions,
+        options.max_assessment_ranges,
+    )?;
     let [old_ownership, new_ownership] = ownership;
     let old_resolution = old_ownership.finish(sides[0], options.max_assessment_ranges)?;
     let new_resolution = new_ownership.finish(sides[1], options.max_assessment_ranges)?;

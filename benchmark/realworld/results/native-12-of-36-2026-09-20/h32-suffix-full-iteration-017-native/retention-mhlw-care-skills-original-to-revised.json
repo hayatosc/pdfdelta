@@ -1,0 +1,132 @@
+{
+  "pair": "mhlw-care-skills-original-to-revised",
+  "before_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h29-raw-cut-only-full-iteration-016-native",
+  "after_capture": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h32-suffix-full-iteration-017-native",
+  "sides": {
+    "old_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 82002,
+          "tokens_after": 82002,
+          "resolved_before": 0,
+          "resolved_after": 0,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "unresolved->unresolved": 82002
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 82214,
+          "tokens_after": 82214,
+          "resolved_before": 0,
+          "resolved_after": 0,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "unresolved->unresolved": 82214
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 5859,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 265,
+      "regions_after": 265,
+      "region_blocks": {
+        "old_before": 5859,
+        "old_after": 5859,
+        "new_before": 6815,
+        "new_after": 6815,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    },
+    "new_resolution": {
+      "coordinates": {
+        "canonical_range": {
+          "tokens_before": 98309,
+          "tokens_after": 98309,
+          "resolved_before": 0,
+          "resolved_after": 0,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "unresolved->unresolved": 98309
+          },
+          "review_transitions": {}
+        },
+        "comparable_range": {
+          "tokens_before": 99828,
+          "tokens_after": 99828,
+          "resolved_before": 0,
+          "resolved_after": 0,
+          "prior_resolved_lost": 0,
+          "newly_resolved": 0,
+          "transitions": {
+            "unresolved->unresolved": 99828
+          },
+          "review_transitions": {}
+        }
+      },
+      "source_blocks_compared": 6815,
+      "source_blocks_missing": 0,
+      "source_glyphs_lost": 0,
+      "source_glyphs_invented": 0,
+      "structural_event_differences": 0,
+      "structural_review": [],
+      "source_sequence_mismatches": 0,
+      "regions_before": 265,
+      "regions_after": 265,
+      "region_blocks": {
+        "old_before": 5859,
+        "old_after": 5859,
+        "new_before": 6815,
+        "new_after": 6815,
+        "old_new_uncertainty": 0,
+        "new_new_uncertainty": 0
+      }
+    }
+  },
+  "member_retention": {
+    "changes": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    },
+    "formatting_only_changes": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    },
+    "proven_changed_regions": {
+      "before": 0,
+      "after": 0,
+      "retained": 0,
+      "identical": true
+    }
+  },
+  "tentative_accounting": {
+    "old_resolution": {
+      "sources_reported": 45,
+      "sources_accounted": 45,
+      "sources_missing": 0
+    },
+    "new_resolution": {
+      "sources_reported": 42,
+      "sources_accounted": 42,
+      "sources_missing": 0
+    }
+  },
+  "review": [],
+  "problems": [],
+  "retention": "pass"
+}

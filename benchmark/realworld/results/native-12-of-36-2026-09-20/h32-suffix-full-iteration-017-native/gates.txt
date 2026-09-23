@@ -1,0 +1,9 @@
+H32 quality gates (final source after cargo fmt --all)
+g1 cargo fmt --all -- --check rc=0
+g2 cargo clippy --workspace --all-targets --all-features -- -D warnings rc=0
+g3 cargo test --workspace rc=0
+g4 cargo test --workspace --all-features --lib rc=0
+g5 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --document-private-items rc=0
+    (the first g5 invocation failed on a wrapper argument-order mistake; the proper
+     invocation above is the recorded gate)
+48 fixtures: cargo run --release -p pdfdelta-bench --bin pdfbench --locked -- verify rc=0

@@ -181,13 +181,13 @@ pub(super) struct EqualFragmentCache<'a> {
 /// it can never be the unique source of a selected token. Counting every block
 /// keeps a glyph shared with another block visible; one raw and one canonical
 /// occurrence in the same block stays the normal case.
-struct SharingIndex {
+pub(super) struct SharingIndex {
     shared_raw: HashSet<GlyphId>,
     shared_canonical: HashSet<GlyphId>,
 }
 
 impl SharingIndex {
-    fn is_shared(&self, glyph: GlyphId) -> bool {
+    pub(super) fn is_shared(&self, glyph: GlyphId) -> bool {
         self.shared_raw.contains(&glyph) || self.shared_canonical.contains(&glyph)
     }
 }
@@ -1479,6 +1479,14 @@ fn build_sharing_index(side: &Side<'_>, remaining: &mut usize) -> Check<SharingI
         shared_raw,
         shared_canonical,
     })
+}
+
+/// Sharing index for document-wide real-glyph uniqueness checks.
+///
+/// `None` reports an exhausted budget or a failed reservation; no partial
+/// index is ever returned.
+pub(super) fn sharing_index(side: &Side<'_>, remaining: &mut usize) -> Option<SharingIndex> {
+    build_sharing_index(side, remaining).ok()
 }
 
 /// Records the glyphs of one source atom list, keeping the repeats.
