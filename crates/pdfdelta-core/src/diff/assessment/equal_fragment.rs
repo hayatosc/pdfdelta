@@ -69,6 +69,17 @@
 //! existing recovery, proof and emission pass the tail pass re-checks the
 //! latest ownership and spends only the remaining budget. A held, exhausted
 //! or failed proof adopts nothing and leaves the candidate pending.
+//!
+//! A separately named fallback proof keeps [`EqualFragmentCache::prove`]
+//! untouched and adds one narrow allowance: a raw gap between two consecutive
+//! selected real glyphs may be certified when it is exactly one raw newline
+//! scalar with a singleton `LineBreak` atom naming those glyphs and exactly one
+//! validated `SoftLineBreak` event deleting that raw range to a zero-length
+//! canonical range at the following selected scalar. The certified break
+//! offsets relative to the selected interval must agree on both sides, and
+//! every other touching event, issue, sharing, position, page, projection and
+//! ownership veto stays unchanged. The fallback reuses the same cache and
+//! immutable sides and spends only the caller's remaining budget.
 
 use std::collections::HashSet;
 
@@ -76,8 +87,8 @@ use crate::{
     Error, Result,
     model::GlyphId,
     normalize::{
-        BlockText, MappedText, NormalizationEvent, PositionSignature, ScalarRange, TextSourceAtom,
-        has_duplicate_source_atoms, scalar_range_contains_or_touches,
+        BlockText, MappedText, NormalizationEvent, NormalizationKind, PositionSignature,
+        ScalarRange, TextSourceAtom, has_duplicate_source_atoms, scalar_range_contains_or_touches,
     },
 };
 
@@ -225,17 +236,82 @@ impl<'a> EqualFragmentCache<'a> {
         spans: [&TextSpan; 2],
         remaining: &mut usize,
     ) -> Result<FragmentVerdict> {
-        match self.check_fragment(spans, remaining) {
-            Ok(()) => Ok(FragmentVerdict::Proven),
+        Self::verdict(self.check_fragment(spans, false, remaining))
+    }
+
+    /// Test-only convenience wrapper around
+    /// [`Self::prove_internal_deleted_soft_line_break_with_certificate`] that
+    /// discards the certificate.
+    #[cfg(test)]
+    pub(super) fn prove_internal_deleted_soft_line_break(
+        &mut self,
+        spans: [&TextSpan; 2],
+        remaining: &mut usize,
+    ) -> Result<FragmentVerdict> {
+        Self::verdict(self.check_fragment(spans, true, remaining))
+    }
+
+    /// Proves or holds one literal-equal fragment that may contain internal
+    /// deleted soft line breaks, reporting whether the allowance was used.
+    ///
+    /// The evidence rules are exactly [`Self::prove`]'s, with one narrow
+    /// allowance: a raw gap between two consecutive selected real glyphs is
+    /// accepted only when it is exactly one raw newline scalar whose single raw
+    /// source atom is a `LineBreak` naming those two glyphs and exactly one
+    /// `SoftLineBreak` event deletes that raw range to a zero-length canonical
+    /// range at the following selected scalar. The event must pass the full
+    /// structural validation, both endpoints must stay strictly inside the
+    /// selection, and the certified break offsets relative to the selected
+    /// interval must be equal on both sides. Glyph identifiers are never
+    /// compared across sides. Malformed, duplicated, conflicting or otherwise
+    /// touching events, non-newline deleted raw content, unsupported atoms,
+    /// cut-edge breaks, issues and every existing sharing, position, page,
+    /// projection and ownership veto hold the fragment.
+    ///
+    /// The returned certificate is `true` only when at least one internal
+    /// deleted soft line break was actually certified. A `Proven` verdict with
+    /// `certified == false` is an ordinary contiguous equality, so the caller
+    /// must not label it with the internal deleted soft line break premise.
+    ///
+    /// The caller runs this only after every existing recovery pass has
+    /// finished and spends only the remaining shared budget; the cache and its
+    /// immutable sides are shared with [`Self::prove`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidConfiguration`] when a span's source coordinates
+    /// do not agree with its blocks, [`Error::LimitExceeded`] for count
+    /// overflow and [`Error::Unresolved`] when a bounded allocation fails.
+    pub(super) fn prove_internal_deleted_soft_line_break_with_certificate(
+        &mut self,
+        spans: [&TextSpan; 2],
+        remaining: &mut usize,
+    ) -> Result<(FragmentVerdict, bool)> {
+        match self.check_fragment(spans, true, remaining) {
+            Ok(certified) => Ok((FragmentVerdict::Proven, certified)),
+            Err(Stop::Held(hold)) => Ok((FragmentVerdict::Held(hold), false)),
+            Err(Stop::Exhausted) => Ok((FragmentVerdict::Exhausted, false)),
+            Err(Stop::Error(error)) => Err(error),
+        }
+    }
+
+    fn verdict(result: Check<bool>) -> Result<FragmentVerdict> {
+        match result {
+            Ok(_) => Ok(FragmentVerdict::Proven),
             Err(Stop::Held(hold)) => Ok(FragmentVerdict::Held(hold)),
             Err(Stop::Exhausted) => Ok(FragmentVerdict::Exhausted),
             Err(Stop::Error(error)) => Err(error),
         }
     }
 
-    fn check_fragment(&mut self, spans: [&TextSpan; 2], remaining: &mut usize) -> Check<()> {
-        let old = self.analyze_side(0, spans[0], remaining)?;
-        let new = self.analyze_side(1, spans[1], remaining)?;
+    fn check_fragment(
+        &mut self,
+        spans: [&TextSpan; 2],
+        allow_internal_deleted_break: bool,
+        remaining: &mut usize,
+    ) -> Check<bool> {
+        let old = self.analyze_side(0, spans[0], allow_internal_deleted_break, remaining)?;
+        let new = self.analyze_side(1, spans[1], allow_internal_deleted_break, remaining)?;
         if !charge(remaining, old.chars.len().saturating_mul(2)) {
             return Err(Stop::Exhausted);
         }
@@ -258,7 +334,15 @@ impl<'a> EqualFragmentCache<'a> {
         }
         self.check_side_sharing(0, &old.glyphs, remaining)?;
         self.check_side_sharing(1, &new.glyphs, remaining)?;
-        Ok(())
+        if allow_internal_deleted_break {
+            if !charge(remaining, old.breaks.len()) {
+                return Err(Stop::Exhausted);
+            }
+            if old.breaks != new.breaks {
+                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+            }
+        }
+        Ok(allow_internal_deleted_break && !old.breaks.is_empty())
     }
 
     /// Returns the per-block cache, reserving the side table on first use.
@@ -401,6 +485,7 @@ impl<'a> EqualFragmentCache<'a> {
         &mut self,
         side_index: usize,
         span: &TextSpan,
+        allow_internal_deleted_break: bool,
         remaining: &mut usize,
     ) -> Check<SideFragment> {
         let side = self.sides[side_index];
@@ -476,20 +561,42 @@ impl<'a> EqualFragmentCache<'a> {
         };
         let glyphs = canonical_glyphs(block, &interval, remaining)?;
         let raw_scalars = raw_counterparts(block, &glyphs, remaining)?;
-        check_raw_run(block, &chars, &raw_scalars, remaining)?;
-        self.check_normalization_boundary(
+        let run = RawRun {
+            interval: &interval,
+            glyphs: &glyphs,
+            chars: &chars,
+            raw_scalars: &raw_scalars,
+        };
+        let (breaks, admitted_events) = self.check_raw_run(
             side_index,
             interval.block_index,
-            &interval,
-            &glyphs,
-            &raw_scalars,
+            &run,
+            allow_internal_deleted_break,
             remaining,
         )?;
+        let Some(&raw_first) = raw_scalars.first() else {
+            return Err(Stop::Held(FragmentHold::RawCut));
+        };
+        let Some(&raw_last) = raw_scalars.last() else {
+            return Err(Stop::Held(FragmentHold::RawCut));
+        };
+        let selection = BoundarySelection {
+            glyphs: &glyphs,
+            bounds: FragmentBounds {
+                raw_first,
+                raw_last,
+                scalar_first: interval.start,
+                scalar_last: interval.end - 1,
+            },
+            admitted_events: &admitted_events,
+        };
+        self.check_normalization_boundary(side_index, interval.block_index, &selection, remaining)?;
         Ok(SideFragment {
             glyphs,
             chars,
             positions,
             page: *page,
+            breaks,
         })
     }
 
@@ -505,9 +612,7 @@ impl<'a> EqualFragmentCache<'a> {
         &mut self,
         side_index: usize,
         block_index: usize,
-        interval: &SourceInterval,
-        glyphs: &[GlyphId],
-        raw_scalars: &[usize],
+        selection: &BoundarySelection<'_>,
         remaining: &mut usize,
     ) -> Check<()> {
         let side = self.sides[side_index];
@@ -612,30 +717,27 @@ impl<'a> EqualFragmentCache<'a> {
         let projection_cost = validation_cost
             .saturating_add(per_issue.saturating_mul(block.issues.len().saturating_add(1)));
         let mut selected = HashSet::new();
-        if !charge(remaining, glyphs.len()) {
+        if !charge(remaining, selection.glyphs.len()) {
             return Err(Stop::Exhausted);
         }
         selected
-            .try_reserve(glyphs.len())
+            .try_reserve(selection.glyphs.len())
             .map_err(|_| allocation_error("equal fragment event selection"))?;
-        for glyph in glyphs {
+        for glyph in selection.glyphs {
             selected.insert(*glyph);
         }
-        let Some(&raw_first) = raw_scalars.first() else {
-            return Err(Stop::Held(FragmentHold::RawCut));
-        };
-        let Some(&raw_last) = raw_scalars.last() else {
-            return Err(Stop::Held(FragmentHold::RawCut));
-        };
-        let bounds = FragmentBounds {
-            raw_first,
-            raw_last,
-            scalar_first: interval.start,
-            scalar_last: interval.end - 1,
-        };
-        for event in &block.normalization_events {
+        let bounds = selection.bounds;
+        for (event_index, event) in block.normalization_events.iter().enumerate() {
             if !charge(remaining, 1 + event.source.atoms.len()) {
                 return Err(Stop::Exhausted);
+            }
+            if !selection.admitted_events.is_empty() {
+                if !charge(remaining, selection.admitted_events.len()) {
+                    return Err(Stop::Exhausted);
+                }
+                if selection.admitted_events.contains(&event_index) {
+                    continue;
+                }
             }
             if event_touches_selection(event, &selected, bounds) {
                 return Err(Stop::Held(FragmentHold::NormalizationBoundary));
@@ -665,7 +767,7 @@ impl<'a> EqualFragmentCache<'a> {
                     if !charge(remaining, 1 + issue.source.atoms.len()) {
                         return Err(Stop::Exhausted);
                     }
-                    if range_overlaps(issue.raw_range, raw_first, raw_last)
+                    if range_overlaps(issue.raw_range, bounds.raw_first, bounds.raw_last)
                         || range_overlaps(*range, bounds.scalar_first, bounds.scalar_last)
                     {
                         return Err(Stop::Held(FragmentHold::NormalizationBoundary));
@@ -674,6 +776,192 @@ impl<'a> EqualFragmentCache<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Checks the selected raw run: contiguous and literal-equal.
+    ///
+    /// Without `allow_internal_deleted_break` the behavior, charge order and
+    /// result are exactly the contiguous-run contract. With the flag, a gap of
+    /// exactly one raw scalar between two consecutive selected glyphs may be
+    /// certified as an internal deleted soft line break; the certified break
+    /// pair indices and the event indices admitted by the boundary veto are
+    /// returned.
+    fn check_raw_run(
+        &mut self,
+        side_index: usize,
+        block_index: usize,
+        run: &RawRun<'_>,
+        allow_internal_deleted_break: bool,
+        remaining: &mut usize,
+    ) -> Check<(Vec<usize>, Vec<usize>)> {
+        let side = self.sides[side_index];
+        let block = &side.blocks[block_index];
+        let raw_scalars = run.raw_scalars;
+        let chars = run.chars;
+        if !charge(remaining, raw_scalars.len()) {
+            return Err(Stop::Exhausted);
+        }
+        let mut breaks = Vec::new();
+        let mut admitted_events = Vec::new();
+        for (pair_index, pair) in raw_scalars.windows(2).enumerate() {
+            if pair[1] == pair[0] + 1 {
+                continue;
+            }
+            if !allow_internal_deleted_break || pair[1] != pair[0] + 2 {
+                return Err(Stop::Held(FragmentHold::RawCut));
+            }
+            let event_index = self.admit_internal_deleted_break(
+                side_index,
+                block_index,
+                run,
+                pair_index,
+                pair[0] + 1,
+                remaining,
+            )?;
+            if !charge(remaining, 1) {
+                return Err(Stop::Exhausted);
+            }
+            breaks
+                .try_reserve(1)
+                .map_err(|_| allocation_error("equal fragment internal breaks"))?;
+            breaks.push(pair_index);
+            admitted_events
+                .try_reserve(1)
+                .map_err(|_| allocation_error("equal fragment admitted events"))?;
+            admitted_events.push(event_index);
+        }
+        let mut next = 0usize;
+        for (index, scalar) in block.raw.text.chars().enumerate() {
+            if !charge(remaining, 1) {
+                return Err(Stop::Exhausted);
+            }
+            if next >= raw_scalars.len() {
+                break;
+            }
+            if raw_scalars[next] == index {
+                if chars[next] != scalar {
+                    return Err(Stop::Held(FragmentHold::RawSource));
+                }
+                next += 1;
+            }
+        }
+        if next != raw_scalars.len() {
+            return Err(Stop::Held(FragmentHold::RawSource));
+        }
+        Ok((breaks, admitted_events))
+    }
+
+    /// Certifies one internal deleted soft line break gap.
+    ///
+    /// The gap must be exactly one raw newline scalar whose single raw source
+    /// atom is a `LineBreak` naming the two adjacent selected glyphs, and
+    /// exactly one `SoftLineBreak` event must delete that raw range to the
+    /// zero-length canonical range at the following selected scalar. The event
+    /// must pass the full structural validation. Returns the event index that
+    /// the boundary veto admits.
+    fn admit_internal_deleted_break(
+        &mut self,
+        side_index: usize,
+        block_index: usize,
+        run: &RawRun<'_>,
+        pair_index: usize,
+        gap: usize,
+        remaining: &mut usize,
+    ) -> Check<usize> {
+        let side = self.sides[side_index];
+        let block = &side.blocks[block_index];
+        if pair_index + 1 >= run.glyphs.len() {
+            return Err(Stop::Held(FragmentHold::RawCut));
+        }
+        if !charge(remaining, gap.saturating_add(1)) {
+            return Err(Stop::Exhausted);
+        }
+        if block.raw.text.chars().nth(gap) != Some('\n') {
+            return Err(Stop::Held(FragmentHold::RawCut));
+        }
+        let expected = TextSourceAtom::LineBreak {
+            preceding: run.glyphs[pair_index],
+            following: run.glyphs[pair_index + 1],
+        };
+        let mut raw_atom_found = false;
+        for entry in &block.raw.source_map {
+            if !charge(remaining, 1 + entry.source.atoms.len()) {
+                return Err(Stop::Exhausted);
+            }
+            if entry.output_range.start != gap {
+                continue;
+            }
+            if raw_atom_found
+                || entry.output_range.end != gap + 1
+                || entry.source.atoms.len() != 1
+                || entry.source.atoms[0] != expected
+            {
+                return Err(Stop::Held(FragmentHold::RawCut));
+            }
+            raw_atom_found = true;
+        }
+        if !raw_atom_found {
+            return Err(Stop::Held(FragmentHold::RawCut));
+        }
+        let mut candidates = 0usize;
+        let mut event_index = None;
+        for (index, event) in block.normalization_events.iter().enumerate() {
+            if !charge(remaining, 1 + event.source.atoms.len()) {
+                return Err(Stop::Exhausted);
+            }
+            if event.raw_range
+                == (ScalarRange {
+                    start: gap,
+                    end: gap + 1,
+                })
+            {
+                candidates += 1;
+                if candidates > 1 {
+                    return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+                }
+                event_index = Some(index);
+            }
+        }
+        let Some(event_index) = event_index else {
+            return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+        };
+        let boundary = run.interval.start + pair_index + 1;
+        let event = &block.normalization_events[event_index];
+        if event.kind != NormalizationKind::SoftLineBreak
+            || event.canonical_range
+                != (ScalarRange {
+                    start: boundary,
+                    end: boundary,
+                })
+            || event.source.atoms.len() != 1
+            || event.source.atoms[0] != expected
+        {
+            return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+        }
+        if !charge(
+            remaining,
+            block
+                .raw
+                .text
+                .len()
+                .saturating_add(block.canonical.text.len())
+                .saturating_add(1),
+        ) {
+            return Err(Stop::Exhausted);
+        }
+        let raw_count = block.raw.text.chars().count();
+        let scalar_count = block.canonical.text.chars().count();
+        if !self.event_structure(
+            side_index,
+            block_index,
+            event_index,
+            raw_count,
+            scalar_count,
+            remaining,
+        )? {
+            return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+        }
+        Ok(event_index)
     }
 }
 
@@ -687,6 +975,31 @@ struct SideFragment {
     positions: Vec<PositionSignature>,
     /// Single page of the selected block.
     page: u32,
+    /// Selected-index positions of certified internal deleted soft line breaks,
+    /// in ascending order. Always empty without the fallback allowance.
+    breaks: Vec<usize>,
+}
+
+/// Selection-dependent raw evidence of one side's fragment.
+struct RawRun<'a> {
+    /// The projected selected interval of the side's block.
+    interval: &'a SourceInterval,
+    /// Selected canonical glyphs, in comparable order.
+    glyphs: &'a [GlyphId],
+    /// Selected literal scalars, parallel to `glyphs`.
+    chars: &'a [char],
+    /// Raw scalar positions of the selected glyphs, parallel to `glyphs`.
+    raw_scalars: &'a [usize],
+}
+
+/// Selection-dependent evidence passed to the normalization boundary veto.
+struct BoundarySelection<'a> {
+    /// Selected canonical glyphs, in comparable order.
+    glyphs: &'a [GlyphId],
+    /// Inclusive raw and scalar bounds of the selection.
+    bounds: FragmentBounds,
+    /// Event indices admitted by the internal deleted soft line break proof.
+    admitted_events: &'a [usize],
 }
 
 /// Whether a signature carries finite baseline and direction geometry.
@@ -843,42 +1156,6 @@ fn raw_counterparts(
         raw_scalars.push(position);
     }
     Ok(raw_scalars)
-}
-
-/// Checks the selected raw run: contiguous and literal-equal.
-fn check_raw_run(
-    block: &BlockText,
-    chars: &[char],
-    raw_scalars: &[usize],
-    remaining: &mut usize,
-) -> Check<()> {
-    if !charge(remaining, raw_scalars.len()) {
-        return Err(Stop::Exhausted);
-    }
-    for pair in raw_scalars.windows(2) {
-        if pair[1] != pair[0] + 1 {
-            return Err(Stop::Held(FragmentHold::RawCut));
-        }
-    }
-    let mut next = 0usize;
-    for (index, scalar) in block.raw.text.chars().enumerate() {
-        if !charge(remaining, 1) {
-            return Err(Stop::Exhausted);
-        }
-        if next >= raw_scalars.len() {
-            break;
-        }
-        if raw_scalars[next] == index {
-            if chars[next] != scalar {
-                return Err(Stop::Held(FragmentHold::RawSource));
-            }
-            next += 1;
-        }
-    }
-    if next != raw_scalars.len() {
-        return Err(Stop::Held(FragmentHold::RawSource));
-    }
-    Ok(())
 }
 
 /// Whether a scalar range touches the inclusive selected run.
@@ -1438,6 +1715,94 @@ mod tests {
         fixture
     }
 
+    /// Raw `A...\n...D` whose line break is deleted to canonical `ABCD`.
+    fn deleted_break_at(block: u64, break_index: usize) -> BlockText {
+        let mut fixture = positioned_block(block, "ABCD", 300.0, 700.0, 0);
+        let mut raw_text = String::from("ABCD");
+        raw_text.insert(break_index, '\n');
+        let mut source_map = Vec::new();
+        for index in 0..4 {
+            let raw_index = if index < break_index {
+                index
+            } else {
+                index + 1
+            };
+            source_map.push(glyph_entry(raw_index, glyph(block, index)));
+        }
+        let line_break = TextSourceAtom::LineBreak {
+            preceding: glyph(block, break_index - 1),
+            following: glyph(block, break_index),
+        };
+        source_map.insert(
+            break_index,
+            atoms_entry(break_index, vec![line_break.clone()]),
+        );
+        fixture.raw = MappedText {
+            text: raw_text,
+            source_map,
+            unmapped: Vec::new(),
+        };
+        fixture.normalization_events = vec![NormalizationEvent {
+            kind: NormalizationKind::SoftLineBreak,
+            raw_range: ScalarRange {
+                start: break_index,
+                end: break_index + 1,
+            },
+            canonical_range: ScalarRange {
+                start: break_index,
+                end: break_index,
+            },
+            source: TextSource {
+                atoms: vec![line_break].into(),
+            },
+        }];
+        fixture
+    }
+
+    /// Raw `A\nB\nCD` with two deleted line breaks to canonical `ABCD`.
+    fn double_deleted_break_block(block: u64) -> BlockText {
+        let mut fixture = positioned_block(block, "ABCD", 300.0, 700.0, 0);
+        let first = TextSourceAtom::LineBreak {
+            preceding: glyph(block, 0),
+            following: glyph(block, 1),
+        };
+        let second = TextSourceAtom::LineBreak {
+            preceding: glyph(block, 1),
+            following: glyph(block, 2),
+        };
+        fixture.raw = MappedText {
+            text: "A\nB\nCD".to_owned(),
+            source_map: vec![
+                glyph_entry(0, glyph(block, 0)),
+                atoms_entry(1, vec![first.clone()]),
+                glyph_entry(2, glyph(block, 1)),
+                atoms_entry(3, vec![second.clone()]),
+                glyph_entry(4, glyph(block, 2)),
+                glyph_entry(5, glyph(block, 3)),
+            ],
+            unmapped: Vec::new(),
+        };
+        fixture.normalization_events = vec![
+            NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 1, end: 2 },
+                canonical_range: ScalarRange { start: 1, end: 1 },
+                source: TextSource {
+                    atoms: vec![first].into(),
+                },
+            },
+            NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange { start: 3, end: 4 },
+                canonical_range: ScalarRange { start: 2, end: 2 },
+                source: TextSource {
+                    atoms: vec![second].into(),
+                },
+            },
+        ];
+        fixture
+    }
+
     fn side(blocks: &[BlockText]) -> Side<'_> {
         super::super::super::SidePlan::inspect("equal fragment test", blocks)
             .expect("test blocks are valid")
@@ -1467,6 +1832,23 @@ mod tests {
         let mut remaining = budget;
         let verdict = cache
             .prove([old_span, new_span], &mut remaining)
+            .expect("valid fixture evidence");
+        (verdict, budget - remaining)
+    }
+
+    fn prove_internal_pair(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        old_span: &TextSpan,
+        new_span: &TextSpan,
+        budget: usize,
+    ) -> (FragmentVerdict, usize) {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        let mut remaining = budget;
+        let verdict = cache
+            .prove_internal_deleted_soft_line_break([old_span, new_span], &mut remaining)
             .expect("valid fixture evidence");
         (verdict, budget - remaining)
     }
@@ -2399,6 +2781,334 @@ mod tests {
         assert_eq!(
             cache
                 .prove([&old_span, &new_span], &mut enough)
+                .expect("valid fixture evidence"),
+            FragmentVerdict::Proven
+        );
+        assert_eq!(enough, 0);
+    }
+
+    #[test]
+    fn internal_deleted_soft_line_break_proves_only_in_the_fallback() {
+        let old_blocks = vec![deleted_break_block(1, 300.0, 700.0)];
+        let new_blocks = vec![deleted_break_block(101, 300.0, 700.0)];
+        let old_span = fragment(1, 0, 4);
+        let new_span = fragment(101, 0, 4);
+        // The original proof keeps its contiguous-run contract untouched.
+        let (verdict, _) = prove_pair(&old_blocks, &new_blocks, &old_span, &new_span, usize::MAX);
+        assert_eq!(verdict, FragmentVerdict::Held(FragmentHold::RawCut));
+        let (verdict, used) =
+            prove_internal_pair(&old_blocks, &new_blocks, &old_span, &new_span, usize::MAX);
+        assert_eq!(verdict, FragmentVerdict::Proven);
+        assert!(used > 0);
+    }
+
+    #[test]
+    fn internal_break_wrong_endpoints_hold() {
+        // The raw atom names a foreign following glyph.
+        let mut old = deleted_break_block(1, 300.0, 700.0);
+        old.raw.source_map[2] = atoms_entry(
+            2,
+            vec![TextSourceAtom::LineBreak {
+                preceding: glyph(1, 1),
+                following: GlyphId(9999),
+            }],
+        );
+        let new = deleted_break_block(101, 300.0, 700.0);
+        let (verdict, _) = prove_internal_pair(
+            &[old],
+            std::slice::from_ref(&new),
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Held(FragmentHold::RawCut));
+
+        // The raw atom is right but the event source names a foreign endpoint.
+        let mut old = deleted_break_block(1, 300.0, 700.0);
+        old.normalization_events[0].source = TextSource {
+            atoms: vec![TextSourceAtom::LineBreak {
+                preceding: glyph(1, 0),
+                following: GlyphId(9999),
+            }]
+            .into(),
+        };
+        let (verdict, _) = prove_internal_pair(
+            &[old],
+            std::slice::from_ref(&new),
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+    }
+
+    #[test]
+    fn internal_break_wrong_event_output_boundary_holds() {
+        let mut old = deleted_break_block(1, 300.0, 700.0);
+        old.normalization_events[0].canonical_range = ScalarRange { start: 1, end: 1 };
+        let new = deleted_break_block(101, 300.0, 700.0);
+        let (verdict, _) = prove_internal_pair(
+            &[old],
+            &[new],
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+    }
+
+    #[test]
+    fn internal_break_real_character_deletion_holds() {
+        let mut old = deleted_break_block(1, 300.0, 700.0);
+        old.raw.text = "ABxCD".to_owned();
+        let new = deleted_break_block(101, 300.0, 700.0);
+        let (verdict, _) = prove_internal_pair(
+            &[old],
+            &[new],
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Held(FragmentHold::RawCut));
+    }
+
+    #[test]
+    fn mismatched_side_break_offsets_hold() {
+        let old_blocks = vec![deleted_break_at(1, 1)];
+        let new_blocks = vec![deleted_break_at(101, 2)];
+        let (verdict, _) = prove_internal_pair(
+            &old_blocks,
+            &new_blocks,
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+    }
+
+    #[test]
+    fn duplicate_internal_break_event_holds() {
+        let mut old = deleted_break_block(1, 300.0, 700.0);
+        let duplicate = old.normalization_events[0].clone();
+        old.normalization_events.push(duplicate);
+        let new = deleted_break_block(101, 300.0, 700.0);
+        let (verdict, _) = prove_internal_pair(
+            &[old],
+            &[new],
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+    }
+
+    #[test]
+    fn internal_break_at_a_selection_cut_holds() {
+        let old_blocks = vec![deleted_break_block(1, 300.0, 700.0)];
+        let new_blocks = vec![deleted_break_block(101, 300.0, 700.0)];
+        for (start, end) in [(0usize, 2usize), (2, 4)] {
+            let (verdict, _) = prove_internal_pair(
+                &old_blocks,
+                &new_blocks,
+                &fragment(1, start, end),
+                &fragment(101, start, end),
+                usize::MAX,
+            );
+            assert_eq!(
+                verdict,
+                FragmentVerdict::Held(FragmentHold::NormalizationBoundary),
+                "fragment {start}..{end}"
+            );
+        }
+    }
+
+    #[test]
+    fn internal_break_shared_glyph_holds() {
+        let mut second = positioned_block(2, "xy", 300.0, 600.0, 0);
+        second.raw.source_map[0] = glyph_entry(0, glyph(1, 0));
+        let old_blocks = vec![deleted_break_block(1, 300.0, 700.0), second];
+        let new_blocks = vec![deleted_break_block(101, 300.0, 700.0)];
+        let (verdict, _) = prove_internal_pair(
+            &old_blocks,
+            &new_blocks,
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Held(FragmentHold::SharedGlyph));
+    }
+
+    #[test]
+    fn internal_break_fallback_exhausts_without_a_partial_proof() {
+        let old_blocks = vec![deleted_break_block(1, 300.0, 700.0)];
+        let new_blocks = vec![deleted_break_block(101, 300.0, 700.0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_span = fragment(1, 0, 4);
+        let new_span = fragment(101, 0, 4);
+        let mut fresh = EqualFragmentCache::new([&old, &new]);
+        let mut unlimited = usize::MAX;
+        assert_eq!(
+            fresh
+                .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut unlimited)
+                .expect("valid fixture evidence"),
+            FragmentVerdict::Proven
+        );
+        let total = usize::MAX - unlimited;
+        assert!(total > 0);
+        for budget in 0..total {
+            let mut cache = EqualFragmentCache::new([&old, &new]);
+            let mut remaining = budget;
+            assert_eq!(
+                cache
+                    .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut remaining)
+                    .expect("valid fixture evidence"),
+                FragmentVerdict::Exhausted,
+                "budget {budget} of {total}"
+            );
+            assert_eq!(remaining, 0, "budget {budget} of {total}");
+        }
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        let mut exact = total;
+        assert_eq!(
+            cache
+                .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut exact)
+                .expect("valid fixture evidence"),
+            FragmentVerdict::Proven
+        );
+        assert_eq!(exact, 0);
+    }
+
+    #[test]
+    fn multiple_internal_breaks_prove_and_a_conflicting_touching_event_holds() {
+        let old_blocks = vec![double_deleted_break_block(1)];
+        let new_blocks = vec![double_deleted_break_block(101)];
+        let (verdict, _) = prove_pair(
+            &old_blocks,
+            &new_blocks,
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Held(FragmentHold::RawCut));
+        let (verdict, _) = prove_internal_pair(
+            &old_blocks,
+            &new_blocks,
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Proven);
+
+        // A second touching event with the wrong canonical boundary is never
+        // skipped by the admission of the first break.
+        let mut conflicting = double_deleted_break_block(1);
+        conflicting.normalization_events[1].canonical_range = ScalarRange { start: 1, end: 1 };
+        let (verdict, _) = prove_internal_pair(
+            &[conflicting],
+            &[double_deleted_break_block(101)],
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+
+        // A second touching event of an unsupported kind holds as well.
+        let mut unsupported = double_deleted_break_block(1);
+        unsupported.normalization_events[1].kind = NormalizationKind::WhitespaceCollapse;
+        let (verdict, _) = prove_internal_pair(
+            &[unsupported],
+            &[double_deleted_break_block(101)],
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+    }
+
+    #[test]
+    fn internal_break_with_an_overlapping_issue_holds() {
+        let mut old = deleted_break_block(1, 300.0, 700.0);
+        old.issues = vec![NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(glyph(1, 0))].into(),
+            },
+        }];
+        let new = deleted_break_block(101, 300.0, 700.0);
+        let (verdict, _) = prove_internal_pair(
+            &[old],
+            &[new],
+            &fragment(1, 0, 4),
+            &fragment(101, 0, 4),
+            usize::MAX,
+        );
+        assert_eq!(
+            verdict,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+    }
+
+    #[test]
+    fn cached_internal_break_fallback_reuses_and_never_leaks_a_partial_proof() {
+        let old_blocks = vec![deleted_break_block(1, 300.0, 700.0)];
+        let new_blocks = vec![deleted_break_block(101, 300.0, 700.0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_span = fragment(1, 0, 4);
+        let new_span = fragment(101, 0, 4);
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        let mut first = usize::MAX;
+        assert_eq!(
+            cache
+                .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut first)
+                .expect("valid fixture evidence"),
+            FragmentVerdict::Proven
+        );
+        let build_cost = usize::MAX - first;
+        let mut second = usize::MAX;
+        assert_eq!(
+            cache
+                .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut second)
+                .expect("valid fixture evidence"),
+            FragmentVerdict::Proven
+        );
+        let cached_cost = usize::MAX - second;
+        assert!(
+            cached_cost < build_cost,
+            "the shared indexes must be reused: {cached_cost} vs {build_cost}"
+        );
+        let mut low = cached_cost - 1;
+        assert_eq!(
+            cache
+                .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut low)
+                .expect("valid fixture evidence"),
+            FragmentVerdict::Exhausted
+        );
+        assert_eq!(low, 0);
+        let mut enough = cached_cost;
+        assert_eq!(
+            cache
+                .prove_internal_deleted_soft_line_break([&old_span, &new_span], &mut enough)
                 .expect("valid fixture evidence"),
             FragmentVerdict::Proven
         );

@@ -9,6 +9,17 @@ use crate::{
     diff::{Confidence, ProvenChangedRegion, Side},
 };
 
+/// Outcome of one deferred equal-fragment retry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EqualFragmentRetry {
+    /// The candidate was adopted with its projected intervals and premise.
+    Adopted,
+    /// The candidate stayed held.
+    Held,
+    /// The shared budget or output limit ended the pass; nothing is rewritten.
+    Stop,
+}
+
 /// Outcome of processing one local domain during recovery.
 enum LocalRecoveryStep {
     /// The domain was processed; the caller may continue.
@@ -1473,88 +1484,100 @@ impl Assessor<'_, '_> {
             return Ok(());
         }
         let limit = self.options.max_assessment_ranges;
-        for index in 0..self.equal_fragment_candidates.len() {
-            if self.remaining_work == 0 || self.output_stop.is_some() {
-                return Ok(());
-            }
-            let relation = self.equal_fragment_candidates[index];
-            if self.records[relation].outcome != RelationOutcome::Established {
-                continue;
-            }
-            // The relation already stores the span pair. Pay for the transient
-            // copy before it allocates, so a wide container domain can never
-            // amplify the deferred list itself.
-            let copy_work = self.records[relation]
-                .old_span
-                .as_ref()
-                .map_or(0, |span| span.blocks.len())
-                .saturating_add(
-                    self.records[relation]
-                        .new_span
-                        .as_ref()
-                        .map_or(0, |span| span.blocks.len()),
-                );
-            if !self.charge(copy_work) {
-                return Ok(());
-            }
-            let Some((old_span, new_span)) = self.copy_recorded_spans(relation)? else {
-                continue;
-            };
-            let spans = [&old_span, &new_span];
-            let accepted = [
-                project(self.sides[0], spans[0])?,
-                project(self.sides[1], spans[1])?,
-            ];
-            // The latest changed ownership still wins over a new equality.
-            let mut conflict = false;
-            for side in 0..2 {
-                let Some(overlap) = overlaps(
-                    &accepted[side],
-                    &ownership[side].changed,
-                    &mut self.remaining_work,
-                ) else {
-                    return Ok(());
-                };
-                conflict |= overlap;
-            }
-            if conflict {
-                continue;
-            }
-            // Tentative candidates still own every source range they claim.
-            let mut candidate_conflict = false;
-            'candidates: for candidate in candidates {
-                for occurrence in &candidate.change.occurrences {
-                    for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
-                        .into_iter()
-                        .enumerate()
-                    {
-                        let Some(span) = span else {
-                            continue;
-                        };
-                        if !self.charge(span.blocks.len()) {
-                            return Ok(());
-                        }
-                        let source = project(self.sides[side], span)?;
-                        let Some(overlap) =
-                            overlaps(&source, &accepted[side], &mut self.remaining_work)
-                        else {
-                            return Ok(());
-                        };
-                        if overlap {
-                            candidate_conflict = true;
-                            break 'candidates;
-                        }
-                    }
+        // The original contiguous pass runs first in recording order over the
+        // existing candidate list. Only after it finishes does the fallback
+        // pass revisit the same candidates with the internal deleted soft line
+        // break allowance, so the fallback can never take budget from an
+        // earlier correct proof or reorder an adoption. A candidate that the
+        // first pass held on a raw cut can still prove on the second pass; any
+        // other held candidate stays held.
+        for allow_internal_deleted_break in [false, true] {
+            for index in 0..self.equal_fragment_candidates.len() {
+                match self.retry_equal_fragment(
+                    ownership,
+                    candidates,
+                    proven,
+                    limit,
+                    index,
+                    allow_internal_deleted_break,
+                )? {
+                    EqualFragmentRetry::Adopted | EqualFragmentRetry::Held => {}
+                    EqualFragmentRetry::Stop => return Ok(()),
                 }
             }
-            if candidate_conflict {
-                continue;
-            }
-            // A proven changed region keeps its whole span unresolved, so a
-            // fragment that would resolve part of it is never adopted.
-            let mut proven_conflict = false;
-            'proven: for region in proven {
-                for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+        }
+        Ok(())
+    }
+
+    /// Retries one strict-closed recorded candidate with the contiguous proof
+    /// or, after the whole original pass, with the internal deleted soft line
+    /// break proof.
+    ///
+    /// Every retry repeats the full latest-ownership, candidate, proven-region,
+    /// containment and range-limit veto sequence, so an adoption never rewrites
+    /// an earlier record or contradicts a later change. An exhausted retry
+    /// stops the pass without adding ownership or a premise, and a held retry
+    /// leaves the candidate pending.
+    fn retry_equal_fragment(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        candidates: &[ChangeCandidate],
+        proven: &[ProvenChangedRegion],
+        limit: usize,
+        index: usize,
+        allow_internal_deleted_break: bool,
+    ) -> Result<EqualFragmentRetry> {
+        if self.remaining_work == 0 || self.output_stop.is_some() {
+            return Ok(EqualFragmentRetry::Stop);
+        }
+        let relation = self.equal_fragment_candidates[index];
+        if self.records[relation].outcome != RelationOutcome::Established {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        // The relation already stores the span pair. Pay for the transient
+        // copy before it allocates, so a wide container domain can never
+        // amplify the deferred list itself.
+        let copy_work = self.records[relation]
+            .old_span
+            .as_ref()
+            .map_or(0, |span| span.blocks.len())
+            .saturating_add(
+                self.records[relation]
+                    .new_span
+                    .as_ref()
+                    .map_or(0, |span| span.blocks.len()),
+            );
+        if !self.charge(copy_work) {
+            return Ok(EqualFragmentRetry::Stop);
+        }
+        let Some((old_span, new_span)) = self.copy_recorded_spans(relation)? else {
+            return Ok(EqualFragmentRetry::Held);
+        };
+        let spans = [&old_span, &new_span];
+        let accepted = [
+            project(self.sides[0], spans[0])?,
+            project(self.sides[1], spans[1])?,
+        ];
+        // The latest changed ownership still wins over a new equality.
+        let mut conflict = false;
+        for side in 0..2 {
+            let Some(overlap) = overlaps(
+                &accepted[side],
+                &ownership[side].changed,
+                &mut self.remaining_work,
+            ) else {
+                return Ok(EqualFragmentRetry::Stop);
+            };
+            conflict |= overlap;
+        }
+        if conflict {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        // Tentative candidates still own every source range they claim.
+        let mut candidate_conflict = false;
+        'candidates: for candidate in candidates {
+            for occurrence in &candidate.change.occurrences {
+                for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
                     .into_iter()
                     .enumerate()
                 {
@@ -1562,62 +1585,111 @@ impl Assessor<'_, '_> {
                         continue;
                     };
                     if !self.charge(span.blocks.len()) {
-                        return Ok(());
+                        return Ok(EqualFragmentRetry::Stop);
                     }
                     let source = project(self.sides[side], span)?;
                     let Some(overlap) =
                         overlaps(&source, &accepted[side], &mut self.remaining_work)
                     else {
-                        return Ok(());
+                        return Ok(EqualFragmentRetry::Stop);
                     };
                     if overlap {
-                        proven_conflict = true;
-                        break 'proven;
+                        candidate_conflict = true;
+                        break 'candidates;
                     }
                 }
             }
-            if proven_conflict {
-                continue;
-            }
-            // A span whose projected intervals are already contained in the
-            // accepted ownership needs no repeated proof or premise.
-            let mut owned = true;
-            for (side, span) in spans.into_iter().enumerate() {
-                let Some(contains) = self.ownership_contains(ownership, side, span)? else {
-                    return Ok(());
-                };
-                owned &= contains;
-            }
-            if owned {
-                continue;
-            }
-            let fits = (0..2).all(|side| {
-                ownership[side]
-                    .accepted
-                    .len()
-                    .saturating_add(accepted[side].len())
-                    <= limit
-            });
-            if !fits {
-                continue;
-            }
-            let cache = self
-                .equal_fragment_cache
-                .get_or_insert_with(|| super::equal_fragment::EqualFragmentCache::new(self.sides));
-            match cache.prove(spans, &mut self.remaining_work)? {
-                super::equal_fragment::FragmentVerdict::Proven => {}
-                super::equal_fragment::FragmentVerdict::Held(_) => continue,
-                super::equal_fragment::FragmentVerdict::Exhausted => return Ok(()),
-            }
-            for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
-                super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
-                owner.accepted.extend(accepted_side.iter().copied());
-            }
-            self.records[relation]
-                .assumptions
-                .push(ComparisonAssumption::EqualFragmentSourcePositions);
         }
-        Ok(())
+        if candidate_conflict {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        // A proven changed region keeps its whole span unresolved, so a
+        // fragment that would resolve part of it is never adopted.
+        let mut proven_conflict = false;
+        'proven: for region in proven {
+            for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+                .into_iter()
+                .enumerate()
+            {
+                let Some(span) = span else {
+                    continue;
+                };
+                if !self.charge(span.blocks.len()) {
+                    return Ok(EqualFragmentRetry::Stop);
+                }
+                let source = project(self.sides[side], span)?;
+                let Some(overlap) = overlaps(&source, &accepted[side], &mut self.remaining_work)
+                else {
+                    return Ok(EqualFragmentRetry::Stop);
+                };
+                if overlap {
+                    proven_conflict = true;
+                    break 'proven;
+                }
+            }
+        }
+        if proven_conflict {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        // A span whose projected intervals are already contained in the
+        // accepted ownership needs no repeated proof or premise.
+        let mut owned = true;
+        for (side, span) in spans.into_iter().enumerate() {
+            let Some(contains) = self.ownership_contains(ownership, side, span)? else {
+                return Ok(EqualFragmentRetry::Stop);
+            };
+            owned &= contains;
+        }
+        if owned {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        let fits = (0..2).all(|side| {
+            ownership[side]
+                .accepted
+                .len()
+                .saturating_add(accepted[side].len())
+                <= limit
+        });
+        if !fits {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        let cache = self
+            .equal_fragment_cache
+            .get_or_insert_with(|| super::equal_fragment::EqualFragmentCache::new(self.sides));
+        let certified = if allow_internal_deleted_break {
+            match cache.prove_internal_deleted_soft_line_break_with_certificate(
+                spans,
+                &mut self.remaining_work,
+            )? {
+                (super::equal_fragment::FragmentVerdict::Proven, certified) => certified,
+                (super::equal_fragment::FragmentVerdict::Held(_), _) => {
+                    return Ok(EqualFragmentRetry::Held);
+                }
+                (super::equal_fragment::FragmentVerdict::Exhausted, _) => {
+                    return Ok(EqualFragmentRetry::Stop);
+                }
+            }
+        } else {
+            match cache.prove(spans, &mut self.remaining_work)? {
+                super::equal_fragment::FragmentVerdict::Proven => false,
+                super::equal_fragment::FragmentVerdict::Held(_) => {
+                    return Ok(EqualFragmentRetry::Held);
+                }
+                super::equal_fragment::FragmentVerdict::Exhausted => {
+                    return Ok(EqualFragmentRetry::Stop);
+                }
+            }
+        };
+        for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
+            super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
+            owner.accepted.extend(accepted_side.iter().copied());
+        }
+        self.records[relation].assumptions.push(if certified {
+            ComparisonAssumption::EqualFragmentInternalDeletedBreak
+        } else {
+            ComparisonAssumption::EqualFragmentSourcePositions
+        });
+        Ok(EqualFragmentRetry::Adopted)
     }
 
     /// Copies one recorded relation's span pair with bounded allocation.
@@ -5717,6 +5789,348 @@ mod tests {
                 .assumptions
                 .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
         }));
+        Ok(())
+    }
+
+    /// A raw `AB\nCD` block whose deleted line break is the only raw gap.
+    fn deleted_break_block(id: u64) -> BlockText {
+        let mut block = positioned_block(id, "ABCD", 300.0, 700.0);
+        let glyph = |index: u64| GlyphId(id * 1000 + index);
+        let line_break = TextSourceAtom::LineBreak {
+            preceding: glyph(2),
+            following: glyph(3),
+        };
+        let entry = |start: usize, atom: TextSourceAtom| SourceMapEntry {
+            output_range: ScalarRange {
+                start,
+                end: start + 1,
+            },
+            source: TextSource {
+                atoms: vec![atom].into(),
+            },
+        };
+        block.raw = MappedText {
+            text: "AB\nCD".to_owned(),
+            source_map: vec![
+                entry(0, TextSourceAtom::Glyph(glyph(1))),
+                entry(1, TextSourceAtom::Glyph(glyph(2))),
+                entry(2, line_break.clone()),
+                entry(3, TextSourceAtom::Glyph(glyph(3))),
+                entry(4, TextSourceAtom::Glyph(glyph(4))),
+            ],
+            unmapped: Vec::new(),
+        };
+        block.normalization_events = vec![NormalizationEvent {
+            kind: NormalizationKind::SoftLineBreak,
+            raw_range: ScalarRange { start: 2, end: 3 },
+            canonical_range: ScalarRange { start: 2, end: 2 },
+            source: TextSource {
+                atoms: vec![line_break].into(),
+            },
+        }];
+        block
+    }
+
+    /// Old-side resolution, both adoption premises, the accepted ownership and
+    /// the remaining work after one deleted-break tail pass.
+    type DeletedBreakRun = (
+        Vec<super::super::ResolutionRange>,
+        bool,
+        bool,
+        Vec<SourceInterval>,
+        usize,
+    );
+
+    /// Runs the tail pass over one deleted-break fragment and reports both
+    /// adoption premises, the old-side accepted ownership and the remaining
+    /// work after the pass.
+    fn run_deleted_break_fragment(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        prepare: impl FnOnce(&mut [Ownership; 2], &mut Vec<ChangeCandidate>),
+        proven: &[ProvenChangedRegion],
+        budget: usize,
+    ) -> Result<DeletedBreakRun> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        assessor.local_domains = vec![LocalDomain {
+            old_span: strict_closed_fragment_span(1, 0, 4),
+            new_span: strict_closed_fragment_span(101, 0, 4),
+            source_bounded: false,
+        }];
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        prepare(&mut ownership, &mut candidates);
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        assessor.remaining_work = budget;
+        assessor.recover_equal_fragments(&mut ownership, &candidates, proven)?;
+        let source_positions = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+        });
+        let internal_break = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+        });
+        let accepted = ownership[0].accepted.clone();
+        let remaining = assessor.remaining_work;
+        let [old_ownership, _new_ownership] = ownership;
+        let resolution = old_ownership.finish(&old, assessor.options.max_assessment_ranges)?;
+        Ok((
+            resolution,
+            source_positions,
+            internal_break,
+            accepted,
+            remaining,
+        ))
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_gains_a_previously_unowned_range() -> Result<()> {
+        let old_blocks = [deleted_break_block(1)];
+        let new_blocks = [deleted_break_block(101)];
+        let (resolution, source_positions, internal_break, accepted, _remaining) =
+            run_deleted_break_fragment(&old_blocks, &new_blocks, |_, _| {}, &[], usize::MAX)?;
+        assert!(internal_break, "the fallback premise must be recorded");
+        assert!(
+            !source_positions,
+            "the contiguous premise must not be claimed"
+        );
+        assert!(!accepted.is_empty(), "the fallback must commit ownership");
+        assert_eq!(
+            fragment_state(&resolution, 0),
+            Some(super::super::ResolutionState::Equal)
+        );
+        assert_eq!(
+            fragment_state(&resolution, 3),
+            Some(super::super::ResolutionState::Equal)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_retains_original_adoptions() -> Result<()> {
+        let old_blocks = [deleted_break_block(1)];
+        let new_blocks = [deleted_break_block(101)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        assessor.local_domains = vec![
+            LocalDomain {
+                old_span: strict_closed_fragment_span(1, 0, 1),
+                new_span: strict_closed_fragment_span(101, 0, 1),
+                source_bounded: false,
+            },
+            LocalDomain {
+                old_span: strict_closed_fragment_span(1, 1, 4),
+                new_span: strict_closed_fragment_span(101, 1, 4),
+                source_bounded: false,
+            },
+        ];
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+        let source_positions = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+        });
+        let internal_break = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+        });
+        assert!(
+            source_positions,
+            "the plain fragment must keep its original premise"
+        );
+        assert!(
+            internal_break,
+            "the deleted-break fragment must gain the fallback premise"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_respects_latest_vetoes() -> Result<()> {
+        let old_blocks = [deleted_break_block(1)];
+        let new_blocks = [deleted_break_block(101)];
+        // A changed-ownership conflict adopts nothing; the seeded accepted
+        // range is retained exactly once.
+        let seeded = SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 4,
+        };
+        let (_, source_positions, internal_break, accepted, _) = run_deleted_break_fragment(
+            &old_blocks,
+            &new_blocks,
+            |ownership, _| {
+                ownership[0].accepted.push(seeded);
+                ownership[0].changed.push(SourceInterval {
+                    block_index: 0,
+                    start: 1,
+                    end: 2,
+                });
+            },
+            &[],
+            usize::MAX,
+        )?;
+        assert!(!source_positions && !internal_break);
+        assert_eq!(accepted, vec![seeded]);
+        // A candidate conflict adopts nothing.
+        let (_, source_positions, internal_break, accepted, _) = run_deleted_break_fragment(
+            &old_blocks,
+            &new_blocks,
+            |_, candidates| {
+                candidates.push(ChangeCandidate {
+                    change: Change::single_occurrence(
+                        ChangeKind::Replacement,
+                        Some(strict_closed_fragment_span(1, 0, 4)),
+                        Some(strict_closed_fragment_span(101, 0, 4)),
+                        Confidence::High,
+                        Vec::new(),
+                    ),
+                    relation: 0,
+                    alternative_group: 0,
+                });
+            },
+            &[],
+            usize::MAX,
+        )?;
+        assert!(!source_positions && !internal_break && accepted.is_empty());
+        // A proven changed region adopts nothing.
+        let region = ProvenChangedRegion {
+            old_span: Some(strict_closed_fragment_span(1, 0, 4)),
+            new_span: Some(strict_closed_fragment_span(101, 0, 4)),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+            confidence: Confidence::High,
+        };
+        let (_, source_positions, internal_break, accepted, _) =
+            run_deleted_break_fragment(&old_blocks, &new_blocks, |_, _| {}, &[region], usize::MAX)?;
+        assert!(!source_positions && !internal_break && accepted.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_exhaustion_adds_nothing() -> Result<()> {
+        let old_blocks = [deleted_break_block(1)];
+        let new_blocks = [deleted_break_block(101)];
+        let (_, _, internal_break, accepted, remaining) =
+            run_deleted_break_fragment(&old_blocks, &new_blocks, |_, _| {}, &[], usize::MAX)?;
+        assert!(internal_break && !accepted.is_empty());
+        let used = usize::MAX - remaining;
+        assert!(used > 1, "the fallback must cost more than one unit");
+        let (_, source_positions, internal_break, accepted, _) =
+            run_deleted_break_fragment(&old_blocks, &new_blocks, |_, _| {}, &[], used - 1)?;
+        assert!(
+            !source_positions,
+            "the original premise must not be added on exhaustion"
+        );
+        assert!(
+            !internal_break,
+            "the fallback premise must not be added on exhaustion"
+        );
+        assert!(
+            accepted.is_empty(),
+            "no ownership may be committed on exhaustion"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_exhaustion_keeps_earlier_adoptions() -> Result<()> {
+        let old_blocks = [deleted_break_block(1)];
+        let new_blocks = [deleted_break_block(101)];
+        let run = |budget: usize| -> Result<(bool, bool, Vec<SourceInterval>, usize)> {
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+            let mut assessor = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            assessor.local_domains = vec![
+                LocalDomain {
+                    old_span: strict_closed_fragment_span(1, 0, 1),
+                    new_span: strict_closed_fragment_span(101, 0, 1),
+                    source_bounded: false,
+                },
+                LocalDomain {
+                    old_span: strict_closed_fragment_span(1, 1, 4),
+                    new_span: strict_closed_fragment_span(101, 1, 4),
+                    source_bounded: false,
+                },
+            ];
+            let mut ownership = [Ownership::new(), Ownership::new()];
+            let mut changes = Vec::new();
+            let mut candidates = Vec::new();
+            assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+            assessor.remaining_work = budget;
+            assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+            let source_positions = assessor.records.iter().any(|record| {
+                record
+                    .assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+            });
+            let internal_break = assessor.records.iter().any(|record| {
+                record
+                    .assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+            });
+            Ok((
+                source_positions,
+                internal_break,
+                ownership[0].accepted.clone(),
+                assessor.remaining_work,
+            ))
+        };
+        let (source_positions, internal_break, accepted, remaining) = run(usize::MAX)?;
+        assert!(source_positions && internal_break);
+        assert_eq!(accepted.len(), 2, "{accepted:?}");
+        let used = usize::MAX - remaining;
+        assert!(used > 1);
+        let (source_positions, internal_break, accepted, _) = run(used - 1)?;
+        assert!(
+            source_positions,
+            "the earlier original adoption must remain"
+        );
+        assert!(
+            !internal_break,
+            "the exhausted fallback must add no premise"
+        );
+        assert_eq!(
+            accepted,
+            vec![SourceInterval {
+                block_index: 0,
+                start: 0,
+                end: 1,
+            }],
+            "the earlier accepted range must remain and the fallback must add none"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_malformed_control_adopts_nothing() -> Result<()> {
+        let mut old = deleted_break_block(1);
+        old.normalization_events[0].canonical_range = ScalarRange { start: 1, end: 1 };
+        let new_blocks = [deleted_break_block(101)];
+        let (_, source_positions, internal_break, accepted, _) =
+            run_deleted_break_fragment(&[old], &new_blocks, |_, _| {}, &[], usize::MAX)?;
+        assert!(!source_positions && !internal_break && accepted.is_empty());
         Ok(())
     }
 }

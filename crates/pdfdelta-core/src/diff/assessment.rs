@@ -145,6 +145,18 @@ pub enum ComparisonAssumption {
     /// changed-ownership protections and the global reading order are
     /// unchanged.
     EqualFragmentSourcePositions,
+    /// A strict-closed equal domain whose selected tokens each carry one real
+    /// glyph with bit-exact finite horizontal positions was adopted for its own
+    /// projected source intervals, with one or more internal raw gaps certified
+    /// as deleted soft line breaks. Each certified gap is exactly one raw
+    /// newline scalar whose single raw source atom is a `LineBreak` naming the
+    /// two adjacent selected glyphs, and exactly one structurally validated
+    /// `SoftLineBreak` event deletes that raw range to a zero-length canonical
+    /// range at the following selected scalar; the certified break offsets
+    /// relative to the selected interval agree on both sides. The surrounding
+    /// unresolved regions, the candidate and changed-ownership protections and
+    /// the global reading order are unchanged.
+    EqualFragmentInternalDeletedBreak,
 }
 
 /// Whether the exact search required for a relation finished.
