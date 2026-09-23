@@ -98,7 +98,7 @@
       "gap380": "canonical '\\n' with line_break atom, raw glyph+line_break, 0 events",
       "gap508": "canonical ' ' with glyph atom, raw glyph, 0 events"
     },
-    "conclusion": "no sound separator-equality class: the dominant newline class is a normalization boundary (line_break atom) rather than glyph-backed equality, and no residual has a single unambiguous established equality neighbour pair",
+    "conclusion": "RETRACTED: the strict-join zero result was invalid (group vs block-local coordinates); the v3 measurement supersedes it",
     "superseded": "the earlier provisional 37 count compared span lengths only and selected the last relation; w2-census-superseded-invalid.log.gz retains that invalid run",
     "status": "INVALID / failed diagnostic: group and block-local coordinate spaces were compared directly",
     "required_probe": {
@@ -229,5 +229,215 @@
       "dump_sha256": "71746398f6200d5ee06ef9588347cd6d49d2fbbb0a3b8181db43ae122ef0bdfd"
     },
     "restored_binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981"
+  },
+  "assessor_hook_v2": {
+    "status": "complete measurement, uncommitted for root review",
+    "reproduced": {
+      "unresolved": 212,
+      "changes": 13,
+      "work_old": 291416,
+      "work_new": 297503
+    },
+    "gaps": {
+      "gap380": {
+        "side0": {
+          "candidates": 0,
+          "proven": 0,
+          "accepted": [],
+          "changed": []
+        },
+        "side1": {
+          "candidates": 0,
+          "proven": 0,
+          "accepted": [],
+          "changed": []
+        },
+        "diag_cache_verdict": "Held(CanonicalSource)",
+        "diag_spent": 3862
+      },
+      "gap508": {
+        "side0": {
+          "candidates": 0,
+          "proven": 0,
+          "accepted": [],
+          "changed": []
+        },
+        "side1": {
+          "candidates": 0,
+          "proven": 0,
+          "accepted": [],
+          "changed": []
+        },
+        "diag_cache_verdict": "Exhausted at the separate 1,000,000 diagnostic budget"
+      },
+      "container1080": {
+        "diag_cache_verdict": "Exhausted at the separate 1,000,000 diagnostic budget"
+      }
+    },
+    "equal_fragment_candidates_count": 305,
+    "notes": [
+      "the gaps are unowned and unclaimed by candidates or proven regions on both sides",
+      "gap380 holds on CanonicalSource in the diagnostic cache: the separator lacks canonical source evidence",
+      "gap508/container1080 exhausted the separate diagnostic budget; their verdict is not established by this probe"
+    ],
+    "artifacts": {
+      "dump": "probes/w2-assessor-dump-v2.txt.gz",
+      "hook_patch": "probes/w2-assessor-hook-v2.patch.gz",
+      "log": "probes/w2-assessor-probe-v2.log.gz",
+      "test_source": "probes/w2_assessor_probe_test.rs",
+      "dump_sha256": "08656b76f2b249960bbd218bd33718a33b0b901fcdfb0bf0e20be74c754ecd49",
+      "patch_sha256": "6cfc02185236b72a4386caa7521e0ebc1657dfa1099431f3024d942706724616"
+    },
+    "restored": "pending: source restored immediately after archiving; no commit until root review"
+  },
+  "assessor_hook_v3": {
+    "status": "complete classification, uncommitted for root review; v2 remains superseded",
+    "reproduced_asserted": {
+      "unresolved": 212,
+      "changes": 13,
+      "work_old": 291416,
+      "work_new": 297503
+    },
+    "hook_entry_remaining_work": 0,
+    "gaps": {
+      "gap380": {
+        "candidates": 0,
+        "proven": 0,
+        "accepted": [],
+        "changed": [],
+        "diag_cache": "Held(CanonicalSource) spent 3862"
+      },
+      "gap508": {
+        "candidates": 0,
+        "proven": 0,
+        "accepted": [],
+        "changed": [],
+        "diag_cache": "Proven spent 1537858 of separate 32,000,000"
+      },
+      "container1080": {
+        "diag_cache": "Held(RawCut) spent 16127"
+      }
+    },
+    "neighbours": {
+      "block1_0_380": {
+        "side0": {
+          "accepted": [
+            [
+              0,
+              380
+            ]
+          ],
+          "changed": []
+        },
+        "side1": {
+          "accepted": [
+            [
+              0,
+              380
+            ]
+          ],
+          "changed": []
+        }
+      },
+      "block1_381_452": {
+        "side0": {
+          "accepted": [
+            [
+              381,
+              452
+            ]
+          ],
+          "changed": []
+        },
+        "side1": {
+          "accepted": [
+            [
+              381,
+              452
+            ]
+          ],
+          "changed": []
+        }
+      },
+      "block1_452_508": {
+        "side0": {
+          "accepted": [
+            [
+              452,
+              508
+            ]
+          ],
+          "changed": []
+        },
+        "side1": {
+          "accepted": [
+            [
+              452,
+              508
+            ]
+          ],
+          "changed": []
+        }
+      },
+      "block1_509_633": {
+        "side0": {
+          "accepted": [
+            [
+              509,
+              633
+            ]
+          ],
+          "changed": []
+        },
+        "side1": {
+          "accepted": [
+            [
+              509,
+              633
+            ]
+          ],
+          "changed": []
+        }
+      }
+    },
+    "conclusion": [
+      "gap508 is equal-fragment provable at the normal default budget but is not adopted by ownership; gap380 is contract-held on CanonicalSource (line break without canonical source); container1080 holds on RawCut"
+    ],
+    "artifacts": {
+      "dump": "probes/w2-assessor-dump-v3.txt.gz",
+      "hook_patch": "probes/w2-assessor-hook-v3.patch.gz",
+      "log": "probes/w2-assessor-probe-v3.log.gz",
+      "test_source": "probes/w2_assessor_probe_test.rs",
+      "dump_sha256": "dbb0c9f2cd9a06d2361e630a5a97f23b84a45bd59f35b9912ef32aad587a5a12",
+      "patch_sha256": "226559d248235f30462f4c1395e6577159122c75f91f94408292f76239fe525a"
+    },
+    "restored_binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981",
+    "binding": {
+      "input_pdfs": {
+        "old": {
+          "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-old.pdf",
+          "sha256": "318af9431e372ef7b92c478ef76355312de70f09ac92072d48cdd025080ef526"
+        },
+        "new": {
+          "path": "benchmark/realworld/cache/next-blind/irs-w2-2024-to-2025-new.pdf",
+          "sha256": "6a52ad63693de54220a3326b22c4d0fb34f4c25084366537087312975a55ae96"
+        }
+      },
+      "full013_report": {
+        "path": "benchmark/realworld/cache/native-12-of-36-2026-09-20/h27-native-order-full-iteration-013-native/irs-w2-2024-to-2025/irs-w2-2024-to-2025-native.json.gz",
+        "logical_sha256": "eaf409720864d5c1b5731ecd7f0bc7c0997af0b8d637b27b74bcf7ecf0772ddc"
+      },
+      "source_head": "d54efcaa07694545180e0a1afacb7d66fd6f055c",
+      "probe_patch_sha256": "226559d248235f30462f4c1395e6577159122c75f91f94408292f76239fe525a",
+      "test_source_sha256": "70a4bb8e7db58a7b0ca0094a91c677bb57f82b74e2cad1b09191f0d32b384a8d",
+      "test_executable": {
+        "path": "target/debug/deps/pdfdelta_core-709dca036aa0ebf9",
+        "sha256": "09db942a3953ce33bffc02aad7407340a41bb4b65aff41f769bf8c45bd6d45bb"
+      },
+      "command": "H28_DUMP_PATH=<dump> H28_CACHE_PROBE=1 H28_W2_PDFS=<abs paths> cargo test -p pdfdelta-core --lib w2_assessor_probe -- --nocapture",
+      "observed_exit": 0,
+      "note": "restored release binary 6686286e is not the producer; the test executable above is"
+    },
+    "gap380_wording": "gap380 has a canonical LineBreak source; EqualFragment currently requires real Glyph atoms, so this is an unsupported atom shape rather than absent source evidence"
   }
 }

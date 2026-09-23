@@ -115,3 +115,19 @@ the projection requires. The probe source, visibility patch, relations dump,
 census, and failure log are archived under `probes/`. No verdict is drawn. The
 next probe must hook inside the Assessor where the real `TextSpan` and
 `DomainProof` (edits, unique, strict_unique, search) are available.
+
+## v3 measured conclusion (accepted as a limited diagnostic)
+
+The real native path is unchanged (212 unresolved, 13 changes). Both gaps are
+unowned and have zero candidate/proven overlap on both sides; the four
+neighbours block1 [0,380), [381,452), [452,508), [509,633) are accepted on both
+sides with no changed ownership. In the diagnostic-only cache with a separate
+32,000,000 budget: gap380 holds on CanonicalSource (spent 3,862) because the
+line-break separator has a canonical LineBreak source but EqualFragment
+currently requires real Glyph atoms, an unsupported atom shape rather than
+absent source evidence; gap508 is Proven (spent 1,537,858); container1080
+holds on RawCut (spent 16,127). Production remaining_work is zero at the hook.
+
+This is not a benchmark gain and does not authorize raising production
+budgets. Earlier projection and strict-join probes remain in this directory as
+superseded, invalid history.
