@@ -104,3 +104,14 @@ Whether that class is provable is still open: the next probe must first project
 relation spans with the core projection and establish equality from the
 internal proof signature, asserting the known mapping [blocks 0,1] group
 11..391 -> block1 local 0..380 before classifying residuals.
+
+## Projection probe attempt (failed prerequisite, no verdict)
+
+Reconstructing relation spans from the report JSON and calling the core
+projection fails at the representative step with
+`InvalidConfiguration("assessment source coordinates do not agree")`: the JSON
+lacks the internal per-side separator and canonical/comparable agreement that
+the projection requires. The probe source, visibility patch, relations dump,
+census, and failure log are archived under `probes/`. No verdict is drawn. The
+next probe must hook inside the Assessor where the real `TextSpan` and
+`DomainProof` (edits, unique, strict_unique, search) are available.

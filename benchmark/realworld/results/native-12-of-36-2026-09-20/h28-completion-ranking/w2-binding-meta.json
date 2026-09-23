@@ -111,5 +111,23 @@
       ],
       "assertion": "the known relation [blocks 0,1] group 11..391 must project to block1 local 0..380 before any residual claim"
     }
+  },
+  "projection_probe": {
+    "status": "attempted and failed at the representative assertion step",
+    "observed": "project() rejects the JSON-reconstructed span with InvalidConfiguration(\"assessment source coordinates do not agree\")",
+    "cause": "JSON reconstruction from canonical/comparable ranges plus a shared separator field is lossy; real internal TextSpan is required",
+    "artifacts": {
+      "source": "probes/w2_projection_probe.rs",
+      "visibility_patch": "probes/w2-probe-visibility.patch.gz",
+      "log": "probes/w2-projection-probe.log.gz",
+      "relations": "probes/w2-relations.json.gz",
+      "census": "probes/w2-census.json.gz",
+      "source_sha256": "3edafc0473cc672740086574a6f644e300adfb0e003085e5304f931bd1ffbfef",
+      "patch_sha256": "e3429ae9a9cfc03433e04e0d51affa5719617ec396748b4a35fb29c1976db356",
+      "log_sha256": "70f4c4eabad53826524bf4b25f680c6083f7d79144eb202af2ccd172dba187a7"
+    },
+    "restored": true,
+    "restored_binary_sha256": "6686286ea31fb6efdf8ddc1c2a2e1a40165b6aadc565d678db5c1256cc39b981",
+    "required_next": "temporary hook inside Assessor.finish emitting internal TextSpan plus DomainProof (edits/unique/strict_unique/search) per relation with real per-side separators, then join with the final unresolved partitions"
   }
 }

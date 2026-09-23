@@ -793,7 +793,7 @@
   "decision": {
     "hypothesis": "arxiv-ddpm two-sided spans hide a local missing premise",
     "verdict": "falsified: 2 unresolved clipping-uncertainty extraction issues, both sides incomplete, ~68k uncovered tokens; an order/consumer change cannot complete it",
-    "chosen_next_measurement": "in-crate projection probe (assessment::project + internal equality signature) with the known [0,1] 11..391 -> block1 0..380 assertion before any residual classification",
+    "chosen_next_measurement": "in-Assessor hook emitting internal spans plus DomainProof equality, joined with final unresolved partitions; JSON reconstruction is invalid",
     "beneficiaries_if_family_fix_exists": [
       "irs-w2-2024-to-2025",
       "irs-1099-misc-2024-to-2025",
