@@ -693,6 +693,27 @@ fn occurrence_state(
     (same, complete, different)
 }
 
+/// Reject-only first-offset check for the position-only scanner.
+///
+/// Returns true only for the same definitive mismatch [`occurrence_state`]
+/// would refuse at its first offset: candidate metadata present and differing
+/// from present needle metadata, or, when the candidate metadata is missing,
+/// deny metadata present and differing from present needle metadata. Missing
+/// metadata never rejects; the full scan and its charge remain unchanged for
+/// every survivor.
+fn first_offset_definitively_differs(
+    view: &View,
+    start: usize,
+    needle_view: &View,
+    needle_range: &std::ops::Range<usize>,
+) -> bool {
+    if needle_range.is_empty() {
+        return false;
+    }
+    let first = needle_range.start..needle_range.start.saturating_add(1);
+    occurrence_state(view, start, needle_view, &first).2
+}
+
 /// Upper bound on the transient positioned posting index.
 const MAX_POSITIONED_POSTING_BYTES: usize = 64 * 1024 * 1024;
 
@@ -1197,8 +1218,9 @@ fn positioned_occurrences_indexed(
 /// Shared positioned scan. `require_equal_tokens` gates the cheap first-token
 /// prefilter and the full-token equality check; the complete-metadata,
 /// deny-only, unknown-veto and whole-member logic is identical in both modes.
-/// Without token equality every start still charges the full scan, so the
-/// shared budget observes the same work.
+/// Without token equality every survivor still charges the full scan after a
+/// charged reject-only first-offset lookup, so the shared budget observes the
+/// lookup plus the unchanged scan.
 fn positioned_occurrences_with(
     views: &[View],
     needle_view: &View,
@@ -1229,6 +1251,17 @@ fn positioned_occurrences_with(
                     return Ok(None);
                 }
                 if tokens[start] != needle[0] {
+                    continue;
+                }
+            }
+            if !require_equal_tokens && !needle.is_empty() {
+                // Reject-only prefilter for the position-only scanner: one
+                // charged lookup refuses only a definitive first-offset
+                // mismatch; survivors keep the unchanged full scan and charge.
+                if !charge(remaining, 1) {
+                    return Ok(None);
+                }
+                if first_offset_definitively_differs(view, start, needle_view, needle_range) {
                     continue;
                 }
             }
@@ -13048,6 +13081,308 @@ mod tests {
         assert_eq!(
             domain.new_span.comparable_range,
             crate::diff::TokenRange { start: 0, end: 3 }
+        );
+    }
+    fn baseline_position_only(
+        views: &[View],
+        needle_view: &View,
+        needle_range: &std::ops::Range<usize>,
+        self_view: usize,
+        remaining: &mut usize,
+    ) -> Result<Option<PositionedOccurrences>> {
+        let needle = &needle_view.group.tokens[needle_range.clone()];
+        let mut result = PositionedOccurrences {
+            same: 0,
+            unknown: false,
+            matched: None,
+        };
+        for (view_index, view) in views.iter().enumerate() {
+            let tokens = &view.group.tokens;
+            if needle.len() > tokens.len() {
+                continue;
+            }
+            if !charge(remaining, needle.len()) {
+                return Ok(None);
+            }
+            for start in 0..=tokens.len() - needle.len() {
+                if !charge(remaining, needle.len().saturating_add(1)) {
+                    return Ok(None);
+                }
+                if view_index == self_view && start == needle_range.start {
+                    continue;
+                }
+                let (same, complete, different) =
+                    occurrence_state(view, start, needle_view, needle_range);
+                if different {
+                    continue;
+                }
+                if !complete {
+                    result.unknown = true;
+                } else if same {
+                    result.same = result.same.saturating_add(1).min(2);
+                    if result.matched.is_none() {
+                        let end = start + needle.len();
+                        let whole = view
+                            .block_ranges
+                            .iter()
+                            .position(|range| range.start == start && range.end == end)
+                            .is_some_and(|block| super::positioned_block(view, block));
+                        result.matched = Some((view_index, start..end, whole));
+                    }
+                }
+            }
+        }
+        Ok(Some(result))
+    }
+
+    fn prefilter_matches_baseline(needle: &View, candidate: &View, self_view: usize) -> bool {
+        let views = std::slice::from_ref(candidate);
+        let range = 0..needle.group.tokens.len();
+        let mut budget_a = 1_000_000usize;
+        let mut budget_b = 1_000_000usize;
+        let filtered =
+            positioned_occurrences_by_position(views, needle, &range, self_view, &mut budget_a);
+        let baseline = baseline_position_only(views, needle, &range, self_view, &mut budget_b);
+        match (filtered, baseline) {
+            (Ok(Some(a)), Ok(Some(b))) => a == b,
+            (Ok(None), Ok(None)) => true,
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn first_offset_prefilter_preserves_position_only_results() {
+        let same = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&same, &same, usize::MAX));
+        // Self occurrence is skipped exactly as before.
+        assert!(prefilter_matches_baseline(&same, &same, 0));
+        // Definitive first-offset mismatch.
+        let shifted = positioned_view(
+            "abc",
+            vec![Some(9.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&same, &shifted, usize::MAX));
+        // Missing metadata never rejects.
+        let missing = positioned_view("abc", vec![None, Some(1.0), Some(2.0)], vec![None; 3], true);
+        assert!(prefilter_matches_baseline(&same, &missing, usize::MAX));
+        // Later definitive mismatch after an equal first offset.
+        let later = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), Some(7.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&same, &later, usize::MAX));
+        // Deny-only first-offset mismatch.
+        let deny = positioned_view_with_deny(
+            "abc",
+            vec![None, Some(1.0), Some(2.0)],
+            vec![None; 3],
+            vec![Some(9.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&same, &deny, usize::MAX));
+        // Duplicate and substring occurrences.
+        let duplicate = positioned_view(
+            "abcabc",
+            vec![
+                Some(0.0),
+                Some(1.0),
+                Some(2.0),
+                Some(0.0),
+                Some(1.0),
+                Some(2.0),
+            ],
+            vec![Some(0); 6],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&same, &duplicate, usize::MAX));
+        // Different token text is irrelevant to the position-only scanner.
+        let different_text = positioned_view(
+            "xyz",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        assert!(prefilter_matches_baseline(
+            &same,
+            &different_text,
+            usize::MAX
+        ));
+        // Empty needle keeps the old zero-offset behavior.
+        let empty = positioned_view("", Vec::new(), Vec::new(), true);
+        let host = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&empty, &host, usize::MAX));
+        // Zero budget fails closed on both.
+        let views = std::slice::from_ref(&same);
+        let mut zero_a = 0usize;
+        let mut zero_b = 0usize;
+        assert!(
+            positioned_occurrences_by_position(views, &same, &(0..3), usize::MAX, &mut zero_a)
+                .expect("ok")
+                .is_none()
+        );
+        assert!(
+            baseline_position_only(views, &same, &(0..3), usize::MAX, &mut zero_b)
+                .expect("ok")
+                .is_none()
+        );
+    }
+    #[test]
+    fn first_offset_prefilter_extra_cases() {
+        let needle = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        // Page-only mismatch at the first offset.
+        let page_only = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(9), Some(0), Some(0)],
+            true,
+        );
+        assert!(prefilter_matches_baseline(&needle, &page_only, usize::MAX));
+        // Matching deny metadata stays unknown, never rejected as different.
+        let deny_match = positioned_view_with_deny(
+            "abc",
+            vec![None, Some(1.0), Some(2.0)],
+            vec![None; 3],
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        let mut budget = 1_000_000usize;
+        let result = positioned_occurrences_by_position(
+            std::slice::from_ref(&deny_match),
+            &needle,
+            &(0..3),
+            usize::MAX,
+            &mut budget,
+        )
+        .expect("ok")
+        .expect("some");
+        assert!(result.unknown, "matching deny metadata must stay unknown");
+        // Missing needle metadata never rejects.
+        let needle_missing =
+            positioned_view("abc", vec![None, Some(1.0), Some(2.0)], vec![None; 3], true);
+        assert!(prefilter_matches_baseline(
+            &needle_missing,
+            &needle,
+            usize::MAX
+        ));
+        // Unknown first offset followed by a later definite mismatch.
+        let later = positioned_view(
+            "abc",
+            vec![None, Some(1.0), Some(7.0)],
+            vec![None, Some(0), Some(0)],
+            true,
+        );
+        let mut later_budget = 1_000_000usize;
+        let later_result = positioned_occurrences_by_position(
+            std::slice::from_ref(&later),
+            &needle,
+            &(0..3),
+            usize::MAX,
+            &mut later_budget,
+        )
+        .expect("ok")
+        .expect("some");
+        assert_eq!(later_result.same, 0);
+        assert!(
+            !later_result.unknown,
+            "later definite mismatch is not unknown"
+        );
+        // Multi-view: known match plus a later unknown veto.
+        let known = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), Some(2.0)],
+            vec![Some(0); 3],
+            true,
+        );
+        let veto = positioned_view(
+            "abc",
+            vec![Some(0.0), Some(1.0), None],
+            vec![Some(0); 3],
+            true,
+        );
+        let views = [known, veto];
+        let mut budget_a = 1_000_000usize;
+        let mut budget_b = 1_000_000usize;
+        let filtered =
+            positioned_occurrences_by_position(&views, &needle, &(0..3), usize::MAX, &mut budget_a)
+                .expect("ok")
+                .expect("some");
+        let baseline = baseline_position_only(&views, &needle, &(0..3), usize::MAX, &mut budget_b)
+            .expect("ok")
+            .expect("some");
+        assert_eq!(filtered, baseline);
+        assert!(filtered.unknown, "later unknown metadata must veto");
+        // Mid-scan budget cutoff returns None with no partial result.
+        let many = positioned_view(
+            "abcdefghij",
+            (0..10).map(|index| Some(index as f64)).collect(),
+            vec![Some(0); 10],
+            true,
+        );
+        let mut cutoff = 8usize;
+        assert!(
+            positioned_occurrences_by_position(
+                std::slice::from_ref(&many),
+                &needle,
+                &(0..3),
+                usize::MAX,
+                &mut cutoff,
+            )
+            .expect("ok")
+            .is_none()
+        );
+        // Cost saving: many definitive first-offset mismatches.
+        let mismatched = positioned_view(
+            "xbcxbcxbcxbc",
+            (0..12).map(|_| Some(99.0)).collect(),
+            vec![Some(0); 12],
+            true,
+        );
+        let mut small = 40usize;
+        let optimized = positioned_occurrences_by_position(
+            std::slice::from_ref(&mismatched),
+            &needle,
+            &(0..3),
+            usize::MAX,
+            &mut small,
+        )
+        .expect("ok");
+        assert!(
+            optimized.is_some(),
+            "prefilter should complete in a small budget"
+        );
+        let mut small_baseline = 40usize;
+        let old = baseline_position_only(
+            std::slice::from_ref(&mismatched),
+            &needle,
+            &(0..3),
+            usize::MAX,
+            &mut small_baseline,
+        )
+        .expect("ok");
+        assert!(
+            old.is_none(),
+            "old scanner should exhaust the same small budget"
         );
     }
 }

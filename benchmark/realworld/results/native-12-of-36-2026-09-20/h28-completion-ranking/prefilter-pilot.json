@@ -1,0 +1,124 @@
+{
+  "pilot": "h28-prefilter-targeted-native",
+  "binary_sha256": "0a019a3cdfbd5d7070a93353f56870a9ccd57851d217780e594a544b7223d3a0",
+  "production_change": "charged reject-only first-offset prefilter in the position-only scanner",
+  "test_only_delta_since_build": "differential tests and metadata only; production source unchanged since the pilot build",
+  "rows": {
+    "irs-schedule-se-2024-to-2025": {
+      "identical": true,
+      "resolved": [
+        5485,
+        5502
+      ],
+      "full013_resolved": [
+        5485,
+        5502
+      ],
+      "unresolved": 0,
+      "full013_unresolved": 0,
+      "changes": 12,
+      "full013_changes": 12,
+      "complete": true,
+      "audit": null
+    },
+    "irs-schedule-c-2024-to-2025": {
+      "identical": false,
+      "resolved": [
+        6619,
+        6634
+      ],
+      "full013_resolved": [
+        6619,
+        6634
+      ],
+      "unresolved": 19,
+      "full013_unresolved": 19,
+      "changes": 11,
+      "full013_changes": 11,
+      "complete": false,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h28-completion-ranking/retention-prefilter-irs-schedule-c-2024-to-2025.json",
+        "sha256": "8fb6148afff88452d8fba06d2de70a72ba3366ab6cb3067f691f7f03c0adc3fd",
+        "retention": "pass"
+      }
+    },
+    "irs-1099-misc-2024-to-2025": {
+      "identical": false,
+      "resolved": [
+        9028,
+        9024
+      ],
+      "full013_resolved": [
+        8228,
+        8224
+      ],
+      "unresolved": 143,
+      "full013_unresolved": 110,
+      "changes": 12,
+      "full013_changes": 12,
+      "complete": false,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h28-completion-ranking/retention-prefilter-irs-1099-misc-2024-to-2025.json",
+        "sha256": "a397bdc3ce8e0a6ab7c96790710447768227aa842a3a6b0752ee4e8b893ad116",
+        "retention": "pass"
+      }
+    },
+    "faa-thunderstorms-b-to-c": {
+      "identical": true,
+      "resolved": [
+        0,
+        27731
+      ],
+      "full013_resolved": [
+        0,
+        27731
+      ],
+      "unresolved": 0,
+      "full013_unresolved": 0,
+      "changes": 286,
+      "full013_changes": 286,
+      "complete": true,
+      "audit": null
+    },
+    "bunka-kana-1946-to-1986": {
+      "identical": true,
+      "resolved": [
+        0,
+        5484
+      ],
+      "full013_resolved": [
+        0,
+        5484
+      ],
+      "unresolved": 0,
+      "full013_unresolved": 0,
+      "changes": 525,
+      "full013_changes": 525,
+      "complete": true,
+      "audit": null
+    },
+    "irs-w2-2024-to-2025": {
+      "identical": false,
+      "resolved": [
+        15847,
+        15847
+      ],
+      "full013_resolved": [
+        14471,
+        14471
+      ],
+      "unresolved": 267,
+      "full013_unresolved": 212,
+      "changes": 13,
+      "full013_changes": 13,
+      "complete": false,
+      "audit": {
+        "file": "benchmark/realworld/results/native-12-of-36-2026-09-20/h28-completion-ranking/retention-prefilter-irs-w2-2024-to-2025.json",
+        "sha256": "322b2665dea17bbbd839b42e351920c842f59c81d194d2d80b0174f2b86179b0",
+        "retention": "pass"
+      }
+    }
+  },
+  "summary": "W2 +1376/side resolved (15847 vs 14471) and 1099 +800/side (9028 vs 8228); schedule-c metrics identical; all three controls identical and complete; every differing pair passes deep retention with zero prior loss",
+  "score": "unchanged at 3/36; unresolved counts rise for W2/1099 because more work is now performed, not because prior results were lost"
+}

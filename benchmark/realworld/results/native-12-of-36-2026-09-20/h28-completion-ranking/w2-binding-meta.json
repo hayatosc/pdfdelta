@@ -291,7 +291,7 @@
     "restored": "pending: source restored immediately after archiving; no commit until root review"
   },
   "assessor_hook_v3": {
-    "status": "complete classification, uncommitted for root review; v2 remains superseded",
+    "status": "archived in probes/, uncommitted pending root review",
     "reproduced_asserted": {
       "unresolved": 212,
       "changes": 13,
@@ -401,7 +401,10 @@
       }
     },
     "conclusion": [
-      "gap508 is equal-fragment provable at the normal default budget but is not adopted by ownership; gap380 is contract-held on CanonicalSource (line break without canonical source); container1080 holds on RawCut"
+      "gap380 has a canonical LineBreak source; the current EqualFragment contract requires real Glyph atoms, so this is an unsupported atom shape rather than absent source evidence",
+      "gap508 is Proven only with the separate diagnostic-only 32,000,000 counter while the production shared budget is exhausted (remaining_work=0); this does not authorize production budget changes",
+      "container1080 holds on RawCut",
+      "not a benchmark gain; unresolved stays 212 and changes 13"
     ],
     "artifacts": {
       "dump": "probes/w2-assessor-dump-v3.txt.gz",
@@ -439,5 +442,161 @@
       "note": "restored release binary 6686286e is not the producer; the test executable above is"
     },
     "gap380_wording": "gap380 has a canonical LineBreak source; EqualFragment currently requires real Glyph atoms, so this is an unsupported atom shape rather than absent source evidence"
+  },
+  "w2_budget_profile": {
+    "status": "archived in probes/, uncommitted pending root review",
+    "shared_budget": 32000000,
+    "stages": {
+      "after_anchors": 31736462,
+      "after_initial_localization": 30221681,
+      "after_views": 27400172,
+      "after_localization": 27144692,
+      "before_recover_local": 27144692,
+      "after_recover_local": 22211670,
+      "after_recover_closed_domains": 22211568,
+      "after_recover_stationary_members": 15020217,
+      "before_raw_source_equalities": 15020217,
+      "before_positioned_replacements": 9459452,
+      "before_proven_loop": 0,
+      "after_candidate_and_proven_loops": 0
+    },
+    "deltas": {
+      "recover_local": 4933022,
+      "recover_closed_domains": 102,
+      "recover_stationary_members": 7191351,
+      "recover_raw_source_equalities": 5560765,
+      "recover_positioned_replacements": 9459452
+    },
+    "dominant": "recover_positioned_replacements exhausts the remaining 9,459,452; the whole recover_* tail consumes 27.1M of the 32M",
+    "consequence": "before_proven_loop is 0 with n=2 proposed proven regions, so their validation and the equal-fragment tail never run; unresolved stays 212",
+    "artifacts": {
+      "stages": "probes/w2-budget-stages.txt.gz",
+      "patch": "probes/w2-budget-stages.patch.gz",
+      "log": "probes/w2-budget-stages.log.gz",
+      "stages_sha256": "e7d0dbcc6ca0294882df13fbe55fb2e0de40a42e829b5a9145d2441ff702b98b",
+      "patch_sha256": "5e5d2e1a577d5ebf17f7b92ecae27af249d02bec9407515ff627d75aa15374c9"
+    }
+  },
+  "w2_positioned_inner_profile": {
+    "status": "archived in probes/, uncommitted pending root review",
+    "invocations": [
+      {
+        "neighbours": 29,
+        "remaining_after": 26029086
+      },
+      {
+        "neighbours": 128,
+        "remaining_after": 20881227
+      },
+      {
+        "neighbours": 128,
+        "remaining_after": 12695947
+      },
+      {
+        "neighbours": 141,
+        "remaining_after": 8028953
+      }
+    ],
+    "finding": "RETRACTED: the archived patch logged before neighbour construction and had no TranslationMode filter; the four invocations were the four modes, and all neighbour sets were <256 so the inner counter never fired. No evidence that neighbour work dominates.",
+    "candidate_direction": "WITHDRAWN (superseded): it was based on the invalid unfiltered profile",
+    "artifacts": {
+      "stages": "probes/w2-positioned-inner.txt.gz",
+      "patch": "probes/w2-positioned-inner.patch.gz",
+      "log": "probes/w2-positioned-inner.log.gz",
+      "stages_sha256": "9cb0a08dcf5c3cfe31dc7ec44609beb0a4881cb593da3a0a4104b1f81df3efc7",
+      "patch_sha256": "c440fb552f7e011f9d6495b6989937c97fdfe5f41e58f0b419cb0a588ee2beb8"
+    }
+  },
+  "w2_positioned_mode_profile": {
+    "status": "measured, uncommitted pending root review",
+    "mode": "TranslationMode::PositionedReplacement only",
+    "before_neighbours": 8028953,
+    "after_neighbours": 8018160,
+    "neighbours_cost": 10793,
+    "candidates_considered": 12,
+    "exhausted_at": "pos_exhausted_at_new_occurrences remaining=0 at candidate 12",
+    "dominant": "per-candidate positioned_occurrences_by_position old+new scans dominate (about 0.4-0.5M each), charging needle.len()+1 per start",
+    "candidate_direction": "charged reject-only first-offset geometry/page prefilter for the require_equal_tokens=false scanner, refuting only the exact definitive mismatch occurrence_state would refuse; unknown or same metadata must proceed to the unchanged full proof and existing full charge; fail closed at zero budget; validate with a differential oracle covering missing metadata, deny-only metadata, later definitive mismatches, duplicates, self-view and different token text",
+    "artifacts": {
+      "stages": "probes/w2-positioned-mode.txt.gz",
+      "patch": "probes/w2-positioned-mode.patch.gz",
+      "log": "probes/w2-positioned-mode.log.gz",
+      "stages_sha256": "d83672cb5da53f404dc6dc9acb561e677b5e099fea76212edb93d15f8dc3808d",
+      "patch_sha256": "1cbeebdd013f61a8ad97143e2977e76073faba80d3ca5682061d4f74029d2ce9"
+    },
+    "per_candidate_deltas": [
+      {
+        "n": 1,
+        "before": 8015884,
+        "old": 41397,
+        "new": 714797
+      },
+      {
+        "n": 2,
+        "before": 7965417,
+        "old": 351980,
+        "new": 1583750
+      },
+      {
+        "n": 3,
+        "before": 7198395,
+        "old": 101160,
+        "new": 2119072
+      },
+      {
+        "n": 4,
+        "before": 7095982,
+        "old": 41397,
+        "new": 3114084
+      },
+      {
+        "n": 5,
+        "before": 7026297,
+        "old": 497003,
+        "new": 3344147
+      },
+      {
+        "n": 6,
+        "before": 6005338,
+        "old": 512239,
+        "new": 3360793
+      },
+      {
+        "n": 7,
+        "before": 4937111,
+        "old": 497003,
+        "new": 3365069
+      },
+      {
+        "n": 8,
+        "before": 3924427,
+        "old": 368710,
+        "new": 3555717
+      },
+      {
+        "n": 9,
+        "before": 3128916,
+        "old": 497003,
+        "new": null
+      },
+      {
+        "n": 10,
+        "before": 2071649,
+        "old": 497003,
+        "new": null
+      },
+      {
+        "n": 11,
+        "before": 1057012,
+        "old": 41397,
+        "new": null
+      },
+      {
+        "n": 12,
+        "before": 986576,
+        "old": 497003,
+        "new": null
+      }
+    ]
   }
 }
