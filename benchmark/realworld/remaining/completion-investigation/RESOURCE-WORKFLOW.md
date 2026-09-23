@@ -57,3 +57,23 @@ needs a Python with `ijson` importable.
 - Full-capture memory: kernel `memory.peak` reached the 6e9 cap; `memory.events`
   recorded max=24088 with oom=0, oom_kill=0, oom_group_kill=0 (reclaim, not
   failure). Earlier all-zero events describe the NIST audit/gate phase only.
+
+## Periodic duplicate report sharing
+
+Run the storage dedup helper through the bounded wrapper (dry-run is the
+default; `--apply` is used only after reviewing the dry-run output):
+
+```bash
+R=benchmark/realworld/remaining/completion-investigation/run-bounded.sh
+ROOT=benchmark/realworld/cache/native-12-of-36-2026-09-20
+"$R" uv run python3 benchmark/realworld/remaining/completion-investigation/dedup_reports.py "$ROOT"
+"$R" uv run python3 benchmark/realworld/remaining/completion-investigation/dedup_reports.py "$ROOT" --apply
+```
+
+Only valid marked completed runs are scanned; active, unmarked, unknown and
+externally hard-linked paths are never touched and no run is deleted or
+unpinned. Verified shared reports become read-only, so completed reports are
+immutable: change content only through a fresh capture or an atomic
+replacement, never an in-place write to a shared inode. `housekeeping.py`
+counts unique (dev, inode) bytes once so the 20 GiB cap reflects shared
+storage, and rotation only counts bytes actually freed by a successful removal.

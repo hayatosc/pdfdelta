@@ -8,6 +8,8 @@ runs stay. Caps fail closed before a job starts.
 
 import argparse
 import shutil
+import os
+import stat as stat_module
 import subprocess
 import sys
 from pathlib import Path
@@ -18,10 +20,25 @@ GIB = 1024**3
 
 
 def managed_cache_bytes(root):
+    """Unique stored inode bytes under the managed root (st_size, not allocation).
+
+    Hard-linked report sharing means the same bytes are reachable from several
+    run paths; charging each path would overstate the 20GiB cap and could rotate
+    evidence that costs no additional space.
+    """
     total = 0
     root = Path(root).resolve()
+    seen = set()
     for directory, _marker in rotate_runs.discover(root):
-        total += sum(path.stat().st_size for path in directory.rglob("*") if path.is_file())
+        for path in directory.rglob("*"):
+            stat = os.lstat(path)
+            if not stat_module.S_ISREG(stat.st_mode):
+                continue
+            key = (stat.st_dev, stat.st_ino)
+            if key in seen:
+                continue
+            seen.add(key)
+            total += stat.st_size
     return total
 
 

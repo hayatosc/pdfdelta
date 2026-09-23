@@ -146,7 +146,7 @@ def rotate(args, parser):
     failures = 0
     reclaimed = 0
     for directory, state in rotate_set:
-        size = sum(path.stat().st_size for path in directory.rglob("*") if path.is_file())
+        size = reclaimable_bytes([directory])
         if not args.apply:
             print(f"would remove {directory} ({state}, {size} bytes)")
             continue
@@ -156,6 +156,8 @@ def rotate(args, parser):
             failures += 1
             print(f"FAILED {directory}: {error}", flush=True)
             continue
+        # `size` was computed before removal, when the shared-link counts were
+        # still observable; a failed removal never reaches this line.
         reclaimed += size
         print(f"removed {directory} ({state}, {size} bytes)", flush=True)
     if not args.apply:
@@ -188,6 +190,28 @@ class _LoggingParser:
 
     def error(self, message):
         raise RuntimeError(message)
+
+
+def reclaimable_bytes(directories):
+    """Bytes physically freed when all links inside the given directories go.
+
+    An inode is counted once, and only when every existing hard link to it
+    lives inside the directories being removed. Symlinks are never followed.
+    """
+    inodes = {}
+    for directory in directories:
+        for path in Path(directory).rglob("*"):
+            if path.is_symlink() or not path.is_file():
+                continue
+            stat = path.stat()
+            key = (stat.st_dev, stat.st_ino)
+            entry = inodes.setdefault(key, {"size": stat.st_size, "links": stat.st_nlink, "count": 0})
+            entry["count"] += 1
+    return sum(
+        entry["size"]
+        for entry in inodes.values()
+        if entry["count"] >= entry["links"]
+    )
 
 
 def run_retention(
