@@ -31,12 +31,12 @@ the original contiguous proof stays `Held(RawCut)` for each.
   (pinned, completed), route native, limit_scale 1, timeout 180 s
 - 36 rows captured, 0 failed, 3 complete retained (irs-schedule-se,
   faa-thunderstorms-b-to-c, bunka-kana-1946-to-1986)
-- 31 reports byte-identical to full014; 5 differ: irs-1099-misc,
+- 31 reports logical-JSON-identical to full014 (streaming gunzip + sha256); 5 differ: irs-1099-misc,
   irs-schedule-c, irs-schedule-se, mext-lower-secondary-japanese-2008-to-2017,
   nist-risk-assessment-30-to-r1
 - deep retention audits against full014 all pass (no source loss, no review
   items, no problems): `retention-full015-*.json.gz`. Only irs-1099-misc changes
-  coverage (unresolved 143 -> 117 per side, +323 resolved tokens per side); the
+  coverage (unresolved regions 143 -> 117, +323 resolved tokens per side); the
   other four differ only in the top-level `assessment` work counters (measured
   per-key canonical hash comparison), with every semantic section identical.
 - score remains 3/36: no pair newly reaches complete.
@@ -45,8 +45,25 @@ the original contiguous proof stays `Held(RawCut)` for each.
 
 - `retention-full015-*.json.gz`: deep audits (before = pinned full014 capture,
   after = pinned full015 capture).
-- `retention-audit-logs.txt.gz`, `retention-full015-logs.txt.gz`: raw logs.
+- `retention-audit-logs.txt.gz` (pilot six-pair audits) and `retention-full015-logs.txt.gz` (full015 audits): raw logs.
 - `../h29-residual-proof/`: H29 probe evidence with corrected metadata.
+
+## Evidence files
+
+- `full015-manifest.json`: compact manifest binding all 36 rows (old/new input
+  sha256, exit code, gzip report sha256, logical report sha256 and length),
+  the pinned capture marker, and every prior audit artifact.
+- `gates.json` + `gates/g1..g7.log.gz`: archived gate commands, actual return
+  codes, timestamps and log hashes on the identical source content.
+- `classification-full015.json`: streaming paired-event classification. schedule-c,
+  schedule-se and nist-risk-assessment-30-to-r1 differ in exactly two scalar work
+  counters (`assessment.work_used`, `assessment.work_by_stage.emission`);
+  mext-lower-secondary differs structurally by one removed `assessment.review_units`
+  item (relation 179; cause unresolved, retention audit passes) with all later
+  event mismatches cascading from that list-length change. An earlier nested
+  classifier OOM-killed on mext (classifier-only; limits unchanged) and was
+  replaced by the streaming comparison.
+- `retention-audit-logs.txt.gz`, `retention-full015-logs.txt.gz`: raw audit logs.
 
 ## Hash semantics
 

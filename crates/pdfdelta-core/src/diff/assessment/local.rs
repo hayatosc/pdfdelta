@@ -16,6 +16,11 @@ enum EqualFragmentRetry {
     Adopted,
     /// The candidate stayed held.
     Held,
+    /// The candidate stayed held specifically on a raw cut, so the contiguous
+    /// proof would reject it but the internal deleted soft line break
+    /// allowance may still repair it. This is the only hold the fallback pass
+    /// retries.
+    HeldRawCut,
     /// The shared budget or output limit ended the pass; nothing is rewritten.
     Stop,
 }
@@ -1485,25 +1490,33 @@ impl Assessor<'_, '_> {
         }
         let limit = self.options.max_assessment_ranges;
         // The original contiguous pass runs first in recording order over the
-        // existing candidate list. Only after it finishes does the fallback
-        // pass revisit the same candidates with the internal deleted soft line
-        // break allowance, so the fallback can never take budget from an
-        // earlier correct proof or reorder an adoption. A candidate that the
-        // first pass held on a raw cut can still prove on the second pass; any
-        // other held candidate stays held.
-        for allow_internal_deleted_break in [false, true] {
-            for index in 0..self.equal_fragment_candidates.len() {
-                match self.retry_equal_fragment(
-                    ownership,
-                    candidates,
-                    proven,
-                    limit,
-                    index,
-                    allow_internal_deleted_break,
-                )? {
-                    EqualFragmentRetry::Adopted | EqualFragmentRetry::Held => {}
-                    EqualFragmentRetry::Stop => return Ok(()),
+        // existing candidate list. Only candidates that held on a raw cut are
+        // compacted, in that same order, into the prefix of the list; the
+        // fallback pass then revisits exactly those slots with the internal
+        // deleted soft line break allowance. A candidate held on any other
+        // check is never retried, so it can neither spend fallback budget nor
+        // be reordered, and the fallback can never take budget from an earlier
+        // correct proof. Compaction writes each kept slot to a position at or
+        // before the slot just read, so it allocates nothing and never
+        // overwrites an entry the first pass has not yet visited.
+        let mut retry_len = 0;
+        for read in 0..self.equal_fragment_candidates.len() {
+            match self.retry_equal_fragment(ownership, candidates, proven, limit, read, false)? {
+                EqualFragmentRetry::Adopted | EqualFragmentRetry::Held => {}
+                EqualFragmentRetry::HeldRawCut => {
+                    self.equal_fragment_candidates[retry_len] =
+                        self.equal_fragment_candidates[read];
+                    retry_len += 1;
                 }
+                EqualFragmentRetry::Stop => return Ok(()),
+            }
+        }
+        for slot in 0..retry_len {
+            match self.retry_equal_fragment(ownership, candidates, proven, limit, slot, true)? {
+                EqualFragmentRetry::Adopted
+                | EqualFragmentRetry::Held
+                | EqualFragmentRetry::HeldRawCut => {}
+                EqualFragmentRetry::Stop => return Ok(()),
             }
         }
         Ok(())
@@ -1672,8 +1685,13 @@ impl Assessor<'_, '_> {
         } else {
             match cache.prove(spans, &mut self.remaining_work)? {
                 super::equal_fragment::FragmentVerdict::Proven => false,
-                super::equal_fragment::FragmentVerdict::Held(_) => {
-                    return Ok(EqualFragmentRetry::Held);
+                super::equal_fragment::FragmentVerdict::Held(hold) => {
+                    return Ok(match hold {
+                        super::equal_fragment::FragmentHold::RawCut => {
+                            EqualFragmentRetry::HeldRawCut
+                        }
+                        _ => EqualFragmentRetry::Held,
+                    });
                 }
                 super::equal_fragment::FragmentVerdict::Exhausted => {
                     return Ok(EqualFragmentRetry::Stop);
@@ -5957,6 +5975,278 @@ mod tests {
         assert!(
             internal_break,
             "the deleted-break fragment must gain the fallback premise"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_never_retries_non_raw_cut_holds() -> Result<()> {
+        let old_blocks = [deleted_break_block(1)];
+        let new_blocks = [deleted_break_block(101)];
+        // The AB fragment ends exactly at the canonical deleted-break
+        // boundary. Its selected raw run is contiguous, so the contiguous
+        // proof passes the raw run check and holds on the normalization
+        // boundary instead of a raw cut. The fallback must not retry it, so
+        // it must spend no budget at all.
+        let run = |budget: usize, tail: bool| -> Result<(bool, Vec<SourceInterval>, usize)> {
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let alignment = unresolved_alignment(&[BlockId(1)], &[BlockId(101)]);
+            let mut assessor = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            assessor.local_domains = vec![LocalDomain {
+                old_span: strict_closed_fragment_span(1, 0, 2),
+                new_span: strict_closed_fragment_span(101, 0, 2),
+                source_bounded: false,
+            }];
+            let mut ownership = [Ownership::new(), Ownership::new()];
+            let mut changes = Vec::new();
+            let mut candidates = Vec::new();
+            assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+            assert_eq!(assessor.equal_fragment_candidates.len(), 1);
+            assessor.remaining_work = budget;
+            if tail {
+                assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+            } else {
+                let limit = assessor.options.max_assessment_ranges;
+                assert_eq!(
+                    assessor.retry_equal_fragment(
+                        &mut ownership,
+                        &candidates,
+                        &[],
+                        limit,
+                        0,
+                        false
+                    )?,
+                    EqualFragmentRetry::Held,
+                    "the fragment must hold on the normalization boundary, not a raw cut"
+                );
+            }
+            let mut cache =
+                crate::diff::assessment::equal_fragment::EqualFragmentCache::new([&old, &new]);
+            let mut proof_budget = usize::MAX;
+            assert_eq!(
+                cache.prove(
+                    [
+                        &strict_closed_fragment_span(1, 0, 2),
+                        &strict_closed_fragment_span(101, 0, 2),
+                    ],
+                    &mut proof_budget,
+                )?,
+                crate::diff::assessment::equal_fragment::FragmentVerdict::Held(
+                    crate::diff::assessment::equal_fragment::FragmentHold::NormalizationBoundary
+                ),
+                "the AB fragment must hold on the normalization boundary"
+            );
+            let internal_break = assessor.records.iter().any(|record| {
+                record
+                    .assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+            });
+            Ok((
+                internal_break,
+                ownership[0].accepted.clone(),
+                assessor.remaining_work,
+            ))
+        };
+        let (_, _, first_pass_only) = run(usize::MAX, false)?;
+        let (internal_break, accepted, full_tail) = run(usize::MAX, true)?;
+        assert!(
+            !internal_break,
+            "the fallback must not adopt a non-raw-cut hold"
+        );
+        assert!(
+            accepted.is_empty(),
+            "the fallback must commit no ownership for a non-raw-cut hold"
+        );
+        assert_eq!(
+            full_tail, first_pass_only,
+            "the fallback must spend no budget on a non-raw-cut hold"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_compacts_mixed_candidates_in_order() -> Result<()> {
+        // Blocks 1 and 3 hold on a raw cut; block 2 holds on the
+        // normalization boundary. The fallback must adopt only 1 and 3, in
+        // recording order, and leave 2 pending.
+        let old_blocks = [
+            deleted_break_block(1),
+            deleted_break_block(2),
+            deleted_break_block(3),
+        ];
+        let new_blocks = [
+            deleted_break_block(101),
+            deleted_break_block(102),
+            deleted_break_block(103),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = unresolved_alignment(
+            &[BlockId(1), BlockId(2), BlockId(3)],
+            &[BlockId(101), BlockId(102), BlockId(103)],
+        );
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        assessor.local_domains = vec![
+            LocalDomain {
+                old_span: strict_closed_fragment_span(1, 0, 4),
+                new_span: strict_closed_fragment_span(101, 0, 4),
+                source_bounded: false,
+            },
+            LocalDomain {
+                old_span: strict_closed_fragment_span(2, 0, 2),
+                new_span: strict_closed_fragment_span(102, 0, 2),
+                source_bounded: false,
+            },
+            LocalDomain {
+                old_span: strict_closed_fragment_span(3, 0, 4),
+                new_span: strict_closed_fragment_span(103, 0, 4),
+                source_bounded: false,
+            },
+        ];
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        assert_eq!(assessor.equal_fragment_candidates.len(), 3);
+        let original = assessor.equal_fragment_candidates.clone();
+        assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+        let has_internal_break = |relation: usize| {
+            assessor.records[relation]
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+        };
+        let relation_for_block = |block: u64| {
+            original
+                .iter()
+                .copied()
+                .find(|relation| {
+                    assessor.records[*relation]
+                        .old_span
+                        .as_ref()
+                        .is_some_and(|span| span.blocks == vec![BlockId(block)])
+                })
+                .expect("one candidate per block")
+        };
+        assert!(
+            has_internal_break(relation_for_block(1)) && has_internal_break(relation_for_block(3)),
+            "both raw-cut candidates must be adopted by the fallback"
+        );
+        assert!(
+            !has_internal_break(relation_for_block(2)),
+            "the normalization-boundary candidate must stay held"
+        );
+        assert_eq!(
+            assessor.equal_fragment_candidates[..2],
+            [relation_for_block(1), relation_for_block(3)],
+            "compaction must keep the raw-cut candidates in recording order"
+        );
+        assert_eq!(
+            ownership[0].accepted,
+            vec![
+                SourceInterval {
+                    block_index: 0,
+                    start: 0,
+                    end: 4,
+                },
+                SourceInterval {
+                    block_index: 2,
+                    start: 0,
+                    end: 4,
+                },
+            ],
+            "the fallback must adopt the raw-cut candidates in recording order"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn internal_deleted_break_fallback_exhaustion_keeps_mixed_earlier_adoptions() -> Result<()> {
+        // The plain AB fragment is adopted by the first pass; the raw-cut
+        // fragment is only eligible for the fallback. An exhausted budget must
+        // keep the first-pass adoption, retry nothing else and add no premise.
+        let old_blocks = [
+            positioned_block(1, "AB", 300.0, 700.0),
+            deleted_break_block(2),
+        ];
+        let new_blocks = [
+            positioned_block(101, "AB", 300.0, 700.0),
+            deleted_break_block(102),
+        ];
+        let run = |budget: usize| -> Result<(bool, bool, Vec<SourceInterval>, usize)> {
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let alignment =
+                unresolved_alignment(&[BlockId(1), BlockId(2)], &[BlockId(101), BlockId(102)]);
+            let mut assessor = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            assessor.local_domains = vec![
+                LocalDomain {
+                    old_span: strict_closed_fragment_span(1, 0, 2),
+                    new_span: strict_closed_fragment_span(101, 0, 2),
+                    source_bounded: false,
+                },
+                LocalDomain {
+                    old_span: strict_closed_fragment_span(2, 0, 4),
+                    new_span: strict_closed_fragment_span(102, 0, 4),
+                    source_bounded: false,
+                },
+            ];
+            let mut ownership = [Ownership::new(), Ownership::new()];
+            let mut changes = Vec::new();
+            let mut candidates = Vec::new();
+            assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+            assessor.remaining_work = budget;
+            assessor.recover_equal_fragments(&mut ownership, &candidates, &[])?;
+            let source_positions = assessor.records.iter().any(|record| {
+                record
+                    .assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentSourcePositions)
+            });
+            let internal_break = assessor.records.iter().any(|record| {
+                record
+                    .assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+            });
+            Ok((
+                source_positions,
+                internal_break,
+                ownership[0].accepted.clone(),
+                assessor.remaining_work,
+            ))
+        };
+        let (source_positions, internal_break, accepted, remaining) = run(usize::MAX)?;
+        assert!(source_positions && internal_break);
+        assert_eq!(accepted.len(), 2);
+        let used = usize::MAX - remaining;
+        assert!(used > 1);
+        let (source_positions, internal_break, accepted, _) = run(used - 1)?;
+        assert!(
+            source_positions,
+            "the earlier first-pass adoption must remain"
+        );
+        assert!(
+            !internal_break,
+            "the exhausted fallback must add no premise"
+        );
+        assert_eq!(
+            accepted,
+            vec![SourceInterval {
+                block_index: 0,
+                start: 0,
+                end: 2,
+            }],
+            "only the earlier accepted range may remain"
         );
         Ok(())
     }

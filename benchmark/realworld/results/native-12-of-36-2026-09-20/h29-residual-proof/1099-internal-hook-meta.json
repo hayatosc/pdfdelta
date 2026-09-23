@@ -20,24 +20,24 @@
     "rel573": {
       "projection": "[112,144)",
       "equal_fragment": "Held(RawCut) 15,199",
-      "ownership": "empty",
+      "ownership": "accepted overlap [112,128); unresolved piece [128,144)",
       "raw_iso": "Different"
     },
     "rel575": {
       "projection": "[128,160)",
       "equal_fragment": "Held(RawCut) 15,199",
-      "ownership": "empty",
+      "ownership": "accepted overlap [144,160); unresolved piece [128,144)",
       "raw_iso": "Different"
     },
     "rel603": {
       "projection": "[416,448)",
       "equal_fragment": "Held(NormalizationBoundary) 28,334",
-      "ownership": "empty"
+      "ownership": "accepted overlap [416,432); unresolved piece [432,448)"
     },
     "rel605": {
       "projection": "[432,464)",
       "equal_fragment": "Held(RawCut) 15,199",
-      "ownership": "empty"
+      "ownership": "none; unresolved piece [432,464)"
     },
     "rel607": {
       "projection": "[576,608)",
@@ -67,10 +67,10 @@
     "status": "implemented in the H29 fallback increment (equal_fragment.rs, local.rs, assessment.rs, report/mod.rs)",
     "note": "the earlier 'none' field described the diagnostic probes only"
   },
-  "blocking_class": "Held(RawCut)/Held(NormalizationBoundary) strict-equal domains with empty ownership (rel573/575/603/605); all have edits=0 unique strict Complete, so the missing premise is at the cut/normalization boundary, not whole-block raw isomorphism or budget",
+  "blocking_class": "Held(RawCut)/Held(NormalizationBoundary) strict-equal domains with partial accepted overlaps (573 [112,128), 575 [144,160), 603 [416,432), 605 none) and unresolved pieces (573/575 [128,144), 603 [432,448), 605 [432,464)); all have edits=0 unique strict Complete, so the missing premise is at the cut/normalization boundary, not whole-block raw isomorphism or budget",
   "census_hashes_note": "work-and-census report_sha256 values are compressed file hashes; logical hashes and per-baseline producers: full013 report producer 6686286e, full014 report producer 0a019a3c",
   "subfragment_probe": {
-    "status": "executed, uncommitted; production unchanged",
+    "status": "historic probe, executed before the H29 increment; production now contains the certified fallback",
     "correction": "ownership was containment-tested before; actual accepted overlaps are [112,128) for 573, [144,160) for 575, [416,432) for 603, and none for 605; the unresolved pieces are [128,144), [128,144), [432,448), [432,464)",
     "pieces": {
       "573": {
@@ -125,7 +125,7 @@
       "573": "both runs Held(NormalizationBoundary), warm incremental 27,540 / 27,549 on both sides",
       "605": "432..448 Held(NormalizationBoundary) 27,949"
     },
-    "conclusion": "with real-Glyph singleton matching the earlier Proven results disappear; the zero-length SoftLineBreak deletion splits each piece and every corrected run holds on NormalizationBoundary, so the blocker is the normalization-boundary contract, not raw contiguity",
+    "conclusion": "with real-Glyph singleton matching the maximal raw-contiguous runs are [128,136)/[136,144) and [432,448)/[448,464); every maximal run holds on NormalizationBoundary, so the blocker for the maximal runs is the normalization-boundary contract around the zero-length SoftLineBreak deletion, not raw contiguity. The smaller interior pieces [137,144) and [449,464) remain valid Proven results; only the earlier raw-run classification from endpoint-reference matching was wrong.",
     "artifacts": {
       "patch": "1099-cut-trace-corrected.patch.gz",
       "dump": "1099-cut-trace-corrected.txt.gz",
@@ -136,7 +136,7 @@
     "interior_piece_note": "prove(137..144) and prove(449..464) remain real interior pieces; only the raw-run classification from endpoint-reference matching was wrong, not those verdicts."
   },
   "fallback_probe": {
-    "status": "executed with production EqualFragmentCache after tail, separate cumulative diagnostic budget from actual remaining_work; uncommitted; production restored",
+    "status": "historic probe, executed with the production cache before the H29 increment; the certificate path is now production",
     "remaining_work": 5549122,
     "relations": {
       "573": "record span 112..144 -> blocks (226,112,144)/(225,112,144), tokens_equal true, conflicts false",
