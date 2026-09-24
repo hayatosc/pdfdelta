@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-longformer-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "e6f6c55e89f058f1ad04db7fb708d949e2eba8276f0fb06a7f539b2a11aba268",
-  "body_eligible": true,
-  "reason": "The complete abstract adds the Longformer Encoder Decoder and summarization result. Both terminal footnote markers remain in the source range."
-}

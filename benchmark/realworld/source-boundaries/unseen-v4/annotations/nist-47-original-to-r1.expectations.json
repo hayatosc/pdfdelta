@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-47-original-to-r1",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "51a76f30616f7ab0109b1fe01e453b553a0d74594e6725d4519db376327903fe",
-  "body_eligible": true,
-  "reason": "The complete first Executive Summary paragraph changes system interconnections to information exchanges and changes applicability. The old edition has no Abstract."
-}

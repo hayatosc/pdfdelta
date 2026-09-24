@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-cot-v1-to-v6",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "6a2f5d26c7a62294e99bb70dd1eeb8efece98662f592090839acba0f8a047d6a",
-  "body_eligible": true,
-  "reason": "Complete Abstract: one old paragraph and both new paragraphs. The discussion of reasoning and the experimental findings are rewritten; no sentence is omitted."
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-voice-assistants-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "9c7904ae1b03c44952063175528edc546918baa34dcd7fe9914e948bcd266303",
-  "body_eligible": true,
-  "reason": "The first Executive Summary paragraph changes recent years to latest years, within the full definition paragraph."
-}

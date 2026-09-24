@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "faa-electronic-records-78a-to-78b",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "57d0ff1e80ec0a915942e70aea851d0bc2dce0ed8a8e51b071ef42b03443c8cf",
-  "body_eligible": true,
-  "reason": "The complete opening scope paragraph changes electronic-record authorization, applicability and legal-effect guidance. Signatures and agency mastheads remain outside the body."
-}

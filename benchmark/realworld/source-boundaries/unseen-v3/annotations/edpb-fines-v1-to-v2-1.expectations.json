@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-fines-v1-to-v2-1",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "5368a8e7b396edc13676c2da1344e52dafd1a3b0e4c26fc6c000e94d66f41db7",
-  "body_eligible": true,
-  "reason": "The first Introduction body paragraph adds a sentence on the fundamental right to protection of personal data. The unchanged Executive Summary and the separate introductory legal recitals are outside the target."
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-46-r1-to-r2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "e39b9cb1ca3d4c7adb27c7f237acbdb6be3ce107a880cf81ff8425085b175ed7",
-  "body_eligible": true,
-  "reason": "The first Executive Summary paragraph expands teleworker roles and describes external hosts and access risks. The older edition has no Abstract."
-}

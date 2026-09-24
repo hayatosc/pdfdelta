@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-certification-v1-to-v3",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "be37f7e1f5238f01db4308a2180c181a2a4b0de437a6f492fc3242897a323abe",
-  "body_eligible": true,
-  "reason": "Complete first paragraph on the page after the Introduction opening and Article 42 quotation: old unnumbered paragraph, new paragraph 4. Individuals becomes data subjects in two places. Inline markers 3 and 4 remain; the obsolete watermark is retained outside the selected render-order interval."
-}

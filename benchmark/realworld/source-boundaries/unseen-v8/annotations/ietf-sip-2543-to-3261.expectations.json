@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-sip-2543-to-3261",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "2bd8510aa5479f38dbe2116f05325a559131f986fd5aad3bd111ac6407c7123f",
-  "body_eligible": true,
-  "reason": "Complete first Abstract paragraph; the explanation of session setup and session types changes. The following new paragraph is outside this corresponding paragraph; all internal indentation remains literal."
-}

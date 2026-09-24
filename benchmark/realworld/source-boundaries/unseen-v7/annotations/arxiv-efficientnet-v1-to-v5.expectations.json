@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-efficientnet-v1-to-v5",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "b1861bac75fe6462e7da0cc78fd908c83d4e6a4f0707b707ca68eb081280c0a2",
-  "body_eligible": true,
-  "reason": "Complete second Abstract paragraph, including its source-code URL. The first paragraph is unchanged; the selected paragraph changes the stated accuracy and removes the top-5 claim. Literal line-end hyphens remain."
-}

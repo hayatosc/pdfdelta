@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-video-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "8c16e9ae9a12d988e88b293445d294d73f89106bc50bcc6ce02780a79f203e99",
-  "body_eligible": true,
-  "reason": "Paragraph 15 adds support for protection of life and physical integrity and removes the condition appended to grouping cameras."
-}

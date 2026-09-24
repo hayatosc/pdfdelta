@@ -1,3 +1,0 @@
-issues 1
-kind=Unresolved scope=PageGlyphGap { page: PageId(7), retained_before: 23225, paint_index: Some(280) } description=content operator Tj at index 56: font code has no Unicode mapping or stable font identity
-document written

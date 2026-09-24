@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "mhlw-vdt-2002-to-2019",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "7f461fecce3cb7d911aadf8657986d4c353280a13c3ec05c8a580f5d8f380f79",
-  "body_eligible": true,
-  "reason": "Complete item I under Lighting and daylight: できるだけ becomes できる限り. The old 2002 guideline is reproduced as an explicitly scoped excerpt in the official home-work booklet. The earlier proposal for item Ro failed unchanged source resolution because of adjacent unmapped glyphs; the full failed annotation and result remain separate. This preceding full changed paragraph was selected before any comparison."
-}

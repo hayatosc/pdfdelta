@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "mext-generative-ai-2023-to-2024",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "fd1248b2c8cbc03b2ef9a0962b2b40e7c8d6c3fd0d981a0b29b546144a7003e9",
-  "body_eligible": true,
-  "reason": "Opening context paragraph of the introductory guidance"
-}

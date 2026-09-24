@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-184-draft-to-final",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "ebe0c6b3a377caf306b797e7180179510f2932bc4ba1fece1cfdbadc44fa06f1",
-  "body_eligible": true,
-  "reason": "Complete Abstract; that recovery planning becomes recovery planning and the information systems becomes information systems. Old draft margin line counters are excluded as separate, visibly disjoint runs; every body glyph and internal body space remains in the ordered selectors."
-}

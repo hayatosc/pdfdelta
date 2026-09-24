@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-message-format-2822-to-5322",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "5423cc55265af76c48ffb12b75d273828485470ee3a4ad20a953f55287a5a05f",
-  "body_eligible": true,
-  "reason": "Complete Abstract. The definition and relationship to prior message-format editions change. All original internal indentation spaces remain."
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-vit-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "eb47052541ccbcb3b101fdba727df2cd73eabb180997688e9b8bfd80a2fa771d",
-  "body_eligible": true,
-  "reason": "The paragraph crossing pages 0 and 1 adds without strong regularization and changes such models/these models. Footnote, footer and running header are outside both source ranges."
-}

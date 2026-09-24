@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-ntp-1305-to-5905",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "ee99179d383cf24ab0b5d8442450979d246fac5f828e6653a70840bcb7effcc9",
-  "body_eligible": true,
-  "reason": "Complete Abstract paragraph in both protocol revisions. NTP version 4 capabilities replace the version 3 overview. All literal indentation and line-end hyphens remain."
-}

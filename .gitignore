@@ -19,6 +19,5 @@ __pycache__/
 # Downloaded real-world benchmark documents are never vendored.
 benchmark/realworld/cache/
 
-# Keep evaluation documents, measurements, and cited validation evidence.
-# Omit uncited raw execution logs and new temporary captures.
-benchmark/realworld/results/**/*.log
+# Benchmark captures are local measurements, not repository content.
+benchmark/realworld/results/

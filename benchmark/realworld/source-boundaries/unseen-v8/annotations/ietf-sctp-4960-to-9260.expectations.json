@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-sctp-4960-to-9260",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "b1e2c8485ed0fdb0dd45b13480b56936056a6ff81c4fd5431c130acbee8d3de0",
-  "body_eligible": true,
-  "reason": "Complete first old Abstract paragraph and its corresponding first two new Abstract paragraphs. Protocol history and scope are rewritten, including the explicit WebRTC application. All original internal spaces and glyph multiplicity remain. The service-list paragraph is outside this paired prose extent."
-}

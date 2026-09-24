@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-dpr-v1-to-v3",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "7ee64991ae1f07c7635fa06793c03ccfde154b331caf546d2b6ef995d15d203d",
-  "body_eligible": true,
-  "reason": "The complete abstract changes largely to greatly. The raw terminal footnote marker is retained on both sides."
-}

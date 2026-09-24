@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-smtp-2821-to-5321",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "fc17ee61ef3305e4f58ae0f677ea5228d4a0d0dfe98a1de1b554373e003fd2f0",
-  "body_eligible": true,
-  "reason": "The first complete abstract prose paragraph replaces the old description that introduces the following separate list with the new full abstract paragraph describing extension mechanisms and submission. The old list and subsequent abstract paragraphs remain outside this finite target."
-}

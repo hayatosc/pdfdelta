@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-dkim-4871-to-6376",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "b37ca314d9449081b3b06bdc039f5c80963648b486be2cd6d633403e4a1ebe8e",
-  "body_eligible": true,
-  "reason": "The first abstract paragraph changes DKIM identity, responsibility, signature and validation descriptions. The new obsolescence paragraph is outside the extent."
-}

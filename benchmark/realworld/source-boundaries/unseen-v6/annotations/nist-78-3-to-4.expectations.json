@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-78-3-to-4",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "c41031bfb0e180671843541cdc86609f56de0ec3d415881b8b7273fd783f13d6",
-  "body_eligible": true,
-  "reason": "Introduction, complete opening paragraph"
-}

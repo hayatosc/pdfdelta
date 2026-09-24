@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-dpo-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "a540e3a36b60aa88cd28fd7da1cfa8b463e8e0fc28a746f10a781929ac78faee",
-  "body_eligible": true,
-  "reason": "The full abstract changes the description of the reward parameterization and optimization and the reported comparison with PPO-based RLHF."
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-64-r1-to-r2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "aa777ce51612a8609715de6d00e5634cde7875609dd6b62cdcc1748b6af44f65",
-  "body_eligible": true,
-  "reason": "The first Executive Summary paragraph changes the publication purpose and intended use. The older edition has no Abstract."
-}

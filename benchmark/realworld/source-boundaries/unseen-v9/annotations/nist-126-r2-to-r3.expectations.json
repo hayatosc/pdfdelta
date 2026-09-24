@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-126-r2-to-r3",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "d15e22188e2bb7dcbf6cbb922069403f70ae0d3351f9b776619e1e76c00bcf6e",
-  "body_eligible": true,
-  "reason": "Complete first changed Executive Summary lead-in paragraph: SCAP version 1.2 and eleven component specifications become version 1.3 and twelve. The preceding full paragraph is unchanged; the following bullet list is a separate paragraph structure."
-}
