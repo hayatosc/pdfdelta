@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-payment-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "956ea340fa8cc2d58fd3988a83dba46fbee2ef6cf865438c9a42125ef77f06e2",
-  "body_eligible": true,
-  "reason": "Paragraph 14 removes always from the contractual-basis statement. Other wording and embedded statutory references stay within this finite paragraph."
-}

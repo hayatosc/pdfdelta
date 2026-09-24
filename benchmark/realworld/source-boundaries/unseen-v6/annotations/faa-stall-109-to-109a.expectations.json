@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "faa-stall-109-to-109a",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "d0be6c1460f359095e6f6233739a9f25981282c9ac9ea3518cfdb70965f8c379",
-  "body_eligible": true,
-  "reason": "Complete opening prose before the core principles list"
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "mhlw-medical-security-v5-1-to-v5-2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "47379dfb88b6e98a506306dc51d9f78c9849df196f34ee9a98e36e2a8626e7df",
-  "body_eligible": true,
-  "reason": "The complete first new Introduction paragraph corresponds to the final old Introduction paragraph and expands the formal name of the electronic-document law. Earlier historical background was moved; it is outside this finite correspondence. The old unchanged control is the table-of-contents entry and the new control is the Introduction heading."
-}

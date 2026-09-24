@@ -270,8 +270,8 @@ claim about native glyphs.
 
 Pages are rendered at 72 dpi. Small type is therefore not always legible, and
 enlarging a crop adds no evidence — a measurement of where this binds, and what
-a higher-resolution profile would cost, is recorded in
-`benchmark/realworld/remaining/agent-review/72dpi-legibility.md`. A higher
+a higher-resolution profile would cost, is recorded in the archived
+[`72dpi-legibility.md`](https://github.com/hayatosc/pdfdelta/blob/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/remaining/agent-review/72dpi-legibility.md). A higher
 resolution would be a separate declared profile and a different observation, not
 a better view of the same raster.
 
@@ -416,8 +416,8 @@ settles nothing, reading every case is reading the unsettled document plus the
 account of why it is unsettled. Reading the quotes as well — the whole document
 through the packet — costs about 2.2 times the text, and always will, because
 that account is what the raw text does not carry. The measurement and its
-caveats are in
-`benchmark/realworld/remaining/agent-review/corpus-token-measurement.md`.
+caveats are in the archived
+[`corpus-token-measurement.md`](https://github.com/hayatosc/pdfdelta/blob/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/remaining/agent-review/corpus-token-measurement.md).
 
 One agent has read one bundle end to end under this contract and had its
 answers checked against both documents: all 23 settled findings were real
@@ -433,9 +433,10 @@ document.** That ceiling is the comparison's, not the encoding's: on one pair
 the run compared 193 of 137,926 glyphs, and a packet cannot report material
 that was never compared. What the packets have that the text does not is an
 account of their own blind spots, per page. Whether that is worth the missing
-findings is a judgement, not a measurement. Both records are in
-`benchmark/realworld/remaining/agent-review/`: `agent-loop-quality.md` and
-`head-to-head.md`.
+findings is a judgement, not a measurement. Both records are archived in
+[`agent-review/`](https://github.com/hayatosc/pdfdelta/tree/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/remaining/agent-review):
+[`agent-loop-quality.md`](https://github.com/hayatosc/pdfdelta/blob/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/remaining/agent-review/agent-loop-quality.md) and
+[`head-to-head.md`](https://github.com/hayatosc/pdfdelta/blob/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/remaining/agent-review/head-to-head.md).
 
 ## Trust boundary
 

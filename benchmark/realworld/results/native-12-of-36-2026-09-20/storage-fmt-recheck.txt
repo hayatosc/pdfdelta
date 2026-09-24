@@ -1,6 +1,0 @@
-# storage post-format recheck
-date_utc=2026-09-20T16:09:16Z
-command=cargo fmt --all -- --check
-exit=0
-output: (none)
-rust_unchanged_since=storage-gates run plus formatting only

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-json-4627-to-8259",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "b4df8d20674c31d6b60ba4da3d539d39beadedb1ec56188431e7449d45955e36",
-  "body_eligible": true,
-  "reason": "The Unicode-string definition paragraph adds substantive guidance about referencing the latest Unicode version and future syntax compatibility. The inserted abstract paragraph has no old counterpart, and the first Introduction paragraph changes only a citation label; neither is used to replace this prose target."
-}

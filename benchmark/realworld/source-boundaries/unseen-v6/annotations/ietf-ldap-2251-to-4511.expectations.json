@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-ldap-2251-to-4511",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "1733765958aa34e7a97f4bef5ee8ef1af795711db87b3d11a8a5da7b75499444",
-  "body_eligible": true,
-  "reason": "Complete opening abstract paragraph; the following old requirements-keyword paragraph is a separate conventions block."
-}

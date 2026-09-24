@@ -1,8 +1,0 @@
-final merged verification (commit 94780f7 + fixture patch)
-fmt=0  file=final-gate-fmt.log.gz sha256=99642267131e7fb1432aced529b945b61dc85918a59228383f6b36a596892c1f
-clippy=0  file=final-gate-clippy.log.gz sha256=6fd4fb970f260fafd6310b38a2b25f94dd51c5561dff884450f5946733829e99
-workspace=0  file=final-gate-workspace-tests.log.gz sha256=a9be8154514589d9ac3d542f24d37034767f62b762e165da8ca28b6e58d5fff3
-diffcheck=0
-allfeatures=0 rustdoc=0 pdfbench=0 (m4/m5/m6, unchanged source, valid)
-historical failed initial merged-tree logs: gate-2/gate-3.log.gz (clippy=101/workspace=101 E0063) retained for provenance
-fixture patch: declared_text: None added to 3 StructureElement initializers (see fixture-patch-sha.txt)

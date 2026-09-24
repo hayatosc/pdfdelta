@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-deberta-v1-to-v6",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "29d2b831212a970bbf13263aaf4ed6e3de6b64e39b63147a6c2199b922cae69a",
-  "body_eligible": true,
-  "reason": "The complete abstract changes the architecture, training and reported experimental outcomes; the following Introduction is outside the extent."
-}

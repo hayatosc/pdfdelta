@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "faa-sop-71a-to-71b",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "356978dd53547b97b7bc697bf0b8a6d7c8334ee58c85bd7aeecca6061bfe86af",
-  "body_eligible": true,
-  "reason": "The complete first purpose body paragraph is compared with the new complete opening scope paragraph, including new pilot-monitoring guidance. The inline old General heading, mastheads and signatures remain outside the target."
-}

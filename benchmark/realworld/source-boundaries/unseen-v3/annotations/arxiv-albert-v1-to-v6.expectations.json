@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-albert-v1-to-v6",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "9e413c78972e46ea8e9722d178ceb8d43fc723a0eb17a9facc6163794513e92a",
-  "body_eligible": true,
-  "reason": "The complete abstract removes unexpected model degradation and adds the source-code and pretrained-model release sentence."
-}

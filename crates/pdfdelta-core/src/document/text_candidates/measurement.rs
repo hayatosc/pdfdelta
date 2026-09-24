@@ -55,7 +55,7 @@ fn fixture(case: &Case, new: bool) -> DocumentGraph {
 #[ignore = "isolated release measurement driven by measure-text.py"]
 fn measure_text_retrieval() {
     let matrix: Matrix = serde_json::from_str(include_str!(
-        "../../../../../benchmark/realworld/next/text-matrix.json"
+        "../../../../../benchmark/microbench/text-matrix.json"
     ))
     .expect("registered matrix");
     assert_eq!(matrix.universe_version, "literal-text-retrieval-v1");

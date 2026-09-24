@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "faa-crm-51d-to-51e",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "a0ddf42e538605219b4c04e86a1775e3d8fcfb1f35cc42ed538b57b1fc1f2231",
-  "body_eligible": true,
-  "reason": "The complete Purpose body changes CRM training applicability and guidance. The inline PURPOSE heading is the external unchanged control. Original revision bars remain source paint."
-}

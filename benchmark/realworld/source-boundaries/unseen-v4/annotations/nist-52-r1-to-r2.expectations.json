@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-52-r1-to-r2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "f2da98c1433dc1fc2d08cb9b96232535b74b774839ff076cbedc5df0242a949d",
-  "body_eligible": true,
-  "reason": "The complete abstract changes the minimum TLS version and recommended migration date, and revises certificate and extension guidance."
-}

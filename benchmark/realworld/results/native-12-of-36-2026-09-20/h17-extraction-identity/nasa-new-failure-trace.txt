@@ -1,1 +1,0 @@
-page=PageId(85) stream=ObjectRef { object_number: 829, generation: 0 } op=4701 operator=TJ raw=09 glyph_id=9 key=Reference(ObjectRef { object_number: 832, generation: 0 }) font=Reference(ObjectRef { object_number: 832, generation: 0 })

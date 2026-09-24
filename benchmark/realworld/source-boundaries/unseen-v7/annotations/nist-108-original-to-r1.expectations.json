@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-108-original-to-r1",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "5f1b2dfeee32dbc839a493c61b4a2c896cd8dbe32105b635aa7ec00976d4ad21",
-  "body_eligible": true,
-  "reason": "Complete Abstract; revision names the HMAC, CMAC and KMAC pseudorandom functions."
-}

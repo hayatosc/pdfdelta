@@ -1,9 +1,0 @@
-{
-  "comparator_sha256": "4da2165cc3e4647a575264848c51113e51a69d9083c142a3c37906601d7b5ba3",
-  "results": {
-    "baseline": "accepted",
-    "render_order_reversal": "rejected: h17: render_order not strictly increasing",
-    "header_count_corruption": "rejected: h17: header glyph count 3 != 2"
-  },
-  "exit": "nonzero required on rejection; NOT_REJECTED outcomes are failures"
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "faa-weight-27e-to-27f",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "c9434e7f2ffd85289312d33ac11054fc79e300e9cf5e3d01f4503c872b22eaef",
-  "body_eligible": true,
-  "reason": "Complete old Purpose subparagraphs a and b and their corresponding combined new opening paragraph. Changes include W&B terminology and scope references. The old paragraph labels and the following NOTE are outside the registered prose; neither source paragraph is shortened. Date: is a disjoint unchanged control."
-}

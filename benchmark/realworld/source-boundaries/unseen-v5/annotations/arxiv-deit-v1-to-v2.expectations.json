@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-deit-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "c0b26f06ff871df062d70b7c323ef82a9e71285e59b4c949a9d41f4b42df5cf9",
-  "body_eligible": true,
-  "reason": "The entire three-paragraph abstract changes the training description, reported accuracy and distillation explanation. All three paragraphs on each side remain within the target."
-}

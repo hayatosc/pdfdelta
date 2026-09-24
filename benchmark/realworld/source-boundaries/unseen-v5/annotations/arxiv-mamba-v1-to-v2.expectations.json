@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-mamba-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "2c208fdc5118e9deaaf1270840d139d14b874d4ba74f908f85af2fb603feb82c",
-  "body_eligible": true,
-  "reason": "The full RWKV bullet replaces a parenthetical attention-free Transformer description with an appositive phrase. Abstract and earlier introductory prose have no substantive word edit; this bullet moves from page 5 to page 4."
-}

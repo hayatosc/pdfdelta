@@ -1,4 +1,0 @@
-     58 siteE_subrange_remainder
-     22 siteD_whole_block_remainder
-      6 siteB_alignment_unresolved
-      5 siteA_alignment_atomic

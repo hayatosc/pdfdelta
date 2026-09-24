@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-roformer-v1-to-v5",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "0cf2a3f58cde9e42d38986e518896c9b68f76634d5d6a367b969bbcd1ccf4f97",
-  "body_eligible": true,
-  "reason": "The complete abstract changes the positional-encoding description, experiments and release information. The new Keywords line is outside the paragraph."
-}

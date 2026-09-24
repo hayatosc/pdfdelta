@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-vae-v1-to-v11",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "5c33b72dc291a9692b7b3543b4cc27757b4fe054b15c32c5bb4a10430f7a823d",
-  "body_eligible": true,
-  "reason": "Complete Abstract in both editions, retaining both old paragraphs and the corresponding new full block. The inference method explanation is rewritten; internal ligatures and line-end hyphens remain literal."
-}

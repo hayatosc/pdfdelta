@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-50-original-to-r1",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "63ad3f4a46c31ef7aa1bd743c8fadb652f79ce74067ce521cc9f6e8ed55abd17",
-  "body_eligible": true,
-  "reason": "The first Executive Summary paragraph replaces the former security awareness and training scope with a cybersecurity and privacy learning program. The older edition has no Abstract."
-}

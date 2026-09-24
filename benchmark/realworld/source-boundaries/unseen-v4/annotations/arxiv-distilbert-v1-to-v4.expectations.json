@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "arxiv-distilbert-v1-to-v4",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "37895e3db033516e2bc06796d39777821fbc4d32002b40eb5a812cb24e181453",
-  "body_eligible": true,
-  "reason": "The complete abstract corrects remain to remains in its first sentence. This grammatical text replacement is a real prose edit; it is not a citation or publication-date change."
-}

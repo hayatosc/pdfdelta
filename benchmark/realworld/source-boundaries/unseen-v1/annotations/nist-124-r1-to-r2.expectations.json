@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-124-r1-to-r2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "00a42023cd866019dde573394a676707173020d583925b558808dba4b430c151",
-  "body_eligible": true,
-  "reason": "The abstract replaces the older device examples and scope with current enterprise usage, mitigations and life-cycle deployment guidance."
-}

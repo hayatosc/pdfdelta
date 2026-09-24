@@ -1,7 +1,0 @@
-{
-  "mechanism": "systemd-run --user --scope -p MemoryMax=6000000000 -p MemorySwapMax=0",
-  "verified_memory_max_bytes": 5999996928,
-  "verified_memory_swap_max_bytes": 0,
-  "free_bytes_before_cleanup": 906263121920,
-  "rule": "single heavyweight project job at a time, launched inside the scope; cargo/capture/audit/test fixtures all inside"
-}

@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "ietf-http-semantics-7231-to-9110",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "2c8eb7e079e47f0bab05d036f5d5bd0bc7a9eb36278754ad297aed4cbc9c1aab",
-  "body_eligible": true,
-  "reason": "Complete opening abstract paragraph. The separately added new second paragraph lists superseded editions and is not part of this corresponding prose paragraph."
-}

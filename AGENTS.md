@@ -2,13 +2,14 @@
 
 ## Documentation & Code Comments
 
-- `README.md` may reference `SPEC.md`; do not reference `SPEC`, `SPEC.md`, or specific section numbers in any other code comments, docstrings, or documentation.
+- `README.md` may reference `docs/SPEC.md`; do not reference `SPEC`, `SPEC.md`, or specific section numbers in any other code comments, docstrings, or documentation.
 - All code comments and documentation must be self-contained: describe contracts, invariants, behaviors, and design rationale directly.
 - Follow Rust documentation best practices:
   - Write concise, accurate doc comments (`///`, `//!`) with intra-doc links where applicable.
   - Document invariants, assumptions, pre/post-conditions, `# Errors`, `# Panics`, and `# Safety` boundaries explicitly.
   - Omit redundant comments that merely restate obvious code operations. Focus code comments on non-obvious *why* rationale and architectural decisions.
-- Keep `README.md` honest about functionality that is not implemented yet.
+- Keep `README.md` and `docs/limitations.md` honest about functionality that is not implemented yet.
+- Keep `README.md` a concise user-facing overview; put detailed CLI behavior in `docs/usage.md`, internals in `docs/how-it-works.md`, and benchmark tooling in `docs/benchmarks.md`.
 
 ## Acceptance & Release Criteria
 
@@ -34,6 +35,7 @@
 - `pdfdelta-core` is a pure library and must not depend on CLI concerns.
 - `pdfdelta-cli` owns filesystem I/O, argument parsing, report destinations, and process exit codes.
 - `pdfdelta-bench` owns generated fixtures, mutations, renderers, manifests, and evaluation tooling.
+- Do not commit dated benchmark captures, experiment logs, or investigation notes. Write them outside the repository or to the gitignored `benchmark/realworld/results/`; commit only inputs that code, tests, or documented tooling read.
 - Diff-engine components should accept programmatically constructed `Document<Glyph>` fixtures so PDF backend work does not block diff-engine work.
 
 ## Project Constraints

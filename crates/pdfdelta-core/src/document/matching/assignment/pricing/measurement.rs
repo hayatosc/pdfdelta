@@ -128,7 +128,7 @@ pub(super) fn dense_trial_with(
 fn measure_assignment_pricing() {
     let matrix: Matrix = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../benchmark/realworld/next/pricing-matrix.json"
+        "/../../benchmark/microbench/pricing-matrix.json"
     )))
     .expect("versioned benchmark manifest");
     assert_eq!(matrix.universe_version, "independent-coefficients-v1");

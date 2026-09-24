@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-eprivacy-scope-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "6e7cee139e57c0f2698a755f83eb4adc3c1f1fcecc16540ac3536fceb61ea062",
-  "body_eligible": true,
-  "reason": "Introduction, complete first numbered prose paragraph, excluding its paragraph label and external footnote bodies but retaining inline footnote markers. The Article 29 Working Party explanation is removed."
-}

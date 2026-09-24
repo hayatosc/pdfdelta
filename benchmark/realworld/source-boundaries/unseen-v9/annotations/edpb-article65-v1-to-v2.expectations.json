@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "edpb-article65-v1-to-v2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "c42e3976967009853fd794ad9f362f9a3e70c43384fb5ecfe57d7ba3e760bafa",
-  "body_eligible": false,
-  "reason": "Complete paragraph 11 in the GDPR section; wording is unchanged while inline citation 12 is added and literal spacing changes. Source-resolved but excluded from prose-recovery eligibility; retained in the twelve-pair denominator."
-}

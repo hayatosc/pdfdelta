@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "pair": "nist-hipaa-66-r1-to-r2",
-  "frozen_before_comparison": true,
-  "annotation_status": "resolved",
-  "annotation_sha256": "b137f0b9a1a0d3e43901ecac2174ecc3dde3d577e8c746dcbb79dfcd36b2e64f",
-  "body_eligible": true,
-  "reason": "The first Purpose and Scope paragraph now addresses regulated entities, risk assessment and management, and implementation resources."
-}

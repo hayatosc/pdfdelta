@@ -61,6 +61,7 @@ if [[ "$#" -eq 0 ]]; then
     fi
     capture_date="$(date +%F)"
     engine_commit="$(git rev-parse --short=7 HEAD)"
+    mkdir -p -- "${repo_root}/benchmark/realworld/results"
     output="benchmark/realworld/results/${capture_date}-${engine_commit}.json"
     immutable_capture=true
 else
