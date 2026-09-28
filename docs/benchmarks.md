@@ -336,7 +336,176 @@ Public smoke corpora for self-comparison are listed in
 [`benchmark/manifests/`](../benchmark/manifests/); downloading and running them
 is not automated.
 
-### Historical captures
+### Native-text completion coverage
+
+On 2026-09-27, a fresh release build of HEAD `cf5feb9` completed
+**3/36 pairs (8.3%)** under a shared 6 GB memory limit. All 36 pairs produced
+reports; 33 remained incomplete. No pair timed out or failed execution.
+This is document-comparison completion, not test coverage or change recall.
+It uses the fixed 36-pair panel, distinct from the 29-pair revision manifest
+above.
+
+| Outcome | Pairs |
+|---|---:|
+| Complete, differences detected (exit 1) | 3 |
+| Incomplete, differences detected (exit 3) | 20 |
+| Incomplete, difference status indeterminate (exit 3) | 13 |
+| Both inputs extracted completely, including incomplete comparisons | 32 |
+
+The complete pairs are `irs-schedule-se-2024-to-2025`,
+`faa-thunderstorms-b-to-c`, and `bunka-kana-1946-to-1986`. The latter two have
+zero visible native-text tokens on the old side. Thus only one complete pair
+compares nonempty native text on both sides. Completion does not establish
+image comparison or annotation-scored precision/recall.
+
+The retained diagnostic reports now total **72,550,851 bytes (72.6 MB)**,
+down from 1,874,123,872 compressed bytes (**96.1% smaller**). All semantic
+records and text are retained; repeated per-glyph drawing sources are summarized
+as described below. The whole retained run, including the compressed binary,
+source archive, manifests, scripts, and logs, is about **87.6 MB**. This storage
+change does not alter the 3/36 result.
+
+### Measurement conditions and verification
+
+- Build: `cargo build --release --locked -p pdfdelta-cli`, with
+  `CARGO_BUILD_JOBS=1`, at `cf5feb94a1f821fa7712a75791164ff9ada2cc54`.
+  The captured production diff is empty; only documentation was modified.
+  Binary SHA-256:
+  `80b86bebfeb4d9d5906bd94edcd8b46d991596f7f72854838709fe37b7f4a336`.
+- Route: `--native-text-only --limit-scale 1 --quiet --json REPORT.json.gz`,
+  schema 11, one run per pair, sequential execution, 180-second timeout per
+  comparison. Total comparison wall time was 778.93 seconds; build, hashing,
+  and summary processing take additional time. This run does not establish
+  repeat-run determinism.
+- Resource guard: the build and capture ran sequentially in systemd scopes
+  with `MemoryMax=6000000000` and `MemorySwapMax=0`. The capture verified the
+  effective cgroup limit of 5,999,996,928 bytes (kernel page rounding). Its
+  process-group memory peak reached that cap, with 5,144 `memory.events:max`
+  events, zero OOM events, zero OOM kills, and zero swap usage. The largest
+  per-comparison peak RSS was 5,634,948 KiB (about 5.77 GB). These metrics have
+  different scopes: the cgroup includes capture helpers and charged file cache.
+- Storage: full reports contain 48,202,083,963 logical bytes, stored directly
+  as 1,874,123,872 gzip bytes (about 48.2 GB versus 1.87 GB). Summaries were
+  extracted incrementally. A 4 GB capture-output budget was checked between
+  pairs; no unrelated historical captures were removed.
+- Provenance: the historical driver, frozen panel, input manifests, and
+  annotations were restored from `9229676` into the ignored capture setup
+  directory. The capture helper was adapted only for those paths and the
+  output-budget check; automatic retention was disabled. Input hashes were
+  checked by the driver. All 36 run-record hashes and compressed report hashes
+  were verified, and logical report hashes agreed between the driver and
+  capture summary. The binary, source archive, helper, panel, and driver hashes
+  were also checked.
+
+Local evidence is retained under
+`benchmark/realworld/results/current-native-2026-09-27/` (gitignored):
+
+- `capture/summary.json`: 36 distinct rows; SHA-256
+  `435beed6df9e0c7958b668badce0f58a4bac0bc8bb0bce11f71f06ce4cc111e0`.
+- `compact/`: compact diagnostic reports and the verified replacement manifest.
+- `capture/`: immutable capture summary, per-pair `runs.json`, logs, the exact
+  binary in `pdfdelta.gz`, and a compressed source archive. The original full
+  reports were replaced after verification; their recorded hashes are retained.
+- `artifact-compression.json`: original and compressed binary hashes. Restore
+  with `gzip -dc capture/pdfdelta.gz > /tmp/pdfdelta-replay` and
+  `chmod +x /tmp/pdfdelta-replay` from the run directory.
+- `memory.json`: effective limits, process-group peak, and OOM counters.
+- `setup/`: restored provenance files and the capture scripts used for this run.
+- `compact-tools/`: exact initial and resumed compactor scripts. One pair
+  exceeded the initial 64 MiB retained-JSON bound; conversion resumed with a
+  256 MiB bound and the same 6 GB process-group limit, preserving all fields.
+- `compaction-verification.json`: checks of all 36 compact artifacts, 72 input
+  PDF hashes, binary/source provenance, and unchanged completion counts.
+  The compact manifest SHA-256 is
+  `1c2f705c8563625da2d540c7cb64ae0c00f0697957b865d0d863333652cdcc16`.
+- `compact/pruned.json`: receipt for removal of the 36 verified original reports.
+
+The earlier experimental capture also reported 3/36, but included an
+uncommitted reference-bounds patch. The current run replaces that build caveat
+with evidence from the current source. The completion categories are unchanged;
+32/36 full report logical hashes match the experimental capture exactly.
+
+The historical panel definition and input provenance are available in the
+[`9229676` archive](https://github.com/hayatosc/pdfdelta/tree/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/followup).
+Keep failed and incomplete pairs in the denominator when updating this result.
+
+### Compact native diagnostics
+
+Native schema 11 repeats per-glyph drawing provenance in resolution ranges,
+relation spans, changes, and unresolved regions. For example, the largest pair
+in the current 36-pair capture has 12.41 GB of pretty JSON, including 9.05 GB
+in assessment relations. Gzip compresses repetition but leaves large artifacts.
+
+For new native captures, write the small artifact at the source:
+
+```bash
+pdfdelta old.pdf new.pdf --native-text-only \
+  --limit-scale 1 --quiet --json report.compact.json.gz
+```
+
+This directly emits compact artifact version 2. It preserves all semantic
+records and text while summarizing sources before serialization. No full JSON
+file or whole-report glyph-source array is built. Source-array hashes use
+compact JSON in native schema-11 field order; there is no full-report hash for
+a report that was never emitted. Store PDF/binary hashes and execution metrics
+in the capture's run record. See [usage](usage.md#compact-native-json).
+
+A 2026-09-28 release build with the direct writer was checked against six
+saved pairs: IRS W-4, Schedule SE, GPT-3, MHLW care skills, FAA thunderstorms,
+and NIST controls. Their gzip reports totaled **16,689,103 bytes**, compared
+with **611,352,134 bytes** for the previous full reports (**97.3% smaller**).
+The largest, NIST, fell from 495,567,773 to **9,460,205 bytes** and completed
+in 44.5 seconds. All six retained semantic projections, source counts, pages,
+and samples matched the saved results; hashes differ by the versioned encoding
+contract. This selected-pair check does not update the full-panel 3/36 coverage.
+
+The shared 6,000,000,000-byte cgroup cap remained active, with swap disabled
+and no OOM events. NIST peak process RSS was 5,366,848 KiB; the workload
+reached the cgroup cap and triggered memory reclamation, so the external limit
+remains necessary. Replay arguments, PDF/binary hashes, the source patch,
+compressed executable, per-pair metrics, and compact outputs are retained in
+`benchmark/realworld/results/direct-compact-2026-09-28/` (gitignored).
+
+For existing full native reports, use the version-1 postprocessor:
+
+```bash
+python3 benchmark/realworld/compact_capture.py convert \
+  benchmark/realworld/results/RUN/capture/summary.json \
+  benchmark/realworld/results/RUN/compact
+
+# Recheck the manifest and replacements before removing the original reports.
+python3 benchmark/realworld/compact_capture.py prune \
+  benchmark/realworld/results/RUN/compact/manifest.json
+```
+
+Run conversion in the same 6 GB workload limit as the benchmark. For a single
+report, use `python3 benchmark/realworld/compact_native.py INPUT.json.gz OUTPUT.json.gz`.
+The compactor accepts the native serializer's pretty JSON layout and stops
+if retained JSON would exceed 256 MiB; it never truncates semantic fields.
+Use `convert --resume` to verify and reuse completed outputs after an interrupted
+conversion. The tools refuse to overwrite existing outputs. Conversion leaves originals
+in place; pruning requires a complete verified replacement set and preserves
+the capture summary, run records, logs, input provenance, binary, and source
+archive. `manifest.json` maps original reports to their compact replacements.
+Original report paths in the immutable capture records describe the historical
+outputs and may no longer exist after pruning.
+
+Compact artifacts use a separate format with the retained report under `report`.
+They preserve **every** change, candidate, formatting change, unresolved region,
+resolution range, relation, review unit, text, unmapped token, extraction issue,
+coverage value, confidence, reason, assumption, and work-budget field. Text and
+semantic arrays are neither sampled nor truncated.
+
+For postprocessed version-1 artifacts, each `sources` array is replaced by a
+`source_summary`: its raw serialized
+SHA-256 and size, source-kind counts, pages, and first/last source locator samples.
+Individual glyph geometry and PDF operator provenance require regenerating the
+full report when the samples do not answer a question. The original input and
+binary hashes, arguments, full-report hashes, and compactor metadata preserve
+that audit path. This is a diagnostic projection, not a lossless archive of the
+native report, and it must not be passed to consumers expecting schema 11.
+
+### Capture archive
 
 Dated benchmark captures and investigation notes are not kept in the working
 tree. The complete archive, including every capture up to schema version 68, is

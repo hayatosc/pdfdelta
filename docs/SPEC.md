@@ -45,8 +45,10 @@ PDFは論理的な文章構造を保存する形式ではなく、「この文�
 ### 1.3 主評価と現在の達成状況
 
 主評価は、可視のPDF-native文字を比較する`--native-text-only`経路で、固定36ペアの公開改訂ペアを比較完了できるかである。
-最終binaryでは少なくとも3/36ペア（Schedule SE、および片側に可視native文字を持たない独立producer 2ペア）が同一入力・同一引数・既定budgetで2回とも同一reportで完了することを確認した。
-36ペア全体の最終binaryでの再測定は行っておらず、完了数を36/36とは主張しない。
+従来の最終binaryでは少なくとも3/36ペア（Schedule SE、および片側に可視native文字を持たない独立producer 2ペア）が同一入力・同一引数・既定budgetで2回とも同一reportで完了することを確認した。
+2026-09-27に現行HEAD（`cf5feb9`、コード差分なし）をrelease buildし、合計メモリ6GB・swapなし・既定budget・各ペア180秒で全36ペアを各1回再測定した。
+結果は3/36完了（8.3%）、33/36未完了であり、timeout・OOMは発生しなかった。
+測定条件、内訳、検証範囲は[ベンチマーク文書](benchmarks.md#native-text-completion-coverage)に記す。
 
 既定の証拠チャネル経路（text, visual, forms, relations）は、未知PDFに対する比較契約の移行目標である。
 チャネルごとのinventoryと比較義務がすべて解消して初めて文書比較は完了する。
@@ -102,7 +104,7 @@ Case 1は英語文書も含む。英語PDFはspace glyphを描画せず座標移
 | presentation | 改行、改ページ、座標、font metrics | 観測のみ。既定の内容変更に数えない |
 
 既定チャネルはtext, visual, forms, relationsであり、`--channels`で明示的に選ぶ。すべての`--channels`実行は共通証拠pipelineを使う。
-`--native-text-only`はnative glyph専用の旧契約（report schema 11）を維持し、`--channels`とは併用できない。
+`--native-text-only`はnative glyph専用の比較を行い、JSONは既定でcompact形式（artifact version 2）を出力する。全出典を含むreport schema 11は`--full-json`で選択できる。`--channels`とは併用できない。
 
 選択したチャネルが欠落または未検証である場合、その比較は不完全である。
 providerの結果が無いことは「内容が空」ではなく「未取得」である。
@@ -994,8 +996,9 @@ evaluatorは、報告されたChangeと期待Changeをkind一致とspan overlap�
 
 現在の固定panelは36ペアであり、文書系列とproducer系列を一つのsplitへまとめる。
 調整には開発用グループを使い、評価用グループは調整前に固定する。
-native baselineはpanel全体を対象に取得し、最終binaryの完了確認は少なくとも3/36ペア（各2回）である。
-36ペア全体の最終binaryでの再測定は行っていない。
+native baselineはpanel全体を対象に取得し、従来の最終binaryの完了確認は少なくとも3/36ペア（各2回）である。
+現行HEAD（`cf5feb9`、コード差分なし）の全36ペア再測定は、合計メモリ6GB制限下で各1回実施した。
+最新の完了数、証拠、測定条件は[ベンチマーク文書](benchmarks.md#native-text-completion-coverage)に記す。
 holdoutは新規に凍結した未使用pairだけを使い、panelの分母やscopeを変更しない。
 
 完全なannotationから求めるprecisionとrecallはannotationの範囲に限る。

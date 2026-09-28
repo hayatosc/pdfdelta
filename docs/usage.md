@@ -34,7 +34,7 @@ pdfdelta old.pdf new.pdf --color always        # force ANSI color
 | Option | Description |
 | --- | --- |
 | `--channels <LIST>` | Channels to compare: `text`, `visual`, `forms`, `relations`, `presentation`. Default: `text,visual,forms,relations`. |
-| `--native-text-only` | Use the native-glyph text pipeline and its version 11 JSON report. Cannot be combined with `--channels` or `--review`. |
+| `--native-text-only` | Use the native-glyph text pipeline with compact JSON by default; `--full-json` selects the full version 11 report. Cannot be combined with `--channels` or `--review`. |
 | `-o, --output <PATH>` | Write the human-readable report to a new file instead of stdout. |
 | `-j, --json <PATH>` | Write the JSON report to a new file; a `.gz` suffix produces gzip. |
 | `--trace-json <PATH>` | Write a phase-by-phase diagnostic trace. |
@@ -131,12 +131,14 @@ markers.
 
 `-j PATH` writes a typed JSON report that is independent of presentation
 options. The default channel pipeline writes report version 2; the
-`--native-text-only` pipeline writes version 11.
+`--native-text-only` pipeline defaults to the compact version-2 envelope
+described below. Add `--full-json` for the full native version-11 report.
 
 Reports separate:
 
 - established `changes`, each with one or more provenance-preserving
-  `occurrences` (glyph geometry plus content-stream object and operator);
+  `occurrences` (compact source summaries by default for native reports;
+  `--full-json` includes all glyph geometry, content-stream objects, and operators);
 - tentative `change_candidates`, which never increase coverage;
 - `proven_changed_regions` that are known to differ but cannot be localized;
 - unresolved source ranges with their reasons;
@@ -160,6 +162,33 @@ The JSON `image_diff` object holds old/new image inventories, object references
 when available, page placements, pixel hashes, unchanged counts, change indices,
 and unresolved indices. Its `comparison.complete` describes only the image
 comparison, not full visual or text coverage.
+
+### Compact native JSON
+
+For benchmark captures and diagnostic review, emit compact JSON directly:
+
+```bash
+pdfdelta old.pdf new.pdf --native-text-only -q -j report.json.gz
+```
+
+Native JSON output defaults to compact. `--compact-json` remains an explicit
+alias for that default. Use `--full-json` to retain all glyph sources in the
+original schema-11 report. Both flags require `--native-text-only` and `--json`
+and cannot be combined. The default writes a
+`pdfdelta-native-compact` envelope with `artifact_version: 2` and the native
+semantic report under `report`. Comparison, exit status, and full text are
+unchanged. Each `sources` array is replaced by a `source_summary` containing
+kind counts, pages, first/last locator samples, and a source-array digest.
+The writer summarizes one projected source array at a time and writes directly
+to the destination (gzip for `.gz`), without producing a full JSON intermediate.
+
+`canonical_array_sha256` and `canonical_array_bytes` describe the compact JSON
+serialization of that source array in native schema-11 field order, with no
+trailing newline. They differ from version-1 postprocessing hashes, which cover
+indented source bytes. A direct artifact has no hypothetical full-report hash.
+Retain input hashes, the binary identity, arguments, and run metrics alongside
+it for replay. Individual glyph geometry and PDF operator provenance beyond the
+samples require rerunning with `--full-json`.
 
 ### Diagnostic trace
 

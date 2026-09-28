@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub use extraction_svg::render_extraction_mismatch_svg;
-pub use json::write_json;
+pub use json::{write_compact_json, write_json};
 pub use source::{
     SpanSourceEvidence, SpanSourceProjectionLimits, SpanSourceProjector, project_span_sources,
     project_span_sources_with_limits,

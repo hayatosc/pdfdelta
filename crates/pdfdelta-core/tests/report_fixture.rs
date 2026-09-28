@@ -23,10 +23,117 @@ use pdfdelta_core::{
         DifferenceStatus, DocumentSide, ExtractionIssueRecord, ExtractionStatus,
         SpanSourceEvidence, SpanSourceProjectionLimits, TextReportOptions, project_span_sources,
         project_span_sources_with_limits, render_glyph_overlay_svg, render_text, summarize,
-        write_glyph_overlay_svg, write_json,
+        write_compact_json, write_glyph_overlay_svg, write_json as write_full_json,
     },
     source::{ExtractionIssueKind, ExtractionScope},
 };
+
+// Every native-report fixture also checks the direct compact projection.
+fn write_json(
+    writer: &mut Vec<u8>,
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    old_glyphs: &[GlyphEvidence],
+    new_glyphs: &[GlyphEvidence],
+    comparison: &Comparison,
+    extraction: &ExtractionStatus,
+) -> Result<()> {
+    let start = writer.len();
+    let full_result = write_full_json(
+        &mut *writer,
+        old_blocks,
+        new_blocks,
+        old_glyphs,
+        new_glyphs,
+        comparison,
+        extraction,
+    );
+    let mut compact = Vec::new();
+    let compact_result = write_compact_json(
+        &mut compact,
+        old_blocks,
+        new_blocks,
+        old_glyphs,
+        new_glyphs,
+        comparison,
+        extraction,
+    );
+    match (full_result, compact_result) {
+        (Ok(()), Ok(())) => {
+            let full: serde_json::Value =
+                serde_json::from_slice(&writer[start..]).expect("full JSON");
+            let compact: serde_json::Value =
+                serde_json::from_slice(&compact).expect("compact JSON");
+            assert_eq!(compact["artifact_format"], "pdfdelta-native-compact");
+            assert_eq!(compact["artifact_version"], 2);
+            assert_eq!(compact["source_schema_version"], 11);
+            assert_compact_projection(&full, &compact["report"]);
+            Ok(())
+        }
+        (Err(full), Err(compact)) => {
+            assert_eq!(full.to_string(), compact.to_string());
+            Err(full)
+        }
+        results => panic!("full and compact validation disagree: {results:?}"),
+    }
+}
+
+fn assert_compact_projection(full: &serde_json::Value, compact: &serde_json::Value) {
+    match full {
+        serde_json::Value::Object(fields) => {
+            assert_eq!(
+                fields.len(),
+                compact.as_object().expect("compact object").len()
+            );
+            for (key, value) in fields {
+                if key == "sources" {
+                    let sources = value.as_array().expect("source array");
+                    let summary = &compact["source_summary"];
+                    assert!(compact.get("sources").is_none());
+                    assert_eq!(summary["item_count"], sources.len());
+                    let mut kinds = std::collections::BTreeMap::new();
+                    let mut pages = std::collections::BTreeSet::new();
+                    for source in sources {
+                        *kinds
+                            .entry(source["kind"].as_str().expect("source kind"))
+                            .or_insert(0_usize) += 1;
+                        if let Some(page) = source["page"].as_u64() {
+                            pages.insert(page);
+                        }
+                    }
+                    assert_eq!(summary["kind_counts"], serde_json::json!(kinds));
+                    assert_eq!(summary["page_ids"], serde_json::json!(pages));
+                    if let Some(first) = sources.first() {
+                        assert_eq!(&summary["samples"]["first"], first);
+                        assert_eq!(
+                            &summary["samples"]["last"],
+                            sources.last().expect("nonempty sources")
+                        );
+                    } else {
+                        assert!(summary.get("samples").is_none());
+                    }
+                    assert_eq!(
+                        summary["canonical_array_sha256"]
+                            .as_str()
+                            .expect("hash")
+                            .len(),
+                        64
+                    );
+                } else {
+                    assert_compact_projection(value, &compact[key]);
+                }
+            }
+        }
+        serde_json::Value::Array(values) => {
+            let other = compact.as_array().expect("compact array");
+            assert_eq!(values.len(), other.len());
+            for (left, right) in values.iter().zip(other) {
+                assert_compact_projection(left, right);
+            }
+        }
+        _ => assert_eq!(full, compact),
+    }
+}
 
 fn plain_options() -> TextReportOptions<'static> {
     TextReportOptions {
@@ -1161,7 +1268,7 @@ fn json_report_rejects_duplicate_and_unknown_glyph_evidence() {
     });
 
     let duplicate = write_json(
-        Vec::new(),
+        &mut Vec::new(),
         &blocks,
         &[],
         &[glyph_evidence(1), glyph_evidence(1)],
@@ -1170,7 +1277,7 @@ fn json_report_rejects_duplicate_and_unknown_glyph_evidence() {
         &ExtractionStatus::complete(),
     );
     let unknown = write_json(
-        Vec::new(),
+        &mut Vec::new(),
         &blocks,
         &[],
         &[],

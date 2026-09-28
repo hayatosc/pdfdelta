@@ -153,6 +153,7 @@ fn main() -> ExitCode {
                 extraction_cache_dir: cli.extraction_cache_dir.as_deref(),
                 options: args::ComparisonOptions {
                     json_path: cli.json.as_deref(),
+                    compact_json: !cli.full_json,
                     review_dir: cli.review.as_deref(),
                     agent_review_dir: cli.agent_review.as_deref(),
                     limit_scale: cli.limit_scale,

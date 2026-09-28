@@ -15,7 +15,7 @@ use pdfdelta_core::{
     model::GlyphEvidence,
     normalize::BlockText,
     pdf::{LopdfParser, ParseLimits, ParsedPdf, PdfParser},
-    report::{ExtractionStatus, write_json},
+    report::{ExtractionStatus, write_compact_json, write_json},
     source::ExternalFontIdentities,
 };
 
@@ -155,6 +155,35 @@ pub fn write_json_atomically(
         .map_err(|error| {
             format!(
                 "cannot render JSON comparison report for {}: {error}",
+                output_path.display()
+            )
+        })
+    })
+}
+
+/// Writes the compact native-text JSON report atomically.
+pub fn write_compact_json_atomically(
+    output_path: &Path,
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    old_glyph_evidence: &[GlyphEvidence],
+    new_glyph_evidence: &[GlyphEvidence],
+    comparison: &Comparison,
+    extraction: &ExtractionStatus,
+) -> Result<(), String> {
+    write_output_atomically(output_path, "JSON report", |temporary_file| {
+        write_compact_json(
+            temporary_file,
+            old_blocks,
+            new_blocks,
+            old_glyph_evidence,
+            new_glyph_evidence,
+            comparison,
+            extraction,
+        )
+        .map_err(|error| {
+            format!(
+                "cannot render compact JSON comparison report for {}: {error}",
                 output_path.display()
             )
         })

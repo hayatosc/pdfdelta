@@ -1,6 +1,10 @@
-use std::io::Write;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{self, Write},
+};
 
-use serde::Serialize;
+use serde::{Serialize, Serializer, ser::SerializeSeq};
+use sha2::{Digest, Sha256};
 
 use crate::{
     Error, Result,
@@ -32,20 +36,97 @@ pub fn write_json<W: Write>(
     comparison: &Comparison,
     extraction: &ExtractionStatus,
 ) -> Result<()> {
+    let report = build_report(
+        old_blocks,
+        new_blocks,
+        old_glyph_evidence,
+        new_glyph_evidence,
+        comparison,
+        extraction,
+        false,
+    )?;
+    serde_json::to_writer_pretty(&mut writer, &report)
+        .map_err(|error| Error::Report(error.to_string()))?;
+    writer
+        .write_all(b"\n")
+        .map_err(|error| Error::Report(error.to_string()))
+}
+
+/// Writes compact native diagnostics without constructing a full JSON report.
+///
+/// The version-2 compact envelope preserves every semantic report field. Each
+/// source array becomes counts, pages, first/last samples, and a SHA-256 of its
+/// compact JSON serialization in native field order. Source arrays are released
+/// after each projection instead of being retained throughout the report.
+/// The hash identifies source evidence, not a hypothetical full report file.
+///
+/// # Errors
+///
+/// Returns the same validation and projection errors as [`write_json`], or a
+/// report error if serialization or writing fails.
+pub fn write_compact_json<W: Write>(
+    mut writer: W,
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    old_glyph_evidence: &[GlyphEvidence],
+    new_glyph_evidence: &[GlyphEvidence],
+    comparison: &Comparison,
+    extraction: &ExtractionStatus,
+) -> Result<()> {
+    let report = build_report(
+        old_blocks,
+        new_blocks,
+        old_glyph_evidence,
+        new_glyph_evidence,
+        comparison,
+        extraction,
+        true,
+    )?;
+    let artifact = JsonCompactArtifact {
+        artifact_format: "pdfdelta-native-compact",
+        artifact_version: 2,
+        source_schema_version: SCHEMA_VERSION,
+        omitted_fields: JsonOmittedFields {
+            sources: "source_summary; full glyph geometry and operator provenance require regeneration",
+        },
+        report,
+    };
+    serde_json::to_writer(&mut writer, &artifact)
+        .map_err(|error| Error::Report(error.to_string()))?;
+    writer
+        .write_all(b"\n")
+        .map_err(|error| Error::Report(error.to_string()))
+}
+
+fn build_report<'a>(
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    old_glyph_evidence: &[GlyphEvidence],
+    new_glyph_evidence: &[GlyphEvidence],
+    comparison: &Comparison,
+    extraction: &'a ExtractionStatus,
+    compact: bool,
+) -> Result<JsonReport<'a>> {
     let summary = summarize(comparison, extraction)?;
     let old = SideIndex::new(old_blocks)?;
     let new = SideIndex::new(new_blocks)?;
-    let old_sources = SpanSourceProjector::new(
-        old_blocks,
-        old_glyph_evidence,
-        SpanSourceProjectionLimits::default(),
-    )?;
-    let new_sources = SpanSourceProjector::new(
-        new_blocks,
-        new_glyph_evidence,
-        SpanSourceProjectionLimits::default(),
-    )?;
-    let report = JsonReport::new(
+    let old_sources = ReportSources {
+        projector: SpanSourceProjector::new(
+            old_blocks,
+            old_glyph_evidence,
+            SpanSourceProjectionLimits::default(),
+        )?,
+        compact,
+    };
+    let new_sources = ReportSources {
+        projector: SpanSourceProjector::new(
+            new_blocks,
+            new_glyph_evidence,
+            SpanSourceProjectionLimits::default(),
+        )?,
+        compact,
+    };
+    JsonReport::new(
         comparison,
         extraction,
         summary,
@@ -53,12 +134,21 @@ pub fn write_json<W: Write>(
         &new,
         &old_sources,
         &new_sources,
-    )?;
-    serde_json::to_writer_pretty(&mut writer, &report)
-        .map_err(|error| Error::Report(error.to_string()))?;
-    writer
-        .write_all(b"\n")
-        .map_err(|error| Error::Report(error.to_string()))
+    )
+}
+
+#[derive(Serialize)]
+struct JsonCompactArtifact<'a> {
+    artifact_format: &'static str,
+    artifact_version: u32,
+    source_schema_version: u32,
+    omitted_fields: JsonOmittedFields,
+    report: JsonReport<'a>,
+}
+
+#[derive(Serialize)]
+struct JsonOmittedFields {
+    sources: &'static str,
 }
 
 #[derive(Serialize)]
@@ -83,8 +173,8 @@ impl<'a> JsonReport<'a> {
         summary: ReportSummary,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         let changes = comparison
             .changes
@@ -238,8 +328,8 @@ impl JsonAssessment {
         assessment: &crate::diff::ComparisonAssessment,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         Ok(Self {
             policy_version: assessment.policy_version,
@@ -329,14 +419,15 @@ struct JsonResolutionRange {
     comparable_range: JsonRange,
     canonical_range: JsonRange,
     state: &'static str,
-    sources: Vec<JsonSpanSource>,
+    #[serde(flatten)]
+    sources: JsonSourceFields,
 }
 
 impl JsonResolutionRange {
     fn new(
         range: &ResolutionRange,
         side: &SideIndex<'_>,
-        sources: &SpanSourceProjector<'_>,
+        sources: &ReportSources<'_>,
     ) -> Result<Self> {
         let span = TextSpan {
             blocks: vec![range.block],
@@ -345,11 +436,8 @@ impl JsonResolutionRange {
             comparable_range: range.comparable_range,
         };
         side.resolve(&span)?;
-        let sources = sources
-            .project_resolution_range(&span)?
-            .into_iter()
-            .map(JsonSpanSource::from)
-            .collect();
+        let projected = sources.projector.project_resolution_range(&span)?;
+        let sources = JsonSourceFields::new(projected, sources.compact)?;
         Ok(Self {
             block: range.block.0,
             comparable_range: JsonRange {
@@ -382,8 +470,8 @@ impl JsonRelationAssessment {
         relation: &RelationAssessment,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         Ok(Self {
             old_span: relation
@@ -428,8 +516,8 @@ impl JsonProvenChangedRegion {
         region: &ProvenChangedRegion,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         Ok(Self {
             old_span: region
@@ -557,8 +645,8 @@ impl JsonChange {
         change: &ChangeEvent,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         Ok(Self {
             kind: change_kind(change.kind),
@@ -607,8 +695,8 @@ impl JsonChangeCandidate {
         comparison: &Comparison,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         let relation = comparison
             .assessment
@@ -659,8 +747,8 @@ impl JsonFormattingChange {
         change: &FormattingChange,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         Ok(Self {
             old_span: JsonTextSpan::new(&change.old_span, old, old_sources)?,
@@ -688,8 +776,8 @@ impl JsonUnresolvedRegion {
         region: &UnresolvedRegion,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_sources: &SpanSourceProjector<'_>,
-        new_sources: &SpanSourceProjector<'_>,
+        old_sources: &ReportSources<'_>,
+        new_sources: &ReportSources<'_>,
     ) -> Result<Self> {
         Ok(Self {
             old_span: region
@@ -718,21 +806,15 @@ struct JsonTextSpan {
     comparable_range: JsonRange,
     text: String,
     unmapped_tokens: Vec<JsonUnmappedToken>,
-    sources: Vec<JsonSpanSource>,
+    #[serde(flatten)]
+    sources: JsonSourceFields,
 }
 
 impl JsonTextSpan {
-    fn new(
-        span: &TextSpan,
-        side: &SideIndex<'_>,
-        sources: &SpanSourceProjector<'_>,
-    ) -> Result<Self> {
+    fn new(span: &TextSpan, side: &SideIndex<'_>, sources: &ReportSources<'_>) -> Result<Self> {
         let resolved = side.resolve(span)?;
-        let sources = sources
-            .project(span)?
-            .into_iter()
-            .map(JsonSpanSource::from)
-            .collect();
+        let projected = sources.projector.project(span)?;
+        let sources = JsonSourceFields::new(projected, sources.compact)?;
         Ok(Self {
             blocks: span.blocks.iter().map(|block| block.0).collect(),
             pages: resolved.pages,
@@ -764,6 +846,125 @@ impl JsonTextSpan {
                 .collect(),
             sources,
         })
+    }
+}
+
+struct ReportSources<'a> {
+    projector: SpanSourceProjector<'a>,
+    compact: bool,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum JsonSourceFields {
+    Full {
+        sources: Vec<JsonSpanSource>,
+    },
+    Compact {
+        source_summary: Box<JsonSourceSummary>,
+    },
+}
+
+impl JsonSourceFields {
+    fn new(sources: Vec<SpanSourceEvidence>, compact: bool) -> Result<Self> {
+        if compact {
+            Ok(Self::Compact {
+                source_summary: Box::new(JsonSourceSummary::new(&sources)?),
+            })
+        } else {
+            Ok(Self::Full {
+                sources: sources.into_iter().map(JsonSpanSource::from).collect(),
+            })
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonSourceSummary {
+    canonical_array_sha256: String,
+    canonical_array_bytes: usize,
+    item_count: usize,
+    kind_counts: BTreeMap<&'static str, usize>,
+    page_ids: Vec<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    samples: Option<JsonSourceSamples>,
+}
+
+#[derive(Serialize)]
+struct JsonSourceSamples {
+    first: JsonSpanSource,
+    last: JsonSpanSource,
+}
+
+impl JsonSourceSummary {
+    fn new(sources: &[SpanSourceEvidence]) -> Result<Self> {
+        let mut kind_counts = BTreeMap::new();
+        let mut pages = BTreeSet::new();
+        for source in sources {
+            let kind = match source {
+                SpanSourceEvidence::Glyph { page, .. } => {
+                    pages.insert(page.0);
+                    "glyph"
+                }
+                SpanSourceEvidence::SyntheticSpace { .. } => "synthetic_space",
+                SpanSourceEvidence::LineBreak { .. } => "line_break",
+                SpanSourceEvidence::BlockSeparatorSpace => "block_separator_space",
+            };
+            *kind_counts.entry(kind).or_insert(0) += 1;
+        }
+        let mut digest = SourceDigest {
+            hash: Sha256::new(),
+            bytes: 0,
+        };
+        serde_json::to_writer(&mut digest, &JsonSourceArray(sources))
+            .map_err(|error| Error::Report(error.to_string()))?;
+        Ok(Self {
+            canonical_array_sha256: lowercase_hex(&digest.hash.finalize()),
+            canonical_array_bytes: digest.bytes,
+            item_count: sources.len(),
+            kind_counts,
+            page_ids: pages.into_iter().collect(),
+            samples: sources
+                .first()
+                .zip(sources.last())
+                .map(|(first, last)| JsonSourceSamples {
+                    first: JsonSpanSource::from(*first),
+                    last: JsonSpanSource::from(*last),
+                }),
+        })
+    }
+}
+
+/// Serialize into the digest one source at a time without allocating its JSON.
+struct JsonSourceArray<'a>(&'a [SpanSourceEvidence]);
+
+impl Serialize for JsonSourceArray<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
+        for source in self.0 {
+            sequence.serialize_element(&JsonSpanSource::from(*source))?;
+        }
+        sequence.end()
+    }
+}
+
+struct SourceDigest {
+    hash: Sha256,
+    bytes: usize,
+}
+
+impl Write for SourceDigest {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.bytes = self
+            .bytes
+            .checked_add(bytes.len())
+            .ok_or_else(|| io::Error::other("source JSON byte count overflow"))?;
+        self.hash.update(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -951,6 +1152,37 @@ fn candidate_source(source: CandidateSource) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_source_digest_matches_streamed_native_array() -> Result<()> {
+        for sources in [
+            vec![],
+            vec![
+                SpanSourceEvidence::BlockSeparatorSpace,
+                SpanSourceEvidence::SyntheticSpace {
+                    preceding_glyph_id: crate::model::GlyphId(1),
+                    following_glyph_id: crate::model::GlyphId(2),
+                },
+            ],
+        ] {
+            let expected = serde_json::to_vec(
+                &sources
+                    .iter()
+                    .copied()
+                    .map(JsonSpanSource::from)
+                    .collect::<Vec<_>>(),
+            )
+            .expect("native source serialization");
+            let summary = JsonSourceSummary::new(&sources)?;
+            assert_eq!(
+                summary.canonical_array_sha256,
+                lowercase_hex(&Sha256::digest(&expected))
+            );
+            assert_eq!(summary.canonical_array_bytes, expected.len());
+            assert_eq!(summary.item_count, sources.len());
+        }
+        Ok(())
+    }
 
     #[test]
     fn diagnostic_evidence_uses_snake_case_json_strings() {

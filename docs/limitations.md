@@ -84,3 +84,10 @@ of vendored Typst and Tectonic pairs, and a non-vendored corpus of public
 revision pairs. On large real-world documents, recall is still low and many
 comparisons end incomplete or at a resource limit. These results do not imply
 support for arbitrary PDFs.
+
+The 2026-09-27 native-text benchmark of HEAD `cf5feb9`, with no production
+code changes and a shared 6 GB memory cap, records **3/36 complete comparisons
+(8.3%)**, with 33 incomplete. All pairs produced reports without timeout or OOM.
+Two of the three complete pairs have no visible native text on the old side. See
+[`Native-text completion coverage`](benchmarks.md#native-text-completion-coverage)
+for the build identity, outcome breakdown, and verification limits.

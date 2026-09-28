@@ -46,6 +46,15 @@ pub struct Cli {
     #[arg(short = 'j', long, value_name = "PATH", requires = "new")]
     pub json: Option<PathBuf>,
 
+    /// Explicitly select the default compact native-text JSON artifact.
+    /// This is available only with `--native-text-only --json PATH`.
+    #[arg(long, requires_all = ["native_text_only", "json"], conflicts_with = "full_json")]
+    pub compact_json: bool,
+
+    /// Include all per-glyph sources in the native schema-11 JSON report.
+    #[arg(long, requires_all = ["native_text_only", "json"])]
+    pub full_json: bool,
+
     /// Create a static HTML review directory with source PDFs and evidence JSON.
     #[arg(
         long,
@@ -350,6 +359,7 @@ pub fn resolve_color(choice: ColorChoice) -> bool {
 #[derive(Clone, Copy)]
 pub struct ComparisonOptions<'a> {
     pub json_path: Option<&'a Path>,
+    pub compact_json: bool,
     pub review_dir: Option<&'a Path>,
     pub agent_review_dir: Option<&'a Path>,
     /// Resource-limit scale, retained because it is part of what a review
@@ -461,6 +471,89 @@ mod tests {
             cli_short.json.as_deref(),
             Some(std::path::Path::new("diff.json"))
         );
+    }
+
+    #[test]
+    fn parses_compact_json_flag() {
+        let cli = Cli::try_parse_from([
+            "pdfdelta",
+            "old.pdf",
+            "new.pdf",
+            "--native-text-only",
+            "--json",
+            "compact.json",
+            "--compact-json",
+        ])
+        .expect("compact native JSON arguments should parse");
+        assert!(cli.compact_json);
+        assert!(cli.native_text_only);
+        assert_eq!(
+            cli.json.as_deref(),
+            Some(std::path::Path::new("compact.json"))
+        );
+        assert!(Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--compact-json"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "pdfdelta",
+                "old.pdf",
+                "new.pdf",
+                "--native-text-only",
+                "--compact-json"
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "pdfdelta",
+                "old.pdf",
+                "new.pdf",
+                "--json",
+                "compact.json",
+                "--compact-json"
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn native_json_defaults_to_compact_and_full_is_explicit() {
+        let base = [
+            "pdfdelta",
+            "old.pdf",
+            "new.pdf",
+            "--native-text-only",
+            "--json",
+            "report.json",
+        ];
+        assert!(
+            !Cli::try_parse_from(base)
+                .expect("default compact")
+                .full_json
+        );
+        let mut args = base.to_vec();
+        args.push("--full-json");
+        assert!(Cli::try_parse_from(&args).expect("full JSON").full_json);
+        args.push("--compact-json");
+        assert!(Cli::try_parse_from(args).is_err());
+        for args in [
+            vec![
+                "pdfdelta",
+                "old.pdf",
+                "new.pdf",
+                "--full-json",
+                "--json",
+                "r.json",
+            ],
+            vec![
+                "pdfdelta",
+                "old.pdf",
+                "new.pdf",
+                "--full-json",
+                "--native-text-only",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(args).is_err());
+        }
     }
 
     #[test]

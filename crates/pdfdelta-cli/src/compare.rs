@@ -26,8 +26,8 @@ use crate::{
         InputReadError, ensure_named_output_does_not_alias_input,
         ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
         parse_external_font_identities, parse_lopdf, paths_refer_to_same_file, read_limited_typed,
-        read_password_file, write_json_atomically, write_text_report_atomically,
-        write_trace_atomically,
+        read_password_file, write_compact_json_atomically, write_json_atomically,
+        write_text_report_atomically, write_trace_atomically,
     },
     trace::{ExecutionTrace, TraceSide, duration_metric},
 };
@@ -392,8 +392,14 @@ pub fn compare_documents_traced<W: Write>(
     })?;
     let status = exit_status(&summary);
 
+    let write_json = if options.compact_json {
+        write_compact_json_atomically
+    } else {
+        write_json_atomically
+    };
+
     if let Some(json_path) = options.json_path
-        && let Err(error) = write_json_atomically(
+        && let Err(error) = write_json(
             json_path,
             &outcome.old_blocks,
             &outcome.new_blocks,

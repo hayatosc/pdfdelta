@@ -754,6 +754,109 @@ fn writes_json_report_atomically() {
 }
 
 #[test]
+fn compact_native_json_preserves_semantics_and_summarizes_sources() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let full_path = directory.join("full.json");
+    let compact_path = directory.join("compact.json");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+
+    let full_output = compare(&old, &new, &["--json", path_text(&full_path)]);
+    let compact_output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--native-text-only")
+        .arg(&old)
+        .arg(&new)
+        .args(["--json", path_text(&compact_path)])
+        .output()
+        .expect("default compact comparison");
+    assert_eq!(
+        full_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&full_output)
+    );
+    assert_eq!(
+        compact_output.status.code(),
+        full_output.status.code(),
+        "{}",
+        stderr(&compact_output)
+    );
+
+    let full = read_json(&full_path);
+    let compact = read_json(&compact_path);
+    assert_eq!(compact["artifact_format"], "pdfdelta-native-compact");
+    assert_eq!(compact["artifact_version"], 2);
+    assert_eq!(compact["source_schema_version"], 11);
+    let report = &compact["report"];
+    for field in [
+        "schema_version",
+        "difference_status",
+        "comparison_scope",
+        "assessment",
+        "summary",
+        "changes",
+        "change_candidates",
+        "proven_changed_regions",
+        "formatting_only_changes",
+        "unresolved_regions",
+        "extraction",
+    ] {
+        assert!(
+            report.get(field).is_some(),
+            "missing semantic field {field}"
+        );
+    }
+    assert_eq!(report["schema_version"], full["schema_version"]);
+    assert_eq!(report["difference_status"], full["difference_status"]);
+    assert_eq!(report["summary"], full["summary"]);
+    assert_eq!(report["extraction"], full["extraction"]);
+    assert_eq!(report["changes"][0]["kind"], full["changes"][0]["kind"]);
+    let full_span = &full["changes"][0]["occurrences"][0]["old_span"];
+    let compact_span = &report["changes"][0]["occurrences"][0]["old_span"];
+    assert_eq!(compact_span["text"], full_span["text"]);
+    assert_eq!(compact_span["pages"], full_span["pages"]);
+    assert_eq!(
+        compact_span["canonical_range"],
+        full_span["canonical_range"]
+    );
+    assert!(full_span["sources"].is_array());
+    assert!(compact_span.get("sources").is_none());
+    let source_summary = &compact_span["source_summary"];
+    for field in [
+        "item_count",
+        "kind_counts",
+        "page_ids",
+        "samples",
+        "canonical_array_sha256",
+        "canonical_array_bytes",
+    ] {
+        assert!(
+            source_summary.get(field).is_some(),
+            "missing source summary field {field}"
+        );
+    }
+    assert!(source_summary["samples"]["first"].is_object());
+    assert!(source_summary["samples"]["last"].is_object());
+    assert!(report.get("full_report_sha256").is_none());
+}
+
+#[test]
 fn writes_complete_phase_trace_separately_from_the_report() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
@@ -2780,7 +2883,14 @@ fn default_evidence_path_accepts_a_large_font_identity_table() {
 }
 
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+    if extra_arguments
+        .iter()
+        .any(|arg| matches!(*arg, "--json" | "-j"))
+    {
+        command.arg("--full-json");
+    }
+    command
         .arg("--native-text-only")
         .arg(old)
         .arg(new)
@@ -3764,7 +3874,14 @@ fn external_vertical_text_preserves_evidence_across_page_moves_and_edits() {
 /// Run a comparison with the given directory as the working directory so
 /// relative output-path spellings can be exercised.
 fn compare_in(directory: &Path, old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
+    if extra_arguments
+        .iter()
+        .any(|arg| matches!(*arg, "--json" | "-j"))
+    {
+        command.arg("--full-json");
+    }
+    command
         .arg("--native-text-only")
         .arg(old)
         .arg(new)
