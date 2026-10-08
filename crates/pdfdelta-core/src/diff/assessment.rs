@@ -6386,6 +6386,16 @@ impl<'a, 'document> Assessor<'a, 'document> {
             {
                 continue;
             }
+            // A complete unique literal script with no edits cannot contain
+            // a substantively changed gap. Pay its cached-header check before
+            // avoiding a redundant DP that could starve later source equality.
+            // Semantic event invariance alone does not certify literal equality.
+            if !charge_work(&mut self.remaining_work, 1) {
+                break;
+            }
+            if proof.unique && proof.strict_unique && proof.edits.is_empty() {
+                continue;
+            }
             let (Some(old_span), Some(new_span)) = (&parent.old_span, &parent.new_span) else {
                 continue;
             };
@@ -7259,6 +7269,150 @@ mod assessor_issue_cache_tests {
                 state,
             })
             .collect()
+    }
+
+    #[test]
+    fn cached_equal_domain_does_not_starve_later_mandatory_source_equalities() -> Result<()> {
+        let unchanged = "a".repeat(60);
+        let old_blocks = [anchor_block(1, &unchanged), anchor_block(2, "[20] AUTHOR")];
+        let new_blocks = [
+            anchor_block(101, &unchanged),
+            anchor_block(102, "[22] AUTHOR"),
+        ];
+        let old =
+            super::super::SidePlan::inspect("old budget fixture", &old_blocks)?.materialize()?;
+        let new =
+            super::super::SidePlan::inspect("new budget fixture", &new_blocks)?.materialize()?;
+        let alignment = Alignment {
+            spans: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let run = |include_equal_domain: bool,
+                   equal_unique: bool,
+                   equal_strict: bool|
+         -> Result<([Vec<ResolutionRange>; 2], usize)> {
+            let mut assessor = h8_closed_parent([&old, &new], &alignment)?;
+            assessor.records.clear();
+            assessor.domains.clear();
+            assessor.remaining_work = 16_000;
+            let mut domains = Vec::new();
+            for index in 0..2 {
+                let spans = [&old, &new].map(|side| {
+                    side.canonical_group(&[side.blocks[index].block], None)
+                        .full_span()
+                });
+                assessor.records.push(RelationAssessment {
+                    old_span: Some(spans[0].clone()),
+                    new_span: Some(spans[1].clone()),
+                    parent: None,
+                    outcome: RelationOutcome::Established,
+                    search: SearchCompleteness::Complete,
+                    assumptions: vec![
+                        ComparisonAssumption::InputReadingOrder,
+                        ComparisonAssumption::CanonicalNormalization,
+                        ComparisonAssumption::LocalEvidenceBoundaries,
+                    ],
+                    reasons: Vec::new(),
+                });
+                if index == 0 && !include_equal_domain {
+                    continue;
+                }
+                domains.push((
+                    DomainKey {
+                        local: Some((spans[0].clone(), spans[1].clone())),
+                        old: index..index + 1,
+                        new: index..index + 1,
+                        old_separator: BlockSeparator::Concatenate,
+                        new_separator: BlockSeparator::Concatenate,
+                    },
+                    DomainProof {
+                        scope: ProofScope::ExactKey,
+                        relation: index,
+                        unique: index == 0 && equal_unique,
+                        search: SearchCompleteness::Complete,
+                        edits: Vec::new(),
+                        lengths: spans.map(|span| span.comparable_range.end),
+                        strict_unique: index == 0 && equal_strict,
+                        stable_events: None,
+                    },
+                ));
+            }
+            let mut ownership = [Ownership::new(), Ownership::new()];
+            for (side, index) in [&old, &new].into_iter().enumerate() {
+                let span = index
+                    .canonical_group(&[index.blocks[0].block], None)
+                    .full_span();
+                ownership[side].accept(index, &span, 100)?;
+            }
+            let mut partitions = [
+                ownership[0].resolution(&old, 100)?,
+                ownership[1].resolution(&new, 100)?,
+            ];
+            let parent = &assessor.records[1];
+            let mut regions = vec![ProvenChangedRegion {
+                old_span: parent.old_span.clone(),
+                new_span: parent.new_span.clone(),
+                confidence: super::super::Confidence::High,
+                proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+            }];
+            assessor.collect_mandatory_changed_regions_from_review(
+                &domains,
+                domains.capacity(),
+                [&partitions[0], &partitions[1]],
+                &mut regions,
+            )?;
+            let [old_parts, new_parts] = &mut partitions;
+            assessor.recover_mandatory_coarse_equalities(
+                &domains,
+                domains.capacity(),
+                &mut ownership,
+                [old_parts, new_parts],
+                mandatory_equal::EqualConstraints {
+                    candidates: &[],
+                    regions: &regions,
+                    original: &[],
+                },
+            )?;
+            assert_eq!(regions[0].old_span, assessor.records[1].old_span);
+            assert_eq!(regions[0].new_span, assessor.records[1].new_span);
+            Ok((partitions, 16_000 - assessor.remaining_work))
+        };
+        let (baseline, baseline_work) = run(false, true, true)?;
+        let (with_equal, with_equal_work) = run(true, true, true)?;
+        assert!(baseline_work <= 16_000 && with_equal_work <= 16_000);
+        // Empty cached edits can also be a refused or ambiguous proof. Such
+        // headers must retain the ordinary analysis rather than taking the shortcut.
+        for (unique, strict) in [(false, true), (true, false), (false, false)] {
+            let (uncertified, work) = run(true, unique, strict)?;
+            assert!(work > with_equal_work && work <= 16_000);
+            for (side, parts) in uncertified.iter().enumerate() {
+                let block = [BlockId(2), BlockId(102)][side];
+                assert!(
+                    parts
+                        .iter()
+                        .filter(|range| range.block == block)
+                        .all(|range| { range.state == ResolutionState::Unresolved })
+                );
+            }
+        }
+        for side in 0..2 {
+            let block = [BlockId(2), BlockId(102)][side];
+            let selected = |parts: &[ResolutionRange]| {
+                parts
+                    .iter()
+                    .filter(|range| range.block == block)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            };
+            assert!(
+                selected(&baseline[side])
+                    .iter()
+                    .any(|range| range.state == ResolutionState::Equal)
+            );
+            assert_eq!(selected(&with_equal[side]), selected(&baseline[side]));
+        }
+        Ok(())
     }
 
     #[test]

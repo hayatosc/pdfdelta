@@ -123,6 +123,12 @@ output payloads are bounded and paid before allocation or traversal. It runs
 after the existing recovery and review passes, so it uses only their remaining
 shared budget.
 
+Before repeating matching analysis, this pass pays a cached-header check and
+skips a complete, unique literal script with no edits. Such a script cannot
+contain a substantively changed gap. Empty cached edits without strict literal
+uniqueness still require analysis; semantic event invariance is insufficient.
+The skipped work remains available to later source equality under the same cap.
+
 A further optional tail can resolve paired literal equalities inside a two-sided
 whole single-block changed region. Its direct parent and every actual ancestor
 must remain complete, clean correspondences. Every selected nonwhitespace pair
