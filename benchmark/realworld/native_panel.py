@@ -97,7 +97,7 @@ def fetch_source(root, source, timeout, retry=False):
     started = time.monotonic()
     try:
         request = Request(source["url"], headers={"User-Agent": "pdfdelta-public-corpus/1"})
-        with urlopen(request, timeout=min(timeout, 10)) as response, temporary.open("xb") as sink:
+        with urlopen(request, timeout=min(timeout, 30)) as response, temporary.open("xb") as sink:
             size = 0
             while True:
                 if time.monotonic() - started > timeout:
