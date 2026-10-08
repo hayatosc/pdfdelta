@@ -429,6 +429,58 @@ The historical panel definition and input provenance are available in the
 [`9229676` archive](https://github.com/hayatosc/pdfdelta/tree/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/followup).
 Keep failed and incomplete pairs in the denominator when updating this result.
 
+### Replay the frozen native panel
+
+`benchmark/realworld/native-panel.json` is the unchanged 36-pair panel from
+archive commit `9229676f47594a6cc2af8d5b54fdff64e441db15`, path
+`benchmark/realworld/followup/panel.json`. It retains the official URLs, byte
+counts, SHA-256 digests, original cache paths, and references to the original
+development and blind input manifests. These inputs describe the separate
+36-pair panel; the 29-pair revision manifest is not a replacement.
+
+Install the streaming reader, recover public inputs, and audit their identity:
+
+```bash
+python3 -m pip install -r benchmark/realworld/native-panel-requirements.txt
+python3 benchmark/realworld/native_panel.py fetch --output benchmark/realworld/results/input-recovery
+python3 benchmark/realworld/native_panel.py check --output benchmark/realworld/results/input-audit
+```
+
+Existing mismatched files are preserved. Failed or oversized downloads remain
+separate from verified cache inputs, and the input audit retains every pair.
+The tool never replaces a frozen input with a newer document of the same name.
+If a transfer was interrupted, use `fetch --retry-downloads` with a new output
+directory. It retains the failed bytes by hash before retrying the same URL;
+`--timeout SECONDS` controls acquisition time separately from comparison time.
+
+Build the release CLI under the shared 6 GB limit before capturing. Where a
+delegated user systemd memory controller is available:
+
+```bash
+systemd-run --user --scope -p MemoryMax=6000000000 -p MemorySwapMax=0 -- \
+  python3 benchmark/realworld/native_panel.py capture --binary target/release/pdfdelta \
+  --output benchmark/realworld/results/native-replay
+python3 -m unittest discover -s benchmark/realworld -p test_native_panel.py
+```
+
+An equivalent container memory limit is also supported. Capture checks the
+effective cgroup limit, processes pairs sequentially at `--limit-scale 1`,
+uses a 180-second timeout, and stops adding reports at a 1 GB output budget.
+It records the source commit/tree, production diff, binary and input hashes,
+command arguments, report hashes, elapsed time, memory peak, and OOM counters.
+Output directories must be new, preventing a duplicate capture from silently
+overwriting evidence. `--pair ID` selects a diagnostic subset while keeping
+the denominator at 36 and marking every unselected pair `not_run`.
+
+The reader streams gzip and JSON to the end, validates the native completion
+predicate against extraction, coverage, unresolved regions, candidates and
+truncation, and checks that the exit code agrees. A meaningful completion also
+requires positive native-text token counts on **both** sides. Empty-text
+comparisons, missing inputs, hash mismatches, timeouts, output-limit stops and
+invalid reports stay in the denominator and never count as complete. Engine
+completion and empty-text outcomes remain separately visible in each row.
+This measures completion only; it does not establish annotation-scored accuracy.
+
 ### Compact native diagnostics
 
 Native schema 11 repeats per-glyph drawing provenance in resolution ranges,

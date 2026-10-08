@@ -8,6 +8,8 @@ the test suite. The tools that consume it are documented in
 benchmark/
 ├── realworld/                 Public revision-pair corpus (documents are downloaded, never committed)
 │   ├── manifest.tsv           29 development/holdout pairs with URLs, sizes, and SHA-256
+│   ├── native-panel.json      Frozen 36-pair native-text completion panel
+│   ├── native_panel.py        Restore, audit, and capture the native panel with failure accounting
 │   ├── expected/              Human-reviewed expected changes for annotated pairs
 │   ├── claims-holdout.tsv     Evaluation-only holdout without annotations
 │   ├── round2-holdout/        Annotated evaluation-only holdout
