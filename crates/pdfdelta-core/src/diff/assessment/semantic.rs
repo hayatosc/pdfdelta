@@ -257,6 +257,11 @@ pub(super) struct MandatoryMatchAnalysis {
 }
 
 impl MandatoryMatchAnalysis {
+    /// Sorted 1-based mandatory pairs, borrowed without another allocation.
+    pub(super) fn pairs(&self) -> &[(usize, usize)] {
+        &self.unique_pairs
+    }
+
     /// True when the matched pair ending at `(old_index, new_index)`
     /// (1-based) occurs in every maximum matching.
     pub(super) fn pair_is_mandatory(&self, old_index: usize, new_index: usize) -> bool {
@@ -316,6 +321,17 @@ pub(super) fn mandatory_match_analysis<T: Eq>(
     new: &[T],
     remaining_work: &mut usize,
 ) -> Result<Option<MandatoryMatchAnalysis>> {
+    mandatory_match_analysis_with_memory_limit(old, new, remaining_work, MAX_SEMANTIC_MEMORY_BYTES)
+}
+
+/// The same analysis with a smaller caller-paid live-memory allowance.
+/// Existing callers retain the original semantic memory limit.
+pub(super) fn mandatory_match_analysis_with_memory_limit<T: Eq>(
+    old: &[T],
+    new: &[T],
+    remaining_work: &mut usize,
+    memory_limit: usize,
+) -> Result<Option<MandatoryMatchAnalysis>> {
     let rows = old.len().checked_add(1).ok_or_else(cells_limit_error)?;
     let columns = new.len().checked_add(1).ok_or_else(cells_limit_error)?;
     let cells = rows.checked_mul(columns).ok_or_else(cells_limit_error)?;
@@ -347,7 +363,7 @@ pub(super) fn mandatory_match_analysis<T: Eq>(
         .and_then(|bytes| bytes.checked_add(rank_bytes))
         .and_then(|bytes| bytes.checked_add(rank_bytes))
         .ok_or_else(memory_limit_error)?;
-    if bytes > MAX_SEMANTIC_MEMORY_BYTES {
+    if bytes > memory_limit.min(MAX_SEMANTIC_MEMORY_BYTES) {
         return Err(memory_limit_error());
     }
     if !chargeable(*remaining_work, analysis_work) {
@@ -1271,6 +1287,37 @@ mod tests {
         })
         .expect("swap traversal fits its budget");
         assert_eq!(actual, Outcome::Ambiguous);
+    }
+
+    #[test]
+    fn schedule_c_reference_keeps_both_repeated_digit_matchings() {
+        // The source reference changes from "lines 8–26, line 27b" to
+        // "lines 8-27a". In the changing suffix, the new '2' can match
+        // either old '2'; a quoted containing range supplies no glyph mask.
+        let old = b"26, line 27b";
+        let new = b"27a";
+        let mut budget = usize::MAX;
+        let expected = expected_target_signatures(old, new, &(0..old.len()), &(0..new.len()));
+        assert_eq!(expected.len(), 2);
+        assert_eq!(
+            super::super::exact::check(old, new, &mut budget).expect("strict reference check"),
+            super::super::exact::ExactUniqueness::Ambiguous
+        );
+        let actual = super::check_hunks(old, new, &mut budget, |edits, _| {
+            Ok(Some(super::super::target_hunk_signature(
+                &(0..old.len()),
+                &(0..new.len()),
+                edits,
+            )))
+        })
+        .expect("bounded reference traversal");
+        assert_eq!(actual, Outcome::Ambiguous);
+        let mandatory = super::mandatory_match_analysis(old, new, &mut budget)
+            .expect("bounded mandatory pairs")
+            .expect("finished pairs");
+        assert!(!mandatory.pair_is_mandatory(1, 1));
+        assert!(!mandatory.pair_is_mandatory(10, 1));
+        assert!(mandatory.pair_is_mandatory(11, 2));
     }
 
     type CanonicalSignature = Option<(usize, usize, usize, usize, ScriptSignature)>;

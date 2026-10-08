@@ -525,3 +525,76 @@ isolated release processes:
 python3 benchmark/microbench/measure-text.py /tmp/text-measurement
 python3 benchmark/microbench/measure-pricing.py /tmp/pricing-measurement
 ```
+
+## Scoped source quotation gold
+
+`benchmark/realworld/local-gold/development.json` records independently extracted
+source quotations and visually checked Schedule C form-field correspondences.
+These are development targets, not a blind document-wide accuracy score. Audit
+input hashes and page quotations with:
+
+```bash
+python3 benchmark/realworld/local-gold/verify_source_gold.py \
+  benchmark/realworld/local-gold/development.json
+```
+
+Whitespace differences can be collapsed for this quotation audit; punctuation
+remains significant. A quotation-level changed region does not select one of
+several equally minimal character alignments and does not supply a glyph mask.
+Keep independently selected holdout targets separate from development targets.
+
+Assessment JSON includes `anchor_work`: candidate and occurrence indexing,
+sequence comparison and order uniqueness charges, starts examined, and the first
+refused request. Charges are logical work units rather than CPU instructions;
+`refused_remainder` identifies budget consumed without performing refused work.
+The global anchor proof enumerates every posting of the least frequent internal
+adjacent token pair (or the token itself for a single-token needle), translates its offset to a possible start, and verifies full token
+equality. This preserves overlapping matches and cross-block alternatives while
+reducing impossible start checks. Work for choosing the posting is also charged.
+Constructor sidecar reservations are reported separately. If
+`sidecar_refused_request` is nonzero, `sidecar_index` includes the remaining
+budget consumed by that failed reservation; those charged units were not
+executed comparisons. Anchor `refused_remainder` describes the anchor proof
+only, not a sidecar refusal.
+
+The distinct whole-block anchor order uses a bounded Fenwick-tree LIS path count
+instead of a quadratic token LCS table. It accepts only distinct positions and
+returns no uniqueness claim when its shared budget is insufficient. Both the
+rank array and tree share the exact check's 64 MiB allocation bound. Exhaustive
+small permutations compare the specialized result with the general exact oracle.
+When the maximum spine is ambiguous, a second bounded forward/reverse LIS check
+retains only anchors shared by every maximum path. A vertex is eligible when
+its prefix and suffix lengths sum to the maximum length plus one; a level with
+one eligible vertex is mandatory. Exhaustive maximum-path intersections for
+all permutations through length eight verify this rule. The check and its
+projection use fallible allocations and explicit 64 MiB bounds; any unfinished
+budget returns no anchors. `order_unique` remains false even when
+`verified_anchors` is nonzero. These common boundaries narrow correspondence
+windows; they do not clear source-order, normalization or extraction barriers.
+Every other verified source pair is retained as competing correspondence,
+including pairs outside maximum paths. A global window touching a competitor
+stays unclosed; a character LCS cannot choose that correspondence by favoring
+longer blocks. Ordered-window discovery keeps the same veto. Independently
+established local source domains still require their existing proof.
+`local_view_work` separates trusted view construction, automatic seed search,
+explicit-anchor search, source issue indexing, domain construction and footers.
+Stage totals minus the listed subphase charges remain unattributed work and
+must be reported separately. Completing a budget phase does not establish a
+unique anchor order or improve resolved coverage by itself.
+
+Optional local discovery retains up to one sixteenth of the configured shared
+work limit for later localization and emission (2 million units at the default
+32 million limit). The reserve is a bounded scheduling heuristic, not an
+accuracy guarantee. Only actual optional spend is deducted from shared work;
+unused work and the reserve remain available to settlement. Small limits below
+16 units retain a zero reserve.
+
+`local_view_work.budget_cap` and `settlement_reserve` describe that split.
+`cap_exhausted` means the optional cap reached zero, including an exact boundary
+or zero-cap invocation; it does not establish the size or even occurrence of a
+refused request. Current view helpers do not expose that receipt, so
+`refused_request_size` is unknown. A reached cap records the optional search as incomplete
+even when the restored shared budget is positive. Existing source closure and
+completion rules remain in force. An already established root retains its
+completed evidence; the optional stop gets a separate tentative record and
+does not establish ownership or invalidate established children.

@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "split": "development",
+  "scope": "preselected source quotation units, not document-wide exact-event/glyph-mask gold",
+  "producer": "implementation agent; source Poppler extraction and rendered Schedule C pages; engine residual locations were previously known, no independent holdout claim",
+  "normalization": "whitespace only; dotted form leaders excluded when validating schedule quotes; punctuation retained",
+  "sources": {
+    "edpb-restrictions-v1-to-final": {
+      "old": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-old.pdf",
+        "sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728",
+        "bytes": 202951
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-new.pdf",
+        "sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986",
+        "bytes": 502861
+      }
+    },
+    "irs-schedule-c-2024-to-2025": {
+      "old": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-old.pdf",
+        "sha256": "f56bfd48f3604fc015b7ea22a70c6c36535a723ba84a2b9a961bc9838d070ce6",
+        "bytes": 122304
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/next-dev/irs-schedule-c-2024-to-2025-new.pdf",
+        "sha256": "ddf401dbe060467d39f90ad2abf645df1de31512821a150dc68a3882bbf19716",
+        "bytes": 122589
+      }
+    }
+  },
+  "targets": [
+    {
+      "id": "schedule-c-part-v-range",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old": {
+        "page": 2,
+        "quote": "lines 8–26, line 27b, or line 30.",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 2,
+        "quote": "lines 8-27a, or line 30.",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Part V heading",
+      "judgement": "changed",
+      "position_policy": "ambiguous_minimal_alignment; score containing range, not chosen deletions"
+    },
+    {
+      "id": "schedule-c-energy-label",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old": {
+        "page": 1,
+        "quote": "b Energy efficient commercial bldgs deduction (attach Form 7205)",
+        "quote_validation": "rendered page and independent Poppler label/body bounding boxes",
+        "field_label_bbox_pdf_points": [
+          299,
+          531,
+          316,
+          542
+        ],
+        "field_body_bbox_pdf_points": [
+          323,
+          531,
+          450,
+          552
+        ]
+      },
+      "new": {
+        "page": 1,
+        "quote": "27a Energy efficient commercial bldgs deduction (attach Form 7205)",
+        "quote_validation": "rendered page and independent Poppler label/body bounding boxes",
+        "field_label_bbox_pdf_points": [
+          299,
+          519,
+          316,
+          530
+        ],
+        "field_body_bbox_pdf_points": [
+          323,
+          519,
+          450,
+          540
+        ]
+      },
+      "location": "Part II right column energy deduction label",
+      "judgement": "changed",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "schedule-c-other-expenses-label",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old": {
+        "page": 1,
+        "quote": "27a Other expenses (from line 48)",
+        "quote_validation": "rendered page and independent Poppler label/body bounding boxes",
+        "field_label_bbox_pdf_points": [
+          299,
+          517,
+          316,
+          528
+        ],
+        "field_body_bbox_pdf_points": [
+          323,
+          517,
+          450,
+          528
+        ]
+      },
+      "new": {
+        "page": 1,
+        "quote": "b Other expenses (from line 48)",
+        "quote_validation": "rendered page and independent Poppler label/body bounding boxes",
+        "field_label_bbox_pdf_points": [
+          299,
+          541,
+          316,
+          552
+        ],
+        "field_body_bbox_pdf_points": [
+          323,
+          541,
+          450,
+          552
+        ]
+      },
+      "location": "Part II right column other expenses label",
+      "judgement": "changed",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "schedule-c-line48-reference",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old": {
+        "page": 2,
+        "quote": "Enter here and on line 27a",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 2,
+        "quote": "Enter here and on line 27b",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Part V line48",
+      "judgement": "changed",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "schedule-c-left-column-control",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old": {
+        "page": 1,
+        "quote": "Legal and professional services",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 1,
+        "quote": "Legal and professional services",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Part II left line17; distinct from right line27",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "schedule-c-interest-control",
+      "pair": "irs-schedule-c-2024-to-2025",
+      "old": {
+        "page": 1,
+        "quote": "Mortgage (paid to banks, etc.)",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 1,
+        "quote": "Mortgage (paid to banks, etc.)",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Part II left line16a",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "edpb-intro-article16",
+      "pair": "edpb-restrictions-v1-to-final",
+      "old": {
+        "page": 4,
+        "quote": "Article 16(2) TFEU mandates",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 5,
+        "quote": "Article 16(2) of the Treaty on the Functioning of the European Union mandates",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Introduction paragraph2",
+      "judgement": "changed",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "edpb-intro-regulation-scope",
+      "pair": "edpb-restrictions-v1-to-final",
+      "old": {
+        "page": 4,
+        "quote": "mainly relating to the rights of the data subjects and controllers’ obligations",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 5,
+        "quote": "relating to the rights of the data subjects and controllers’ obligations",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Introduction paragraph3",
+      "judgement": "changed",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "edpb-intro-obligations",
+      "pair": "edpb-restrictions-v1-to-final",
+      "old": {
+        "page": 4,
+        "quote": "allowing the exercise of rights and observing the obligations",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 5,
+        "quote": "allowing the exercise of rights and imposing the obligations",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Introduction paragraph3",
+      "judgement": "changed",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "edpb-intro-purpose",
+      "pair": "edpb-restrictions-v1-to-final",
+      "old": {
+        "page": 4,
+        "quote": "This document seeks to provide guidance as to the application of Article 23 GDPR.",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 5,
+        "quote": "This document seeks to provide guidance as to the application of Article 23 GDPR.",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Introduction paragraph1",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "edpb-intro-fundamental-right",
+      "pair": "edpb-restrictions-v1-to-final",
+      "old": {
+        "page": 4,
+        "quote": "The protection of natural persons in relation to the processing of personal data is a fundamental right.",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 5,
+        "quote": "The protection of natural persons in relation to the processing of personal data is a fundamental right.",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Introduction paragraph2 first sentence",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text"
+    },
+    {
+      "id": "edpb-intro-adherence",
+      "pair": "edpb-restrictions-v1-to-final",
+      "old": {
+        "page": 4,
+        "quote": "Data protection cannot be ensured without adhering to the rights and principles set out in the GDPR",
+        "quote_validation": "unique on declared source page"
+      },
+      "new": {
+        "page": 5,
+        "quote": "Data protection cannot be ensured without adhering to the rights and principles set out in the GDPR",
+        "quote_validation": "unique on declared source page"
+      },
+      "location": "Introduction paragraph2",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text"
+    }
+  ]
+}

@@ -24,10 +24,7 @@ use crate::{
         TrustedRunInterval, UncertainLineReason, reconstruct_blocks_with_issues, reconstruct_lines,
         validate_block_options, validate_line_options,
     },
-    model::{
-        Document, Glyph, GlyphCropStatus, GlyphDisplacement, GlyphEvidence, GlyphId,
-        GlyphPathClipStatus, TextRenderMode,
-    },
+    model::{Document, Glyph, GlyphDisplacement, GlyphEvidence, GlyphId},
     normalize::{BlockText, MappedText, TextSourceAtom, normalize_blocks},
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
     source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
@@ -1571,7 +1568,7 @@ fn painting_raw_token_lower_bound(document: &Document<Glyph>, limit: usize) -> R
     for glyph in document
         .items()
         .iter()
-        .filter(|glyph| is_comparison_visible(glyph))
+        .filter(|glyph| glyph.is_comparison_visible())
     {
         let glyph_tokens = match &glyph.text {
             crate::model::DecodedText::Mapped(text) => text.chars().count(),
@@ -1597,14 +1594,14 @@ fn prepare(
     let kept = document
         .items()
         .iter()
-        .map(is_comparison_visible)
+        .map(Glyph::is_comparison_visible)
         .collect::<Vec<_>>();
     let displacements = document.filtered_displacements(&kept);
     let document = Document::with_vector_lines(
         document
             .items()
             .iter()
-            .filter(|glyph| is_comparison_visible(glyph))
+            .filter(|glyph| glyph.is_comparison_visible())
             .cloned()
             .collect(),
         document.vector_lines().to_vec(),
@@ -2039,30 +2036,15 @@ fn validate_trusted_run_interval_count(block_count: usize, interval_count: usize
     Ok(())
 }
 
-fn is_painting(mode: TextRenderMode) -> bool {
-    matches!(
-        mode,
-        TextRenderMode::Fill
-            | TextRenderMode::Stroke
-            | TextRenderMode::FillAndStroke
-            | TextRenderMode::FillAndClip
-            | TextRenderMode::StrokeAndClip
-            | TextRenderMode::FillStrokeAndClip
-    )
-}
-
-fn is_comparison_visible(glyph: &Glyph) -> bool {
-    is_painting(glyph.render_mode)
-        && glyph.crop_status != GlyphCropStatus::Outside
-        && glyph.path_clip_status != GlyphPathClipStatus::Outside
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         layout::{BlockRole, TrustedRunId},
-        model::{DecodedText, FontId, GlyphId, GlyphProvenance, PageId, Rect, Vec2},
+        model::{
+            DecodedText, FontId, GlyphCropStatus, GlyphId, GlyphPathClipStatus, GlyphProvenance,
+            PageId, Rect, TextRenderMode, Vec2,
+        },
         pdf::ObjectRef,
     };
 

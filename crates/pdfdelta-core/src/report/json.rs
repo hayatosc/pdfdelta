@@ -287,6 +287,8 @@ struct JsonAssessment {
     work_limit: usize,
     work_used: usize,
     work_by_stage: JsonAssessmentWork,
+    anchor_work: JsonAnchorWork,
+    local_view_work: JsonLocalViewWork,
     candidates_truncated: bool,
     old_resolution: Vec<JsonResolutionRange>,
     new_resolution: Vec<JsonResolutionRange>,
@@ -336,6 +338,8 @@ impl JsonAssessment {
             work_limit: assessment.work_limit,
             work_used: assessment.work_used,
             work_by_stage: assessment.work_by_stage.into(),
+            anchor_work: assessment.anchor_work.into(),
+            local_view_work: assessment.local_view_work.into(),
             candidates_truncated: assessment.candidates_truncated,
             review_units: assessment
                 .review_units
@@ -391,6 +395,72 @@ impl JsonAssessment {
                 })
                 .collect::<Result<Vec<_>>>()?,
         })
+    }
+}
+
+#[derive(Serialize)]
+struct JsonLocalViewWork {
+    budget_cap: usize,
+    settlement_reserve: usize,
+    cap_exhausted: bool,
+    refused_request_size: Option<usize>,
+    source_issue_index: usize,
+    build_views: usize,
+    seed_search: usize,
+    explicit_anchor_search: usize,
+    domain_construction: usize,
+    footer_search: usize,
+}
+
+impl From<crate::diff::LocalViewWork> for JsonLocalViewWork {
+    fn from(work: crate::diff::LocalViewWork) -> Self {
+        Self {
+            budget_cap: work.budget_cap,
+            settlement_reserve: work.settlement_reserve,
+            cap_exhausted: work.cap_exhausted,
+            refused_request_size: work.refused_request_size,
+            source_issue_index: work.source_issue_index,
+            build_views: work.build_views,
+            seed_search: work.seed_search,
+            explicit_anchor_search: work.explicit_anchor_search,
+            domain_construction: work.domain_construction,
+            footer_search: work.footer_search,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonAnchorWork {
+    candidate_index: usize,
+    occurrence_index: usize,
+    occurrence_comparison: usize,
+    order_uniqueness: usize,
+    starts_examined: usize,
+    budget_exhausted: bool,
+    refused_request: usize,
+    refused_remainder: usize,
+    order_unique: Option<bool>,
+    verified_anchors: usize,
+    sidecar_index: usize,
+    sidecar_refused_request: usize,
+}
+
+impl From<crate::diff::AnchorWork> for JsonAnchorWork {
+    fn from(work: crate::diff::AnchorWork) -> Self {
+        Self {
+            candidate_index: work.candidate_index,
+            occurrence_index: work.occurrence_index,
+            occurrence_comparison: work.occurrence_comparison,
+            order_uniqueness: work.order_uniqueness,
+            starts_examined: work.starts_examined,
+            budget_exhausted: work.budget_exhausted,
+            refused_request: work.refused_request,
+            refused_remainder: work.refused_remainder,
+            order_unique: work.order_unique,
+            verified_anchors: work.verified_anchors,
+            sidecar_index: work.sidecar_index,
+            sidecar_refused_request: work.sidecar_refused_request,
+        }
     }
 }
 
@@ -1155,7 +1225,29 @@ mod tests {
 
     #[test]
     fn compact_source_digest_matches_streamed_native_array() -> Result<()> {
+        let glyph_sources: Vec<_> = (0..400u32)
+            .map(|index| SpanSourceEvidence::Glyph {
+                glyph_id: crate::model::GlyphId(u64::from(index) + 1000),
+                page: crate::model::PageId(index % 4),
+                bbox: Rect {
+                    min: crate::model::Vec2 {
+                        x: -0.125 * f64::from(index),
+                        y: 0.25,
+                    },
+                    max: crate::model::Vec2 {
+                        x: 1.0 + f64::from(index),
+                        y: 7.125,
+                    },
+                },
+                content_stream: crate::pdf::ObjectRef {
+                    object_number: 127,
+                    generation: 1,
+                },
+                operator_index: index * 7 + 3,
+            })
+            .collect();
         for sources in [
+            glyph_sources,
             vec![],
             vec![
                 SpanSourceEvidence::BlockSeparatorSpace,

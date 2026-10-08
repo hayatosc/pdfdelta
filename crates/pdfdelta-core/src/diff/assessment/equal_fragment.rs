@@ -1,13 +1,14 @@
 //! Pure source/position proof for one literal-equal local fragment.
 //!
-//! The proof answers one narrow question: is this `TextSpan` pair a fragment
-//! whose literal text is equal and whose source correspondence is complete on
-//! both sides? A [`FragmentVerdict::Proven`] result requires, for every
-//! selected token, exactly one canonical glyph and exactly one single-scalar
-//! raw counterpart with the same literal, one contiguous raw run, no
-//! normalization evidence across the fragment, and bit-exact equal finite
-//! horizontal position signatures on one shared page. Any other evidence
-//! holds the fragment.
+//! Every entry point requires equal literal scalars, exactly one canonical
+//! glyph and one single-scalar raw counterpart per selected token, a contiguous
+//! raw run, clean normalization cuts and unique document-wide glyph sources.
+//! The positioned entry points additionally require bit-exact finite horizontal
+//! positions on one shared page. The separately named source-only entry point
+//! keeps the shared-page and literal-source rules but supplies no correspondence:
+//! its caller must independently prove every pairing mandatory in a complete,
+//! source-closed parent. A source-only verdict never relaxes the positioned
+//! entry points or establishes equality ownership by itself.
 //!
 //! The proof is deliberately local and never claims more: it does not
 //! establish that the surrounding domain is closed, that the correspondence is
@@ -46,9 +47,13 @@
 //!   projection, so an empty, inconsistent or zero-length issue holds even
 //!   when it sits outside the selected range, and an issue whose raw or
 //!   projected canonical range overlaps the selected range holds as well.
-//! - Position signatures must be complete for the whole block, carry finite
+//! - For the positioned entry points, position signatures must be complete for the whole block, carry finite
 //!   baseline and direction geometry, be horizontal and bit-exactly equal on
-//!   both sides; both blocks must carry exactly one shared page.
+//!   both sides. Ordinary entry points require exactly one shared page. The
+//!   separately named page-shift source guard instead relies on an isolated
+//!   complete whole-parent correspondence across different pages; each source
+//!   block must still belong to exactly one page. It supplies no correspondence
+//!   by itself and preserves every literal-source and sharing requirement.
 //! - Malformed source maps hold; they are never treated as empty or as a known
 //!   content mismatch.
 //! - Every scan, comparison and lookup is charged to the shared work counter
@@ -99,7 +104,9 @@ use super::{SourceInterval, allocation_error, charge, invalid, project};
 /// Outcome of one equal-fragment source/position proof.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FragmentVerdict {
-    /// The fragment is literal-equal with complete source and position evidence.
+    /// The selected entry point's literal-source evidence is complete.
+    /// `prove` additionally requires equal position evidence; a source-only
+    /// verdict supplies no correspondence by itself.
     Proven,
     /// The evidence is incomplete, unsupported or contradictory.
     Held(FragmentHold),
@@ -239,6 +246,79 @@ impl<'a> EqualFragmentCache<'a> {
         Self::verdict(self.check_fragment(spans, false, remaining))
     }
 
+    /// Checks literal sources under an independently proven mandatory pairing.
+    ///
+    /// This does not establish correspondence. The caller must first prove
+    /// that every selected old/new pair occurs in every maximum matching of
+    /// the same complete, source-closed parent. All ordinary singleton source,
+    /// contiguous raw-run, normalization-cut, no-sharing and same-page checks
+    /// remain required. Position equality is unnecessary under that stronger
+    /// correspondence premise; synthetic whitespace and deleted raw breaks
+    /// are not admitted here.
+    pub(super) fn prove_sources_for_mandatory_pairs(
+        &mut self,
+        spans: [&TextSpan; 2],
+        remaining: &mut usize,
+    ) -> Result<FragmentVerdict> {
+        Self::verdict(self.check_literal_sources(spans, remaining))
+    }
+
+    /// Checks literal sources of mandatory pairs across a proven page shift.
+    ///
+    /// This supplies no correspondence. The caller must already establish an
+    /// isolated, complete exact whole-single-block parent with no ancestor on
+    /// both sides, each confined to one different page, and prove every pair
+    /// mandatory in the original full parent matchings. Numeric page equality
+    /// is unnecessary under that premise. Canonical and contiguous literal raw
+    /// sources, normalization cuts, singleton glyphs and document-wide sharing
+    /// checks on both sides remain identical to the ordinary source guard.
+    pub(super) fn prove_sources_for_page_shifted_mandatory_pairs(
+        &mut self,
+        spans: [&TextSpan; 2],
+        remaining: &mut usize,
+    ) -> Result<FragmentVerdict> {
+        Self::verdict(self.check_page_shifted_literal_sources(spans, remaining))
+    }
+
+    fn check_page_shifted_literal_sources(
+        &mut self,
+        spans: [&TextSpan; 2],
+        remaining: &mut usize,
+    ) -> Check<bool> {
+        let old = self.analyze_side(0, spans[0], false, false, remaining)?;
+        let new = self.analyze_side(1, spans[1], false, false, remaining)?;
+        if !charge(remaining, old.chars.len().saturating_mul(2)) {
+            return Err(Stop::Exhausted);
+        }
+        if old.chars != new.chars {
+            return Err(Stop::Held(FragmentHold::LiteralMismatch));
+        }
+        self.check_side_sharing(0, &old.glyphs, remaining)?;
+        self.check_side_sharing(1, &new.glyphs, remaining)?;
+        Ok(false)
+    }
+
+    fn check_literal_sources(
+        &mut self,
+        spans: [&TextSpan; 2],
+        remaining: &mut usize,
+    ) -> Check<bool> {
+        let old = self.analyze_side(0, spans[0], false, false, remaining)?;
+        let new = self.analyze_side(1, spans[1], false, false, remaining)?;
+        if !charge(remaining, old.chars.len().saturating_mul(2)) {
+            return Err(Stop::Exhausted);
+        }
+        if old.chars != new.chars {
+            return Err(Stop::Held(FragmentHold::LiteralMismatch));
+        }
+        if old.page != new.page {
+            return Err(Stop::Held(FragmentHold::PageMismatch));
+        }
+        self.check_side_sharing(0, &old.glyphs, remaining)?;
+        self.check_side_sharing(1, &new.glyphs, remaining)?;
+        Ok(false)
+    }
+
     /// Test-only convenience wrapper around
     /// [`Self::prove_internal_deleted_soft_line_break_with_certificate`] that
     /// discards the certificate.
@@ -310,8 +390,8 @@ impl<'a> EqualFragmentCache<'a> {
         allow_internal_deleted_break: bool,
         remaining: &mut usize,
     ) -> Check<bool> {
-        let old = self.analyze_side(0, spans[0], allow_internal_deleted_break, remaining)?;
-        let new = self.analyze_side(1, spans[1], allow_internal_deleted_break, remaining)?;
+        let old = self.analyze_side(0, spans[0], allow_internal_deleted_break, true, remaining)?;
+        let new = self.analyze_side(1, spans[1], allow_internal_deleted_break, true, remaining)?;
         if !charge(remaining, old.chars.len().saturating_mul(2)) {
             return Err(Stop::Exhausted);
         }
@@ -486,6 +566,7 @@ impl<'a> EqualFragmentCache<'a> {
         side_index: usize,
         span: &TextSpan,
         allow_internal_deleted_break: bool,
+        require_positions: bool,
         remaining: &mut usize,
     ) -> Check<SideFragment> {
         let side = self.sides[side_index];
@@ -536,26 +617,28 @@ impl<'a> EqualFragmentCache<'a> {
             };
             chars.push(scalar);
         }
-        let Some(signatures) = block.position_signatures.as_deref() else {
-            return Err(Stop::Held(FragmentHold::MissingPositions));
-        };
-        if signatures.len() != block_tokens.len() {
-            return Err(Stop::Held(FragmentHold::MissingPositions));
-        }
-        let selected_positions = &signatures[interval.start..interval.end];
-        if !charge(remaining, selected_positions.len().saturating_mul(2)) {
-            return Err(Stop::Exhausted);
-        }
-        for position in selected_positions {
-            if !finite_signature(position) || !horizontal_direction(position) {
-                return Err(Stop::Held(FragmentHold::PositionMismatch));
-            }
-        }
         let mut positions = Vec::new();
-        positions
-            .try_reserve(selected_positions.len())
-            .map_err(|_| allocation_error("equal fragment positions"))?;
-        positions.extend_from_slice(selected_positions);
+        if require_positions {
+            let Some(signatures) = block.position_signatures.as_deref() else {
+                return Err(Stop::Held(FragmentHold::MissingPositions));
+            };
+            if signatures.len() != block_tokens.len() {
+                return Err(Stop::Held(FragmentHold::MissingPositions));
+            }
+            let selected_positions = &signatures[interval.start..interval.end];
+            if !charge(remaining, selected_positions.len().saturating_mul(2)) {
+                return Err(Stop::Exhausted);
+            }
+            for position in selected_positions {
+                if !finite_signature(position) || !horizontal_direction(position) {
+                    return Err(Stop::Held(FragmentHold::PositionMismatch));
+                }
+            }
+            positions
+                .try_reserve(selected_positions.len())
+                .map_err(|_| allocation_error("equal fragment positions"))?;
+            positions.extend_from_slice(selected_positions);
+        }
         let [page] = block.pages.as_slice() else {
             return Err(Stop::Held(FragmentHold::MultiplePages));
         };
@@ -1861,6 +1944,184 @@ mod tests {
         (verdict, budget - remaining)
     }
 
+    fn prove_mandatory_sources(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        old_span: &TextSpan,
+        new_span: &TextSpan,
+        budget: usize,
+    ) -> (FragmentVerdict, usize) {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        let mut remaining = budget;
+        let verdict = cache
+            .prove_sources_for_mandatory_pairs([old_span, new_span], &mut remaining)
+            .expect("valid source fixture");
+        (verdict, budget - remaining)
+    }
+
+    #[test]
+    fn mandatory_source_guard_preserves_literal_vetoes_without_position_claim() {
+        let old = positioned_block(1, "aé中d", 300.0, 700.0, 0);
+        let new = positioned_block(101, "aé中d", 350.0, 700.0, 0);
+        let spans = [fragment(1, 1, 3), fragment(101, 1, 3)];
+        assert_eq!(
+            prove_pair(
+                std::slice::from_ref(&old),
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::PositionMismatch)
+        );
+        let (verdict, used) = prove_mandatory_sources(
+            std::slice::from_ref(&old),
+            std::slice::from_ref(&new),
+            &spans[0],
+            &spans[1],
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Proven);
+        for budget in 0..used {
+            assert_eq!(
+                prove_mandatory_sources(
+                    std::slice::from_ref(&old),
+                    std::slice::from_ref(&new),
+                    &spans[0],
+                    &spans[1],
+                    budget
+                )
+                .0,
+                FragmentVerdict::Exhausted
+            );
+        }
+        let mut raw_mismatch = old.clone();
+        raw_mismatch.raw.text = "aè中d".into();
+        assert!(matches!(
+            prove_mandatory_sources(
+                &[raw_mismatch],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(_)
+        ));
+        let mut synthetic = old.clone();
+        synthetic.canonical.source_map[1] = atoms_entry(
+            1,
+            vec![TextSourceAtom::SyntheticSpace {
+                preceding: glyph(1, 0),
+                following: glyph(1, 2),
+            }],
+        );
+        assert_eq!(
+            prove_mandatory_sources(
+                &[synthetic],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
+        let mut reused = positioned_block(2, "é", 200.0, 680.0, 0);
+        reused.raw.source_map[0] = glyph_entry(0, glyph(1, 1));
+        reused.canonical.source_map[0] = glyph_entry(0, glyph(1, 1));
+        assert_eq!(
+            prove_mandatory_sources(
+                &[old.clone(), reused],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::SharedGlyph)
+        );
+        let mut issue = old.clone();
+        issue.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 1, end: 2 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(glyph(1, 1))].into(),
+            },
+        });
+        assert_eq!(
+            prove_mandatory_sources(
+                &[issue],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+        let mut multiple = old.clone();
+        multiple.canonical.source_map[1] = atoms_entry(
+            1,
+            vec![
+                TextSourceAtom::Glyph(glyph(1, 1)),
+                TextSourceAtom::Glyph(glyph(1, 2)),
+            ],
+        );
+        assert_eq!(
+            prove_mandatory_sources(
+                &[multiple],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
+        let mut duplicated = old.clone();
+        duplicated.raw.source_map[2] = glyph_entry(2, glyph(1, 1));
+        assert_eq!(
+            prove_mandatory_sources(
+                &[duplicated],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::RawSource)
+        );
+        let mut cut = old.clone();
+        cut.raw.text = "aéX中d".into();
+        cut.raw.source_map = vec![
+            glyph_entry(0, glyph(1, 0)),
+            glyph_entry(1, glyph(1, 1)),
+            glyph_entry(2, glyph(1, 4)),
+            glyph_entry(3, glyph(1, 2)),
+            glyph_entry(4, glyph(1, 3)),
+        ];
+        assert_eq!(
+            prove_mandatory_sources(
+                &[cut],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::RawCut)
+        );
+        let page_mismatch = positioned_block(101, "aé中d", 350.0, 700.0, 1);
+        assert_eq!(
+            prove_mandatory_sources(&[old], &[page_mismatch], &spans[0], &spans[1], usize::MAX).0,
+            FragmentVerdict::Held(FragmentHold::PageMismatch)
+        );
+    }
+
     #[test]
     fn mid_block_fragment_proves() {
         let old_blocks = vec![positioned_block(1, "abcdefgh", 300.0, 700.0, 0)];
@@ -2669,6 +2930,225 @@ mod tests {
         assert_eq!(
             verdict,
             FragmentVerdict::Held(FragmentHold::PositionMismatch)
+        );
+    }
+
+    fn prove_page_shift_sources(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        old_span: &TextSpan,
+        new_span: &TextSpan,
+        budget: usize,
+    ) -> (FragmentVerdict, usize) {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        let mut remaining = budget;
+        let verdict = cache
+            .prove_sources_for_page_shifted_mandatory_pairs([old_span, new_span], &mut remaining)
+            .expect("fixture source evidence");
+        (verdict, budget - remaining)
+    }
+
+    #[test]
+    fn h19_page_shift_sources_preserve_literal_vetoes_and_default_page_hold() {
+        let old = positioned_block(1, "aé中d", 300.0, 700.0, 0);
+        let new = positioned_block(101, "aé中d", 350.0, 700.0, 1);
+        let spans = [fragment(1, 1, 3), fragment(101, 1, 3)];
+        assert_eq!(
+            prove_pair(
+                std::slice::from_ref(&old),
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::PageMismatch)
+        );
+        let (verdict, used) = prove_page_shift_sources(
+            std::slice::from_ref(&old),
+            std::slice::from_ref(&new),
+            &spans[0],
+            &spans[1],
+            usize::MAX,
+        );
+        assert_eq!(verdict, FragmentVerdict::Proven);
+        for budget in 0..used {
+            assert_eq!(
+                prove_page_shift_sources(
+                    std::slice::from_ref(&old),
+                    std::slice::from_ref(&new),
+                    &spans[0],
+                    &spans[1],
+                    budget
+                )
+                .0,
+                FragmentVerdict::Exhausted
+            );
+        }
+        let mut raw_mismatch = old.clone();
+        raw_mismatch.raw.text = "aè中d".into();
+        assert!(matches!(
+            prove_page_shift_sources(
+                &[raw_mismatch],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(_)
+        ));
+        let mut synthetic = old.clone();
+        synthetic.canonical.source_map[1] = atoms_entry(
+            1,
+            vec![TextSourceAtom::SyntheticSpace {
+                preceding: glyph(1, 0),
+                following: glyph(1, 2),
+            }],
+        );
+        assert_eq!(
+            prove_page_shift_sources(
+                &[synthetic],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
+        let mut reused = positioned_block(2, "é", 200.0, 680.0, 0);
+        reused.raw.source_map[0] = glyph_entry(0, glyph(1, 1));
+        reused.canonical.source_map[0] = glyph_entry(0, glyph(1, 1));
+        assert_eq!(
+            prove_page_shift_sources(
+                &[old.clone(), reused],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::SharedGlyph)
+        );
+        let mut issue = old.clone();
+        issue.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 1, end: 2 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(glyph(1, 1))].into(),
+            },
+        });
+        assert_eq!(
+            prove_page_shift_sources(
+                &[issue],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+        let mut multiple = old.clone();
+        multiple.canonical.source_map[1] = atoms_entry(
+            1,
+            vec![
+                TextSourceAtom::Glyph(glyph(1, 1)),
+                TextSourceAtom::Glyph(glyph(1, 2)),
+            ],
+        );
+        assert_eq!(
+            prove_page_shift_sources(
+                &[multiple],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
+        let mut duplicated = old.clone();
+        duplicated.raw.source_map[2] = glyph_entry(2, glyph(1, 1));
+        assert_eq!(
+            prove_page_shift_sources(
+                &[duplicated],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::RawSource)
+        );
+        let mut cut = old.clone();
+        cut.raw.text = "aéX中d".into();
+        cut.raw.source_map = vec![
+            glyph_entry(0, glyph(1, 0)),
+            glyph_entry(1, glyph(1, 1)),
+            glyph_entry(2, glyph(1, 4)),
+            glyph_entry(3, glyph(1, 2)),
+            glyph_entry(4, glyph(1, 3)),
+        ];
+        assert_eq!(
+            prove_page_shift_sources(
+                &[cut],
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::RawCut)
+        );
+        let page_mismatch = positioned_block(101, "aé中d", 350.0, 700.0, 1);
+        assert_eq!(
+            prove_mandatory_sources(&[old], &[page_mismatch], &spans[0], &spans[1], usize::MAX).0,
+            FragmentVerdict::Held(FragmentHold::PageMismatch)
+        );
+    }
+
+    #[test]
+    fn h19_page_shift_checks_document_sharing_on_each_side() {
+        let old = positioned_block(1, "ab", 300.0, 700.0, 0);
+        let new = positioned_block(101, "ab", 300.0, 700.0, 1);
+        let spans = [fragment(1, 0, 2), fragment(101, 0, 2)];
+        assert_eq!(
+            prove_mandatory_sources(
+                std::slice::from_ref(&old),
+                std::slice::from_ref(&new),
+                &spans[0],
+                &spans[1],
+                usize::MAX
+            )
+            .0,
+            FragmentVerdict::Held(FragmentHold::PageMismatch)
+        );
+        for shared_side in 0..2 {
+            let mut blocks = [vec![old.clone()], vec![new.clone()]];
+            let mut duplicate = positioned_block(500, "a", 100.0, 100.0, 5);
+            let source = blocks[shared_side][0].canonical.source_map[0]
+                .source
+                .clone();
+            duplicate.raw.source_map[0].source = source.clone();
+            duplicate.canonical.source_map[0].source = source;
+            blocks[shared_side].push(duplicate);
+            assert_eq!(
+                prove_page_shift_sources(&blocks[0], &blocks[1], &spans[0], &spans[1], usize::MAX)
+                    .0,
+                FragmentVerdict::Held(FragmentHold::SharedGlyph),
+                "shared side {shared_side}"
+            );
+        }
+        let mut multiple = old.clone();
+        multiple.pages = vec![0, 2];
+        multiple.page_breaks = Some(vec![1]);
+        assert_eq!(
+            prove_page_shift_sources(&[multiple], &[new], &spans[0], &spans[1], usize::MAX).0,
+            FragmentVerdict::Held(FragmentHold::MultiplePages)
         );
     }
 

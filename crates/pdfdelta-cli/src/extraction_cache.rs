@@ -14,8 +14,10 @@ use sha2::{Digest, Sha256};
 use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
-/// key or the cached payload shape.
-const CACHE_FORMAT_VERSION: u32 = 17;
+/// key, the extraction contract, or the cached payload shape. Version 19
+/// invalidates native outcomes lacking an image issue when only invisible or
+/// excluded glyphs were retained.
+const CACHE_FORMAT_VERSION: u32 = 19;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during
@@ -422,6 +424,56 @@ mod tests {
 
     fn fixture_limits() -> (ParseLimits, ExtractionLimits) {
         (ParseLimits::default(), ExtractionLimits::default())
+    }
+
+    #[test]
+    fn image_presence_issue_round_trips_and_prior_complete_payload_is_rejected() {
+        let dir = unique_temp_dir("image-contract");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, extraction_limits) = fixture_limits();
+        let key = cache_key(
+            b"image pdf",
+            &parse_limits,
+            &extraction_limits,
+            None,
+            &ExternalFontIdentities::default(),
+        );
+        let mut hidden = glyph(1);
+        hidden.render_mode = TextRenderMode::Invisible;
+        let outcome = ExtractionOutcome::new(
+            Document::new(vec![hidden]),
+            vec![
+                ExtractionIssue::new(
+                    pdfdelta_core::source::ExtractionIssueKind::Unresolved,
+                    pdfdelta_core::source::ExtractionScope::PageGlyphGap {
+                        page: PageId(0),
+                        retained_before: 0,
+                        paint_index: None,
+                    },
+                    "image text presence is unexamined",
+                )
+                .expect("image issue"),
+            ],
+        )
+        .expect("image outcome");
+        cache.store(&key, &outcome);
+        let loaded = cache
+            .load(&key, &extraction_limits)
+            .expect("current image outcome");
+        assert!(!loaded.is_complete());
+        assert_eq!(loaded.issues(), outcome.issues());
+        assert_eq!(loaded.document().items(), outcome.document().items());
+        let path = dir.join(format!("{key}.json"));
+        let mut payload: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("payload")).expect("valid payload");
+        for version in [17, 18] {
+            payload["cache_version"] = serde_json::json!(version);
+            payload["issues"] = serde_json::json!([]);
+            fs::write(&path, serde_json::to_vec(&payload).expect("prior payload"))
+                .expect("prior entry");
+            assert!(cache.load(&key, &extraction_limits).is_none());
+        }
+        fs::remove_dir_all(dir).expect("remove fixture cache");
     }
 
     #[test]

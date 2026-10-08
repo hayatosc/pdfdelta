@@ -20317,6 +20317,7 @@ fn collect_length_aware_postings(
     Ok(())
 }
 
+#[cfg(test)]
 fn collect_length_aware_boundary_candidates(
     query: &LengthAwareLocalFragment,
     parent_candidate_index: usize,
@@ -20324,6 +20325,37 @@ fn collect_length_aware_boundary_candidates(
     own: &LengthAwareBoundaryIndex,
     all: &LengthAwareBoundaryIndex,
     fixed_depth: usize,
+    budget: &mut LengthAwareBudget,
+) -> std::result::Result<(Vec<usize>, Vec<usize>), LocalFragmentLengthAwareShadowStopReason> {
+    collect_length_aware_boundary_candidates_with_parent_depth_bound(
+        query,
+        parent_candidate_index,
+        fixed,
+        own,
+        all,
+        fixed_depth,
+        None,
+        budget,
+    )
+}
+
+/// Queries indexes built from enumerated fragments of the selected parent.
+///
+/// A supplied bound must cover every own/all key depth for that parent. The
+/// enumerator's fragments are slices of its full token array, and signature
+/// depth is monotone in slice length. The full parent's depth therefore bounds
+/// both indexes without allocating metadata. Missing metadata uses the original
+/// uncapped lookup sequence. Only provably absent keys are omitted: charges,
+/// posting order, temporary capacities and exact rechecks remain unchanged.
+#[allow(clippy::too_many_arguments)]
+fn collect_length_aware_boundary_candidates_with_parent_depth_bound(
+    query: &LengthAwareLocalFragment,
+    parent_candidate_index: usize,
+    fixed: &LengthAwareBoundaryIndex,
+    own: &LengthAwareBoundaryIndex,
+    all: &LengthAwareBoundaryIndex,
+    fixed_depth: usize,
+    parent_depth_bound: Option<usize>,
     budget: &mut LengthAwareBudget,
 ) -> std::result::Result<(Vec<usize>, Vec<usize>), LocalFragmentLengthAwareShadowStopReason> {
     budget.charge(LengthAwareWorkKind::Queries, 1)?;
@@ -20346,18 +20378,20 @@ fn collect_length_aware_boundary_candidates(
         query,
         parent_candidate_index,
         own,
-        1..=own_depth,
+        1..=parent_depth_bound.map_or(own_depth, |bound| own_depth.min(bound)),
         budget,
         &mut length_candidates,
     )?;
-    collect_length_aware_postings(
-        query,
-        parent_candidate_index,
-        all,
-        std::iter::once(own_depth),
-        budget,
-        &mut length_candidates,
-    )?;
+    if parent_depth_bound.is_none_or(|bound| own_depth <= bound) {
+        collect_length_aware_postings(
+            query,
+            parent_candidate_index,
+            all,
+            std::iter::once(own_depth),
+            budget,
+            &mut length_candidates,
+        )?;
+    }
     length_candidates.sort_unstable();
     length_candidates.dedup();
     budget.charge(LengthAwareWorkKind::CandidateUnion, length_candidates.len())?;
@@ -20880,14 +20914,22 @@ fn analyze_length_aware_local_fragment_shadow_with_limits(
                 let mut fixed_retained_query = LocalFragmentQueryFingerprint::new();
                 let mut length_retained_query = LocalFragmentQueryFingerprint::new();
                 for &new_parent in &admitted_parents {
+                    // These indexes were built from the same candidates and
+                    // occurrences above. Every indexed fragment is a slice of
+                    // this parent; missing metadata retains uncapped behavior.
+                    let parent_depth_bound = new_candidates
+                        .get(new_parent)
+                        .and_then(|candidate| new_occurrences.get(candidate.occurrence_index))
+                        .and_then(|parent| sentence_edge_signature_depth(parent.tokens.len()));
                     let (fixed_candidates, length_candidates) =
-                        collect_length_aware_boundary_candidates(
+                        collect_length_aware_boundary_candidates_with_parent_depth_bound(
                             old,
                             new_parent,
                             &fixed_index,
                             &own_index,
                             &all_index,
                             fixed_depth,
+                            parent_depth_bound,
                             &mut budget,
                         )?;
                     for &new_index in &fixed_candidates {
@@ -53925,5 +53967,254 @@ mod tests {
             Some(RecoveryRemainderAttributionStopReason::InvalidState)
         );
         assert!(metrics.remainder_attribution.is_none());
+    }
+    fn legacy_length_aware_boundary_candidates(
+        query: &LengthAwareLocalFragment,
+        parent_candidate_index: usize,
+        fixed: &LengthAwareBoundaryIndex,
+        own: &LengthAwareBoundaryIndex,
+        all: &LengthAwareBoundaryIndex,
+        fixed_depth: usize,
+        budget: &mut LengthAwareBudget,
+    ) -> std::result::Result<(Vec<usize>, Vec<usize>), LocalFragmentLengthAwareShadowStopReason>
+    {
+        budget.charge(LengthAwareWorkKind::Queries, 1)?;
+        let mut fixed_candidates = Vec::new();
+        collect_length_aware_postings(
+            query,
+            parent_candidate_index,
+            fixed,
+            std::iter::once(fixed_depth),
+            budget,
+            &mut fixed_candidates,
+        )?;
+        fixed_candidates.sort_unstable();
+        fixed_candidates.dedup();
+        budget.charge(LengthAwareWorkKind::CandidateUnion, fixed_candidates.len())?;
+
+        let own_depth = query.signatures.len();
+        let mut length_candidates = Vec::new();
+        collect_length_aware_postings(
+            query,
+            parent_candidate_index,
+            own,
+            1..=own_depth,
+            budget,
+            &mut length_candidates,
+        )?;
+        collect_length_aware_postings(
+            query,
+            parent_candidate_index,
+            all,
+            std::iter::once(own_depth),
+            budget,
+            &mut length_candidates,
+        )?;
+        length_candidates.sort_unstable();
+        length_candidates.dedup();
+        budget.charge(LengthAwareWorkKind::CandidateUnion, length_candidates.len())?;
+        Ok((fixed_candidates, length_candidates))
+    }
+
+    fn query_snapshot(
+        result: std::result::Result<
+            (Vec<usize>, Vec<usize>),
+            LocalFragmentLengthAwareShadowStopReason,
+        >,
+    ) -> std::result::Result<
+        (Vec<usize>, usize, Vec<usize>, usize),
+        LocalFragmentLengthAwareShadowStopReason,
+    > {
+        result.map(|(fixed, length)| {
+            let a = fixed.capacity();
+            let b = length.capacity();
+            (fixed, a, length, b)
+        })
+    }
+
+    #[test]
+    fn parent_depth_bound_preserves_candidates_work_and_stops() {
+        let occurrences = [
+            local_fragment_parent("a bb", 1, 1),
+            local_fragment_parent("a zz cc", 2, 2),
+            local_fragment_parent("a bb", 3, 3),
+            local_fragment_parent("αβ 漢字 éé punctuation, longword", 4, 4),
+            local_fragment_parent(
+                "a bb ccc dddd eeeee ffffff ggggggg hhhhhhhh iiiiiiiii",
+                5,
+                5,
+            ),
+        ];
+        let candidates = occurrences
+            .iter()
+            .enumerate()
+            .map(|(i, _)| RecoveryCandidate {
+                occurrence_index: i,
+                span_index: i + 1,
+            })
+            .collect::<Vec<_>>();
+        let mut build = LengthAwareBudget::new(length_aware_limits());
+        let fragments =
+            enumerate_length_aware_local_fragments(&occurrences, &candidates, 1, &mut build)
+                .expect("enumeration");
+        let (fixed, own, all) =
+            build_length_aware_boundary_indexes(&fragments, 1, &mut build).expect("indexes");
+        for query in &fragments {
+            for parent in 0..=occurrences.len() {
+                let bound = occurrences
+                    .get(parent)
+                    .and_then(|p| sentence_edge_signature_depth(p.tokens.len()));
+                let mut full = LengthAwareBudget::new(length_aware_limits());
+                let expected = legacy_length_aware_boundary_candidates(
+                    query, parent, &fixed, &own, &all, 1, &mut full,
+                )
+                .expect("query");
+                let dimensions = [
+                    full.work.queries_examined,
+                    full.work.posting_visits_examined,
+                    full.work.candidate_union_examined,
+                ];
+                for (dimension, used) in dimensions.into_iter().enumerate() {
+                    for limit in 0..=used + 1 {
+                        let mut limits = length_aware_limits();
+                        match dimension {
+                            0 => limits.queries = limit,
+                            1 => limits.posting_visits = limit,
+                            _ => limits.candidate_union = limit,
+                        }
+                        let mut legacy = LengthAwareBudget::new(limits);
+                        let mut bounded = LengthAwareBudget::new(limits);
+                        assert_eq!(
+                            query_snapshot(legacy_length_aware_boundary_candidates(
+                                query,
+                                parent,
+                                &fixed,
+                                &own,
+                                &all,
+                                1,
+                                &mut legacy
+                            )),
+                            query_snapshot(
+                                collect_length_aware_boundary_candidates_with_parent_depth_bound(
+                                    query,
+                                    parent,
+                                    &fixed,
+                                    &own,
+                                    &all,
+                                    1,
+                                    bound,
+                                    &mut bounded
+                                )
+                            )
+                        );
+                        assert_eq!(legacy.work, bounded.work);
+                    }
+                }
+                let mut ordinary = LengthAwareBudget::new(length_aware_limits());
+                assert_eq!(
+                    collect_length_aware_boundary_candidates(
+                        query,
+                        parent,
+                        &fixed,
+                        &own,
+                        &all,
+                        1,
+                        &mut ordinary
+                    )
+                    .expect("generic"),
+                    expected
+                );
+                assert_eq!(ordinary.work, full.work);
+            }
+        }
+    }
+
+    #[test]
+    fn parent_depth_bound_preserves_query_validation_and_uncapped_manual_indexes() {
+        let occurrences = [local_fragment_parent("abcdefghij klmnopqrst", 1, 1)];
+        let query =
+            test_length_aware_fragment(0, &occurrences[0], LocalFragmentOrientation::Prefix, 0..15);
+        let mut build = LengthAwareBudget::new(length_aware_limits());
+        let (fixed, own, all) =
+            build_length_aware_boundary_indexes(std::slice::from_ref(&query), 1, &mut build)
+                .expect("indexes");
+        for fixed_depth in [0, 1, query.signatures.len() + 1] {
+            for truncated in [false, true] {
+                if fixed_depth == 1 && !truncated {
+                    continue;
+                }
+                let mut malformed = query.clone();
+                if truncated {
+                    malformed.signatures.clear();
+                }
+                let mut a = LengthAwareBudget::new(length_aware_limits());
+                let mut b = LengthAwareBudget::new(length_aware_limits());
+                assert_eq!(
+                    query_snapshot(legacy_length_aware_boundary_candidates(
+                        &malformed,
+                        0,
+                        &fixed,
+                        &own,
+                        &all,
+                        fixed_depth,
+                        &mut a
+                    )),
+                    query_snapshot(
+                        collect_length_aware_boundary_candidates_with_parent_depth_bound(
+                            &malformed,
+                            0,
+                            &fixed,
+                            &own,
+                            &all,
+                            fixed_depth,
+                            Some(0),
+                            &mut b
+                        )
+                    )
+                );
+                assert_eq!(a.work, b.work);
+            }
+        }
+        // Manual indexes need not obey any source-parent bound. The generic
+        // entry point retains all depths rather than guessing a smaller bound.
+        let mut a = LengthAwareBudget::new(length_aware_limits());
+        let mut b = LengthAwareBudget::new(length_aware_limits());
+        assert_eq!(
+            query_snapshot(legacy_length_aware_boundary_candidates(
+                &query, 0, &fixed, &own, &all, 1, &mut a
+            )),
+            query_snapshot(collect_length_aware_boundary_candidates(
+                &query, 0, &fixed, &own, &all, 1, &mut b
+            ))
+        );
+        assert_eq!(a.work, b.work);
+        for dimension in 0..3 {
+            let mut a = LengthAwareBudget::new(length_aware_limits());
+            match dimension {
+                0 => a.work.queries_examined = usize::MAX,
+                1 => a.work.posting_visits_examined = usize::MAX,
+                _ => a.work.candidate_union_examined = usize::MAX,
+            }
+            let mut b = LengthAwareBudget::new(a.limits);
+            b.work = a.work;
+            assert_eq!(
+                query_snapshot(legacy_length_aware_boundary_candidates(
+                    &query, 0, &fixed, &own, &all, 1, &mut a
+                )),
+                query_snapshot(
+                    collect_length_aware_boundary_candidates_with_parent_depth_bound(
+                        &query,
+                        0,
+                        &fixed,
+                        &own,
+                        &all,
+                        1,
+                        Some(query.signatures.len()),
+                        &mut b
+                    )
+                )
+            );
+            assert_eq!(a.work, b.work);
+        }
     }
 }

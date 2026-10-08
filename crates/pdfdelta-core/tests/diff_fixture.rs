@@ -89,6 +89,35 @@ fn ambiguous_positions_retain_non_owning_change_count_claims() -> Result<()> {
 }
 
 #[test]
+fn schedule_c_reference_reports_a_coarse_change_without_choosing_a_digit_mask() -> Result<()> {
+    let result = compare_aligned(
+        &[block(1, "26, line 27b")],
+        &[block(101, "27a")],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+    assert!(
+        result.changes.is_empty(),
+        "competing glyph masks must stay unlocalized"
+    );
+    assert_eq!(result.proven_changed_regions.len(), 1);
+    assert_eq!(
+        result.proven_changed_regions[0].proof,
+        pdfdelta_core::diff::ChangedRegionProof::ExactTokenMultisetMismatch
+    );
+    let assessment = result.assessment.as_ref().expect("reference assessment");
+    assert!(
+        assessment
+            .old_resolution
+            .iter()
+            .chain(&assessment.new_resolution)
+            .all(|range| range.state == pdfdelta_core::diff::ResolutionState::Unresolved)
+    );
+    assessment.validate(&result)?;
+    Ok(())
+}
+
+#[test]
 fn mandatory_source_ranges_do_not_claim_ambiguous_repeated_characters() -> Result<()> {
     let result = compare_aligned(
         &[block(1, "a")],

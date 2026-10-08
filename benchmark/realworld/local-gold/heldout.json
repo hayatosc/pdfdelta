@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "split": "independent_evaluation",
+  "scope": "frozen scoped text quotations, not global minimal events or glyph-position masks",
+  "producer": "parent agent; separate from implementation agent",
+  "source_review": "Viewed original PDF pages old5-7/new6-8 rendered with independent Poppler; compared visible letters and punctuation with independent pdftotext layout extraction. No report/candidate inspection for these scopes.",
+  "selection_rule": "Corresponding named body paragraphs in sections2-3 chosen directly from the PDFs; changed and unchanged scopes balance5/5. Development scope is section1 and Schedule C.",
+  "limits": [
+    "This is scoped text/quote gold, not full-document exact glyph-position gold.",
+    "Independent-text character ranges are not pdfdelta glyph indices.",
+    "Reader is a separate agent in the same session, not an external human annotator.",
+    "The parent previously read the overall analysis; it has not read benchmark outputs for these heldout scopes.",
+    "These source labels do not prescribe a unique minimal edit alignment or certify an engine completion flag."
+  ],
+  "original_registration_sha256": "c098d5d4ec4d0941b50312e3e516c06d62da2e38c08315fce73c1007b8c4549a",
+  "normalization": "Only whitespace runs and line/page wrapping ignored within the explicitly quoted spans. No punctuation, hyphen, apostrophe, case or wording normalization. Paragraph labels and footnotes explicitly excluded.",
+  "sources": {
+    "edpb-restrictions-v1-to-final": {
+      "old": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-old.pdf",
+        "bytes": 202951,
+        "sha256": "96c8d6ea80adf30e492a8cc3a544d5666b67b9cc7c3eb05cbd994064d62ed728"
+      },
+      "new": {
+        "path": "benchmark/realworld/cache/next-dev/edpb-restrictions-v1-to-final-new.pdf",
+        "bytes": 502861,
+        "sha256": "2fbbe356b0686feddf367877df111a4db433ea9a99747331e528aba90f4f3986"
+      }
+    }
+  },
+  "targets": [
+    {
+      "id": "heldout-s2-p7",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 5,
+        "quote": "The term restrictions is not defined in the GDPR. Article 23 and Recital 73 GDPR only list the conditions under which restrictions can be applied.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 6,
+        "quote": "The term restrictions is not defined in the GDPR. Article 23 and Recital 73 GDPR only list the conditions under which restrictions can be applied.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s2-p10",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "changed",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 5,
+        "quote": "In addition, as mentioned in Recital 73 GDPR, restrictions should be in accordance with the requirements set out in the Charter and the European Convention for the Protection of Human Rights and Fundamental Freedoms.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "Furthermore, as mentioned in Recital 73 GDPR, restrictions should be in accordance with the requirements set out in the Charter and the European Convention for the Protection of Human Rights and Fundamental Freedoms.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s2-p11",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 5,
+        "quote": "In addition to restrictions referred to in Article 23, the GDPR also lays down provision relating to specific processing situations as per Chapter IX, where Member States may provide by law specific measures impacting data subjects’ rights, such as exemptions or derogations (for instance, Articles 85 or 89 GDPR). However these guidelines do not address those cases.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "In addition to restrictions referred to in Article 23, the GDPR also lays down provision relating to specific processing situations as per Chapter IX, where Member States may provide by law specific measures impacting data subjects’ rights, such as exemptions or derogations (for instance, Articles 85 or 89 GDPR). However these guidelines do not address those cases.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s2-p12-sentence1",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "changed",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 6,
+        "quote": "Restricting the scope of the obligations and rights provided for in Article 12 to 22 and Article 34 may take different forms but never reaching the point of a general suspension of all rights.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "Restricting the scope of the obligations and rights provided for in Article 12 to 22 and Article 34 may take different forms but may never reach the point of a general suspension of all rights.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s2-p12-sentence2",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "changed",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 6,
+        "quote": "Legislative measures laying down the provisions for the application of restrictions under Article 23 GDPR may also foresee that the exercise of a right is delayed in time, that a right is exercised partially or circumscribed to certain categories of data or that a right can be exercised indirectly through an independent supervisory authority.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "Legislative measures laying down restrictions under Article 23 GDPR may also foresee that the exercise of a right is delayed in time, that a right is exercised partially or circumscribed to certain categories of data or that a right can be exercised indirectly through an independent supervisory authority.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s3-p13",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "changed",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 6,
+        "quote": "Article 23(1) GDPR lists a number of requirements, which will be detailed below. All those requirements need to be met in order for a measure to be lawfully relied upon.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "Article 23(1) GDPR lists a number of requirements, which are detailed below. All those requirements need to be met in order for a measure to be lawfully relied upon.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s3-p14-last-sentence",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 6,
+        "quote": "If the essence of the right is compromised, the restriction shall be considered unlawful, without the need to further assess whether it serves an objective of general interest or satisfies the necessity and proportionality criteria.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "If the essence of the right is compromised, the restriction shall be considered unlawful, without the need to further assess whether it serves an objective of general interest or satisfies the necessity and proportionality criteria.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s3-p15",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 6,
+        "quote": "In order to guarantee this control, data subjects have a number of rights within the right to data protection and the controller has a number of obligations vis a vis the data subject, set out under Articles 12 to 22 and Article 34 GDPR, as well as Article 5 in so far as its provisions correspond to the rights and obligations provided for in Articles 12 to 22 GDPR. It is against this background that Article 23 GDPR should be read and interpreted.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 7,
+        "quote": "In order to guarantee this control, data subjects have a number of rights within the right to data protection and the controller has a number of obligations vis a vis the data subject, set out under Articles 12 to 22 and Article 34 GDPR, as well as Article 5 in so far as its provisions correspond to the rights and obligations provided for in Articles 12 to 22 GDPR. It is against this background that Article 23 GDPR should be read and interpreted.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s3-p17-inner",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "changed",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 7,
+        "quote": "In particular, the domestic law must be sufficiently clear in its terms to give citizens an adequate indication of the circumstances in and conditions under which controllers are empowered to resort to any such restrictions.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 8,
+        "quote": "In particular, the domestic law must be sufficiently clear in its terms to give individuals an adequate indication of the circumstances in and conditions under which controllers are empowered to resort to any such restrictions.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    },
+    {
+      "id": "heldout-s3-p18-intro",
+      "pair": "edpb-restrictions-v1-to-final",
+      "judgement": "unchanged",
+      "position_policy": "scoped_text; exact minimal alignment not prescribed",
+      "old": {
+        "page": 7,
+        "quote": "While any legislative measure must in any case be adapted to the objective pursued and meet the foreseeability criterion, a legislative measure laying down the provisions for the application of restrictions under Article 23 GDPR does not always have to be limited in time or linked to a specific period.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "new": {
+        "page": 8,
+        "quote": "While any legislative measure must in any case be adapted to the objective pursued and meet the foreseeability criterion, a legislative measure laying down the provisions for the application of restrictions under Article 23 GDPR does not always have to be limited in time or linked to a specific period.",
+        "quote_validation": "unique on declared independent source page"
+      },
+      "location": "quoted body-text span only; excludes paragraph label, footnotes, running footer and other text"
+    }
+  ]
+}

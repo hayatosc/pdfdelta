@@ -6,10 +6,10 @@ mod sentence;
 
 pub(crate) use assessment::ExactDisplacementInput;
 pub use assessment::{
-    ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AssessmentReason, AssessmentWork, ChangeCandidate,
-    ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalTextClaims, LocalTextSide,
-    LocalizedEditScript, RelationAssessment, RelationOutcome, ResolutionRange, ResolutionState,
-    ReviewUnit, SearchCompleteness, local_text_claims,
+    ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AnchorWork, AssessmentReason, AssessmentWork,
+    ChangeCandidate, ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalTextClaims,
+    LocalTextSide, LocalViewWork, LocalizedEditScript, RelationAssessment, RelationOutcome,
+    ResolutionRange, ResolutionState, ReviewUnit, SearchCompleteness, local_text_claims,
 };
 
 pub use recovery::container::{
@@ -207,9 +207,11 @@ impl ChangedRegionProof {
 
 /// A source-backed region whose content is proven to differ but is not exactly localized.
 ///
-/// These regions remain unresolved and do not contribute to alignment coverage. They let
-/// callers distinguish a proven content difference from a region whose content relation is
-/// wholly unknown.
+/// The containing proof owns no tokens and does not contribute to coverage.
+/// Independently complete mandatory literal equalities may resolve paired
+/// subruns inside the same exact whole parent; the remaining edit locations
+/// stay unresolved. The containing proof still prevents comparison completion
+/// and distinguishes a known content difference from a wholly unknown relation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProvenChangedRegion {
     pub old_span: Option<TextSpan>,
@@ -15428,6 +15430,8 @@ mod tests {
             if let Some(assessment) = comparison.assessment.as_mut() {
                 assessment.work_used = 0;
                 assessment.work_by_stage = AssessmentWork::default();
+                assessment.anchor_work = AnchorWork::default();
+                assessment.local_view_work = LocalViewWork::default();
             }
         }
         assert_eq!(left, right);
@@ -15629,6 +15633,8 @@ mod tests {
             assert!(actual.work_used >= expected.work_used);
             expected.work_used = actual.work_used;
             expected.work_by_stage = actual.work_by_stage;
+            expected.anchor_work = actual.anchor_work;
+            expected.local_view_work = actual.local_view_work;
         }
         assert_eq!(recovered, public);
     }

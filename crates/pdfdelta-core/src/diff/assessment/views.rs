@@ -132,12 +132,34 @@ enum SearchResult {
 /// token equality and globally unique occurrence across the available views. A
 /// shared-work budget exhaustion therefore returns no newly inferred domain; callers
 /// may safely retain domains discovered by an earlier completed invocation.
+#[cfg(test)]
 pub(super) fn discover(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
     exact_anchors: &[(TextSpan, TextSpan)],
     remaining_work: &mut usize,
     max_ranges: usize,
+) -> Result<Discovery> {
+    discover_recording(
+        sides,
+        recovery,
+        exact_anchors,
+        remaining_work,
+        max_ranges,
+        &mut super::LocalViewWork::default(),
+        false,
+    )
+}
+
+/// Retains phase charges even when an optional search returns no domains.
+pub(super) fn discover_recording(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    exact_anchors: &[(TextSpan, TextSpan)],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    work: &mut super::LocalViewWork,
+    retain_positioned_prefix: bool,
 ) -> Result<Discovery> {
     if max_ranges == 0 {
         return Err(super::invalid(
@@ -166,7 +188,10 @@ pub(super) fn discover(
     if *remaining_work == 0 || sides.iter().any(|side| side.blocks.is_empty()) {
         return Ok(Discovery::default());
     }
-    let Some(mut issue_cache) = super::SourceIssueCache::new(sides, remaining_work)? else {
+    let before = *remaining_work;
+    let issue_cache = super::SourceIssueCache::new(sides, remaining_work)?;
+    work.source_issue_index += before - *remaining_work;
+    let Some(mut issue_cache) = issue_cache else {
         return Ok(Discovery::default());
     };
 
@@ -176,37 +201,43 @@ pub(super) fn discover(
     let new_descriptors = recovery
         .new_trusted_run_evidence
         .map(|evidence| evidence.descriptors);
-    let Some(old_views) = build_views(
+    let before = *remaining_work;
+    let old_views = build_views(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
         recovery.old_native_order_blocks,
         remaining_work,
-    )?
-    else {
+    )?;
+    work.build_views += before - *remaining_work;
+    let Some(old_views) = old_views else {
         return Ok(Discovery::default());
     };
-    let Some(new_views) = build_views(
+    let before = *remaining_work;
+    let new_views = build_views(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
         recovery.new_native_order_blocks,
         remaining_work,
-    )?
-    else {
+    )?;
+    work.build_views += before - *remaining_work;
+    let Some(new_views) = new_views else {
         return Ok(Discovery::default());
     };
     if old_views.is_empty() || new_views.is_empty() {
         return Ok(Discovery::default());
     }
     let mut pair_anchors = BTreeMap::<(usize, usize), Vec<AnchorHit>>::new();
-    let Some(seeds) = anchors::discover(
+    let before = *remaining_work;
+    let seeds = anchors::discover(
         [&old_views, &new_views],
         recovery.min_tokens,
         remaining_work,
         max_ranges,
-    )?
-    else {
+    )?;
+    work.seed_search += before - *remaining_work;
+    let Some(seeds) = seeds else {
         return Ok(Discovery::default());
     };
     for anchor in seeds {
@@ -288,13 +319,15 @@ pub(super) fn discover(
             .iter()
             .map(|(i, tokens)| (*i, tokens.as_slice())),
     );
-    let Some(matches) = anchors::search_explicit_anchors(
+    let before = *remaining_work;
+    let matches = anchors::search_explicit_anchors(
         [&old_views, &new_views],
         &needles,
         recovery.min_tokens,
         remaining_work,
-    )?
-    else {
+    )?;
+    work.explicit_anchor_search += before - *remaining_work;
+    let Some(matches) = matches else {
         return Ok(Discovery::default());
     };
     for (input_index, old_occurrences, new_occurrences) in matches {
@@ -559,9 +592,10 @@ pub(super) fn discover(
         }
     }
     // The positioned pass is optional and runs after the anchor flow. An
-    // exhausted budget drops only its own unproven additions; the completed
-    // anchor domains and exact anchors are kept, and the caller records the
-    // work limit from the shared budget.
+    // exhausted budget keeps the completed anchor domains and exact anchors.
+    // The scoped prefix policy additionally keeps independently completed
+    // positioned pairs whose final publication was prepaid. Unfinished
+    // candidates remain held, and the caller retains the shared work limit.
     let _positioned_complete = positioned_equalities(
         sides,
         [&old_views, &new_views],
@@ -569,6 +603,7 @@ pub(super) fn discover(
         &mut localized,
         max_ranges,
         &mut issue_cache,
+        retain_positioned_prefix,
     )?;
     localized.sort_unstable_by_key(|(key, _)| *key);
     localized.truncate(max_ranges);
@@ -1336,6 +1371,116 @@ struct PositionedDomain {
     new_projection: Vec<SourceInterval>,
 }
 
+/// Pays the final key lookups and possible shallow vector moves before a
+/// completed pair can enter the publishable prefix. The bound covers these
+/// three requested vector capacities, not existing source payloads or the
+/// allocator's overhead. Work uses eight fixed units for keys and publication
+/// plus machine words for possible shallow vector moves; it is a conservative
+/// logical bound, not an exact CPU count. Source payloads are never cloned.
+fn approve_positioned_publication(
+    domains: &mut Vec<SortedDomain>,
+    additions: &mut Vec<(PositionedDomain, LocalDomain)>,
+    keys: &mut Vec<(usize, usize, usize, usize)>,
+    remaining: &mut usize,
+    limit: usize,
+) -> bool {
+    fn capacity(current: usize, needed: usize, limit: usize) -> Option<usize> {
+        if needed > limit {
+            return None;
+        }
+        Some(if current >= needed {
+            current
+        } else {
+            needed.max(current.saturating_mul(2).max(1).min(limit))
+        })
+    }
+    let Some(pending) = keys.len().checked_add(1) else {
+        return false;
+    };
+    let Some(total) = domains.len().checked_add(pending) else {
+        return false;
+    };
+    let Some(domain_capacity) = capacity(domains.capacity(), total, limit) else {
+        return false;
+    };
+    let Some(addition_capacity) = capacity(additions.capacity(), pending, limit) else {
+        return false;
+    };
+    let Some(key_capacity) = capacity(keys.capacity(), pending, limit) else {
+        return false;
+    };
+    let requested = [
+        (domain_capacity, std::mem::size_of::<SortedDomain>()),
+        (
+            addition_capacity,
+            std::mem::size_of::<(PositionedDomain, LocalDomain)>(),
+        ),
+        (
+            key_capacity,
+            std::mem::size_of::<(usize, usize, usize, usize)>(),
+        ),
+    ]
+    .into_iter()
+    .try_fold(0usize, |bytes, (count, size)| {
+        bytes.checked_add(count.checked_mul(size)?)
+    });
+    if requested.is_none_or(|bytes| bytes > 64 * 1024 * 1024) {
+        return false;
+    }
+    let moves = [
+        (
+            domain_capacity > domains.capacity(),
+            domains.len(),
+            std::mem::size_of::<SortedDomain>(),
+        ),
+        (
+            addition_capacity > additions.capacity(),
+            additions.len(),
+            std::mem::size_of::<(PositionedDomain, LocalDomain)>(),
+        ),
+        (
+            key_capacity > keys.capacity(),
+            keys.len(),
+            std::mem::size_of::<(usize, usize, usize, usize)>(),
+        ),
+    ]
+    .into_iter()
+    .try_fold(8usize, |work, (grows, count, size)| {
+        let words = if grows {
+            count.checked_mul(size)? / std::mem::size_of::<usize>()
+        } else {
+            0
+        };
+        work.checked_add(words)
+    });
+    let Some(moves) = moves else {
+        return false;
+    };
+    if !charge(remaining, moves) {
+        return false;
+    }
+    domains
+        .try_reserve_exact(domain_capacity - domains.len())
+        .is_ok()
+        && additions
+            .try_reserve_exact(addition_capacity - additions.len())
+            .is_ok()
+        && keys.try_reserve_exact(key_capacity - keys.len()).is_ok()
+}
+
+/// Publishes only pairs with prepaid keys and output capacity. An unfinished
+/// candidate never enters this list; moving the prefix spends no fresh work.
+fn publish_positioned_prefix(
+    domains: &mut Vec<SortedDomain>,
+    additions: &mut Vec<(PositionedDomain, LocalDomain)>,
+    keys: &mut Vec<(usize, usize, usize, usize)>,
+) {
+    debug_assert_eq!(additions.len(), keys.len());
+    for ((_, domain), key) in additions.drain(..).zip(keys.drain(..)) {
+        domains.push((key, domain));
+    }
+}
+
 /// Closes complete source-bounded original blocks whose canonical tokens,
 /// page and exact per-token source positions form a one-to-one key.
 ///
@@ -1365,6 +1510,7 @@ fn positioned_equalities(
     domains: &mut Vec<SortedDomain>,
     limit: usize,
     issue_cache: &mut super::SourceIssueCache<'_>,
+    retain_completed: bool,
 ) -> Result<bool> {
     // Map every source block to the view that contains it.
     let mut view_of_block = [
@@ -1468,6 +1614,7 @@ fn positioned_equalities(
         }
     }
     let mut additions: Vec<(PositionedDomain, LocalDomain)> = Vec::new();
+    let mut prepared_keys = Vec::new();
     // One optional first-token posting index per side for this pass; a refused
     // index leaves that side on the legacy scanning path without touching the
     // shared remainder.
@@ -1500,6 +1647,9 @@ fn positioned_equalities(
                 break 'views;
             }
             if !charge(remaining, old_range.len().saturating_add(1)) {
+                if retain_completed {
+                    publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                }
                 return Ok(false);
             }
             // The old side must not contain another occurrence at the same
@@ -1521,6 +1671,9 @@ fn positioned_equalities(
                     remaining,
                 )?,
             }) else {
+                if retain_completed {
+                    publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                }
                 return Ok(false);
             };
             if old_occurrences.same != 0 || old_occurrences.unknown {
@@ -1543,6 +1696,9 @@ fn positioned_equalities(
                     positioned_occurrences(views[1], old_view, &old_range, usize::MAX, remaining)?
                 }
             }) else {
+                if retain_completed {
+                    publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                }
                 return Ok(false);
             };
             if new_occurrences.same != 1 || new_occurrences.unknown {
@@ -1578,6 +1734,9 @@ fn positioned_equalities(
                 false
             } else {
                 if !charge(remaining, equal_domains.len().saturating_add(1)) {
+                    if retain_completed {
+                        publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                    }
                     return Ok(false);
                 }
                 equal_domains.iter().any(|domain| {
@@ -1600,9 +1759,15 @@ fn positioned_equalities(
             let old_span = old_view.group.span(old_range.start, old_range.end);
             let new_span = new_view.group.span(new_range.start, new_range.end);
             let Some(old_projection) = project_span(sides[0], &old_span, remaining)? else {
+                if retain_completed {
+                    publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                }
                 return Ok(false);
             };
             let Some(new_projection) = project_span(sides[1], &new_span, remaining)? else {
+                if retain_completed {
+                    publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                }
                 return Ok(false);
             };
             // Keep existing domains; hold any addition whose source ranges
@@ -1629,6 +1794,9 @@ fn positioned_equalities(
                         )
                         .saturating_add(1),
                 ) {
+                    if retain_completed {
+                        publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                    }
                     return Ok(false);
                 }
                 if !(projected_overlap(&old_projection, &other.old_projection)
@@ -1658,6 +1826,13 @@ fn positioned_equalities(
                                 .saturating_add(other.new_range.len())
                                 .saturating_add(1),
                         ) {
+                            if retain_completed {
+                                publish_positioned_prefix(
+                                    domains,
+                                    &mut additions,
+                                    &mut prepared_keys,
+                                );
+                            }
                             return Ok(false);
                         }
                         old_view.group.tokens[other.old_range.clone()]
@@ -1686,6 +1861,36 @@ fn positioned_equalities(
             {
                 continue;
             }
+            if retain_completed {
+                if !approve_positioned_publication(
+                    domains,
+                    &mut additions,
+                    &mut prepared_keys,
+                    remaining,
+                    limit,
+                ) {
+                    publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+                    return Ok(false);
+                }
+                let old_index = old_span
+                    .blocks
+                    .first()
+                    .and_then(|block| sides[0].index.get(block))
+                    .copied()
+                    .unwrap_or(usize::MAX);
+                let new_index = new_span
+                    .blocks
+                    .first()
+                    .and_then(|block| sides[1].index.get(block))
+                    .copied()
+                    .unwrap_or(usize::MAX);
+                prepared_keys.push((
+                    old_index,
+                    new_index,
+                    old_span.comparable_range.start,
+                    new_span.comparable_range.start,
+                ));
+            }
             additions.push((
                 PositionedDomain {
                     old_view: old_view_index,
@@ -1702,6 +1907,12 @@ fn positioned_equalities(
                 },
             ));
         }
+    }
+    if retain_completed {
+        publish_positioned_prefix(domains, &mut additions, &mut prepared_keys);
+        // Source-veto helpers can spend the last work unit while holding the
+        // final candidate. Complete local pairs survive; the pass stays open.
+        return Ok(*remaining != 0);
     }
     for (_, domain) in additions {
         let old_index = domain
@@ -7629,6 +7840,7 @@ mod tests {
             &mut domains,
             100,
             &mut cache,
+            false,
         )?;
         assert!(complete, "the positioned pass completes");
         for (old_id, new_id) in &endings {
@@ -8464,7 +8676,238 @@ mod tests {
             retained.contains(anchor),
             "an exhausted positioned pass must keep the completed anchor domain: {retained:?}"
         );
+        let mut scoped_budget = usize::MAX;
+        let mut work = super::super::LocalViewWork::default();
+        let scoped_full = discover_recording(
+            [&old, &new],
+            input,
+            &[],
+            &mut scoped_budget,
+            100,
+            &mut work,
+            true,
+        )?;
+        assert_eq!(scoped_full.domains, full);
+        let scoped_used = usize::MAX - scoped_budget;
+        let mut cut = scoped_used - 1;
+        let scoped_cut = discover_recording(
+            [&old, &new],
+            input,
+            &[],
+            &mut cut,
+            100,
+            &mut super::super::LocalViewWork::default(),
+            true,
+        )?;
+        assert_eq!(cut, 0);
+        assert!(scoped_cut.domains.contains(anchor));
+        assert!(
+            scoped_cut
+                .domains
+                .iter()
+                .all(|domain| full.contains(domain)),
+            "only independently completed mappings may survive: {:?}",
+            scoped_cut.domains
+        );
         Ok(())
+    }
+
+    fn run_positioned_prefix_fixture(
+        old_blocks: &[crate::normalize::BlockText],
+        new_blocks: &[crate::normalize::BlockText],
+        budget: usize,
+        limit: usize,
+        retain: bool,
+        mut domains: Vec<SortedDomain>,
+    ) -> Result<(bool, Vec<SortedDomain>, usize)> {
+        let old = side(old_blocks);
+        let new = side(new_blocks);
+        let mut preparation = usize::MAX;
+        let old_intervals = vec![None; old_blocks.len()];
+        let new_intervals = vec![None; new_blocks.len()];
+        let old_views = build_views(&old, &old_intervals, None, &[], &mut preparation)?
+            .expect("old source views");
+        let new_views = build_views(&new, &new_intervals, None, &[], &mut preparation)?
+            .expect("new source views");
+        let mut cache = super::super::SourceIssueCache::new([&old, &new], &mut preparation)?
+            .expect("fresh source issue cache");
+        let mut remaining = budget;
+        let complete = positioned_equalities(
+            [&old, &new],
+            [&old_views, &new_views],
+            &mut remaining,
+            &mut domains,
+            limit,
+            &mut cache,
+            retain,
+        )?;
+        Ok((complete, domains, remaining))
+    }
+
+    #[test]
+    fn positioned_prefix_keeps_complete_pair_and_holds_unfinished_pair() -> Result<()> {
+        let old = [
+            positioned_block(1, "AA", 10.0, 760.0, 0),
+            positioned_block(2, "BBB", 10.0, 740.0, 0),
+        ];
+        let new = [
+            positioned_block(101, "AA", 10.0, 760.0, 0),
+            positioned_block(102, "BBB", 10.0, 740.0, 0),
+        ];
+        let (complete, full, remaining) =
+            run_positioned_prefix_fixture(&old, &new, usize::MAX, 8, true, Vec::new())?;
+        assert!(complete);
+        assert_eq!(full.len(), 2);
+        let expected = [(1, 101, 2), (2, 102, 3)]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (old_id, new_id, length))| {
+                let span = |id| TextSpan {
+                    blocks: vec![BlockId(id)],
+                    separator: None,
+                    canonical_range: ScalarRange {
+                        start: 0,
+                        end: length,
+                    },
+                    comparable_range: crate::diff::TokenRange {
+                        start: 0,
+                        end: length,
+                    },
+                };
+                (
+                    (index, index, 0, 0),
+                    LocalDomain {
+                        old_span: span(old_id),
+                        new_span: span(new_id),
+                        source_bounded: true,
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(full, expected, "literal fixture source correspondence");
+        let (_, legacy, _) =
+            run_positioned_prefix_fixture(&old, &new, usize::MAX, 8, false, Vec::new())?;
+        assert_eq!(full, legacy);
+        let used = usize::MAX - remaining;
+        let mut witnessed_cut = false;
+        for budget in 0..=used {
+            let (complete, retained, remaining) =
+                run_positioned_prefix_fixture(&old, &new, budget, 8, true, Vec::new())?;
+            assert!(retained.iter().all(|pair| full.contains(pair)));
+            if !complete {
+                assert_eq!(remaining, 0);
+            }
+            if remaining == 0 {
+                assert!(
+                    !complete,
+                    "zero remainder never certifies a complete scoped pass"
+                );
+            }
+            if !complete && retained.len() == 1 {
+                witnessed_cut = true;
+                assert_eq!(retained[0], full[0]);
+                assert!(!retained.contains(&full[1]));
+                assert!(retained[0].1.source_bounded);
+            }
+        }
+        assert!(witnessed_cut, "a completed first pair survives a later cut");
+        for cap in 0..=2 {
+            let (_, retained, _) =
+                run_positioned_prefix_fixture(&old, &new, usize::MAX, cap, true, Vec::new())?;
+            assert!(retained.len() <= cap);
+            assert!(retained.iter().all(|pair| full.contains(pair)));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_prefix_preserves_duplicate_unknown_and_overlap_vetoes() -> Result<()> {
+        let base = positioned_block(1, "AA", 10.0, 760.0, 0);
+        let new = [positioned_block(101, "AA", 10.0, 760.0, 0)];
+        for unknown in [false, true] {
+            let mut duplicate = positioned_block(2, "AA", 10.0, 760.0, 0);
+            if unknown {
+                duplicate.position_signatures = None;
+            }
+            let (_, retained, _) = run_positioned_prefix_fixture(
+                &[base.clone(), duplicate],
+                &new,
+                usize::MAX,
+                8,
+                true,
+                Vec::new(),
+            )?;
+            assert!(retained.is_empty());
+        }
+        let issue = raw_issue_block(1, 10.0, 760.0, 0);
+        assert_eq!(
+            issue.checked_normalization_issue_ranges()?,
+            vec![ScalarRange { start: 2, end: 3 }],
+            "the retained ambiguous line break has a validated source range"
+        );
+        let issue_new = [raw_issue_block(101, 10.0, 760.0, 0)];
+        let (_, retained, _) =
+            run_positioned_prefix_fixture(&[issue], &issue_new, usize::MAX, 8, true, Vec::new())?;
+        assert!(
+            retained.is_empty(),
+            "intersecting normalization source issue holds"
+        );
+        let partial = LocalDomain {
+            old_span: TextSpan {
+                blocks: vec![BlockId(1)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 1 },
+                comparable_range: crate::diff::TokenRange { start: 0, end: 1 },
+            },
+            new_span: TextSpan {
+                blocks: vec![BlockId(101)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 1 },
+                comparable_range: crate::diff::TokenRange { start: 0, end: 1 },
+            },
+            source_bounded: true,
+        };
+        let initial = vec![((0, 0, 0, 0), partial)];
+        let (_, retained, _) =
+            run_positioned_prefix_fixture(&[base], &new, usize::MAX, 8, true, initial.clone())?;
+        assert_eq!(retained, initial);
+        Ok(())
+    }
+
+    #[test]
+    fn positioned_prefix_commit_work_and_capacity_are_preapproved() {
+        let mut domains = Vec::new();
+        let mut additions = Vec::new();
+        let mut keys = Vec::new();
+        let mut budget = 7;
+        assert!(!approve_positioned_publication(
+            &mut domains,
+            &mut additions,
+            &mut keys,
+            &mut budget,
+            1
+        ));
+        assert_eq!(budget, 0);
+        assert_eq!(domains.capacity(), 0);
+        assert_eq!(keys.capacity(), 0);
+        budget = 8;
+        assert!(!approve_positioned_publication(
+            &mut domains,
+            &mut additions,
+            &mut keys,
+            &mut budget,
+            0
+        ));
+        assert_eq!(budget, 8);
+        assert!(approve_positioned_publication(
+            &mut domains,
+            &mut additions,
+            &mut keys,
+            &mut budget,
+            1
+        ));
+        assert_eq!(budget, 0);
+        assert!(domains.capacity() >= 1 && additions.capacity() >= 1 && keys.capacity() >= 1);
     }
 
     #[test]

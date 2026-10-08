@@ -15,8 +15,8 @@ use pdfdelta_core::{
     pdf::{LopdfParser, ParseLimits, PdfParser},
     pipeline::{PipelineOptions, compare_glyph_documents},
     source::{
-        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
-        ExtractionOutcome, ExtractionScope, GlyphExtractor,
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionIssueKind,
+        ExtractionLimits, ExtractionOutcome, ExtractionScope, GlyphExtractor,
     },
 };
 
@@ -303,6 +303,140 @@ fn extract_outcome(
         .expect("fixture PDF should serialize");
     let pdf = LopdfParser.parse(Arc::from(bytes), ParseLimits::default())?;
     ContentStreamGlyphExtractor.extract_outcome(pdf.as_ref(), limits)
+}
+
+#[test]
+fn empty_native_pages_with_invoked_images_keep_text_presence_unexamined() {
+    for (content, complete, glyph_count) in [
+        ("/I Do", false, 0),
+        ("", true, 0),
+        ("20 20 m 30 25 l S", true, 0),
+        ("q 1 0 0 1 400 400 cm /I Do Q", true, 0),
+        ("q 10 10 0 0 re W n /I Do Q", true, 0),
+        ("q 50 50 10 10 re W n /I Do Q", true, 0),
+        ("q 0 0 m 10 10 20 10 30 0 c W n /I Do Q", false, 0),
+        ("BT /F1 10 Tf 1 0 0 1 30 50 Tm (A) Tj ET /I Do", true, 1),
+        ("BI /W 1 /H 1 /BPC 8 /CS /G ID x EI", false, 0),
+        (
+            "BT /F1 10 Tf 3 Tr 1 0 0 1 30 50 Tm (A) Tj ET /I Do",
+            false,
+            1,
+        ),
+        ("BT /F1 10 Tf 7 Tr 1 0 0 1 30 50 Tm (A) Tj ET", true, 1),
+        (
+            "/I Do BT /F1 10 Tf 7 Tr 1 0 0 1 30 50 Tm (A) Tj ET",
+            false,
+            1,
+        ),
+        ("BT /F1 10 Tf 1 0 0 1 400 400 Tm (A) Tj ET /I Do", false, 1),
+        (
+            "q 10 10 5 5 re W n BT /F1 10 Tf 1 0 0 1 30 50 Tm (A) Tj ET Q /I Do",
+            false,
+            1,
+        ),
+        ("BT /F1 10 Tf 3 Tr 1 0 0 1 30 50 Tm (A) Tj ET", true, 1),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let image = pdf.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject", "Subtype" => "Image", "Width" => 1, "Height" => 1,
+                "BitsPerComponent" => 8, "ColorSpace" => "DeviceGray",
+            },
+            vec![0],
+        ));
+        let stream = pdf.add_object(Stream::new(dictionary! {}, content.as_bytes().to_vec()));
+        install_page(
+            &mut pdf,
+            stream.into(),
+            Object::Dictionary(dictionary! {
+                "XObject" => dictionary! { "I" => image },
+                "Font" => dictionary! { "F1" => font },
+            }),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default()).expect("native outcome");
+        assert_eq!(outcome.is_complete(), complete, "content: {content}");
+        assert_eq!(
+            outcome.document().items().len(),
+            glyph_count,
+            "content: {content}"
+        );
+        if !complete {
+            let expected_scope = if glyph_count == 0 {
+                ExtractionScope::Page(PageId(0))
+            } else {
+                ExtractionScope::PageGlyphGap {
+                    page: PageId(0),
+                    retained_before: 0,
+                    paint_index: None,
+                }
+            };
+            assert!(
+                outcome.issues().iter().any(|issue| {
+                    issue.scope() == expected_scope
+                        && issue.kind() == ExtractionIssueKind::Unresolved
+                        && issue
+                            .description()
+                            .contains("image text presence is unexamined")
+                }),
+                "content: {content}, issues: {:?}",
+                outcome.issues()
+            );
+            if glyph_count > 0 {
+                let glyph = &outcome.document().items()[0];
+                assert_eq!(glyph.raw_code, b"A");
+                assert_ne!(glyph.provenance.content_stream.object_number, 0);
+                assert_eq!(outcome.document().displacements().len(), 1);
+            }
+        }
+    }
+}
+
+#[test]
+fn unexamined_image_guard_is_page_local_and_resets_after_each_page() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let image = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Image", "Width" => 1, "Height" => 1,
+            "BitsPerComponent" => 8, "ColorSpace" => "DeviceGray",
+        },
+        vec![0],
+    ));
+    let contents = [
+        b"/I Do".as_slice(),
+        b"BT /F1 10 Tf 1 0 0 1 30 50 Tm (A) Tj ET".as_slice(),
+        b"/I Do".as_slice(),
+        b"".as_slice(),
+    ]
+    .map(|content| {
+        Object::Reference(pdf.add_object(Stream::new(dictionary! {}, content.to_vec())))
+    });
+    install_plain_pages(
+        &mut pdf,
+        &contents,
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "I" => image },
+            "Font" => dictionary! { "F1" => font },
+        }),
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default()).expect("page-local outcome");
+    assert!(!outcome.is_complete());
+    assert_eq!(outcome.document().items().len(), 1);
+    assert_eq!(outcome.document().items()[0].page, PageId(1));
+    assert_eq!(
+        outcome
+            .issues()
+            .iter()
+            .map(ExtractionIssue::scope)
+            .collect::<Vec<_>>(),
+        vec![
+            ExtractionScope::Page(PageId(0)),
+            ExtractionScope::Page(PageId(2))
+        ]
+    );
 }
 
 fn extract_with_external_font_identities(

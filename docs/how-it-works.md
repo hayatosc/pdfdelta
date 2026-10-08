@@ -107,6 +107,53 @@ displace a competing keyed item merely by matching more unchanged pieces.
 - A separate bounded review path can suggest paragraph merges and splits as
   non-owning comparisons without changing accepted correspondences or coverage.
 
+A final optional pass can report a nonowning changed region inside a partly
+resolved, complete source correspondence. Two consecutive equal-token pairs
+must occur on every maximum matching of the parent; the reported interior
+excludes those endpoints. Its latest source ranges must remain wholly
+unresolved, and a nonwhitespace token multiset mismatch must have literal raw
+glyph evidence. The correspondence metadata records
+`mandatory_matching_boundaries`, which establishes the containing range and
+leaves individual edit locations ambiguous. It assigns no ownership, removes
+no candidates, and cannot make a comparison complete.
+
+This pass borrows canonical tokens rather than copying formatting or font
+payloads. Its live arrays, matching analysis, source checks and newly retained
+output payloads are bounded and paid before allocation or traversal. It runs
+after the existing recovery and review passes, so it uses only their remaining
+shared budget.
+
+A further optional tail can resolve paired literal equalities inside a two-sided
+whole single-block changed region. Its direct parent and every actual ancestor
+must remain complete, clean correspondences. Every selected nonwhitespace pair
+must occur on every optimal matching of that original parent; both sides must
+still be unresolved and outside candidate or other coarse ranges. Singleton
+canonical and raw glyph sources, contiguous raw cuts, absence of glyph reuse,
+normalization checks and a shared page supply the literal evidence. This
+separately named source proof uses the mandatory parent pairing rather than
+requiring equal positions; existing positioned proofs retain their geometry
+checks. Synthetic whitespace is left unowned.
+
+After both ordinary maximal-run and singleton passes, a separate page-shift
+route can use an isolated, complete exact whole single-block parent with no
+ancestor dependency. Both blocks must each belong to one different page and
+match the same whole coarse scope. The original full-parent mandatory matching
+supplies the correspondence; a separately named source guard retains canonical
+and raw literal cuts, normalization and document-wide sharing checks while
+omitting only equality of the numeric page ordinals. Children carry an explicit
+page-shift assumption. The validator permits their coexistence with that exact
+whole coarse proof only under the isolated-parent premise. Earlier proofs keep
+their priority, and all passes share the same remaining budget, source cache and
+publication capacity ledger.
+
+The whole-region multiset mismatch and its review obligations remain unchanged:
+subtracting identical pairs present in every original optimal matching preserves
+the multiset difference and changed-token counts. The tail keeps the original
+parent arrays and never recomputes a matching on compressed residual text.
+Only independently certified paired subruns gain equal ownership; candidates,
+coarse proofs and ambiguous edit locations remain. It uses only the remaining
+shared budget and prepares both sides' publication before adopting either.
+
 ### Tables
 
 - **Ruled grids.** Complete rectangular ruled grids supply an inferred table
@@ -241,3 +288,12 @@ platforms the affected acquisition is reported as unsupported.
 
 `Cargo.lock` pins the reviewed dependency graph, and each dependency sits behind
 a boundary that allows it to be replaced.
+
+For the page-shift publication route, record and ownership arrays use explicit,
+checked geometric capacity requests. The memory allowance includes transient
+old and requested new backing arrays; a larger request falls back to the minimum
+when it would exceed that allowance. Old-array movement is charged when growth
+is required. New record and ownership headers and the bounded capacity metadata
+checks are paid for every publication. Actual capacities are checked before the
+source guard, and spare capacity retained by a refused source attempt remains in
+later memory plans. Same-page capacity requests and work accounting are unchanged.

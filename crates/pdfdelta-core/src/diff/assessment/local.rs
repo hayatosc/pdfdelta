@@ -1,7 +1,7 @@
 use super::{
     Assessor, ChangeCandidate, ChangeEvent, ComparisonAssumption, Ownership, ProposedRelation,
     RelationOutcome, SearchCompleteness, SourceInterval, TextSpan, charge, occurrence_indices,
-    project, proof_groups, visit_domain_hunks,
+    project, visit_domain_hunks,
 };
 use crate::{
     Result,
@@ -91,6 +91,11 @@ impl Assessor<'_, '_> {
             if key.old.is_empty() || key.new.is_empty() {
                 continue;
             }
+            match self.global_anchor_competition(&key) {
+                Some(true) => continue,
+                None => break,
+                Some(false) => {}
+            }
             if !self.charge(
                 self.sides[0].blocks[key.old.clone()]
                     .iter()
@@ -105,7 +110,18 @@ impl Assessor<'_, '_> {
             ) {
                 break;
             }
-            let [old, new] = proof_groups(self.sides, &key)?;
+            let [old, new] = match self.scoped_proof_groups(&key)? {
+                Ok(groups) => groups,
+                Err(refusal) => {
+                    let reason = if refusal == super::MaterializationRefusal::Work {
+                        super::AssessmentReason::WorkLimit
+                    } else {
+                        super::AssessmentReason::SearchIncomplete
+                    };
+                    self.record_optional_search_stop(reason)?;
+                    break;
+                }
+            };
             let domain = super::views::LocalDomain {
                 old_span: old.full_span(),
                 new_span: new.full_span(),
@@ -196,6 +212,9 @@ impl Assessor<'_, '_> {
             }
             let (relation, strict_unique, search) = {
                 let proof = &self.domains[&key];
+                if proof.scope != super::ProofScope::ExactKey {
+                    continue;
+                }
                 (proof.relation, proof.strict_unique, proof.search)
             };
             if !strict_unique
@@ -204,7 +223,18 @@ impl Assessor<'_, '_> {
             {
                 continue;
             }
-            let groups = proof_groups(self.sides, &key)?;
+            let groups = match self.scoped_proof_groups(&key)? {
+                Ok(groups) => groups,
+                Err(refusal) => {
+                    let reason = if refusal == super::MaterializationRefusal::Work {
+                        super::AssessmentReason::WorkLimit
+                    } else {
+                        super::AssessmentReason::SearchIncomplete
+                    };
+                    self.mark_recovery_incomplete(relation, reason)?;
+                    continue;
+                }
+            };
             let token_work = groups[0]
                 .tokens
                 .len()
@@ -1240,6 +1270,9 @@ impl Assessor<'_, '_> {
         }
         let mut candidates = Vec::new();
         for proof in self.domains.values() {
+            if proof.scope != super::ProofScope::ExactKey {
+                continue;
+            }
             let record = &self.records[proof.relation];
             if record.outcome != RelationOutcome::Established
                 || record.search != SearchCompleteness::Complete
@@ -1775,7 +1808,25 @@ impl Assessor<'_, '_> {
             return Ok(LocalRecoveryStep::Continue);
         }
         let key = self.domain_key(&proposal)?;
-        let groups = proof_groups(self.sides, &key)?;
+        if self
+            .domains
+            .get(&key)
+            .is_some_and(|proof| proof.scope != super::ProofScope::ExactKey)
+        {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        let groups = match self.scoped_proof_groups(&key)? {
+            Ok(groups) => groups,
+            Err(refusal) => {
+                let reason = if refusal == super::MaterializationRefusal::Work {
+                    super::AssessmentReason::WorkLimit
+                } else {
+                    super::AssessmentReason::SearchIncomplete
+                };
+                self.mark_recovery_incomplete(relation, reason)?;
+                return Ok(LocalRecoveryStep::Continue);
+            }
+        };
         let proof = &self.domains[&key];
         if proof.edits.is_empty() {
             // Only complete source-bounded singleton domains may publish
@@ -6532,6 +6583,7 @@ mod tests {
             },
         ];
         let proof = |relation: usize, old_len: usize, new_len: usize| DomainProof {
+            scope: super::super::ProofScope::ExactKey,
             relation,
             unique: true,
             search: SearchCompleteness::Complete,
@@ -6805,6 +6857,7 @@ mod tests {
                 new_separator: BlockSeparator::Space,
             },
             DomainProof {
+                scope: super::super::ProofScope::ExactKey,
                 relation,
                 unique: true,
                 search: SearchCompleteness::Complete,

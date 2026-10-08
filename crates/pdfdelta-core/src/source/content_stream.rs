@@ -183,6 +183,7 @@ struct Extraction<'a> {
     next_run: u32,
     run_overflow: bool,
     non_text_paint_bounds: Vec<NonTextPaint>,
+    page_has_unexamined_image: bool,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
     convex_clip_work: usize,
@@ -425,6 +426,7 @@ impl<'a> Extraction<'a> {
             next_run: 1,
             run_overflow: false,
             non_text_paint_bounds: Vec::new(),
+            page_has_unexamined_image: false,
             issues: Vec::new(),
             consumed_glyphs: 0,
             convex_clip_work: 0,
@@ -462,6 +464,8 @@ impl<'a> Extraction<'a> {
     }
 
     fn extract_page(&mut self, page: PageRef, page_id: PageId) -> Result<()> {
+        self.page_has_unexamined_image = false;
+        let glyph_start = self.glyphs.len();
         let snapshot = self.pdf.page_snapshot(page)?;
         let dictionary = snapshot.dictionary;
         let page_geometry = self.page_geometry(&dictionary)?;
@@ -506,6 +510,60 @@ impl<'a> Extraction<'a> {
                 "page {} has an unterminated compatibility section",
                 page.0.object_number
             )));
+        }
+        if self.page_has_unexamined_image
+            && !self.glyphs[glyph_start..]
+                .iter()
+                .any(Glyph::is_comparison_visible)
+        {
+            let scope = if self.glyphs.len() == glyph_start {
+                ExtractionScope::Page(page_id)
+            } else {
+                ExtractionScope::PageGlyphGap {
+                    page: page_id,
+                    retained_before: glyph_start,
+                    paint_index: None,
+                }
+            };
+            self.issues.push(ExtractionIssue::from_error(
+                scope,
+                Error::Unresolved(
+                    "page has a potentially visible image and no comparison-visible native glyphs; image text presence is unexamined".into(),
+                ),
+            )?);
+        }
+        Ok(())
+    }
+
+    /// Images are not decoded for text. Only certified crop or clip exclusion
+    /// can dismiss an invoked image on a page without comparison-visible glyphs.
+    fn note_unexamined_image(
+        &mut self,
+        page_geometry: PageGeometry,
+        state: &InterpreterState,
+    ) -> Result<()> {
+        if self.page_has_unexamined_image || matches!(state.graphics.clip_region, ClipRegion::Empty)
+        {
+            return Ok(());
+        }
+        let Some(bounds) = image_paint_bounds(page_geometry, state) else {
+            self.page_has_unexamined_image = true;
+            return Ok(());
+        };
+        let crop = page_geometry.crop_bounds;
+        if bounds.max.x < crop.min.x
+            || bounds.min.x > crop.max.x
+            || bounds.max.y < crop.min.y
+            || bounds.min.y > crop.max.y
+        {
+            return Ok(());
+        }
+        self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+        if !matches!(
+            state.graphics.clip_region.glyph_status(bounds),
+            Ok(GlyphPathClipStatus::Outside)
+        ) {
+            self.page_has_unexamined_image = true;
         }
         Ok(())
     }
@@ -574,6 +632,7 @@ impl<'a> Extraction<'a> {
     ) -> Result<()> {
         match operation.operator.as_slice() {
             b"BI" => {
+                self.note_unexamined_image(page_geometry, state)?;
                 self.record_non_text_paint(
                     page,
                     stream,
@@ -1894,6 +1953,7 @@ impl Extraction<'_> {
         };
         let xobject = self.cached_xobject(reference)?;
         if matches!(xobject.kind, CachedXObjectKind::Image) {
+            self.note_unexamined_image(page_geometry, state)?;
             self.record_non_text_paint(
                 page,
                 stream,

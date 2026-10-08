@@ -4580,16 +4580,18 @@ fn native_scope_separates_text_from_path_and_image_content() {
     );
     assert_eq!(shared_changed["comparison_complete"], false);
 
-    // An image-only pair completes natively but is vacuous: no native tokens
-    // on either side, so it is not a meaningful document comparison success.
+    // An image-only page has unexamined text presence even when no native
+    // glyphs were extracted. Different pixels do not prove a text change.
     let image_old = directory.join("image-old.pdf");
     let image_new = directory.join("image-new.pdf");
     image_only_fixture(&image_old, [255, 0, 0]);
     image_only_fixture(&image_new, [0, 0, 255]);
     let (vacuous_code, vacuous) =
         native_json(&image_old, &image_new, &directory.join("image-native.json"));
-    assert_eq!(vacuous_code, Some(0));
-    assert_eq!(vacuous["summary"]["comparison_complete"], true);
+    assert_eq!(vacuous_code, Some(3));
+    assert_eq!(vacuous["summary"]["comparison_complete"], false);
+    assert_eq!(vacuous["summary"]["difference_status"], "indeterminate");
+    assert_eq!(vacuous["extraction"]["old_complete"], false);
     assert_eq!(
         vacuous["summary"]["old_alignment_coverage"]["total_tokens"],
         0
@@ -4615,4 +4617,63 @@ fn native_scope_separates_text_from_path_and_image_content() {
     assert_eq!(broken_code, Some(3));
     assert_eq!(broken_report["summary"]["comparison_complete"], false);
     assert_ne!(broken_report["extraction"]["old_complete"], true);
+}
+
+#[test]
+fn image_with_invisible_text_is_incomplete_with_fresh_and_cached_extraction() {
+    let directory = TestDirectory::new();
+    let input = directory.join("hidden-image.pdf");
+    image_only_fixture(&input, [0, 0, 0]);
+    let mut pdf = Document::load(&input).expect("image fixture");
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica", "Encoding" => "WinAnsiEncoding",
+    });
+    let hidden = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 3 Tr 1 0 0 1 10 10 Tm (hidden layer) Tj ET".to_vec(),
+    ));
+    let page = pdf.get_pages()[&1];
+    let page = pdf
+        .get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary");
+    page.get_mut(b"Resources")
+        .expect("resources")
+        .as_dict_mut()
+        .expect("resource dictionary")
+        .set("Font", dictionary! { "F1" => font });
+    let image_content = page.get(b"Contents").expect("image content").clone();
+    page.set("Contents", vec![image_content, Object::Reference(hidden)]);
+    pdf.save(&input).expect("hidden layer fixture");
+    let cache = directory.join("cache");
+    let mut reports = Vec::new();
+    for (name, cached) in [("fresh", false), ("cold", true), ("warm", true)] {
+        let report = directory.join(&format!("{name}.json"));
+        let mut args = vec!["--json", path_text(&report)];
+        if cached {
+            args.extend(["--extraction-cache-dir", path_text(&cache)]);
+        }
+        let output = compare(&input, &input, &args);
+        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let result = read_json(&report);
+        assert_eq!(result["summary"]["comparison_complete"], false);
+        assert_eq!(result["summary"]["content_changes"], 0);
+        assert_eq!(
+            result["summary"]["old_alignment_coverage"]["total_tokens"],
+            0
+        );
+        assert!(
+            result["extraction"]["issues"]
+                .as_array()
+                .expect("issues")
+                .iter()
+                .any(|issue| issue["description"].as_str().is_some_and(
+                    |description| description.contains("image text presence is unexamined")
+                ))
+        );
+        reports.push(result);
+    }
+    assert_eq!(reports[0], reports[1]);
+    assert_eq!(reports[1], reports[2]);
 }

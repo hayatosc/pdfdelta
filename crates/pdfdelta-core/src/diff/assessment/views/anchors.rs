@@ -274,10 +274,20 @@ pub(super) fn search_explicit_anchors_with_limit(
                 if end > tokens.len() {
                     continue;
                 }
-                if !charge(work, needle.len()) {
-                    return Ok(false);
+                // The query visit above already charges the length/bounds
+                // check. Charge only inspected tokens, so a hash-prefix hit
+                // that disagrees early does not pay for an unvisited suffix.
+                let mut equal = true;
+                for (actual, expected) in tokens[occurrence.start..end].iter().zip(*needle) {
+                    if !charge(work, 1) {
+                        return Ok(false);
+                    }
+                    if actual != expected {
+                        equal = false;
+                        break;
+                    }
                 }
-                if &tokens[occurrence.start..end] != *needle {
+                if !equal {
                     continue;
                 }
                 let summary = if side == 0 {

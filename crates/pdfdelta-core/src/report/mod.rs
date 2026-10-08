@@ -741,6 +741,10 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::ExactTextDisplacement => "exact_text_displacement",
         ComparisonAssumption::RigidSuffixTranslation => "rigid_suffix_translation",
         ComparisonAssumption::MandatoryMatchingEquality => "mandatory_matching_equality",
+        ComparisonAssumption::PageShiftedMandatoryMatchingEquality => {
+            "page_shifted_mandatory_matching_equality"
+        }
+        ComparisonAssumption::MandatoryMatchingBoundaries => "mandatory_matching_boundaries",
         ComparisonAssumption::StationaryNeighbour => "stationary_neighbour",
         ComparisonAssumption::PositionedReplacement => "positioned_replacement",
         ComparisonAssumption::RawSourceEquality => "raw_source_equality",

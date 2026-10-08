@@ -5,8 +5,8 @@ use super::super::{
     TextSpan, UnresolvedRegion, valid_change_occurrence_shape,
 };
 use super::{
-    ComparisonAssessment, ResolutionRange, ResolutionState, allocation_error,
-    block_scalar_boundary, invalid, project,
+    ComparisonAssessment, ResolutionRange, ResolutionState, SourceInterval, allocation_error,
+    block_scalar_boundary, invalid, mandatory_equal, project,
 };
 
 #[derive(Clone, Copy)]
@@ -26,6 +26,7 @@ enum OwnershipRequirement {
     Any,
     Changed,
     Unresolved,
+    Equal,
     Resolved,
 }
 
@@ -177,8 +178,10 @@ pub(super) fn validate(
     for region in &comparison.unresolved_regions {
         validate_unresolved_region(sides, &lookups, region)?;
     }
-    for region in &comparison.proven_changed_regions {
-        validate_proven_changed_region(sides, &lookups, region)?;
+    let coarse_certificates =
+        coarse_equality_certificates(sides, &lookups, assessment, comparison)?;
+    for (index, region) in comparison.proven_changed_regions.iter().enumerate() {
+        validate_proven_changed_region(sides, &lookups, region, &coarse_certificates[index])?;
     }
     for formatting in &comparison.formatting_changes {
         validate_formatting_change(sides, &lookups, formatting)?;
@@ -375,6 +378,7 @@ fn validate_proven_changed_region(
     sides: [&super::super::Side<'_>; 2],
     lookups: &[PartitionLookup; 2],
     region: &ProvenChangedRegion,
+    certificates: &[[SourceInterval; 2]],
 ) -> Result<()> {
     let old_nonempty = region
         .old_span
@@ -390,20 +394,192 @@ fn validate_proven_changed_region(
             "proven changed region proof does not match its spans",
         ));
     }
-    validate_optional_span(
-        sides[0],
-        &lookups[0],
-        region.old_span.as_ref(),
-        OwnershipRequirement::Unresolved,
-        "proven changed region",
-    )?;
-    validate_optional_span(
-        sides[1],
-        &lookups[1],
-        region.new_span.as_ref(),
-        OwnershipRequirement::Unresolved,
-        "proven changed region",
-    )
+    for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+        .into_iter()
+        .enumerate()
+    {
+        let Some(span) = span else { continue };
+        validate_span(
+            sides[side],
+            &lookups[side],
+            span,
+            OwnershipRequirement::Any,
+            "proven changed region",
+        )?;
+        for interval in project(sides[side], span)? {
+            let parts = &lookups[side].by_block[interval.block_index];
+            let mut index = parts.partition_point(|part| part.end <= interval.start);
+            let mut cursor = interval.start;
+            while cursor < interval.end {
+                let part = &parts[index];
+                let end = part.end.min(interval.end);
+                match part.state {
+                    ResolutionState::Unresolved => {}
+                    ResolutionState::Equal => {
+                        let certificate =
+                            certificates.partition_point(|pair| pair[side].end <= cursor);
+                        if certificates.get(certificate).is_none_or(|pair| {
+                            pair[side].block_index != interval.block_index
+                                || pair[side].start > cursor
+                                || pair[side].end <= cursor
+                        }) {
+                            return Err(invalid(
+                                "coarse equality lacks a paired whole-parent certificate",
+                            ));
+                        }
+                        cursor = certificates[certificate][side].end.min(end);
+                        if cursor == part.end {
+                            index += 1;
+                        }
+                        continue;
+                    }
+                    ResolutionState::Changed => {
+                        return Err(invalid(
+                            "proven changed region overlaps exact changed ownership",
+                        ));
+                    }
+                }
+                cursor = end;
+                index += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// One bounded index avoids a coarse-region × relation × partition scan.
+/// Ordinary all-unresolved regions have no certificates and retain their old
+/// requirement. A compatible certificate must own BOTH paired spans equally.
+/// The capacity bound includes paired-index old/new arrays during growth,
+/// ancestry metadata and keys. Existing partition lookups and immutable
+/// comparison payloads are baseline validation storage, outside this bound.
+fn coarse_equality_certificates(
+    sides: [&super::super::Side<'_>; 2],
+    lookups: &[PartitionLookup; 2],
+    assessment: &ComparisonAssessment,
+    comparison: &Comparison,
+) -> Result<Vec<Vec<[SourceInterval; 2]>>> {
+    let regions = &comparison.proven_changed_regions;
+    let count = regions.len();
+    let bytes = count
+        .checked_mul(
+            std::mem::size_of::<Vec<[SourceInterval; 2]>>() + 3 * std::mem::size_of::<usize>(),
+        )
+        .and_then(|bytes| {
+            bytes.checked_add(assessment.relations.len().checked_mul(
+                2 * std::mem::size_of::<[SourceInterval; 2]>() + std::mem::size_of::<bool>(),
+            )?)
+        })
+        .ok_or_else(|| invalid("coarse certificate index size overflow"))?;
+    if bytes > super::COARSE_MEMORY_BYTES {
+        return Err(invalid("coarse certificate index exceeds bounded capacity"));
+    }
+    // Parent precedence makes this one paid metadata walk sufficient; child
+    // queries never rescan an ancestry chain or re-run source/path proofs.
+    let mut clean_ancestors = Vec::new();
+    clean_ancestors
+        .try_reserve_exact(assessment.relations.len())
+        .map_err(|_| allocation_error("coarse certificate ancestry"))?;
+    for (index, relation) in assessment.relations.iter().enumerate() {
+        clean_ancestors.push(
+            relation.outcome == super::RelationOutcome::Established
+                && relation.search == super::SearchCompleteness::Complete
+                && relation.reasons.is_empty()
+                && !relation
+                    .assumptions
+                    .contains(&super::ComparisonAssumption::AlternativeLineBreakNormalization)
+                && relation
+                    .parent
+                    .is_none_or(|parent| parent < index && clean_ancestors[parent]),
+        );
+    }
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(count)
+        .map_err(|_| allocation_error("coarse certificate index"))?;
+    output.resize_with(count, Vec::new);
+    let mut keys = Vec::new();
+    keys.try_reserve_exact(count)
+        .map_err(|_| allocation_error("coarse certificate keys"))?;
+    for (index, region) in regions.iter().enumerate() {
+        if region.proof != super::super::ChangedRegionProof::ExactTokenMultisetMismatch {
+            continue;
+        }
+        let (Some(old), Some(new)) = (&region.old_span, &region.new_span) else {
+            continue;
+        };
+        let ([a], [b]) = (old.blocks.as_slice(), new.blocks.as_slice()) else {
+            continue;
+        };
+        keys.push(((*a, *b), index));
+    }
+    keys.sort_unstable();
+    for index in 0..assessment.relations.len() {
+        let child = &assessment.relations[index];
+        if !child
+            .assumptions
+            .contains(&super::ComparisonAssumption::MandatoryMatchingEquality)
+        {
+            continue;
+        }
+        let (Some(old), Some(new)) = (&child.old_span, &child.new_span) else {
+            continue;
+        };
+        let ([a], [b]) = (old.blocks.as_slice(), new.blocks.as_slice()) else {
+            continue;
+        };
+        let key = (*a, *b);
+        let start = keys.partition_point(|(candidate, _)| *candidate < key);
+        let end = keys.partition_point(|(candidate, _)| *candidate <= key);
+        // Duplicate coarse scopes are not a basis for the new exception.
+        if end != start + 1 {
+            continue;
+        }
+        let region_index = keys[start].1;
+        if !mandatory_equal::compatible_child(
+            sides,
+            &assessment.relations,
+            &regions[region_index],
+            index,
+            &clean_ancestors,
+        ) {
+            continue;
+        }
+        if [old, new].into_iter().enumerate().any(|(side, span)| {
+            validate_span(
+                sides[side],
+                &lookups[side],
+                span,
+                OwnershipRequirement::Equal,
+                "coarse equality certificate",
+            )
+            .is_err()
+        }) {
+            continue;
+        }
+        let old_source = project(sides[0], old)?;
+        let new_source = project(sides[1], new)?;
+        let ([old_interval], [new_interval]) = (old_source.as_slice(), new_source.as_slice())
+        else {
+            continue;
+        };
+        output[region_index]
+            .try_reserve_exact(1)
+            .map_err(|_| allocation_error("coarse paired certificates"))?;
+        output[region_index].push([*old_interval, *new_interval]);
+    }
+    for pairs in &mut output {
+        pairs.sort_unstable_by_key(|pair| pair[0].start);
+        if pairs
+            .windows(2)
+            .any(|pair| pair[0][0].end > pair[1][0].start || pair[0][1].end > pair[1][1].start)
+        {
+            return Err(invalid(
+                "coarse paired equality certificates overlap or cross",
+            ));
+        }
+    }
+    Ok(output)
 }
 
 fn validate_formatting_change(
@@ -477,6 +653,7 @@ fn state_satisfies(state: ResolutionState, requirement: OwnershipRequirement) ->
         OwnershipRequirement::Any => true,
         OwnershipRequirement::Changed => state == ResolutionState::Changed,
         OwnershipRequirement::Unresolved => state == ResolutionState::Unresolved,
+        OwnershipRequirement::Equal => state == ResolutionState::Equal,
         OwnershipRequirement::Resolved => state != ResolutionState::Unresolved,
     }
 }
@@ -604,6 +781,8 @@ mod tests {
             new_resolution,
             work_limit: 10,
             work_used: 0,
+            anchor_work: Default::default(),
+            local_view_work: Default::default(),
             work_by_stage: Default::default(),
             candidates_truncated: false,
         }
@@ -628,6 +807,225 @@ mod tests {
                 ratio: None,
             },
         }
+    }
+
+    #[test]
+    fn h11_coarse_equal_exception_requires_paired_clean_literal_children() {
+        use super::super::{
+            ComparisonAssumption, RelationAssessment, RelationOutcome, SearchCompleteness,
+        };
+        let mut old_blocks = [block(1, "A22B")];
+        let mut new_blocks = [block(2, "A2B")];
+        old_blocks[0].pages = vec![0];
+        new_blocks[0].pages = vec![0];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut proof = assessment(
+            vec![
+                range(1, 0, 1, ResolutionState::Equal),
+                range(1, 1, 3, ResolutionState::Unresolved),
+                range(1, 3, 4, ResolutionState::Equal),
+            ],
+            vec![
+                range(2, 0, 1, ResolutionState::Equal),
+                range(2, 1, 2, ResolutionState::Unresolved),
+                range(2, 2, 3, ResolutionState::Equal),
+            ],
+        );
+        let parent = RelationAssessment {
+            old_span: Some(span(1, 0, 4)),
+            new_span: Some(span(2, 0, 3)),
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: Vec::new(),
+            reasons: Vec::new(),
+        };
+        proof.relations.push(parent.clone());
+        for (a, b) in [(0, 0), (3, 2)] {
+            proof.relations.push(RelationAssessment {
+                old_span: Some(span(1, a, a + 1)),
+                new_span: Some(span(2, b, b + 1)),
+                parent: Some(0),
+                assumptions: vec![ComparisonAssumption::MandatoryMatchingEquality],
+                ..parent.clone()
+            });
+        }
+        let mut output = comparison(4, 2);
+        output.new_coverage.total_tokens = 3;
+        output.proven_changed_regions.push(ProvenChangedRegion {
+            old_span: parent.old_span.clone(),
+            new_span: parent.new_span.clone(),
+            confidence: Confidence::High,
+            proof: super::super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+        });
+        assert!(validate([&old, &new], &proof, &output).is_ok());
+        for veto in 0..11 {
+            let mut held = proof.clone();
+            let mut changed = output.clone();
+            match veto {
+                0 => held.relations[1].parent = None,
+                1 => held.relations[1].parent = Some(1),
+                2 => held.relations[0].parent = Some(2),
+                3 => held.relations[1].new_span = Some(span(2, 1, 2)),
+                4 => held.relations[1].assumptions.clear(),
+                5 => changed.proven_changed_regions[0].old_span = Some(span(1, 0, 3)),
+                6 => {
+                    held.new_resolution[0].state = ResolutionState::Unresolved;
+                    changed.new_coverage.resolved_tokens = 1;
+                }
+                7 => {
+                    held.old_resolution[0].state = ResolutionState::Changed;
+                }
+                8 => {
+                    held.relations[0].search = SearchCompleteness::Incomplete;
+                }
+                9 => held.relations[0]
+                    .assumptions
+                    .push(ComparisonAssumption::AlternativeLineBreakNormalization),
+                10 => {
+                    let mut ancestor = parent.clone();
+                    ancestor
+                        .assumptions
+                        .push(ComparisonAssumption::AlternativeLineBreakNormalization);
+                    held.relations.insert(0, ancestor);
+                    held.relations[1].parent = Some(0);
+                    held.relations[2].parent = Some(1);
+                    held.relations[3].parent = Some(1);
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                validate([&old, &new], &held, &changed).is_err(),
+                "veto {veto}"
+            );
+        }
+        // A synthetic/printed whitespace assertion cannot activate the exception.
+        old_blocks[0].canonical.text = " 22B".into();
+        new_blocks[0].canonical.text = " 2B".into();
+        let whitespace_old = side(&old_blocks);
+        let whitespace_new = side(&new_blocks);
+        assert!(validate([&whitespace_old, &whitespace_new], &proof, &output).is_err());
+    }
+
+    #[test]
+    fn h19_page_shift_coarse_exception_rejects_forged_markers_and_paired_ownership() {
+        use super::super::{
+            ComparisonAssumption, RelationAssessment, RelationOutcome, SearchCompleteness,
+        };
+        let mut old_blocks = [block(1, "A22B")];
+        let mut new_blocks = [block(2, "A2B")];
+        old_blocks[0].pages = vec![0];
+        new_blocks[0].pages = vec![1];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut proof = assessment(
+            vec![
+                range(1, 0, 1, ResolutionState::Equal),
+                range(1, 1, 3, ResolutionState::Unresolved),
+                range(1, 3, 4, ResolutionState::Equal),
+            ],
+            vec![
+                range(2, 0, 1, ResolutionState::Equal),
+                range(2, 1, 2, ResolutionState::Unresolved),
+                range(2, 2, 3, ResolutionState::Equal),
+            ],
+        );
+        let parent = RelationAssessment {
+            old_span: Some(span(1, 0, 4)),
+            new_span: Some(span(2, 0, 3)),
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: vec![ComparisonAssumption::LocalEvidenceBoundaries],
+            reasons: Vec::new(),
+        };
+        proof.relations.push(parent.clone());
+        for (a, b) in [(0, 0), (3, 2)] {
+            proof.relations.push(RelationAssessment {
+                old_span: Some(span(1, a, a + 1)),
+                new_span: Some(span(2, b, b + 1)),
+                parent: Some(0),
+                assumptions: vec![
+                    ComparisonAssumption::MandatoryMatchingEquality,
+                    ComparisonAssumption::PageShiftedMandatoryMatchingEquality,
+                ],
+                ..parent.clone()
+            });
+        }
+        let mut output = comparison(4, 2);
+        output.new_coverage.total_tokens = 3;
+        output.proven_changed_regions.push(ProvenChangedRegion {
+            old_span: parent.old_span.clone(),
+            new_span: parent.new_span.clone(),
+            confidence: Confidence::High,
+            proof: super::super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+        });
+        assert!(validate([&old, &new], &proof, &output).is_ok());
+        for veto in 0..16 {
+            let mut held = proof.clone();
+            let mut changed = output.clone();
+            match veto {
+                0 => held.relations[1].parent = None,
+                1 => held.relations[1].parent = Some(1),
+                2 => held.relations[0].parent = Some(2),
+                3 => held.relations[1].new_span = Some(span(2, 1, 2)),
+                4 => held.relations[1].assumptions.clear(),
+                5 => changed.proven_changed_regions[0].old_span = Some(span(1, 0, 3)),
+                6 => {
+                    held.new_resolution[0].state = ResolutionState::Unresolved;
+                    changed.new_coverage.resolved_tokens = 1;
+                }
+                7 => {
+                    held.old_resolution[0].state = ResolutionState::Changed;
+                }
+                8 => {
+                    held.relations[0].search = SearchCompleteness::Incomplete;
+                }
+                9 => held.relations[0]
+                    .assumptions
+                    .push(ComparisonAssumption::AlternativeLineBreakNormalization),
+                10 => {
+                    let mut ancestor = parent.clone();
+                    ancestor
+                        .assumptions
+                        .push(ComparisonAssumption::AlternativeLineBreakNormalization);
+                    held.relations.insert(0, ancestor);
+                    held.relations[1].parent = Some(0);
+                    held.relations[2].parent = Some(1);
+                    held.relations[3].parent = Some(1);
+                }
+                11 => held.relations[1]
+                    .assumptions
+                    .retain(|a| *a != ComparisonAssumption::PageShiftedMandatoryMatchingEquality),
+                12 => held.relations[0].assumptions.clear(),
+                13 => held.relations[1]
+                    .assumptions
+                    .push(ComparisonAssumption::AlternativeLineBreakNormalization),
+                14 => held.relations[0]
+                    .assumptions
+                    .push(ComparisonAssumption::PageShiftedMandatoryMatchingEquality),
+                15 => held.relations[0]
+                    .reasons
+                    .push(super::super::AssessmentReason::UnknownReadingOrder),
+                _ => unreachable!(),
+            }
+            assert!(
+                validate([&old, &new], &held, &changed).is_err(),
+                "veto {veto}"
+            );
+        }
+        // A marker cannot turn an ordinary same-page child into the new route.
+        let mut same_page = new_blocks.clone();
+        same_page[0].pages = vec![0];
+        let same_page_new = side(&same_page);
+        assert!(validate([&old, &same_page_new], &proof, &output).is_err());
+        // A synthetic/printed whitespace assertion cannot activate the exception.
+        old_blocks[0].canonical.text = " 22B".into();
+        new_blocks[0].canonical.text = " 2B".into();
+        let whitespace_old = side(&old_blocks);
+        let whitespace_new = side(&new_blocks);
+        assert!(validate([&whitespace_old, &whitespace_new], &proof, &output).is_err());
     }
 
     #[test]
@@ -698,6 +1096,8 @@ mod tests {
             ],
             work_limit: 10,
             work_used: 0,
+            anchor_work: Default::default(),
+            local_view_work: Default::default(),
             work_by_stage: Default::default(),
             candidates_truncated: false,
         };
@@ -782,6 +1182,8 @@ mod tests {
             new_resolution: Vec::new(),
             work_limit: 1,
             work_used: 0,
+            anchor_work: Default::default(),
+            local_view_work: Default::default(),
             work_by_stage: Default::default(),
             candidates_truncated: true,
         };

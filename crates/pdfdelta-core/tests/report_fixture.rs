@@ -351,6 +351,8 @@ fn reports_tentative_candidates_with_assessment_evidence_without_counting_covera
         }],
         work_limit: 10,
         work_used: 2,
+        anchor_work: Default::default(),
+        local_view_work: Default::default(),
         work_by_stage: AssessmentWork {
             anchor_verification: 2,
             ..AssessmentWork::default()
@@ -452,6 +454,8 @@ fn historical_tentative_relation_does_not_block_complete_partition() -> Result<(
         }],
         work_limit: 10,
         work_used: 10,
+        anchor_work: Default::default(),
+        local_view_work: Default::default(),
         work_by_stage: AssessmentWork {
             anchor_verification: 10,
             ..AssessmentWork::default()
@@ -496,6 +500,8 @@ fn rejects_assessment_resolution_without_source_block() -> Result<()> {
         work_limit: 1,
         work_used: 0,
         work_by_stage: AssessmentWork::default(),
+        anchor_work: Default::default(),
+        local_view_work: Default::default(),
         candidates_truncated: false,
     });
 
@@ -1843,6 +1849,8 @@ fn json_resolution_partition_keeps_a_boundary_line_break_once() -> Result<()> {
         new_resolution: Vec::new(),
         work_limit: 10,
         work_used: 2,
+        anchor_work: Default::default(),
+        local_view_work: Default::default(),
         work_by_stage: AssessmentWork {
             anchor_verification: 2,
             ..AssessmentWork::default()

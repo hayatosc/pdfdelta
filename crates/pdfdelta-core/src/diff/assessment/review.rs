@@ -4,14 +4,20 @@ use super::{
     AlignmentPolicy, AssessmentReason, Assessor, ComparisonAssumption, EditCountBounds, GroupText,
     ProposedRelation, RelationOutcome, ResolutionRange, ResolutionState, ReviewUnit,
     SearchCompleteness, Side, TextSpan, allocation_error, claims, hypotheses, normalization,
-    proof_groups, space_token,
+    space_token,
 };
 use crate::{Error, Result, alignment::BlockSeparator};
+
+/// Review owns the moved proof cache until the final optional coarse pass.
+pub(super) struct ReviewResult {
+    pub(super) units: Vec<ReviewUnit>,
+    pub(super) domains: Vec<(super::DomainKey, super::DomainProof)>,
+}
 
 pub(super) fn collect(
     assessor: &mut Assessor<'_, '_>,
     partitions: [&[ResolutionRange]; 2],
-) -> Result<Vec<ReviewUnit>> {
+) -> Result<ReviewResult> {
     discover_hypothesis_domains(assessor)?;
     // Localization has finished. Move its cached domains rather than cloning
     // every source span and edit witness for the final non-owning claim pass.
@@ -23,7 +29,10 @@ pub(super) fn collect(
     domains.sort_by_key(|(_, proof)| proof.relation);
     let mut units = Vec::new();
     let mut output_ranges = 0usize;
-    for (key, proof) in domains {
+    for (key, proof) in &domains {
+        if proof.scope != super::ProofScope::ExactKey {
+            continue;
+        }
         let relation = proof.relation;
         if assessor.remaining_work == 0 || output_ranges >= assessor.options.max_assessment_ranges {
             break;
@@ -80,7 +89,25 @@ pub(super) fn collect(
         if !search_complete {
             continue;
         }
-        let groups = proof_groups(assessor.sides, &key)?;
+        let Ok(groups) = assessor.scoped_proof_groups(key)? else {
+            units
+                .try_reserve(1)
+                .map_err(|_| allocation_error("incomplete review units"))?;
+            units.push(ReviewUnit {
+                relation,
+                policy: AlignmentPolicy::LiteralMinimal,
+                search: SearchCompleteness::Incomplete,
+                normalization_hypotheses: 1,
+                normalization_old: Vec::new(),
+                normalization_new: Vec::new(),
+                changed_count: None,
+                unresolved_changed_count: None,
+                mandatory_old: Vec::new(),
+                mandatory_new: Vec::new(),
+            });
+            output_ranges += 1;
+            continue;
+        };
         let mapping_work = groups
             .iter()
             .enumerate()
@@ -174,7 +201,7 @@ pub(super) fn collect(
         }
         units.push(unit);
     }
-    Ok(units)
+    Ok(ReviewResult { units, domains })
 }
 
 fn discover_hypothesis_domains(assessor: &mut Assessor<'_, '_>) -> Result<()> {
@@ -212,7 +239,18 @@ fn discover_hypothesis_domains(assessor: &mut Assessor<'_, '_>) -> Result<()> {
         if assessor.domains.contains_key(&key) {
             continue;
         }
-        let groups = proof_groups(assessor.sides, &key)?;
+        let groups = match assessor.scoped_proof_groups(&key)? {
+            Ok(groups) => groups,
+            Err(refusal) => {
+                let reason = if refusal == super::MaterializationRefusal::Work {
+                    AssessmentReason::WorkLimit
+                } else {
+                    AssessmentReason::SearchIncomplete
+                };
+                assessor.record_optional_search_stop(reason)?;
+                continue;
+            }
+        };
         let Some(old_optional) = normalization::optional_tokens(
             assessor.sides[0],
             &groups[0],
@@ -236,7 +274,9 @@ fn discover_hypothesis_domains(assessor: &mut Assessor<'_, '_>) -> Result<()> {
         {
             continue;
         }
-        assessor.prove_domain(&key)?;
+        if matches!(assessor.prove_domain(&key)?, super::DomainState::Stopped(_)) {
+            break;
+        }
         if assessor.output_stop.is_some() {
             break;
         }

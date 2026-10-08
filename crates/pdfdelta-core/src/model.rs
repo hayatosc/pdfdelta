@@ -106,6 +106,23 @@ pub struct Glyph {
     pub provenance: GlyphProvenance,
 }
 
+impl Glyph {
+    /// Shared native-comparison precondition, not a proof of full visibility:
+    /// opacity, overpainting and partial clipping still require other evidence.
+    pub(crate) fn is_comparison_visible(&self) -> bool {
+        matches!(
+            self.render_mode,
+            TextRenderMode::Fill
+                | TextRenderMode::Stroke
+                | TextRenderMode::FillAndStroke
+                | TextRenderMode::FillAndClip
+                | TextRenderMode::StrokeAndClip
+                | TextRenderMode::FillStrokeAndClip
+        ) && self.crop_status != GlyphCropStatus::Outside
+            && self.path_clip_status != GlyphPathClipStatus::Outside
+    }
+}
+
 /// One stroked straight path segment retained as layout and render evidence.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VectorLine {

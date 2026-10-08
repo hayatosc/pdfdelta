@@ -44,6 +44,18 @@ pub(super) fn check<T: Eq>(
     new: &[T],
     remaining_cells: &mut usize,
 ) -> Result<ExactUniqueness> {
+    check_recording(old, new, remaining_cells, &mut 0)
+}
+
+/// Records the exact size of a refused request; successful checks leave zero.
+/// DP preflight refusal does not consume the unspent budget.
+pub(super) fn check_recording<T: Eq>(
+    old: &[T],
+    new: &[T],
+    remaining_cells: &mut usize,
+    refused_request: &mut usize,
+) -> Result<ExactUniqueness> {
+    *refused_request = 0;
     if old.is_empty() || new.is_empty() {
         return Ok(ExactUniqueness::Unique);
     }
@@ -52,6 +64,7 @@ pub(super) fn check<T: Eq>(
         let mut identical = true;
         for (old_token, new_token) in old.iter().zip(new) {
             if !charge_cell(remaining_cells) {
+                *refused_request = 1;
                 return Ok(ExactUniqueness::BudgetExceeded);
             }
             if old_token != new_token {
@@ -77,6 +90,7 @@ pub(super) fn check<T: Eq>(
         limit: usize::MAX,
     })?;
     if dp_cells > *remaining_cells {
+        *refused_request = dp_cells;
         return Ok(ExactUniqueness::BudgetExceeded);
     }
 
@@ -133,6 +147,7 @@ pub(super) fn check<T: Eq>(
         let current_row = (old_index + 1) * columns;
         for new_index in 0..new.len() {
             if !charge_cell(remaining_cells) {
+                *refused_request = 1;
                 return Ok(ExactUniqueness::BudgetExceeded);
             }
             prefix[current_row + new_index + 1] = if *old_token == new[new_index] {
@@ -158,6 +173,7 @@ pub(super) fn check<T: Eq>(
         let prefix_row = old_index * columns;
         for new_index in (0..new.len()).rev() {
             if !charge_cell(remaining_cells) {
+                *refused_request = 1;
                 return Ok(ExactUniqueness::BudgetExceeded);
             }
             let suffix_after_match = suffix_next[new_index + 1];
@@ -199,6 +215,272 @@ pub(super) fn check<T: Eq>(
     })
 }
 
+/// Checks uniqueness of a maximum increasing subsequence of distinct positions.
+///
+/// Each position identifies a different whole-block anchor. Consequently an
+/// equal-token LCS between the two anchor orders is exactly an increasing
+/// subsequence here. Counts saturate at two: more than one maximum path is enough
+/// to withhold the proof, without selecting an arbitrary tie. Repeated positions
+/// are rejected because this specialized contract does not apply to them.
+pub(super) fn increasing_spine(
+    positions: &[usize],
+    remaining_work: &mut usize,
+    refused_request: &mut usize,
+) -> Result<ExactUniqueness> {
+    *refused_request = 0;
+    if positions.is_empty() {
+        return Ok(ExactUniqueness::Unique);
+    }
+    let cells = positions.len().checked_add(1).ok_or(Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    })?;
+    let memory = positions
+        .len()
+        .checked_mul(std::mem::size_of::<usize>())
+        .and_then(|bytes| {
+            cells
+                .checked_mul(std::mem::size_of::<SpinePaths>())
+                .and_then(|tree| bytes.checked_add(tree))
+        })
+        .ok_or(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        })?;
+    if memory > MAX_EXACT_MEMORY_BYTES {
+        return Err(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        });
+    }
+    let levels = (usize::BITS - positions.len().leading_zeros()) as usize;
+    let preparation = positions.len().saturating_mul(levels.saturating_add(1));
+    if !spend(remaining_work, preparation, refused_request) {
+        return Ok(ExactUniqueness::BudgetExceeded);
+    }
+    let mut sorted = Vec::new();
+    sorted
+        .try_reserve_exact(positions.len())
+        .map_err(|_| Error::Unresolved("anchor order allocation failed".to_owned()))?;
+    sorted.extend_from_slice(positions);
+    sorted.sort_unstable();
+    if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(Error::InvalidConfiguration(
+            "anchor positions must be distinct".to_owned(),
+        ));
+    }
+    let mut tree = Vec::<SpinePaths>::new();
+    tree.try_reserve_exact(cells)
+        .map_err(|_| Error::Unresolved("anchor order tree allocation failed".to_owned()))?;
+    tree.resize(cells, SpinePaths::default());
+    let mut maximum = SpinePaths::default();
+    for position in positions {
+        if !spend(remaining_work, levels, refused_request) {
+            return Ok(ExactUniqueness::BudgetExceeded);
+        }
+        let rank = sorted
+            .binary_search(position)
+            .map_err(|_| Error::InvalidConfiguration("anchor rank missing".to_owned()))?;
+        let mut index = rank;
+        let mut prefix = SpinePaths::default();
+        while index > 0 {
+            if !spend(remaining_work, 1, refused_request) {
+                return Ok(ExactUniqueness::BudgetExceeded);
+            }
+            prefix = prefix.merge(tree[index]);
+            index &= index - 1;
+        }
+        let next = SpinePaths {
+            length: prefix.length + 1,
+            count: if prefix.length == 0 { 1 } else { prefix.count },
+        };
+        maximum = maximum.merge(next);
+        index = rank + 1;
+        while index < cells {
+            if !spend(remaining_work, 1, refused_request) {
+                return Ok(ExactUniqueness::BudgetExceeded);
+            }
+            tree[index] = tree[index].merge(next);
+            index = index.saturating_add(index.isolate_lowest_one());
+        }
+    }
+    Ok(if maximum.count == 1 {
+        ExactUniqueness::Unique
+    } else {
+        ExactUniqueness::Ambiguous
+    })
+}
+
+#[derive(Clone, Copy, Default)]
+struct SpinePaths {
+    length: usize,
+    count: u8,
+}
+
+/// Common boundaries and every competing vertex on maximum increasing paths.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct MandatorySpine {
+    pub(super) mandatory: Vec<usize>,
+    pub(super) competing: Vec<usize>,
+}
+
+/// Returns precisely the common and competing maximum-path vertices.
+///
+/// Positions must be distinct. A vertex is eligible when its forward and
+/// reverse lengths sum to the maximum length plus one. Every maximum path has
+/// exactly one eligible vertex at each forward level, so a singleton level is
+/// mandatory. Other eligible vertices remain alternatives; none is selected.
+/// `None` means the bounded computation did not finish and carries no proof.
+/// The retained vectors, including the returned indices, share a 64 MiB cap.
+pub(super) fn mandatory_increasing_spine(
+    positions: &[usize],
+    remaining_work: &mut usize,
+    refused_request: &mut usize,
+) -> Result<Option<MandatorySpine>> {
+    *refused_request = 0;
+    if positions.is_empty() {
+        return Ok(Some(MandatorySpine {
+            mandatory: Vec::new(),
+            competing: Vec::new(),
+        }));
+    }
+    let cells = positions.len().checked_add(1).ok_or(Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    })?;
+    let memory = cells
+        .checked_mul(6)
+        .and_then(|cells| cells.checked_mul(std::mem::size_of::<usize>()))
+        .ok_or(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        })?;
+    if memory > MAX_EXACT_MEMORY_BYTES {
+        return Err(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        });
+    }
+    let levels = (usize::BITS - positions.len().leading_zeros()) as usize;
+    let preparation = positions.len().saturating_mul(levels.saturating_add(1));
+    if !spend(remaining_work, preparation, refused_request) {
+        return Ok(None);
+    }
+    let mut sorted = allocate_row(positions.len(), "mandatory anchor positions")?;
+    sorted.copy_from_slice(positions);
+    sorted.sort_unstable();
+    if sorted.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(Error::InvalidConfiguration(
+            "anchor positions must be distinct".to_owned(),
+        ));
+    }
+    let mut tree = allocate_row(cells, "mandatory anchor tree")?;
+    let mut forward = allocate_row(positions.len(), "mandatory anchor forward lengths")?;
+    let mut reverse = allocate_row(positions.len(), "mandatory anchor reverse lengths")?;
+    for (backwards, lengths) in [(false, &mut forward), (true, &mut reverse)] {
+        tree.fill(0);
+        for step in 0..positions.len() {
+            let vertex = if backwards {
+                positions.len() - 1 - step
+            } else {
+                step
+            };
+            if !spend(remaining_work, levels, refused_request) {
+                return Ok(None);
+            }
+            let rank = sorted
+                .binary_search(&positions[vertex])
+                .map_err(|_| Error::InvalidConfiguration("anchor rank missing".to_owned()))?;
+            let rank = if backwards {
+                positions.len() - 1 - rank
+            } else {
+                rank
+            };
+            let mut index = rank;
+            let mut length = 0;
+            while index > 0 {
+                if !spend(remaining_work, 1, refused_request) {
+                    return Ok(None);
+                }
+                length = length.max(tree[index]);
+                index &= index - 1;
+            }
+            lengths[vertex] = length + 1;
+            index = rank + 1;
+            while index < cells {
+                if !spend(remaining_work, 1, refused_request) {
+                    return Ok(None);
+                }
+                tree[index] = tree[index].max(length + 1);
+                index = index.saturating_add(index.isolate_lowest_one());
+            }
+        }
+    }
+    if !spend(
+        remaining_work,
+        positions.len().saturating_mul(4).saturating_add(1),
+        refused_request,
+    ) {
+        return Ok(None);
+    }
+    let maximum = forward.iter().copied().max().unwrap_or(0);
+    let mut eligible_counts = allocate_row(cells, "mandatory anchor level counts")?;
+    for (&prefix, &suffix) in forward.iter().zip(&reverse) {
+        if prefix + suffix - 1 == maximum {
+            eligible_counts[prefix] += 1;
+        }
+    }
+    let (mandatory_count, eligible_count) = eligible_counts
+        .iter()
+        .fold((0, 0), |(mandatory, eligible), &count| {
+            (mandatory + usize::from(count == 1), eligible + count)
+        });
+    let mut mandatory = Vec::new();
+    mandatory
+        .try_reserve_exact(mandatory_count)
+        .map_err(|_| Error::Unresolved("mandatory anchor result allocation failed".to_owned()))?;
+    let mut competing = Vec::new();
+    competing
+        .try_reserve_exact(eligible_count - mandatory_count)
+        .map_err(|_| Error::Unresolved("competing anchor result allocation failed".to_owned()))?;
+    for (vertex, (&prefix, &suffix)) in forward.iter().zip(&reverse).enumerate() {
+        if prefix + suffix - 1 == maximum {
+            if eligible_counts[prefix] == 1 {
+                mandatory.push(vertex);
+            } else {
+                competing.push(vertex);
+            }
+        }
+    }
+    Ok(Some(MandatorySpine {
+        mandatory,
+        competing,
+    }))
+}
+
+impl SpinePaths {
+    fn merge(self, other: Self) -> Self {
+        match self.length.cmp(&other.length) {
+            std::cmp::Ordering::Less => other,
+            std::cmp::Ordering::Greater => self,
+            std::cmp::Ordering::Equal => Self {
+                length: self.length,
+                count: self.count.saturating_add(other.count).min(2),
+            },
+        }
+    }
+}
+
+fn spend(remaining: &mut usize, amount: usize, refused: &mut usize) -> bool {
+    if let Some(next) = remaining.checked_sub(amount) {
+        *remaining = next;
+        true
+    } else {
+        *refused = amount;
+        false
+    }
+}
+
 fn allocate_row(columns: usize, description: &'static str) -> Result<Vec<usize>> {
     let mut row = Vec::new();
     row.try_reserve_exact(columns)
@@ -223,6 +505,200 @@ mod tests {
     fn classify(old: &[u8], new: &[u8]) -> ExactUniqueness {
         let mut budget = usize::MAX;
         check(old, new, &mut budget).expect("small exact check should fit its budget")
+    }
+
+    #[test]
+    fn refused_request_distinguishes_fast_path_from_dp_preflight() {
+        let mut remaining = 2;
+        let mut refused = usize::MAX;
+        assert_eq!(
+            super::check_recording(b"abc", b"abc", &mut remaining, &mut refused)
+                .expect("bounded check"),
+            ExactUniqueness::BudgetExceeded
+        );
+        assert_eq!((remaining, refused), (0, 1));
+        remaining = 2;
+        assert_eq!(
+            super::check_recording(b"ab", b"xyz", &mut remaining, &mut refused)
+                .expect("bounded check"),
+            ExactUniqueness::BudgetExceeded
+        );
+        assert_eq!((remaining, refused), (2, 12));
+        remaining = 100;
+        assert_eq!(
+            super::check_recording(b"ab", b"ab", &mut remaining, &mut refused)
+                .expect("bounded check"),
+            ExactUniqueness::Unique
+        );
+        assert_eq!((remaining, refused), (98, 0));
+    }
+
+    #[test]
+    fn increasing_spine_matches_exact_oracle_for_all_small_permutations() {
+        fn permutations(values: &mut [usize], start: usize) {
+            if start == values.len() {
+                let mut order = (0..values.len()).collect::<Vec<_>>();
+                order.sort_unstable_by_key(|&index| values[index]);
+                let expected = check(
+                    &(0..values.len()).collect::<Vec<_>>(),
+                    &order,
+                    &mut 1_000_000,
+                )
+                .expect("small oracle");
+                let actual =
+                    super::increasing_spine(values, &mut 1_000_000, &mut 0).expect("small spine");
+                assert_eq!(actual, expected, "positions={values:?}");
+                return;
+            }
+            for next in start..values.len() {
+                values.swap(start, next);
+                permutations(values, start + 1);
+                values.swap(start, next);
+            }
+        }
+        for length in 0..=8 {
+            permutations(&mut (0..length).collect::<Vec<_>>(), 0);
+        }
+    }
+
+    #[test]
+    fn mandatory_spine_matches_all_maximum_path_intersections() {
+        fn oracle(values: &[usize]) -> super::MandatorySpine {
+            let mut maximum = 0;
+            let mut common = (0..values.len()).collect::<Vec<_>>();
+            let mut eligible = std::collections::BTreeSet::new();
+            for mask in 0usize..1 << values.len() {
+                let path = (0..values.len())
+                    .filter(|&index| mask & (1 << index) != 0)
+                    .collect::<Vec<_>>();
+                if !path
+                    .windows(2)
+                    .all(|pair| values[pair[0]] < values[pair[1]])
+                {
+                    continue;
+                }
+                match path.len().cmp(&maximum) {
+                    std::cmp::Ordering::Greater => {
+                        maximum = path.len();
+                        eligible = path.iter().copied().collect();
+                        common = path;
+                    }
+                    std::cmp::Ordering::Equal => {
+                        eligible.extend(path.iter().copied());
+                        common.retain(|vertex| path.contains(vertex));
+                    }
+                    std::cmp::Ordering::Less => {}
+                }
+            }
+            let competing = eligible
+                .into_iter()
+                .filter(|vertex| !common.contains(vertex))
+                .collect();
+            super::MandatorySpine {
+                mandatory: common,
+                competing,
+            }
+        }
+        fn permutations(values: &mut [usize], start: usize) {
+            if start == values.len() {
+                let actual = super::mandatory_increasing_spine(values, &mut 1_000_000, &mut 0)
+                    .expect("small bounded proof")
+                    .expect("finished proof");
+                assert_eq!(actual, oracle(values), "positions={values:?}");
+                return;
+            }
+            for next in start..values.len() {
+                values.swap(start, next);
+                permutations(values, start + 1);
+                values.swap(start, next);
+            }
+        }
+        for length in 0..=8 {
+            permutations(&mut (0..length).collect::<Vec<_>>(), 0);
+        }
+    }
+
+    #[test]
+    fn mandatory_spine_refuses_every_unfinished_budget() {
+        let positions = [0, 2, 1, 3];
+        let mut remaining = 1_000;
+        assert_eq!(
+            super::mandatory_increasing_spine(&positions, &mut remaining, &mut 0)
+                .expect("finished proof"),
+            Some(super::MandatorySpine {
+                mandatory: vec![0, 3],
+                competing: vec![1, 2]
+            })
+        );
+        let required = 1_000 - remaining;
+        for budget in 0..required {
+            assert_eq!(
+                super::mandatory_increasing_spine(&positions, &mut { budget }, &mut 0)
+                    .expect("bounded proof"),
+                None,
+                "budget={budget} required={required}"
+            );
+        }
+        assert!(super::mandatory_increasing_spine(&[2, 2], &mut 100, &mut 0).is_err());
+        assert_eq!(
+            super::mandatory_increasing_spine(&[20, 10], &mut 100, &mut 0)
+                .expect("no common vertex"),
+            Some(super::MandatorySpine {
+                mandatory: vec![],
+                competing: vec![0, 1]
+            })
+        );
+    }
+
+    #[test]
+    fn mandatory_spine_checks_aggregate_allocation_before_spending_work() {
+        let count = super::MAX_EXACT_MEMORY_BYTES / (6 * std::mem::size_of::<usize>()) + 1;
+        let positions = vec![0; count];
+        let mut remaining = usize::MAX;
+        assert!(matches!(
+            super::mandatory_increasing_spine(&positions, &mut remaining, &mut 0),
+            Err(crate::Error::LimitExceeded {
+                resource: super::DP_MEMORY_RESOURCE,
+                ..
+            })
+        ));
+        assert_eq!(remaining, usize::MAX);
+    }
+
+    #[test]
+    fn increasing_spine_withholds_proof_on_budget_and_repeated_positions() {
+        let mut remaining = 1;
+        let mut refused = 0;
+        assert_eq!(
+            super::increasing_spine(&[5, 1, 4], &mut remaining, &mut refused)
+                .expect("bounded spine"),
+            ExactUniqueness::BudgetExceeded
+        );
+        assert_eq!((remaining, refused), (1, 9));
+        assert!(super::increasing_spine(&[5, 5], &mut 100, &mut 0).is_err());
+        assert_eq!(
+            super::increasing_spine(&[50, 10, 40], &mut 100, &mut 0).expect("sparse ranks"),
+            ExactUniqueness::Unique
+        );
+    }
+
+    #[test]
+    fn increasing_spine_never_certifies_an_unfinished_tree() {
+        let positions = [5, 1, 4];
+        let mut remaining = 1_000;
+        assert_eq!(
+            super::increasing_spine(&positions, &mut remaining, &mut 0).expect("completed spine"),
+            ExactUniqueness::Unique
+        );
+        let required = 1_000 - remaining;
+        for budget in 0..required {
+            assert_eq!(
+                super::increasing_spine(&positions, &mut { budget }, &mut 0)
+                    .expect("bounded spine"),
+                ExactUniqueness::BudgetExceeded,
+                "budget={budget} required={required}"
+            );
+        }
     }
 
     #[test]

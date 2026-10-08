@@ -10,6 +10,15 @@ gaps so you can judge whether a result applies to your documents.
 - **No OCR.** Text inside images, scanned pages, and handwriting is not
   recognized. Such pages keep their rendered pixels for review, but their text
   coverage stays incomplete.
+  Native extraction also leaves a page unresolved when a potentially visible
+  image was invoked and no comparison-visible native glyphs were extracted:
+  whether the image
+  contains text is unexamined. Unused image resources and images proven outside
+  the page crop or active clip do not trigger this guard. Invisible or excluded
+  glyphs remain available as raw evidence without dismissing image uncertainty.
+  Path-only empty native
+  extraction still describes only native text scope, not the absence of text
+  drawn as outlines.
 - **Relations are rarely complete.** Native PDF link extraction and
   link/footnote target interpretation are not implemented.
 - **Forms:** export-option interpretation, state-selected appearance rendering,
@@ -29,6 +38,27 @@ gaps so you can judge whether a result applies to your documents.
   interpretation, and object-reference bindings are not implemented.
 - General split/merge discovery, general footer recognition, and full document
   structure discovery remain incomplete.
+
+A coarse interior changed-region proof does not identify a unique deletion,
+insertion, or glyph mask. The optional mandatory-boundary rule currently holds
+one-sided interiors, whitespace-only changes, equal-multiset reorderings, nonwhitespace characters without literal
+glyph sources, shared glyph sources, source-map cuts that split a source, and
+unsupported whitespace joins. It keeps the candidate alternatives and unresolved
+coverage; reporting such a region does not establish full-document accuracy.
+
+A separate optional rule can resolve literal nonwhitespace equal subruns inside
+a two-sided whole single-block coarse region, with a complete clean parent,
+mandatory unique counterparts, singleton raw glyph evidence, safe normalization
+cuts and no source reuse. Ordinary certificates require the same page. A
+separate final route can certify paired equalities on different pages only
+under an isolated, complete exact whole single-block parent on each side, with
+no ancestor dependency and an explicit page-shift certificate. Each block must
+still belong to exactly one page; all literal-source checks remain required.
+The rule excludes partial or one-sided coarse
+regions, candidate overlaps and uncertain ancestors, and runs only with budget
+left after earlier proofs. Such subruns establish literal equality under those
+premises; they do not identify a unique edit history or resolve the remaining
+ambiguous positions. The containing coarse proof still prevents completion.
 
 ## Text extraction
 

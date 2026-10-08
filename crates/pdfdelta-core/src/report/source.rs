@@ -446,8 +446,7 @@ impl<'a> SpanSourceProjector<'a> {
         });
 
         let mut output = Vec::new();
-        let mut seen_atoms = HashSet::new();
-        let mut seen_glyphs = HashSet::new();
+        let mut seen = ProjectionSeen::default();
         for positioned_source in positioned {
             match positioned_source.source {
                 ProjectedTokenSource::BlockSeparatorSpace => push_output(
@@ -457,52 +456,65 @@ impl<'a> SpanSourceProjector<'a> {
                 )?,
                 ProjectedTokenSource::None => {}
                 ProjectedTokenSource::Text(source) => {
-                    for atom in &source.atoms {
-                        if seen_atoms.contains(atom) {
-                            continue;
-                        }
-                        reserve(&mut seen_atoms, 1, "span source atoms", self.limits)?;
-                        seen_atoms.insert(atom);
-                        match atom {
-                            TextSourceAtom::Glyph(id) => {
-                                self.push_glyph(&mut output, &mut seen_glyphs, *id)?;
-                            }
-                            TextSourceAtom::SyntheticSpace {
-                                preceding,
-                                following,
-                            } => {
-                                push_output(
-                                    &mut output,
-                                    SpanSourceEvidence::SyntheticSpace {
-                                        preceding_glyph_id: *preceding,
-                                        following_glyph_id: *following,
-                                    },
-                                    self.limits,
-                                )?;
-                                self.push_glyph(&mut output, &mut seen_glyphs, *preceding)?;
-                                self.push_glyph(&mut output, &mut seen_glyphs, *following)?;
-                            }
-                            TextSourceAtom::LineBreak {
-                                preceding,
-                                following,
-                            } => {
-                                push_output(
-                                    &mut output,
-                                    SpanSourceEvidence::LineBreak {
-                                        preceding_glyph_id: *preceding,
-                                        following_glyph_id: *following,
-                                    },
-                                    self.limits,
-                                )?;
-                                self.push_glyph(&mut output, &mut seen_glyphs, *preceding)?;
-                                self.push_glyph(&mut output, &mut seen_glyphs, *following)?;
-                            }
-                        }
-                    }
+                    self.emit_atoms(&mut output, &mut seen, &source.atoms)?;
                 }
             }
         }
         Ok(output)
+    }
+
+    fn emit_atoms<'b>(
+        &self,
+        output: &mut Vec<SpanSourceEvidence>,
+        seen: &mut ProjectionSeen<'b>,
+        atoms: &'b [TextSourceAtom],
+    ) -> Result<()> {
+        for atom in atoms {
+            match atom {
+                TextSourceAtom::Glyph(id) => {
+                    if seen.take_glyph_atom(*id, self.limits)? {
+                        self.emit_glyph(output, *id)?;
+                    }
+                }
+                TextSourceAtom::SyntheticSpace {
+                    preceding,
+                    following,
+                } => {
+                    if !seen.take_other_atom(atom, self.limits)? {
+                        continue;
+                    }
+                    push_output(
+                        output,
+                        SpanSourceEvidence::SyntheticSpace {
+                            preceding_glyph_id: *preceding,
+                            following_glyph_id: *following,
+                        },
+                        self.limits,
+                    )?;
+                    self.push_glyph(output, seen, *preceding)?;
+                    self.push_glyph(output, seen, *following)?;
+                }
+                TextSourceAtom::LineBreak {
+                    preceding,
+                    following,
+                } => {
+                    if !seen.take_other_atom(atom, self.limits)? {
+                        continue;
+                    }
+                    push_output(
+                        output,
+                        SpanSourceEvidence::LineBreak {
+                            preceding_glyph_id: *preceding,
+                            following_glyph_id: *following,
+                        },
+                        self.limits,
+                    )?;
+                    self.push_glyph(output, seen, *preceding)?;
+                    self.push_glyph(output, seen, *following)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn block(&self, id: BlockId) -> Result<&'a BlockText> {
@@ -517,14 +529,16 @@ impl<'a> SpanSourceProjector<'a> {
     fn push_glyph(
         &self,
         output: &mut Vec<SpanSourceEvidence>,
-        seen: &mut HashSet<GlyphId>,
+        seen: &mut ProjectionSeen<'_>,
         id: GlyphId,
     ) -> Result<()> {
-        if seen.contains(&id) {
-            return Ok(());
+        if seen.take_glyph(id, self.limits)? {
+            self.emit_glyph(output, id)?;
         }
-        reserve(seen, 1, "span source glyph ids", self.limits)?;
-        seen.insert(id);
+        Ok(())
+    }
+
+    fn emit_glyph(&self, output: &mut Vec<SpanSourceEvidence>, id: GlyphId) -> Result<()> {
         let glyph = self
             .glyphs
             .get(&id)
@@ -542,6 +556,99 @@ impl<'a> SpanSourceProjector<'a> {
             self.limits,
         )?;
         Ok(())
+    }
+}
+
+/// Per-projection flags avoid maintaining two glyph-keyed sets. A glyph used
+/// as a space or line-break endpoint is emitted before its direct atom is seen;
+/// those events still contribute to the two independent resource counts.
+#[derive(Default)]
+struct ProjectionSeen<'a> {
+    glyph_states: HashMap<GlyphId, u8>,
+    other_atoms: HashSet<&'a TextSourceAtom>,
+    atom_count: usize,
+    glyph_count: usize,
+}
+
+impl<'a> ProjectionSeen<'a> {
+    const ATOM_SEEN: u8 = 1;
+    const GLYPH_EMITTED: u8 = 2;
+
+    fn take_glyph_atom(&mut self, id: GlyphId, limits: SpanSourceProjectionLimits) -> Result<bool> {
+        let state = self.glyph_states.get(&id).copied().unwrap_or(0);
+        if state & Self::ATOM_SEEN != 0 {
+            return Ok(false);
+        }
+        let atom_count = self.atom_count.checked_add(1).ok_or(Error::LimitExceeded {
+            resource: "span source atoms",
+            limit: limits.max_evidence_items,
+        })?;
+        check_limit("span source atoms", atom_count, limits.max_evidence_items)?;
+        let emit = state & Self::GLYPH_EMITTED == 0;
+        let glyph_count =
+            self.glyph_count
+                .checked_add(usize::from(emit))
+                .ok_or(Error::LimitExceeded {
+                    resource: "span source glyph ids",
+                    limit: limits.max_evidence_items,
+                })?;
+        check_limit(
+            "span source glyph ids",
+            glyph_count,
+            limits.max_evidence_items,
+        )?;
+        if state == 0 {
+            reserve(&mut self.glyph_states, 1, "span source atoms", limits)?;
+        }
+        self.glyph_states
+            .insert(id, state | Self::ATOM_SEEN | Self::GLYPH_EMITTED);
+        self.atom_count = atom_count;
+        self.glyph_count = glyph_count;
+        Ok(emit)
+    }
+
+    fn take_other_atom(
+        &mut self,
+        atom: &'a TextSourceAtom,
+        limits: SpanSourceProjectionLimits,
+    ) -> Result<bool> {
+        if self.other_atoms.contains(atom) {
+            return Ok(false);
+        }
+        let atom_count = self.atom_count.checked_add(1).ok_or(Error::LimitExceeded {
+            resource: "span source atoms",
+            limit: limits.max_evidence_items,
+        })?;
+        check_limit("span source atoms", atom_count, limits.max_evidence_items)?;
+        reserve(&mut self.other_atoms, 1, "span source atoms", limits)?;
+        self.other_atoms.insert(atom);
+        self.atom_count = atom_count;
+        Ok(true)
+    }
+
+    fn take_glyph(&mut self, id: GlyphId, limits: SpanSourceProjectionLimits) -> Result<bool> {
+        let state = self.glyph_states.get(&id).copied().unwrap_or(0);
+        if state & Self::GLYPH_EMITTED != 0 {
+            return Ok(false);
+        }
+        let glyph_count = self
+            .glyph_count
+            .checked_add(1)
+            .ok_or(Error::LimitExceeded {
+                resource: "span source glyph ids",
+                limit: limits.max_evidence_items,
+            })?;
+        check_limit(
+            "span source glyph ids",
+            glyph_count,
+            limits.max_evidence_items,
+        )?;
+        if state == 0 {
+            reserve(&mut self.glyph_states, 1, "span source glyph ids", limits)?;
+        }
+        self.glyph_states.insert(id, state | Self::GLYPH_EMITTED);
+        self.glyph_count = glyph_count;
+        Ok(true)
     }
 }
 
@@ -932,6 +1039,194 @@ mod tests {
                 operator_index: id as u32,
             },
         }
+    }
+
+    fn legacy_emit_atoms(
+        projector: &SpanSourceProjector<'_>,
+        atoms: &[TextSourceAtom],
+    ) -> Result<Vec<SpanSourceEvidence>> {
+        let mut output = Vec::new();
+        let mut seen_atoms = HashSet::new();
+        let mut seen_glyphs = HashSet::new();
+        let mut glyph = |output: &mut Vec<_>, id| -> Result<()> {
+            if seen_glyphs.contains(&id) {
+                return Ok(());
+            }
+            reserve(
+                &mut seen_glyphs,
+                1,
+                "span source glyph ids",
+                projector.limits,
+            )?;
+            seen_glyphs.insert(id);
+            projector.emit_glyph(output, id)
+        };
+        for atom in atoms {
+            if seen_atoms.contains(atom) {
+                continue;
+            }
+            reserve(&mut seen_atoms, 1, "span source atoms", projector.limits)?;
+            seen_atoms.insert(atom);
+            match atom {
+                TextSourceAtom::Glyph(id) => glyph(&mut output, *id)?,
+                TextSourceAtom::SyntheticSpace {
+                    preceding,
+                    following,
+                } => {
+                    push_output(
+                        &mut output,
+                        SpanSourceEvidence::SyntheticSpace {
+                            preceding_glyph_id: *preceding,
+                            following_glyph_id: *following,
+                        },
+                        projector.limits,
+                    )?;
+                    glyph(&mut output, *preceding)?;
+                    glyph(&mut output, *following)?;
+                }
+                TextSourceAtom::LineBreak {
+                    preceding,
+                    following,
+                } => {
+                    push_output(
+                        &mut output,
+                        SpanSourceEvidence::LineBreak {
+                            preceding_glyph_id: *preceding,
+                            following_glyph_id: *following,
+                        },
+                        projector.limits,
+                    )?;
+                    glyph(&mut output, *preceding)?;
+                    glyph(&mut output, *following)?;
+                }
+            }
+        }
+        Ok(output)
+    }
+
+    #[test]
+    fn glyph_flags_match_legacy_dedup_output_and_first_error() {
+        let choices = [
+            TextSourceAtom::Glyph(GlyphId(0)),
+            TextSourceAtom::Glyph(GlyphId(1)),
+            TextSourceAtom::Glyph(GlyphId(2)),
+            TextSourceAtom::SyntheticSpace {
+                preceding: GlyphId(0),
+                following: GlyphId(1),
+            },
+            TextSourceAtom::SyntheticSpace {
+                preceding: GlyphId(1),
+                following: GlyphId(0),
+            },
+            TextSourceAtom::LineBreak {
+                preceding: GlyphId(0),
+                following: GlyphId(1),
+            },
+            TextSourceAtom::SyntheticSpace {
+                preceding: GlyphId(0),
+                following: GlyphId(0),
+            },
+            TextSourceAtom::LineBreak {
+                preceding: GlyphId(1),
+                following: GlyphId(1),
+            },
+            TextSourceAtom::LineBreak {
+                preceding: GlyphId(1),
+                following: GlyphId(0),
+            },
+        ];
+        let evidence = [glyph_evidence(0), glyph_evidence(1), glyph_evidence(2)];
+        for length in 0..=4_u32 {
+            for mut pattern in 0..choices.len().pow(length) {
+                let atoms: Vec<_> = (0..length)
+                    .map(|_| {
+                        let atom = choices[pattern % choices.len()].clone();
+                        pattern /= choices.len();
+                        atom
+                    })
+                    .collect();
+                for inventory in 0..=evidence.len() {
+                    for limit in 0..=6 {
+                        let projector = SpanSourceProjector {
+                            blocks: HashMap::new(),
+                            glyphs: evidence[..inventory]
+                                .iter()
+                                .map(|glyph| (glyph.id, glyph))
+                                .collect(),
+                            limits: SpanSourceProjectionLimits {
+                                max_comparable_tokens: 1,
+                                max_evidence_items: limit,
+                            },
+                        };
+                        let expected = legacy_emit_atoms(&projector, &atoms)
+                            .map_err(|error| error.to_string());
+                        let mut output = Vec::new();
+                        let mut seen = ProjectionSeen::default();
+                        let actual = projector
+                            .emit_atoms(&mut output, &mut seen, &atoms)
+                            .map(|()| output)
+                            .map_err(|error| error.to_string());
+                        assert_eq!(
+                            actual, expected,
+                            "atoms={atoms:?}, inventory={inventory}, limit={limit}"
+                        );
+                    }
+                }
+            }
+        }
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<SpanSourceProjector<'_>>();
+    }
+
+    #[test]
+    fn glyph_flag_counts_refuse_overflow_before_insertion() {
+        let limits = SpanSourceProjectionLimits {
+            max_comparable_tokens: usize::MAX,
+            max_evidence_items: usize::MAX,
+        };
+        let mut seen = ProjectionSeen {
+            atom_count: usize::MAX,
+            ..ProjectionSeen::default()
+        };
+        assert!(matches!(
+            seen.take_glyph_atom(GlyphId(0), limits),
+            Err(Error::LimitExceeded {
+                resource: "span source atoms",
+                ..
+            })
+        ));
+        assert!(seen.glyph_states.is_empty());
+        let atom = TextSourceAtom::LineBreak {
+            preceding: GlyphId(0),
+            following: GlyphId(0),
+        };
+        assert!(matches!(
+            seen.take_other_atom(&atom, limits),
+            Err(Error::LimitExceeded {
+                resource: "span source atoms",
+                ..
+            })
+        ));
+        assert!(seen.other_atoms.is_empty());
+        let mut seen = ProjectionSeen {
+            glyph_count: usize::MAX,
+            ..ProjectionSeen::default()
+        };
+        assert!(matches!(
+            seen.take_glyph(GlyphId(0), limits),
+            Err(Error::LimitExceeded {
+                resource: "span source glyph ids",
+                ..
+            })
+        ));
+        assert!(matches!(
+            seen.take_glyph_atom(GlyphId(0), limits),
+            Err(Error::LimitExceeded {
+                resource: "span source glyph ids",
+                ..
+            })
+        ));
+        assert!(seen.glyph_states.is_empty());
     }
 
     #[test]

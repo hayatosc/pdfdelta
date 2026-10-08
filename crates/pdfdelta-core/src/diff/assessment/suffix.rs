@@ -79,6 +79,9 @@ impl Assessor<'_, '_> {
         }
         let mut eligible: Vec<usize> = Vec::new();
         for proof in self.domains.values() {
+            let Some(lengths) = proof.exact_lengths() else {
+                continue;
+            };
             let relation = proof.relation;
             let Some(record) = self.records.get(relation) else {
                 continue;
@@ -87,8 +90,8 @@ impl Assessor<'_, '_> {
                 || !proof.strict_unique
                 || proof.search != SearchCompleteness::Complete
                 || !proof.edits.is_empty()
-                || proof.lengths[0] == 0
-                || proof.lengths[0] != proof.lengths[1]
+                || lengths[0] == 0
+                || lengths[0] != lengths[1]
                 || record.outcome != RelationOutcome::Established
                 || record.search != SearchCompleteness::Complete
                 || !record.reasons.is_empty()

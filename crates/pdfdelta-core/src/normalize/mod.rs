@@ -96,6 +96,48 @@ impl FontSizeSignature {
         bits.dedup();
         Self { bits }
     }
+
+    /// Exact nested payload size used by bounded proof-group materialization.
+    pub(crate) fn represented_size_count(&self) -> usize {
+        self.bits.len()
+    }
+
+    pub(crate) fn try_clone(&self) -> Option<Self> {
+        let mut bits = Vec::new();
+        bits.try_reserve_exact(self.bits.len()).ok()?;
+        bits.extend_from_slice(&self.bits);
+        Some(Self { bits })
+    }
+
+    /// Merges the validated sorted signatures in linear work. The requested
+    /// capacity includes both inputs, even when deduplication shortens output.
+    pub(crate) fn try_union(&self, other: &Self) -> Option<Self> {
+        let mut bits = Vec::new();
+        bits.try_reserve_exact(self.bits.len().checked_add(other.bits.len())?)
+            .ok()?;
+        let (mut left, mut right) = (0, 0);
+        while left < self.bits.len() || right < other.bits.len() {
+            let value = match (self.bits.get(left), other.bits.get(right)) {
+                (Some(a), Some(b)) if a <= b => {
+                    left += 1;
+                    *a
+                }
+                (_, Some(b)) => {
+                    right += 1;
+                    *b
+                }
+                (Some(a), None) => {
+                    left += 1;
+                    *a
+                }
+                (None, None) => break,
+            };
+            if bits.last() != Some(&value) {
+                bits.push(value);
+            }
+        }
+        Some(Self { bits })
+    }
 }
 
 /// Exact baseline and text direction of a canonical token's first source glyph.

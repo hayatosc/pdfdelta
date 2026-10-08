@@ -235,8 +235,15 @@ fn native_image_only_pdf_keeps_visual_channel_unexamined() {
         let extraction = extractor
             .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
             .expect("native extraction");
-        assert!(extraction.is_complete());
+        assert!(!extraction.is_complete());
         assert!(extraction.document().items().is_empty());
+        assert!(extraction.issues().iter().any(|issue| {
+            issue.scope() == ExtractionScope::Page(PageId(0))
+                && issue.kind() == ExtractionIssueKind::Unresolved
+                && issue
+                    .description()
+                    .contains("image text presence is unexamined")
+        }));
         let bounds = extractor
             .page_bounds(pdf.as_ref(), ExtractionLimits::default(), 1)
             .expect("page inventory");
@@ -734,7 +741,16 @@ fn paint_acquisition_tracks_drawing_instead_of_unused_resources_or_paths() {
         let extraction = ContentStreamGlyphExtractor
             .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
             .expect("extract PDF");
-        assert!(extraction.is_complete());
+        let invokes_image = nested || content.starts_with(b"BI");
+        assert_eq!(extraction.is_complete(), !invokes_image);
+        if invokes_image {
+            assert!(extraction.issues().iter().any(|issue| {
+                issue.scope() == ExtractionScope::Page(PageId(0))
+                    && issue
+                        .description()
+                        .contains("image text presence is unexamined")
+            }));
+        }
         assert_eq!(
             extraction
                 .document()
@@ -814,7 +830,7 @@ fn acquired_paint_bounds_enclose_images_fills_caps_and_bounded_joins() {
             let extraction = ContentStreamGlyphExtractor
                 .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
                 .expect("valid paint fixture");
-            assert!(extraction.is_complete());
+            assert_eq!(extraction.is_complete(), !content.ends_with("/I Do"));
             let paints = extraction
                 .document()
                 .non_text_paint_bounds()
