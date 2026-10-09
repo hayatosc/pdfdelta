@@ -3970,6 +3970,7 @@ struct Assessor<'a, 'document> {
     anchor_alternatives: Vec<(usize, usize)>,
     anchor_work: AnchorWork,
     local_view_work: LocalViewWork,
+    deny_token_cache: views::DenyTokenCache<'a, 'document>,
     domains: HashMap<DomainKey, DomainProof>,
     /// Relations established through the mandatory-matching equality proof,
     /// which need the wider overlap veto during semantic validation.
@@ -6261,6 +6262,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             anchor_alternatives: Vec::new(),
             anchor_work: AnchorWork::default(),
             local_view_work: LocalViewWork::default(),
+            deny_token_cache: views::DenyTokenCache::new(sides),
             domains: HashMap::new(),
             forced_equal_relations: std::collections::HashSet::new(),
             mandatory_analyses: HashMap::new(),

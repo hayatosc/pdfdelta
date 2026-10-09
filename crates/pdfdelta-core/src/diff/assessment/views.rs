@@ -1,6 +1,9 @@
 use super::raw_source::{RawSourceVerdict, raw_source_isomorphic};
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+};
 
 use crate::{
     Error, Result,
@@ -2517,7 +2520,7 @@ fn band_nearest(
 }
 
 /// Which raw displacement key one whole-block equality is proven from.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TranslationMode {
     /// One whole-view candidate moved by one non-zero uniform translation.
     NonzeroSingleton,
@@ -2670,15 +2673,16 @@ pub(super) fn discover_stationary_members(
 /// block from candidacy on that side. The mask never shrinks the view
 /// population or the reference set: masked blocks still support anchors, stay
 /// in every reference check and still compete as occurrences.
-pub(super) fn discover_positioned_replacements_masked(
+pub(super) fn discover_positioned_replacements_masked_with_cache(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
     established: &[EstablishedBlock],
     remaining_work: &mut usize,
     max_ranges: usize,
     candidate_mask: &[Vec<bool>; 2],
+    deny_cache: &mut DenyTokenCache<'_, '_>,
 ) -> Result<Vec<LocalDomain>> {
-    discover_translations_mode(
+    discover_translations_mode_with_cache(
         sides,
         recovery,
         established,
@@ -2686,6 +2690,7 @@ pub(super) fn discover_positioned_replacements_masked(
         max_ranges,
         TranslationMode::PositionedReplacement,
         Some(candidate_mask),
+        Some(deny_cache),
     )
 }
 
@@ -2716,6 +2721,7 @@ pub(super) fn discover_positioned_replacements(
 /// block from candidacy on that side. The mask never shrinks the view
 /// population or the reference set: masked blocks still support anchors, stay
 /// in every reference check and still compete as occurrences.
+#[cfg(test)]
 pub(super) fn discover_stationary_members_masked(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -2732,6 +2738,28 @@ pub(super) fn discover_stationary_members_masked(
         max_ranges,
         TranslationMode::StationaryMember,
         Some(candidate_mask),
+    )
+}
+
+/// The cached path retains every view, reference and occurrence.
+pub(super) fn discover_stationary_members_masked_with_cache(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    candidate_mask: &[Vec<bool>; 2],
+    deny_cache: &mut DenyTokenCache<'_, '_>,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode_with_cache(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::StationaryMember,
+        Some(candidate_mask),
+        Some(deny_cache),
     )
 }
 
@@ -2799,6 +2827,7 @@ fn augment_raw_source_views(
 /// populations, occurrence sets or the reference set. Every stationary
 /// support, reference, order and ownership guard applies unchanged, and the
 /// returned domain may replace only its own pair's normalization-issue veto.
+#[cfg(test)]
 pub(super) fn discover_raw_source_equalities_masked(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -2818,6 +2847,28 @@ pub(super) fn discover_raw_source_equalities_masked(
     )
 }
 
+/// The cached path retains every view, reference and occurrence.
+pub(super) fn discover_raw_source_equalities_masked_with_cache(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    candidate_mask: &[Vec<bool>; 2],
+    deny_cache: &mut DenyTokenCache<'_, '_>,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode_with_cache(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        TranslationMode::RawSourceEquality,
+        Some(candidate_mask),
+        Some(deny_cache),
+    )
+}
+
 fn discover_translations_mode(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -2826,6 +2877,29 @@ fn discover_translations_mode(
     max_ranges: usize,
     mode: TranslationMode,
     candidate_mask: Option<&[Vec<bool>; 2]>,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode_with_cache(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        mode,
+        candidate_mask,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn discover_translations_mode_with_cache(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    mode: TranslationMode,
+    candidate_mask: Option<&[Vec<bool>; 2]>,
+    mut deny_cache: Option<&mut DenyTokenCache<'_, '_>>,
 ) -> Result<Vec<LocalDomain>> {
     if max_ranges == 0
         || *remaining_work == 0
@@ -2847,22 +2921,24 @@ fn discover_translations_mode(
     let new_descriptors = recovery
         .new_trusted_run_evidence
         .map(|evidence| evidence.descriptors);
-    let Some(mut old_views) = build_views(
+    let Some(mut old_views) = build_views_with_deny_cache(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
         recovery.old_native_order_blocks,
         remaining_work,
+        deny_cache.as_mut().map(|cache| (&mut **cache, 0)),
     )?
     else {
         return Ok(Vec::new());
     };
-    let Some(mut new_views) = build_views(
+    let Some(mut new_views) = build_views_with_deny_cache(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
         recovery.new_native_order_blocks,
         remaining_work,
+        deny_cache.as_mut().map(|cache| (&mut **cache, 1)),
     )?
     else {
         return Ok(Vec::new());
@@ -4408,6 +4484,30 @@ fn build_views(
     native_order_blocks: &[bool],
     remaining_work: &mut usize,
 ) -> Result<Option<Vec<View>>> {
+    build_views_with_deny_cache(
+        side,
+        intervals,
+        descriptors,
+        native_order_blocks,
+        remaining_work,
+        None,
+    )
+}
+
+fn build_views_with_deny_cache(
+    side: &Side<'_>,
+    intervals: &[Option<TrustedRunInterval>],
+    descriptors: Option<&[TrustedRunDescriptor]>,
+    native_order_blocks: &[bool],
+    remaining_work: &mut usize,
+    mut deny_cache: Option<(&mut DenyTokenCache<'_, '_>, usize)>,
+) -> Result<Option<Vec<View>>> {
+    deny_cache = deny_cache.filter(|(cache, index)| {
+        cache
+            .sides
+            .get(*index)
+            .is_some_and(|bound| std::ptr::eq(*bound, side))
+    });
     let mut runs = HashMap::<TrustedRunId, Vec<RunMember>>::new();
     let mut invalid_runs = HashSet::<TrustedRunId>::new();
     for (block_index, interval) in intervals.iter().copied().enumerate() {
@@ -4466,12 +4566,15 @@ fn build_views(
             block_candidates.push(candidate);
         }
         let Some((token_positions, token_pages, block_ranges, deny_positions, deny_pages)) =
-            view_token_metadata(
+            view_token_metadata_with_deny_cache(
                 side,
                 &block_indices,
                 &block_bounded,
                 Some(BlockSeparator::Space),
                 remaining_work,
+                deny_cache
+                    .as_mut()
+                    .map(|(cache, side)| (&mut **cache, *side)),
             )
         else {
             return Ok(None);
@@ -4533,12 +4636,15 @@ fn build_views(
             return Ok(None);
         };
         let Some((token_positions, token_pages, block_ranges, deny_positions, deny_pages)) =
-            view_token_metadata(
+            view_token_metadata_with_deny_cache(
                 side,
                 &[block_index],
                 &[source_bounded],
                 None,
                 remaining_work,
+                deny_cache
+                    .as_mut()
+                    .map(|(cache, side)| (&mut **cache, *side)),
             )
         else {
             return Ok(None);
@@ -4595,6 +4701,143 @@ type DenyMetadata = (
     Vec<Option<crate::normalize::PositionSignature>>,
     Vec<Option<u32>>,
 );
+
+/// Selection-independent deny metadata for one immutable comparison.
+///
+/// The cache cannot certify a correspondence or release a source issue. It
+/// retains unknown entries as well as known ones, and never stores an
+/// incomplete scan. Both source sides and their canonical token populations
+/// are borrowed for its whole lifetime. Each query spends the shared work
+/// budget, and the existing view population walk pays for every copied token.
+/// Retained scratch, including slot headers, is bounded across both sides. An unfunded or oversized optional allocation
+/// keeps the original scan path and never refunds work already spent.
+pub(super) struct DenyTokenCache<'a, 'document> {
+    sides: [&'a Side<'document>; 2],
+    slots: Option<[Vec<Option<DenyMetadata>>; 2]>,
+    retained_bytes: usize,
+    disabled: bool,
+    max_bytes: usize,
+}
+
+const DENY_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
+/// Conservative allocation overhead for a pair of retained vector buffers.
+const DENY_CACHE_BUFFER_OVERHEAD: usize = 64;
+
+impl<'a, 'document> DenyTokenCache<'a, 'document> {
+    pub(super) fn new(sides: [&'a Side<'document>; 2]) -> Self {
+        Self {
+            sides,
+            slots: None,
+            retained_bytes: 0,
+            disabled: false,
+            max_bytes: DENY_CACHE_MAX_BYTES,
+        }
+    }
+
+    fn prepare_slots(&mut self, remaining: &mut usize) {
+        if self.slots.is_some() || self.disabled {
+            return;
+        }
+        let counts = self.sides.map(|side| side.blocks.len());
+        let Some(count) = counts[0].checked_add(counts[1]) else {
+            self.disabled = true;
+            return;
+        };
+        let Some(bytes) = count
+            .checked_mul(std::mem::size_of::<Option<DenyMetadata>>())
+            .and_then(|bytes| bytes.checked_add(DENY_CACHE_BUFFER_OVERHEAD))
+        else {
+            self.disabled = true;
+            return;
+        };
+        // Optional setup must leave more than half the current budget for
+        // the original proof path rather than exhausting it on cache slots.
+        if bytes > self.max_bytes || count > *remaining / 2 {
+            self.disabled = true;
+            return;
+        }
+        if !charge(remaining, count) {
+            self.disabled = true;
+            return;
+        }
+        let mut slots: [Vec<Option<DenyMetadata>>; 2] = [Vec::new(), Vec::new()];
+        for (side_slots, count) in slots.iter_mut().zip(counts) {
+            if side_slots.try_reserve_exact(count).is_err() {
+                self.disabled = true;
+                return;
+            }
+            side_slots.resize_with(count, || None);
+        }
+        let Some(actual_bytes) = slots[0]
+            .capacity()
+            .checked_add(slots[1].capacity())
+            .and_then(|count| count.checked_mul(std::mem::size_of::<Option<DenyMetadata>>()))
+            .and_then(|bytes| bytes.checked_add(DENY_CACHE_BUFFER_OVERHEAD))
+        else {
+            self.disabled = true;
+            return;
+        };
+        if actual_bytes > self.max_bytes {
+            self.disabled = true;
+            return;
+        }
+        self.retained_bytes = actual_bytes;
+        self.slots = Some(slots);
+    }
+
+    fn get(
+        &mut self,
+        side: usize,
+        block: usize,
+        remaining: &mut usize,
+    ) -> Option<Cow<'_, DenyMetadata>> {
+        if !charge(remaining, 1) {
+            return None;
+        }
+        let source = *self.sides.get(side)?;
+        let source_block = source.blocks.get(block)?;
+        let tokens = source.canonical.get(block)?;
+        self.prepare_slots(remaining);
+        if self
+            .slots
+            .as_ref()
+            .is_some_and(|slots| slots[side][block].is_some())
+        {
+            return Some(Cow::Borrowed(
+                self.slots.as_ref()?.get(side)?.get(block)?.as_ref()?,
+            ));
+        }
+        let metadata = deny_token_metadata(source_block, tokens, remaining)?;
+        if self.slots.is_some()
+            && let Some(bytes) = deny_metadata_bytes(&metadata)
+            && let Some(total) = self.retained_bytes.checked_add(bytes)
+            && total <= self.max_bytes
+        {
+            self.slots.as_mut()?[side][block] = Some(metadata);
+            self.retained_bytes = total;
+            return Some(Cow::Borrowed(
+                self.slots.as_ref()?.get(side)?.get(block)?.as_ref()?,
+            ));
+        }
+        Some(Cow::Owned(metadata))
+    }
+}
+
+fn deny_metadata_bytes(metadata: &DenyMetadata) -> Option<usize> {
+    metadata
+        .0
+        .capacity()
+        .checked_mul(std::mem::size_of::<
+            Option<crate::normalize::PositionSignature>,
+        >())?
+        .checked_add(
+            metadata
+                .1
+                .capacity()
+                .checked_mul(std::mem::size_of::<Option<u32>>())?,
+        )?
+        .checked_add(DENY_CACHE_BUFFER_OVERHEAD)
+}
 
 type ViewTokenMetadata = (
     Vec<Option<crate::normalize::PositionSignature>>,
@@ -4875,12 +5118,24 @@ fn valid_range(range: crate::normalize::ScalarRange, len: usize) -> bool {
 /// never compared as if its position were known. Separator tokens inserted
 /// between blocks carry no metadata. `None` reports an exhausted shared work
 /// budget.
+#[cfg(test)]
 fn view_token_metadata(
     side: &Side<'_>,
     block_indices: &[usize],
     bounded: &[bool],
     separator: Option<BlockSeparator>,
     remaining: &mut usize,
+) -> Option<ViewTokenMetadata> {
+    view_token_metadata_with_deny_cache(side, block_indices, bounded, separator, remaining, None)
+}
+
+fn view_token_metadata_with_deny_cache(
+    side: &Side<'_>,
+    block_indices: &[usize],
+    bounded: &[bool],
+    separator: Option<BlockSeparator>,
+    remaining: &mut usize,
+    mut deny_cache: Option<(&mut DenyTokenCache<'_, '_>, usize)>,
 ) -> Option<ViewTokenMetadata> {
     let mut positions = Vec::new();
     let mut pages = Vec::new();
@@ -4916,17 +5171,19 @@ fn view_token_metadata(
             .flatten();
         // Deny evidence is only consulted where the bounded metadata is
         // missing, so a bounded block never pays its scan.
-        let (block_deny_positions, block_deny_pages) = if bounded {
-            (Vec::new(), Vec::new())
+        let deny = if bounded {
+            Cow::Owned((Vec::new(), Vec::new()))
+        } else if let Some((cache, side_index)) = deny_cache.as_mut() {
+            cache.get(*side_index, block_index, remaining)?
         } else {
-            deny_token_metadata(block, tokens, remaining)?
+            Cow::Owned(deny_token_metadata(block, tokens, remaining)?)
         };
         block_ranges.push(positions.len()..positions.len() + tokens.len());
         for index in 0..tokens.len() {
             positions.push(signatures.map(|signatures| signatures[index]));
             pages.push(page);
-            deny_positions.push(block_deny_positions.get(index).copied().flatten());
-            deny_pages.push(block_deny_pages.get(index).copied().flatten());
+            deny_positions.push(deny.0.get(index).copied().flatten());
+            deny_pages.push(deny.1.get(index).copied().flatten());
         }
         preceding_space = tokens
             .last()
@@ -5799,6 +6056,305 @@ mod tests {
             canonical_range: ScalarRange { start, end },
             comparable_range: super::super::super::TokenRange { start, end },
         }
+    }
+
+    #[test]
+    fn deny_cache_retains_only_complete_metadata_with_bounded_scratch() {
+        let blocks = [sourced_block(1, &"ABCD".repeat(32))];
+        let source = side(&blocks);
+        let mut budget = 100_000;
+        let expected = deny_token_metadata(&blocks[0], &source.canonical[0], &mut budget)
+            .expect("complete scan");
+        let scan_work = 100_000 - budget;
+        let mut cache = DenyTokenCache::new([&source, &source]);
+        let mut short = scan_work;
+        assert!(cache.get(0, 0, &mut short).is_none());
+        assert_eq!(short, 0);
+        assert!(cache.slots.as_ref().expect("funded slots")[0][0].is_none());
+        assert_eq!(cache.get(0, 0, &mut 100_000).as_deref(), Some(&expected));
+        let mut one_query = 1;
+        assert_eq!(cache.get(0, 0, &mut one_query).as_deref(), Some(&expected));
+        assert_eq!(one_query, 0);
+        assert!(cache.get(0, 0, &mut 0).is_none());
+        assert!(cache.retained_bytes <= DENY_CACHE_MAX_BYTES);
+
+        for cap in [0, cache.retained_bytes - 1] {
+            let mut limited = DenyTokenCache::new([&source, &source]);
+            limited.max_bytes = cap;
+            for _ in 0..2 {
+                let actual = limited.get(0, 0, &mut 100_000).expect("uncached fallback");
+                assert!(matches!(actual, Cow::Owned(_)));
+                assert_eq!(actual.as_ref(), &expected);
+            }
+            assert!(limited.retained_bytes <= cap);
+            assert!(
+                limited
+                    .slots
+                    .as_ref()
+                    .is_none_or(|slots| slots[0][0].is_none())
+            );
+        }
+        let mut unfunded = DenyTokenCache::new([&source, &source]);
+        assert!(unfunded.get(0, 0, &mut 2).is_none());
+        assert!(unfunded.disabled);
+        assert!(unfunded.slots.is_none());
+        assert_eq!(unfunded.get(0, 0, &mut 100_000).as_deref(), Some(&expected));
+    }
+
+    #[test]
+    fn cached_deny_population_copy_stays_prepaid_and_bound_to_each_side() {
+        let old_blocks = [spread_block(1, "Partly held line", 10.0, 100.0, 0, 1.5)];
+        let new_blocks = [spread_block(1, "Partly held line", 20.0, 100.0, 0, 1.5)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut cache = DenyTokenCache::new([&old, &new]);
+        for (index, source) in [&old, &new].into_iter().enumerate() {
+            let expected = view_token_metadata(source, &[0], &[false], None, &mut 100_000)
+                .expect("original metadata");
+            assert_eq!(
+                view_token_metadata_with_deny_cache(
+                    source,
+                    &[0],
+                    &[false],
+                    None,
+                    &mut 100_000,
+                    Some((&mut cache, index))
+                ),
+                Some(expected.clone())
+            );
+            let mut short = source.canonical[0].len();
+            assert!(
+                view_token_metadata_with_deny_cache(
+                    source,
+                    &[0],
+                    &[false],
+                    None,
+                    &mut short,
+                    Some((&mut cache, index))
+                )
+                .is_none()
+            );
+            assert_eq!(short, 0);
+            let mut exact = source.canonical[0].len() + 2;
+            assert_eq!(
+                view_token_metadata_with_deny_cache(
+                    source,
+                    &[0],
+                    &[false],
+                    None,
+                    &mut exact,
+                    Some((&mut cache, index))
+                ),
+                Some(expected)
+            );
+            assert_eq!(exact, 0);
+        }
+        let old_metadata = cache
+            .get(0, 0, &mut 1)
+            .expect("old cached position")
+            .into_owned();
+        let new_metadata = cache
+            .get(1, 0, &mut 1)
+            .expect("new cached position")
+            .into_owned();
+        assert_ne!(
+            old_metadata.0, new_metadata.0,
+            "equal block identifiers are not shared source evidence"
+        );
+    }
+
+    fn assert_same_views(left: &[View], right: &[View]) {
+        assert_eq!(left.len(), right.len());
+        for (left, right) in left.iter().zip(right) {
+            macro_rules! same {
+                ($left:ident, $right:ident; $($field:ident),+ $(,)?) => { $(assert_eq!($left.$field, $right.$field);)+ };
+            }
+            same!(left, right;
+                kind,
+                source_order,
+                block_indices,
+                source_bounded,
+                order_certified,
+                horizontal_text,
+                block_ranges,
+                block_candidates,
+                position_signatures,
+                page,
+                token_positions,
+                token_pages,
+                deny_positions,
+                deny_pages
+            );
+            let left = &left.group;
+            let right = &right.group;
+            same!(left, right;
+                blocks,
+                separator,
+                tokens,
+                font_size_signatures,
+                position_signatures,
+                line_breaks,
+                page_breaks,
+                scalar_boundaries,
+                canonical_origin,
+                comparable_origin
+            );
+        }
+    }
+
+    #[test]
+    fn cached_view_rebuild_keeps_held_metadata_trusted_members_and_empty_blocks() -> Result<()> {
+        let mut held = sourced_block(2, "Partly held source");
+        let shared = held.canonical.source_map[3].source.atoms[0].clone();
+        held.canonical.source_map[2].source.atoms.push(shared);
+        let blocks = [
+            sourced_block(1, "Trusted head"),
+            held,
+            sourced_block(3, ""),
+            sourced_block(4, "Trusted tail"),
+        ];
+        let source = side(&blocks);
+        let intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let original =
+            build_views(&source, &intervals, None, &[], &mut 100_000)?.expect("original views");
+        let mut cache = DenyTokenCache::new([&source, &source]);
+        for _ in 0..2 {
+            let cached = build_views_with_deny_cache(
+                &source,
+                &intervals,
+                None,
+                &[],
+                &mut 100_000,
+                Some((&mut cache, 0)),
+            )?
+            .expect("cached complete views");
+            assert_same_views(&original, &cached);
+        }
+        // A side outside the borrowed population takes the original scan;
+        // an equal numeric block identifier cannot retrieve another source.
+        let foreign_blocks = [sourced_block(2, "Different physical source")];
+        let foreign = side(&foreign_blocks);
+        let uncached =
+            build_views(&foreign, &[None], None, &[], &mut 100_000)?.expect("foreign views");
+        let rebound = build_views_with_deny_cache(
+            &foreign,
+            &[None],
+            None,
+            &[],
+            &mut 100_000,
+            Some((&mut cache, 0)),
+        )?
+        .expect("fallback views");
+        assert_same_views(&uncached, &rebound);
+        Ok(())
+    }
+
+    #[test]
+    fn reused_tail_views_keep_current_masks_competitors_and_unknown_source() -> Result<()> {
+        for duplicate in [false, true] {
+            let mut old_unknown = spread_block(3, "Unknown source competes", 10.0, 660.0, 0, 1.5);
+            old_unknown.line_breaks = None;
+            let mut new_unknown = spread_block(103, "Unknown source competes", 10.0, 660.0, 0, 1.5);
+            new_unknown.line_breaks = None;
+            let old_blocks = [
+                spread_block(1, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+                spread_block(2, "Stationary member line", 10.0, 680.0, 0, 1.5),
+                old_unknown,
+            ];
+            let mut new_blocks = vec![
+                spread_block(101, "Upper anchor line", 10.0, 700.0, 0, 1.5),
+                spread_block(102, "Stationary member line", 10.0, 680.0, 0, 1.5),
+                new_unknown,
+            ];
+            if duplicate {
+                new_blocks.push(spread_block(
+                    104,
+                    "Stationary member line",
+                    10.0,
+                    680.0,
+                    0,
+                    1.5,
+                ));
+            }
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let old_intervals = vec![None; old_blocks.len()];
+            let new_intervals = vec![None; new_blocks.len()];
+            let input = recovery(&old_intervals, &new_intervals);
+            let established = [EstablishedBlock {
+                old_block: BlockId(1),
+                new_block: BlockId(101),
+            }];
+            let mut cache = DenyTokenCache::new([&old, &new]);
+            for masked in [None, Some(0), Some(1), Some(3)] {
+                let mut mask = [vec![true; old_blocks.len()], vec![true; new_blocks.len()]];
+                if let Some(index) = masked {
+                    for side_mask in &mut mask {
+                        if let Some(value) = side_mask.get_mut(index) {
+                            *value = false;
+                        }
+                    }
+                }
+                for mode in [
+                    TranslationMode::StationaryMember,
+                    TranslationMode::RawSourceEquality,
+                    TranslationMode::PositionedReplacement,
+                ] {
+                    let expected = discover_translations_mode(
+                        [&old, &new],
+                        input,
+                        &established,
+                        &mut 1_000_000,
+                        100,
+                        mode,
+                        Some(&mask),
+                    )?;
+                    let actual = discover_translations_mode_with_cache(
+                        [&old, &new],
+                        input,
+                        &established,
+                        &mut 1_000_000,
+                        100,
+                        mode,
+                        Some(&mask),
+                        Some(&mut cache),
+                    )?;
+                    assert_eq!(
+                        actual, expected,
+                        "{mode:?},duplicate={duplicate},masked={masked:?}"
+                    );
+                    if mode == TranslationMode::StationaryMember && !duplicate && masked != Some(1)
+                    {
+                        assert!(!actual.is_empty(), "nonempty stationary reference control");
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn repeated_deny_metadata_keeps_unknowns_with_bounded_work() {
+        let mut source = sourced_block(1, &"ABCD".repeat(32));
+        let shared = source.canonical.source_map[18].source.atoms[0].clone();
+        source.canonical.source_map[17].source.atoms.push(shared);
+        let blocks = [source];
+        let side = side(&blocks);
+        let mut ample = 100_000;
+        let expected = deny_token_metadata(&blocks[0], &side.canonical[0], &mut ample)
+            .expect("complete original deny scan");
+        assert!(expected.0.iter().any(Option::is_some));
+        assert!(expected.0.iter().any(Option::is_none));
+        let original_cost = 100_000 - ample;
+        let mut remaining = original_cost + 4 * side.canonical[0].len() + 12;
+        let mut cache = DenyTokenCache::new([&side, &side]);
+        assert_eq!(cache.get(0, 0, &mut remaining).as_deref(), Some(&expected));
+        assert_eq!(cache.get(0, 0, &mut remaining).as_deref(), Some(&expected));
     }
 
     #[test]

@@ -122,6 +122,16 @@ is retained. Containment still requires one original owner, adjoining intervals
 are never merged, and overlap keeps strict endpoints. Refused setup uses the
 original population scan; exhausted queries retain the whole-pass hold.
 
+Stationary, raw-source and positioned-replacement discovery share a lazy cache
+of deny-only source positions. It borrows the comparison's immutable sides,
+retains known and unknown entries, and never stores an incomplete scan. Every
+view, reference and competing occurrence is rebuilt with the same population;
+the current candidate mask and ownership are checked afresh. Cached positions
+can only reject an occurrence, never prove equality or release an issue. Queries
+and view population copies spend the shared work budget. Retained buffers and
+slot headers are capped at 32 MiB across both sides; unfunded setup or excess
+capacity keeps the original scan, and already spent work is never refunded.
+
 A final optional pass can report a nonowning changed region inside a partly
 resolved, complete source correspondence. Two consecutive equal-token pairs
 must occur on every maximum matching of the parent; the reported interior

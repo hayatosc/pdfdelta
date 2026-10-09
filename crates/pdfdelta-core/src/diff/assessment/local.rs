@@ -823,13 +823,14 @@ impl Assessor<'_, '_> {
         if !mask[0].iter().any(|&eligible| eligible) || !mask[1].iter().any(|&eligible| eligible) {
             return Ok(());
         }
-        let domains = super::views::discover_stationary_members_masked(
+        let domains = super::views::discover_stationary_members_masked_with_cache(
             self.sides,
             recovery,
             &established,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
             &mask,
+            &mut self.deny_token_cache,
         )?;
         if domains.is_empty() {
             return Ok(());
@@ -947,13 +948,14 @@ impl Assessor<'_, '_> {
         if !mask[0].iter().any(|&eligible| eligible) || !mask[1].iter().any(|&eligible| eligible) {
             return Ok(());
         }
-        let domains = super::views::discover_raw_source_equalities_masked(
+        let domains = super::views::discover_raw_source_equalities_masked_with_cache(
             self.sides,
             recovery,
             &established,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
             &mask,
+            &mut self.deny_token_cache,
         )?;
         if domains.is_empty() {
             return Ok(());
@@ -1098,13 +1100,14 @@ impl Assessor<'_, '_> {
         if !mask[0].iter().any(|&eligible| eligible) || !mask[1].iter().any(|&eligible| eligible) {
             return Ok(());
         }
-        let domains = super::views::discover_positioned_replacements_masked(
+        let domains = super::views::discover_positioned_replacements_masked_with_cache(
             self.sides,
             recovery,
             &established,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
             &mask,
+            &mut self.deny_token_cache,
         )?;
         if domains.is_empty() {
             return Ok(());
