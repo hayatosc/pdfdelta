@@ -570,27 +570,9 @@ impl<'a> EqualFragmentCache<'a> {
         remaining: &mut usize,
     ) -> Check<SideFragment> {
         let side = self.sides[side_index];
-        // The projection walks every token of every referenced block, so the
-        // conservative container scan is charged before it runs: one unit per
-        // block lookup and one unit per canonical token of that block.
-        for block in &span.blocks {
-            if !charge(remaining, 1) {
-                return Err(Stop::Exhausted);
-            }
-            let Some(&block_index) = side.index.get(block) else {
-                return Err(Stop::Error(invalid(
-                    "equal fragment span refers to an unknown block",
-                )));
-            };
-            if !charge(remaining, side.canonical[block_index].len()) {
-                return Err(Stop::Exhausted);
-            }
-        }
-        let intervals = project(side, span)?;
-        let [interval] = intervals.as_slice() else {
+        let Some(interval) = paid_source_interval(side, span, remaining)? else {
             return Err(Stop::Held(FragmentHold::Projection));
         };
-        let interval = *interval;
         let span_tokens = span
             .comparable_range
             .end
@@ -1081,6 +1063,132 @@ fn finite_signature(signature: &PositionSignature) -> bool {
         && baseline.y.is_finite()
         && direction.x.is_finite()
         && direction.y.is_finite()
+}
+
+/// Returns the same single source interval as the general projection.
+///
+/// A sufficiently large single block with no separator or unmapped token has
+/// identical scalar and comparable coordinates. Prepaid metadata checks can
+/// return its interval on the stack, avoiding allocation, duplicate-block
+/// tracking, offsets and endpoint searches. Sixteen units cover the selector,
+/// unmapped metadata, range/coordinate checks and interval construction after
+/// the original paid lookup. The general path keeps its original total fee.
+/// Size selects an equivalent implementation, never a matching criterion.
+/// Every subsequent physical-source, position, raw and sharing check remains.
+fn paid_source_interval(
+    side: &Side<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+) -> Check<Option<SourceInterval>> {
+    let [block] = span.blocks.as_slice() else {
+        let intervals = paid_grouped_source_projection(side, span, remaining)?;
+        return Ok(single_projected_interval(&intervals));
+    };
+    if !charge(remaining, 1) {
+        return Err(Stop::Exhausted);
+    }
+    let Some(&block_index) = side.index.get(block) else {
+        return Err(Stop::Error(invalid(
+            "equal fragment span refers to an unknown block",
+        )));
+    };
+    let container_tokens = side.canonical[block_index].len();
+    let prepaid = container_tokens.min(16);
+    if !charge(remaining, prepaid) {
+        return Err(Stop::Exhausted);
+    }
+    if container_tokens >= 16
+        && span.separator.is_none()
+        && side.blocks[block_index].canonical.unmapped.is_empty()
+    {
+        let range = span.comparable_range;
+        if range.start > range.end
+            || range.end > container_tokens
+            || span.canonical_range.start != range.start
+            || span.canonical_range.end != range.end
+        {
+            return Err(Stop::Error(invalid(
+                "assessment source coordinates do not agree",
+            )));
+        }
+        return Ok((range.start < range.end).then_some(SourceInterval {
+            block_index,
+            start: range.start,
+            end: range.end,
+        }));
+    }
+    // Eligibility metadata has already been prepaid. Restore the original
+    // total before executing the unchanged general projection.
+    if !charge(remaining, container_tokens - prepaid) {
+        return Err(Stop::Exhausted);
+    }
+    let intervals = project(side, span)?;
+    Ok(single_projected_interval(&intervals))
+}
+
+fn single_projected_interval(intervals: &[SourceInterval]) -> Option<SourceInterval> {
+    match intervals {
+        [interval] => Some(*interval),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+fn paid_source_projection(
+    side: &Side<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+) -> Check<Vec<SourceInterval>> {
+    if span.blocks.len() == 1 {
+        Ok(paid_source_interval(side, span, remaining)?
+            .into_iter()
+            .collect())
+    } else {
+        paid_grouped_source_projection(side, span, remaining)
+    }
+}
+
+fn paid_grouped_source_projection(
+    side: &Side<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+) -> Check<Vec<SourceInterval>> {
+    for block in &span.blocks {
+        if !charge(remaining, 1) {
+            return Err(Stop::Exhausted);
+        }
+        let Some(&block_index) = side.index.get(block) else {
+            return Err(Stop::Error(invalid(
+                "equal fragment span refers to an unknown block",
+            )));
+        };
+        if !charge(remaining, side.canonical[block_index].len()) {
+            return Err(Stop::Exhausted);
+        }
+    }
+    project(side, span).map_err(Stop::Error)
+}
+
+#[cfg(test)]
+fn source_projection_token_estimate(
+    side: &Side<'_>,
+    span: &TextSpan,
+    remaining: &mut usize,
+) -> Check<Vec<SourceInterval>> {
+    for block in &span.blocks {
+        if !charge(remaining, 1) {
+            return Err(Stop::Exhausted);
+        }
+        let Some(&block_index) = side.index.get(block) else {
+            return Err(Stop::Error(invalid(
+                "equal fragment span refers to an unknown block",
+            )));
+        };
+        if !charge(remaining, side.canonical[block_index].len()) {
+            return Err(Stop::Exhausted);
+        }
+    }
+    project(side, span).map_err(Stop::Error)
 }
 
 /// Reads the exact canonical scalar count from one materialized immutable side.
@@ -2183,6 +2291,223 @@ mod tests {
             Err(Stop::Error(_))
         ));
         assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn projection_ledger_preserves_unicode_and_unmapped_boundaries() {
+        for count in [0usize, 1, 2, 3, 7, 8, 17, 64, 257] {
+            let mut block = positioned_block(1, &"甲😀".repeat(16), 0.0, 0.0, 0);
+            block.canonical.unmapped = (0..count)
+                .map(|index| UnmappedToken {
+                    scalar_index: 0,
+                    font_hash: FontProgramHash(vec![1]),
+                    glyph_id: u16::try_from(index).expect("fixture glyph id fits"),
+                    source: TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(glyph(1, index + 5000))].into(),
+                    },
+                })
+                .collect();
+            if count > 0 {
+                block.font_size_signatures = None;
+                block.position_signatures = None;
+            }
+            let blocks = [block];
+            let materialized = side(&blocks);
+            let mut boundaries = vec![0, 1, count, count + 1, count + 2];
+            boundaries.sort_unstable();
+            boundaries.dedup();
+            for &start in &boundaries {
+                for &end in &boundaries {
+                    if start > end {
+                        continue;
+                    }
+                    let mut span = fragment(1, start, end);
+                    span.canonical_range = ScalarRange {
+                        start: start.saturating_sub(count),
+                        end: end.saturating_sub(count),
+                    };
+                    let expected =
+                        project(&materialized, &span).expect("valid unmapped projection");
+                    let mut remaining = 100_000;
+                    assert_eq!(
+                        paid_source_projection(&materialized, &span, &mut remaining)
+                            .unwrap_or_else(|_| panic!("valid prepaid projection")),
+                        expected
+                    );
+                    let expected_cost = if count == 0 { 17 } else { count + 33 };
+                    assert_eq!(100_000 - remaining, expected_cost);
+                    span.canonical_range.end += 1;
+                    let expected = project(&materialized, &span)
+                        .expect_err("wrong canonical boundary")
+                        .to_string();
+                    assert!(
+                        matches!(paid_source_projection(&materialized,&span,&mut 100_000),Err(Stop::Error(error)) if error.to_string()==expected)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn projection_ledger_keeps_container_separator_and_duplicate_checks() {
+        let blocks = [
+            positioned_block(1, "head", 0.0, 0.0, 0),
+            positioned_block(2, "甲😀abcd", 0.0, 0.0, 0),
+        ];
+        let materialized = side(&blocks);
+        let valid = TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 6, end: 9 },
+            comparable_range: TokenRange { start: 6, end: 9 },
+        };
+        let mut cases = vec![
+            valid.clone(),
+            fragment(1, 1, 4),
+            fragment(1, 0, 0),
+            fragment(1, 0, 5),
+            fragment(1, 3, 1),
+        ];
+        let mut repeated = valid.clone();
+        repeated.blocks[1] = BlockId(1);
+        cases.push(repeated);
+        let mut absent = valid.clone();
+        absent.blocks[1] = BlockId(3);
+        cases.push(absent);
+        let mut missing_separator = valid.clone();
+        missing_separator.separator = None;
+        cases.push(missing_separator);
+        let mut extra_separator = fragment(1, 1, 3);
+        extra_separator.separator = Some(BlockSeparator::Space);
+        cases.push(extra_separator);
+        for span in cases {
+            let expected = source_projection_token_estimate(&materialized, &span, &mut 100_000);
+            let actual = paid_source_projection(&materialized, &span, &mut 100_000);
+            match (expected, actual) {
+                (Ok(old), Ok(new)) => assert_eq!(old, new),
+                (Err(Stop::Error(old)), Err(Stop::Error(new))) => {
+                    assert_eq!(old.to_string(), new.to_string());
+                }
+                _ => panic!("projection checks must agree"),
+            }
+        }
+    }
+
+    #[test]
+    fn projection_work_is_prepaid_before_ranges_are_published() {
+        let blocks = [positioned_block(1, "甲".repeat(2000).as_str(), 0.0, 0.0, 0)];
+        let materialized = side(&blocks);
+        let span = fragment(1, 10, 11);
+        let mut remaining = 16;
+        assert!(matches!(
+            paid_source_projection(&materialized, &span, &mut remaining),
+            Err(Stop::Exhausted)
+        ));
+        assert_eq!(remaining, 0);
+        let mut remaining = 17;
+        assert_eq!(
+            paid_source_projection(&materialized, &span, &mut remaining)
+                .unwrap_or_else(|_| panic!("exact projection allowance")),
+            vec![SourceInterval {
+                block_index: 0,
+                start: 10,
+                end: 11
+            }]
+        );
+        assert_eq!(remaining, 0);
+        let mut remaining = 1;
+        assert!(matches!(
+            paid_source_projection(&materialized, &fragment(2, 0, 1), &mut remaining),
+            Err(Stop::Error(_))
+        ));
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn metadata_projections_keep_work_for_a_later_independent_source_guard() -> Result<()> {
+        let old_blocks = [
+            positioned_block(1, &"甲".repeat(2000), 0.0, 0.0, 0),
+            positioned_block(3, "Z", 0.0, 0.0, 0),
+        ];
+        let new_blocks = [
+            positioned_block(101, "甲", 0.0, 0.0, 0),
+            positioned_block(102, "Z", 0.0, 0.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut old_remaining = 100_000;
+        let mut remaining = old_remaining;
+        let mut stopped = false;
+        for index in 0..64 {
+            let span = fragment(1, index * 20, index * 20 + 1);
+            let actual = paid_source_projection(&old, &span, &mut remaining)
+                .unwrap_or_else(|_| panic!("bounded metadata projection"));
+            assert_eq!(
+                actual,
+                vec![SourceInterval {
+                    block_index: 0,
+                    start: index * 20,
+                    end: index * 20 + 1
+                }]
+            );
+            if !stopped {
+                match source_projection_token_estimate(&old, &span, &mut old_remaining) {
+                    Ok(expected) => assert_eq!(actual, expected),
+                    Err(Stop::Exhausted) => stopped = true,
+                    _ => panic!("valid original projection"),
+                }
+            }
+        }
+        assert!(stopped);
+        assert_eq!(old_remaining, 0);
+        assert_eq!(100_000 - remaining, 64 * 17);
+        let spans = [fragment(3, 0, 1), fragment(102, 0, 1)];
+        // Both source guards keep their independent mandatory-pair caller's
+        // prerequisite. This proves source completeness, not correspondence.
+        let mut old_cache = EqualFragmentCache::new([&old, &new]);
+        assert_eq!(
+            old_cache
+                .prove_sources_for_mandatory_pairs([&spans[0], &spans[1]], &mut old_remaining)?,
+            FragmentVerdict::Exhausted
+        );
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        assert_eq!(
+            cache.prove_sources_for_mandatory_pairs([&spans[0], &spans[1]], &mut remaining)?,
+            FragmentVerdict::Proven
+        );
+        assert!(remaining > 10_000);
+        let shared_blocks = [old_blocks[0].clone(), positioned_block(2, "Z", 0.0, 0.0, 0)];
+        let shared = side(&shared_blocks);
+        let mut shared_cache = EqualFragmentCache::new([&shared, &new]);
+        assert_eq!(
+            shared_cache
+                .prove_sources_for_mandatory_pairs([&fragment(2, 0, 1), &spans[1]], &mut 100_000)?,
+            FragmentVerdict::Held(FragmentHold::SharedGlyph)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn projection_ledger_never_increases_general_projection_fee() {
+        for count in [0usize, 1, 2, 15, 16, 17, 32, 257] {
+            let blocks = [positioned_block(1, &"甲".repeat(count), 0.0, 0.0, 0)];
+            let materialized = side(&blocks);
+            for start in 0..=count {
+                let span = fragment(1, start, count);
+                let mut original = 100_000;
+                let mut candidate = original;
+                let expected =
+                    source_projection_token_estimate(&materialized, &span, &mut original)
+                        .unwrap_or_else(|_| panic!("valid original projection"));
+                let actual = paid_source_projection(&materialized, &span, &mut candidate)
+                    .unwrap_or_else(|_| panic!("valid candidate projection"));
+                assert_eq!(actual, expected);
+                assert!(candidate >= original);
+                if count < 16 {
+                    assert_eq!(candidate, original);
+                }
+            }
+        }
     }
 
     fn prove_pair(

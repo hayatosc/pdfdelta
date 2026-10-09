@@ -412,3 +412,14 @@ Each pair of table lookups and the checked subtraction is paid before use.
 This replaces repeated Unicode text counting without storing a proof or
 allocating another cache. Raw text counts, source-map scans and every source,
 position, normalization, sharing, ownership and parent guard remain required.
+
+A single source block without a separator or unmapped token has the same
+scalar and comparable coordinates. For containers of at least sixteen tokens,
+source proofs can pay the block lookup and sixteen metadata units, then validate
+both coordinates and return an interval on the stack. This avoids the general
+projection's allocation, duplicate tracking, offsets and endpoint searches.
+The size check selects an equivalent implementation rather than a matching
+criterion. Small, grouped, separator or unmapped cases keep the original
+projection and its total fee; no individual projection fee increases. Every
+physical-source, raw, position, normalization, sharing and ownership guard still
+runs. Nothing is cached, and shared budgets and output limits remain fixed.
