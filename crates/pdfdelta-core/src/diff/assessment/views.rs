@@ -2338,6 +2338,8 @@ struct BandSide<'a> {
     range: &'a std::ops::Range<usize>,
     block: usize,
     page: u32,
+    view_index: usize,
+    member: usize,
 }
 
 type BaselineBounds = (f64, f64, f64, f64);
@@ -2429,6 +2431,134 @@ impl<'a> ReferenceBoundsCache<'a> {
             *slot = Some(bounds);
         }
         Some(bounds)
+    }
+}
+
+/// Completed direction checks for the fixed members of one immutable discovery.
+///
+/// Known horizontal and non-horizontal outcomes are retained, never exhaustion.
+/// The source side and all views remain borrowed. Every query pays six units
+/// for its lookup and exact input-binding checks; failed binding uses the
+/// original scan. Setup pays for its view walk and every initialized offset and
+/// member slot. Each side retains at most 16 MiB including actual capacities
+/// and this header. Refused preparation keeps all spent work charged.
+struct ReferenceHorizontalCache<'a> {
+    side: &'a Side<'a>,
+    views: &'a [View],
+    offsets: Vec<usize>,
+    slots: Vec<Option<bool>>,
+    attempted: bool,
+}
+
+impl<'a> ReferenceHorizontalCache<'a> {
+    fn new(side: &'a Side<'a>, views: &'a [View]) -> Self {
+        Self {
+            side,
+            views,
+            offsets: Vec::new(),
+            slots: Vec::new(),
+            attempted: false,
+        }
+    }
+
+    fn prepare(&mut self, remaining: &mut usize) {
+        if self.attempted {
+            return;
+        }
+        self.attempted = true;
+        if self.views.len() > *remaining {
+            return;
+        }
+        if !charge(remaining, self.views.len()) {
+            return;
+        }
+        let Some(count) = self.views.iter().try_fold(0usize, |count, view| {
+            count.checked_add(view.block_ranges.len())
+        }) else {
+            return;
+        };
+        let Some(offset_count) = self.views.len().checked_add(1) else {
+            return;
+        };
+        let bytes = count
+            .checked_mul(std::mem::size_of::<Option<bool>>())
+            .and_then(|bytes| {
+                offset_count
+                    .checked_mul(std::mem::size_of::<usize>())
+                    .and_then(|offsets| bytes.checked_add(offsets))
+            })
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        let Some(cost) = count.checked_add(offset_count) else {
+            return;
+        };
+        if bytes.is_none_or(|bytes| bytes > 16 * 1024 * 1024) || cost > *remaining {
+            return;
+        }
+        if !charge(remaining, cost)
+            || self.offsets.try_reserve_exact(offset_count).is_err()
+            || self.slots.try_reserve_exact(count).is_err()
+        {
+            self.offsets = Vec::new();
+            self.slots = Vec::new();
+            return;
+        }
+        let retained = self
+            .slots
+            .capacity()
+            .checked_mul(std::mem::size_of::<Option<bool>>())
+            .and_then(|bytes| {
+                self.offsets
+                    .capacity()
+                    .checked_mul(std::mem::size_of::<usize>())
+                    .and_then(|offsets| bytes.checked_add(offsets))
+            })
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        if retained.is_none_or(|bytes| bytes > 16 * 1024 * 1024) {
+            self.offsets = Vec::new();
+            self.slots = Vec::new();
+            return;
+        }
+        self.offsets.push(0);
+        for view in self.views {
+            self.offsets
+                .push(self.offsets.last().copied().unwrap_or(0) + view.block_ranges.len());
+        }
+        self.slots.resize(count, None);
+    }
+
+    fn get(&mut self, input: BandSide<'_>, remaining: &mut usize) -> Option<bool> {
+        if !charge(remaining, 6) {
+            return None;
+        }
+        let bound = std::ptr::eq(self.side, input.side)
+            && self.views.get(input.view_index).is_some_and(|view| {
+                std::ptr::eq(view, input.view)
+                    && view.block_ranges.get(input.member) == Some(input.range)
+                    && view.block_indices.get(input.member) == Some(&input.block)
+            });
+        if !bound {
+            return reference_horizontal(
+                input.side,
+                input.view,
+                input.range,
+                input.block,
+                remaining,
+            );
+        }
+        self.prepare(remaining);
+        let index = self
+            .offsets
+            .get(input.view_index)
+            .and_then(|start| start.checked_add(input.member));
+        if let Some(Some(value)) = index.and_then(|index| self.slots.get(index)) {
+            return Some(*value);
+        }
+        let value =
+            reference_horizontal(input.side, input.view, input.range, input.block, remaining)?;
+        if let Some(slot) = index.and_then(|index| self.slots.get_mut(index)) {
+            *slot = Some(value);
+        }
+        Some(value)
     }
 }
 
@@ -2528,20 +2658,32 @@ fn band_nearest(
     neighbour_bounds: (f64, f64, f64, f64),
     remaining: &mut usize,
     cache: &mut BandBoundsCache<'_>,
+    mut horizontal_cache: Option<&mut ReferenceHorizontalCache<'_>>,
 ) -> Option<bool> {
-    if !reference_horizontal(
-        candidate.side,
-        candidate.view,
-        candidate.range,
-        candidate.block,
-        remaining,
-    )? || !reference_horizontal(
-        neighbour.side,
-        neighbour.view,
-        neighbour.range,
-        neighbour.block,
-        remaining,
-    )? {
+    let candidate_horizontal = match horizontal_cache.as_deref_mut() {
+        Some(cache) => cache.get(candidate, remaining)?,
+        None => reference_horizontal(
+            candidate.side,
+            candidate.view,
+            candidate.range,
+            candidate.block,
+            remaining,
+        )?,
+    };
+    if !candidate_horizontal {
+        return Some(false);
+    }
+    let neighbour_horizontal = match horizontal_cache {
+        Some(cache) => cache.get(neighbour, remaining)?,
+        None => reference_horizontal(
+            neighbour.side,
+            neighbour.view,
+            neighbour.range,
+            neighbour.block,
+            remaining,
+        )?,
+    };
+    if !neighbour_horizontal {
         return Some(false);
     }
     let band_min = candidate_bounds.0.max(neighbour_bounds.0);
@@ -3137,6 +3279,10 @@ fn discover_translations_mode_with_cache(
         ReferenceBoundsCache::new(sides[0], &old_views, &neighbours, false),
         ReferenceBoundsCache::new(sides[1], &new_views, &neighbours, true),
     ];
+    let mut horizontal = [
+        ReferenceHorizontalCache::new(sides[0], &old_views),
+        ReferenceHorizontalCache::new(sides[1], &new_views),
+    ];
     let mut band_bounds = [
         BandBoundsCache::new(sides[0]),
         BandBoundsCache::new(sides[1]),
@@ -3252,6 +3398,8 @@ fn discover_translations_mode_with_cache(
                         BandSide {
                             side: sides[0],
                             view: old_view,
+                            view_index: old_view_index,
+                            member: block,
                             range: &old_range,
                             block: candidate_index,
                             page: candidate_page,
@@ -3260,6 +3408,8 @@ fn discover_translations_mode_with_cache(
                         BandSide {
                             side: sides[0],
                             view: &old_views[neighbour.old_view],
+                            view_index: neighbour.old_view,
+                            member: neighbour.old_member,
                             range: &neighbour.old_range,
                             block: neighbour.old_index,
                             page: candidate_page,
@@ -3267,6 +3417,7 @@ fn discover_translations_mode_with_cache(
                         neighbour_bounds,
                         remaining_work,
                         &mut band_bounds[0],
+                        Some(&mut horizontal[0]),
                     ) {
                         Some(value) => value,
                         None => return Ok(Vec::new()),
@@ -3521,6 +3672,8 @@ fn discover_translations_mode_with_cache(
                         BandSide {
                             side: sides[1],
                             view: new_view,
+                            view_index: new_view_index,
+                            member: new_candidate_member,
                             range: &new_range,
                             block: new_candidate_index,
                             page: new_candidate_page,
@@ -3529,6 +3682,8 @@ fn discover_translations_mode_with_cache(
                         BandSide {
                             side: sides[1],
                             view: &new_views[neighbour.new_view],
+                            view_index: neighbour.new_view,
+                            member: neighbour.new_member,
                             range: &neighbour.new_range,
                             block: neighbour.new_index,
                             page: new_candidate_page,
@@ -3536,6 +3691,7 @@ fn discover_translations_mode_with_cache(
                         neighbour_bounds,
                         remaining_work,
                         &mut band_bounds[1],
+                        Some(&mut horizontal[1]),
                     ) {
                         Some(value) => value,
                         None => return Ok(Vec::new()),
@@ -10109,6 +10265,221 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn repeated_reference_directions_leave_budget_for_later_source_proofs() -> Result<()> {
+        let blocks = [sourced_block(1, "abcdefghijklmnopqrst")];
+        let source = side(&blocks);
+        let views = build_views(&source, &[None], None, &[], &mut 100_000)?.expect("source view");
+        let range = 0..20;
+        let input = BandSide {
+            side: &source,
+            view: &views[0],
+            range: &range,
+            block: 0,
+            page: 0,
+            view_index: 0,
+            member: 0,
+        };
+        let mut cache = ReferenceHorizontalCache::new(&source, &views);
+        let mut remaining = 37;
+        for _ in 0..2 {
+            assert_eq!(cache.get(input, &mut remaining), Some(true));
+        }
+        assert_eq!(remaining, 0);
+        assert_eq!(cache.get(input, &mut remaining), None);
+        Ok(())
+    }
+
+    fn direction_input<'a>(
+        source: &'a Side<'a>,
+        views: &'a [View],
+        view: usize,
+        member: usize,
+    ) -> BandSide<'a> {
+        BandSide {
+            side: source,
+            view: &views[view],
+            range: &views[view].block_ranges[member],
+            block: views[view].block_indices[member],
+            page: 0,
+            view_index: view,
+            member,
+        }
+    }
+
+    #[test]
+    fn reference_direction_cache_keeps_missing_and_nonhorizontal_held() -> Result<()> {
+        let mut missing = sourced_block(1, "abcdefghijklmnopqrst");
+        missing.position_signatures = None;
+        let mut vertical = sourced_block(1, "abcdefghijklmnopqrst");
+        let position = PositionSignature::new(Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 0.0, y: 1.0 })
+            .expect("vertical position");
+        vertical.position_signatures = Some(vec![position; 20]);
+        for block in [missing, vertical] {
+            let blocks = [block];
+            let source = side(&blocks);
+            let views = build_views(&source, &[None], None, &[], &mut 100_000)?
+                .expect("retained source view");
+            let input = direction_input(&source, &views, 0, 0);
+            let mut cache = ReferenceHorizontalCache::new(&source, &views);
+            assert_eq!(cache.get(input, &mut 100_000), Some(false));
+            let mut remaining = 6;
+            assert_eq!(cache.get(input, &mut remaining), Some(false));
+            assert_eq!(remaining, 0);
+            assert_eq!(cache.get(input, &mut remaining), None);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn reference_direction_cache_never_retains_exhaustion() -> Result<()> {
+        let blocks = [sourced_block(1, "abcdefghijklmnopqrst")];
+        let source = side(&blocks);
+        let views = build_views(&source, &[None], None, &[], &mut 100_000)?.expect("source view");
+        let input = direction_input(&source, &views, 0, 0);
+        let mut cache = ReferenceHorizontalCache::new(&source, &views);
+        for budget in [30, 6] {
+            let mut remaining = budget;
+            assert_eq!(cache.get(input, &mut remaining), None);
+            assert_eq!(remaining, 0);
+        }
+        let mut remaining = 27;
+        assert_eq!(cache.get(input, &mut remaining), Some(true));
+        assert_eq!(remaining, 0);
+        let mut remaining = 6;
+        assert_eq!(cache.get(input, &mut remaining), Some(true));
+        assert_eq!(remaining, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_direction_cache_unfunded_setup_keeps_the_original_scan() -> Result<()> {
+        let blocks = (1..=100)
+            .map(|id| sourced_block(id, "abcdefghijklmnopqrst"))
+            .collect::<Vec<_>>();
+        let source = side(&blocks);
+        let views =
+            build_views(&source, &[None; 100], None, &[], &mut 100_000)?.expect("source views");
+        let input = direction_input(&source, &views, 0, 0);
+        let mut cache = ReferenceHorizontalCache::new(&source, &views);
+        for _ in 0..2 {
+            let mut remaining = 27;
+            assert_eq!(cache.get(input, &mut remaining), Some(true));
+            assert_eq!(remaining, 0);
+        }
+        assert!(cache.slots.is_empty() && cache.offsets.is_empty());
+        assert_eq!(cache.get(input, &mut 6), None);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_direction_cache_requires_the_same_side_view_range_and_member() -> Result<()> {
+        let blocks = [sourced_block(1, "abcdefghijklmnopqrst")];
+        let source = side(&blocks);
+        let other_source = side(&blocks);
+        let views = build_views(&source, &[None], None, &[], &mut 100_000)?.expect("original view");
+        let mut other_views =
+            build_views(&source, &[None], None, &[], &mut 100_000)?.expect("different view");
+        let position = PositionSignature::new(Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 0.0, y: 1.0 })
+            .expect("vertical position");
+        other_views[0].token_positions.fill(Some(position));
+        let input = direction_input(&source, &views, 0, 0);
+        let mut cache = ReferenceHorizontalCache::new(&source, &views);
+        assert_eq!(cache.get(input, &mut 100_000), Some(true));
+        let range = 0..10;
+        for altered in [
+            BandSide {
+                side: &other_source,
+                ..input
+            },
+            BandSide {
+                view: &other_views[0],
+                ..input
+            },
+            BandSide {
+                range: &range,
+                ..input
+            },
+            BandSide {
+                view_index: usize::MAX,
+                ..input
+            },
+            BandSide {
+                member: usize::MAX,
+                ..input
+            },
+        ] {
+            let expected = reference_horizontal(
+                altered.side,
+                altered.view,
+                altered.range,
+                altered.block,
+                &mut 100_000,
+            );
+            let mut remaining = 100_000;
+            assert_eq!(cache.get(altered, &mut remaining), expected);
+            assert!(remaining < 100_000 - 6, "failed binding must rescan");
+        }
+        assert_eq!(cache.get(input, &mut 6), Some(true));
+        Ok(())
+    }
+
+    #[test]
+    fn cached_reference_directions_preserve_the_full_band_obstacle_veto() -> Result<()> {
+        for (obstacle, expected) in [
+            (spread_block(3, "XX", 10.0, 600.0, 0, 0.0), true),
+            (spread_block(3, "XX", 10.0, 690.0, 0, 0.0), false),
+            (
+                {
+                    let mut block = sourced_block(3, "XX");
+                    block.position_signatures = None;
+                    block
+                },
+                false,
+            ),
+        ] {
+            let blocks = [
+                spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+                spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+                obstacle,
+            ];
+            let source = side(&blocks);
+            let views =
+                build_views(&source, &[None; 3], None, &[], &mut 100_000)?.expect("source views");
+            let candidate = direction_input(&source, &views, 0, 0);
+            let neighbour = direction_input(&source, &views, 1, 0);
+            let mut bounds = BandBoundsCache::new(&source);
+            let mut horizontal = ReferenceHorizontalCache::new(&source, &views);
+            for _ in 0..2 {
+                assert_eq!(
+                    band_nearest(
+                        candidate,
+                        (10.0, 700.0, 11.5, 700.0),
+                        neighbour,
+                        (10.0, 680.0, 11.5, 680.0),
+                        &mut 100_000,
+                        &mut bounds,
+                        Some(&mut horizontal)
+                    ),
+                    Some(expected)
+                );
+            }
+            assert_eq!(
+                band_nearest(
+                    candidate,
+                    (10.0, 700.0, 11.5, 700.0),
+                    neighbour,
+                    (10.0, 680.0, 11.5, 680.0),
+                    &mut 0,
+                    &mut bounds,
+                    Some(&mut horizontal)
+                ),
+                None
+            );
+        }
+        Ok(())
+    }
+
     fn cache_reference(range: std::ops::Range<usize>) -> EstablishedNeighbour {
         EstablishedNeighbour {
             old_index: 0,
@@ -10280,6 +10651,8 @@ mod tests {
         let candidate = BandSide {
             side: &source,
             view: &views[0],
+            view_index: 0,
+            member: 0,
             range: &candidate_range,
             block: 0,
             page: 0,
@@ -10287,6 +10660,8 @@ mod tests {
         let neighbour = BandSide {
             side: &source,
             view: &views[1],
+            view_index: 1,
+            member: 0,
             range: &neighbour_range,
             block: 1,
             page: 0,
@@ -10302,6 +10677,7 @@ mod tests {
                     (10.0, 680.0, 11.5, 680.0),
                     &mut remaining,
                     &mut cache,
+                    None,
                 ),
                 Some(true),
             );
@@ -10329,6 +10705,8 @@ mod tests {
             let candidate = BandSide {
                 side: &source,
                 view: &views[0],
+                view_index: 0,
+                member: 0,
                 range: &range,
                 block: 0,
                 page: 0,
@@ -10336,6 +10714,8 @@ mod tests {
             let neighbour = BandSide {
                 side: &source,
                 view: &views[1],
+                view_index: 1,
+                member: 0,
                 range: &range,
                 block: 1,
                 page: 0,
@@ -10350,7 +10730,8 @@ mod tests {
                         neighbour,
                         (10.0, 680.0, 11.5, 680.0),
                         &mut work,
-                        &mut cache
+                        &mut cache,
+                        None,
                     ),
                     Some(false)
                 );
@@ -10379,6 +10760,8 @@ mod tests {
             let candidate = BandSide {
                 side: source,
                 view: &views[0],
+                view_index: 0,
+                member: 0,
                 range: &range,
                 block: 0,
                 page: 0,
@@ -10386,6 +10769,8 @@ mod tests {
             let neighbour = BandSide {
                 side: source,
                 view: &views[1],
+                view_index: 1,
+                member: 0,
                 range: &range,
                 block: 1,
                 page: 0,
@@ -10397,7 +10782,8 @@ mod tests {
                     neighbour,
                     (10.0, 680.0, 11.5, 680.0),
                     &mut work,
-                    &mut cache
+                    &mut cache,
+                    None,
                 ),
                 Some(expected)
             );

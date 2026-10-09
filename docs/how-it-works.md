@@ -141,6 +141,15 @@ initialized slots and every query spends work. Retained slots and headers are
 capped at 16 MiB per side, 32 MiB combined. Refused or unfunded setup keeps the
 original scan without refunding spent work.
 
+Repeated horizontal-direction queries reuse completed outcomes for one
+discovery's immutable source side and view members. The query checks the exact
+side, view, range and block binding before reuse; a different binding runs the
+original scan. Missing or non-horizontal evidence still vetoes adjacency, and
+exhaustion is never cached. Every band, obstacle, support and ownership check
+still runs. The view walk, initialized offsets and member slots, and every
+query spend the shared work budget. Actual capacities and headers are capped
+at 16 MiB per side, 32 MiB combined, with no refunds on refused preparation.
+
 Raw-source discovery validates a block against itself before using its evidence.
 A self-comparison with unmapped scalars holds after the fixed header charge,
 before scanning text or analyzing sources. Identity supports this rejection
