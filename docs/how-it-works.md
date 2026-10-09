@@ -404,3 +404,11 @@ existing combined 32 MiB cache cap and source-side binding remain unchanged.
 All established references, source populations, closure guards and discovery
 order are inspected as before; proof results and mutable ownership are not
 cached.
+
+
+Literal source proofs obtain canonical scalar counts from the same immutable
+side's materialized tokens, subtracting its validated unmapped-token count.
+Each pair of table lookups and the checked subtraction is paid before use.
+This replaces repeated Unicode text counting without storing a proof or
+allocating another cache. Raw text counts, source-map scans and every source,
+position, normalization, sharing, ownership and parent guard remain required.

@@ -642,7 +642,7 @@ impl<'a> EqualFragmentCache<'a> {
         let [page] = block.pages.as_slice() else {
             return Err(Stop::Held(FragmentHold::MultiplePages));
         };
-        let glyphs = canonical_glyphs(block, &interval, remaining)?;
+        let glyphs = canonical_glyphs(side, &interval, remaining)?;
         let raw_scalars = raw_counterparts(block, &glyphs, remaining)?;
         let run = RawRun {
             interval: &interval,
@@ -701,19 +701,11 @@ impl<'a> EqualFragmentCache<'a> {
         let side = self.sides[side_index];
         let block = &side.blocks[block_index];
         // The text scan and the estimation scan are charged before they run.
-        if !charge(
-            remaining,
-            block
-                .raw
-                .text
-                .len()
-                .saturating_add(block.canonical.text.len())
-                .saturating_add(1),
-        ) {
+        if !charge(remaining, block.raw.text.len().saturating_add(1)) {
             return Err(Stop::Exhausted);
         }
         let raw_count = block.raw.text.chars().count();
-        let scalar_count = block.canonical.text.chars().count();
+        let (_, scalar_count) = canonical_block_metadata(side, block_index, remaining)?;
         let mut raw_entries = 0usize;
         let mut raw_atoms = 0usize;
         let mut canonical_entries = 0usize;
@@ -1021,19 +1013,11 @@ impl<'a> EqualFragmentCache<'a> {
         {
             return Err(Stop::Held(FragmentHold::NormalizationBoundary));
         }
-        if !charge(
-            remaining,
-            block
-                .raw
-                .text
-                .len()
-                .saturating_add(block.canonical.text.len())
-                .saturating_add(1),
-        ) {
+        if !charge(remaining, block.raw.text.len().saturating_add(1)) {
             return Err(Stop::Exhausted);
         }
         let raw_count = block.raw.text.chars().count();
-        let scalar_count = block.canonical.text.chars().count();
+        let (_, scalar_count) = canonical_block_metadata(side, block_index, remaining)?;
         if !self.event_structure(
             side_index,
             block_index,
@@ -1099,6 +1083,38 @@ fn finite_signature(signature: &PositionSignature) -> bool {
         && direction.y.is_finite()
 }
 
+/// Reads the exact canonical scalar count from one materialized immutable side.
+///
+/// Materialization emitted one scalar token per Unicode character and one
+/// extra token per unmapped source. Removing only that extra count recovers
+/// the original scalar count, even for multibyte text. The side and block
+/// index bind the count to the same source map; this supplies no glyph,
+/// correspondence, position, normalization or ownership evidence. Both table
+/// lookups and the checked subtraction are prepaid. No text is rescanned and
+/// no additional cache storage or allocation is introduced.
+fn canonical_block_metadata<'a>(
+    side: &'a Side<'_>,
+    block_index: usize,
+    remaining: &mut usize,
+) -> Check<(&'a BlockText, usize)> {
+    if !charge(remaining, 3) {
+        return Err(Stop::Exhausted);
+    }
+    let block = side
+        .blocks
+        .get(block_index)
+        .ok_or_else(|| invalid("equal fragment canonical block is absent"))?;
+    let tokens = side
+        .canonical
+        .get(block_index)
+        .ok_or_else(|| invalid("equal fragment canonical tokens are absent"))?;
+    let scalar_count = tokens
+        .len()
+        .checked_sub(block.canonical.unmapped.len())
+        .ok_or_else(|| invalid("equal fragment canonical token count is inconsistent"))?;
+    Ok((block, scalar_count))
+}
+
 /// Extracts one single-glyph canonical source per selected scalar.
 ///
 /// The caller has already held blocks with unmapped tokens, so a block-local
@@ -1107,6 +1123,60 @@ fn finite_signature(signature: &PositionSignature) -> bool {
 /// malformed range, a gap, a multi-scalar entry or a non-glyph atom holds the
 /// fragment.
 fn canonical_glyphs(
+    side: &Side<'_>,
+    interval: &SourceInterval,
+    remaining: &mut usize,
+) -> Check<Vec<GlyphId>> {
+    let (block, scalar_count) = canonical_block_metadata(side, interval.block_index, remaining)?;
+    let mut glyphs = Vec::new();
+    let selected = interval.end - interval.start;
+    if !charge(remaining, selected) {
+        return Err(Stop::Exhausted);
+    }
+    glyphs
+        .try_reserve(selected)
+        .map_err(|_| allocation_error("equal fragment canonical glyphs"))?;
+    let mut previous_end = 0usize;
+    let mut next = interval.start;
+    for entry in &block.canonical.source_map {
+        if !charge(remaining, 1 + entry.source.atoms.len()) {
+            return Err(Stop::Exhausted);
+        }
+        if entry.output_range.start > entry.output_range.end
+            || entry.output_range.end > scalar_count
+            || entry.output_range.start < previous_end
+        {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        }
+        previous_end = entry.output_range.end;
+        if next >= interval.end {
+            continue;
+        }
+        if next < entry.output_range.start {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        }
+        if next >= entry.output_range.end {
+            continue;
+        }
+        if entry.output_range.start != next || entry.output_range.end != next + 1 {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        }
+        let [atom] = entry.source.atoms.as_slice() else {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        };
+        let TextSourceAtom::Glyph(glyph) = atom else {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        };
+        glyphs.push(*glyph);
+        next += 1;
+    }
+    if next != interval.end {
+        return Err(Stop::Held(FragmentHold::CanonicalSource));
+    }
+    Ok(glyphs)
+}
+#[cfg(test)]
+fn canonical_glyphs_rescanned(
     block: &BlockText,
     interval: &SourceInterval,
     remaining: &mut usize,
@@ -1908,6 +1978,211 @@ mod tests {
             canonical_range: ScalarRange { start, end },
             comparable_range: TokenRange { start, end },
         }
+    }
+
+    #[test]
+    fn materialized_canonical_count_keeps_unicode_and_unmapped_scalars() {
+        for text in ["", "A", "é日本😀e\u{301}", "A B\nC"] {
+            for unmapped in [false, true] {
+                let mut block = positioned_block(1, text, 0.0, 0.0, 0);
+                if unmapped {
+                    block.canonical.unmapped = vec![
+                        UnmappedToken {
+                            scalar_index: 0,
+                            font_hash: FontProgramHash(vec![1]),
+                            glyph_id: 1,
+                            source: TextSource {
+                                atoms: vec![TextSourceAtom::Glyph(glyph(1, 5000))].into(),
+                            },
+                        },
+                        UnmappedToken {
+                            scalar_index: text.chars().count(),
+                            font_hash: FontProgramHash(vec![2]),
+                            glyph_id: 2,
+                            source: TextSource {
+                                atoms: vec![TextSourceAtom::Glyph(glyph(1, 5001))].into(),
+                            },
+                        },
+                    ];
+                    block.font_size_signatures = None;
+                    block.position_signatures = None;
+                }
+                let blocks = [block];
+                let materialized = side(&blocks);
+                let mut remaining = 3;
+                let (source, count) = canonical_block_metadata(&materialized, 0, &mut remaining)
+                    .unwrap_or_else(|_| panic!("valid materialized count"));
+                assert!(std::ptr::eq(source, &raw const blocks[0]));
+                assert_eq!(count, text.chars().count());
+                assert_eq!(remaining, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn canonical_count_reuse_keeps_every_original_source_map_veto() {
+        let clean = positioned_block(1, "é日本😀", 0.0, 0.0, 0);
+        let mut cases = vec![clean.clone()];
+        let mut malformed = clean.clone();
+        malformed.canonical.source_map[3].output_range.end = 5;
+        cases.push(malformed);
+        let mut duplicate_range = clean.clone();
+        duplicate_range.canonical.source_map[2].output_range.start = 1;
+        cases.push(duplicate_range);
+        let mut multi_scalar = clean.clone();
+        multi_scalar.canonical.source_map = vec![
+            span_entry(0, 2, glyph(1, 0)),
+            glyph_entry(2, glyph(1, 2)),
+            glyph_entry(3, glyph(1, 3)),
+        ];
+        cases.push(multi_scalar);
+        let mut multi_atom = clean.clone();
+        multi_atom.canonical.source_map[1].source.atoms = vec![
+            TextSourceAtom::Glyph(glyph(1, 1)),
+            TextSourceAtom::Glyph(glyph(1, 2)),
+        ]
+        .into();
+        cases.push(multi_atom);
+        for atom in [
+            TextSourceAtom::SyntheticSpace {
+                preceding: glyph(1, 0),
+                following: glyph(1, 2),
+            },
+            TextSourceAtom::LineBreak {
+                preceding: glyph(1, 0),
+                following: glyph(1, 2),
+            },
+        ] {
+            let mut synthetic = clean.clone();
+            synthetic.canonical.source_map[1].source.atoms = vec![atom].into();
+            cases.push(synthetic);
+        }
+        let mut gap = clean.clone();
+        gap.canonical.source_map.remove(1);
+        cases.push(gap);
+        let mut missing_suffix = clean.clone();
+        missing_suffix.canonical.source_map.pop();
+        cases.push(missing_suffix);
+        for block in cases {
+            let blocks = [block];
+            let materialized = side(&blocks);
+            for start in 0..4 {
+                for end in start + 1..=4 {
+                    let interval = SourceInterval {
+                        block_index: 0,
+                        start,
+                        end,
+                    };
+                    let expected = canonical_glyphs_rescanned(&blocks[0], &interval, &mut 100_000);
+                    let actual = canonical_glyphs(&materialized, &interval, &mut 100_000);
+                    match (expected, actual) {
+                        (Ok(old), Ok(new)) => assert_eq!(old, new),
+                        (Err(Stop::Held(old)), Err(Stop::Held(new))) => assert_eq!(old, new),
+                        _ => panic!("complete source-map checks must agree"),
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_distinct_canonical_vetoes_keep_work_for_later_source_proof() -> Result<()> {
+        let text = "甲 乙".repeat(400);
+        let mut wide = positioned_block(1, &text, 0.0, 0.0, 0);
+        wide.raw.text = text.replace(' ', "\n");
+        for index in (1..1200).step_by(3) {
+            let line_break = TextSourceAtom::LineBreak {
+                preceding: glyph(1, index - 1),
+                following: glyph(1, index + 1),
+            };
+            wide.raw.source_map[index].source.atoms = vec![line_break.clone()].into();
+            wide.canonical.source_map[index].source.atoms = vec![line_break.clone()].into();
+            wide.normalization_events.push(NormalizationEvent {
+                kind: NormalizationKind::SoftLineBreak,
+                raw_range: ScalarRange {
+                    start: index,
+                    end: index + 1,
+                },
+                canonical_range: ScalarRange {
+                    start: index,
+                    end: index + 1,
+                },
+                source: TextSource {
+                    atoms: vec![line_break].into(),
+                },
+            });
+        }
+        let old_blocks = [wide, positioned_block(2, "Z", 0.0, 0.0, 0)];
+        let new_blocks = [
+            positioned_block(101, "甲 乙", 0.0, 0.0, 0),
+            positioned_block(102, "Z", 0.0, 0.0, 0),
+        ];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut rescanned_remaining = 50_000;
+        let mut remaining = rescanned_remaining;
+        let mut rescanned_stopped = false;
+        for index in 0..64 {
+            let interval = SourceInterval {
+                block_index: 0,
+                start: index * 3,
+                end: index * 3 + 3,
+            };
+            if !rescanned_stopped {
+                match canonical_glyphs_rescanned(
+                    &old_blocks[0],
+                    &interval,
+                    &mut rescanned_remaining,
+                ) {
+                    Err(Stop::Held(FragmentHold::CanonicalSource)) => {}
+                    Err(Stop::Exhausted) => rescanned_stopped = true,
+                    _ => panic!("a retained line-break source must hold"),
+                }
+            }
+            assert!(matches!(
+                canonical_glyphs(&old, &interval, &mut remaining),
+                Err(Stop::Held(FragmentHold::CanonicalSource))
+            ));
+        }
+        assert!(rescanned_stopped);
+        assert_eq!(rescanned_remaining, 0);
+        let spans = [fragment(2, 0, 1), fragment(102, 0, 1)];
+        // The independent one-token Z parents have exactly one pairing. Both
+        // source guards retain the same literal, raw, page, normalization and
+        // document-wide sharing checks; only the earlier scalar recount differs.
+        let mut old_cache = EqualFragmentCache::new([&old, &new]);
+        assert_eq!(
+            old_cache.prove_sources_for_mandatory_pairs(
+                [&spans[0], &spans[1]],
+                &mut rescanned_remaining
+            )?,
+            FragmentVerdict::Exhausted
+        );
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        assert_eq!(
+            cache.prove_sources_for_mandatory_pairs([&spans[0], &spans[1]], &mut remaining)?,
+            FragmentVerdict::Proven
+        );
+        assert!(remaining > 10_000);
+        Ok(())
+    }
+
+    #[test]
+    fn canonical_metadata_lookup_is_prepaid_and_rejects_missing_indices() {
+        let blocks = [positioned_block(1, "é", 0.0, 0.0, 0)];
+        let materialized = side(&blocks);
+        let mut remaining = 2;
+        assert!(matches!(
+            canonical_block_metadata(&materialized, 0, &mut remaining),
+            Err(Stop::Exhausted)
+        ));
+        assert_eq!(remaining, 0);
+        let mut remaining = 3;
+        assert!(matches!(
+            canonical_block_metadata(&materialized, 1, &mut remaining),
+            Err(Stop::Error(_))
+        ));
+        assert_eq!(remaining, 0);
     }
 
     fn prove_pair(
