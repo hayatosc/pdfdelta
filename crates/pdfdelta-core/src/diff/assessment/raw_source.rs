@@ -125,6 +125,9 @@ struct SideAnalysis<'a> {
 /// event, issue and break counts are charged before any scan, and per-element
 /// charges cover every later walk. On exhaustion the verdict is
 /// [`RawSourceVerdict::Exhausted`] and no partial proof is reported.
+/// A self-comparison of the same immutable block reuses its completed side
+/// analysis; all upfront charges and the final comparison still run. Distinct
+/// blocks are analyzed independently, even when their contents are identical.
 pub(crate) fn raw_source_isomorphic(
     old: &BlockText,
     new: &BlockText,
@@ -193,6 +196,9 @@ pub(crate) fn raw_source_isomorphic(
         Ok(side) => side,
         Err(verdict) => return verdict,
     };
+    if std::ptr::eq(old, new) {
+        return compare_sides(old, new, &old_side, &old_side, remaining);
+    }
     let new_side = match analyze_side(new, raw_scalars, canonical_scalars, remaining) {
         Ok(side) => side,
         Err(verdict) => return verdict,
@@ -858,6 +864,235 @@ mod tests {
         let old = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
         let new = block(2, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
         assert_eq!(isomorphic(&old, &new), RawSourceVerdict::Isomorphic);
+    }
+
+    #[test]
+    fn raw_source_self_validation_completes_with_one_analysis_budget() {
+        let original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+        let separate = original.clone();
+        let mut remaining = 160;
+        assert_eq!(
+            raw_source_isomorphic(&original, &original, &mut remaining),
+            RawSourceVerdict::Isomorphic
+        );
+        assert_eq!(remaining, 1);
+
+        let mut remaining = 160;
+        assert_eq!(
+            raw_source_isomorphic(&original, &separate, &mut remaining),
+            RawSourceVerdict::Exhausted
+        );
+        assert_eq!(remaining, 0);
+        assert_eq!(
+            isomorphic(&original, &separate),
+            RawSourceVerdict::Isomorphic
+        );
+    }
+
+    #[test]
+    fn raw_source_self_validation_never_accepts_a_partial_proof() {
+        let original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+        for budget in 0..159 {
+            let mut remaining = budget;
+            assert_eq!(
+                raw_source_isomorphic(&original, &original, &mut remaining),
+                RawSourceVerdict::Exhausted,
+                "budget {budget}"
+            );
+            assert_eq!(remaining, 0);
+        }
+        let mut remaining = 159;
+        assert_eq!(
+            raw_source_isomorphic(&original, &original, &mut remaining),
+            RawSourceVerdict::Isomorphic
+        );
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn raw_source_self_validation_preserves_malformed_evidence_holds() {
+        type Mutation = fn(&mut BlockText);
+        let cases: &[(&str, Mutation, RawSourceHold)] = &[
+            (
+                "source hole",
+                |b| {
+                    b.raw.source_map.pop();
+                },
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "source range",
+                |b| {
+                    b.raw.source_map[0].output_range.end = 2;
+                },
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "multiple atoms",
+                |b| {
+                    b.canonical.source_map[0].source.atoms.push(glyph(2));
+                },
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "synthetic atom",
+                |b| {
+                    b.canonical.source_map[0].source.atoms[0] = TextSourceAtom::SyntheticSpace {
+                        preceding: GlyphId(1),
+                        following: GlyphId(2),
+                    };
+                },
+                RawSourceHold::UnsupportedAtom,
+            ),
+            (
+                "shared raw glyph",
+                |b| {
+                    b.raw.source_map[2].source.atoms[0] = glyph(1);
+                },
+                RawSourceHold::GlyphEvidence,
+            ),
+            (
+                "canonical glyph mismatch",
+                |b| {
+                    b.canonical.source_map[1].source.atoms[0] = glyph(1);
+                },
+                RawSourceHold::GlyphEvidence,
+            ),
+            (
+                "literal projection mismatch",
+                |b| {
+                    b.canonical.text = "XB\nC".to_owned();
+                },
+                RawSourceHold::GlyphEvidence,
+            ),
+            (
+                "raw break endpoint",
+                |b| {
+                    b.raw.source_map[1].source.atoms[0] = line_break(1, 3);
+                },
+                RawSourceHold::LineBreakTopology,
+            ),
+            (
+                "canonical break endpoint",
+                |b| {
+                    b.canonical.source_map[2].source.atoms[0] = line_break(1, 3);
+                },
+                RawSourceHold::LineBreakTopology,
+            ),
+            (
+                "missing positions",
+                |b| {
+                    b.position_signatures = None;
+                },
+                RawSourceHold::MissingPositions,
+            ),
+            (
+                "short positions",
+                |b| {
+                    b.position_signatures.as_mut().expect("positions").pop();
+                },
+                RawSourceHold::MissingPositions,
+            ),
+            (
+                "break position",
+                |b| {
+                    b.position_signatures.as_mut().expect("positions")[2] = position(99.0);
+                },
+                RawSourceHold::LineBreakTopology,
+            ),
+            (
+                "unknown line breaks",
+                |b| {
+                    b.line_breaks = None;
+                },
+                RawSourceHold::UnknownLineBreaks,
+            ),
+            (
+                "invalid line breaks",
+                |b| {
+                    b.line_breaks = Some(vec![99]);
+                },
+                RawSourceHold::UnknownLineBreaks,
+            ),
+            (
+                "unknown page breaks",
+                |b| {
+                    b.page_breaks = None;
+                },
+                RawSourceHold::UnknownPageBreaks,
+            ),
+            (
+                "multiple pages",
+                |b| {
+                    b.pages.push(1);
+                },
+                RawSourceHold::MultiplePages,
+            ),
+            (
+                "unsupported event",
+                |b| {
+                    b.normalization_events[0].kind = NormalizationKind::Nfc;
+                },
+                RawSourceHold::UnsupportedEvent,
+            ),
+            (
+                "event raw range",
+                |b| {
+                    b.normalization_events[0].raw_range.end = 5;
+                },
+                RawSourceHold::InvalidEventRange,
+            ),
+            (
+                "event canonical boundary",
+                |b| {
+                    b.normalization_events[0].canonical_range = ScalarRange { start: 2, end: 2 };
+                },
+                RawSourceHold::InvalidEventRange,
+            ),
+            (
+                "event source",
+                |b| {
+                    b.normalization_events[0].source.atoms[0] = line_break(1, 3);
+                },
+                RawSourceHold::InvalidEventRange,
+            ),
+            (
+                "issue source",
+                |b| {
+                    b.issues[0].source.atoms[0] = line_break(1, 3);
+                },
+                RawSourceHold::InvalidEventRange,
+            ),
+            (
+                "duplicate issue",
+                |b| {
+                    b.issues.push(b.issues[0].clone());
+                },
+                RawSourceHold::InvalidEventRange,
+            ),
+            (
+                "unmapped projection",
+                |b| {
+                    b.canonical.unmapped.push(crate::normalize::UnmappedToken {
+                        scalar_index: 0,
+                        font_hash: crate::model::FontProgramHash(vec![1]),
+                        glyph_id: 1,
+                        source: TextSource {
+                            atoms: smallvec![glyph(1)],
+                        },
+                    });
+                },
+                RawSourceHold::UnmappedProjection,
+            ),
+        ];
+        for &(name, mutate, reason) in cases {
+            let mut original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+            mutate(&mut original);
+            let separate = original.clone();
+            let expected = RawSourceVerdict::Held(reason);
+            assert_eq!(isomorphic(&original, &original), expected, "self: {name}");
+            assert_eq!(isomorphic(&original, &separate), expected, "clone: {name}");
+        }
     }
 
     #[test]

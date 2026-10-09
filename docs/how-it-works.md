@@ -132,6 +132,13 @@ and view population copies spend the shared work budget. Retained buffers and
 slot headers are capped at 32 MiB across both sides; unfunded setup or excess
 capacity keeps the original scan, and already spent work is never refunded.
 
+Raw-source discovery validates a block against itself before using its evidence.
+When both references identify the same immutable whole block, the completed
+source analysis is reused for the second side. Header checks and charges, the
+final source and position comparison, and document-wide sharing certificates
+still run. Distinct blocks require independent analyses. Malformed or unknown
+evidence still holds the pair, and exhaustion cannot produce a partial proof.
+
 A final optional pass can report a nonowning changed region inside a partly
 resolved, complete source correspondence. Two consecutive equal-token pairs
 must occur on every maximum matching of the parent; the reported interior
