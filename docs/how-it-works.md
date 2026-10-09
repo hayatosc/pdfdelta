@@ -221,6 +221,16 @@ whole coarse proof only under the isolated-parent premise. Earlier proofs keep
 their priority, and all passes share the same remaining budget, source cache and
 publication capacity ledger.
 
+Those four equality passes may reuse a completed mandatory matching analysis
+for the same immutable domain and sides. The optional table is funded only
+after a parent's original attempts, and its setup must be small relative to
+both the completed analysis and the remaining budget. Actual table and pair
+capacities count toward a 16 MiB cache bound and the enclosing live-memory
+ledger. Every lookup and publication is paid; refused preparation keeps the
+fresh-analysis path, and failed or exhausted analyses are never cached. Source
+proofs, parent guards, candidates, partitions and ownership are checked again
+for every run. Cached matching pairs alone never establish equality.
+
 The whole-region multiset mismatch and its review obligations remain unchanged:
 subtracting identical pairs present in every original optimal matching preserves
 the multiset difference and changed-token counts. The tail keeps the original

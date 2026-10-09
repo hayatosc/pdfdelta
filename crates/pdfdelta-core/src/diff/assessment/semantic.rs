@@ -257,6 +257,13 @@ pub(super) struct MandatoryMatchAnalysis {
 }
 
 impl MandatoryMatchAnalysis {
+    /// Actual backing-array bytes retained by this completed analysis.
+    pub(super) fn retained_heap_bytes(&self) -> Option<usize> {
+        self.unique_pairs
+            .capacity()
+            .checked_mul(std::mem::size_of::<(usize, usize)>())
+    }
+
     /// Sorted 1-based mandatory pairs, borrowed without another allocation.
     pub(super) fn pairs(&self) -> &[(usize, usize)] {
         &self.unique_pairs

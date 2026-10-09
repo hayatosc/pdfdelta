@@ -15,6 +15,120 @@ use super::{
     semantic,
 };
 
+/// Completed mandatory analyses for the four passes of one equality tail.
+///
+/// The immutable domain slice and both sides bind every slot. Only complete
+/// positive analyses are moved here; a refused, exhausted or failed analysis
+/// stays uncached. This stores matching evidence, never a source verdict or
+/// ownership decision. All original guards still run before a lookup.
+struct TailMandatoryAnalyses<'d, 's, 'b> {
+    domains: &'d [(DomainKey, DomainProof)],
+    sides: [&'s Side<'b>; 2],
+    slots: Vec<Option<semantic::MandatoryMatchAnalysis>>,
+    bytes: usize,
+}
+
+impl<'d, 's, 'b> TailMandatoryAnalyses<'d, 's, 'b> {
+    const MAX_BYTES: usize = 16 * 1024 * 1024;
+
+    /// Attempts a paid, fallible table only after a completed fresh analysis.
+    /// Setup must be small relative to both that work and the remaining tail,
+    /// so short analyses or a nearly exhausted tail keep the original path.
+    fn new(
+        domains: &'d [(DomainKey, DomainProof)],
+        sides: [&'s Side<'b>; 2],
+        completed_work: usize,
+        available_bytes: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        let work = domains.len().checked_add(16)?;
+        let limit = available_bytes.min(Self::MAX_BYTES);
+        let bytes = domains
+            .len()
+            .checked_mul(std::mem::size_of::<Option<semantic::MandatoryMatchAnalysis>>())?
+            .checked_add(std::mem::size_of::<Self>())?;
+        if domains.is_empty()
+            || bytes > limit
+            || work >= completed_work / 4
+            || work > *remaining / 64
+            || !charge_work(remaining, work)
+        {
+            return None;
+        }
+        let mut slots = Vec::new();
+        slots.try_reserve_exact(domains.len()).ok()?;
+        let bytes = slots
+            .capacity()
+            .checked_mul(std::mem::size_of::<Option<semantic::MandatoryMatchAnalysis>>())?
+            .checked_add(std::mem::size_of::<Self>())?;
+        if bytes > limit {
+            return None;
+        }
+        slots.resize_with(domains.len(), || None);
+        Some(Self {
+            domains,
+            sides,
+            slots,
+            bytes,
+        })
+    }
+
+    /// A paid lookup cannot substitute another side or a different domain.
+    /// Outer `None` means exhaustion; an inner miss keeps the fresh analysis.
+    fn get(
+        &self,
+        sides: [&Side<'_>; 2],
+        index: usize,
+        key: &DomainKey,
+        remaining: &mut usize,
+    ) -> Option<Option<&semantic::MandatoryMatchAnalysis>> {
+        if !charge_work(remaining, 6) {
+            return None;
+        }
+        if !(0..2).all(|side| std::ptr::eq(self.sides[side], sides[side]))
+            || !self
+                .domains
+                .get(index)
+                .is_some_and(|(stored, _)| std::ptr::eq(stored, key))
+        {
+            return Some(None);
+        }
+        Some(self.slots.get(index).and_then(Option::as_ref))
+    }
+
+    /// Moves an already completed array without cloning any pair. The ledger
+    /// includes actual table and pair capacities, and refusal refunds no work.
+    fn store(
+        &mut self,
+        index: usize,
+        analysis: semantic::MandatoryMatchAnalysis,
+        available_bytes: usize,
+        remaining: &mut usize,
+    ) -> bool {
+        if *remaining < 24 {
+            return false;
+        }
+        if !charge_work(remaining, 24) {
+            return false;
+        }
+        let Some(bytes) = analysis
+            .retained_heap_bytes()
+            .and_then(|bytes| self.bytes.checked_add(bytes))
+        else {
+            return false;
+        };
+        if bytes > available_bytes.min(Self::MAX_BYTES) {
+            return false;
+        }
+        let Some(slot) = self.slots.get_mut(index).filter(|slot| slot.is_none()) else {
+            return false;
+        };
+        *slot = Some(analysis);
+        self.bytes = bytes;
+        true
+    }
+}
+
 /// Checks the deliberately narrow whole-parent shape shared by emission and
 /// source validation. Synthetic separators, partial blocks and one-sided
 /// regions are outside this rule.
@@ -732,6 +846,7 @@ impl Assessor<'_, '_> {
             group_peak_bytes: 0,
             diagnostics,
         };
+        let mut tail_analyses = None;
         // Preserve every existing maximal-run attempt across all parents
         // before spending optional work on a smaller source-complete cut.
         // Both passes share the same retained-payload and diagnostic allowance.
@@ -740,7 +855,7 @@ impl Assessor<'_, '_> {
         for (page_shifted, singleton_fallback) in
             [(false, false), (false, true), (true, false), (true, true)]
         {
-            for (key, proof) in domains {
+            for (domain_index, (key, proof)) in domains.iter().enumerate() {
                 if self.remaining_work == 0
                     || self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1)
                 {
@@ -867,7 +982,7 @@ impl Assessor<'_, '_> {
                 };
                 let Some(base_bytes) = publication_memory(
                     domain_bytes,
-                    source_bytes,
+                    resources.source_bytes,
                     resources.retained_children,
                     &self.records,
                     self.records.capacity(),
@@ -934,26 +1049,51 @@ impl Assessor<'_, '_> {
                     break;
                 }
                 let cached = self.mandatory_analyses.get(key).cloned();
-                let fresh;
+                let tail_cached = if cached.is_none() {
+                    if let Some(cache) = &tail_analyses {
+                        let Some(value) = TailMandatoryAnalyses::get(
+                            cache,
+                            self.sides,
+                            domain_index,
+                            key,
+                            &mut self.remaining_work,
+                        ) else {
+                            break;
+                        };
+                        value
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let analysis_start = self.remaining_work;
+                let mut fresh = None;
                 let analysis = match cached.as_ref() {
                     Some(Some(analysis)) => analysis.as_ref(),
                     Some(None) => continue,
                     None => {
-                        fresh = match semantic::mandatory_match_analysis_with_memory_limit(
-                            tokens[0],
-                            tokens[1],
-                            &mut self.remaining_work,
-                            analysis_limit,
-                        ) {
-                            Ok(Some(analysis)) => analysis,
-                            Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
-                                continue;
-                            }
-                            Err(error) => return Err(error),
-                        };
-                        &fresh
+                        if let Some(analysis) = tail_cached {
+                            analysis
+                        } else {
+                            fresh = match semantic::mandatory_match_analysis_with_memory_limit(
+                                tokens[0],
+                                tokens[1],
+                                &mut self.remaining_work,
+                                analysis_limit,
+                            ) {
+                                Ok(Some(analysis)) => Some(analysis),
+                                Ok(None)
+                                | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                                    continue;
+                                }
+                                Err(error) => return Err(error),
+                            };
+                            fresh.as_ref().expect("the fresh analysis just completed")
+                        }
                     }
                 };
+                let completed_work = analysis_start.saturating_sub(self.remaining_work);
                 let Some(proof_bytes) = analysis
                     .pairs()
                     .len()
@@ -1049,6 +1189,47 @@ impl Assessor<'_, '_> {
                                 &mut resources,
                                 None,
                             )?;
+                        }
+                    }
+                }
+                if let Some(analysis) = fresh {
+                    // The optional cache is funded after this parent's original
+                    // attempts. Count its arrays alongside current views,
+                    // groups, diagnostics and retained publication before use.
+                    let available = publication_memory(
+                        domain_bytes,
+                        source_bytes,
+                        resources.retained_children,
+                        &self.records,
+                        self.records.capacity(),
+                        ownership,
+                        [&*partitions[0], &*partitions[1]],
+                    )
+                    .and_then(|bytes| bytes.checked_add(resources.diagnostics.bytes()?))
+                    .and_then(|bytes| bytes.checked_add(group_bytes))
+                    .and_then(|bytes| bytes.checked_add(views[0].retained_bytes))
+                    .and_then(|bytes| bytes.checked_add(views[1].retained_bytes))
+                    .and_then(|bytes| COARSE_MEMORY_BYTES.checked_sub(bytes));
+                    if let Some(available) = available {
+                        if tail_analyses.is_none() {
+                            tail_analyses = TailMandatoryAnalyses::new(
+                                domains,
+                                self.sides,
+                                completed_work,
+                                available.saturating_sub(
+                                    analysis.retained_heap_bytes().unwrap_or(usize::MAX),
+                                ),
+                                &mut self.remaining_work,
+                            );
+                        }
+                        if let Some(cache) = &mut tail_analyses {
+                            cache.store(
+                                domain_index,
+                                analysis,
+                                available,
+                                &mut self.remaining_work,
+                            );
+                            resources.source_bytes = source_bytes.saturating_add(cache.bytes);
                         }
                     }
                 }
@@ -1554,6 +1735,138 @@ mod publication_growth_tests {
             .is_none()
         );
         assert!(publication_growth([3, 2, 5], [2, 2, 5], 100, 0, 10_000).is_none());
+    }
+}
+
+#[cfg(test)]
+mod tail_analysis_tests {
+    use super::*;
+
+    fn domains() -> Vec<(DomainKey, DomainProof)> {
+        vec![(
+            DomainKey {
+                local: None,
+                old: 0..1,
+                new: 0..1,
+                old_separator: super::super::BlockSeparator::Concatenate,
+                new_separator: super::super::BlockSeparator::Concatenate,
+            },
+            DomainProof {
+                scope: ProofScope::ExactKey,
+                relation: 0,
+                unique: false,
+                search: SearchCompleteness::Complete,
+                edits: Vec::new(),
+                lengths: [16, 16],
+                strict_unique: false,
+                stable_events: None,
+            },
+        )]
+    }
+
+    #[test]
+    fn completed_matching_reuse_fits_a_budget_that_cannot_recompute() -> Result<()> {
+        let side = super::super::super::SidePlan::inspect("tail cache", &[])?.materialize()?;
+        let sides = [&side, &side];
+        let domains = domains();
+        let mut budget = 100_000;
+        let before = budget;
+        let analysis = semantic::mandatory_match_analysis(
+            b"abcdeXghijklmnopq",
+            b"abcdeYghijklmnopq",
+            &mut budget,
+        )?
+        .expect("completed analysis");
+        let expected = analysis.pairs().to_vec();
+        let mut cache =
+            TailMandatoryAnalyses::new(&domains, sides, before - budget, 1_000_000, &mut budget)
+                .expect("bounded affordable table");
+        assert!(cache.store(0, analysis, 1_000_000, &mut budget));
+        let mut repeat_budget = 6;
+        assert!(
+            semantic::mandatory_match_analysis(
+                b"abcdeXghijklmnopq",
+                b"abcdeYghijklmnopq",
+                &mut repeat_budget,
+            )?
+            .is_none()
+        );
+        assert_eq!(repeat_budget, 6);
+        let reused = cache
+            .get(sides, 0, &domains[0].0, &mut repeat_budget)
+            .expect("paid query")
+            .expect("completed cached analysis");
+        assert_eq!(reused.pairs(), expected);
+        assert_eq!(repeat_budget, 0);
+        assert!(cache.get(sides, 0, &domains[0].0, &mut 5).is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn cache_misses_and_refusals_never_publish_partial_matching() -> Result<()> {
+        let side = super::super::super::SidePlan::inspect("tail cache", &[])?.materialize()?;
+        let other = super::super::super::SidePlan::inspect("other side", &[])?.materialize()?;
+        let domains = domains();
+        let sides = [&side, &side];
+        let mut budget = 100_000;
+        let mut cache = TailMandatoryAnalyses::new(&domains, sides, 10_000, 1_000_000, &mut budget)
+            .expect("bounded table");
+        assert!(
+            cache
+                .get(sides, 0, &domains[0].0, &mut budget)
+                .expect("the lookup has sufficient work")
+                .is_none()
+        );
+        assert!(semantic::mandatory_match_analysis(b"abc", b"abc", &mut 1)?.is_none());
+        assert!(
+            cache
+                .get(sides, 0, &domains[0].0, &mut budget)
+                .expect("the lookup has sufficient work")
+                .is_none()
+        );
+        let analysis = semantic::mandatory_match_analysis(b"abc", b"abc", &mut budget)?
+            .expect("complete matching");
+        assert!(!cache.store(0, analysis, 0, &mut budget));
+        assert!(
+            cache
+                .get(sides, 0, &domains[0].0, &mut budget)
+                .expect("the lookup has sufficient work")
+                .is_none()
+        );
+        let analysis = semantic::mandatory_match_analysis(b"abc", b"abc", &mut budget)?
+            .expect("complete matching");
+        assert!(cache.store(0, analysis, 1_000_000, &mut budget));
+        assert!(
+            cache
+                .get([&other, &side], 0, &domains[0].0, &mut budget)
+                .expect("the lookup has sufficient work")
+                .is_none()
+        );
+        assert!(
+            cache
+                .get(sides, 0, &domains[0].0.clone(), &mut budget)
+                .expect("the lookup has sufficient work")
+                .is_none()
+        );
+        assert!(
+            cache
+                .get(sides, 1, &domains[0].0, &mut budget)
+                .expect("the lookup has sufficient work")
+                .is_none()
+        );
+        for (work, bytes, remaining) in [
+            (1, 1_000_000, 100_000),
+            (10_000, 0, 100_000),
+            (10_000, 1_000_000, 16),
+        ] {
+            let mut remaining = remaining;
+            let before = remaining;
+            assert!(
+                TailMandatoryAnalyses::new(&domains, sides, work, bytes, &mut remaining).is_none()
+            );
+            assert_eq!(remaining, before);
+        }
+        Ok(())
     }
 }
 
