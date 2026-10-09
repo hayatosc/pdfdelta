@@ -139,6 +139,12 @@ final source and position comparison, and document-wide sharing certificates
 still run. Distinct blocks require independent analyses. Malformed or unknown
 evidence still holds the pair, and exhaustion cannot produce a partial proof.
 
+Raw-source analysis holds synthetic spacing atoms after checking positions and
+both complete source-map shapes, before allocating and scanning text buffers.
+All upfront charges and source-map walks remain paid. This early hold cannot
+certify a correspondence: supported projections still require the complete
+text, topology, normalization and sharing proof.
+
 A final optional pass can report a nonowning changed region inside a partly
 resolved, complete source correspondence. Two consecutive equal-token pairs
 must occur on every maximum matching of the parent; the reported interior

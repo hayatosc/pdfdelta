@@ -259,6 +259,10 @@ fn is_empty_breaks(breaks: Option<&[usize]>) -> bool {
 }
 
 /// Validates one side and builds its raw-to-canonical projection.
+///
+/// Position and source-map shape checks retain their rejection priority.
+/// Synthetic spacing atoms hold without allocating character buffers; every
+/// supported projection still requires the full text and topology validation.
 fn analyze_side<'a>(
     block: &'a BlockText,
     raw_scalars: usize,
@@ -273,8 +277,6 @@ fn analyze_side<'a>(
     }
     let raw = map_atoms(&block.raw, raw_scalars, remaining)?;
     let canonical = map_atoms(&block.canonical, canonical_scalars, remaining)?;
-    let raw_chars = text_chars(&block.raw.text, raw_scalars, remaining)?;
-    let canonical_chars = text_chars(&block.canonical.text, canonical_scalars, remaining)?;
     if raw
         .iter()
         .chain(canonical.iter())
@@ -282,6 +284,8 @@ fn analyze_side<'a>(
     {
         return Err(RawSourceVerdict::Held(RawSourceHold::UnsupportedAtom));
     }
+    let raw_chars = text_chars(&block.raw.text, raw_scalars, remaining)?;
+    let canonical_chars = text_chars(&block.canonical.text, canonical_scalars, remaining)?;
     let mut last_glyph = None;
     for (index, atom) in canonical.iter().enumerate() {
         if !charge(remaining, 1) {
@@ -887,6 +891,113 @@ mod tests {
             isomorphic(&original, &separate),
             RawSourceVerdict::Isomorphic
         );
+    }
+
+    #[test]
+    fn raw_source_unsupported_atom_holds_without_text_buffer_budget() {
+        let mut original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+        original.canonical.source_map[0].source.atoms[0] = TextSourceAtom::SyntheticSpace {
+            preceding: GlyphId(1),
+            following: GlyphId(2),
+        };
+        let separate = original.clone();
+        for new in [&original, &separate] {
+            for budget in 0..124 {
+                let mut remaining = budget;
+                assert_eq!(
+                    raw_source_isomorphic(&original, new, &mut remaining),
+                    RawSourceVerdict::Exhausted,
+                    "budget {budget}"
+                );
+                assert_eq!(remaining, 0);
+            }
+            let mut remaining = 124;
+            assert_eq!(
+                raw_source_isomorphic(&original, new, &mut remaining),
+                RawSourceVerdict::Held(RawSourceHold::UnsupportedAtom)
+            );
+            assert_eq!(remaining, 0);
+        }
+
+        let supported = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+        let mut remaining = 124;
+        assert_eq!(
+            raw_source_isomorphic(&supported, &supported, &mut remaining),
+            RawSourceVerdict::Exhausted
+        );
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn raw_source_unsupported_atom_preserves_position_and_map_hold_priority() {
+        type Mutation = fn(&mut BlockText);
+        let cases: &[(&str, Mutation, RawSourceHold)] = &[
+            (
+                "missing positions",
+                |b| b.position_signatures = None,
+                RawSourceHold::MissingPositions,
+            ),
+            (
+                "short positions",
+                |b| {
+                    b.position_signatures.as_mut().expect("positions").pop();
+                },
+                RawSourceHold::MissingPositions,
+            ),
+            (
+                "raw source hole",
+                |b| {
+                    b.raw.source_map.pop();
+                },
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "canonical source hole",
+                |b| {
+                    b.canonical.source_map.pop();
+                },
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "raw range",
+                |b| b.raw.source_map[1].output_range.start = 99,
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "canonical range",
+                |b| b.canonical.source_map[1].output_range.start = 99,
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "multiple raw atoms",
+                |b| b.raw.source_map[1].source.atoms.push(glyph(9)),
+                RawSourceHold::InvalidSourceMap,
+            ),
+            (
+                "multiple canonical atoms",
+                |b| b.canonical.source_map[1].source.atoms.push(glyph(9)),
+                RawSourceHold::InvalidSourceMap,
+            ),
+        ];
+        for raw_atom in [true, false] {
+            for &(name, mutate, reason) in cases {
+                let mut original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+                let projection = if raw_atom {
+                    &mut original.raw
+                } else {
+                    &mut original.canonical
+                };
+                projection.source_map[0].source.atoms[0] = TextSourceAtom::SyntheticSpace {
+                    preceding: GlyphId(1),
+                    following: GlyphId(2),
+                };
+                mutate(&mut original);
+                let separate = original.clone();
+                let expected = RawSourceVerdict::Held(reason);
+                assert_eq!(isomorphic(&original, &original), expected, "self: {name}");
+                assert_eq!(isomorphic(&original, &separate), expected, "clone: {name}");
+            }
+        }
     }
 
     #[test]
