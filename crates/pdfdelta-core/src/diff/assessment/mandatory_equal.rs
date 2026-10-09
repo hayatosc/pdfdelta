@@ -642,12 +642,15 @@ struct DiagnosticAllowance {
     upper_count: usize,
     per_entry_bytes: usize,
     projected_intervals: usize,
-    evidence_work: usize,
+    per_split_work: usize,
+    evidence_cache_bytes: usize,
 }
 
 impl DiagnosticAllowance {
     fn bytes(&self) -> Option<usize> {
-        self.upper_count.checked_mul(self.per_entry_bytes)
+        self.upper_count
+            .checked_mul(self.per_entry_bytes)?
+            .checked_add(self.evidence_cache_bytes)
     }
 }
 
@@ -675,7 +678,9 @@ struct EqualRun<'a, 'source> {
 /// so original/aligned regions + unresolved partitions + projected intervals
 /// bounds every possible fallback emit, including invalidated paired regions.
 /// Existing alignment/full-relation construction stays the baseline path;
-/// this prepays potential newly required evidence scans and shallow outputs.
+/// this prepays at most one immutable evidence scan per unresolved partition,
+/// a paid cache lookup and evidence clone per possible output, and the single
+/// retained evidence buffer. A block revisit after a miss may scan again.
 fn diagnostic_allowance(
     assessor: &mut Assessor<'_, '_>,
     partitions: [&[ResolutionRange]; 2],
@@ -761,14 +766,16 @@ fn diagnostic_allowance(
         .unwrap_or(0);
     evidence_work =
         evidence_work.checked_add(matched_reasons.checked_mul(evidence.len().checked_add(1)?)?)?;
+    let mut unresolved = 0usize;
     for parts in partitions {
-        count = count.checked_add(
+        unresolved = unresolved.checked_add(
             parts
                 .iter()
                 .filter(|part| part.state == ResolutionState::Unresolved)
                 .count(),
         )?;
     }
+    count = count.checked_add(unresolved)?;
     count = count.checked_add(projected)?;
     if count > assessor.options.max_assessment_ranges {
         return None;
@@ -784,12 +791,34 @@ fn diagnostic_allowance(
                 .len()
                 .checked_mul(4 * std::mem::size_of::<AlignmentEvidence>())?,
         )?;
-    let bytes = count.checked_mul(unit)?;
+    // Only one side's cache is live at a time. Clearing a missed block retains
+    // capacity, bounded by the global reason set; eight elements per reason
+    // cover initial allocation and overlapping buffers during growth. Include
+    // the cache headers and this allowance's additional bookkeeping field.
+    let evidence_cache_bytes = evidence
+        .len()
+        .checked_mul(8 * std::mem::size_of::<AlignmentEvidence>())?
+        .checked_add(std::mem::size_of::<Vec<AlignmentEvidence>>())?
+        .checked_add(std::mem::size_of::<Option<BlockId>>())?
+        .checked_add(std::mem::size_of::<usize>())?;
+    let bytes = count.checked_mul(unit)?.checked_add(evidence_cache_bytes)?;
     if bytes > COARSE_MEMORY_BYTES {
         return None;
     }
-    let work =
-        count.checked_mul(evidence_work.checked_add(shallow_words::<UnresolvedRegion>())?)?;
+    // Every output owns its reason copy, including the first cache miss.
+    // Three units pay the key comparison, clear and new key assignment. The
+    // region's shallow allowance includes the cloned vector's header.
+    let output_work = evidence
+        .len()
+        .checked_mul(shallow_words::<AlignmentEvidence>())?
+        .checked_add(3)?
+        .checked_add(shallow_words::<UnresolvedRegion>())?;
+    let per_split_work = evidence_work.checked_add(output_work)?;
+    let work = unresolved
+        .checked_mul(evidence_work)?
+        .checked_add(count.checked_mul(output_work)?)?
+        .checked_add(shallow_words::<Vec<AlignmentEvidence>>())?
+        .checked_add(shallow_words::<Option<BlockId>>())?;
     if !charge_work(&mut assessor.remaining_work, work) {
         return None;
     }
@@ -797,7 +826,8 @@ fn diagnostic_allowance(
         upper_count: count,
         per_entry_bytes: unit,
         projected_intervals: projected,
-        evidence_work,
+        per_split_work,
+        evidence_cache_bytes,
     })
 }
 
@@ -1505,14 +1535,7 @@ impl Assessor<'_, '_> {
             return Ok(false);
         }
         regeneration_work = regeneration_work
-            .saturating_add(
-                extra.saturating_mul(
-                    resources
-                        .diagnostics
-                        .evidence_work
-                        .saturating_add(shallow_words::<UnresolvedRegion>()),
-                ),
-            )
+            .saturating_add(extra.saturating_mul(resources.diagnostics.per_split_work))
             .saturating_add(2usize.saturating_mul(resources.diagnostics.projected_intervals))
             .saturating_add(partitions[0].len().saturating_add(partitions[1].len()));
         if !charge_work(&mut self.remaining_work, regeneration_work) {

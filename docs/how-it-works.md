@@ -231,6 +231,16 @@ fresh-analysis path, and failed or exhausted analyses are never cached. Source
 proofs, parent guards, candidates, partitions and ownership are checked again
 for every run. Cached matching pairs alone never establish equality.
 
+Final unresolved fragments reuse only the most recently emitted block's
+alignment reasons on the current side. They keep first-occurrence order and
+deduplication; a different block clears the buffer, and a later revisit may
+scan again. This retains one buffer rather than a document-wide table. The
+equality tail prepays at most one complete reason scan per unresolved partition,
+every possible fragment's lookup and owned reason copy, and the buffer's peak
+capacity. Additional partitions created by equality publication pay those
+costs before either side's source verdict is adopted. Output limits and all
+original source, partition and ownership checks still apply.
+
 The whole-region multiset mismatch and its review obligations remain unchanged:
 subtracting identical pairs present in every original optimal matching preserves
 the multiset difference and changed-token counts. The tail keeps the original

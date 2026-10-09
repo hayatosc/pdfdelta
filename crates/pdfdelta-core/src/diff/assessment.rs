@@ -3361,6 +3361,11 @@ fn unresolved_output(
     }
     for side in 0..2 {
         merge_intervals(&mut retained[side]);
+        // Adjacent unresolved partitions often revisit one source block. Keep
+        // only its immutable reasons, in original alignment order. A miss
+        // clears the previous value; this never caches ownership or a verdict.
+        let mut evidence_block = None;
+        let mut block_evidence = Vec::new();
         for range in partitions[side]
             .iter()
             .filter(|range| range.state == ResolutionState::Unresolved)
@@ -3373,26 +3378,29 @@ fn unresolved_output(
                     return Ok(());
                 }
                 let span = group.span(start, end);
-                let mut evidence = Vec::new();
-                for aligned in &alignment.spans {
-                    let blocks = if side == 0 {
-                        &aligned.old
-                    } else {
-                        &aligned.new
-                    };
-                    if blocks.contains(&range.block) {
-                        for reason in &aligned.evidence {
-                            if !evidence.contains(reason) {
-                                evidence.push(*reason);
+                if evidence_block != Some(range.block) {
+                    block_evidence.clear();
+                    for aligned in &alignment.spans {
+                        let blocks = if side == 0 {
+                            &aligned.old
+                        } else {
+                            &aligned.new
+                        };
+                        if blocks.contains(&range.block) {
+                            for reason in &aligned.evidence {
+                                if !block_evidence.contains(reason) {
+                                    block_evidence.push(*reason);
+                                }
                             }
                         }
                     }
+                    evidence_block = Some(range.block);
                 }
                 reserve_ranges(&mut output, 1, limit)?;
                 output.push(UnresolvedRegion {
                     old_span: (side == 0).then(|| span.clone()),
                     new_span: (side == 1).then_some(span),
-                    evidence,
+                    evidence: block_evidence.clone(),
                 });
                 Ok(())
             };
@@ -7712,6 +7720,168 @@ mod assessor_issue_cache_tests {
                 assert_eq!(owners[0].accepted.len(), owners[1].accepted.len());
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn unresolved_fragments_keep_ordered_evidence_across_block_revisits() -> Result<()> {
+        let old_blocks = [anchor_block(1, "ABCDEF"), anchor_block(2, "GH")];
+        let new_blocks = [anchor_block(101, "IJKLMN")];
+        let old = super::super::SidePlan::inspect("fragment old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("fragment new", &new_blocks)?.materialize()?;
+        let mut alignment = issue_alignment();
+        alignment.spans[0].old = vec![BlockId(1), BlockId(2)];
+        alignment.spans[0].evidence = vec![
+            AlignmentEvidence::ReadingOrderUnknown,
+            AlignmentEvidence::ExactCanonical,
+            AlignmentEvidence::ReadingOrderUnknown,
+        ];
+        let mut duplicate = alignment.spans[0].clone();
+        duplicate.old = vec![BlockId(2), BlockId(1)];
+        duplicate.evidence = vec![
+            AlignmentEvidence::NormalizationIssue,
+            AlignmentEvidence::ExactCanonical,
+        ];
+        let mut other = duplicate.clone();
+        other.old = vec![BlockId(2)];
+        other.evidence = vec![AlignmentEvidence::ReadingOrderInferred];
+        alignment.spans.extend([duplicate, other]);
+        let mut old_parts = h8_partition(BlockId(1), &[(0, 3, ResolutionState::Unresolved)]);
+        old_parts.extend(h8_partition(
+            BlockId(2),
+            &[(0, 2, ResolutionState::Unresolved)],
+        ));
+        old_parts.extend(h8_partition(
+            BlockId(1),
+            &[(3, 6, ResolutionState::Unresolved)],
+        ));
+        let new_parts = h8_partition(BlockId(101), &[(0, 6, ResolutionState::Unresolved)]);
+        let original = vec![
+            UnresolvedRegion {
+                old_span: Some(local_span(1, 1, 2)),
+                new_span: None,
+                evidence: vec![AlignmentEvidence::CandidateCompetition],
+            },
+            UnresolvedRegion {
+                old_span: Some(local_span(1, 4, 5)),
+                new_span: None,
+                evidence: Vec::new(),
+            },
+            UnresolvedRegion {
+                old_span: None,
+                new_span: Some(local_span(101, 2, 3)),
+                evidence: Vec::new(),
+            },
+            UnresolvedRegion {
+                old_span: None,
+                new_span: None,
+                evidence: vec![AlignmentEvidence::ExtractionGap],
+            },
+        ];
+        let block_evidence = vec![
+            AlignmentEvidence::ReadingOrderUnknown,
+            AlignmentEvidence::ExactCanonical,
+            AlignmentEvidence::NormalizationIssue,
+        ];
+        let mut other_evidence = block_evidence.clone();
+        other_evidence.push(AlignmentEvidence::ReadingOrderInferred);
+        let mut expected = original.clone();
+        for (block, start, end) in [(1, 0, 1), (1, 2, 3), (2, 0, 2), (1, 3, 4), (1, 5, 6)] {
+            expected.push(UnresolvedRegion {
+                old_span: Some(local_span(block, start, end)),
+                new_span: None,
+                evidence: if block == 1 {
+                    block_evidence.clone()
+                } else {
+                    other_evidence.clone()
+                },
+            });
+        }
+        for (start, end) in [(0, 2), (3, 6)] {
+            expected.push(UnresolvedRegion {
+                old_span: None,
+                new_span: Some(local_span(101, start, end)),
+                evidence: other_evidence.clone(),
+            });
+        }
+        assert_eq!(
+            unresolved_output(
+                [&old, &new],
+                &alignment,
+                [&old_parts, &new_parts],
+                original.clone(),
+                11
+            )?,
+            expected
+        );
+        assert!(matches!(
+            unresolved_output(
+                [&old, &new],
+                &alignment,
+                [&old_parts, &new_parts],
+                original,
+                10
+            ),
+            Err(Error::LimitExceeded { .. })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn repeated_alignment_diagnostics_leave_work_for_physical_equalities() -> Result<()> {
+        let old_blocks = [anchor_block(1, "XABY")];
+        let new_blocks = [anchor_block(101, "ZABW")];
+        let old = super::super::SidePlan::inspect("budget old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("budget new", &new_blocks)?.materialize()?;
+        let mut alignment = issue_alignment();
+        alignment.spans[0].evidence = vec![AlignmentEvidence::ReadingOrderInferred];
+        alignment.spans = vec![alignment.spans[0].clone(); 100];
+        let mut assessor = h8_closed_parent([&old, &new], &alignment)?;
+        assessor.remaining_work = 40_000;
+        let domains = std::mem::take(&mut assessor.domains)
+            .into_iter()
+            .collect::<Vec<_>>();
+        let parent = assessor.records[0].clone();
+        let original = vec![UnresolvedRegion {
+            old_span: parent.old_span.clone(),
+            new_span: parent.new_span.clone(),
+            evidence: Vec::new(),
+        }];
+        let coarse = vec![ProvenChangedRegion {
+            old_span: parent.old_span.clone(),
+            new_span: parent.new_span.clone(),
+            confidence: super::super::Confidence::High,
+            proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+        let mut parts = [
+            h8_partition(BlockId(1), &[(0, 4, ResolutionState::Unresolved)]),
+            h8_partition(BlockId(101), &[(0, 4, ResolutionState::Unresolved)]),
+        ];
+        let mut owners = [Ownership::new(), Ownership::new()];
+        let [a, b] = &mut parts;
+        assessor.recover_mandatory_coarse_equalities(
+            &domains,
+            domains.capacity(),
+            &mut owners,
+            [a, b],
+            mandatory_equal::EqualConstraints {
+                candidates: &[],
+                regions: &coarse,
+                original: &original,
+            },
+        )?;
+        assert_eq!(assessor.records[0], parent);
+        for (side, block) in [(0, BlockId(1)), (1, BlockId(101))] {
+            let equal = parts[side]
+                .iter()
+                .filter(|part| part.state == ResolutionState::Equal)
+                .collect::<Vec<_>>();
+            assert_eq!(equal.len(), 1, "physical AB equality on side {side}");
+            assert_eq!(equal[0].block, block);
+            assert_eq!(equal[0].comparable_range, TokenRange { start: 1, end: 3 });
+            assert_eq!(owners[side].accepted.len(), 1);
+        }
+        assert!(assessor.remaining_work > 0);
         Ok(())
     }
 
