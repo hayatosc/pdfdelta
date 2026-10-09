@@ -34,6 +34,86 @@ enum LocalRecoveryStep {
     Stop { truncated: bool },
 }
 
+/// One call's complete immutable ownership population, grouped by source block.
+/// Every interval is retained in its original order within a block, including
+/// duplicates and empty ranges. Grouping never merges intervals: containment
+/// still requires one original owner, and overlap keeps its strict endpoints.
+struct OwnershipBuckets<'a> {
+    offsets: Vec<usize>,
+    intervals: Vec<&'a SourceInterval>,
+}
+
+impl<'a> OwnershipBuckets<'a> {
+    fn build(
+        intervals: &'a [SourceInterval],
+        block_count: usize,
+        expected_queries: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        let count = intervals.len();
+        let work = block_count
+            .checked_mul(3)?
+            .checked_add(count.checked_mul(3)?)?
+            .checked_add(1)?;
+        // Attempt the optional index only when its setup costs less than half
+        // the existing full-population query bound. Refusal leaves that rule
+        // available; work already paid by a failed build is never refunded.
+        if count == 0 || work >= expected_queries.saturating_mul(count) / 2 || work > *remaining {
+            return None;
+        }
+        let bytes = block_count
+            .checked_mul(2)?
+            .checked_add(1)?
+            .checked_mul(std::mem::size_of::<usize>())?
+            .checked_add(count.checked_mul(std::mem::size_of::<&SourceInterval>())?)?
+            .checked_add(std::mem::size_of::<Self>())?
+            .checked_add(std::mem::size_of::<Vec<usize>>())?;
+        if bytes > 32 * 1024 * 1024 || !charge(remaining, work) {
+            return None;
+        }
+        let mut offsets = Vec::new();
+        offsets
+            .try_reserve_exact(block_count.checked_add(1)?)
+            .ok()?;
+        offsets.resize(block_count + 1, 0_usize);
+        for interval in intervals {
+            if interval.block_index >= block_count {
+                // An out-of-population owner cannot be silently omitted.
+                return None;
+            }
+            offsets[interval.block_index + 1] += 1;
+        }
+        for index in 0..block_count {
+            offsets[index + 1] += offsets[index];
+        }
+        let mut cursors = Vec::new();
+        cursors.try_reserve_exact(block_count).ok()?;
+        cursors.extend_from_slice(&offsets[..block_count]);
+        let mut ordered = Vec::new();
+        ordered.try_reserve_exact(count).ok()?;
+        ordered.resize(count, intervals.first()?);
+        for interval in intervals {
+            let cursor = &mut cursors[interval.block_index];
+            ordered[*cursor] = interval;
+            *cursor += 1;
+        }
+        Some(Self {
+            offsets,
+            intervals: ordered,
+        })
+    }
+
+    /// Prepays the two offset lookups and every original interval inspected.
+    fn range(&self, block_index: usize, remaining: &mut usize) -> Option<std::ops::Range<usize>> {
+        if !charge(remaining, 2) {
+            return None;
+        }
+        let start = *self.offsets.get(block_index)?;
+        let end = *self.offsets.get(block_index.checked_add(1)?)?;
+        charge(remaining, end - start).then_some(start..end)
+    }
+}
+
 impl Assessor<'_, '_> {
     /// Known input order also closes gaps between verified global anchors.
     /// These gaps can cross soft block or page boundaries even when the
@@ -1153,6 +1233,18 @@ impl Assessor<'_, '_> {
             side_mask
                 .try_reserve_exact(blocks.len())
                 .map_err(|_| super::allocation_error("stationary candidate mask"))?;
+            let accepted = OwnershipBuckets::build(
+                &ownership[side].accepted,
+                blocks.len(),
+                blocks.len(),
+                &mut self.remaining_work,
+            );
+            let changed = OwnershipBuckets::build(
+                &ownership[side].changed,
+                blocks.len(),
+                blocks.len(),
+                &mut self.remaining_work,
+            );
             for block in blocks {
                 let block_index = self.sides[side].index[&block.block];
                 let comparable_end = self.sides[side].canonical[block_index].len();
@@ -1177,28 +1269,15 @@ impl Assessor<'_, '_> {
                     side_mask.push(false);
                     continue;
                 }
-                if !self.charge(
-                    intervals.len().saturating_mul(
-                        ownership[side]
-                            .accepted
-                            .len()
-                            .saturating_add(ownership[side].changed.len()),
-                    ),
-                ) {
+                let Some(intersects) = self.ownership_intersects_buckets(
+                    &ownership[side],
+                    &intervals,
+                    accepted.as_ref(),
+                    changed.as_ref(),
+                ) else {
                     return Ok(None);
-                }
-                let eligible = !intervals.iter().any(|interval| {
-                    ownership[side].changed.iter().any(|changed| {
-                        changed.block_index == interval.block_index
-                            && changed.start < interval.end
-                            && interval.start < changed.end
-                    }) || ownership[side].accepted.iter().any(|accepted| {
-                        accepted.block_index == interval.block_index
-                            && accepted.start < interval.end
-                            && interval.start < accepted.end
-                    })
-                });
-                side_mask.push(eligible);
+                };
+                side_mask.push(!intersects);
             }
             mask[side] = side_mask;
         }
@@ -1305,6 +1384,20 @@ impl Assessor<'_, '_> {
                 new_span.comparable_range.end,
             )
         });
+        let accepted = [
+            OwnershipBuckets::build(
+                &ownership[0].accepted,
+                self.sides[0].blocks.len(),
+                candidates.len(),
+                &mut self.remaining_work,
+            ),
+            OwnershipBuckets::build(
+                &ownership[1].accepted,
+                self.sides[1].blocks.len(),
+                candidates.len(),
+                &mut self.remaining_work,
+            ),
+        ];
         let mut established: Vec<super::views::EstablishedBlock> = Vec::new();
         for (old_span, new_span) in candidates {
             let (Some(old_block), Some(new_block)) =
@@ -1333,13 +1426,17 @@ impl Assessor<'_, '_> {
             {
                 continue;
             }
-            let Some(old_owned) = self.ownership_contains(ownership, 0, &old_span)? else {
+            let Some(old_owned) =
+                self.ownership_contains_bucket(ownership, 0, &old_span, accepted[0].as_ref())?
+            else {
                 return Ok(None);
             };
             if !old_owned {
                 continue;
             }
-            let Some(new_owned) = self.ownership_contains(ownership, 1, &new_span)? else {
+            let Some(new_owned) =
+                self.ownership_contains_bucket(ownership, 1, &new_span, accepted[1].as_ref())?
+            else {
                 return Ok(None);
             };
             if !new_owned {
@@ -1410,6 +1507,113 @@ impl Assessor<'_, '_> {
     /// comparison ownership on one side. `None` reports an exhausted shared
     /// work budget; the caller then drops the whole pass without committing a
     /// partial proof.
+    fn ownership_contains_bucket(
+        &mut self,
+        ownership: &[Ownership; 2],
+        side: usize,
+        span: &TextSpan,
+        buckets: Option<&OwnershipBuckets<'_>>,
+    ) -> Result<Option<bool>> {
+        let Some(buckets) = buckets else {
+            return self.ownership_contains(ownership, side, span);
+        };
+        let projected = project(self.sides[side], span)?;
+        if !self.charge(projected.len()) {
+            return Ok(None);
+        }
+        for interval in &projected {
+            let Some(range) = buckets.range(interval.block_index, &mut self.remaining_work) else {
+                return Ok(None);
+            };
+            if !buckets.intervals[range].iter().any(|accepted| {
+                accepted.block_index == interval.block_index
+                    && accepted.start <= interval.start
+                    && interval.end <= accepted.end
+            }) {
+                return Ok(Some(false));
+            }
+        }
+        Ok(Some(true))
+    }
+
+    fn ownership_intersects_buckets(
+        &mut self,
+        ownership: &Ownership,
+        intervals: &[SourceInterval],
+        accepted: Option<&OwnershipBuckets<'_>>,
+        changed: Option<&OwnershipBuckets<'_>>,
+    ) -> Option<bool> {
+        let overlaps = |owner: &SourceInterval, query: &SourceInterval| {
+            owner.block_index == query.block_index
+                && owner.start < query.end
+                && query.start < owner.end
+        };
+        if accepted.is_none() && changed.is_none() {
+            if !self.charge(
+                intervals.len().saturating_mul(
+                    ownership
+                        .accepted
+                        .len()
+                        .saturating_add(ownership.changed.len()),
+                ),
+            ) {
+                return None;
+            }
+            return Some(intervals.iter().any(|interval| {
+                ownership
+                    .changed
+                    .iter()
+                    .any(|owner| overlaps(owner, interval))
+                    || ownership
+                        .accepted
+                        .iter()
+                        .any(|owner| overlaps(owner, interval))
+            }));
+        }
+        for interval in intervals {
+            // Pay both complete groups before either predicate can short-circuit,
+            // just as the original accepted-plus-changed population scan did.
+            let accepted_range = if let Some(buckets) = accepted {
+                buckets.range(interval.block_index, &mut self.remaining_work)?
+            } else {
+                if !self.charge(ownership.accepted.len()) {
+                    return None;
+                }
+                0..ownership.accepted.len()
+            };
+            let changed_range = if let Some(buckets) = changed {
+                buckets.range(interval.block_index, &mut self.remaining_work)?
+            } else {
+                if !self.charge(ownership.changed.len()) {
+                    return None;
+                }
+                0..ownership.changed.len()
+            };
+            let changed_overlap = if let Some(buckets) = changed {
+                buckets.intervals[changed_range]
+                    .iter()
+                    .any(|owner| overlaps(owner, interval))
+            } else {
+                ownership.changed[changed_range]
+                    .iter()
+                    .any(|owner| overlaps(owner, interval))
+            };
+            let accepted_overlap = if let Some(buckets) = accepted {
+                buckets.intervals[accepted_range]
+                    .iter()
+                    .any(|owner| overlaps(owner, interval))
+            } else {
+                ownership.accepted[accepted_range]
+                    .iter()
+                    .any(|owner| overlaps(owner, interval))
+            };
+            if changed_overlap || accepted_overlap {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+
     fn ownership_contains(
         &mut self,
         ownership: &[Ownership; 2],
@@ -2299,6 +2503,235 @@ mod tests {
             .expect("test blocks are valid")
             .materialize()
             .expect("test blocks materialize")
+    }
+
+    #[test]
+    fn established_collection_leaves_budget_after_unrelated_owner_queries() -> Result<()> {
+        let old_blocks = (1_u64..=128)
+            .map(|id| sourced_block(id, &format!("A{id}")))
+            .collect::<Vec<_>>();
+        let new_blocks = (1_u64..=128)
+            .map(|id| sourced_block(id + 1_000, &format!("A{id}")))
+            .collect::<Vec<_>>();
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_ids = old_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let new_ids = new_blocks
+            .iter()
+            .map(|block| block.block)
+            .collect::<Vec<_>>();
+        let alignment = unresolved_alignment(&old_ids, &new_ids);
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        for index in 0..128 {
+            let count = old.canonical[index].len();
+            let old_span = span(old_blocks[index].block.0, count);
+            let new_span = span(new_blocks[index].block.0, count);
+            ownership[0].accept(&old, &old_span, 4_096)?;
+            ownership[1].accept(&new, &new_span, 4_096)?;
+            if index < 16 {
+                assessor.local_anchors.push(LocalDomain {
+                    old_span: old_span.clone(),
+                    new_span: new_span.clone(),
+                    source_bounded: true,
+                });
+                let proposal = ProposedRelation {
+                    old: Some(old_span),
+                    new: Some(new_span),
+                    span_indices: [None, None],
+                    exact_recovery: true,
+                };
+                let key = assessor.domain_key(&proposal)?;
+                assessor.prove_domain(&key)?;
+            }
+        }
+        assessor.remaining_work = 100_000;
+        let expected = assessor
+            .collect_established_blocks(&ownership)?
+            .expect("complete control collection");
+        assert_eq!(expected.len(), 16);
+        let expected = expected
+            .iter()
+            .map(|entry| (entry.old_block, entry.new_block))
+            .collect::<Vec<_>>();
+        assessor.remaining_work = 3_400;
+        let bounded = assessor.collect_established_blocks(&ownership)?;
+        let bounded = bounded.map(|entries| {
+            entries
+                .iter()
+                .map(|entry| (entry.old_block, entry.new_block))
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(bounded, Some(expected));
+        assert!(
+            assessor.remaining_work >= 300,
+            "later source proofs lost their budget"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ownership_buckets_preserve_original_owners_and_strict_endpoints() -> Result<()> {
+        let blocks = (1_u64..=64)
+            .map(|id| sourced_block(id, "abcd"))
+            .collect::<Vec<_>>();
+        let source = side(&blocks);
+        let ids = blocks.iter().map(|block| block.block).collect::<Vec<_>>();
+        let alignment = unresolved_alignment(&ids, &ids);
+        let mut assessor = super::super::Assessor::new(
+            [&source, &source],
+            &alignment,
+            None,
+            DiffOptions::default(),
+        )?;
+        let interval = |block_index, start, end| SourceInterval {
+            block_index,
+            start,
+            end,
+        };
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        ownership[0].accepted = vec![interval(0, 0, 2), interval(0, 2, 4), interval(0, 0, 2)];
+        ownership[0]
+            .accepted
+            .extend((1..64).map(|index| interval(index, 0, 4)));
+        let mut budget = 100_000;
+        let buckets = OwnershipBuckets::build(&ownership[0].accepted, 64, 128, &mut budget)
+            .expect("repeated ownership queries justify grouping");
+        let range = buckets
+            .range(0, &mut budget)
+            .expect("complete source group");
+        assert_eq!(range.len(), 3);
+        for (original, grouped) in ownership[0].accepted[..3]
+            .iter()
+            .zip(&buckets.intervals[range])
+        {
+            assert!(std::ptr::eq(original, *grouped));
+        }
+        for start in 0..=4 {
+            for end in start..=4 {
+                let mut query = span(1, end);
+                query.comparable_range.start = start;
+                query.canonical_range.start = start;
+                assessor.remaining_work = 100_000;
+                let expected = assessor.ownership_contains(&ownership, 0, &query)?;
+                assessor.remaining_work = 100_000;
+                assert_eq!(
+                    assessor.ownership_contains_bucket(&ownership, 0, &query, Some(&buckets))?,
+                    expected
+                );
+            }
+        }
+        assert_eq!(
+            assessor.ownership_contains_bucket(&ownership, 0, &span(1, 4), Some(&buckets))?,
+            Some(false)
+        );
+        for query in [
+            interval(0, 4, 5),
+            interval(0, 1, 3),
+            interval(0, 2, 2),
+            interval(63, 4, 5),
+        ] {
+            assessor.remaining_work = 100_000;
+            let expected =
+                assessor.ownership_intersects_buckets(&ownership[0], &[query], None, None);
+            assessor.remaining_work = 100_000;
+            assert_eq!(
+                assessor.ownership_intersects_buckets(
+                    &ownership[0],
+                    &[query],
+                    Some(&buckets),
+                    None
+                ),
+                expected
+            );
+        }
+        assessor.remaining_work = 2;
+        assert_eq!(
+            assessor.ownership_contains_bucket(&ownership, 0, &span(1, 2), Some(&buckets))?,
+            None
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ownership_buckets_refuse_unfunded_and_out_of_population_inputs() {
+        let valid = vec![
+            SourceInterval {
+                block_index: 0,
+                start: 0,
+                end: 1
+            };
+            64
+        ];
+        let mut budget = 0;
+        assert!(OwnershipBuckets::build(&valid, 64, 128, &mut budget).is_none());
+        assert_eq!(budget, 0);
+        budget = 100_000;
+        assert!(OwnershipBuckets::build(&valid, 64, 1, &mut budget).is_none());
+        assert_eq!(budget, 100_000);
+        assert!(OwnershipBuckets::build(&valid, usize::MAX, usize::MAX, &mut budget).is_none());
+        assert_eq!(budget, 100_000);
+        let mut invalid = valid;
+        invalid[63].block_index = 64;
+        assert!(OwnershipBuckets::build(&invalid, 64, 128, &mut budget).is_none());
+        assert_eq!(budget, 100_000 - 385, "failed setup work is retained");
+    }
+
+    #[test]
+    fn stationary_ownership_mask_preserves_every_source_block_on_both_sides() -> Result<()> {
+        let mut blocks = (1_u64..=64)
+            .map(|id| sourced_block(id, "abcd"))
+            .collect::<Vec<_>>();
+        blocks.push(sourced_block(65, ""));
+        let source = side(&blocks);
+        let ids = blocks.iter().map(|block| block.block).collect::<Vec<_>>();
+        let alignment = unresolved_alignment(&ids, &ids);
+        let mut assessor = super::super::Assessor::new(
+            [&source, &source],
+            &alignment,
+            None,
+            DiffOptions::default(),
+        )?;
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        for (side, owner) in ownership.iter_mut().enumerate() {
+            for index in 0..64 {
+                let interval = SourceInterval {
+                    block_index: index,
+                    start: if index % 4 == side { 2 } else { 4 },
+                    end: if index % 4 == side { 3 } else { 4 },
+                };
+                if index % 2 == side {
+                    owner.accepted.push(interval);
+                    owner.accepted.push(interval);
+                } else {
+                    owner.changed.push(interval);
+                }
+            }
+        }
+        let expected: [Vec<bool>; 2] = std::array::from_fn(|side| {
+            (0..65)
+                .map(|index| {
+                    index < 64
+                        && !ownership[side]
+                            .accepted
+                            .iter()
+                            .chain(&ownership[side].changed)
+                            .any(|owner| {
+                                owner.block_index == index && owner.start < 4 && 0 < owner.end
+                            })
+                })
+                .collect()
+        });
+        assessor.remaining_work = 100_000;
+        assert_eq!(
+            assessor.stationary_candidate_mask(&ownership)?,
+            Some(expected)
+        );
+        Ok(())
     }
 
     fn span(block: u64, end: usize) -> TextSpan {

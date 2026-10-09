@@ -114,6 +114,14 @@ a candidate, and closed intervals retain point obstacles. The cache is bound to
 one input side, costs are charged before allocation and lookup, and each side
 retains at most 32 MiB; refused preparation falls back to the same uncached rule.
 
+Whole-block correspondence collection and stationary masks can group one call's
+immutable ownership intervals by source block. Setup and complete queried groups
+are paid from the same shared work budget; each temporary index, including its
+construction arrays, is capped at 32 MiB. Every original interval and duplicate
+is retained. Containment still requires one original owner, adjoining intervals
+are never merged, and overlap keeps strict endpoints. Refused setup uses the
+original population scan; exhausted queries retain the whole-pass hold.
+
 A final optional pass can report a nonowning changed region inside a partly
 resolved, complete source correspondence. Two consecutive equal-token pairs
 must occur on every maximum matching of the parent; the reported interior
