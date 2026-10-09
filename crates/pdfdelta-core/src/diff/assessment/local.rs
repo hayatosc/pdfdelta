@@ -757,12 +757,13 @@ impl Assessor<'_, '_> {
         if established.is_empty() {
             return Ok(());
         }
-        let domains = super::views::discover_translations(
+        let domains = super::views::discover_translations_with_cache(
             self.sides,
             recovery,
             &established,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
+            Some(&mut self.deny_token_cache),
         )?;
         if domains.is_empty() {
             return Ok(());
@@ -1473,12 +1474,13 @@ impl Assessor<'_, '_> {
         if established.is_empty() {
             return Ok(());
         }
-        let domains = super::views::discover_bracketed_domains(
+        let domains = super::views::discover_bracketed_domains_with_cache(
             self.sides,
             recovery,
             &established,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
+            Some(&mut self.deny_token_cache),
         )?;
         if domains.is_empty() {
             return Ok(());

@@ -2981,6 +2981,7 @@ fn mode_supports(mode: TranslationMode, translation: crate::model::Vec2) -> bool
 /// silently. The move itself is the evidence: the caller records it as an
 /// assumption, and nothing is adopted on proximity or tolerance. `None` is
 /// never returned; an exhausted budget drops only this pass's additions.
+#[cfg(test)]
 pub(super) fn discover_translations(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -2988,7 +2989,25 @@ pub(super) fn discover_translations(
     remaining_work: &mut usize,
     max_ranges: usize,
 ) -> Result<Vec<LocalDomain>> {
-    discover_translations_mode(
+    discover_translations_with_cache(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        None,
+    )
+}
+
+pub(super) fn discover_translations_with_cache(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    deny_cache: Option<&mut DenyTokenCache<'_, '_>>,
+) -> Result<Vec<LocalDomain>> {
+    discover_translations_mode_with_cache(
         sides,
         recovery,
         established,
@@ -2996,6 +3015,7 @@ pub(super) fn discover_translations(
         max_ranges,
         TranslationMode::NonzeroSingleton,
         None,
+        deny_cache,
     )
 }
 
@@ -3223,6 +3243,7 @@ pub(super) fn discover_raw_source_equalities_masked_with_cache(
     )
 }
 
+#[cfg(test)]
 fn discover_translations_mode(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -4334,12 +4355,31 @@ fn nearest_boundaries(
 /// when it cannot support a boundary; a reference whose page or geometry
 /// cannot be proven holds the candidate. `None` is never returned; an
 /// exhausted budget drops only this pass's additions.
+#[cfg(test)]
 pub(super) fn discover_bracketed_domains(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
     established: &[EstablishedBlock],
     remaining_work: &mut usize,
     max_ranges: usize,
+) -> Result<Vec<LocalDomain>> {
+    discover_bracketed_domains_with_cache(
+        sides,
+        recovery,
+        established,
+        remaining_work,
+        max_ranges,
+        None,
+    )
+}
+
+pub(super) fn discover_bracketed_domains_with_cache(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    established: &[EstablishedBlock],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    mut deny_cache: Option<&mut DenyTokenCache<'_, '_>>,
 ) -> Result<Vec<LocalDomain>> {
     if max_ranges == 0
         || *remaining_work == 0
@@ -4361,22 +4401,24 @@ pub(super) fn discover_bracketed_domains(
     let new_descriptors = recovery
         .new_trusted_run_evidence
         .map(|evidence| evidence.descriptors);
-    let Some(old_views) = build_views(
+    let Some(old_views) = build_views_with_deny_cache(
         sides[0],
         recovery.old_trusted_run_intervals,
         old_descriptors,
         recovery.old_native_order_blocks,
         remaining_work,
+        deny_cache.as_mut().map(|cache| (&mut **cache, 0)),
     )?
     else {
         return Ok(Vec::new());
     };
-    let Some(new_views) = build_views(
+    let Some(new_views) = build_views_with_deny_cache(
         sides[1],
         recovery.new_trusted_run_intervals,
         new_descriptors,
         recovery.new_native_order_blocks,
         remaining_work,
+        deny_cache.as_mut().map(|cache| (&mut **cache, 1)),
     )?
     else {
         return Ok(Vec::new());
@@ -15525,5 +15567,116 @@ mod tests {
             old.is_none(),
             "old scanner should exhaust the same small budget"
         );
+    }
+
+    #[test]
+    fn repeated_bracketed_discovery_keeps_work_for_later_source_proofs() -> Result<()> {
+        let extra = |id| {
+            let mut value = sourced_block(id, &"ABCD".repeat(250));
+            value.pages = vec![1];
+            value.line_breaks = None;
+            value
+        };
+        let (old_blocks, new_blocks) = bracketed_fixture(
+            "Filing year 2024 statement",
+            "Filing year 2025 statement",
+            &[extra(4), extra(5)],
+            &[extra(104), extra(105)],
+        );
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None; 5];
+        let input = recovery(&intervals, &intervals);
+        let anchors = bracketed_anchors();
+        let mut expected_budget = 1_000_000;
+        let expected =
+            discover_bracketed_domains([&old, &new], input, &anchors, &mut expected_budget, 100)?;
+        assert_eq!(expected.len(), 1);
+        let mut uncached = 150_000;
+        assert_eq!(
+            discover_bracketed_domains([&old, &new], input, &anchors, &mut uncached, 100)?,
+            expected
+        );
+        assert!(
+            discover_bracketed_domains([&old, &new], input, &anchors, &mut uncached, 100)?
+                .is_empty(),
+            "the repeated original scan exhausts the same budget"
+        );
+        assert_eq!(uncached, 0);
+        let mut remaining = 150_000;
+        let mut cache = DenyTokenCache::new([&old, &new]);
+        for _ in 0..2 {
+            let domains = discover_bracketed_domains_with_cache(
+                [&old, &new],
+                input,
+                &anchors,
+                &mut remaining,
+                100,
+                Some(&mut cache),
+            )?;
+            assert_eq!(
+                domains, expected,
+                "both completed rounds retain the same physical spans"
+            );
+        }
+        assert!(
+            remaining >= 10_000,
+            "later source proofs retain their original budget: {remaining}"
+        );
+        assert!(charge(&mut remaining, 10_000));
+        Ok(())
+    }
+
+    #[test]
+    fn cached_bracketed_discovery_keeps_unknown_geometry_and_duplicates_held() -> Result<()> {
+        for duplicate in [false, true] {
+            let mut extra = positioned_block(
+                4,
+                "Filing year 2024 statement",
+                10.0,
+                if duplicate { 400.0 } else { 670.0 },
+                0,
+            );
+            let mut new_extra = positioned_block(
+                104,
+                "Filing year 2025 statement",
+                10.0,
+                if duplicate { 400.0 } else { 670.0 },
+                0,
+            );
+            if !duplicate {
+                extra.position_signatures = None;
+                new_extra.position_signatures = None;
+            }
+            let (old_blocks, new_blocks) = bracketed_fixture(
+                "Filing year 2024 statement",
+                "Filing year 2025 statement",
+                &[extra],
+                &[new_extra],
+            );
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let intervals = [None; 4];
+            let input = recovery(&intervals, &intervals);
+            let anchors = bracketed_anchors();
+            let expected =
+                discover_bracketed_domains([&old, &new], input, &anchors, &mut 1_000_000, 100)?;
+            assert!(expected.is_empty());
+            let mut cache = DenyTokenCache::new([&old, &new]);
+            for _ in 0..2 {
+                assert_eq!(
+                    discover_bracketed_domains_with_cache(
+                        [&old, &new],
+                        input,
+                        &anchors,
+                        &mut 1_000_000,
+                        100,
+                        Some(&mut cache)
+                    )?,
+                    expected
+                );
+            }
+        }
+        Ok(())
     }
 }

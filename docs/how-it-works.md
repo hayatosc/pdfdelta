@@ -392,3 +392,15 @@ is required. New record and ownership headers and the bounded capacity metadata
 checks are paid for every publication. Actual capacities are checked before the
 source guard, and spare capacity retained by a refused source attempt remains in
 later memory plans. Same-page capacity requests and work accounting are unchanged.
+
+
+Anchored translation and each bracketed discovery round reuse the comparison's
+existing bounded deny-token metadata cache while rebuilding their views. The
+cache retains only completed immutable source metadata, including held values;
+it supplies negative occurrence evidence and cannot establish a correspondence.
+Every query, slot initialization and output metadata copy stays charged. Failed
+or refused cache setup keeps the original scan, with no work refunds. The
+existing combined 32 MiB cache cap and source-side binding remain unchanged.
+All established references, source populations, closure guards and discovery
+order are inspected as before; proof results and mutable ownership are not
+cached.
