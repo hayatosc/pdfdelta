@@ -125,9 +125,12 @@ struct SideAnalysis<'a> {
 /// event, issue and break counts are charged before any scan, and per-element
 /// charges cover every later walk. On exhaustion the verdict is
 /// [`RawSourceVerdict::Exhausted`] and no partial proof is reported.
-/// A self-comparison of the same immutable block reuses its completed side
-/// analysis; all upfront charges and the final comparison still run. Distinct
-/// blocks are analyzed independently, even when their contents are identical.
+/// A self-comparison with unmapped scalars holds after the fixed header charge,
+/// before text scanning or source analysis. Identity supports this rejection
+/// only; it never establishes equality. Every other call keeps all upfront
+/// charges and the final comparison. A self-comparison of the same immutable
+/// block reuses its completed side analysis; distinct blocks are analyzed
+/// independently, even when their contents are identical.
 pub(crate) fn raw_source_isomorphic(
     old: &BlockText,
     new: &BlockText,
@@ -135,6 +138,11 @@ pub(crate) fn raw_source_isomorphic(
 ) -> RawSourceVerdict {
     if !charge(remaining, 64) {
         return RawSourceVerdict::Exhausted;
+    }
+    if std::ptr::eq(old, new)
+        && (!old.raw.unmapped.is_empty() || !old.canonical.unmapped.is_empty())
+    {
+        return RawSourceVerdict::Held(RawSourceHold::UnmappedProjection);
     }
     let text_cost = text_bytes(old).saturating_add(text_bytes(new));
     let map_cost = map_entries(old).saturating_add(map_entries(new));
@@ -891,6 +899,85 @@ mod tests {
             isomorphic(&original, &separate),
             RawSourceVerdict::Isomorphic
         );
+    }
+
+    #[test]
+    fn raw_source_unmapped_self_holds_without_text_scan_budget() {
+        for canonical in [false, true] {
+            let mut original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+            let unmapped = crate::normalize::UnmappedToken {
+                scalar_index: 0,
+                font_hash: crate::model::FontProgramHash(vec![1]),
+                glyph_id: 1,
+                source: TextSource {
+                    atoms: smallvec![glyph(1)],
+                },
+            };
+            if canonical {
+                original.canonical.unmapped.push(unmapped);
+            } else {
+                original.raw.unmapped.push(unmapped);
+            }
+            for budget in 0..64 {
+                let mut remaining = budget;
+                assert_eq!(
+                    raw_source_isomorphic(&original, &original, &mut remaining),
+                    RawSourceVerdict::Exhausted
+                );
+                assert_eq!(remaining, 0);
+            }
+            let mut remaining = 64;
+            assert_eq!(
+                raw_source_isomorphic(&original, &original, &mut remaining),
+                RawSourceVerdict::Held(RawSourceHold::UnmappedProjection)
+            );
+            assert_eq!(remaining, 0);
+
+            let separate = original.clone();
+            let mut remaining = 64;
+            assert_eq!(
+                raw_source_isomorphic(&original, &separate, &mut remaining),
+                RawSourceVerdict::Exhausted
+            );
+            assert_eq!(remaining, 0);
+            assert_eq!(
+                isomorphic(&original, &separate),
+                RawSourceVerdict::Held(RawSourceHold::UnmappedProjection)
+            );
+        }
+        let supported = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+        let mut remaining = 64;
+        assert_eq!(
+            raw_source_isomorphic(&supported, &supported, &mut remaining),
+            RawSourceVerdict::Exhausted
+        );
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn raw_source_unmapped_separate_blocks_keep_literal_difference_priority() {
+        let mut original = block(1, [1, 2, 3], [10.0, 20.0, 20.0, 40.0]);
+        original
+            .canonical
+            .unmapped
+            .push(crate::normalize::UnmappedToken {
+                scalar_index: 0,
+                font_hash: crate::model::FontProgramHash(vec![1]),
+                glyph_id: 1,
+                source: TextSource {
+                    atoms: smallvec![glyph(1)],
+                },
+            });
+        for canonical in [false, true] {
+            let mut changed = original.clone();
+            if canonical {
+                changed.canonical.text = "AB\nD".to_owned();
+            } else {
+                changed.raw.text = "A\nB\nD".to_owned();
+            }
+            assert_eq!(isomorphic(&original, &changed), RawSourceVerdict::Different);
+            assert_eq!(isomorphic(&changed, &original), RawSourceVerdict::Different);
+        }
     }
 
     #[test]

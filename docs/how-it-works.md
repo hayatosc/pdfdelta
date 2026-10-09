@@ -133,11 +133,14 @@ slot headers are capped at 32 MiB across both sides; unfunded setup or excess
 capacity keeps the original scan, and already spent work is never refunded.
 
 Raw-source discovery validates a block against itself before using its evidence.
-When both references identify the same immutable whole block, the completed
-source analysis is reused for the second side. Header checks and charges, the
-final source and position comparison, and document-wide sharing certificates
-still run. Distinct blocks require independent analyses. Malformed or unknown
-evidence still holds the pair, and exhaustion cannot produce a partial proof.
+A self-comparison with unmapped scalars holds after the fixed header charge,
+before scanning text or analyzing sources. Identity supports this rejection
+only; it never certifies equality. Every other call retains its upfront charges,
+final source and position comparison, and document-wide sharing certificates.
+When both references identify the same immutable whole block, a completed
+source analysis is reused for the second side. Distinct blocks require
+independent analyses. Malformed or unknown evidence still holds the pair, and
+exhaustion cannot produce a partial proof.
 
 Raw-source analysis holds synthetic spacing atoms after checking positions and
 both complete source-map shapes, before allocating and scanning text buffers.
