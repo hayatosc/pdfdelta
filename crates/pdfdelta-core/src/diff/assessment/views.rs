@@ -2342,6 +2342,96 @@ struct BandSide<'a> {
 
 type BaselineBounds = (f64, f64, f64, f64);
 
+/// Completed established-reference bounds for one immutable discovery.
+///
+/// The side, views and complete reference population remain borrowed and fixed.
+/// Slots retain known and unknown geometry, never budget failures. Each side
+/// retains at most 16 MiB including this header, so both sides stay within
+/// 32 MiB. Setup pays one unit per initialized slot and every query pays one
+/// unit. Unfunded or refused setup keeps the original scan without refunds.
+struct ReferenceBoundsCache<'a> {
+    side: &'a Side<'a>,
+    views: &'a [View],
+    neighbours: &'a [EstablishedNeighbour],
+    new_side: bool,
+    slots: Vec<Option<Option<BaselineBounds>>>,
+    attempted: bool,
+}
+
+impl<'a> ReferenceBoundsCache<'a> {
+    fn new(
+        side: &'a Side<'a>,
+        views: &'a [View],
+        neighbours: &'a [EstablishedNeighbour],
+        new_side: bool,
+    ) -> Self {
+        Self {
+            side,
+            views,
+            neighbours,
+            new_side,
+            slots: Vec::new(),
+            attempted: false,
+        }
+    }
+
+    fn prepare(&mut self, remaining: &mut usize) {
+        if self.attempted {
+            return;
+        }
+        self.attempted = true;
+        let count = self.neighbours.len();
+        let bytes = count
+            .checked_mul(std::mem::size_of::<Option<Option<BaselineBounds>>>())
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        if bytes.is_none_or(|bytes| bytes > 16 * 1024 * 1024) || count > *remaining {
+            return;
+        }
+        if !charge(remaining, count) || self.slots.try_reserve_exact(count).is_err() {
+            return;
+        }
+        let retained = self
+            .slots
+            .capacity()
+            .checked_mul(std::mem::size_of::<Option<Option<BaselineBounds>>>())
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        if retained.is_none_or(|bytes| bytes > 16 * 1024 * 1024) {
+            self.slots = Vec::new();
+            return;
+        }
+        self.slots.resize(count, None);
+    }
+
+    fn get(&mut self, index: usize, remaining: &mut usize) -> Option<Option<BaselineBounds>> {
+        if !charge(remaining, 1) {
+            return None;
+        }
+        self.prepare(remaining);
+        if let Some(Some(bounds)) = self.slots.get(index) {
+            return Some(*bounds);
+        }
+        let neighbour = &self.neighbours[index];
+        let (view, range, block) = if self.new_side {
+            (
+                neighbour.new_view,
+                &neighbour.new_range,
+                neighbour.new_index,
+            )
+        } else {
+            (
+                neighbour.old_view,
+                &neighbour.old_range,
+                neighbour.old_index,
+            )
+        };
+        let bounds = reference_bounds(self.side, &self.views[view], range, block, remaining)?;
+        if let Some(slot) = self.slots.get_mut(index) {
+            *slot = Some(bounds);
+        }
+        Some(bounds)
+    }
+}
+
 /// Lazy raw obstacle geometry for one immutable source side and one discovery.
 /// Missing geometry is cached as a hold; budget failures are never cached.
 /// Each side retains at most 32 MiB. Refused cache preparation uses the same
@@ -3043,6 +3133,10 @@ fn discover_translations_mode_with_cache(
     if neighbours.is_empty() {
         return Ok(Vec::new());
     }
+    let mut reference_bounds = [
+        ReferenceBoundsCache::new(sides[0], &old_views, &neighbours, false),
+        ReferenceBoundsCache::new(sides[1], &new_views, &neighbours, true),
+    ];
     let mut band_bounds = [
         BandBoundsCache::new(sides[0]),
         BandBoundsCache::new(sides[1]),
@@ -3140,13 +3234,7 @@ fn discover_translations_mode_with_cache(
                         continue;
                     }
                 }
-                let Some(neighbour_bounds) = reference_bounds(
-                    sides[0],
-                    &old_views[neighbour.old_view],
-                    &neighbour.old_range,
-                    neighbour.old_index,
-                    remaining_work,
-                ) else {
+                let Some(neighbour_bounds) = reference_bounds[0].get(index, remaining_work) else {
                     return Ok(Vec::new());
                 };
                 let Some(neighbour_bounds) = neighbour_bounds else {
@@ -3418,13 +3506,7 @@ fn discover_translations_mode_with_cache(
                         continue;
                     }
                 }
-                let Some(neighbour_bounds) = reference_bounds(
-                    sides[1],
-                    &new_views[neighbour.new_view],
-                    &neighbour.new_range,
-                    neighbour.new_index,
-                    remaining_work,
-                ) else {
+                let Some(neighbour_bounds) = reference_bounds[1].get(index, remaining_work) else {
                     return Ok(Vec::new());
                 };
                 let Some(neighbour_bounds) = neighbour_bounds else {
@@ -3531,7 +3613,7 @@ fn discover_translations_mode_with_cache(
                 return Ok(Vec::new());
             }
             let mut neighbour_valid = true;
-            for reference in &neighbours {
+            for (reference_index, reference) in neighbours.iter().enumerate() {
                 match reference_page(&reference.old_pages, &reference.new_pages, candidate_page) {
                     ReferencePage::Same => {}
                     ReferencePage::Other => {
@@ -3546,22 +3628,14 @@ fn discover_translations_mode_with_cache(
                         break;
                     }
                 }
-                let Some(reference_old_bounds) = reference_bounds(
-                    sides[0],
-                    &old_views[reference.old_view],
-                    &reference.old_range,
-                    reference.old_index,
-                    remaining_work,
-                ) else {
+                let Some(reference_old_bounds) =
+                    reference_bounds[0].get(reference_index, remaining_work)
+                else {
                     return Ok(Vec::new());
                 };
-                let Some(reference_new_bounds) = reference_bounds(
-                    sides[1],
-                    &new_views[reference.new_view],
-                    &reference.new_range,
-                    reference.new_index,
-                    remaining_work,
-                ) else {
+                let Some(reference_new_bounds) =
+                    reference_bounds[1].get(reference_index, remaining_work)
+                else {
                     return Ok(Vec::new());
                 };
                 let (Some(reference_old_bounds), Some(reference_new_bounds)) =
@@ -10032,6 +10106,162 @@ mod tests {
             exhausted.is_empty(),
             "a budget cut must not emit a domain: {exhausted:?}"
         );
+        Ok(())
+    }
+
+    fn cache_reference(range: std::ops::Range<usize>) -> EstablishedNeighbour {
+        EstablishedNeighbour {
+            old_index: 0,
+            new_index: 0,
+            old_member: 0,
+            new_member: 0,
+            old_view: 0,
+            new_view: 0,
+            old_range: range.clone(),
+            new_range: range,
+            translation: Some(Vec2 { x: 0.0, y: 0.0 }),
+            old_pages: vec![0],
+            new_pages: vec![0],
+        }
+    }
+
+    #[test]
+    fn repeated_reference_bounds_leave_budget_for_later_source_proofs() -> Result<()> {
+        let blocks = [sourced_block(1, "abcdefghijklmnopqrst")];
+        let source = side(&blocks);
+        let views =
+            build_views(&source, &[None], None, &[], &mut 100_000)?.expect("complete source view");
+        let references = [cache_reference(0..20)];
+        let mut cache = ReferenceBoundsCache::new(&source, &views, &references, false);
+        let mut remaining = 45;
+        for _ in 0..2 {
+            assert_eq!(
+                cache.get(0, &mut remaining),
+                Some(Some((0.0, 0.0, 0.0, 0.0)))
+            );
+        }
+        assert_eq!(remaining, 0);
+        assert_eq!(cache.get(0, &mut remaining), None);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_bounds_cache_keeps_unknown_geometry_held() -> Result<()> {
+        let mut unknown = sourced_block(1, "abcdefghijklmnopqrst");
+        unknown.position_signatures = None;
+        let blocks = [unknown];
+        let source = side(&blocks);
+        let views =
+            build_views(&source, &[None], None, &[], &mut 100_000)?.expect("retained unknown view");
+        let references = [cache_reference(0..20)];
+        let mut cache = ReferenceBoundsCache::new(&source, &views, &references, false);
+        let mut remaining = 24;
+        for _ in 0..2 {
+            assert_eq!(cache.get(0, &mut remaining), Some(None));
+        }
+        assert_eq!(remaining, 0);
+        assert_eq!(cache.get(0, &mut remaining), None);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_bounds_cache_never_retains_exhaustion() -> Result<()> {
+        let blocks = [sourced_block(1, "abcdefghijklmnopqrst")];
+        let source = side(&blocks);
+        let views =
+            build_views(&source, &[None], None, &[], &mut 100_000)?.expect("complete source view");
+        let references = [cache_reference(0..20)];
+        let mut cache = ReferenceBoundsCache::new(&source, &views, &references, false);
+        for budget in [22, 1] {
+            let mut remaining = budget;
+            assert_eq!(cache.get(0, &mut remaining), None);
+            assert_eq!(remaining, 0);
+        }
+        let mut remaining = 43;
+        assert_eq!(
+            cache.get(0, &mut remaining),
+            Some(Some((0.0, 0.0, 0.0, 0.0)))
+        );
+        assert_eq!(remaining, 0);
+        let mut remaining = 1;
+        assert_eq!(
+            cache.get(0, &mut remaining),
+            Some(Some((0.0, 0.0, 0.0, 0.0)))
+        );
+        assert_eq!(remaining, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_bounds_cache_unfunded_setup_keeps_the_original_scan() -> Result<()> {
+        let blocks = [sourced_block(1, "abcdefghijklmnopqrst")];
+        let source = side(&blocks);
+        let views =
+            build_views(&source, &[None], None, &[], &mut 100_000)?.expect("complete source view");
+        let references = (0..100).map(|_| cache_reference(0..20)).collect::<Vec<_>>();
+        let mut cache = ReferenceBoundsCache::new(&source, &views, &references, false);
+        for _ in 0..2 {
+            let mut remaining = 43;
+            assert_eq!(
+                cache.get(0, &mut remaining),
+                Some(Some((0.0, 0.0, 0.0, 0.0)))
+            );
+            assert_eq!(remaining, 0);
+        }
+        let mut remaining = 1;
+        assert_eq!(cache.get(0, &mut remaining), None);
+        assert_eq!(remaining, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn reference_bounds_cache_is_bound_to_its_own_side_views_and_ranges() -> Result<()> {
+        let old_blocks = [spread_block(1, "ABCD", 10.0, 700.0, 0, 1.5)];
+        let new_blocks = [spread_block(1, "ABCD", 20.0, 680.0, 0, 1.5)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_views = build_views(&old, &[None], None, &[], &mut 100_000)?.expect("old view");
+        let new_views = build_views(&new, &[None], None, &[], &mut 100_000)?.expect("new view");
+        let mut reference = cache_reference(0..4);
+        reference.new_range = 1..3;
+        let references = [reference];
+        let mut caches = [
+            ReferenceBoundsCache::new(&old, &old_views, &references, false),
+            ReferenceBoundsCache::new(&new, &new_views, &references, true),
+        ];
+        let expected = [(10.0, 700.0, 14.5, 700.0), (21.5, 680.0, 23.0, 680.0)];
+        for _ in 0..2 {
+            for (cache, expected) in caches.iter_mut().zip(expected) {
+                assert_eq!(cache.get(0, &mut 100_000), Some(Some(expected)));
+            }
+        }
+        let mut fallback_views =
+            build_views(&old, &[None], None, &[], &mut 100_000)?.expect("fresh fallback view");
+        fallback_views[0].token_positions.fill(None);
+        let mut fallback = ReferenceBoundsCache::new(&old, &fallback_views, &references, false);
+        let uncached = reference_bounds(&old, &fallback_views[0], &(0..4), 0, &mut 100_000)
+            .expect("completed fallback")
+            .expect("known fallback");
+        for _ in 0..2 {
+            let cached = fallback
+                .get(0, &mut 100_000)
+                .expect("completed")
+                .expect("known");
+            assert_eq!(
+                [
+                    cached.0.to_bits(),
+                    cached.1.to_bits(),
+                    cached.2.to_bits(),
+                    cached.3.to_bits()
+                ],
+                [
+                    uncached.0.to_bits(),
+                    uncached.1.to_bits(),
+                    uncached.2.to_bits(),
+                    uncached.3.to_bits()
+                ]
+            );
+        }
         Ok(())
     }
 

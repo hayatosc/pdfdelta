@@ -132,6 +132,15 @@ and view population copies spend the shared work budget. Retained buffers and
 slot headers are capped at 32 MiB across both sides; unfunded setup or excess
 capacity keeps the original scan, and already spent work is never refunded.
 
+Established-reference boundary queries within one translation discovery reuse
+only completed geometry from that discovery's immutable side, views and
+reference population. Known and unknown bounds are kept separately; exhaustion
+is never cached. Every reference, page, support, order and ownership check still
+runs, and cached geometry alone cannot certify correspondence. Setup pays for
+initialized slots and every query spends work. Retained slots and headers are
+capped at 16 MiB per side, 32 MiB combined. Refused or unfunded setup keeps the
+original scan without refunding spent work.
+
 Raw-source discovery validates a block against itself before using its evidence.
 A self-comparison with unmapped scalars holds after the fixed header charge,
 before scanning text or analyzing sources. Identity supports this rejection
