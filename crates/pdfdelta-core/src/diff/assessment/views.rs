@@ -2337,6 +2337,87 @@ struct BandSide<'a> {
     page: u32,
 }
 
+type BaselineBounds = (f64, f64, f64, f64);
+
+/// Lazy raw obstacle geometry for one immutable source side and one discovery.
+/// Missing geometry is cached as a hold; budget failures are never cached.
+/// Each side retains at most 32 MiB. Refused cache preparation uses the same
+/// uncached rule, with all work actually spent still charged.
+struct BandBoundsCache<'a> {
+    side: &'a Side<'a>,
+    slots: Vec<Option<Option<BaselineBounds>>>,
+    attempted: bool,
+}
+
+impl<'a> BandBoundsCache<'a> {
+    fn new(side: &'a Side<'a>) -> Self {
+        Self {
+            side,
+            slots: Vec::new(),
+            attempted: false,
+        }
+    }
+
+    fn prepare(&mut self, remaining: &mut usize) {
+        if self.attempted {
+            return;
+        }
+        self.attempted = true;
+        let count = self.side.blocks.len();
+        let bytes = count
+            .checked_mul(std::mem::size_of::<Option<Option<BaselineBounds>>>())
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        if bytes.is_none_or(|bytes| bytes > 32 * 1024 * 1024) || count > *remaining {
+            return;
+        }
+        if !charge(remaining, count) || self.slots.try_reserve_exact(count).is_err() {
+            return;
+        }
+        self.slots.resize(count, None);
+    }
+
+    fn get(&mut self, index: usize, remaining: &mut usize) -> Option<Option<BaselineBounds>> {
+        if let Some(Some(known)) = self.slots.get(index) {
+            return Some(*known);
+        }
+        let bounds = band_obstacle_bounds(self.side, index, remaining)?;
+        if let Some(slot) = self.slots.get_mut(index) {
+            *slot = Some(bounds);
+        }
+        Some(bounds)
+    }
+}
+
+fn band_obstacle_bounds(
+    side: &Side<'_>,
+    index: usize,
+    remaining: &mut usize,
+) -> Option<Option<BaselineBounds>> {
+    let Some(signatures) = side.blocks[index].position_signatures.as_deref() else {
+        return Some(None);
+    };
+    if signatures.len() != side.canonical[index].len() {
+        return Some(None);
+    }
+    if !charge(remaining, signatures.len().saturating_add(1)) {
+        return None;
+    }
+    let mut bounds: Option<BaselineBounds> = None;
+    for signature in signatures {
+        let baseline = signature.baseline();
+        bounds = Some(match bounds {
+            None => (baseline.x, baseline.y, baseline.x, baseline.y),
+            Some((min_x, min_y, max_x, max_y)) => (
+                min_x.min(baseline.x),
+                min_y.min(baseline.y),
+                max_x.max(baseline.x),
+                max_y.max(baseline.y),
+            ),
+        });
+    }
+    Some(bounds)
+}
+
 /// Whether the neighbour is the nearest source boundary of the candidate in
 /// the same column band on one side.
 ///
@@ -2353,6 +2434,7 @@ fn band_nearest(
     neighbour: BandSide<'_>,
     neighbour_bounds: (f64, f64, f64, f64),
     remaining: &mut usize,
+    cache: &mut BandBoundsCache<'_>,
 ) -> Option<bool> {
     if !reference_horizontal(
         candidate.side,
@@ -2381,8 +2463,13 @@ fn band_nearest(
     } else {
         return Some(false);
     };
-    if !charge(remaining, candidate.side.blocks.len()) {
+    // The full population walk prepays each cache lookup and one side-binding check.
+    if !charge(remaining, candidate.side.blocks.len().saturating_add(1)) {
         return None;
+    }
+    let bound_side = std::ptr::eq(cache.side, candidate.side);
+    if bound_side {
+        cache.prepare(remaining);
     }
     for (index, block) in candidate.side.blocks.iter().enumerate() {
         if index == candidate.block || index == neighbour.block {
@@ -2408,29 +2495,11 @@ fn band_nearest(
         if no_tokens && no_source && block.raw.text.is_empty() && block.canonical.text.is_empty() {
             continue;
         }
-        let Some(signatures) = block.position_signatures.as_deref() else {
-            // The obstacle relation cannot be proven without geometry.
-            return Some(false);
+        let bounds = if bound_side {
+            cache.get(index, remaining)?
+        } else {
+            band_obstacle_bounds(candidate.side, index, remaining)?
         };
-        if signatures.len() != candidate.side.canonical[index].len() {
-            return Some(false);
-        }
-        if !charge(remaining, signatures.len().saturating_add(1)) {
-            return None;
-        }
-        let mut bounds: Option<(f64, f64, f64, f64)> = None;
-        for signature in signatures {
-            let baseline = signature.baseline();
-            bounds = Some(match bounds {
-                None => (baseline.x, baseline.y, baseline.x, baseline.y),
-                Some((min_x, min_y, max_x, max_y)) => (
-                    min_x.min(baseline.x),
-                    min_y.min(baseline.y),
-                    max_x.max(baseline.x),
-                    max_y.max(baseline.y),
-                ),
-            });
-        }
         let Some(obstacle) = bounds else {
             // A non-empty source block without geometry cannot be cleared.
             return Some(false);
@@ -2898,6 +2967,10 @@ fn discover_translations_mode(
     if neighbours.is_empty() {
         return Ok(Vec::new());
     }
+    let mut band_bounds = [
+        BandBoundsCache::new(sides[0]),
+        BandBoundsCache::new(sides[1]),
+    ];
     let mut domains = Vec::new();
     'views: for (old_view_index, old_view) in old_views.iter().enumerate() {
         if mode == TranslationMode::NonzeroSingleton
@@ -3029,6 +3102,7 @@ fn discover_translations_mode(
                         },
                         neighbour_bounds,
                         remaining_work,
+                        &mut band_bounds[0],
                     ) {
                         Some(value) => value,
                         None => return Ok(Vec::new()),
@@ -3303,6 +3377,7 @@ fn discover_translations_mode(
                         },
                         neighbour_bounds,
                         remaining_work,
+                        &mut band_bounds[1],
                     ) {
                         Some(value) => value,
                         None => return Ok(Vec::new()),
@@ -9402,6 +9477,167 @@ mod tests {
             "a budget cut must not emit a domain: {exhausted:?}"
         );
         Ok(())
+    }
+
+    #[test]
+    fn repeated_band_checks_leave_budget_for_later_source_proofs() -> Result<()> {
+        let blocks = [
+            spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+            spread_block(3, &"x".repeat(256), 10.0, 600.0, 0, 1.5),
+        ];
+        let source = side(&blocks);
+        let views = build_views(&source, &[None; 3], None, &[], &mut 100_000)?
+            .expect("complete source views");
+        let candidate_range = 0..2;
+        let neighbour_range = 0..2;
+        let candidate = BandSide {
+            side: &source,
+            view: &views[0],
+            range: &candidate_range,
+            block: 0,
+            page: 0,
+        };
+        let neighbour = BandSide {
+            side: &source,
+            view: &views[1],
+            range: &neighbour_range,
+            block: 1,
+            page: 0,
+        };
+        let mut cache = BandBoundsCache::new(&source);
+        let mut remaining = 400;
+        for _ in 0..2 {
+            assert_eq!(
+                band_nearest(
+                    candidate,
+                    (10.0, 700.0, 11.5, 700.0),
+                    neighbour,
+                    (10.0, 680.0, 11.5, 680.0),
+                    &mut remaining,
+                    &mut cache,
+                ),
+                Some(true),
+            );
+        }
+        assert!(remaining >= 100, "the pending proof budget was consumed");
+        Ok(())
+    }
+
+    #[test]
+    fn cached_band_geometry_keeps_missing_and_point_obstacles_held() -> Result<()> {
+        for missing in [false, true] {
+            let mut obstacle = spread_block(3, "XX", 10.0, 690.0, 0, 0.0);
+            if missing {
+                obstacle.position_signatures = None;
+            }
+            let blocks = [
+                spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+                spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+                obstacle,
+            ];
+            let source = side(&blocks);
+            let views = build_views(&source, &[None; 3], None, &[], &mut 100_000)?
+                .expect("retained source views");
+            let range = 0..2;
+            let candidate = BandSide {
+                side: &source,
+                view: &views[0],
+                range: &range,
+                block: 0,
+                page: 0,
+            };
+            let neighbour = BandSide {
+                side: &source,
+                view: &views[1],
+                range: &range,
+                block: 1,
+                page: 0,
+            };
+            let mut cache = BandBoundsCache::new(&source);
+            let mut work = 1_000;
+            for _ in 0..2 {
+                assert_eq!(
+                    band_nearest(
+                        candidate,
+                        (10.0, 700.0, 11.5, 700.0),
+                        neighbour,
+                        (10.0, 680.0, 11.5, 680.0),
+                        &mut work,
+                        &mut cache
+                    ),
+                    Some(false)
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn band_geometry_cache_is_bound_to_its_original_source_side() -> Result<()> {
+        let old_blocks = [
+            spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+            spread_block(3, "XX", 10.0, 600.0, 0, 0.0),
+        ];
+        let mut new_blocks = old_blocks.clone();
+        new_blocks[2] = spread_block(3, "XX", 10.0, 690.0, 0, 0.0);
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_views = build_views(&old, &[None; 3], None, &[], &mut 100_000)?.expect("old views");
+        let new_views = build_views(&new, &[None; 3], None, &[], &mut 100_000)?.expect("new views");
+        let mut cache = BandBoundsCache::new(&old);
+        let range = 0..2;
+        let mut work = 1_000;
+        for (source, views, expected) in [(&old, &old_views, true), (&new, &new_views, false)] {
+            let candidate = BandSide {
+                side: source,
+                view: &views[0],
+                range: &range,
+                block: 0,
+                page: 0,
+            };
+            let neighbour = BandSide {
+                side: source,
+                view: &views[1],
+                range: &range,
+                block: 1,
+                page: 0,
+            };
+            assert_eq!(
+                band_nearest(
+                    candidate,
+                    (10.0, 700.0, 11.5, 700.0),
+                    neighbour,
+                    (10.0, 680.0, 11.5, 680.0),
+                    &mut work,
+                    &mut cache
+                ),
+                Some(expected)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn band_geometry_cache_does_not_retain_an_unpaid_scan() {
+        let blocks = [spread_block(1, "XX", 10.0, 690.0, 0, 0.0)];
+        let source = side(&blocks);
+        let mut cache = BandBoundsCache::new(&source);
+        let mut work = 1;
+        cache.prepare(&mut work);
+        assert_eq!(work, 0);
+        assert_eq!(cache.get(0, &mut work), None);
+        work = 3;
+        assert_eq!(
+            cache.get(0, &mut work),
+            Some(Some((10.0, 690.0, 10.0, 690.0)))
+        );
+        assert_eq!(work, 0);
+        assert_eq!(
+            cache.get(0, &mut work),
+            Some(Some((10.0, 690.0, 10.0, 690.0)))
+        );
     }
 
     #[test]

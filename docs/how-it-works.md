@@ -107,6 +107,13 @@ displace a competing keyed item merely by matching more unchanged pieces.
 - A separate bounded review path can suggest paragraph merges and splits as
   non-owning comparisons without changing accepted correspondences or coverage.
 
+Column-band adjacency checks reuse immutable raw obstacle bounds within one
+local discovery pass. Every source block remains in the page, emptiness and
+obstacle checks, including blocks with source issues. Missing bounds still hold
+a candidate, and closed intervals retain point obstacles. The cache is bound to
+one input side, costs are charged before allocation and lookup, and each side
+retains at most 32 MiB; refused preparation falls back to the same uncached rule.
+
 A final optional pass can report a nonowning changed region inside a partly
 resolved, complete source correspondence. Two consecutive equal-token pairs
 must occur on every maximum matching of the parent; the reported interior
