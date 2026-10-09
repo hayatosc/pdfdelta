@@ -2641,6 +2641,114 @@ fn band_obstacle_bounds(
     Some(bounds)
 }
 
+/// Complete potential obstacle population for one page of an immutable side.
+///
+/// Empty page evidence remains relevant on every page. Every original block
+/// index is retained once whenever its page evidence can affect this query,
+/// including opaque and multi-page blocks. Original order and every later
+/// page, emptiness and geometry veto remain unchanged. Only a completed source
+/// walk replaces the previous page; exhaustion never publishes a partial list.
+/// Queries, reserved slots, each page membership walk and every copied index
+/// spend work. Retained and construction buffers plus the header stay within
+/// 16 MiB per side. Refused setup keeps the original population without refunds.
+struct BandPagePopulationCache<'a> {
+    side: &'a Side<'a>,
+    page: Option<u32>,
+    indices: Vec<usize>,
+}
+
+impl<'a> BandPagePopulationCache<'a> {
+    fn new(side: &'a Side<'a>) -> Self {
+        Self {
+            side,
+            page: None,
+            indices: Vec::new(),
+        }
+    }
+
+    fn get(
+        &mut self,
+        side: &Side<'_>,
+        page: u32,
+        remaining: &mut usize,
+    ) -> Option<Option<&[usize]>> {
+        if !charge(remaining, 2) {
+            return None;
+        }
+        if !std::ptr::eq(self.side, side) {
+            return Some(None);
+        }
+        if self.page == Some(page) {
+            return Some(Some(&self.indices));
+        }
+        let count = self.side.blocks.len();
+        let bytes = count
+            .checked_add(self.indices.capacity())
+            .and_then(|count| count.checked_mul(std::mem::size_of::<usize>()))
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        if bytes.is_none_or(|bytes| bytes > 16 * 1024 * 1024) || count > *remaining {
+            return Some(None);
+        }
+        if !charge(remaining, count) {
+            return None;
+        }
+        let mut indices = Vec::new();
+        if indices.try_reserve_exact(count).is_err() {
+            return Some(None);
+        }
+        let retained = indices
+            .capacity()
+            .checked_add(self.indices.capacity())
+            .and_then(|count| count.checked_mul(std::mem::size_of::<usize>()))
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()));
+        if retained.is_none_or(|bytes| bytes > 16 * 1024 * 1024) {
+            return Some(None);
+        }
+        for (index, block) in self.side.blocks.iter().enumerate() {
+            if !charge(remaining, block.pages.len().saturating_add(1)) {
+                return None;
+            }
+            if block.pages.is_empty() || block.pages.contains(&page) {
+                if !charge(remaining, 1) {
+                    return None;
+                }
+                indices.push(index);
+            }
+        }
+        self.indices = indices;
+        self.page = Some(page);
+        Some(Some(&self.indices))
+    }
+}
+
+enum BandPopulation<'a> {
+    Whole(std::ops::Range<usize>),
+    Page(std::slice::Iter<'a, usize>),
+}
+
+impl Iterator for BandPopulation<'_> {
+    type Item = usize;
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+    fn next(&mut self) -> Option<usize> {
+        match self {
+            Self::Whole(range) => range.next(),
+            Self::Page(indices) => indices.next().copied(),
+        }
+    }
+}
+
+impl ExactSizeIterator for BandPopulation<'_> {
+    fn len(&self) -> usize {
+        match self {
+            Self::Whole(range) => range.len(),
+            Self::Page(indices) => indices.len(),
+        }
+    }
+}
+
 /// Whether the neighbour is the nearest source boundary of the candidate in
 /// the same column band on one side.
 ///
@@ -2648,9 +2756,10 @@ fn band_obstacle_bounds(
 /// the neighbour must be strictly below or above the candidate on the
 /// orthogonal axis, and no other source block of that side whose baseline
 /// x-interval overlaps the band may intersect the gap between them. Every
-/// source block is inspected, including blocks with normalization issues, and
-/// a block whose geometry is missing vetoes the proof instead of being
-/// ignored. `None` reports an exhausted shared work budget.
+/// potentially relevant source block is inspected, including blocks with
+/// normalization issues. A completed page-population walk can omit only blocks
+/// known to be on other pages. A block whose geometry is missing vetoes the proof
+/// instead of being ignored. `None` reports an exhausted shared work budget.
 fn band_nearest(
     candidate: BandSide<'_>,
     candidate_bounds: (f64, f64, f64, f64),
@@ -2658,8 +2767,12 @@ fn band_nearest(
     neighbour_bounds: (f64, f64, f64, f64),
     remaining: &mut usize,
     cache: &mut BandBoundsCache<'_>,
-    mut horizontal_cache: Option<&mut ReferenceHorizontalCache<'_>>,
+    discovery_caches: (
+        Option<&mut ReferenceHorizontalCache<'_>>,
+        Option<&mut BandPagePopulationCache<'_>>,
+    ),
 ) -> Option<bool> {
+    let (mut horizontal_cache, page_cache) = discovery_caches;
     let candidate_horizontal = match horizontal_cache.as_deref_mut() {
         Some(cache) => cache.get(candidate, remaining)?,
         None => reference_horizontal(
@@ -2698,15 +2811,24 @@ fn band_nearest(
     } else {
         return Some(false);
     };
-    // The full population walk prepays each cache lookup and one side-binding check.
-    if !charge(remaining, candidate.side.blocks.len().saturating_add(1)) {
+    let indexed = match page_cache {
+        Some(cache) => cache.get(candidate.side, candidate.page, remaining)?,
+        None => None,
+    };
+    let population = match indexed {
+        Some(indices) => BandPopulation::Page(indices.iter()),
+        None => BandPopulation::Whole(0..candidate.side.blocks.len()),
+    };
+    // The complete selected population prepays every lookup and side binding.
+    if !charge(remaining, population.len().saturating_add(1)) {
         return None;
     }
     let bound_side = std::ptr::eq(cache.side, candidate.side);
     if bound_side {
         cache.prepare(remaining);
     }
-    for (index, block) in candidate.side.blocks.iter().enumerate() {
+    for index in population {
+        let block = &candidate.side.blocks[index];
         if index == candidate.block || index == neighbour.block {
             continue;
         }
@@ -3283,6 +3405,10 @@ fn discover_translations_mode_with_cache(
         ReferenceHorizontalCache::new(sides[0], &old_views),
         ReferenceHorizontalCache::new(sides[1], &new_views),
     ];
+    let mut band_pages = [
+        BandPagePopulationCache::new(sides[0]),
+        BandPagePopulationCache::new(sides[1]),
+    ];
     let mut band_bounds = [
         BandBoundsCache::new(sides[0]),
         BandBoundsCache::new(sides[1]),
@@ -3417,7 +3543,7 @@ fn discover_translations_mode_with_cache(
                         neighbour_bounds,
                         remaining_work,
                         &mut band_bounds[0],
-                        Some(&mut horizontal[0]),
+                        (Some(&mut horizontal[0]), Some(&mut band_pages[0])),
                     ) {
                         Some(value) => value,
                         None => return Ok(Vec::new()),
@@ -3691,7 +3817,7 @@ fn discover_translations_mode_with_cache(
                         neighbour_bounds,
                         remaining_work,
                         &mut band_bounds[1],
-                        Some(&mut horizontal[1]),
+                        (Some(&mut horizontal[1]), Some(&mut band_pages[1])),
                     ) {
                         Some(value) => value,
                         None => return Ok(Vec::new()),
@@ -10459,7 +10585,7 @@ mod tests {
                         (10.0, 680.0, 11.5, 680.0),
                         &mut 100_000,
                         &mut bounds,
-                        Some(&mut horizontal)
+                        (Some(&mut horizontal), None),
                     ),
                     Some(expected)
                 );
@@ -10472,7 +10598,7 @@ mod tests {
                     (10.0, 680.0, 11.5, 680.0),
                     &mut 0,
                     &mut bounds,
-                    Some(&mut horizontal)
+                    (Some(&mut horizontal), None),
                 ),
                 None
             );
@@ -10637,6 +10763,170 @@ mod tests {
     }
 
     #[test]
+    fn band_page_population_retains_order_opaque_empty_unknown_and_multi_page_blocks() {
+        let mut blocks = (1..=7)
+            .map(|id| sourced_block(id, "AB"))
+            .collect::<Vec<_>>();
+        blocks[1].pages = vec![1];
+        blocks[2].pages.clear();
+        blocks[3].pages = vec![0, 1];
+        blocks[3].page_breaks = Some(vec![1]);
+        blocks[4].pages = vec![1, 2];
+        blocks[4].page_breaks = Some(vec![1]);
+        blocks[5] = sourced_block(6, "");
+        blocks[1].position_signatures = None;
+        let source = side(&blocks);
+        let mut cache = BandPagePopulationCache::new(&source);
+        for (page, expected) in [
+            (0, vec![0, 2, 3, 5, 6]),
+            (1, vec![1, 2, 3, 4]),
+            (2, vec![2, 4]),
+        ] {
+            assert_eq!(
+                cache.get(&source, page, &mut 100_000),
+                Some(Some(expected.as_slice()))
+            );
+            let mut remaining = 2;
+            assert_eq!(
+                cache.get(&source, page, &mut remaining),
+                Some(Some(expected.as_slice()))
+            );
+            assert_eq!(remaining, 0);
+            assert_eq!(cache.get(&source, page, &mut remaining), None);
+        }
+    }
+
+    #[test]
+    fn band_page_population_never_reuses_an_incomplete_or_replaces_a_complete_walk() {
+        let blocks = [
+            sourced_block(1, "AB"),
+            sourced_block(2, "CD"),
+            sourced_block(3, "EF"),
+        ];
+        let source = side(&blocks);
+        let mut cache = BandPagePopulationCache::new(&source);
+        assert_eq!(cache.get(&source, 0, &mut 13), None);
+        assert_eq!(
+            cache.get(&source, 0, &mut 14),
+            Some(Some([0, 1, 2].as_slice()))
+        );
+        assert_eq!(cache.get(&source, 1, &mut 10), None);
+        assert_eq!(
+            cache.get(&source, 0, &mut 2),
+            Some(Some([0, 1, 2].as_slice()))
+        );
+    }
+
+    #[test]
+    fn band_page_population_unfunded_setup_and_different_side_keep_the_original_population() {
+        let blocks = [
+            sourced_block(1, "AB"),
+            sourced_block(2, "CD"),
+            sourced_block(3, "EF"),
+        ];
+        let source = side(&blocks);
+        let other = side(&blocks);
+        let mut cache = BandPagePopulationCache::new(&source);
+        assert_eq!(cache.get(&source, 0, &mut 4), Some(None));
+        assert_eq!(
+            cache.get(&source, 0, &mut 14),
+            Some(Some([0, 1, 2].as_slice()))
+        );
+        assert_eq!(cache.get(&other, 0, &mut 2), Some(None));
+        assert_eq!(
+            cache.get(&source, 0, &mut 2),
+            Some(Some([0, 1, 2].as_slice()))
+        );
+    }
+
+    #[test]
+    fn cached_band_page_population_preserves_every_page_and_geometry_veto() -> Result<()> {
+        let mut unknown_page = sourced_block(3, "XX");
+        unknown_page.pages.clear();
+        let mut multi_page = sourced_block(3, "XX");
+        multi_page.pages = vec![0, 1];
+        multi_page.page_breaks = Some(vec![1]);
+        let mut unknown_geometry = sourced_block(3, "XX");
+        unknown_geometry.position_signatures = None;
+        let cases = [
+            (unknown_page, false),
+            (multi_page, false),
+            (unknown_geometry, false),
+            (spread_block(3, "XX", 10.0, 690.0, 0, 0.0), false),
+            (spread_block(3, "XX", 10.0, 690.0, 1, 0.0), true),
+            (sourced_block(3, ""), true),
+        ];
+        for (obstacle, expected) in cases {
+            let blocks = [
+                spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+                spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+                obstacle,
+            ];
+            let source = side(&blocks);
+            let views =
+                build_views(&source, &[None; 3], None, &[], &mut 100_000)?.expect("source views");
+            let candidate = direction_input(&source, &views, 0, 0);
+            let neighbour = direction_input(&source, &views, 1, 0);
+            let mut bounds = BandBoundsCache::new(&source);
+            let mut pages = BandPagePopulationCache::new(&source);
+            for _ in 0..2 {
+                assert_eq!(
+                    band_nearest(
+                        candidate,
+                        (10.0, 700.0, 11.5, 700.0),
+                        neighbour,
+                        (10.0, 680.0, 11.5, 680.0),
+                        &mut 100_000,
+                        &mut bounds,
+                        (None, Some(&mut pages)),
+                    ),
+                    Some(expected)
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn repeated_band_page_walks_leave_budget_for_later_source_proofs() -> Result<()> {
+        let mut blocks = vec![
+            spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+        ];
+        blocks.extend((3..=1002).map(|id| spread_block(id, "XX", 10.0, 690.0, 1, 0.0)));
+        let source = side(&blocks);
+        let views = build_views(
+            &source,
+            &vec![None; blocks.len()],
+            None,
+            &[],
+            &mut 1_000_000,
+        )?
+        .expect("source views");
+        let candidate = direction_input(&source, &views, 0, 0);
+        let neighbour = direction_input(&source, &views, 1, 0);
+        let mut bounds = BandBoundsCache::new(&source);
+        let mut pages = BandPagePopulationCache::new(&source);
+        let mut remaining = 4_200;
+        for _ in 0..5 {
+            assert_eq!(
+                band_nearest(
+                    candidate,
+                    (10.0, 700.0, 11.5, 700.0),
+                    neighbour,
+                    (10.0, 680.0, 11.5, 680.0),
+                    &mut remaining,
+                    &mut bounds,
+                    (None, Some(&mut pages)),
+                ),
+                Some(true)
+            );
+        }
+        assert!(remaining >= 100, "the later proof budget was consumed");
+        Ok(())
+    }
+
+    #[test]
     fn repeated_band_checks_leave_budget_for_later_source_proofs() -> Result<()> {
         let blocks = [
             spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
@@ -10677,7 +10967,7 @@ mod tests {
                     (10.0, 680.0, 11.5, 680.0),
                     &mut remaining,
                     &mut cache,
-                    None,
+                    (None, None),
                 ),
                 Some(true),
             );
@@ -10731,7 +11021,7 @@ mod tests {
                         (10.0, 680.0, 11.5, 680.0),
                         &mut work,
                         &mut cache,
-                        None,
+                        (None, None),
                     ),
                     Some(false)
                 );
@@ -10783,7 +11073,7 @@ mod tests {
                     (10.0, 680.0, 11.5, 680.0),
                     &mut work,
                     &mut cache,
-                    None,
+                    (None, None),
                 ),
                 Some(expected)
             );

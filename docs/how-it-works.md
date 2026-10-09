@@ -114,6 +114,16 @@ a candidate, and closed intervals retain point obstacles. The cache is bound to
 one input side, costs are charged before allocation and lookup, and each side
 retains at most 32 MiB; refused preparation falls back to the same uncached rule.
 
+Column-band checks can retain a complete page population for one immutable
+source side. A source walk keeps every block index in original order whose
+page list is empty or contains the selected page; opaque, empty and multi-page
+blocks remain available to the original vetoes. Only blocks known to belong
+to other pages are omitted. The last page is replaced only after its complete
+population is funded. Queries, reserved slots, all page-membership walks,
+copied indices and subsequent population walks spend work. Retained and
+construction buffers with the header are capped together at 16 MiB per side;
+refused preparation keeps the full source population without refunds.
+
 Whole-block correspondence collection and stationary masks can group one call's
 immutable ownership intervals by source block. Setup and complete queried groups
 are paid from the same shared work budget; each temporary index, including its
