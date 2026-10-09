@@ -423,3 +423,11 @@ criterion. Small, grouped, separator or unmapped cases keep the original
 projection and its total fee; no individual projection fee increases. Every
 physical-source, raw, position, normalization, sharing and ownership guard still
 runs. Nothing is cached, and shared budgets and output limits remain fixed.
+
+Equal-fragment literal validation borrows the selected canonical tokens from
+the immutable side after prepaying and checking every scalar. Removing the
+copied character array also removes its copy charge; scalar validation,
+cross-side literal comparisons and raw-source comparisons remain charged.
+Every source-map, normalization, sharing, page, position and ownership guard
+still runs in the original order. A non-scalar or unpaid selection returns no
+partial evidence.

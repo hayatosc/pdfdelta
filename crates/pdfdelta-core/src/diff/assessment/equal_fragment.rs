@@ -92,8 +92,9 @@ use crate::{
     Error, Result,
     model::GlyphId,
     normalize::{
-        BlockText, MappedText, NormalizationEvent, NormalizationKind, PositionSignature,
-        ScalarRange, TextSourceAtom, has_duplicate_source_atoms, scalar_range_contains_or_touches,
+        BlockText, ComparableToken, MappedText, NormalizationEvent, NormalizationKind,
+        PositionSignature, ScalarRange, TextSourceAtom, has_duplicate_source_atoms,
+        scalar_range_contains_or_touches,
     },
 };
 
@@ -287,10 +288,10 @@ impl<'a> EqualFragmentCache<'a> {
     ) -> Check<bool> {
         let old = self.analyze_side(0, spans[0], false, false, remaining)?;
         let new = self.analyze_side(1, spans[1], false, false, remaining)?;
-        if !charge(remaining, old.chars.len().saturating_mul(2)) {
+        if !charge(remaining, old.literals.len().saturating_mul(2)) {
             return Err(Stop::Exhausted);
         }
-        if old.chars != new.chars {
+        if old.literals != new.literals {
             return Err(Stop::Held(FragmentHold::LiteralMismatch));
         }
         self.check_side_sharing(0, &old.glyphs, remaining)?;
@@ -305,10 +306,10 @@ impl<'a> EqualFragmentCache<'a> {
     ) -> Check<bool> {
         let old = self.analyze_side(0, spans[0], false, false, remaining)?;
         let new = self.analyze_side(1, spans[1], false, false, remaining)?;
-        if !charge(remaining, old.chars.len().saturating_mul(2)) {
+        if !charge(remaining, old.literals.len().saturating_mul(2)) {
             return Err(Stop::Exhausted);
         }
-        if old.chars != new.chars {
+        if old.literals != new.literals {
             return Err(Stop::Held(FragmentHold::LiteralMismatch));
         }
         if old.page != new.page {
@@ -392,10 +393,10 @@ impl<'a> EqualFragmentCache<'a> {
     ) -> Check<bool> {
         let old = self.analyze_side(0, spans[0], allow_internal_deleted_break, true, remaining)?;
         let new = self.analyze_side(1, spans[1], allow_internal_deleted_break, true, remaining)?;
-        if !charge(remaining, old.chars.len().saturating_mul(2)) {
+        if !charge(remaining, old.literals.len().saturating_mul(2)) {
             return Err(Stop::Exhausted);
         }
-        if old.chars.len() != new.chars.len() || old.chars != new.chars {
+        if old.literals.len() != new.literals.len() || old.literals != new.literals {
             return Err(Stop::Held(FragmentHold::LiteralMismatch));
         }
         if old.page != new.page {
@@ -568,7 +569,7 @@ impl<'a> EqualFragmentCache<'a> {
         allow_internal_deleted_break: bool,
         require_positions: bool,
         remaining: &mut usize,
-    ) -> Check<SideFragment> {
+    ) -> Check<SideFragment<'a>> {
         let side = self.sides[side_index];
         let Some(interval) = paid_source_interval(side, span, remaining)? else {
             return Err(Stop::Held(FragmentHold::Projection));
@@ -586,19 +587,7 @@ impl<'a> EqualFragmentCache<'a> {
         }
         let block_tokens = &side.canonical[interval.block_index];
         let tokens = &block_tokens[interval.start..interval.end];
-        if !charge(remaining, tokens.len().saturating_mul(2)) {
-            return Err(Stop::Exhausted);
-        }
-        let mut chars = Vec::new();
-        chars
-            .try_reserve(tokens.len())
-            .map_err(|_| allocation_error("equal fragment literals"))?;
-        for token in tokens {
-            let Some(scalar) = token.as_scalar() else {
-                return Err(Stop::Held(FragmentHold::NonScalarToken));
-            };
-            chars.push(scalar);
-        }
+        let literals = borrowed_fragment_literals(tokens, remaining)?;
         let mut positions = Vec::new();
         if require_positions {
             let Some(signatures) = block.position_signatures.as_deref() else {
@@ -629,7 +618,7 @@ impl<'a> EqualFragmentCache<'a> {
         let run = RawRun {
             interval: &interval,
             glyphs: &glyphs,
-            chars: &chars,
+            literals,
             raw_scalars: &raw_scalars,
         };
         let (breaks, admitted_events) = self.check_raw_run(
@@ -658,7 +647,7 @@ impl<'a> EqualFragmentCache<'a> {
         self.check_normalization_boundary(side_index, interval.block_index, &selection, remaining)?;
         Ok(SideFragment {
             glyphs,
-            chars,
+            literals,
             positions,
             page: *page,
             breaks,
@@ -854,7 +843,7 @@ impl<'a> EqualFragmentCache<'a> {
         let side = self.sides[side_index];
         let block = &side.blocks[block_index];
         let raw_scalars = run.raw_scalars;
-        let chars = run.chars;
+        let literals = run.literals;
         if !charge(remaining, raw_scalars.len()) {
             return Err(Stop::Exhausted);
         }
@@ -896,7 +885,7 @@ impl<'a> EqualFragmentCache<'a> {
                 break;
             }
             if raw_scalars[next] == index {
-                if chars[next] != scalar {
+                if literals[next].as_scalar() != Some(scalar) {
                     return Err(Stop::Held(FragmentHold::RawSource));
                 }
                 next += 1;
@@ -1014,12 +1003,54 @@ impl<'a> EqualFragmentCache<'a> {
     }
 }
 
+/// Borrows the selected immutable tokens after validating every scalar.
+///
+/// The caller still establishes every source, raw, position, sharing and
+/// normalization condition. The whole validation is prepaid; no token array
+/// or scalar copy is allocated, so only the actual scalar scan is charged.
+/// A non-scalar or exhausted validation publishes no partial selection.
+fn borrowed_fragment_literals<'a>(
+    tokens: &'a [ComparableToken],
+    remaining: &mut usize,
+) -> Check<&'a [ComparableToken]> {
+    if !charge(remaining, tokens.len()) {
+        return Err(Stop::Exhausted);
+    }
+    for token in tokens {
+        if token.as_scalar().is_none() {
+            return Err(Stop::Held(FragmentHold::NonScalarToken));
+        }
+    }
+    Ok(tokens)
+}
+
+#[cfg(test)]
+fn owned_fragment_literals_oracle(
+    tokens: &[ComparableToken],
+    remaining: &mut usize,
+) -> Check<Vec<char>> {
+    if !charge(remaining, tokens.len().saturating_mul(2)) {
+        return Err(Stop::Exhausted);
+    }
+    let mut chars = Vec::new();
+    chars
+        .try_reserve(tokens.len())
+        .map_err(|_| allocation_error("equal fragment literals"))?;
+    for token in tokens {
+        let Some(scalar) = token.as_scalar() else {
+            return Err(Stop::Held(FragmentHold::NonScalarToken));
+        };
+        chars.push(scalar);
+    }
+    Ok(chars)
+}
+
 /// One side's validated selected fragment.
-struct SideFragment {
+struct SideFragment<'a> {
     /// Selected canonical glyphs, in comparable order.
     glyphs: Vec<GlyphId>,
-    /// Selected literal scalars, parallel to `glyphs`.
-    chars: Vec<char>,
+    /// Borrowed scalar-only canonical tokens, parallel to `glyphs`.
+    literals: &'a [ComparableToken],
     /// Selected position signatures, parallel to `glyphs`.
     positions: Vec<PositionSignature>,
     /// Single page of the selected block.
@@ -1035,8 +1066,8 @@ struct RawRun<'a> {
     interval: &'a SourceInterval,
     /// Selected canonical glyphs, in comparable order.
     glyphs: &'a [GlyphId],
-    /// Selected literal scalars, parallel to `glyphs`.
-    chars: &'a [char],
+    /// Borrowed scalar-only canonical tokens, parallel to `glyphs`.
+    literals: &'a [ComparableToken],
     /// Raw scalar positions of the selected glyphs, parallel to `glyphs`.
     raw_scalars: &'a [usize],
 }
@@ -2508,6 +2539,158 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn borrowed_literals_match_owned_unicode_and_non_scalar_vetoes() -> Result<()> {
+        for length in [0, 1, 2, 15, 16, 128, 257] {
+            let tokens = "甲é😀a\u{301}\0\n"
+                .chars()
+                .cycle()
+                .take(length)
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>();
+            let mut borrowed_budget = usize::MAX;
+            let mut owned_budget = usize::MAX;
+            let literals = borrowed_fragment_literals(&tokens, &mut borrowed_budget)
+                .unwrap_or_else(|_| panic!("scalar tokens must borrow"));
+            let owned = owned_fragment_literals_oracle(&tokens, &mut owned_budget)
+                .unwrap_or_else(|_| panic!("original scalar tokens must materialize"));
+            assert!(std::ptr::eq(literals.as_ptr(), tokens.as_ptr()));
+            assert_eq!(
+                literals
+                    .iter()
+                    .filter_map(ComparableToken::as_scalar)
+                    .collect::<Vec<_>>(),
+                owned
+            );
+            assert_eq!(usize::MAX - borrowed_budget, length);
+            assert_eq!(usize::MAX - owned_budget, length * 2);
+        }
+        for index in [0, 1, 7, 63] {
+            let mut tokens = vec![ComparableToken::Scalar('甲'); 64];
+            tokens[index] = ComparableToken::Unmapped {
+                font_hash: FontProgramHash(vec![7; 32]),
+                glyph_id: 3,
+            };
+            assert!(matches!(
+                borrowed_fragment_literals(&tokens, &mut 128),
+                Err(Stop::Held(FragmentHold::NonScalarToken))
+            ));
+            assert!(matches!(
+                owned_fragment_literals_oracle(&tokens, &mut 128),
+                Err(Stop::Held(FragmentHold::NonScalarToken))
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn borrowed_literal_validation_is_prepaid_before_any_selection() {
+        let tokens = vec![ComparableToken::Scalar('a'); 128];
+        let mut remaining = 127;
+        assert!(matches!(
+            borrowed_fragment_literals(&tokens, &mut remaining),
+            Err(Stop::Exhausted)
+        ));
+        assert_eq!(remaining, 0);
+        let mut remaining = 128;
+        let literals = borrowed_fragment_literals(&tokens, &mut remaining)
+            .unwrap_or_else(|_| panic!("paid full selection"));
+        assert_eq!(literals.len(), 128);
+        assert_eq!(remaining, 0);
+        let mut invalid = tokens;
+        invalid[127] = ComparableToken::Unmapped {
+            font_hash: FontProgramHash(vec![7; 32]),
+            glyph_id: 3,
+        };
+        assert!(matches!(
+            borrowed_fragment_literals(&invalid, &mut 127),
+            Err(Stop::Exhausted)
+        ));
+        assert!(matches!(
+            borrowed_fragment_literals(&invalid, &mut 128),
+            Err(Stop::Held(FragmentHold::NonScalarToken))
+        ));
+    }
+
+    #[test]
+    fn distinct_borrowed_literals_keep_work_for_an_independent_source_guard() -> Result<()> {
+        let tokens = (0..2000)
+            .map(|index| ComparableToken::Scalar(if index % 2 == 0 { '甲' } else { '乙' }))
+            .collect::<Vec<_>>();
+        let mut owned_remaining = 64 * 128 * 2;
+        let mut remaining = owned_remaining;
+        for index in 0..64 {
+            let selected = &tokens[index * 20..index * 20 + 128];
+            let owned = owned_fragment_literals_oracle(selected, &mut owned_remaining)
+                .unwrap_or_else(|_| panic!("original paid literals"));
+            let borrowed = borrowed_fragment_literals(selected, &mut remaining)
+                .unwrap_or_else(|_| panic!("paid borrowed literals"));
+            assert_eq!(
+                borrowed
+                    .iter()
+                    .filter_map(ComparableToken::as_scalar)
+                    .collect::<Vec<_>>(),
+                owned
+            );
+        }
+        assert_eq!(owned_remaining, 0);
+        assert_eq!(remaining, 8192);
+        let old_blocks = [positioned_block(500, "Z", 0.0, 0.0, 0)];
+        let new_blocks = [positioned_block(501, "Z", 0.0, 0.0, 0)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let spans = [fragment(500, 0, 1), fragment(501, 0, 1)];
+        assert_eq!(
+            EqualFragmentCache::new([&old, &new])
+                .prove_sources_for_mandatory_pairs([&spans[0], &spans[1]], &mut owned_remaining)?,
+            FragmentVerdict::Exhausted
+        );
+        assert_eq!(
+            EqualFragmentCache::new([&old, &new])
+                .prove_sources_for_mandatory_pairs([&spans[0], &spans[1]], &mut remaining)?,
+            FragmentVerdict::Proven
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn borrowed_literals_remain_bound_to_each_side_and_raw_sources() -> Result<()> {
+        let mut old_blocks = [positioned_block(500, "甲é😀", 0.0, 0.0, 0)];
+        let new_blocks = [positioned_block(501, "甲é😀", 0.0, 0.0, 0)];
+        let spans = [fragment(500, 0, 3), fragment(501, 0, 3)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        assert_eq!(
+            EqualFragmentCache::new([&old, &new]).prove([&spans[0], &spans[1]], &mut 100_000)?,
+            FragmentVerdict::Proven
+        );
+        let wrong_new = [positioned_block(501, "甲é😁", 0.0, 0.0, 0)];
+        let wrong = side(&wrong_new);
+        assert_eq!(
+            EqualFragmentCache::new([&old, &wrong])
+                .prove_sources_for_mandatory_pairs([&spans[0], &spans[1]], &mut 100_000)?,
+            FragmentVerdict::Held(FragmentHold::LiteralMismatch)
+        );
+        old_blocks[0].raw.text = "甲é😁".to_owned();
+        let old = side(&old_blocks);
+        assert_eq!(
+            EqualFragmentCache::new([&old, &new]).prove([&spans[0], &spans[1]], &mut 100_000)?,
+            FragmentVerdict::Held(FragmentHold::RawSource)
+        );
+        old_blocks[0].raw.text = "甲é😀".to_owned();
+        old_blocks[0].canonical.source_map[1].source.atoms = vec![TextSourceAtom::LineBreak {
+            preceding: glyph(500, 0),
+            following: glyph(500, 2),
+        }]
+        .into();
+        let old = side(&old_blocks);
+        assert_eq!(
+            EqualFragmentCache::new([&old, &new]).prove([&spans[0], &spans[1]], &mut 100_000)?,
+            FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
+        Ok(())
     }
 
     fn prove_pair(
