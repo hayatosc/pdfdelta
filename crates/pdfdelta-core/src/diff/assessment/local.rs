@@ -25,9 +25,10 @@ enum EqualFragmentRetry {
     Stop,
 }
 
-/// Both final partitions and their already emitted unresolved population.
+/// Final partitions, emitted diagnostics and the original reviewed proofs.
 /// The coupled pass never regenerates or reorders a surviving diagnostic.
 pub(super) struct CoupledPublication<'a> {
+    pub(super) domains: &'a [(super::DomainKey, super::DomainProof)],
     pub(super) partitions: [&'a mut Vec<super::ResolutionRange>; 2],
     pub(super) unresolved: &'a mut Vec<super::UnresolvedRegion>,
 }
@@ -1808,6 +1809,7 @@ impl Assessor<'_, '_> {
         if publication.unresolved.len() > limit {
             return Ok(false);
         }
+        let domains = publication.domains;
         let [old_partition, new_partition] = publication.partitions;
         let regions = publication.unresolved;
         let mut adopted = false;
@@ -1835,6 +1837,7 @@ impl Assessor<'_, '_> {
                 limit,
                 relation,
                 EqualFragmentProof::CoupledParent(CoupledPublication {
+                    domains,
                     partitions: [&mut *old_partition, &mut *new_partition],
                     unresolved: &mut *regions,
                 }),
@@ -2019,7 +2022,10 @@ impl Assessor<'_, '_> {
             return Ok(EqualFragmentRetry::Held);
         }
         let certified = if coupled {
-            match self.prove_coupled_equal_parent(relation, spans)? {
+            let EqualFragmentProof::CoupledParent(context) = &proof else {
+                return Ok(EqualFragmentRetry::Held);
+            };
+            match self.prove_coupled_equal_parent(relation, spans, context.domains)? {
                 super::equal_fragment::FragmentVerdict::Proven => false,
                 super::equal_fragment::FragmentVerdict::Held(_) => {
                     return Ok(EqualFragmentRetry::Held);
@@ -2247,6 +2253,7 @@ impl Assessor<'_, '_> {
         &mut self,
         relation: usize,
         spans: [&TextSpan; 2],
+        domains: &[(super::DomainKey, super::DomainProof)],
     ) -> Result<super::equal_fragment::FragmentVerdict> {
         use super::equal_fragment::{FragmentHold, FragmentVerdict};
         let held = FragmentVerdict::Held(FragmentHold::ParentCorrespondence);
@@ -2268,7 +2275,8 @@ impl Assessor<'_, '_> {
             .map(|span| span.blocks.len())
             .sum::<usize>()
             .saturating_mul(5)
-            .saturating_add(32);
+            .saturating_add(32)
+            .saturating_add(domains.len());
         if !self.charge(key_work) {
             return Ok(FragmentVerdict::Exhausted);
         }
@@ -2279,10 +2287,15 @@ impl Assessor<'_, '_> {
             old_separator: spans[0].separator.unwrap_or(BlockSeparator::Space),
             new_separator: spans[1].separator.unwrap_or(BlockSeparator::Space),
         };
-        let Some(proof) = self.domains.get(&key) else {
+        // Review moves the original cache. Borrow its retained proofs after
+        // all earlier consumers finish; never reconstruct or relax a proof.
+        // The prepaid scan inspects relation identities, then checks the full
+        // exact key only on the matching parent.
+        let Some((parent_key, proof)) = domains.iter().find(|(_, proof)| proof.relation == parent)
+        else {
             return Ok(held);
         };
-        if proof.relation != parent {
+        if *parent_key != key {
             return Ok(held);
         }
         let cache = self
@@ -8230,11 +8243,16 @@ mod tests {
         let original_partitions = [old_partition.clone(), new_partition.clone()];
         assessor.remaining_work = budget;
         assessor.recover_equal_fragments(&mut ownership, &candidates, &proven)?;
+        let domains = std::mem::take(&mut assessor.domains)
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert!(assessor.domains.is_empty(), "review moved the proof cache");
         assessor.recover_coupled_equal_parents(
             &mut ownership,
             &candidates,
             &proven,
             CoupledPublication {
+                domains: &domains,
                 partitions: [&mut old_partition, &mut new_partition],
                 unresolved: &mut regions,
             },
@@ -8592,11 +8610,15 @@ mod tests {
                 owners[1].resolution(&new, a.options.max_assessment_ranges)?,
             ];
             let [old_parts, new_parts] = &mut parts;
+            let domains = std::mem::take(&mut a.domains)
+                .into_iter()
+                .collect::<Vec<_>>();
             a.recover_coupled_equal_parents(
                 &mut owners,
                 &[],
                 &[],
                 CoupledPublication {
+                    domains: &domains,
                     partitions: [old_parts, new_parts],
                     unresolved: &mut Vec::new(),
                 },

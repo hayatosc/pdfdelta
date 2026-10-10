@@ -3969,7 +3969,6 @@ pub(super) fn finish(
         options.max_assessment_ranges,
     )?;
     let review_units = reviewed.units;
-    drop(reviewed.domains);
     // All existing proof and diagnostic passes finish before coupled parents
     // can spend work. Their only diagnostic effect is deleting wholly covered
     // final regions; every surviving record and its order remain unchanged.
@@ -3978,6 +3977,7 @@ pub(super) fn finish(
         &comparison.change_candidates,
         &comparison.proven_changed_regions,
         local::CoupledPublication {
+            domains: &reviewed.domains,
             partitions: [&mut old_resolution, &mut new_resolution],
             unresolved: &mut comparison.unresolved_regions,
         },
@@ -3986,6 +3986,7 @@ pub(super) fn finish(
         comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
         comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
     }
+    drop(reviewed.domains);
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,
