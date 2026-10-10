@@ -52,6 +52,39 @@ where
         remaining_work,
         signature,
         Traversal::DistinctEqualPairs,
+        None,
+        &mut super::SuffixReuseWork::default(),
+    )
+}
+
+/// Runs the ordinary source-signature traversal after completing a same-input
+/// suffix. The callback, every path/canonicalization charge and first witness
+/// ordering are unchanged. A missing continuation takes the original path.
+///
+/// # Errors
+/// Returns the ordinary semantic resource/callback errors or a rejected
+/// immutable input binding. No incomplete matrix reaches traversal.
+pub(super) fn check_hunks_retained<T, S, F>(
+    old: &[T],
+    new: &[T],
+    remaining_work: &mut usize,
+    retained: Option<super::exact::RetainedSuffix<'_, T>>,
+    suffix_work: &mut super::SuffixReuseWork,
+    signature: F,
+) -> Result<Outcome<S>>
+where
+    T: Eq,
+    S: Eq,
+    F: FnMut(&[AtomicEdit], &mut usize) -> Result<Option<S>>,
+{
+    check_with_traversal(
+        old,
+        new,
+        remaining_work,
+        signature,
+        Traversal::DistinctEqualPairs,
+        retained,
+        suffix_work,
     )
 }
 
@@ -97,7 +130,15 @@ where
     S: Eq,
     F: FnMut(&[AtomicEdit], &mut usize) -> Result<Option<S>>,
 {
-    check_with_traversal(old, new, remaining_work, signature, Traversal::AllPaths)
+    check_with_traversal(
+        old,
+        new,
+        remaining_work,
+        signature,
+        Traversal::AllPaths,
+        None,
+        &mut super::SuffixReuseWork::default(),
+    )
 }
 
 fn check_with_traversal<T, S, F>(
@@ -106,6 +147,8 @@ fn check_with_traversal<T, S, F>(
     remaining_work: &mut usize,
     mut signature: F,
     traversal: Traversal,
+    retained: Option<super::exact::RetainedSuffix<'_, T>>,
+    suffix_work: &mut super::SuffixReuseWork,
 ) -> Result<Outcome<S>>
 where
     T: Eq,
@@ -141,7 +184,46 @@ where
         }
     }
 
-    let Some(suffix) = build_suffix(old, new, remaining_work)? else {
+    let table = if let Some(retained) = retained {
+        let allowance = old
+            .len()
+            .checked_mul(new.len())
+            .ok_or_else(cells_limit_error)?;
+        // Preserve the ordinary full-matrix admission. Completed exact cells
+        // reduce computation, but never increase later search eligibility.
+        if !chargeable(*remaining_work, allowance) {
+            *remaining_work = 0;
+            return Ok(Outcome::BudgetExceeded);
+        }
+        preflight_memory(old.len(), new.len())?;
+        let mut actual_remaining = allowance;
+        if !charge(
+            &mut actual_remaining,
+            super::SuffixReuseWork::ACCOUNTING_WORK,
+        ) {
+            return Err(Error::Unresolved(
+                "suffix accounting allowance unavailable".to_owned(),
+            ));
+        }
+        let completed = retained.complete_for(old, new, &mut actual_remaining);
+        let actual = allowance - actual_remaining;
+        // Errors retain their executed binding/cell fees. A successful table
+        // consumes the full original allowance; its unused part is distinct
+        // from actual work and remains unavailable to every later proof.
+        let consumed = if completed.is_err() {
+            actual
+        } else {
+            allowance
+        };
+        if !charge(remaining_work, consumed) {
+            return Ok(Outcome::BudgetExceeded);
+        }
+        suffix_work.record(consumed, actual)?;
+        completed?
+    } else {
+        build_suffix(old, new, remaining_work)?
+    };
+    let Some(suffix) = table else {
         return Ok(Outcome::BudgetExceeded);
     };
     enumerate_paths(
@@ -739,6 +821,356 @@ mod tests {
         AtomicEdit, DP_MEMORY_RESOURCE, MAX_SEMANTIC_MEMORY_BYTES, Outcome, check,
         mandatory_match_analysis, preflight_memory, required_memory_bytes,
     };
+
+    #[test]
+    fn retained_suffix_hunks_and_first_witness_match_complete_oracle() {
+        use crate::normalize::ComparableToken::Scalar;
+        let words = all_words(6);
+        let mut tested = 0;
+        let mut reused = 0;
+        for alphabet in [['a', 'b'], ['a', ' '], ['a', ',']] {
+            for old in &words {
+                for new in &words {
+                    let old = old
+                        .iter()
+                        .map(|&token| Scalar(alphabet[usize::from(token)]))
+                        .collect::<Vec<_>>();
+                    let new = new
+                        .iter()
+                        .map(|&token| Scalar(alphabet[usize::from(token)]))
+                        .collect::<Vec<_>>();
+                    let signature = |edits: &[AtomicEdit], _: &mut usize| {
+                        Ok(Some(semantic_signature(&old, &new, edits)))
+                    };
+                    let original =
+                        super::check_hunks(&old, &new, &mut 100_000, signature).expect("ordinary");
+                    let checked = super::super::exact::check_retaining(&old, &new, &mut 100_000)
+                        .expect("exact");
+                    reused += usize::from(checked.suffix.is_some());
+                    let actual = super::check_hunks_retained(
+                        &old,
+                        &new,
+                        &mut 100_000,
+                        checked.suffix,
+                        &mut super::super::SuffixReuseWork::default(),
+                        signature,
+                    )
+                    .expect("retained");
+                    assert_eq!(original, actual);
+                    let all = check(&old, &new, &mut 100_000, signature).expect("all paths");
+                    match (all, actual) {
+                        (
+                            Outcome::Unique { signature: a, .. },
+                            Outcome::Unique { signature: b, .. },
+                        ) => assert_eq!(a, b),
+                        (Outcome::Ambiguous, Outcome::Ambiguous) => {}
+                        outcomes => panic!("all paths mismatch: {outcomes:?}"),
+                    }
+                    tested += 1;
+                }
+            }
+        }
+        assert_eq!(tested, 48387);
+        assert!(reused > 0);
+        eprintln!(
+            "RETAINED_SUFFIX_SEMANTIC cases={tested} reused={reused} actual_hunk_all_paths_signatures_and_original_first_edits_preserved=true"
+        );
+    }
+
+    #[test]
+    fn retained_suffix_preserves_all_original_budget_outcomes() {
+        let old = b"AB".repeat(8);
+        let new = b"AB".repeat(7);
+        let signature = |_: &[AtomicEdit], work: &mut usize| -> crate::Result<Option<usize>> {
+            if !super::super::charge(work, 7) {
+                return Ok(None);
+            }
+            Ok(Some(1))
+        };
+        let mut checked_budgets = 0;
+        for budget in 0..=5000 {
+            let mut original_budget = budget;
+            let mut actual_budget = budget;
+            let original_exact = super::super::exact::check(&old, &new, &mut original_budget)
+                .expect("original exact");
+            let actual_exact = super::super::exact::check_retaining(&old, &new, &mut actual_budget)
+                .expect("retaining exact");
+            assert_eq!(original_exact, actual_exact.outcome);
+            assert_eq!(original_budget, actual_budget);
+            if original_exact != super::super::exact::ExactUniqueness::Ambiguous {
+                continue;
+            }
+            let original = super::check_hunks(&old, &new, &mut original_budget, signature)
+                .expect("original semantic");
+            let actual = super::check_hunks_retained(
+                &old,
+                &new,
+                &mut actual_budget,
+                actual_exact.suffix,
+                &mut super::super::SuffixReuseWork::default(),
+                signature,
+            )
+            .expect("retained semantic");
+            assert_eq!(original, actual, "initial budget={budget}");
+            assert_eq!(original_budget, actual_budget, "initial budget={budget}");
+            checked_budgets += 1;
+        }
+        eprintln!(
+            "RETAINED_SUFFIX_BUDGET tested={checked_budgets} every_callback_fee_kept=true all_original_outcomes_and_remaining_allowance_exact=true no_incomplete_table_proof=true"
+        );
+    }
+
+    #[test]
+    fn retained_suffix_preserves_callback_refusal_errors_and_memory_limit() {
+        let old = b"AB".repeat(8);
+        let new = b"AB".repeat(7);
+        let retained = super::super::exact::check_retaining(&old, &new, &mut 100_000)
+            .expect("exact")
+            .suffix;
+        assert_eq!(
+            super::check_hunks_retained(
+                &old,
+                &new,
+                &mut 100_000,
+                retained,
+                &mut super::super::SuffixReuseWork::default(),
+                |_, _| Ok(None::<usize>)
+            )
+            .expect("source refusal"),
+            Outcome::BudgetExceeded
+        );
+        let retained = super::super::exact::check_retaining(&old, &new, &mut 100_000)
+            .expect("exact")
+            .suffix;
+        assert!(matches!(
+            super::check_hunks_retained(
+                &old,
+                &new,
+                &mut 100_000,
+                retained,
+                &mut super::super::SuffixReuseWork::default(),
+                |_, _| Err::<Option<usize>, _>(crate::Error::Unsupported("source veto".to_owned()))
+            ),
+            Err(crate::Error::Unsupported(_))
+        ));
+        let mut new = vec![b'a'; 500_000];
+        // Keep the same allocation dimensions while making the completed
+        // reverse contour large enough to pay the accounting receipt.
+        new[499_936..].fill(b'b');
+        let mut exact_budget = usize::MAX;
+        let retained = super::super::exact::check_retaining(b"aaa", &new, &mut exact_budget)
+            .expect("exact memory fits")
+            .suffix;
+        assert!(retained.is_some());
+        let mut semantic_budget = usize::MAX;
+        assert!(matches!(
+            super::check_hunks_retained(
+                b"aaa",
+                &new,
+                &mut semantic_budget,
+                retained,
+                &mut super::super::SuffixReuseWork::default(),
+                |_, _| Ok(Some(0))
+            ),
+            Err(crate::Error::LimitExceeded {
+                resource: DP_MEMORY_RESOURCE,
+                limit: MAX_SEMANTIC_MEMORY_BYTES
+            })
+        ));
+    }
+
+    #[test]
+    fn retained_suffix_shared_budget_preserves_later_complete_match() {
+        use super::super::exact::{ExactUniqueness, check, check_retaining};
+        fn upstream(retain: bool, work: &mut usize) -> Outcome<()> {
+            let old = b"aaaaaaaaaaaa";
+            let new = b"aaaaaaaaaaaaa";
+            let suffix = if retain {
+                let result = check_retaining(old, new, work).expect("exact retaining");
+                assert_eq!(result.outcome, ExactUniqueness::Ambiguous);
+                result.suffix
+            } else {
+                assert_eq!(
+                    check(old, new, work).expect("exact original"),
+                    ExactUniqueness::Ambiguous
+                );
+                None
+            };
+            super::check_hunks_retained(
+                old,
+                new,
+                work,
+                suffix,
+                &mut super::super::SuffixReuseWork::default(),
+                |_, _| Ok(Some(())),
+            )
+            .expect("semantic upstream")
+        }
+        fn costly_middle(retain: bool, work: &mut usize) -> (ExactUniqueness, Option<Outcome<()>>) {
+            let old = b"aaaaa";
+            let new = b"aaaa";
+            let (exact, suffix) = if retain {
+                let result = check_retaining(old, new, work).expect("exact retaining");
+                (result.outcome, result.suffix)
+            } else {
+                (check(old, new, work).expect("exact original"), None)
+            };
+            let semantic = if exact == ExactUniqueness::Ambiguous {
+                Some(
+                    super::check_hunks_retained(
+                        old,
+                        new,
+                        work,
+                        suffix,
+                        &mut super::super::SuffixReuseWork::default(),
+                        |_, _| Ok(Some(())),
+                    )
+                    .expect("semantic middle"),
+                )
+            } else {
+                None
+            };
+            (exact, semantic)
+        }
+        let mut original_work = 10_000;
+        let mut retained_work = 10_000;
+        let original = upstream(false, &mut original_work);
+        let retained = upstream(true, &mut retained_work);
+        let original_cost = 10_000 - original_work;
+        let retained_cost = 10_000 - retained_work;
+        eprintln!(
+            "SHARED_BUDGET upstream_original_cost={original_cost} upstream_retained_cost={retained_cost} original={original:?} retained={retained:?}"
+        );
+        assert_eq!(original, retained);
+        assert_ne!(original, Outcome::BudgetExceeded);
+        assert_eq!(original_cost, retained_cost);
+        let initial = original_cost + 39;
+        let mut original_work = initial;
+        let mut retained_work = initial;
+        assert_eq!(
+            upstream(false, &mut original_work),
+            upstream(true, &mut retained_work)
+        );
+        assert_eq!((original_work, retained_work), (39, 39));
+        let original_middle = costly_middle(false, &mut original_work);
+        let retained_middle = costly_middle(true, &mut retained_work);
+        eprintln!(
+            "SHARED_BUDGET middle_original={original_middle:?} middle_retained={retained_middle:?} remaining_original={original_work} remaining_retained={retained_work}"
+        );
+        assert_eq!(original_middle, (ExactUniqueness::BudgetExceeded, None));
+        assert_eq!(retained_middle, (ExactUniqueness::BudgetExceeded, None));
+        assert_eq!((original_work, retained_work), (39, 39));
+        let old = b"z";
+        let new = b"z";
+        let later_original = check(old, new, &mut original_work).expect("later original");
+        let later_retained = check_retaining(old, new, &mut retained_work).expect("later retained");
+        eprintln!(
+            "SHARED_BUDGET initial={initial} later_original={later_original:?} later_retained={:?} final_original={original_work} final_retained={retained_work}",
+            later_retained.outcome
+        );
+        assert_eq!(later_original, ExactUniqueness::Unique);
+        assert_eq!(later_retained.outcome, ExactUniqueness::Unique);
+        assert_eq!((original_work, retained_work), (38, 38));
+    }
+
+    #[test]
+    fn retained_suffix_separates_actual_fees_and_withheld_allowance() {
+        let old = b"AB".repeat(64);
+        let new = b"AB".repeat(63);
+        let mut exact_budget = 1_000_000;
+        let suffix = super::super::exact::check_retaining(&old, &new, &mut exact_budget)
+            .expect("exact")
+            .suffix
+            .expect("large continuation");
+        let mut original_budget = 100_000;
+        let mut actual_budget = original_budget;
+        let signature = |_: &[AtomicEdit], work: &mut usize| -> crate::Result<Option<usize>> {
+            if !super::super::charge(work, 7) {
+                return Ok(None);
+            }
+            Ok(Some(1))
+        };
+        let original =
+            super::check_hunks(&old, &new, &mut original_budget, signature).expect("ordinary");
+        let mut receipt = super::super::SuffixReuseWork::default();
+        let actual = super::check_hunks_retained(
+            &old,
+            &new,
+            &mut actual_budget,
+            Some(suffix),
+            &mut receipt,
+            signature,
+        )
+        .expect("retained");
+        assert_eq!(original, actual);
+        assert_eq!(original_budget, actual_budget);
+        assert_eq!(
+            receipt,
+            super::super::SuffixReuseWork {
+                attempts: 1,
+                allowance_used: 16128,
+                recomputed_cells: 8002,
+                binding_work: 3,
+                accounting_work: 16,
+                unused_allowance: 8107,
+            }
+        );
+        let suffix = super::super::exact::check_retaining(&old, &new, &mut 1_000_000)
+            .expect("exact")
+            .suffix
+            .expect("continuation");
+        let mut below_original_allowance = 10_000;
+        let mut refused = super::super::SuffixReuseWork::default();
+        assert_eq!(
+            super::check_hunks_retained(
+                &old,
+                &new,
+                &mut below_original_allowance,
+                Some(suffix),
+                &mut refused,
+                |_, _| -> crate::Result<Option<()>> {
+                    panic!("refused table cannot reach source callback")
+                }
+            )
+            .expect("ordinary admission refusal"),
+            Outcome::BudgetExceeded
+        );
+        assert_eq!(below_original_allowance, 0);
+        assert_eq!(refused, super::super::SuffixReuseWork::default());
+        let suffix = super::super::exact::check_retaining(&old, &new, &mut 1_000_000)
+            .expect("exact")
+            .suffix
+            .expect("continuation");
+        let other_old = old.clone();
+        let mut error_allowance = 100_000;
+        let mut error_receipt = super::super::SuffixReuseWork::default();
+        assert!(matches!(
+            super::check_hunks_retained(
+                &other_old,
+                &new,
+                &mut error_allowance,
+                Some(suffix),
+                &mut error_receipt,
+                |_, _| Ok(Some(()))
+            ),
+            Err(crate::Error::Unresolved(_))
+        ));
+        assert_eq!(error_allowance, 99_981);
+        assert_eq!(
+            error_receipt,
+            super::super::SuffixReuseWork {
+                attempts: 1,
+                allowance_used: 19,
+                recomputed_cells: 0,
+                binding_work: 3,
+                accounting_work: 16,
+                unused_allowance: 0,
+            }
+        );
+        eprintln!(
+            "SUFFIX_ALLOWANCE_RECEIPT reserved=16128 cells=8002 binding=3 accounting=16 withheld=8107 source_refusal_kept=true failed_binding_paid=19"
+        );
+    }
 
     type ScriptSignature = Vec<(usize, usize, usize, usize)>;
 

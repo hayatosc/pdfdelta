@@ -57,6 +57,27 @@ displace a competing keyed item merely by matching more unchanged pieces.
 
 ## Text channel
 
+Exact domain checks can retain a partial suffix in the original forward LCS
+buffer. A reverse cell first consumes its own prefix value for the unchanged
+uniqueness test, then overwrites that slot with its suffix value; later reverse
+cells never need that prefix again. The original work preflight and
+forward-plus-two-rows memory admission remain in force, while only one full
+matrix is allocated. Clearing its border replaces rolling-row initialization.
+An early ambiguous result is not a usable suffix or a correspondence proof.
+
+Only an unchanged domain whose exact displacement check remains undecided can
+complete the retained suffix for semantic traversal. The triggering cell has
+not been completed and is charged again, together with every other unfinished
+cell. The continuation lookup and both immutable slice bindings cost three
+units, plus sixteen prepaid metadata units for checked accounting; a
+continuation with fewer than nineteen paid cells takes the ordinary path instead.
+A whole-block displacement attempt releases the retained table before it can
+allocate its own proof matrix. The ordinary semantic memory preflight,
+source-signature callback, path and
+canonicalization charges, traversal order and first witness remain unchanged.
+Unused continuations are dropped, and a refused completion cannot publish a
+partial table as a proof.
+
 ### Extraction
 
 - A backend-neutral PDF parser boundary with a `lopdf` adapter: classic xref
@@ -431,3 +452,14 @@ cross-side literal comparisons and raw-source comparisons remain charged.
 Every source-map, normalization, sharing, page, position and ownership guard
 still runs in the original order. A non-scalar or unpaid selection returns no
 partial evidence.
+
+Suffix continuation keeps the original full-matrix semantic admission and
+search allowance. A separate `suffix_reuse_work` receipt reports actual
+recomputed interior cells, binding work and accounting work, plus unused
+allowance withheld from
+later searches. Its allowance equals recomputed cells plus binding work plus accounting work plus
+unused allowance. Already completed exact cells stay charged in the exact phase;
+the trigger is recomputed and paid again. `work_used` continues to describe
+consumed logical search allowance, including refused charges, rather than CPU
+instructions. The optional receipt adds accounting only; source proof, all path
+fees, first witness, decisions, and memory admission stay unchanged.

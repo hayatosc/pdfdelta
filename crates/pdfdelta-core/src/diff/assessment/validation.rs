@@ -783,6 +783,7 @@ mod tests {
             work_used: 0,
             anchor_work: Default::default(),
             local_view_work: Default::default(),
+            suffix_reuse_work: Default::default(),
             work_by_stage: Default::default(),
             candidates_truncated: false,
         }
@@ -1098,6 +1099,7 @@ mod tests {
             work_used: 0,
             anchor_work: Default::default(),
             local_view_work: Default::default(),
+            suffix_reuse_work: Default::default(),
             work_by_stage: Default::default(),
             candidates_truncated: false,
         };
@@ -1184,6 +1186,7 @@ mod tests {
             work_used: 0,
             anchor_work: Default::default(),
             local_view_work: Default::default(),
+            suffix_reuse_work: Default::default(),
             work_by_stage: Default::default(),
             candidates_truncated: true,
         };

@@ -39,6 +39,7 @@ pub(super) enum ExactUniqueness {
 /// Returns [`Error::LimitExceeded`] when dimensions, cell counts, or the
 /// retained DP memory would exceed representable or configured limits. Returns
 /// [`Error::Unresolved`] when a bounded DP allocation cannot be reserved.
+#[cfg(test)]
 pub(super) fn check<T: Eq>(
     old: &[T],
     new: &[T],
@@ -49,6 +50,7 @@ pub(super) fn check<T: Eq>(
 
 /// Records the exact size of a refused request; successful checks leave zero.
 /// DP preflight refusal does not consume the unspent budget.
+#[cfg(test)]
 pub(super) fn check_recording<T: Eq>(
     old: &[T],
     new: &[T],
@@ -213,6 +215,302 @@ pub(super) fn check_recording<T: Eq>(
     } else {
         ExactUniqueness::Ambiguous
     })
+}
+
+/// Exact classification plus an optional, private same-input suffix continuation.
+pub(super) struct RetainedCheck<'a, T> {
+    pub(super) outcome: ExactUniqueness,
+    pub(super) suffix: Option<RetainedSuffix<'a, T>>,
+}
+
+impl<T> RetainedCheck<'_, T> {
+    fn plain(outcome: ExactUniqueness) -> Self {
+        Self {
+            outcome,
+            suffix: None,
+        }
+    }
+}
+
+/// An incomplete suffix, never exposed as an alignment proof.
+///
+/// Its matrix is the original forward buffer. The lower/right completed
+/// contour contains suffix cells; the remaining interior still contains
+/// unusable prefix cells. The exact check has already returned Ambiguous and
+/// released every need for those prefix values. The triggering cell was not
+/// completed before that return and must be charged again when resumed.
+pub(super) struct RetainedSuffix<'a, T> {
+    old: &'a [T],
+    new: &'a [T],
+    table: Vec<usize>,
+    next_old: usize,
+    next_new: usize,
+    completed: usize,
+}
+
+impl<T: Eq> RetainedSuffix<'_, T> {
+    /// Prepayment for the continuation lookup and both immutable slice bindings.
+    const BINDING_WORK: usize = 3;
+
+    pub(super) fn pending_work(&self) -> Result<usize> {
+        self.old
+            .len()
+            .checked_mul(self.new.len())
+            .and_then(|cells| cells.checked_sub(self.completed))
+            .and_then(|cells| cells.checked_add(Self::BINDING_WORK))
+            .ok_or(Error::LimitExceeded {
+                resource: DP_CELLS_RESOURCE,
+                limit: usize::MAX,
+            })
+    }
+
+    /// Completes every unpaid cell before returning a usable suffix table.
+    ///
+    /// Only the exact same immutable slices may consume the continuation.
+    /// Dimensions alone, equal token values or reversed sides cannot bind it.
+    /// The caller must first apply the ordinary semantic memory preflight.
+    ///
+    /// # Errors
+    /// Returns [`Error::Unresolved`] for a mismatched input binding and
+    /// [`Error::LimitExceeded`] for
+    /// unrepresentable cell arithmetic. A refused work preflight returns None
+    /// with the ordinary exhausted semantic budget behavior.
+    pub(super) fn complete_for(
+        mut self,
+        old: &[T],
+        new: &[T],
+        remaining: &mut usize,
+    ) -> Result<Option<Vec<usize>>> {
+        let pending = self.pending_work()?;
+        if pending > *remaining {
+            *remaining = 0;
+            return Ok(None);
+        }
+        if !super::charge(remaining, Self::BINDING_WORK) {
+            return Ok(None);
+        }
+        if !std::ptr::eq(old, self.old) || !std::ptr::eq(new, self.new) {
+            return Err(Error::Unresolved(
+                "suffix continuation input identity mismatch".to_owned(),
+            ));
+        }
+        let columns = new.len() + 1;
+        for old_index in (0..=self.next_old).rev() {
+            let last_new = if old_index == self.next_old {
+                self.next_new
+            } else {
+                new.len() - 1
+            };
+            for new_index in (0..=last_new).rev() {
+                if !charge_cell(remaining) {
+                    return Ok(None);
+                }
+                let current = old_index * columns + new_index;
+                self.table[current] = if old[old_index] == new[new_index] {
+                    self.table[(old_index + 1) * columns + new_index + 1]
+                        .checked_add(1)
+                        .ok_or(Error::LimitExceeded {
+                            resource: DP_CELLS_RESOURCE,
+                            limit: usize::MAX,
+                        })?
+                } else {
+                    self.table[(old_index + 1) * columns + new_index].max(self.table[current + 1])
+                };
+            }
+        }
+        Ok(Some(self.table))
+    }
+}
+
+/// Uses the original forward allocation for reverse cells after their prefix
+/// values have been consumed. Classification, early exits, equal-input charges,
+/// 2NM work preflight and the original forward-plus-two-rows memory limit stay
+/// unchanged. No second full matrix is allocated or copied. Border clearing
+/// replaces the larger rolling-row initialization, within the same charged
+/// reverse-cell computation. A retained Ambiguous result is not a proof and
+/// may be dropped without additional search work.
+///
+/// # Errors
+/// Returns the original dimensional and configured memory refusals, and prefix
+/// allocation failure. The two rolling-row allocations are no longer needed.
+pub(super) fn check_retaining<'a, T: Eq>(
+    old: &'a [T],
+    new: &'a [T],
+    remaining_cells: &mut usize,
+) -> Result<RetainedCheck<'a, T>> {
+    if old.is_empty() || new.is_empty() {
+        return Ok(RetainedCheck::plain(ExactUniqueness::Unique));
+    }
+
+    if old.len() == new.len() {
+        let mut identical = true;
+        for (old_token, new_token) in old.iter().zip(new) {
+            if !charge_cell(remaining_cells) {
+                return Ok(RetainedCheck::plain(ExactUniqueness::BudgetExceeded));
+            }
+            if old_token != new_token {
+                identical = false;
+                break;
+            }
+        }
+
+        if identical {
+            return Ok(RetainedCheck::plain(ExactUniqueness::Unique));
+        }
+    }
+
+    let forward_cells = old
+        .len()
+        .checked_mul(new.len())
+        .ok_or(Error::LimitExceeded {
+            resource: DP_CELLS_RESOURCE,
+            limit: usize::MAX,
+        })?;
+    let dp_cells = forward_cells.checked_mul(2).ok_or(Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    })?;
+    if dp_cells > *remaining_cells {
+        return Ok(RetainedCheck::plain(ExactUniqueness::BudgetExceeded));
+    }
+
+    let columns = new.len().checked_add(1).ok_or(Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    })?;
+    let rows = old.len().checked_add(1).ok_or(Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    })?;
+    let prefix_cells = rows.checked_mul(columns).ok_or(Error::LimitExceeded {
+        resource: DP_CELLS_RESOURCE,
+        limit: usize::MAX,
+    })?;
+    let cell_bytes = std::mem::size_of::<usize>();
+    let prefix_bytes = prefix_cells
+        .checked_mul(cell_bytes)
+        .ok_or(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        })?;
+    let row_bytes = columns
+        .checked_mul(cell_bytes)
+        .ok_or(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        })?;
+    let rolling_bytes = row_bytes.checked_mul(2).ok_or(Error::LimitExceeded {
+        resource: DP_MEMORY_RESOURCE,
+        limit: MAX_EXACT_MEMORY_BYTES,
+    })?;
+    let total_bytes = prefix_bytes
+        .checked_add(rolling_bytes)
+        .ok_or(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        })?;
+    if total_bytes > MAX_EXACT_MEMORY_BYTES {
+        return Err(Error::LimitExceeded {
+            resource: DP_MEMORY_RESOURCE,
+            limit: MAX_EXACT_MEMORY_BYTES,
+        });
+    }
+
+    let mut prefix = Vec::<usize>::new();
+    prefix.try_reserve_exact(prefix_cells).map_err(|_| {
+        Error::Unresolved("exact uniqueness prefix table allocation failed".to_owned())
+    })?;
+    prefix.resize(prefix_cells, 0);
+
+    for (old_index, old_token) in old.iter().enumerate() {
+        let previous_row = old_index * columns;
+        let current_row = (old_index + 1) * columns;
+        for new_index in 0..new.len() {
+            if !charge_cell(remaining_cells) {
+                return Ok(RetainedCheck::plain(ExactUniqueness::BudgetExceeded));
+            }
+            prefix[current_row + new_index + 1] = if *old_token == new[new_index] {
+                prefix[previous_row + new_index]
+                    .checked_add(1)
+                    .ok_or(Error::LimitExceeded {
+                        resource: DP_CELLS_RESOURCE,
+                        limit: usize::MAX,
+                    })?
+            } else {
+                prefix[previous_row + new_index + 1].max(prefix[current_row + new_index])
+            };
+        }
+    }
+
+    let lcs_length = prefix[prefix_cells - 1];
+    // Only the current prefix cell is needed for its uniqueness decision.
+    // Later reverse cells never read the processed row/column again. The
+    // completed lower/right region can therefore store suffix values in place.
+    prefix[old.len() * columns..].fill(0);
+    for old_index in 0..old.len() {
+        prefix[old_index * columns + new.len()] = 0;
+    }
+    let mut matching_edges = 0usize;
+
+    for old_index in (0..old.len()).rev() {
+        let prefix_row = old_index * columns;
+        for new_index in (0..new.len()).rev() {
+            if !charge_cell(remaining_cells) {
+                return Ok(RetainedCheck::plain(ExactUniqueness::BudgetExceeded));
+            }
+            let suffix_after_match = prefix[(old_index + 1) * columns + new_index + 1];
+            prefix[prefix_row + new_index] = if old[old_index] == new[new_index] {
+                let through_match = prefix[prefix_row + new_index]
+                    .checked_add(1)
+                    .and_then(|length| length.checked_add(suffix_after_match))
+                    .ok_or(Error::LimitExceeded {
+                        resource: DP_CELLS_RESOURCE,
+                        limit: usize::MAX,
+                    })?;
+                if through_match == lcs_length {
+                    matching_edges = matching_edges.checked_add(1).ok_or(Error::LimitExceeded {
+                        resource: DP_CELLS_RESOURCE,
+                        limit: usize::MAX,
+                    })?;
+                    if matching_edges > lcs_length {
+                        let completed = forward_cells - (old_index * new.len() + new_index + 1);
+                        let suffix = (completed
+                            >= RetainedSuffix::<T>::BINDING_WORK
+                                + super::SuffixReuseWork::ACCOUNTING_WORK
+                            && prefix.capacity() == prefix_cells)
+                            .then_some(RetainedSuffix {
+                                old,
+                                new,
+                                table: prefix,
+                                next_old: old_index,
+                                next_new: new_index,
+                                completed,
+                            });
+                        return Ok(RetainedCheck {
+                            outcome: ExactUniqueness::Ambiguous,
+                            suffix,
+                        });
+                    }
+                }
+                suffix_after_match
+                    .checked_add(1)
+                    .ok_or(Error::LimitExceeded {
+                        resource: DP_CELLS_RESOURCE,
+                        limit: usize::MAX,
+                    })?
+            } else {
+                prefix[prefix_row + new_index + 1]
+                    .max(prefix[(old_index + 1) * columns + new_index])
+            };
+        }
+    }
+
+    debug_assert_eq!(prefix[0], lcs_length);
+    Ok(RetainedCheck::plain(if matching_edges == lcs_length {
+        ExactUniqueness::Unique
+    } else {
+        ExactUniqueness::Ambiguous
+    }))
 }
 
 /// Checks uniqueness of a maximum increasing subsequence of distinct positions.
@@ -501,6 +799,156 @@ fn charge_cell(remaining_cells: &mut usize) -> bool {
 mod tests {
     use super::super::all_words;
     use super::{ExactUniqueness, check};
+
+    #[test]
+    fn retained_suffix_exact_outcomes_and_charges_match_rolling_oracle() {
+        let words = all_words(4);
+        for old in &words {
+            for new in &words {
+                for budget in 0..=2 * old.len() * new.len() + old.len() + 2 {
+                    let mut original_budget = budget;
+                    let mut actual_budget = budget;
+                    let original =
+                        super::check(old, new, &mut original_budget).expect("rolling oracle");
+                    let actual = super::check_retaining(old, new, &mut actual_budget)
+                        .expect("in-place check");
+                    assert_eq!(
+                        original, actual.outcome,
+                        "old={old:?} new={new:?} budget={budget}"
+                    );
+                    assert_eq!(original_budget, actual_budget);
+                }
+            }
+        }
+    }
+
+    fn independent_suffix(old: &[u8], new: &[u8]) -> Vec<usize> {
+        let columns = new.len() + 1;
+        let mut table = vec![0; (old.len() + 1) * columns];
+        for i in (0..old.len()).rev() {
+            for j in (0..new.len()).rev() {
+                table[i * columns + j] = if old[i] == new[j] {
+                    table[(i + 1) * columns + j + 1] + 1
+                } else {
+                    table[(i + 1) * columns + j].max(table[i * columns + j + 1])
+                };
+            }
+        }
+        table
+    }
+
+    #[test]
+    fn retained_suffix_completes_every_cell_in_the_original_allocation() {
+        let words = all_words(6);
+        let mut continuations = 0;
+        for old in &words {
+            for new in &words {
+                let checked = super::check_retaining(old, new, &mut 1_000_000).expect("check");
+                if let Some(suffix) = checked.suffix {
+                    assert_eq!(checked.outcome, ExactUniqueness::Ambiguous);
+                    let pointer = suffix.table.as_ptr();
+                    let capacity = suffix.table.capacity();
+                    let mut remaining = suffix.pending_work().expect("pending");
+                    let completed = suffix
+                        .complete_for(old, new, &mut remaining)
+                        .expect("binding")
+                        .expect("complete");
+                    assert_eq!(remaining, 0);
+                    assert_eq!(completed, independent_suffix(old, new));
+                    assert_eq!(pointer, completed.as_ptr());
+                    assert_eq!(capacity, completed.capacity());
+                    continuations += 1;
+                }
+            }
+        }
+        assert!(continuations > 0);
+        eprintln!(
+            "RETAINED_SUFFIX_MINIMAL same_buffer_full_tables={continuations} all_cell_values_match_independent_suffix=true"
+        );
+    }
+
+    #[test]
+    fn retained_suffix_pays_triggering_cell_and_binding() {
+        let old = b"AB".repeat(64);
+        let new = b"AB".repeat(63);
+        let mut remaining = 1_000_000;
+        let checked = super::check_retaining(&old, &new, &mut remaining).expect("check");
+        assert_eq!(1_000_000 - remaining, 24255);
+        let suffix = checked.suffix.expect("retained cells");
+        assert_eq!(suffix.completed, 8126);
+        assert_eq!(suffix.pending_work().expect("pending"), 8005);
+        let mut too_small = 8004;
+        assert!(
+            suffix
+                .complete_for(&old, &new, &mut too_small)
+                .expect("refusal")
+                .is_none()
+        );
+        assert_eq!(too_small, 0);
+    }
+
+    #[test]
+    fn retained_suffix_rejects_other_domains_and_reversed_sides() {
+        let old = b"AB".repeat(8);
+        let new = b"AB".repeat(7);
+        let other_old = old.clone();
+        let other_new = new.clone();
+        for (bound_old, bound_new) in [(&other_old, &other_new), (&new, &old)] {
+            let suffix = super::check_retaining(&old, &new, &mut 100_000)
+                .expect("check")
+                .suffix
+                .expect("retained");
+            let mut remaining = 100_000;
+            assert!(matches!(
+                suffix.complete_for(bound_old, bound_new, &mut remaining),
+                Err(crate::Error::Unresolved(_))
+            ));
+            assert_eq!(remaining, 99_997);
+        }
+    }
+
+    #[test]
+    fn retained_suffix_keeps_small_fallback_and_unused_costs() {
+        let mut original_budget = 100;
+        let mut actual_budget = 100;
+        let original = super::check(b"aa", b"a", &mut original_budget).expect("original");
+        let actual = super::check_retaining(b"aa", b"a", &mut actual_budget).expect("retaining");
+        assert_eq!(original, actual.outcome);
+        assert_eq!(original_budget, actual_budget);
+        assert!(actual.suffix.is_none());
+        let old = b"AB".repeat(8);
+        let new = b"AB".repeat(7);
+        actual_budget = 100_000;
+        let result =
+            super::check_retaining(&old, &new, &mut actual_budget).expect("retained proof");
+        assert!(result.suffix.is_some());
+        let saved = actual_budget;
+        drop(result);
+        assert_eq!(actual_budget, saved);
+    }
+
+    #[test]
+    fn retained_suffix_keeps_original_memory_admission_without_rolling_rows() {
+        let new = vec![b'b'; 2_200_000];
+        let mut original_budget = usize::MAX;
+        let original = super::check(b"a", &new, &mut original_budget);
+        let mut actual_budget = usize::MAX;
+        let actual = super::check_retaining(b"a", &new, &mut actual_budget);
+        assert!(matches!(
+            original,
+            Err(crate::Error::LimitExceeded {
+                resource: super::DP_MEMORY_RESOURCE,
+                limit: super::MAX_EXACT_MEMORY_BYTES
+            })
+        ));
+        assert!(matches!(
+            actual,
+            Err(crate::Error::LimitExceeded {
+                resource: super::DP_MEMORY_RESOURCE,
+                limit: super::MAX_EXACT_MEMORY_BYTES
+            })
+        ));
+    }
 
     fn classify(old: &[u8], new: &[u8]) -> ExactUniqueness {
         let mut budget = usize::MAX;

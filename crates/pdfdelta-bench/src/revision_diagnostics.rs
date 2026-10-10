@@ -2434,6 +2434,7 @@ mod tests {
             work_by_stage: AssessmentWork::default(),
             anchor_work: Default::default(),
             local_view_work: Default::default(),
+            suffix_reuse_work: Default::default(),
             candidates_truncated: false,
             review_units: Vec::new(),
         });

@@ -267,6 +267,63 @@ impl AssessmentWork {
     }
 }
 
+/// Accounting for attempts to complete a reused exact suffix table.
+///
+/// `allowance_used` is the conservative search allowance consumed by these
+/// attempts. `recomputed_cells + binding_work + accounting_work` is their actual charged logical
+/// work, excluding the exact cells already paid before retention. The difference
+/// is `unused_allowance`; it cannot fund a later adaptive search. These are
+/// logical operation units, not CPU instructions, and cover only suffix reuse.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SuffixReuseWork {
+    pub attempts: usize,
+    pub allowance_used: usize,
+    pub recomputed_cells: usize,
+    pub binding_work: usize,
+    /// Prepaid metadata operations for checked receipt construction and accumulation.
+    pub accounting_work: usize,
+    pub unused_allowance: usize,
+}
+
+impl SuffixReuseWork {
+    pub(super) const ACCOUNTING_WORK: usize = 16;
+
+    fn consistent(self) -> bool {
+        self.recomputed_cells
+            .checked_add(self.binding_work)
+            .and_then(|actual| actual.checked_add(self.accounting_work))
+            .and_then(|actual| actual.checked_add(self.unused_allowance))
+            == Some(self.allowance_used)
+            && self.attempts.checked_mul(3) == Some(self.binding_work)
+            && self.attempts.checked_mul(Self::ACCOUNTING_WORK) == Some(self.accounting_work)
+            && (self.attempts != 0 || self.allowance_used == 0)
+    }
+
+    fn record(&mut self, allowance: usize, actual: usize) -> Result<()> {
+        let recomputed = actual
+            .checked_sub(3 + Self::ACCOUNTING_WORK)
+            .ok_or_else(|| invalid("invalid suffix binding work"))?;
+        let unused = allowance
+            .checked_sub(actual)
+            .ok_or_else(|| invalid("suffix work exceeds allowance"))?;
+        let add = |left: usize, right: usize| {
+            left.checked_add(right)
+                .ok_or_else(|| limit_error("suffix reuse work"))
+        };
+        let next = Self {
+            attempts: add(self.attempts, 1)?,
+            allowance_used: add(self.allowance_used, allowance)?,
+            recomputed_cells: add(self.recomputed_cells, recomputed)?,
+            binding_work: add(self.binding_work, 3)?,
+            accounting_work: add(self.accounting_work, Self::ACCOUNTING_WORK)?,
+            unused_allowance: add(self.unused_allowance, unused)?,
+        };
+        debug_assert!(next.consistent());
+        *self = next;
+        Ok(())
+    }
+}
+
 /// Budget accounting for global anchors and constructor sidecar preparation.
 ///
 /// Charges are logical proof work, not CPU instructions. A refused charge can
@@ -362,12 +419,16 @@ pub struct ComparisonAssessment {
     pub old_resolution: Vec<ResolutionRange>,
     pub new_resolution: Vec<ResolutionRange>,
     pub work_limit: usize,
+    /// Consumed search allowance, including refused charges and unused suffix reservations.
+    /// This is not a measurement of executed CPU instructions.
     pub work_used: usize,
     pub work_by_stage: AssessmentWork,
     /// Fine-grained accounting within the global anchor proof.
     pub anchor_work: AnchorWork,
     /// Fine-grained charges for optional local correspondence discovery.
     pub local_view_work: LocalViewWork,
+    /// Actual suffix continuation fees and separately withheld search allowance.
+    pub suffix_reuse_work: SuffixReuseWork,
     /// Additional candidate descriptions were omitted within output limits.
     pub candidates_truncated: bool,
     /// Additional programmatic evidence for emitted local changes. Standard
@@ -444,6 +505,8 @@ impl ComparisonAssessment {
         if self.policy_version != ASSESSMENT_POLICY_VERSION
             || self.work_used > self.work_limit
             || self.work_by_stage.total() != Some(self.work_used)
+            || !self.suffix_reuse_work.consistent()
+            || self.suffix_reuse_work.allowance_used > self.work_used
             || self
                 .anchor_work
                 .total()
@@ -3917,6 +3980,7 @@ pub(super) fn finish(
         },
         anchor_work: assessor.anchor_work,
         local_view_work: assessor.local_view_work,
+        suffix_reuse_work: assessor.suffix_reuse_work,
         candidates_truncated: candidates_truncated || assessor.output_stop.is_some(),
         localized_edits: assessor.localized_edits,
         review_units,
@@ -3978,6 +4042,7 @@ struct Assessor<'a, 'document> {
     anchor_alternatives: Vec<(usize, usize)>,
     anchor_work: AnchorWork,
     local_view_work: LocalViewWork,
+    suffix_reuse_work: SuffixReuseWork,
     deny_token_cache: views::DenyTokenCache<'a, 'document>,
     domains: HashMap<DomainKey, DomainProof>,
     /// Relations established through the mandatory-matching equality proof,
@@ -4795,12 +4860,27 @@ impl<'a, 'document> Assessor<'a, 'document> {
         edits: &mut Vec<super::AtomicEdit>,
         search: &mut SearchCompleteness,
     ) -> Result<()> {
+        self.semantic_witness_retained([old, new], unique, stable_events, edits, search, None)
+    }
+
+    fn semantic_witness_retained(
+        &mut self,
+        groups: [&GroupText; 2],
+        unique: &mut bool,
+        stable_events: &mut Option<Vec<ProjectedEvent>>,
+        edits: &mut Vec<super::AtomicEdit>,
+        search: &mut SearchCompleteness,
+        retained: Option<exact::RetainedSuffix<'_, crate::normalize::ComparableToken>>,
+    ) -> Result<()> {
+        let [old, new] = groups;
         let sides = self.sides;
         let limit = self.options.max_assessment_ranges;
-        match semantic::check_hunks(
+        match semantic::check_hunks_retained(
             &old.tokens,
             &new.tokens,
             &mut self.remaining_work,
+            retained,
+            &mut self.suffix_reuse_work,
             |edits, remaining| semantic_signature(sides, [old, new], edits, remaining, limit),
         ) {
             Ok(semantic::Outcome::Unique {
@@ -5154,7 +5234,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
         };
         let mut exact_displacement_proof = false;
         if reasons.is_empty() {
-            match exact::check(&old.tokens, &new.tokens, &mut self.remaining_work) {
+            let exact = exact::check_retaining(&old.tokens, &new.tokens, &mut self.remaining_work);
+            let mut retained = None;
+            let exact = exact.map(|checked| {
+                retained = checked.suffix;
+                checked.outcome
+            });
+            match exact {
                 Ok(exact::ExactUniqueness::Unique) => {
                     strict_unique = true;
                     if self.empty_side.is_some() && (old.tokens.is_empty() || new.tokens.is_empty())
@@ -5210,8 +5296,18 @@ impl<'a, 'document> Assessor<'a, 'document> {
                     }
                 }
                 Ok(exact::ExactUniqueness::Ambiguous) => {
+                    // A whole-block displacement search can allocate its own
+                    // bounded proof matrix. Release the retained table first
+                    // so its original live-memory allowance never overlaps.
+                    if self.exact_displacement.is_some()
+                        && old.blocks.len() == 1
+                        && new.blocks.len() == 1
+                    {
+                        drop(retained.take());
+                    }
                     match self.try_exact_displacement(&old, &new)? {
                         ExactDisplacementStep::Resolved(witness, signature) => {
+                            drop(retained.take());
                             unique = true;
                             stable_events = Some(signature);
                             edits = witness;
@@ -5222,16 +5318,17 @@ impl<'a, 'document> Assessor<'a, 'document> {
                             ));
                         }
                         ExactDisplacementStep::Budget => {
+                            drop(retained.take());
                             search = SearchCompleteness::Incomplete;
                         }
                         ExactDisplacementStep::Hold => {
-                            self.semantic_witness(
-                                &old,
-                                &new,
+                            self.semantic_witness_retained(
+                                [&old, &new],
                                 &mut unique,
                                 &mut stable_events,
                                 &mut edits,
                                 &mut search,
+                                retained.take(),
                             )?;
                         }
                     }
@@ -6270,6 +6367,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             anchor_alternatives: Vec::new(),
             anchor_work: AnchorWork::default(),
             local_view_work: LocalViewWork::default(),
+            suffix_reuse_work: SuffixReuseWork::default(),
             deny_token_cache: views::DenyTokenCache::new(sides),
             domains: HashMap::new(),
             forced_equal_relations: std::collections::HashSet::new(),
@@ -11441,6 +11539,92 @@ mod assessor_issue_cache_tests {
                 .contains(&AssessmentReason::NormalizationUncertainty)
         );
         assert!(!record.reasons.contains(&AssessmentReason::WorkLimit));
+        Ok(())
+    }
+
+    #[test]
+    fn retained_suffix_distinct_domains_preserve_source_proof_and_cache_costs() -> Result<()> {
+        let old_blocks = [
+            anchor_block(1, &"AB".repeat(64)),
+            anchor_block(11, &"CD".repeat(64)),
+        ];
+        let new_blocks = [
+            anchor_block(101, &"AB".repeat(63)),
+            anchor_block(111, &"CD".repeat(63)),
+        ];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let mut alignment = issue_alignment();
+        alignment.spans[0].old = vec![BlockId(1), BlockId(11)];
+        alignment.spans[0].new = vec![BlockId(101), BlockId(111)];
+        alignment.spans[0].evidence.clear();
+        let mut assessor = Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        for (index, (old_id, new_id)) in [(1, 101), (11, 111)].into_iter().enumerate() {
+            let key = DomainKey {
+                local: Some((local_span(old_id, 0, 128), local_span(new_id, 0, 126))),
+                old: index..index + 1,
+                new: index..index + 1,
+                old_separator: BlockSeparator::Space,
+                new_separator: BlockSeparator::Space,
+            };
+            let before = assessor.remaining_work;
+            assert_eq!(assessor.prove_domain(&key)?, DomainState::Ready);
+            let after = assessor.remaining_work;
+            assert_eq!(before - after, 42048);
+            assert_eq!(assessor.suffix_reuse_work.attempts, index + 1);
+            assert_eq!(
+                assessor.suffix_reuse_work.allowance_used,
+                16128 * (index + 1)
+            );
+            assert_eq!(
+                assessor.suffix_reuse_work.recomputed_cells,
+                8002 * (index + 1)
+            );
+            assert_eq!(assessor.suffix_reuse_work.binding_work, 3 * (index + 1));
+            assert_eq!(assessor.suffix_reuse_work.accounting_work, 16 * (index + 1));
+            assert_eq!(
+                assessor.suffix_reuse_work.unused_allowance,
+                8107 * (index + 1)
+            );
+            assert_eq!(assessor.prove_domain(&key)?, DomainState::Ready);
+            assert_eq!(assessor.remaining_work, after);
+            let [old_group, new_group] = proof_groups(assessor.sides, &key)?;
+            let oracle = semantic::check_hunks(
+                &old_group.tokens,
+                &new_group.tokens,
+                &mut 1_000_000,
+                |edits, work| {
+                    semantic_signature(
+                        assessor.sides,
+                        [&old_group, &new_group],
+                        edits,
+                        work,
+                        assessor.options.max_assessment_ranges,
+                    )
+                },
+            )?;
+            let proof = assessor.domains.get(&key).expect("cached domain");
+            assert!(!proof.strict_unique);
+            match oracle {
+                semantic::Outcome::Unique { signature, edits } => {
+                    assert!(proof.unique);
+                    assert_eq!(proof.stable_events.as_ref(), Some(&signature));
+                    assert_eq!(proof.edits, edits);
+                }
+                semantic::Outcome::Ambiguous => {
+                    assert!(!proof.unique);
+                    assert!(proof.stable_events.is_none());
+                }
+                semantic::Outcome::BudgetExceeded => {
+                    assert!(!proof.unique);
+                    assert_eq!(proof.search, SearchCompleteness::Incomplete);
+                }
+            }
+            eprintln!(
+                "RETAINED_SUFFIX_DOMAIN index={index} original_cost=42048 allowance_cost={} actual_suffix_cells=8002 unused_allowance=8107 binding_paid=3 accounting_paid=16 triggering_cell_recomputed=true source_signature_oracle_preserved=true same_key_repeat_work=0",
+                before - after
+            );
+        }
         Ok(())
     }
 

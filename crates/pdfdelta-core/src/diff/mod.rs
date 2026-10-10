@@ -9,7 +9,8 @@ pub use assessment::{
     ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AnchorWork, AssessmentReason, AssessmentWork,
     ChangeCandidate, ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalTextClaims,
     LocalTextSide, LocalViewWork, LocalizedEditScript, RelationAssessment, RelationOutcome,
-    ResolutionRange, ResolutionState, ReviewUnit, SearchCompleteness, local_text_claims,
+    ResolutionRange, ResolutionState, ReviewUnit, SearchCompleteness, SuffixReuseWork,
+    local_text_claims,
 };
 
 pub use recovery::container::{
@@ -15432,6 +15433,7 @@ mod tests {
                 assessment.work_by_stage = AssessmentWork::default();
                 assessment.anchor_work = AnchorWork::default();
                 assessment.local_view_work = LocalViewWork::default();
+                assessment.suffix_reuse_work = SuffixReuseWork::default();
             }
         }
         assert_eq!(left, right);

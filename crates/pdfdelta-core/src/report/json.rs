@@ -289,6 +289,8 @@ struct JsonAssessment {
     work_by_stage: JsonAssessmentWork,
     anchor_work: JsonAnchorWork,
     local_view_work: JsonLocalViewWork,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    suffix_reuse_work: Option<JsonSuffixReuseWork>,
     candidates_truncated: bool,
     old_resolution: Vec<JsonResolutionRange>,
     new_resolution: Vec<JsonResolutionRange>,
@@ -340,6 +342,8 @@ impl JsonAssessment {
             work_by_stage: assessment.work_by_stage.into(),
             anchor_work: assessment.anchor_work.into(),
             local_view_work: assessment.local_view_work.into(),
+            suffix_reuse_work: (assessment.suffix_reuse_work.attempts != 0)
+                .then_some(assessment.suffix_reuse_work.into()),
             candidates_truncated: assessment.candidates_truncated,
             review_units: assessment
                 .review_units
@@ -460,6 +464,29 @@ impl From<crate::diff::AnchorWork> for JsonAnchorWork {
             verified_anchors: work.verified_anchors,
             sidecar_index: work.sidecar_index,
             sidecar_refused_request: work.sidecar_refused_request,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonSuffixReuseWork {
+    attempts: usize,
+    allowance_used: usize,
+    recomputed_cells: usize,
+    binding_work: usize,
+    accounting_work: usize,
+    unused_allowance: usize,
+}
+
+impl From<crate::diff::SuffixReuseWork> for JsonSuffixReuseWork {
+    fn from(work: crate::diff::SuffixReuseWork) -> Self {
+        Self {
+            attempts: work.attempts,
+            allowance_used: work.allowance_used,
+            recomputed_cells: work.recomputed_cells,
+            binding_work: work.binding_work,
+            accounting_work: work.accounting_work,
+            unused_allowance: work.unused_allowance,
         }
     }
 }
