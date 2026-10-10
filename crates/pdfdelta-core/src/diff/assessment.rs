@@ -181,6 +181,12 @@ pub enum ComparisonAssumption {
     /// unresolved regions, the candidate and changed-ownership protections and
     /// the global reading order are unchanged.
     EqualFragmentInternalDeletedBreak,
+    /// An independently complete, strict-unique equal parent was adopted only
+    /// after every ordered source component passed the original positioned
+    /// fragment guard. The components cover every parent token, with no
+    /// synthetic separator or partial adoption. Latest changed, candidate and
+    /// proven-region ownership protections still apply to the entire parent.
+    EqualFragmentCoupledSourcePositions,
 }
 
 /// Whether the exact search required for a relation finished.
@@ -3964,6 +3970,22 @@ pub(super) fn finish(
     )?;
     let review_units = reviewed.units;
     drop(reviewed.domains);
+    // All existing proof and diagnostic passes finish before coupled parents
+    // can spend work. Their only diagnostic effect is deleting wholly covered
+    // final regions; every surviving record and its order remain unchanged.
+    if assessor.recover_coupled_equal_parents(
+        &mut ownership,
+        &comparison.change_candidates,
+        &comparison.proven_changed_regions,
+        local::CoupledPublication {
+            partitions: [&mut old_resolution, &mut new_resolution],
+            unresolved: &mut comparison.unresolved_regions,
+        },
+        options.max_assessment_ranges,
+    )? {
+        comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
+        comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
+    }
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,
@@ -4107,6 +4129,9 @@ struct Assessor<'a, 'document> {
     /// Recording spends no proof budget and never pushes out an earlier
     /// recovery.
     equal_fragment_candidates: Vec<usize>,
+    /// Enables the last, independently checked coupled-parent pass. The flag
+    /// stores no proof and changes no earlier work allowance or candidate order.
+    has_coupled_equal_candidate: bool,
     /// The comparison side that is proven empty, if any.
     ///
     /// A side is proven empty when the extraction produced no canonical
@@ -6396,6 +6421,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             issue_cache: None,
             equal_fragment_cache: None,
             equal_fragment_candidates: Vec::new(),
+            has_coupled_equal_candidate: false,
             empty_side: proven_empty_side(sides, alignment),
         };
         assessor.root_reasons = assessor.inspect_source_reasons();

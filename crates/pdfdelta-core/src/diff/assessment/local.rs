@@ -25,6 +25,20 @@ enum EqualFragmentRetry {
     Stop,
 }
 
+/// Both final partitions and their already emitted unresolved population.
+/// The coupled pass never regenerates or reorders a surviving diagnostic.
+pub(super) struct CoupledPublication<'a> {
+    pub(super) partitions: [&'a mut Vec<super::ResolutionRange>; 2],
+    pub(super) unresolved: &'a mut Vec<super::UnresolvedRegion>,
+}
+
+/// The proof used after the common whole-parent ownership vetoes.
+enum EqualFragmentProof<'a> {
+    Contiguous,
+    InternalDeletedBreak,
+    CoupledParent(CoupledPublication<'a>),
+}
+
 /// Outcome of processing one local domain during recovery.
 enum LocalRecoveryStep {
     /// The domain was processed; the caller may continue.
@@ -1764,6 +1778,75 @@ impl Assessor<'_, '_> {
         Ok(())
     }
 
+    /// Reconstructs eligible parent claims from immutable records after the
+    /// original candidate list has been compacted for its raw-cut fallback.
+    /// A recorded flag enables this scan, but supplies no correspondence.
+    /// Every lookup revalidates the exact cached parent, and the scan runs only
+    /// after both existing passes, so it cannot displace their proofs.
+    pub(super) fn recover_coupled_equal_parents(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        candidates: &[ChangeCandidate],
+        proven: &[ProvenChangedRegion],
+        publication: CoupledPublication<'_>,
+        limit: usize,
+    ) -> Result<bool> {
+        if !self.has_coupled_equal_candidate
+            || self.remaining_work == 0
+            || self.output_stop.is_some()
+        {
+            return Ok(false);
+        }
+        let count = self.records.len();
+        let setup = publication.partitions[0]
+            .len()
+            .saturating_add(publication.partitions[1].len())
+            .saturating_add(publication.unresolved.len());
+        if !self.charge(count.saturating_add(setup.saturating_mul(4))) {
+            return Ok(false);
+        }
+        if publication.unresolved.len() > limit {
+            return Ok(false);
+        }
+        let [old_partition, new_partition] = publication.partitions;
+        let regions = publication.unresolved;
+        let mut adopted = false;
+        for relation in 0..count {
+            let record = &self.records[relation];
+            if record.outcome != RelationOutcome::Established
+                || record.search != SearchCompleteness::Complete
+                || !record.reasons.is_empty()
+                || record.parent.is_none_or(|parent| parent >= relation)
+                || record
+                    .old_span
+                    .as_ref()
+                    .is_none_or(|span| span.blocks.len() < 2)
+                || record
+                    .new_span
+                    .as_ref()
+                    .is_none_or(|span| span.blocks.len() < 2)
+            {
+                continue;
+            }
+            match self.retry_recorded_equal_fragment(
+                ownership,
+                candidates,
+                proven,
+                limit,
+                relation,
+                EqualFragmentProof::CoupledParent(CoupledPublication {
+                    partitions: [&mut *old_partition, &mut *new_partition],
+                    unresolved: &mut *regions,
+                }),
+            )? {
+                EqualFragmentRetry::Adopted => adopted = true,
+                EqualFragmentRetry::Stop => break,
+                _ => {}
+            }
+        }
+        Ok(adopted)
+    }
+
     /// Retries one strict-closed recorded candidate with the contiguous proof
     /// or, after the whole original pass, with the internal deleted soft line
     /// break proof.
@@ -1782,16 +1865,43 @@ impl Assessor<'_, '_> {
         index: usize,
         allow_internal_deleted_break: bool,
     ) -> Result<EqualFragmentRetry> {
+        let proof = if allow_internal_deleted_break {
+            EqualFragmentProof::InternalDeletedBreak
+        } else {
+            EqualFragmentProof::Contiguous
+        };
+        self.retry_recorded_equal_fragment(
+            ownership,
+            candidates,
+            proven,
+            limit,
+            self.equal_fragment_candidates[index],
+            proof,
+        )
+    }
+
+    /// Runs identical, whole-parent ownership vetoes before any selected proof.
+    /// A successful coupled proof commits all intervals in one adoption; a hold
+    /// or work stop never grants ownership to a component on its own.
+    fn retry_recorded_equal_fragment(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        candidates: &[ChangeCandidate],
+        proven: &[ProvenChangedRegion],
+        limit: usize,
+        relation: usize,
+        proof: EqualFragmentProof<'_>,
+    ) -> Result<EqualFragmentRetry> {
         if self.remaining_work == 0 || self.output_stop.is_some() {
             return Ok(EqualFragmentRetry::Stop);
         }
-        let relation = self.equal_fragment_candidates[index];
         if self.records[relation].outcome != RelationOutcome::Established {
             return Ok(EqualFragmentRetry::Held);
         }
         // The relation already stores the span pair. Pay for the transient
         // copy before it allocates, so a wide container domain can never
         // amplify the deferred list itself.
+        let coupled = matches!(proof, EqualFragmentProof::CoupledParent(_));
         let copy_work = self.records[relation]
             .old_span
             .as_ref()
@@ -1908,48 +2018,282 @@ impl Assessor<'_, '_> {
         if !fits {
             return Ok(EqualFragmentRetry::Held);
         }
-        let cache = self
-            .equal_fragment_cache
-            .get_or_insert_with(|| super::equal_fragment::EqualFragmentCache::new(self.sides));
-        let certified = if allow_internal_deleted_break {
-            match cache.prove_internal_deleted_soft_line_break_with_certificate(
-                spans,
-                &mut self.remaining_work,
-            )? {
-                (super::equal_fragment::FragmentVerdict::Proven, certified) => certified,
-                (super::equal_fragment::FragmentVerdict::Held(_), _) => {
-                    return Ok(EqualFragmentRetry::Held);
-                }
-                (super::equal_fragment::FragmentVerdict::Exhausted, _) => {
-                    return Ok(EqualFragmentRetry::Stop);
-                }
-            }
-        } else {
-            match cache.prove(spans, &mut self.remaining_work)? {
+        let certified = if coupled {
+            match self.prove_coupled_equal_parent(relation, spans)? {
                 super::equal_fragment::FragmentVerdict::Proven => false,
-                super::equal_fragment::FragmentVerdict::Held(hold) => {
-                    return Ok(match hold {
-                        super::equal_fragment::FragmentHold::RawCut => {
-                            EqualFragmentRetry::HeldRawCut
-                        }
-                        _ => EqualFragmentRetry::Held,
-                    });
+                super::equal_fragment::FragmentVerdict::Held(_) => {
+                    return Ok(EqualFragmentRetry::Held);
                 }
                 super::equal_fragment::FragmentVerdict::Exhausted => {
                     return Ok(EqualFragmentRetry::Stop);
                 }
             }
+        } else {
+            let cache = self
+                .equal_fragment_cache
+                .get_or_insert_with(|| super::equal_fragment::EqualFragmentCache::new(self.sides));
+            if matches!(proof, EqualFragmentProof::InternalDeletedBreak) {
+                match cache.prove_internal_deleted_soft_line_break_with_certificate(
+                    spans,
+                    &mut self.remaining_work,
+                )? {
+                    (super::equal_fragment::FragmentVerdict::Proven, certified) => certified,
+                    (super::equal_fragment::FragmentVerdict::Held(_), _) => {
+                        return Ok(EqualFragmentRetry::Held);
+                    }
+                    (super::equal_fragment::FragmentVerdict::Exhausted, _) => {
+                        return Ok(EqualFragmentRetry::Stop);
+                    }
+                }
+            } else {
+                match cache.prove(spans, &mut self.remaining_work)? {
+                    super::equal_fragment::FragmentVerdict::Proven => false,
+                    super::equal_fragment::FragmentVerdict::Held(hold) => {
+                        return Ok(match hold {
+                            super::equal_fragment::FragmentHold::RawCut => {
+                                EqualFragmentRetry::HeldRawCut
+                            }
+                            _ => EqualFragmentRetry::Held,
+                        });
+                    }
+                    super::equal_fragment::FragmentVerdict::Exhausted => {
+                        return Ok(EqualFragmentRetry::Stop);
+                    }
+                }
+            }
         };
+        let updated = if coupled {
+            let EqualFragmentProof::CoupledParent(context) = &proof else {
+                return Ok(EqualFragmentRetry::Held);
+            };
+            let parts = &context.partitions;
+            let publication_work = parts[0]
+                .len()
+                .saturating_mul(accepted[0].len().saturating_add(8))
+                .saturating_add(
+                    parts[1]
+                        .len()
+                        .saturating_mul(accepted[1].len().saturating_add(8)),
+                )
+                .saturating_add(ownership[0].accepted.len())
+                .saturating_add(ownership[1].accepted.len())
+                .saturating_add(accepted[0].len())
+                .saturating_add(accepted[1].len())
+                .saturating_add(self.records[relation].assumptions.len())
+                .saturating_add(8);
+            if !self.charge(publication_work) {
+                return Ok(EqualFragmentRetry::Stop);
+            }
+            let slots = parts[0]
+                .capacity()
+                .saturating_add(parts[1].capacity())
+                .saturating_add(parts[0].len())
+                .saturating_add(parts[1].len());
+            let bound = 64 * 1024 * 1024;
+            if slots
+                .saturating_mul(std::mem::size_of::<super::ResolutionRange>())
+                .saturating_add(context.unresolved.len())
+                > bound
+            {
+                return Ok(EqualFragmentRetry::Held);
+            }
+            let Some(old) = coupled_partition(parts[0], self.sides[0], &accepted[0], limit)? else {
+                return Ok(EqualFragmentRetry::Held);
+            };
+            let Some(new) = coupled_partition(parts[1], self.sides[1], &accepted[1], limit)? else {
+                return Ok(EqualFragmentRetry::Held);
+            };
+            let Some(removed) =
+                self.coupled_region_removals(context.unresolved, &accepted, limit)?
+            else {
+                return Ok(if self.remaining_work == 0 {
+                    EqualFragmentRetry::Stop
+                } else {
+                    EqualFragmentRetry::Held
+                });
+            };
+            let actual = parts[0]
+                .capacity()
+                .saturating_add(parts[1].capacity())
+                .saturating_add(old.capacity())
+                .saturating_add(new.capacity());
+            if actual
+                .saturating_mul(std::mem::size_of::<super::ResolutionRange>())
+                .saturating_add(removed.capacity())
+                > bound
+            {
+                return Ok(EqualFragmentRetry::Held);
+            }
+            self.records[relation]
+                .assumptions
+                .try_reserve(1)
+                .map_err(|_| super::allocation_error("coupled parent premise"))?;
+            Some(([old, new], removed))
+        } else {
+            None
+        };
+        // Reserve both sides before publishing either ownership population.
         for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
             super::reserve_ranges(&mut owner.accepted, accepted_side.len(), limit)?;
+        }
+        for (owner, accepted_side) in ownership.iter_mut().zip(&accepted) {
             owner.accepted.extend(accepted_side.iter().copied());
         }
-        self.records[relation].assumptions.push(if certified {
+        if let (EqualFragmentProof::CoupledParent(context), Some(([old, new], removed))) =
+            (proof, updated)
+        {
+            *context.partitions[0] = old;
+            *context.partitions[1] = new;
+            let mut index = 0;
+            context.unresolved.retain(|_| {
+                let keep = !removed[index];
+                index += 1;
+                keep
+            });
+        }
+        self.records[relation].assumptions.push(if coupled {
+            ComparisonAssumption::EqualFragmentCoupledSourcePositions
+        } else if certified {
             ComparisonAssumption::EqualFragmentInternalDeletedBreak
         } else {
             ComparisonAssumption::EqualFragmentSourcePositions
         });
         Ok(EqualFragmentRetry::Adopted)
+    }
+
+    /// Removes only complete final diagnostics fully covered on both sides.
+    /// Partial regions, extraction gaps and normalization issues keep the whole
+    /// parent held. Every projection, comparison, mark and later retain move is
+    /// paid before it occurs; surviving diagnostics are never regenerated.
+    fn coupled_region_removals(
+        &mut self,
+        regions: &[super::UnresolvedRegion],
+        accepted: &[Vec<SourceInterval>; 2],
+        limit: usize,
+    ) -> Result<Option<Vec<bool>>> {
+        if regions.len() > limit || !self.charge(regions.len().saturating_mul(3)) {
+            return Ok(None);
+        }
+        let mut removed = Vec::new();
+        removed
+            .try_reserve_exact(regions.len())
+            .map_err(|_| super::allocation_error("coupled region marks"))?;
+        for region in regions {
+            if !self.charge(region.evidence.len()) {
+                return Ok(None);
+            }
+            let mut overlapping = false;
+            let mut covered = true;
+            for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+                .into_iter()
+                .enumerate()
+            {
+                let Some(span) = span else {
+                    continue;
+                };
+                if !self.charge(span.blocks.len().saturating_mul(2)) {
+                    return Ok(None);
+                }
+                let work = self.sides[side]
+                    .source_token_count(&span.blocks)
+                    .saturating_add(
+                        accepted[side]
+                            .len()
+                            .saturating_mul(span.blocks.len())
+                            .saturating_mul(2),
+                    );
+                if !self.charge(work) {
+                    return Ok(None);
+                }
+                let projected = project(self.sides[side], span)?;
+                covered &= !projected.is_empty();
+                for part in &projected {
+                    overlapping |= accepted[side].iter().any(|range| {
+                        range.block_index == part.block_index
+                            && range.start < part.end
+                            && part.start < range.end
+                    });
+                    covered &= accepted[side].iter().any(|range| {
+                        range.block_index == part.block_index
+                            && range.start <= part.start
+                            && part.end <= range.end
+                    });
+                }
+            }
+            if overlapping
+                && (!covered
+                    || region.evidence.iter().any(|evidence| {
+                        matches!(
+                            evidence,
+                            crate::alignment::AlignmentEvidence::ExtractionGap
+                                | crate::alignment::AlignmentEvidence::NormalizationIssue
+                        )
+                    }))
+            {
+                return Ok(None);
+            }
+            removed.push(overlapping);
+        }
+        Ok(Some(removed))
+    }
+
+    /// Requires an existing exact, complete, strict-unique equal parent whose
+    /// recorded spans are this entire child. An equal N/N parent has only the
+    /// diagonal full-cardinality matching, so every token pair is mandatory.
+    /// The coupled source proof must then cover all N tokens in that order.
+    /// Scores, component guards, the enable flag and a merely established
+    /// boundary cannot supply this parent proof.
+    fn prove_coupled_equal_parent(
+        &mut self,
+        relation: usize,
+        spans: [&TextSpan; 2],
+    ) -> Result<super::equal_fragment::FragmentVerdict> {
+        use super::equal_fragment::{FragmentHold, FragmentVerdict};
+        let held = FragmentVerdict::Held(FragmentHold::ParentCorrespondence);
+        let record = &self.records[relation];
+        let Some(parent) = record.parent.filter(|parent| *parent < relation) else {
+            return Ok(held);
+        };
+        if record.outcome != RelationOutcome::Established
+            || record.search != SearchCompleteness::Complete
+            || !record.reasons.is_empty()
+        {
+            return Ok(held);
+        }
+        // Prepay span copying, extents, key hashing/equality and parent-span
+        // comparisons. The exact key neither searches another domain nor
+        // rebuilds the container's token or position vectors.
+        let key_work = spans
+            .iter()
+            .map(|span| span.blocks.len())
+            .sum::<usize>()
+            .saturating_mul(5)
+            .saturating_add(32);
+        if !self.charge(key_work) {
+            return Ok(FragmentVerdict::Exhausted);
+        }
+        let key = super::DomainKey {
+            local: Some((copy_span(spans[0])?, copy_span(spans[1])?)),
+            old: super::block_extent(self.sides[0], spans[0])?,
+            new: super::block_extent(self.sides[1], spans[1])?,
+            old_separator: spans[0].separator.unwrap_or(BlockSeparator::Space),
+            new_separator: spans[1].separator.unwrap_or(BlockSeparator::Space),
+        };
+        let Some(proof) = self.domains.get(&key) else {
+            return Ok(held);
+        };
+        if proof.relation != parent {
+            return Ok(held);
+        }
+        let cache = self
+            .equal_fragment_cache
+            .get_or_insert_with(|| super::equal_fragment::EqualFragmentCache::new(self.sides));
+        cache.prove_coupled_positioned_parent(
+            spans,
+            &self.records[parent],
+            proof,
+            &mut self.remaining_work,
+        )
     }
 
     /// Copies one recorded relation's span pair with bounded allocation.
@@ -2062,6 +2406,14 @@ impl Assessor<'_, '_> {
                         .try_reserve(1)
                         .map_err(|_| super::allocation_error("equal fragment candidates"))?;
                     self.equal_fragment_candidates.push(relation);
+                    self.has_coupled_equal_candidate |= proposal
+                        .old
+                        .as_ref()
+                        .is_some_and(|span| span.blocks.len() > 1)
+                        && proposal
+                            .new
+                            .as_ref()
+                            .is_some_and(|span| span.blocks.len() > 1);
                 }
                 return Ok(LocalRecoveryStep::Continue);
             }
@@ -2368,6 +2720,73 @@ fn separator_order(separator: BlockSeparator) -> (u8, u8, u8) {
         BlockSeparator::Space => (1, 0, 0),
         BlockSeparator::PerBoundary([left, right]) => (2, u8::from(left), u8::from(right)),
     }
+}
+
+/// Builds an atomic final partition without splitting an unresolved range.
+/// Existing states and scalar bounds are preserved. A selected unresolved
+/// range must be wholly covered by one proven component, so synthetic cuts,
+/// changed states and partial coverage refuse publication. Only adjacent equal
+/// ranges touched by this adoption may merge; other ranges remain byte-for-byte
+/// data equivalent. The caller prepays every scan, copy and capacity slot.
+fn coupled_partition(
+    source: &[super::ResolutionRange],
+    side: &Side<'_>,
+    accepted: &[SourceInterval],
+    limit: usize,
+) -> Result<Option<Vec<super::ResolutionRange>>> {
+    if source.len() > limit {
+        return Ok(None);
+    }
+    let mut output: Vec<super::ResolutionRange> = Vec::new();
+    output
+        .try_reserve_exact(source.len())
+        .map_err(|_| super::allocation_error("coupled partition"))?;
+    let mut previous_touched = false;
+    for part in source {
+        let index = side.index[&part.block];
+        let overlap = accepted.iter().find(|range| {
+            range.block_index == index
+                && range.start < part.comparable_range.end
+                && part.comparable_range.start < range.end
+        });
+        let mut next = part.clone();
+        let touched = if let Some(range) = overlap {
+            if part.state == super::ResolutionState::Changed {
+                return Ok(None);
+            }
+            if part.state == super::ResolutionState::Unresolved {
+                if range.start > part.comparable_range.start
+                    || range.end < part.comparable_range.end
+                    || part.canonical_range.start != part.comparable_range.start
+                    || part.canonical_range.end != part.comparable_range.end
+                {
+                    return Ok(None);
+                }
+                next.state = super::ResolutionState::Equal;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if let Some(previous) = output.last_mut().filter(|previous| {
+            (touched || previous_touched)
+                && previous.block == next.block
+                && previous.state == super::ResolutionState::Equal
+                && next.state == previous.state
+                && previous.comparable_range.end == next.comparable_range.start
+                && previous.canonical_range.end == next.canonical_range.start
+        }) {
+            previous.comparable_range.end = next.comparable_range.end;
+            previous.canonical_range.end = next.canonical_range.end;
+            previous_touched |= touched;
+        } else {
+            output.push(next);
+            previous_touched = touched;
+        }
+    }
+    Ok(Some(output))
 }
 
 /// Copies one text span with a fallible block-list allocation.
@@ -7698,6 +8117,591 @@ mod tests {
         )?;
         assert!(!outcome.premise);
         assert_eq!(outcome.records, 2);
+        Ok(())
+    }
+    /// Four source components under one independently proved 32-token parent.
+    /// The head and final suffix remain outside the claim.
+    fn coupled_blocks(offset: u64) -> Vec<BlockText> {
+        [
+            "outer ",
+            "Part",
+            "III",
+            "Cost of",
+            "Goods Sold........ tail",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, text)| sourced_block(offset + index as u64 + 1, text))
+        .collect()
+    }
+
+    fn coupled_span(blocks: &[BlockText], separator: BlockSeparator) -> TextSpan {
+        TextSpan {
+            blocks: blocks.iter().take(5).map(|block| block.block).collect(),
+            separator: Some(separator),
+            canonical_range: ScalarRange { start: 6, end: 38 },
+            comparable_range: super::super::super::TokenRange { start: 6, end: 38 },
+        }
+    }
+
+    struct CoupledRun {
+        accepted: [Vec<SourceInterval>; 2],
+        adopted: bool,
+        remaining: usize,
+        used: usize,
+        regions: Vec<super::super::UnresolvedRegion>,
+    }
+
+    fn run_coupled_parent(
+        blocks: [&[BlockText]; 2],
+        budget: usize,
+        prepare: impl FnOnce(
+            &mut super::super::Assessor<'_, '_>,
+            &mut [Ownership; 2],
+            &mut Vec<ChangeCandidate>,
+            &mut Vec<ProvenChangedRegion>,
+            &mut Vec<super::super::UnresolvedRegion>,
+        ),
+    ) -> Result<CoupledRun> {
+        let old = side(blocks[0]);
+        let new = side(blocks[1]);
+        let alignment = unresolved_alignment(
+            &blocks[0]
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+            &blocks[1]
+                .iter()
+                .map(|block| block.block)
+                .collect::<Vec<_>>(),
+        );
+        let mut assessor =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        assessor.local_domains.push(LocalDomain {
+            old_span: coupled_span(blocks[0], BlockSeparator::Concatenate),
+            new_span: coupled_span(blocks[1], BlockSeparator::Concatenate),
+            source_bounded: false,
+        });
+        let mut ownership = [Ownership::new(), Ownership::new()];
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
+        assert!(assessor.has_coupled_equal_candidate);
+        for (owner, side) in ownership.iter_mut().zip([&old, &new]) {
+            owner.accepted.push(SourceInterval {
+                block_index: 4,
+                start: 18,
+                end: side.canonical[4].len(),
+            });
+        }
+        let mut old_partition =
+            ownership[0].resolution(&old, assessor.options.max_assessment_ranges)?;
+        let mut new_partition =
+            ownership[1].resolution(&new, assessor.options.max_assessment_ranges)?;
+        let initial = [ownership[0].accepted.len(), ownership[1].accepted.len()];
+        let mut regions = Vec::new();
+        for (side_index, parts) in [&old_partition, &new_partition].into_iter().enumerate() {
+            for part in parts
+                .iter()
+                .filter(|part| part.state == super::super::ResolutionState::Unresolved)
+            {
+                let span = TextSpan {
+                    blocks: vec![part.block],
+                    separator: None,
+                    canonical_range: part.canonical_range,
+                    comparable_range: part.comparable_range,
+                };
+                regions.push(super::super::UnresolvedRegion {
+                    old_span: (side_index == 0).then(|| span.clone()),
+                    new_span: (side_index == 1).then(|| span.clone()),
+                    evidence: Vec::new(),
+                });
+            }
+        }
+        let mut proven = Vec::new();
+        prepare(
+            &mut assessor,
+            &mut ownership,
+            &mut candidates,
+            &mut proven,
+            &mut regions,
+        );
+        let original_regions = regions.clone();
+        let original_partitions = [old_partition.clone(), new_partition.clone()];
+        assessor.remaining_work = budget;
+        assessor.recover_equal_fragments(&mut ownership, &candidates, &proven)?;
+        assessor.recover_coupled_equal_parents(
+            &mut ownership,
+            &candidates,
+            &proven,
+            CoupledPublication {
+                partitions: [&mut old_partition, &mut new_partition],
+                unresolved: &mut regions,
+            },
+            assessor.options.max_assessment_ranges,
+        )?;
+        let adopted = assessor.records.iter().any(|record| {
+            record
+                .assumptions
+                .contains(&ComparisonAssumption::EqualFragmentCoupledSourcePositions)
+        });
+        if !adopted {
+            assert_eq!(regions, original_regions);
+            assert_eq!([old_partition, new_partition], original_partitions);
+        }
+        let remaining = assessor.remaining_work;
+        let [old_owner, new_owner] = ownership;
+        Ok(CoupledRun {
+            accepted: [
+                old_owner.accepted[initial[0]..].to_vec(),
+                new_owner.accepted[initial[1]..].to_vec(),
+            ],
+            adopted,
+            remaining,
+            used: budget - remaining,
+            regions,
+        })
+    }
+
+    #[test]
+    fn coupled_parent_adopts_exactly_its_complete_source_projection() -> Result<()> {
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        let run = run_coupled_parent([&blocks[0], &blocks[1]], 1_000_000, |_, _, _, _, _| {})?;
+        assert!(run.adopted);
+        let expected = [
+            SourceInterval {
+                block_index: 1,
+                start: 0,
+                end: 4,
+            },
+            SourceInterval {
+                block_index: 2,
+                start: 0,
+                end: 3,
+            },
+            SourceInterval {
+                block_index: 3,
+                start: 0,
+                end: 7,
+            },
+            SourceInterval {
+                block_index: 4,
+                start: 0,
+                end: 18,
+            },
+        ];
+        assert_eq!(run.accepted, [expected.to_vec(), expected.to_vec()]);
+        assert!(run.used > 0 && run.remaining > 0);
+        assert_eq!(run.regions.len(), 2);
+        assert_eq!(
+            run.regions[0]
+                .old_span
+                .as_ref()
+                .expect("outer old region")
+                .blocks,
+            vec![BlockId(1)]
+        );
+        assert_eq!(
+            run.regions[1]
+                .new_span
+                .as_ref()
+                .expect("outer new region")
+                .blocks,
+            vec![BlockId(101)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_never_partially_adopts_on_any_insufficient_budget() -> Result<()> {
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        let full = run_coupled_parent([&blocks[0], &blocks[1]], 1_000_000, |_, _, _, _, _| {})?;
+        assert!(full.adopted);
+        for budget in 0..full.used {
+            let run = run_coupled_parent([&blocks[0], &blocks[1]], budget, |_, _, _, _, _| {})?;
+            assert!(!run.adopted, "budget {budget} unexpectedly adopted");
+            assert!(
+                run.accepted.iter().all(Vec::is_empty),
+                "budget {budget} partially adopted"
+            );
+            assert_eq!(run.remaining, 0, "budget {budget} was not fully charged");
+        }
+        let exact = run_coupled_parent([&blocks[0], &blocks[1]], full.used, |_, _, _, _, _| {})?;
+        assert!(exact.adopted);
+        assert_eq!(exact.remaining, 0);
+        assert_eq!(exact.accepted, full.accepted);
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_requires_the_actual_complete_strict_equal_parent() -> Result<()> {
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        for control in 0..13 {
+            let run = run_coupled_parent([&blocks[0], &blocks[1]], 1_000_000, |a, _, _, _, _| {
+                let child = a.equal_fragment_candidates[0];
+                let parent = a.records[child].parent.expect("recorded closed parent");
+                match control {
+                    0 => a.records[child].parent = None,
+                    1 => a.records[parent].outcome = RelationOutcome::Tentative,
+                    2 => a.records[parent].search = SearchCompleteness::Incomplete,
+                    3 => {
+                        a.records[parent]
+                            .old_span
+                            .as_mut()
+                            .expect("old parent span")
+                            .comparable_range
+                            .end -= 1;
+                    }
+                    4 => a
+                        .domains
+                        .values_mut()
+                        .for_each(|proof| proof.strict_unique = false),
+                    5 => a
+                        .domains
+                        .values_mut()
+                        .for_each(|proof| proof.unique = false),
+                    6 => a
+                        .domains
+                        .values_mut()
+                        .for_each(|proof| proof.search = SearchCompleteness::Incomplete),
+                    7 => a
+                        .domains
+                        .values_mut()
+                        .for_each(|proof| proof.scope = super::super::ProofScope::BroadRootRefusal),
+                    8 => a
+                        .domains
+                        .values_mut()
+                        .for_each(|proof| proof.lengths[1] -= 1),
+                    9 => {
+                        a.domains.clear();
+                    }
+                    10 => a.domains.values_mut().for_each(|proof| {
+                        proof.edits.push(crate::diff::AtomicEdit {
+                            old: 0..1,
+                            new: 0..0,
+                        });
+                    }),
+                    11 => a.records[child].search = SearchCompleteness::Incomplete,
+                    12 => a.records[parent]
+                        .reasons
+                        .push(super::super::AssessmentReason::DomainNotClosed),
+                    _ => unreachable!(),
+                }
+            })?;
+            assert!(!run.adopted, "parent control {control}");
+            assert!(
+                run.accepted.iter().all(Vec::is_empty),
+                "parent control {control}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_preserves_all_latest_ownership_vetoes() -> Result<()> {
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        for side_index in 0..2 {
+            for veto in 0..4 {
+                let run = run_coupled_parent(
+                    [&blocks[0], &blocks[1]],
+                    1_000_000,
+                    |a, owners, candidates, proven, _| {
+                        let overlap =
+                            strict_closed_fragment_span(blocks[side_index][4].block.0, 17, 19);
+                        match veto {
+                            0 => owners[side_index].changed.push(SourceInterval {
+                                block_index: 4,
+                                start: 17,
+                                end: 19,
+                            }),
+                            1 => candidates.push(ChangeCandidate {
+                                change: Change::single_occurrence(
+                                    if side_index == 0 {
+                                        ChangeKind::Deletion
+                                    } else {
+                                        ChangeKind::Insertion
+                                    },
+                                    (side_index == 0).then(|| overlap.clone()),
+                                    (side_index == 1).then(|| overlap.clone()),
+                                    Confidence::High,
+                                    Vec::new(),
+                                ),
+                                relation: 0,
+                                alternative_group: 0,
+                            }),
+                            2 => proven.push(ProvenChangedRegion {
+                                old_span: (side_index == 0).then(|| overlap.clone()),
+                                new_span: (side_index == 1).then(|| overlap.clone()),
+                                confidence: Confidence::High,
+                                proof: ChangedRegionProof::OneSidedNonEmptyRange,
+                            }),
+                            3 => a.options.max_assessment_ranges = 3,
+                            _ => unreachable!(),
+                        }
+                    },
+                )?;
+                assert!(!run.adopted, "side {side_index}, veto {veto}");
+                assert!(run.accepted.iter().all(Vec::is_empty));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_holds_document_wide_shared_glyphs_and_late_component_failure() -> Result<()> {
+        for side_index in 0..2 {
+            for duplicate_index in 1..5 {
+                let mut blocks = [coupled_blocks(0), coupled_blocks(100)];
+                let mut duplicate = blocks[side_index][duplicate_index].clone();
+                duplicate.block = BlockId(900);
+                blocks[side_index].push(duplicate);
+                let run =
+                    run_coupled_parent([&blocks[0], &blocks[1]], 1_000_000, |_, _, _, _, _| {})?;
+                assert!(
+                    !run.adopted,
+                    "shared side {side_index}, component {duplicate_index}"
+                );
+                assert!(run.accepted.iter().all(Vec::is_empty));
+            }
+        }
+        let mut blocks = [coupled_blocks(0), coupled_blocks(100)];
+        blocks[1][4].position_signatures = None;
+        let run = run_coupled_parent([&blocks[0], &blocks[1]], 1_000_000, |_, _, _, _, _| {})?;
+        assert!(!run.adopted);
+        assert!(run.accepted.iter().all(Vec::is_empty));
+        Ok(())
+    }
+    #[test]
+    fn coupled_parent_rejects_synthetic_gaps_reordered_sources_and_unequal_partitions() -> Result<()>
+    {
+        for control in 0..3 {
+            let mut blocks = [coupled_blocks(0), coupled_blocks(100)];
+            if control == 2 {
+                blocks[1][1] = sourced_block(102, "Par");
+                blocks[1][2] = sourced_block(103, "tIII");
+            }
+            let old = side(&blocks[0]);
+            let new = side(&blocks[1]);
+            let alignment = unresolved_alignment(
+                &blocks[0].iter().map(|b| b.block).collect::<Vec<_>>(),
+                &blocks[1].iter().map(|b| b.block).collect::<Vec<_>>(),
+            );
+            let mut a = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            let separator = if control == 0 {
+                BlockSeparator::Space
+            } else {
+                BlockSeparator::Concatenate
+            };
+            let mut spans = [
+                coupled_span(&blocks[0], separator),
+                coupled_span(&blocks[1], separator),
+            ];
+            if control == 1 {
+                for span in &mut spans {
+                    span.blocks.swap(1, 2);
+                }
+            }
+            a.local_domains.push(LocalDomain {
+                old_span: spans[0].clone(),
+                new_span: spans[1].clone(),
+                source_bounded: false,
+            });
+            let mut owners = [Ownership::new(), Ownership::new()];
+            a.recover_local(&mut owners, &mut Vec::new(), &mut Vec::new())?;
+            assert!(
+                a.has_coupled_equal_candidate,
+                "control {control} must reach the independent source veto"
+            );
+            a.recover_equal_fragments(&mut owners, &[], &[])?;
+            assert!(
+                owners.iter().all(|owner| owner.accepted.is_empty()),
+                "control {control}"
+            );
+            assert!(a.records.iter().all(|r| {
+                !r.assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentCoupledSourcePositions)
+            }));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_runs_after_and_preserves_the_original_raw_cut_fallback() -> Result<()> {
+        let mut blocks = [coupled_blocks(0), coupled_blocks(100)];
+        blocks[0].push(deleted_break_block(6));
+        blocks[1].push(deleted_break_block(106));
+        let old = side(&blocks[0]);
+        let new = side(&blocks[1]);
+        let alignment = unresolved_alignment(
+            &blocks[0].iter().map(|b| b.block).collect::<Vec<_>>(),
+            &blocks[1].iter().map(|b| b.block).collect::<Vec<_>>(),
+        );
+        let run = |coupled: bool, budget: usize| -> Result<(Vec<SourceInterval>, bool, usize)> {
+            let mut a = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            a.local_domains.extend([
+                LocalDomain {
+                    old_span: coupled_span(&blocks[0], BlockSeparator::Concatenate),
+                    new_span: coupled_span(&blocks[1], BlockSeparator::Concatenate),
+                    source_bounded: false,
+                },
+                LocalDomain {
+                    old_span: strict_closed_fragment_span(6, 0, 4),
+                    new_span: strict_closed_fragment_span(106, 0, 4),
+                    source_bounded: false,
+                },
+            ]);
+            let mut owners = [Ownership::new(), Ownership::new()];
+            a.recover_local(&mut owners, &mut Vec::new(), &mut Vec::new())?;
+            assert_eq!(a.equal_fragment_candidates.len(), 2);
+            // Put the coupled claim before the raw-cut candidate to exercise
+            // loss of its original queue slot during the unchanged compaction.
+            let records = &a.records;
+            a.equal_fragment_candidates.sort_by_key(|&relation| {
+                std::cmp::Reverse(
+                    records[relation]
+                        .old_span
+                        .as_ref()
+                        .expect("candidate span")
+                        .blocks
+                        .len(),
+                )
+            });
+            let recorded_fallback = a.equal_fragment_candidates[1];
+            for (owner, side) in owners.iter_mut().zip([&old, &new]) {
+                owner.accepted.push(SourceInterval {
+                    block_index: 4,
+                    start: 18,
+                    end: side.canonical[4].len(),
+                });
+            }
+            a.has_coupled_equal_candidate = coupled;
+            a.remaining_work = budget;
+            a.recover_equal_fragments(&mut owners, &[], &[])?;
+            let mut parts = [
+                owners[0].resolution(&old, a.options.max_assessment_ranges)?,
+                owners[1].resolution(&new, a.options.max_assessment_ranges)?,
+            ];
+            let [old_parts, new_parts] = &mut parts;
+            a.recover_coupled_equal_parents(
+                &mut owners,
+                &[],
+                &[],
+                CoupledPublication {
+                    partitions: [old_parts, new_parts],
+                    unresolved: &mut Vec::new(),
+                },
+                a.options.max_assessment_ranges,
+            )?;
+            assert!(a.records.iter().any(|r| {
+                r.assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentInternalDeletedBreak)
+            }));
+            assert_eq!(
+                a.equal_fragment_candidates[0], recorded_fallback,
+                "the original fallback compaction remains unchanged"
+            );
+            let adopted = a.records.iter().any(|r| {
+                r.assumptions
+                    .contains(&ComparisonAssumption::EqualFragmentCoupledSourcePositions)
+            });
+            Ok((
+                owners[0].accepted[1..].to_vec(),
+                adopted,
+                budget - a.remaining_work,
+            ))
+        };
+        let original = run(false, 1_000_000)?;
+        assert!(!original.1);
+        assert_eq!(
+            original.0,
+            vec![SourceInterval {
+                block_index: 5,
+                start: 0,
+                end: 4
+            }]
+        );
+        let exhausted = run(true, original.2)?;
+        assert_eq!(
+            exhausted, original,
+            "new work cannot erase an existing fallback proof"
+        );
+        let coupled = run(true, 1_000_000)?;
+        assert!(coupled.1);
+        assert_eq!(coupled.0[0], original.0[0]);
+        assert_eq!(coupled.0.len(), 5);
+        assert!(coupled.2 > original.2);
+        Ok(())
+    }
+    #[test]
+    fn coupled_parent_keeps_partial_final_regions_and_extraction_or_normalization_gaps()
+    -> Result<()> {
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        for control in 0..3 {
+            let run = run_coupled_parent(
+                [&blocks[0], &blocks[1]],
+                1_000_000,
+                |_, _, _, _, regions| {
+                    regions.push(super::super::UnresolvedRegion {
+                        old_span: Some(strict_closed_fragment_span(2, 0, 4)),
+                        new_span: (control == 0).then(|| strict_closed_fragment_span(101, 0, 6)),
+                        evidence: match control {
+                            1 => vec![AlignmentEvidence::ExtractionGap],
+                            2 => vec![AlignmentEvidence::NormalizationIssue],
+                            _ => Vec::new(),
+                        },
+                    });
+                },
+            )?;
+            assert!(!run.adopted, "final diagnostic control {control}");
+            assert!(run.accepted.iter().all(Vec::is_empty));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_publication_never_splits_a_current_unresolved_range() -> Result<()> {
+        let blocks = coupled_blocks(0);
+        let source = side(&blocks);
+        let mut owner = Ownership::new();
+        owner.accepted.push(SourceInterval {
+            block_index: 4,
+            start: 18,
+            end: 23,
+        });
+        let partition = owner.resolution(&source, 64)?;
+        let split = [SourceInterval {
+            block_index: 4,
+            start: 0,
+            end: 17,
+        }];
+        assert!(super::coupled_partition(&partition, &source, &split, 64)?.is_none());
+        assert!(
+            super::coupled_partition(&partition, &source, &split, partition.len() - 1)?.is_none()
+        );
+        let complete = [SourceInterval {
+            block_index: 4,
+            start: 0,
+            end: 18,
+        }];
+        let next = super::coupled_partition(&partition, &source, &complete, partition.len())?
+            .expect("complete unresolved range can be replaced");
+        assert!(next.len() <= partition.len());
+        assert_eq!(&next[..4], &partition[..4]);
+        assert_eq!(next[4].state, super::super::ResolutionState::Equal);
+        assert_eq!(
+            next[4].comparable_range,
+            crate::diff::TokenRange { start: 0, end: 23 }
+        );
         Ok(())
     }
 }

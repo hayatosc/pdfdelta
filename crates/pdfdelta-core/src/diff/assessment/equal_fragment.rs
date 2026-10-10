@@ -1,8 +1,9 @@
-//! Pure source/position proof for one literal-equal local fragment.
+//! Pure source/position proofs for literal-equal local fragments.
 //!
 //! Every entry point requires equal literal scalars, exactly one canonical
 //! glyph and one single-scalar raw counterpart per selected token, a contiguous
-//! raw run, clean normalization cuts and unique document-wide glyph sources.
+//! raw run within each source component, clean normalization cuts and unique
+//! document-wide glyph sources.
 //! The positioned entry points additionally require bit-exact finite horizontal
 //! positions on one shared page. The separately named source-only entry point
 //! keeps the shared-page and literal-source rules but supplies no correspondence:
@@ -18,9 +19,9 @@
 //!
 //! # Evidence rules
 //!
-//! - Both spans must project to exactly one nonempty source interval whose
+//! - Ordinary fragment spans must project to exactly one nonempty source interval whose
 //!   comparable length equals the span's own token count, so a synthetic
-//!   inter-block separator or a multi-block span never proves. A span may name
+//!   inter-block separator or a multi-block projection never proves. A span may name
 //!   earlier blocks and a separator as long as the real projection lands
 //!   inside one later block; only the projected interval is used.
 //! - Every selected token must be a literal Unicode scalar; the two sides must
@@ -60,6 +61,14 @@
 //!   before it runs, and every allocation is fallible. Budget exhaustion
 //!   returns [`FragmentVerdict::Exhausted`], allocation failure returns the
 //!   existing assessment error, and no partial proof is ever reported.
+//!
+//! The separately named coupled-parent proof requires an independently
+//! completed exact-key, strict-unique equal/no-edit full parent. It checks that
+//! ordered source components cover every parent token, with no synthetic
+//! separator gap or unequal partition, then applies the original positioned
+//! guard to every component. The full N/N matching makes every token pair
+//! mandatory. No component supplies parent closure or ownership, and any
+//! held or exhausted component holds the entire parent.
 //!
 //! # Reuse
 //!
@@ -118,6 +127,8 @@ pub(super) enum FragmentVerdict {
 /// Reason an equal-fragment proof makes no equality claim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FragmentHold {
+    /// No independently complete, strict-unique equal full-parent proof exists.
+    ParentCorrespondence,
     /// The span did not project to exactly one nonempty source interval with
     /// one comparable token per span token.
     Projection,
@@ -245,6 +256,131 @@ impl<'a> EqualFragmentCache<'a> {
         remaining: &mut usize,
     ) -> Result<FragmentVerdict> {
         Self::verdict(self.check_fragment(spans, false, remaining))
+    }
+
+    /// Proves every positioned component of an independently closed equal
+    /// parent. A completed exact-key, strict-unique, empty-edit parent supplies
+    /// the mandatory N/N diagonal correspondence; this method never infers it
+    /// from positions. Both projections must cover all N tokens with identical
+    /// component lengths and strictly increasing source-block order. Synthetic
+    /// separator gaps, unmatched components and every ordinary positioned
+    /// source veto hold the entire parent. The caller associates the proof's
+    /// relation with this parent and commits ownership only after `Proven`.
+    pub(super) fn prove_coupled_positioned_parent(
+        &mut self,
+        spans: [&TextSpan; 2],
+        parent: &super::RelationAssessment,
+        proof: &super::DomainProof,
+        remaining: &mut usize,
+    ) -> Result<FragmentVerdict> {
+        Self::verdict(self.check_coupled_parent(spans, parent, proof, remaining))
+    }
+
+    fn check_coupled_parent(
+        &mut self,
+        spans: [&TextSpan; 2],
+        parent: &super::RelationAssessment,
+        proof: &super::DomainProof,
+        remaining: &mut usize,
+    ) -> Check<bool> {
+        let n = spans[0]
+            .comparable_range
+            .end
+            .saturating_sub(spans[0].comparable_range.start);
+        if !charge(
+            remaining,
+            16usize
+                .saturating_add(spans[0].blocks.len())
+                .saturating_add(spans[1].blocks.len()),
+        ) {
+            return Err(Stop::Exhausted);
+        }
+        if proof.scope != super::ProofScope::ExactKey
+            || !proof.strict_unique
+            || !proof.unique
+            || !proof.edits.is_empty()
+            || proof.search != super::SearchCompleteness::Complete
+            || parent.outcome != super::RelationOutcome::Established
+            || parent.search != super::SearchCompleteness::Complete
+            || !parent.reasons.is_empty()
+            || parent.old_span.as_ref() != Some(spans[0])
+            || parent.new_span.as_ref() != Some(spans[1])
+            || n == 0
+            || proof.lengths != [n, n]
+            || spans[1]
+                .comparable_range
+                .end
+                .saturating_sub(spans[1].comparable_range.start)
+                != n
+        {
+            return Err(Stop::Held(FragmentHold::ParentCorrespondence));
+        }
+        let projected = [
+            paid_grouped_source_projection(self.sides[0], spans[0], remaining)?,
+            paid_grouped_source_projection(self.sides[1], spans[1], remaining)?,
+        ];
+        if !charge(
+            remaining,
+            projected[0].len().saturating_add(projected[1].len()),
+        ) {
+            return Err(Stop::Exhausted);
+        }
+        if projected[0].len() < 2 || projected[0].len() != projected[1].len() {
+            return Err(Stop::Held(FragmentHold::Projection));
+        }
+        for parts in &projected {
+            let mut total = 0usize;
+            let mut previous = None;
+            for part in parts {
+                if part.start >= part.end || previous.is_some_and(|index| index >= part.block_index)
+                {
+                    return Err(Stop::Held(FragmentHold::Projection));
+                }
+                total = total.saturating_add(part.end - part.start);
+                previous = Some(part.block_index);
+            }
+            if total != n {
+                return Err(Stop::Held(FragmentHold::Projection));
+            }
+        }
+        for (old, new) in projected[0].iter().zip(&projected[1]) {
+            if !charge(remaining, 7) {
+                return Err(Stop::Exhausted);
+            }
+            if old.end - old.start != new.end - new.start {
+                return Err(Stop::Held(FragmentHold::Projection));
+            }
+            for (side, interval) in [(0, old), (1, new)] {
+                let block = &self.sides[side].blocks[interval.block_index];
+                if !block.raw.unmapped.is_empty() || !block.canonical.unmapped.is_empty() {
+                    return Err(Stop::Held(FragmentHold::UnmappedBlock));
+                }
+            }
+            let component = |side: usize, interval: &SourceInterval| -> Result<TextSpan> {
+                let block = &self.sides[side].blocks[interval.block_index];
+                let mut blocks = Vec::new();
+                blocks
+                    .try_reserve_exact(1)
+                    .map_err(|_| allocation_error("coupled fragment component"))?;
+                blocks.push(block.block);
+                Ok(TextSpan {
+                    blocks,
+                    separator: None,
+                    canonical_range: ScalarRange {
+                        start: interval.start,
+                        end: interval.end,
+                    },
+                    comparable_range: super::super::TokenRange {
+                        start: interval.start,
+                        end: interval.end,
+                    },
+                })
+            };
+            let a = component(0, old)?;
+            let b = component(1, new)?;
+            self.check_fragment([&a, &b], false, remaining)?;
+        }
+        Ok(false)
     }
 
     /// Checks literal sources under an independently proven mandatory pairing.

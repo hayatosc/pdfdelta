@@ -749,6 +749,9 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::PositionedReplacement => "positioned_replacement",
         ComparisonAssumption::RawSourceEquality => "raw_source_equality",
         ComparisonAssumption::EqualFragmentSourcePositions => "equal_fragment_source_positions",
+        ComparisonAssumption::EqualFragmentCoupledSourcePositions => {
+            "equal_fragment_coupled_source_positions"
+        }
         ComparisonAssumption::EqualFragmentInternalDeletedBreak => {
             "equal_fragment_internal_deleted_break"
         }
