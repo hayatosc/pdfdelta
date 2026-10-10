@@ -6,6 +6,7 @@
 
 mod claims;
 mod closed_child;
+mod deferred;
 mod document_claims;
 mod equal_fragment;
 mod exact;
@@ -269,6 +270,8 @@ pub struct AssessmentWork {
     pub local_views: usize,
     pub localization: usize,
     pub emission: usize,
+    /// Search performed after every original proof and emission consumer.
+    pub deferred_anchors: usize,
 }
 
 impl AssessmentWork {
@@ -276,7 +279,8 @@ impl AssessmentWork {
         self.anchor_verification
             .checked_add(self.local_views)?
             .checked_add(self.localization)?
-            .checked_add(self.emission)
+            .checked_add(self.emission)?
+            .checked_add(self.deferred_anchors)
     }
 }
 
@@ -4008,6 +4012,8 @@ pub(super) fn finish(
         comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
         comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
     }
+    let before_deferred = assessor.remaining_work;
+    assessor.discover_deferred_domains()?;
     drop(reviewed.domains);
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
@@ -4021,7 +4027,8 @@ pub(super) fn finish(
             local_views: after_initial_localization - after_views,
             localization: (after_anchors - after_initial_localization)
                 + (after_views - after_localization),
-            emission: after_localization - assessor.remaining_work,
+            emission: after_localization - before_deferred,
+            deferred_anchors: before_deferred - assessor.remaining_work,
         },
         anchor_work: assessor.anchor_work,
         local_view_work: assessor.local_view_work,

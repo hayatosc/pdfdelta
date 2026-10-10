@@ -164,6 +164,57 @@ pub(super) fn discover_recording(
     work: &mut super::LocalViewWork,
     retain_positioned_prefix: bool,
 ) -> Result<Discovery> {
+    discover_mode(
+        sides,
+        recovery,
+        exact_anchors,
+        remaining_work,
+        max_ranges,
+        work,
+        DiscoveryMode::Sampled {
+            retain_positioned_prefix,
+        },
+    )
+}
+
+pub(super) fn discover_deferred(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    remaining_work: &mut usize,
+    max_ranges: usize,
+) -> Result<Discovery> {
+    discover_mode(
+        sides,
+        recovery,
+        &[],
+        remaining_work,
+        max_ranges,
+        &mut super::LocalViewWork::default(),
+        DiscoveryMode::Deferred,
+    )
+}
+
+enum DiscoveryMode {
+    Sampled { retain_positioned_prefix: bool },
+    Deferred,
+}
+
+fn discover_mode(
+    sides: [&Side<'_>; 2],
+    recovery: SentenceRecoveryInput<'_>,
+    exact_anchors: &[(TextSpan, TextSpan)],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    work: &mut super::LocalViewWork,
+    mode: DiscoveryMode,
+) -> Result<Discovery> {
+    let (retain_positioned_prefix, all_starts) = match mode {
+        DiscoveryMode::Sampled {
+            retain_positioned_prefix,
+        } => (retain_positioned_prefix, false),
+        DiscoveryMode::Deferred => (false, true),
+    };
+
     if max_ranges == 0 {
         return Err(super::invalid(
             "local-domain range limit must be greater than zero",
@@ -233,7 +284,12 @@ pub(super) fn discover_recording(
     }
     let mut pair_anchors = BTreeMap::<(usize, usize), Vec<AnchorHit>>::new();
     let before = *remaining_work;
-    let seeds = anchors::discover(
+    let search = if all_starts {
+        anchors::discover_all_starts
+    } else {
+        anchors::discover
+    };
+    let seeds = search(
         [&old_views, &new_views],
         recovery.min_tokens,
         remaining_work,
@@ -6276,6 +6332,186 @@ mod tests {
     ) -> Result<Vec<LocalDomain>> {
         super::discover(sides, recovery, exact_anchors, remaining_work, max_ranges)
             .map(|discovery| discovery.domains)
+    }
+
+    fn deferred_seed_fixture(old: &[&str], new: &[&str]) -> Result<[Vec<View>; 2]> {
+        let a = old
+            .iter()
+            .enumerate()
+            .map(|(i, t)| sourced_block(i as u64 + 1, t))
+            .collect::<Vec<_>>();
+        let b = new
+            .iter()
+            .enumerate()
+            .map(|(i, t)| sourced_block(i as u64 + 101, t))
+            .collect::<Vec<_>>();
+        let mut work = 1_000_000;
+        Ok([
+            build_views(&side(&a), &vec![None; a.len()], None, &[], &mut work)?
+                .expect("bounded test search completes"),
+            build_views(&side(&b), &vec![None; b.len()], None, &[], &mut work)?
+                .expect("bounded test search completes"),
+        ])
+    }
+
+    #[test]
+    fn deferred_all_starts_keeps_original_width_and_final_equality() -> Result<()> {
+        let vv = deferred_seed_fixture(&["xABCDEFGHIJKLMNOPy"], &["zzABCDEFGHIJKLMNOPw"])?;
+        let mut sampled = 1_000_000;
+        assert!(
+            anchors::discover([&vv[0], &vv[1]], 16, &mut sampled, 100)?
+                .expect("bounded test search completes")
+                .is_empty()
+        );
+        let mut work = 1_000_000;
+        let hits = anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut work, 100)?
+            .expect("bounded test search completes");
+        assert_eq!(hits.len(), 1);
+        assert_eq!((hits[0].old_start, hits[0].new_start), (1, 2));
+        assert_eq!(hits[0].old_end - hits[0].old_start, 16);
+        assert!(1_000_000 - work > 1_000_000 - sampled);
+        let vv = deferred_seed_fixture(&["xABCDEFGHIJKLMNOPy"], &["zzABCDEFGHIJKLMNOQw"])?;
+        assert!(
+            anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut work, 100)?
+                .expect("bounded test search completes")
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_all_starts_counts_duplicate_occurrences_in_every_view() -> Result<()> {
+        for (old, new) in [
+            (
+                vec!["xABCDEFGHIJKLMNOPy", "qABCDEFGHIJKLMNOPr"],
+                vec!["zzABCDEFGHIJKLMNOPw"],
+            ),
+            (
+                vec!["xABCDEFGHIJKLMNOPy"],
+                vec!["zzABCDEFGHIJKLMNOPw", "tABCDEFGHIJKLMNOPu"],
+            ),
+        ] {
+            let vv = deferred_seed_fixture(&old, &new)?;
+            let mut work = 1_000_000;
+            assert!(
+                anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut work, 100)?
+                    .expect("bounded test search completes")
+                    .is_empty()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_all_starts_budget_and_retention_fail_without_partial_hits() -> Result<()> {
+        let vv = deferred_seed_fixture(&["xABCDEFGHIJKLMNOPy"], &["zzABCDEFGHIJKLMNOPw"])?;
+        let mut full = 1_000_000;
+        assert_eq!(
+            anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut full, 100)?
+                .expect("bounded test search completes")
+                .len(),
+            1
+        );
+        let cost = 1_000_000 - full;
+        for allowance in [0, 1, cost - 1] {
+            let mut work = allowance;
+            assert!(anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut work, 100)?.is_none());
+            assert!(work <= allowance);
+        }
+        let mut exact = cost;
+        assert_eq!(
+            anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut exact, 100)?
+                .expect("bounded test search completes")
+                .len(),
+            1
+        );
+        assert_eq!(exact, 0);
+        let mut work = 1_000_000;
+        assert!(
+            anchors::discover_all_starts([&vv[0], &vv[1]], 16, &mut work, 0)?
+                .expect("bounded test search completes")
+                .is_empty()
+        );
+        assert!(anchors::discover_all_starts([&vv[0], &vv[1]], 0, &mut work, 100)?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_all_starts_memory_bound_refuses_before_index_allocation() -> Result<()> {
+        let mut vv = deferred_seed_fixture(&["a"], &["b"])?;
+        for side in &mut vv {
+            side[0].group.tokens = vec![ComparableToken::Scalar('a'); 250_000];
+        }
+        let mut work = usize::MAX;
+        assert!(
+            anchors::discover_all_starts([&vv[0], &vv[1]], 1, &mut work, usize::MAX)?.is_none()
+        );
+        assert_eq!(
+            work,
+            usize::MAX - 2,
+            "only view headers are visited before rejecting index memory"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_domain_proof_appends_evidence_without_rewriting_prior_records() -> Result<()> {
+        let old = [sourced_block(1, "xABCDEFGHIJKLMNOPyabcdefghijklmnopz")];
+        let new = [sourced_block(101, "zzABCDEFGHIJKLMNOPwabcdefghijklmnopr")];
+        let sides = [side(&old), side(&new)];
+        let alignment = crate::alignment::Alignment {
+            spans: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let intervals = [None];
+        let native = [true];
+        let recovery = SentenceRecoveryInput {
+            old_trusted_run_intervals: &intervals,
+            new_trusted_run_intervals: &intervals,
+            old_native_order_blocks: &native,
+            new_native_order_blocks: &native,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 16,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut a = super::super::Assessor::new(
+            [&sides[0], &sides[1]],
+            &alignment,
+            Some(recovery),
+            crate::diff::DiffOptions::default(),
+        )?;
+        a.root_reasons = vec![super::super::AssessmentReason::UnknownReadingOrder];
+        a.root_relation()?;
+        let before = a.records.clone();
+        let mut original_work = a.remaining_work;
+        assert!(
+            super::discover(
+                [&sides[0], &sides[1]],
+                recovery,
+                &[],
+                &mut original_work,
+                100
+            )?
+            .domains
+            .is_empty()
+        );
+        a.discover_deferred_domains()?;
+        assert!(
+            a.records.len() > before.len(),
+            "additional closing anchors supply a new proof domain"
+        );
+        assert_eq!(&a.records[..before.len()], before.as_slice());
+        let after = a.records.clone();
+        a.remaining_work = 0;
+        a.discover_deferred_domains()?;
+        assert_eq!(
+            a.records, after,
+            "an exhausted deferred pass changes no prior proof"
+        );
+        Ok(())
     }
 
     fn mapped(text: &str) -> MappedText {

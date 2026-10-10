@@ -81,6 +81,144 @@ pub(super) fn discover(
     Ok(Some(hits))
 }
 
+/// Searches every start at the original width, using only a deferred budget.
+/// Retention limits may reduce candidates; occurrence counts still cover all
+/// views. Every retained match needs both global uniqueness and token equality.
+pub(super) fn discover_all_starts(
+    views: [&[View]; 2],
+    width: usize,
+    remaining: &mut usize,
+    limit: usize,
+) -> Result<Option<Vec<AnchorHit>>> {
+    const MEMORY_LIMIT: usize = 64 * 1024 * 1024;
+    if width == 0 || !charge(remaining, views[0].len().saturating_add(views[1].len())) {
+        return Ok(None);
+    }
+    let Some(windows_count) = views
+        .into_iter()
+        .flatten()
+        .try_fold(0_usize, |total, view| {
+            total.checked_add(
+                view.group
+                    .tokens
+                    .len()
+                    .checked_sub(width)
+                    .map_or(0, |n| n + 1),
+            )
+        })
+    else {
+        return Ok(None);
+    };
+    let retained = windows_count.min(limit);
+    if retained == 0 {
+        return Ok(Some(Vec::new()));
+    }
+    // Twice the next power of two covers hash-table spare capacity and
+    // control bytes; the hit list is reserved once and never grows again.
+    let Some(slots) = retained
+        .checked_next_power_of_two()
+        .and_then(|n| n.checked_mul(2))
+    else {
+        return Ok(None);
+    };
+    let slot_bytes = std::mem::size_of::<(u64, Seed)>() + 1;
+    let Some(bytes) = slots.checked_mul(slot_bytes).and_then(|n| {
+        retained
+            .checked_mul(std::mem::size_of::<AnchorHit>())
+            .and_then(|hits| n.checked_add(hits))
+    }) else {
+        return Ok(None);
+    };
+    // Charge initialization and traversal before either allocation. Moving
+    // each retained entry out of the map is included in this allowance.
+    let setup = bytes.checked_add(retained.saturating_mul(2));
+    if bytes > MEMORY_LIMIT || setup.is_none_or(|n| !charge(remaining, n)) {
+        return Ok(None);
+    }
+    let mut seeds = HashMap::<u64, Seed>::new();
+    if seeds.try_reserve(retained).is_err() || seeds.capacity() > slots {
+        return Ok(None);
+    }
+    let mut hits = Vec::new();
+    if hits.try_reserve_exact(retained).is_err() || hits.capacity() > retained {
+        return Ok(None);
+    }
+    for side in views {
+        if !windows(side, width, remaining, |hash, _, work| {
+            if !charge(work, 1) {
+                return Ok(false);
+            }
+            if seeds.len() < retained {
+                seeds.entry(hash).or_default();
+            }
+            Ok(true)
+        })? {
+            return Ok(None);
+        }
+    }
+    for (side, side_views) in views.into_iter().enumerate() {
+        if !windows(side_views, width, remaining, |hash, occurrence, work| {
+            if !charge(work, 1) {
+                return Ok(false);
+            }
+            if let Some(seed) = seeds.get_mut(&hash) {
+                let summary = if side == 0 {
+                    &mut seed.old
+                } else {
+                    &mut seed.new
+                };
+                summary.count = summary.count.saturating_add(1).min(2);
+                summary.first.get_or_insert(occurrence);
+            }
+            Ok(true)
+        })? {
+            return Ok(None);
+        }
+    }
+    for seed in seeds.into_values() {
+        let (Some(old), Some(new)) = (unique_occurrence(seed.old), unique_occurrence(seed.new))
+        else {
+            continue;
+        };
+        let old_tokens = &views[0][old.view_index].group.tokens[old.start..old.end];
+        let new_tokens = &views[1][new.view_index].group.tokens[new.start..new.end];
+        let Some(equal) = super::super::tokens_equal_with_budget(old_tokens, new_tokens, remaining)
+        else {
+            return Ok(None);
+        };
+        if equal {
+            hits.push(AnchorHit {
+                input_index: usize::MAX,
+                old_view: old.view_index,
+                new_view: new.view_index,
+                old_start: old.start,
+                old_end: old.end,
+                new_start: new.start,
+                new_end: new.end,
+            });
+        }
+    }
+    // Insertion sorting has a deterministic pair-count bound. Reserve every
+    // possible comparison and fixed-size swap before starting; the recorded
+    // work stays independent of randomized hash-table iteration order.
+    let sort_cost = hits
+        .len()
+        .checked_mul(hits.len().saturating_sub(1))
+        .and_then(|n| n.checked_mul(10));
+    if sort_cost.is_none_or(|cost| !charge(remaining, cost)) {
+        return Ok(None);
+    }
+    let key = |hit: &AnchorHit| (hit.old_view, hit.new_view, hit.old_start, hit.new_start);
+    for i in 1..hits.len() {
+        let mut j = i;
+        while j > 0 && key(&hits[j - 1]) > key(&hits[j]) {
+            hits.swap(j - 1, j);
+            j -= 1;
+        }
+    }
+    Ok(Some(hits))
+}
+
 fn token_hash(token: &ComparableToken) -> u64 {
     let mut hash = DefaultHasher::new();
     token.hash(&mut hash);

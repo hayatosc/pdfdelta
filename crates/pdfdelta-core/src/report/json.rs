@@ -497,6 +497,12 @@ struct JsonAssessmentWork {
     local_views: usize,
     localization: usize,
     emission: usize,
+    #[serde(skip_serializing_if = "is_zero_work")]
+    deferred_anchors: usize,
+}
+
+fn is_zero_work(work: &usize) -> bool {
+    *work == 0
 }
 
 impl From<crate::diff::AssessmentWork> for JsonAssessmentWork {
@@ -506,6 +512,7 @@ impl From<crate::diff::AssessmentWork> for JsonAssessmentWork {
             local_views: work.local_views,
             localization: work.localization,
             emission: work.emission,
+            deferred_anchors: work.deferred_anchors,
         }
     }
 }
