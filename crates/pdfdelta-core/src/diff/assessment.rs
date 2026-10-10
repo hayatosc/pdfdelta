@@ -5,6 +5,7 @@
 //! the pair belongs to the same source-backed comparison domain.
 
 mod claims;
+mod closed_child;
 mod document_claims;
 mod equal_fragment;
 mod exact;
@@ -149,6 +150,12 @@ pub enum ComparisonAssumption {
     /// correspondence only: it neither fixes individual edits nor grants any
     /// token or glyph ownership.
     MandatoryMatchingBoundaries,
+    /// The first complete physical source component inherits the exact
+    /// parent domain's start. Two consecutive mandatory pairs immediately
+    /// after its end fix the right cut on every optimal path. Original full
+    /// parent and component source guards both pass. This establishes closure
+    /// without resolving the component's edit locations or granting ownership.
+    MandatoryInitialComponentBoundary,
     /// The candidate sits still and is proven by an independently
     /// established stationary neighbour correspondence; raw coordinates are
     /// never used to adopt the move.
@@ -3981,6 +3988,21 @@ pub(super) fn finish(
             partitions: [&mut old_resolution, &mut new_resolution],
             unresolved: &mut comparison.unresolved_regions,
         },
+        options.max_assessment_ranges,
+    )? {
+        comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
+        comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
+    }
+    if assessor.recover_source_closed_initial_children(
+        &mut ownership,
+        &comparison.change_candidates,
+        &comparison.proven_changed_regions,
+        local::CoupledPublication {
+            domains: &reviewed.domains,
+            partitions: [&mut old_resolution, &mut new_resolution],
+            unresolved: &mut comparison.unresolved_regions,
+        },
+        reviewed.domains.capacity(),
         options.max_assessment_ranges,
     )? {
         comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);

@@ -741,6 +741,9 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::ExactTextDisplacement => "exact_text_displacement",
         ComparisonAssumption::RigidSuffixTranslation => "rigid_suffix_translation",
         ComparisonAssumption::MandatoryMatchingEquality => "mandatory_matching_equality",
+        ComparisonAssumption::MandatoryInitialComponentBoundary => {
+            "mandatory_initial_component_boundary"
+        }
         ComparisonAssumption::PageShiftedMandatoryMatchingEquality => {
             "page_shifted_mandatory_matching_equality"
         }

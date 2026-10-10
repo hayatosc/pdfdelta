@@ -2171,7 +2171,7 @@ impl Assessor<'_, '_> {
     /// Partial regions, extraction gaps and normalization issues keep the whole
     /// parent held. Every projection, comparison, mark and later retain move is
     /// paid before it occurs; surviving diagnostics are never regenerated.
-    fn coupled_region_removals(
+    pub(super) fn coupled_region_removals(
         &mut self,
         regions: &[super::UnresolvedRegion],
         accepted: &[Vec<SourceInterval>; 2],
@@ -2741,7 +2741,7 @@ fn separator_order(separator: BlockSeparator) -> (u8, u8, u8) {
 /// changed states and partial coverage refuse publication. Only adjacent equal
 /// ranges touched by this adoption may merge; other ranges remain byte-for-byte
 /// data equivalent. The caller prepays every scan, copy and capacity slot.
-fn coupled_partition(
+pub(super) fn coupled_partition(
     source: &[super::ResolutionRange],
     side: &Side<'_>,
     accepted: &[SourceInterval],
