@@ -266,16 +266,20 @@ impl Assessor<'_, '_> {
                         tokens[side],
                         &mut self.remaining_work,
                     )?
-                    || !coarse_source_guard(
-                        self.sides[side],
-                        [&old_component, &new_component][side],
-                        &tokens[side][..cuts[side]],
-                        &mut self.remaining_work,
-                    )?
+                    || !self.charge(cuts[side])
+                    || !tokens[side][..cuts[side]].iter().any(
+                        |token| matches!(token, ComparableToken::Scalar(c) if !c.is_whitespace()),
+                    )
                 {
                     source_closed = false;
                     break;
                 }
+                // The exact whole parent projects its first block with the
+                // same whole-component cuts. Its source guard has checked all
+                // these nonspace glyphs, including their unique literal raw
+                // counterparts across the entire side. The literal prefix
+                // and nonspace check above therefore supply every component
+                // source obligation without a second document-wide scan.
             }
             if !source_closed {
                 continue;
@@ -567,6 +571,68 @@ mod tests {
             line_breaks: Some(Vec::new()),
             page_breaks: Some(Vec::new()),
         }
+    }
+
+    #[test]
+    fn whole_parent_source_guard_implies_its_nonspace_initial_component() -> Result<()> {
+        let mut certified = 0;
+        let mut held = 0;
+        for text in ["A雪 B", " ", "\t", "", "Q"] {
+            for mutation in 0..7 {
+                let mut blocks = [block(1, text), block(2, "xy")];
+                if let Some(first) = blocks[0].canonical.source_map.first().cloned() {
+                    match mutation {
+                        1 => blocks[0].raw.text = "mismatch".into(),
+                        2 => blocks[1].raw.source_map[0].source = first.source,
+                        3 => blocks[1].canonical.source_map[0].source = first.source,
+                        4 => blocks[0].canonical.source_map[0].output_range.end = 2,
+                        5 => {
+                            blocks[0].raw.source_map[0].source.atoms = vec![
+                                TextSourceAtom::Glyph(GlyphId(1001)),
+                                TextSourceAtom::Glyph(GlyphId(1001)),
+                            ]
+                            .into();
+                        }
+                        // A defect in an unrelated glyph need not veto the
+                        // parent's selected literal component.
+                        6 => blocks[1].raw.source_map[1].output_range.end = 3,
+                        _ => {}
+                    }
+                }
+                let side = super::super::super::SidePlan::inspect("source implication", &blocks)?
+                    .materialize()?;
+                let group =
+                    side.canonical_group(&[BlockId(1), BlockId(2)], Some(BlockSeparator::Space));
+                let tokens = group.tokens.iter().collect::<Vec<_>>();
+                let mut parent_work = 32_000_000;
+                let parent =
+                    coarse_source_guard(&side, &group.full_span(), &tokens, &mut parent_work)?;
+                let Some(component) = component_span(&side, 0) else {
+                    held += 1;
+                    continue;
+                };
+                let prefix = &tokens[..side.canonical[0].len()];
+                let has_nonspace = prefix
+                    .iter()
+                    .any(|token| matches!(token, ComparableToken::Scalar(c) if !c.is_whitespace()));
+                let mut component_work = 32_000_000;
+                let original = coarse_source_guard(&side, &component, prefix, &mut component_work)?;
+                if parent && has_nonspace {
+                    assert!(
+                        original,
+                        "parent must entail its component: {text:?}/{mutation}"
+                    );
+                    certified += 1;
+                } else {
+                    held += 1;
+                }
+                if !has_nonspace {
+                    assert!(!original, "a whitespace-only component retains its veto");
+                }
+            }
+        }
+        assert!(certified > 0 && held > 0);
+        Ok(())
     }
 
     #[derive(Clone, Copy, Debug)]
