@@ -10,6 +10,9 @@ use crate::{
     pdf::{ObjectRef, ParsedPdf, PdfDict, PdfObject},
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn annotation(
     pdf: &dyn ParsedPdf,
     entry: &PdfDict,
@@ -23,7 +26,12 @@ pub(super) fn annotation(
     };
     let object = pdf.terminal_reference(*reference)?;
     let (target, _) = dictionary(pdf, PdfObject::Reference(object))?;
-    if !matches!(target.get(b"Type".as_slice()), Some(PdfObject::Name(kind)) if kind == b"Annot")
+    let annotation_type = match target.get(b"Type".as_slice()) {
+        Some(PdfObject::Name(kind)) => kind == b"Annot",
+        None => link_without_type(&target),
+        Some(_) => false,
+    };
+    if !annotation_type
         || !matches!(target.get(b"Subtype".as_slice()), Some(PdfObject::Name(_)))
         || target.contains_key(b"StructParents".as_slice())
     {
@@ -37,6 +45,21 @@ pub(super) fn annotation(
         ));
     }
     Ok((object, page))
+}
+
+/// Acquires the observed link shape when its optional object type is absent.
+///
+/// A known subtype and a direct finite rectangle distinguish this narrow
+/// annotation shape from unsupported object references. Acquisition keeps the
+/// object as a non-glyph barrier; semantic binding remains unproved.
+fn link_without_type(target: &PdfDict) -> bool {
+    matches!(target.get(b"Subtype".as_slice()), Some(PdfObject::Name(kind)) if kind == b"Link")
+        && matches!(target.get(b"Rect".as_slice()), Some(PdfObject::Array(coordinates))
+        if coordinates.len() == 4 && coordinates.iter().all(|coordinate| match coordinate {
+            PdfObject::Integer(_) => true,
+            PdfObject::Real(value) => value.is_finite(),
+            _ => false,
+        }))
 }
 
 enum ParentValue {
