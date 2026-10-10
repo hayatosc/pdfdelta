@@ -75,7 +75,7 @@
 //! [`EqualFragmentCache`] borrows the two immutable sides for one assessment
 //! and stores only selection-independent results: the document-wide glyph
 //! sharing index of each side, the structural validity of every normalization
-//! event and the checked issue projection of every block. Selection-dependent
+//! event, the checked issue projection and the complete scalar/count metadata of every block. Selection-dependent
 //! checks always run per call, nothing is stored before its charge is paid and
 //! its build completed, and an entry can never be used for another side, block
 //! or comparison. The proof is connected from a deferred tail pass: the local
@@ -214,10 +214,25 @@ impl SharingIndex {
 /// Selection-independent cached evidence of one block.
 #[derive(Default)]
 struct BlockCache {
+    /// Complete selection-independent scalar counts and issue cost estimate.
+    /// This contains no source, position, correspondence or boundary verdict.
+    boundary_metadata: Option<BoundaryMetadata>,
     /// Structural validity per normalization event, `None` before validation.
     events: Option<Vec<Option<bool>>>,
     /// The checked issue projection of the block.
     issues: Option<CachedIssueRanges>,
+}
+
+/// Counts bound to this cache's immutable side and block.
+///
+/// Raw scalar counting and source-atom estimation scan the whole block once.
+/// Reuse skips those actual scans only; every selected glyph, normalization
+/// event, issue-range overlap and physical source check still runs normally.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BoundaryMetadata {
+    raw_count: usize,
+    scalar_count: usize,
+    projection_cost: usize,
 }
 
 /// The exact result of one checked issue-range validation.
@@ -807,6 +822,112 @@ impl<'a> EqualFragmentCache<'a> {
     ) -> Check<()> {
         let side = self.sides[side_index];
         let block = &side.blocks[block_index];
+        let BoundaryMetadata {
+            raw_count,
+            scalar_count,
+            projection_cost,
+        } = self.boundary_metadata(side_index, block_index, remaining)?;
+        let mut selected = HashSet::new();
+        if !charge(remaining, selection.glyphs.len()) {
+            return Err(Stop::Exhausted);
+        }
+        selected
+            .try_reserve(selection.glyphs.len())
+            .map_err(|_| allocation_error("equal fragment event selection"))?;
+        for glyph in selection.glyphs {
+            selected.insert(*glyph);
+        }
+        let bounds = selection.bounds;
+        for (event_index, event) in block.normalization_events.iter().enumerate() {
+            if !charge(remaining, 1 + event.source.atoms.len()) {
+                return Err(Stop::Exhausted);
+            }
+            if !selection.admitted_events.is_empty() {
+                if !charge(remaining, selection.admitted_events.len()) {
+                    return Err(Stop::Exhausted);
+                }
+                if selection.admitted_events.contains(&event_index) {
+                    continue;
+                }
+            }
+            if event_touches_selection(event, &selected, bounds) {
+                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+            }
+        }
+        for event_index in 0..block.normalization_events.len() {
+            if !self.event_structure(
+                side_index,
+                block_index,
+                event_index,
+                raw_count,
+                scalar_count,
+                remaining,
+            )? {
+                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+            }
+        }
+        if !charge(remaining, 1 + block.issues.len()) {
+            return Err(Stop::Exhausted);
+        }
+        match self.checked_issue_ranges(side_index, block_index, projection_cost, remaining)? {
+            CachedIssueRanges::Invalid => {
+                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+            }
+            CachedIssueRanges::Ranges(ranges) => {
+                for (issue, range) in block.issues.iter().zip(ranges) {
+                    if !charge(remaining, 1 + issue.source.atoms.len()) {
+                        return Err(Stop::Exhausted);
+                    }
+                    if range_overlaps(issue.raw_range, bounds.raw_first, bounds.raw_last)
+                        || range_overlaps(*range, bounds.scalar_first, bounds.scalar_last)
+                    {
+                        return Err(Stop::Held(FragmentHold::NormalizationBoundary));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Reuses only a completed block-wide count and estimation scan.
+    ///
+    /// Lookup, table creation and result storage are prepaid and fallible.
+    /// A refused scan or store leaves no partial entry. The immutable side
+    /// borrow and this cache's side/block indices prevent cross-source reuse.
+    /// Selection-dependent checks and their order remain in the caller.
+    fn boundary_metadata(
+        &mut self,
+        side_index: usize,
+        block_index: usize,
+        remaining: &mut usize,
+    ) -> Check<BoundaryMetadata> {
+        if !charge(remaining, 3) {
+            return Err(Stop::Exhausted);
+        }
+        if let Some(metadata) = self
+            .block_cache(side_index, block_index, remaining)?
+            .boundary_metadata
+        {
+            return Ok(metadata);
+        }
+        let metadata = self.boundary_metadata_uncached(side_index, block_index, remaining)?;
+        if !charge(remaining, 3) {
+            return Err(Stop::Exhausted);
+        }
+        self.block_cache(side_index, block_index, remaining)?
+            .boundary_metadata = Some(metadata);
+        Ok(metadata)
+    }
+
+    /// Pays for and executes the unchanged whole-block metadata scans.
+    fn boundary_metadata_uncached(
+        &self,
+        side_index: usize,
+        block_index: usize,
+        remaining: &mut usize,
+    ) -> Check<BoundaryMetadata> {
+        let side = self.sides[side_index];
+        let block = &side.blocks[block_index];
         // The text scan and the estimation scan are charged before they run.
         if !charge(remaining, block.raw.text.len().saturating_add(1)) {
             return Err(Stop::Exhausted);
@@ -898,66 +1019,11 @@ impl<'a> EqualFragmentCache<'a> {
             );
         let projection_cost = validation_cost
             .saturating_add(per_issue.saturating_mul(block.issues.len().saturating_add(1)));
-        let mut selected = HashSet::new();
-        if !charge(remaining, selection.glyphs.len()) {
-            return Err(Stop::Exhausted);
-        }
-        selected
-            .try_reserve(selection.glyphs.len())
-            .map_err(|_| allocation_error("equal fragment event selection"))?;
-        for glyph in selection.glyphs {
-            selected.insert(*glyph);
-        }
-        let bounds = selection.bounds;
-        for (event_index, event) in block.normalization_events.iter().enumerate() {
-            if !charge(remaining, 1 + event.source.atoms.len()) {
-                return Err(Stop::Exhausted);
-            }
-            if !selection.admitted_events.is_empty() {
-                if !charge(remaining, selection.admitted_events.len()) {
-                    return Err(Stop::Exhausted);
-                }
-                if selection.admitted_events.contains(&event_index) {
-                    continue;
-                }
-            }
-            if event_touches_selection(event, &selected, bounds) {
-                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
-            }
-        }
-        for event_index in 0..block.normalization_events.len() {
-            if !self.event_structure(
-                side_index,
-                block_index,
-                event_index,
-                raw_count,
-                scalar_count,
-                remaining,
-            )? {
-                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
-            }
-        }
-        if !charge(remaining, 1 + block.issues.len()) {
-            return Err(Stop::Exhausted);
-        }
-        match self.checked_issue_ranges(side_index, block_index, projection_cost, remaining)? {
-            CachedIssueRanges::Invalid => {
-                return Err(Stop::Held(FragmentHold::NormalizationBoundary));
-            }
-            CachedIssueRanges::Ranges(ranges) => {
-                for (issue, range) in block.issues.iter().zip(ranges) {
-                    if !charge(remaining, 1 + issue.source.atoms.len()) {
-                        return Err(Stop::Exhausted);
-                    }
-                    if range_overlaps(issue.raw_range, bounds.raw_first, bounds.raw_last)
-                        || range_overlaps(*range, bounds.scalar_first, bounds.scalar_last)
-                    {
-                        return Err(Stop::Held(FragmentHold::NormalizationBoundary));
-                    }
-                }
-            }
-        }
-        Ok(())
+        Ok(BoundaryMetadata {
+            raw_count,
+            scalar_count,
+            projection_cost,
+        })
     }
 
     /// Checks the selected raw run: contiguous and literal-equal.
@@ -4520,5 +4586,93 @@ mod tests {
             FragmentVerdict::Proven
         );
         assert_eq!(enough, 0);
+    }
+    #[test]
+    fn boundary_metadata_cache_keeps_complete_block_counts_and_paid_hits() {
+        let old = [
+            positioned_block(1, "A雪BC", 0.0, 0.0, 0),
+            collapsed_block(2, 0.0, 10.0),
+        ];
+        let new = [
+            deleted_break_block(3, 0.0, 0.0),
+            positioned_block(4, "xyz", 0.0, 10.0, 0),
+        ];
+        let sides = [side(&old), side(&new)];
+        let mut cache = EqualFragmentCache::new([&sides[0], &sides[1]]);
+        for which in 0..2 {
+            for block_index in 0..2 {
+                let Ok(expected) =
+                    cache.boundary_metadata_uncached(which, block_index, &mut 10_000)
+                else {
+                    panic!("fixture metadata must complete");
+                };
+                let mut cold = 10_000;
+                let Ok(first) = cache.boundary_metadata(which, block_index, &mut cold) else {
+                    panic!("first metadata must complete");
+                };
+                assert_eq!(first, expected);
+                assert!(cold < 9_997);
+                for low in 0..3 {
+                    assert!(matches!(
+                        cache.boundary_metadata(which, block_index, &mut low.clone()),
+                        Err(Stop::Exhausted)
+                    ));
+                }
+                let mut hit = 3;
+                let Ok(second) = cache.boundary_metadata(which, block_index, &mut hit) else {
+                    panic!("paid cache hit must complete");
+                };
+                assert_eq!(second, expected);
+                assert_eq!(hit, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn boundary_metadata_refuses_every_partial_build_and_keeps_boundary_vetoes() {
+        let blocks = [deleted_break_block(1, 0.0, 0.0)];
+        let sides = [side(&blocks), side(&blocks)];
+        let mut complete = EqualFragmentCache::new([&sides[0], &sides[1]]);
+        let mut remaining = 10_000;
+        assert!(complete.boundary_metadata(0, 0, &mut remaining).is_ok());
+        let required = 10_000 - remaining;
+        for limit in 0..required {
+            let mut cache = EqualFragmentCache::new([&sides[0], &sides[1]]);
+            assert!(matches!(
+                cache.boundary_metadata(0, 0, &mut limit.clone()),
+                Err(Stop::Exhausted)
+            ));
+            assert!(
+                cache.blocks[0]
+                    .first()
+                    .is_none_or(|block| block.boundary_metadata.is_none())
+            );
+            assert!(cache.boundary_metadata(0, 0, &mut 10_000).is_ok());
+        }
+        let clean = fragment(1, 0, 1);
+        assert_eq!(
+            complete
+                .prove([&clean, &clean], &mut 100_000)
+                .expect("clean prefix"),
+            FragmentVerdict::Proven
+        );
+        let touching = fragment(1, 0, 2);
+        assert_eq!(
+            complete
+                .prove([&touching, &touching], &mut 100_000)
+                .expect("touching event"),
+            FragmentVerdict::Held(FragmentHold::NormalizationBoundary)
+        );
+        let collapsed = [collapsed_block(1, 0.0, 0.0)];
+        let collapsed_sides = [side(&collapsed), side(&collapsed)];
+        let mut complete = EqualFragmentCache::new([&collapsed_sides[0], &collapsed_sides[1]]);
+        assert!(complete.boundary_metadata(0, 0, &mut 10_000).is_ok());
+        let ambiguous_source = fragment(1, 2, 3);
+        assert_eq!(
+            complete
+                .prove([&ambiguous_source, &ambiguous_source], &mut 100_000)
+                .expect("multi-atom source"),
+            FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
     }
 }
