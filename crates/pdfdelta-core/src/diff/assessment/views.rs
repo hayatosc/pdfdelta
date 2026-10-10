@@ -6355,6 +6355,86 @@ mod tests {
     }
 
     #[test]
+    fn deferred_compact_seeds_match_complete_literal_occurrence_oracle() -> Result<()> {
+        for (old, new) in [
+            (vec!["abc", "aba"], vec!["xabc", "zaba"]),
+            (vec!["abac"], vec!["cadaba"]),
+            (vec!["xABCDEFGHIJKLMNOPy"], vec!["zzABCDEFGHIJKLMNOPw"]),
+            (
+                vec!["xABCDEFGHIJKLMNOPy", "qABCDEFGHIJKLMNOPr"],
+                vec!["zzABCDEFGHIJKLMNOPw"],
+            ),
+        ] {
+            let vv = deferred_seed_fixture(&old, &new)?;
+            for width in [1, 2, 16] {
+                let mut expected = Vec::new();
+                for (old_view, view) in vv[0].iter().enumerate() {
+                    for (old_start, needle) in view.group.tokens.windows(width).enumerate() {
+                        let occurrences = |side: usize| {
+                            vv[side]
+                                .iter()
+                                .enumerate()
+                                .flat_map(|(index, v)| {
+                                    v.group.tokens.windows(width).enumerate().filter_map(
+                                        move |(start, candidate)| {
+                                            (candidate == needle).then_some((index, start))
+                                        },
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        };
+                        let old_matches = occurrences(0);
+                        let new_matches = occurrences(1);
+                        if old_matches.len() == 1 && new_matches.len() == 1 {
+                            let (new_view, new_start) = new_matches[0];
+                            expected.push((
+                                old_view,
+                                new_view,
+                                old_start,
+                                new_start,
+                                old_start + width,
+                                new_start + width,
+                            ));
+                        }
+                    }
+                }
+                expected.sort_unstable();
+                let mut work = 1_000_000;
+                let hits = anchors::discover_all_starts([&vv[0], &vv[1]], width, &mut work, 100)?
+                    .expect("small complete search fits the original budget");
+                let actual = hits
+                    .iter()
+                    .map(|h| {
+                        (
+                            h.old_view,
+                            h.new_view,
+                            h.old_start,
+                            h.new_start,
+                            h.old_end,
+                            h.new_end,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deferred_compact_retention_still_counts_later_unretained_views() -> Result<()> {
+        let vv = deferred_seed_fixture(&["aB"], &["aC", "Qa"])?;
+        let mut work = 1_000_000;
+        assert!(
+            anchors::discover_all_starts([&vv[0], &vv[1]], 1, &mut work, 1)?
+                .expect("bounded duplicate search completes")
+                .is_empty(),
+            "the second a refutes uniqueness even after the index is full"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn deferred_all_starts_keeps_original_width_and_final_equality() -> Result<()> {
         let vv = deferred_seed_fixture(&["xABCDEFGHIJKLMNOPy"], &["zzABCDEFGHIJKLMNOPw"])?;
         let mut sampled = 1_000_000;

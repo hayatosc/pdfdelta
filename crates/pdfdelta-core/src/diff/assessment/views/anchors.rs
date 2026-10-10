@@ -12,6 +12,40 @@ struct Seed {
     new: OccurrenceSummary,
 }
 
+/// The deferred search has one fixed width, so each end is implicit. A zero
+/// count marks an absent occurrence without an additional optional payload.
+#[derive(Default)]
+struct DeferredOccurrence {
+    view_index: usize,
+    start: usize,
+    count: u8,
+}
+
+impl DeferredOccurrence {
+    fn observe(&mut self, occurrence: Occurrence) {
+        if self.count == 0 {
+            self.view_index = occurrence.view_index;
+            self.start = occurrence.start;
+        }
+        self.count = self.count.saturating_add(1).min(2);
+    }
+
+    fn unique(self, width: usize) -> Option<Occurrence> {
+        (self.count == 1).then(|| Occurrence {
+            view_index: self.view_index,
+            start: self.start,
+            // Every start was checked by the unchanged rolling-window scan.
+            end: self.start + width,
+        })
+    }
+}
+
+#[derive(Default)]
+struct DeferredSeed {
+    old: DeferredOccurrence,
+    new: DeferredOccurrence,
+}
+
 /// Samples bounded anchor candidates, then counts every occurrence of each
 /// retained fingerprint on both sides. Fingerprints never establish equality:
 /// collisions either reject a candidate or fail the final token comparison.
@@ -113,29 +147,37 @@ pub(super) fn discover_all_starts(
     if retained == 0 {
         return Ok(Some(Vec::new()));
     }
-    // Twice the next power of two covers hash-table spare capacity and
-    // control bytes; the hit list is reserved once and never grows again.
+    // Twice the next power of two, including the table's minimum allocation,
+    // covers spare capacity and control bytes. The hit list never grows again.
     let Some(slots) = retained
         .checked_next_power_of_two()
         .and_then(|n| n.checked_mul(2))
+        .map(|n| n.max(4))
     else {
         return Ok(None);
     };
-    let slot_bytes = std::mem::size_of::<(u64, Seed)>() + 1;
-    let Some(bytes) = slots.checked_mul(slot_bytes).and_then(|n| {
-        retained
-            .checked_mul(std::mem::size_of::<AnchorHit>())
-            .and_then(|hits| n.checked_add(hits))
-    }) else {
+    let slot_bytes = std::mem::size_of::<(u64, DeferredSeed)>() + 1;
+    // Keep conservative control-tail, alignment and allocator headroom for
+    // both allocations, including tables smaller than a SIMD control group.
+    let Some(bytes) = slots
+        .checked_mul(slot_bytes)
+        .and_then(|n| n.checked_add(256))
+        .and_then(|n| {
+            retained
+                .checked_mul(std::mem::size_of::<AnchorHit>())
+                .and_then(|hits| n.checked_add(hits))
+        })
+    else {
         return Ok(None);
     };
     // Charge initialization and traversal before either allocation. Moving
-    // each retained entry out of the map is included in this allowance.
-    let setup = bytes.checked_add(retained.saturating_mul(2));
+    // each retained entry out of the map and reconstructing its two implicit
+    // ends are included in this allowance.
+    let setup = bytes.checked_add(retained.saturating_mul(6));
     if bytes > MEMORY_LIMIT || setup.is_none_or(|n| !charge(remaining, n)) {
         return Ok(None);
     }
-    let mut seeds = HashMap::<u64, Seed>::new();
+    let mut seeds = HashMap::<u64, DeferredSeed>::new();
     if seeds.try_reserve(retained).is_err() || seeds.capacity() > slots {
         return Ok(None);
     }
@@ -167,8 +209,10 @@ pub(super) fn discover_all_starts(
                 } else {
                     &mut seed.new
                 };
-                summary.count = summary.count.saturating_add(1).min(2);
-                summary.first.get_or_insert(occurrence);
+                if !charge(work, 3) {
+                    return Ok(false);
+                }
+                summary.observe(occurrence);
             }
             Ok(true)
         })? {
@@ -176,8 +220,7 @@ pub(super) fn discover_all_starts(
         }
     }
     for seed in seeds.into_values() {
-        let (Some(old), Some(new)) = (unique_occurrence(seed.old), unique_occurrence(seed.new))
-        else {
+        let (Some(old), Some(new)) = (seed.old.unique(width), seed.new.unique(width)) else {
             continue;
         };
         let old_tokens = &views[0][old.view_index].group.tokens[old.start..old.end];
