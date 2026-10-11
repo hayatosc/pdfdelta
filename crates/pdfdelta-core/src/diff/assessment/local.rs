@@ -33,11 +33,17 @@ pub(super) struct CoupledPublication<'a> {
     pub(super) unresolved: &'a mut Vec<super::UnresolvedRegion>,
 }
 
+struct CoupledContextPublication<'a> {
+    domains: &'a [(super::DomainKey, super::DomainProof)],
+    partitions: [&'a mut Vec<super::ResolutionRange>; 2],
+    unresolved: &'a mut dyn super::context_projection::CoupledContext,
+}
+
 /// The proof used after the common whole-parent ownership vetoes.
 enum EqualFragmentProof<'a> {
     Contiguous,
     InternalDeletedBreak,
-    CoupledParent(CoupledPublication<'a>),
+    CoupledParent(CoupledContextPublication<'a>),
 }
 
 /// Outcome of processing one local domain during recovery.
@@ -1798,6 +1804,27 @@ impl Assessor<'_, '_> {
         {
             return Ok(false);
         }
+        let context_peak = publication.partitions[0]
+            .capacity()
+            .saturating_add(publication.partitions[1].capacity())
+            .saturating_add(publication.partitions[0].len())
+            .saturating_add(publication.partitions[1].len())
+            .saturating_mul(std::mem::size_of::<super::ResolutionRange>())
+            .saturating_add(publication.unresolved.len());
+        let Some(mut scoped_context) = super::context_projection::ContextProjections::new(
+            publication.unresolved,
+            self.sides,
+            (64usize * 1024 * 1024).saturating_sub(context_peak),
+            &mut self.remaining_work,
+        )?
+        else {
+            return Ok(false);
+        };
+        let publication = CoupledContextPublication {
+            domains: publication.domains,
+            partitions: publication.partitions,
+            unresolved: &mut scoped_context,
+        };
         let count = self.records.len();
         let setup = publication.partitions[0]
             .len()
@@ -1813,6 +1840,7 @@ impl Assessor<'_, '_> {
         let [old_partition, new_partition] = publication.partitions;
         let regions = publication.unresolved;
         let mut adopted = false;
+        let mut nominated = false;
         for relation in 0..count {
             let record = &self.records[relation];
             if record.outcome != RelationOutcome::Established
@@ -1836,18 +1864,158 @@ impl Assessor<'_, '_> {
                 proven,
                 limit,
                 relation,
-                EqualFragmentProof::CoupledParent(CoupledPublication {
+                EqualFragmentProof::CoupledParent(CoupledContextPublication {
                     domains,
                     partitions: [&mut *old_partition, &mut *new_partition],
                     unresolved: &mut *regions,
                 }),
             )? {
-                EqualFragmentRetry::Adopted => adopted = true,
+                EqualFragmentRetry::Adopted => {
+                    adopted = true;
+                    if !nominated {
+                        nominated = true;
+                        if let Some(prefixes) = &mut self.global_prefixes
+                            && let Some(nomination) = prefixes.nominate(&mut self.remaining_work)?
+                        {
+                            if !self.charge(count.saturating_mul(8).saturating_add(64)) {
+                                return Ok(adopted);
+                            }
+                            let relation = self.records[..count].iter().position(|record| {
+                                record.outcome == RelationOutcome::Established
+                                    && record.search == SearchCompleteness::Complete
+                                    && record.reasons.is_empty()
+                                    && record.parent.is_some()
+                                    && record
+                                        .old_span
+                                        .as_ref()
+                                        .is_some_and(|span| span == &nomination.old_span)
+                                    && record
+                                        .new_span
+                                        .as_ref()
+                                        .is_some_and(|span| span == &nomination.new_span)
+                            });
+                            if let Some(relation) = relation {
+                                match self.retry_global_extension(
+                                    ownership,
+                                    candidates,
+                                    proven,
+                                    CoupledContextPublication {
+                                        domains,
+                                        partitions: [&mut *old_partition, &mut *new_partition],
+                                        unresolved: &mut *regions,
+                                    },
+                                    limit,
+                                    relation,
+                                )? {
+                                    EqualFragmentRetry::Adopted => adopted = true,
+                                    EqualFragmentRetry::Stop => return Ok(adopted),
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
                 EqualFragmentRetry::Stop => break,
                 _ => {}
             }
         }
         Ok(adopted)
+    }
+
+    /// A held original prefix may nominate a new exact domain using its actual
+    /// completed seed. All current vetoes and unsplit publication still apply.
+    fn retry_global_extension(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        candidates: &[ChangeCandidate],
+        proven: &[ProvenChangedRegion],
+        publication: CoupledContextPublication<'_>,
+        limit: usize,
+        relation: usize,
+    ) -> Result<EqualFragmentRetry> {
+        let Some(recovery) = self.recovery else {
+            return Ok(EqualFragmentRetry::Held);
+        };
+        let Some(generation) = &self.global_generation else {
+            return Ok(EqualFragmentRetry::Held);
+        };
+        let Some(prefixes) = &mut self.global_prefixes else {
+            return Ok(EqualFragmentRetry::Held);
+        };
+        let (Some(old), Some(new)) = (
+            &self.records[relation].old_span,
+            &self.records[relation].new_span,
+        ) else {
+            return Ok(EqualFragmentRetry::Held);
+        };
+        let Some(extension) = prefixes.extension(
+            generation,
+            self.sides,
+            recovery,
+            [old, new],
+            self.options.max_assessment_ranges,
+            &mut self.remaining_work,
+        )?
+        else {
+            return Ok(if self.remaining_work == 0 {
+                EqualFragmentRetry::Stop
+            } else {
+                EqualFragmentRetry::Held
+            });
+        };
+        if self.output_stop.is_some()
+            || self.records.len().saturating_add(2) >= self.options.max_assessment_ranges
+        {
+            return Ok(EqualFragmentRetry::Held);
+        }
+        let spans = [&extension.domain.old_span, &extension.domain.new_span];
+        let identifiers = spans.iter().map(|span| span.blocks.len()).sum::<usize>();
+        let setup = self
+            .alignment
+            .spans
+            .len()
+            .saturating_mul(8)
+            .saturating_add(
+                self.sides
+                    .iter()
+                    .map(|side| side.blocks.len())
+                    .sum::<usize>()
+                    .saturating_mul(4),
+            )
+            .saturating_add(self.records.len().saturating_mul(2))
+            .saturating_add(identifiers.saturating_mul(64))
+            .saturating_add(128);
+        if !self.charge(setup) {
+            return Ok(EqualFragmentRetry::Stop);
+        }
+        // Reconstruct the original member sequence with exact retained cuts;
+        // the longer sequence must still be equal before it gains any parent.
+        match super::paid_extension_groups(self.sides, spans, &mut self.remaining_work) {
+            Ok(_) => {}
+            Err(super::MaterializationRefusal::Work) => return Ok(EqualFragmentRetry::Stop),
+            Err(_) => return Ok(EqualFragmentRetry::Held),
+        }
+        let span_indices = occurrence_indices(self.alignment, [Some(spans[0]), Some(spans[1])]);
+        let proposal = ProposedRelation {
+            old: Some(copy_span(spans[0])?),
+            new: Some(copy_span(spans[1])?),
+            span_indices,
+            exact_recovery: false,
+        };
+        self.active_global_extension = Some(extension);
+        let result = self.assess(&proposal);
+        self.active_global_extension = None;
+        let extended_relation = result?;
+        // This is a fresh child of a newly proved exact key. An old parent's
+        // strict uniqueness and physical receipt cannot authorize it.
+        self.retry_recorded_equal_fragment(
+            ownership,
+            candidates,
+            proven,
+            limit,
+            extended_relation,
+            EqualFragmentProof::CoupledParent(publication),
+        )
     }
 
     /// Retries one strict-closed recorded candidate with the contiguous proof
@@ -1893,7 +2061,7 @@ impl Assessor<'_, '_> {
         proven: &[ProvenChangedRegion],
         limit: usize,
         relation: usize,
-        proof: EqualFragmentProof<'_>,
+        mut proof: EqualFragmentProof<'_>,
     ) -> Result<EqualFragmentRetry> {
         if self.remaining_work == 0 || self.output_stop.is_some() {
             return Ok(EqualFragmentRetry::Stop);
@@ -2069,7 +2237,7 @@ impl Assessor<'_, '_> {
             }
         };
         let updated = if coupled {
-            let EqualFragmentProof::CoupledParent(context) = &proof else {
+            let EqualFragmentProof::CoupledParent(context) = &mut proof else {
                 return Ok(EqualFragmentRetry::Held);
             };
             let parts = &context.partitions;
@@ -2099,7 +2267,17 @@ impl Assessor<'_, '_> {
             if slots
                 .saturating_mul(std::mem::size_of::<super::ResolutionRange>())
                 .saturating_add(context.unresolved.len())
+                .saturating_add(context.unresolved.retained_bytes())
                 > bound
+            {
+                return Ok(EqualFragmentRetry::Held);
+            }
+            let context_peak = slots
+                .saturating_mul(std::mem::size_of::<super::ResolutionRange>())
+                .saturating_add(context.unresolved.len());
+            if !context
+                .unresolved
+                .limit_retained_bytes(bound.saturating_sub(context_peak))
             {
                 return Ok(EqualFragmentRetry::Held);
             }
@@ -2109,8 +2287,12 @@ impl Assessor<'_, '_> {
             let Some(new) = coupled_partition(parts[1], self.sides[1], &accepted[1], limit)? else {
                 return Ok(EqualFragmentRetry::Held);
             };
-            let Some(removed) =
-                self.coupled_region_removals(context.unresolved, &accepted, limit)?
+            let Some(removed) = context.unresolved.removals(
+                self.sides,
+                &accepted,
+                limit,
+                &mut self.remaining_work,
+            )?
             else {
                 return Ok(if self.remaining_work == 0 {
                     EqualFragmentRetry::Stop
@@ -2126,9 +2308,13 @@ impl Assessor<'_, '_> {
             if actual
                 .saturating_mul(std::mem::size_of::<super::ResolutionRange>())
                 .saturating_add(removed.capacity())
+                .saturating_add(context.unresolved.retained_bytes())
                 > bound
             {
                 return Ok(EqualFragmentRetry::Held);
+            }
+            if !context.unresolved.prepay_retain(&mut self.remaining_work) {
+                return Ok(EqualFragmentRetry::Stop);
             }
             self.records[relation]
                 .assumptions
@@ -2150,12 +2336,7 @@ impl Assessor<'_, '_> {
         {
             *context.partitions[0] = old;
             *context.partitions[1] = new;
-            let mut index = 0;
-            context.unresolved.retain(|_| {
-                let keep = !removed[index];
-                index += 1;
-                keep
-            });
+            context.unresolved.retain_removed(&removed);
         }
         self.records[relation].assumptions.push(if coupled {
             ComparisonAssumption::EqualFragmentCoupledSourcePositions
@@ -2291,8 +2472,23 @@ impl Assessor<'_, '_> {
         // all earlier consumers finish; never reconstruct or relax a proof.
         // The prepaid scan inspects relation identities, then checks the full
         // exact key only on the matching parent.
-        let Some((parent_key, proof)) = domains.iter().find(|(_, proof)| proof.relation == parent)
-        else {
+        let reviewed = domains
+            .iter()
+            .find(|(_, proof)| proof.relation == parent)
+            .map(|(key, proof)| (key, proof));
+        let retained = if reviewed.is_some() {
+            reviewed
+        } else {
+            // This second cache belongs to the current assessor. Only a new
+            // parent missing from the reviewed cache performs and pays this scan.
+            if !self.charge(self.domains.len().saturating_add(8)) {
+                return Ok(FragmentVerdict::Exhausted);
+            }
+            self.domains
+                .iter()
+                .find(|(_, proof)| proof.relation == parent)
+        };
+        let Some((parent_key, proof)) = retained else {
             return Ok(held);
         };
         if *parent_key != key {
@@ -8279,6 +8475,232 @@ mod tests {
             used: budget - remaining,
             regions,
         })
+    }
+
+    #[test]
+    fn context_projection_warm_receipts_keep_current_coverage_and_source_binding() -> Result<()> {
+        use super::super::context_projection::{ContextProjections, CoupledContext};
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        run_coupled_parent(
+            [&blocks[0], &blocks[1]],
+            1_000_000,
+            |a, _, _, _, regions| {
+                let mut complete = [Vec::new(), Vec::new()];
+                let region = &regions[0];
+                for (index, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+                    .into_iter()
+                    .enumerate()
+                {
+                    if let Some(span) = span {
+                        complete[index] =
+                            project(a.sides[index], span).expect("original full projection");
+                    }
+                }
+                let mut partial = complete.clone();
+                let first = partial
+                    .iter_mut()
+                    .flat_map(|side| side.iter_mut())
+                    .next()
+                    .expect("real source interval");
+                first.start = first.start.saturating_add(1).min(first.end);
+                let mut counter = 1_000_000;
+                let reference_complete = a
+                    .coupled_region_removals(regions, &complete, 1000)
+                    .expect("original current coverage");
+                let reference_partial = a
+                    .coupled_region_removals(regions, &partial, 1000)
+                    .expect("original partial coverage");
+                let mut cache =
+                    ContextProjections::new(regions, a.sides, 64 * 1024 * 1024, &mut counter)
+                        .expect("cache allocation")
+                        .expect("cache budget");
+                assert!(
+                    cache
+                        .removals(a.sides, &[Vec::new(), Vec::new()], 1000, &mut counter)
+                        .expect("warm full context")
+                        .is_some()
+                );
+                assert_eq!(
+                    cache
+                        .removals(a.sides, &complete, 1000, &mut counter)
+                        .expect("current complete coverage"),
+                    reference_complete
+                );
+                assert_eq!(
+                    cache
+                        .removals(a.sides, &partial, 1000, &mut counter)
+                        .expect("current partial veto"),
+                    reference_partial
+                );
+                let impostor = side(&blocks[0]);
+                let bytes = cache.retained_bytes();
+                assert!(
+                    cache
+                        .removals([&impostor, a.sides[1]], &complete, 1000, &mut counter)
+                        .expect("different immutable owner")
+                        .is_none()
+                );
+                assert_eq!(cache.retained_bytes(), bytes);
+            },
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn context_projection_removal_moves_receipts_with_their_original_spans() -> Result<()> {
+        use super::super::context_projection::{ContextProjections, CoupledContext};
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        run_coupled_parent(
+            [&blocks[0], &blocks[1]],
+            1_000_000,
+            |a, _, _, _, regions| {
+                let expected = regions[1..].to_vec();
+                let mut counter = 1_000_000;
+                let mut cache =
+                    ContextProjections::new(regions, a.sides, 64 * 1024 * 1024, &mut counter)
+                        .expect("cache allocation")
+                        .expect("cache budget");
+                assert!(
+                    cache
+                        .removals(a.sides, &[Vec::new(), Vec::new()], 1000, &mut counter)
+                        .expect("original receipt population")
+                        .is_some()
+                );
+                let mut removed = vec![false; cache.len()];
+                removed[0] = true;
+                assert!(cache.prepay_retain(&mut counter));
+                cache.retain_removed(&removed);
+                assert_eq!(cache.regions(), expected);
+                let mut accepted = [Vec::new(), Vec::new()];
+                for (index, span) in [
+                    cache.regions()[0].old_span.as_ref(),
+                    cache.regions()[0].new_span.as_ref(),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    if let Some(span) = span {
+                        accepted[index] = project(a.sides[index], span)
+                            .expect("current projection after removal");
+                    }
+                }
+                let original = a
+                    .coupled_region_removals(cache.regions(), &accepted, 1000)
+                    .expect("original predicate after removal");
+                assert_eq!(
+                    cache
+                        .removals(a.sides, &accepted, 1000, &mut counter)
+                        .expect("same current span associations"),
+                    original
+                );
+            },
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn context_projection_every_insufficient_warm_budget_keeps_diagnostics_unchanged() -> Result<()>
+    {
+        use super::super::context_projection::{ContextProjections, CoupledContext};
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        run_coupled_parent(
+            [&blocks[0], &blocks[1]],
+            1_000_000,
+            |a, _, _, _, regions| {
+                let original = regions.clone();
+                let mut counter = 1_000_000;
+                let mut cache =
+                    ContextProjections::new(regions, a.sides, 64 * 1024 * 1024, &mut counter)
+                        .expect("cache allocation")
+                        .expect("cache budget");
+                let empty = [Vec::new(), Vec::new()];
+                assert!(
+                    cache
+                        .removals(a.sides, &empty, 1000, &mut counter)
+                        .expect("populate completed receipts")
+                        .is_some()
+                );
+                let mut measured = 1_000_000;
+                assert!(
+                    cache
+                        .removals(a.sides, &empty, 1000, &mut measured)
+                        .expect("complete warm query")
+                        .is_some()
+                );
+                let work = 1_000_000 - measured;
+                assert!(work > 0);
+                for budget in 0..work {
+                    assert!(
+                        cache
+                            .removals(a.sides, &empty, 1000, &mut { budget })
+                            .expect("bounded warm query")
+                            .is_none()
+                    );
+                    assert_eq!(cache.regions(), original);
+                }
+                assert!(
+                    cache
+                        .removals(a.sides, &empty, 1000, &mut { work })
+                        .expect("exact budget")
+                        .is_some()
+                );
+            },
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn context_projection_capacity_and_evidence_vetoes_survive_retention() -> Result<()> {
+        use super::super::context_projection::{ContextProjections, CoupledContext};
+        let blocks = [coupled_blocks(0), coupled_blocks(100)];
+        run_coupled_parent(
+            [&blocks[0], &blocks[1]],
+            1_000_000,
+            |a, _, _, _, regions| {
+                let mut counter = 1_000_000;
+                assert!(
+                    ContextProjections::new(regions, a.sides, 0, &mut counter)
+                        .expect("zero capacity refusal")
+                        .is_none()
+                );
+                assert_eq!(counter, 1_000_000);
+                let mut accepted = [Vec::new(), Vec::new()];
+                for (index, span) in [regions[0].old_span.as_ref(), regions[0].new_span.as_ref()]
+                    .into_iter()
+                    .enumerate()
+                {
+                    if let Some(span) = span {
+                        accepted[index] =
+                            project(a.sides[index], span).expect("original covered interval");
+                    }
+                }
+                regions[0]
+                    .evidence
+                    .push(crate::alignment::AlignmentEvidence::ExtractionGap);
+                let expected = a
+                    .coupled_region_removals(regions, &accepted, 1000)
+                    .expect("original evidence veto");
+                assert!(expected.is_none());
+                let mut cache =
+                    ContextProjections::new(regions, a.sides, 64 * 1024 * 1024, &mut counter)
+                        .expect("cache allocation")
+                        .expect("cache budget");
+                assert!(
+                    cache
+                        .removals(a.sides, &[Vec::new(), Vec::new()], 1000, &mut counter)
+                        .expect("warm non-overlapping context")
+                        .is_some()
+                );
+                assert_eq!(
+                    cache
+                        .removals(a.sides, &accepted, 1000, &mut counter)
+                        .expect("current extraction gap veto"),
+                    expected
+                );
+                assert!(!cache.limit_retained_bytes(0));
+            },
+        )?;
+        Ok(())
     }
 
     #[test]

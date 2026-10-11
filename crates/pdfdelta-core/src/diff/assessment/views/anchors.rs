@@ -6,6 +6,49 @@ use std::{
 use super::{AnchorHit, Occurrence, OccurrenceSummary, View, charge, unique_occurrence};
 use crate::{Result, normalize::ComparableToken};
 
+/// Provenance occupies the original input-index slot. Only the completed
+/// global scanners below can create a seed witness; source ends are distinct.
+#[derive(Clone, Copy)]
+pub(super) struct AnchorOrigin(usize);
+
+pub(super) struct GlobalSeedWitness(AnchorHit);
+
+impl AnchorOrigin {
+    fn completed_global_seed() -> Self {
+        Self(usize::MAX)
+    }
+
+    /// # Panics
+    /// Panics if an input index occupies either reserved provenance value.
+    pub(super) fn explicit(index: usize) -> Self {
+        assert!(index < usize::MAX - 1);
+        Self(index)
+    }
+
+    pub(super) fn source_end() -> Self {
+        Self(usize::MAX - 1)
+    }
+
+    pub(super) fn query_index(self) -> Option<usize> {
+        (self.0 < usize::MAX - 1).then_some(self.0)
+    }
+
+    pub(super) fn sort_key(self) -> usize {
+        self.query_index().unwrap_or(usize::MAX)
+    }
+}
+
+/// The sealed witness carries the same anchor whose completed provenance was
+/// checked; callers cannot substitute an unrelated span for a valid witness.
+pub(super) fn completed_seed(hit: AnchorHit) -> Option<GlobalSeedWitness> {
+    (hit.input_index.0 == usize::MAX).then_some(GlobalSeedWitness(hit))
+}
+impl GlobalSeedWitness {
+    pub(super) fn anchor(self) -> AnchorHit {
+        self.0
+    }
+}
+
 #[derive(Default)]
 struct Seed {
     old: OccurrenceSummary,
@@ -101,7 +144,7 @@ pub(super) fn discover(
         };
         if equal {
             hits.push(AnchorHit {
-                input_index: usize::MAX,
+                input_index: AnchorOrigin::completed_global_seed(),
                 old_view: old.view_index,
                 new_view: new.view_index,
                 old_start: old.start,
@@ -231,7 +274,7 @@ pub(super) fn discover_all_starts(
         };
         if equal {
             hits.push(AnchorHit {
-                input_index: usize::MAX,
+                input_index: AnchorOrigin::completed_global_seed(),
                 old_view: old.view_index,
                 new_view: new.view_index,
                 old_start: old.start,

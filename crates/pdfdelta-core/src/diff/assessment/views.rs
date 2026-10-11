@@ -16,6 +16,8 @@ use super::super::{GroupText, SentenceRecoveryInput, Side, TextSpan};
 use super::{SourceInterval, charge};
 
 mod anchors;
+mod global_prefix;
+pub(super) use global_prefix::{GlobalExtension, GlobalGeneration, GlobalPrefixSet};
 
 /// A source-backed correspondence domain with independently established local order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -108,7 +110,7 @@ struct Occurrence {
 
 #[derive(Clone, Copy)]
 struct AnchorHit {
-    input_index: usize,
+    input_index: anchors::AnchorOrigin,
     old_view: usize,
     new_view: usize,
     old_start: usize,
@@ -154,7 +156,14 @@ pub(super) fn discover(
     )
 }
 
+/// Reports completed discovery work and optionally retains scoped prefixes.
+pub(super) struct DiscoveryOutput<'output, 'a, 'document> {
+    pub work: &'output mut super::LocalViewWork,
+    pub prefixes: Option<&'output mut Option<GlobalPrefixSet<'a, 'document>>>,
+}
+
 /// Retains phase charges even when an optional search returns no domains.
+#[cfg(test)]
 pub(super) fn discover_recording(
     sides: [&Side<'_>; 2],
     recovery: SentenceRecoveryInput<'_>,
@@ -170,10 +179,35 @@ pub(super) fn discover_recording(
         exact_anchors,
         remaining_work,
         max_ranges,
-        work,
         DiscoveryMode::Sampled {
             retain_positioned_prefix,
         },
+        DiscoveryOutput {
+            work,
+            prefixes: None,
+        },
+    )
+}
+
+pub(super) fn discover_recording_with_prefixes<'a, 'document>(
+    sides: [&'a Side<'document>; 2],
+    recovery: SentenceRecoveryInput<'a>,
+    exact_anchors: &[(TextSpan, TextSpan)],
+    remaining_work: &mut usize,
+    max_ranges: usize,
+    retain_positioned_prefix: bool,
+    output: DiscoveryOutput<'_, 'a, 'document>,
+) -> Result<Discovery> {
+    discover_mode(
+        sides,
+        recovery,
+        exact_anchors,
+        remaining_work,
+        max_ranges,
+        DiscoveryMode::Sampled {
+            retain_positioned_prefix,
+        },
+        output,
     )
 }
 
@@ -189,8 +223,11 @@ pub(super) fn discover_deferred(
         &[],
         remaining_work,
         max_ranges,
-        &mut super::LocalViewWork::default(),
         DiscoveryMode::Deferred,
+        DiscoveryOutput {
+            work: &mut super::LocalViewWork::default(),
+            prefixes: None,
+        },
     )
 }
 
@@ -199,15 +236,19 @@ enum DiscoveryMode {
     Deferred,
 }
 
-fn discover_mode(
-    sides: [&Side<'_>; 2],
-    recovery: SentenceRecoveryInput<'_>,
+fn discover_mode<'a, 'document>(
+    sides: [&'a Side<'document>; 2],
+    recovery: SentenceRecoveryInput<'a>,
     exact_anchors: &[(TextSpan, TextSpan)],
     remaining_work: &mut usize,
     max_ranges: usize,
-    work: &mut super::LocalViewWork,
     mode: DiscoveryMode,
+    output: DiscoveryOutput<'_, 'a, 'document>,
 ) -> Result<Discovery> {
+    let DiscoveryOutput {
+        work,
+        prefixes: prefix_output,
+    } = output;
     let (retain_positioned_prefix, all_starts) = match mode {
         DiscoveryMode::Sampled {
             retain_positioned_prefix,
@@ -414,7 +455,7 @@ fn discover_mode(
             .entry((old_occurrence.view_index, new_occurrence.view_index))
             .or_default()
             .push(AnchorHit {
-                input_index,
+                input_index: anchors::AnchorOrigin::explicit(input_index),
                 old_view: old_occurrence.view_index,
                 new_view: new_occurrence.view_index,
                 old_start: old_occurrence.start,
@@ -476,7 +517,7 @@ fn discover_mode(
                 .entry((old_occurrence.view_index, new_occurrence.view_index))
                 .or_default()
                 .push(AnchorHit {
-                    input_index,
+                    input_index: anchors::AnchorOrigin::explicit(input_index),
                     old_view: old_occurrence.view_index,
                     new_view: new_occurrence.view_index,
                     old_start: old_occurrence.start,
@@ -495,7 +536,7 @@ fn discover_mode(
     for anchor in pair_anchors
         .values()
         .flatten()
-        .filter(|anchor| anchor.input_index != usize::MAX)
+        .filter(|anchor| anchor.input_index.query_index().is_some())
     {
         let old = &old_views[anchor.old_view];
         let new = &new_views[anchor.new_view];
@@ -610,6 +651,17 @@ fn discover_mode(
     // Competition is checked on complete chains before adjacent comparisons
     // share their already verified equal anchors. A difficult gap must not
     // invalidate a separate gap whose boundaries and localization are exact.
+    let mut prefixes = if prefix_output.is_some() {
+        GlobalPrefixSet::new(
+            sides,
+            recovery,
+            [old_views.len(), new_views.len()],
+            max_ranges,
+            remaining_work,
+        )
+    } else {
+        None
+    };
     let mut localized = Vec::new();
     for (index, ((key, domain), anchors)) in domains.into_iter().zip(domain_anchors).enumerate() {
         if competing.contains(&index) {
@@ -619,7 +671,7 @@ fn discover_mode(
             localized.push((key, domain));
             continue;
         }
-        for pair in anchors.windows(2) {
+        for (pair_index, pair) in anchors.windows(2).enumerate() {
             if localized.len() == max_ranges
                 || !charge(
                     remaining_work,
@@ -639,15 +691,24 @@ fn discover_mode(
             let new_span = new_views[pair[0].new_view]
                 .group
                 .span(pair[0].new_start, pair[1].new_end);
-            localized.push((
-                (key.0, key.1, pair[0].old_start, pair[0].new_start),
-                LocalDomain {
-                    old_span,
-                    new_span,
-                    source_bounded: old_views[pair[0].old_view].source_bounded
-                        && new_views[pair[0].new_view].source_bounded,
-                },
-            ));
+            let local = LocalDomain {
+                old_span,
+                new_span,
+                source_bounded: old_views[pair[0].old_view].source_bounded
+                    && new_views[pair[0].new_view].source_bounded,
+            };
+            if pair_index + 2 == anchors.len()
+                && let Some(prefixes) = &mut prefixes
+                && let Some(witness) = anchors::completed_seed(pair[0])
+            {
+                prefixes.retain(
+                    witness,
+                    [&old_views[pair[0].old_view], &new_views[pair[0].new_view]],
+                    &local,
+                    remaining_work,
+                )?;
+            }
+            localized.push(((key.0, key.1, pair[0].old_start, pair[0].new_start), local));
         }
     }
     // The positioned pass is optional and runs after the anchor flow. An
@@ -666,6 +727,9 @@ fn discover_mode(
     )?;
     localized.sort_unstable_by_key(|(key, _)| *key);
     localized.truncate(max_ranges);
+    if let Some(output) = prefix_output {
+        *output = prefixes;
+    }
     Ok(Discovery {
         domains: localized.into_iter().map(|(_, domain)| domain).collect(),
         anchors: exact_domains,
@@ -5785,7 +5849,7 @@ fn add_source_end_anchors(
         hits.try_reserve(1)
             .map_err(|_| super::allocation_error("source ending anchors"))?;
         hits.push(AnchorHit {
-            input_index: usize::MAX,
+            input_index: anchors::AnchorOrigin::source_end(),
             old_view,
             new_view,
             old_start,
@@ -6221,7 +6285,7 @@ fn close_domain(
             anchor.new_start,
             anchor.old_end,
             anchor.new_end,
-            anchor.input_index,
+            anchor.input_index.sort_key(),
         )
     });
     merge_collinear(anchors);
@@ -6591,6 +6655,262 @@ mod tests {
             a.records, after,
             "an exhausted deferred pass changes no prior proof"
         );
+        Ok(())
+    }
+
+    fn scoped_prefix_fixture<'a, 'document>(
+        sides: [&'a Side<'document>; 2],
+        recovery: SentenceRecoveryInput<'a>,
+    ) -> Result<(GlobalPrefixSet<'a, 'document>, LocalDomain)> {
+        let mut work = 1_000_000;
+        let old = build_views(
+            sides[0],
+            recovery.old_trusted_run_intervals,
+            None,
+            &[],
+            &mut work,
+        )?
+        .expect("old views");
+        let new = build_views(
+            sides[1],
+            recovery.new_trusted_run_intervals,
+            None,
+            &[],
+            &mut work,
+        )?
+        .expect("new views");
+        let hits = anchors::discover([&old, &new], 16, &mut work, 100)?
+            .expect("completed actual seed search");
+        let hit = *hits
+            .iter()
+            .find(|h| h.old_start == 0 && h.new_start == 0)
+            .expect("unique first16");
+        let witness = anchors::completed_seed(hit).expect("actual completed seed provenance");
+        let domain = LocalDomain {
+            old_span: old[hit.old_view].group.span(0, 32),
+            new_span: new[hit.new_view].group.span(0, 32),
+            source_bounded: false,
+        };
+        let mut set = GlobalPrefixSet::new(sides, recovery, [old.len(), new.len()], 100, &mut work)
+            .expect("paid generation");
+        set.retain(
+            witness,
+            [&old[hit.old_view], &new[hit.new_view]],
+            &domain,
+            &mut work,
+        )?;
+        // Actual view vectors die here; only the frozen inputs and sparse,
+        // charged certificate survive into the later consumer.
+        Ok((set, domain))
+    }
+    fn scoped_prefix_recovery(
+        intervals: &[Option<TrustedRunInterval>],
+    ) -> SentenceRecoveryInput<'_> {
+        SentenceRecoveryInput {
+            old_trusted_run_intervals: intervals,
+            new_trusted_run_intervals: intervals,
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 16,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        }
+    }
+    #[test]
+    fn scoped_prefix_survives_actual_views_and_proves_fresh_extension() -> Result<()> {
+        assert_eq!(
+            std::mem::size_of::<AnchorHit>(),
+            7 * std::mem::size_of::<usize>()
+        );
+        let blocks = [
+            block(1, "ABCDEFGHIJKLMNOPQRSTU"),
+            block(2, "abcdefghijklmnopqrst"),
+        ];
+        let sides = [side(&blocks), side(&blocks)];
+        let intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let recovery = scoped_prefix_recovery(&intervals);
+        let (mut set, original) = scoped_prefix_fixture([&sides[0], &sides[1]], recovery)?;
+        let generation = set
+            .take_generation()
+            .expect("single native generation receipt");
+        let mut remaining = 100_000;
+        let extension = set
+            .extension(
+                &generation,
+                [&sides[0], &sides[1]],
+                recovery,
+                [&original.old_span, &original.new_span],
+                100,
+                &mut remaining,
+            )?
+            .expect("same frozen generation");
+        assert_eq!(extension.domain.old_span.comparable_range.end, 42);
+        assert_eq!(original.old_span.comparable_range.end, 32);
+        let before = remaining;
+        let groups = super::super::paid_extension_groups(
+            [&sides[0], &sides[1]],
+            [&extension.domain.old_span, &extension.domain.new_span],
+            &mut remaining,
+        )
+        .expect("fresh exact42");
+        assert_eq!(groups[0].tokens, groups[1].tokens);
+        assert_eq!(groups[0].tokens.len(), 42);
+        assert!(remaining < before);
+        assert!(
+            set.extension(
+                &generation,
+                [&sides[0], &sides[1]],
+                recovery,
+                [&original.old_span, &original.new_span],
+                100,
+                &mut remaining
+            )?
+            .is_none()
+        );
+        Ok(())
+    }
+    #[test]
+    fn scoped_prefix_refuses_foreign_complete_inputs_flags_and_cuts() -> Result<()> {
+        let blocks = [
+            block(1, "ABCDEFGHIJKLMNOPQRSTU"),
+            block(2, "abcdefghijklmnopqrst"),
+        ];
+        let sides = [side(&blocks), side(&blocks)];
+        let foreign = side(&blocks);
+        let intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let identical_intervals = intervals;
+        let recovery = scoped_prefix_recovery(&intervals);
+        let native = [false, false];
+        let descriptors = [];
+        let edges = [];
+        let (mut foreign_set, _) = scoped_prefix_fixture([&sides[0], &sides[1]], recovery)?;
+        let foreign_generation = foreign_set
+            .take_generation()
+            .expect("independent generation with same inputs");
+        for case in 0..12 {
+            let (mut set, original) = scoped_prefix_fixture([&sides[0], &sides[1]], recovery)?;
+            let generation = set
+                .take_generation()
+                .expect("single native generation receipt");
+            let mut inputs = [&sides[0], &sides[1]];
+            let mut changed = recovery;
+            let mut max_ranges = 100;
+            let mut old = original.old_span.clone();
+            let mut new = original.new_span.clone();
+            match case {
+                0 => inputs[0] = &foreign,
+                1 => changed.old_trusted_run_intervals = &identical_intervals,
+                2 => changed.new_trusted_run_intervals = &identical_intervals,
+                3 => changed.old_native_order_blocks = &native,
+                4 => changed.new_native_order_blocks = &native,
+                5 => {
+                    changed.old_trusted_run_evidence = Some(crate::diff::TrustedRunRecoveryInput {
+                        descriptors: &descriptors,
+                        raw_region_edges: &edges,
+                    });
+                }
+                6 => changed.min_tokens = 32,
+                7 => changed.enable_known_span_sentence_shadow = true,
+                8 => changed.enable_sentence_edge_gate_shadow = true,
+                9 => max_ranges = 99,
+                10 => {
+                    old.comparable_range.end = 33;
+                    new.canonical_range.end = 33;
+                }
+                11 => {}
+                _ => unreachable!(),
+            }
+            let receipt = if case == 11 {
+                &foreign_generation
+            } else {
+                &generation
+            };
+            assert!(
+                set.extension(
+                    receipt,
+                    inputs,
+                    changed,
+                    [&old, &new],
+                    max_ranges,
+                    &mut 100_000
+                )?
+                .is_none(),
+                "case {case}"
+            );
+        }
+        Ok(())
+    }
+    #[test]
+    fn scoped_prefix_exhaustion_and_nonsearch_anchors_never_supply_proof() -> Result<()> {
+        let blocks = [
+            block(1, "ABCDEFGHIJKLMNOPQRSTU"),
+            block(2, "abcdefghijklmnopqrst"),
+        ];
+        let sides = [side(&blocks), side(&blocks)];
+        let intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let recovery = scoped_prefix_recovery(&intervals);
+        let mut work = 100_000;
+        let views = build_views(&sides[0], &intervals, None, &[], &mut work)?.expect("views");
+        assert!(anchors::discover([&views, &views], 16, &mut 0, 100)?.is_none());
+        let mut hit = AnchorHit {
+            input_index: anchors::AnchorOrigin::source_end(),
+            old_view: 0,
+            new_view: 0,
+            old_start: 0,
+            old_end: 16,
+            new_start: 0,
+            new_end: 16,
+        };
+        assert!(anchors::completed_seed(hit).is_none());
+        hit.input_index = anchors::AnchorOrigin::explicit(0);
+        assert!(anchors::completed_seed(hit).is_none());
+        assert!(
+            GlobalPrefixSet::new([&sides[0], &sides[1]], recovery, [1, 1], 100, &mut 127).is_none()
+        );
+        for budget in [0, 1, 95] {
+            let (mut set, original) = scoped_prefix_fixture([&sides[0], &sides[1]], recovery)?;
+            let generation = set
+                .take_generation()
+                .expect("single native generation receipt");
+            let mut left = budget;
+            assert!(
+                set.extension(
+                    &generation,
+                    [&sides[0], &sides[1]],
+                    recovery,
+                    [&original.old_span, &original.new_span],
+                    100,
+                    &mut left
+                )?
+                .is_none()
+            );
+            assert_eq!(left, 0);
+        }
+        let (mut set, original) = scoped_prefix_fixture([&sides[0], &sides[1]], recovery)?;
+        let generation = set
+            .take_generation()
+            .expect("single native generation receipt");
+        let extension = set
+            .extension(
+                &generation,
+                [&sides[0], &sides[1]],
+                recovery,
+                [&original.old_span, &original.new_span],
+                100,
+                &mut 100_000,
+            )?
+            .expect("extension");
+        let mut left = 0;
+        assert!(matches!(
+            super::super::paid_extension_groups(
+                [&sides[0], &sides[1]],
+                [&extension.domain.old_span, &extension.domain.new_span],
+                &mut left
+            ),
+            Err(super::super::MaterializationRefusal::Work)
+        ));
         Ok(())
     }
 
@@ -15450,7 +15770,7 @@ mod tests {
     fn native_order_relaxes_single_partial_source_bounded_anchor() {
         let mut remaining = 1_000_000usize;
         let mut strict_anchors = vec![AnchorHit {
-            input_index: 0,
+            input_index: anchors::AnchorOrigin::explicit(0),
             old_view: 0,
             new_view: 0,
             old_start: 0,
@@ -15484,7 +15804,7 @@ mod tests {
         certified_old.order_certified = true;
         certified_new.order_certified = true;
         let mut relaxed_anchors = vec![AnchorHit {
-            input_index: 0,
+            input_index: anchors::AnchorOrigin::explicit(0),
             old_view: 0,
             new_view: 0,
             old_start: 0,
@@ -15516,7 +15836,7 @@ mod tests {
         let one_sided_new = positioned_view("abcZZZ", vec![None; 6], vec![None; 6], false);
         one_sided_old.order_certified = true;
         let mut one_sided_anchors = vec![AnchorHit {
-            input_index: 0,
+            input_index: anchors::AnchorOrigin::explicit(0),
             old_view: 0,
             new_view: 0,
             old_start: 0,
@@ -15559,7 +15879,7 @@ mod tests {
             view.order_certified = true;
         }
         let mut anchors = vec![AnchorHit {
-            input_index: 0,
+            input_index: anchors::AnchorOrigin::explicit(0),
             old_view: 0,
             new_view: 0,
             old_start: 0,

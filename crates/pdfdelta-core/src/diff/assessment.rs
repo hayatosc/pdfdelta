@@ -6,6 +6,7 @@
 
 mod claims;
 mod closed_child;
+mod context_projection;
 mod deferred;
 mod document_claims;
 mod equal_fragment;
@@ -2016,6 +2017,85 @@ fn proof_groups(sides: [&Side<'_>; 2], key: &DomainKey) -> Result<[GroupText; 2]
         .ok_or_else(|| allocation_error("local domain source group"))
     };
     Ok([group(0, old)?, group(1, new)?])
+}
+
+/// New certified extensions pay for both original source reconstructions before
+/// copying either selection. Scalar-only copying retains every original cut;
+/// unsupported tokens are held for the existing paths.
+fn paid_extension_groups(
+    sides: [&Side<'_>; 2],
+    spans: [&TextSpan; 2],
+    remaining: &mut usize,
+) -> std::result::Result<[GroupText; 2], MaterializationRefusal> {
+    use MaterializationRefusal::{Memory, Unavailable, Work};
+    let groups = borrowed_group_pair(sides, spans, remaining, 32 * 1024 * 1024)?;
+    let lengths = groups.each_ref().map(|group| group.selected_tokens().len());
+    let n = lengths[0].checked_add(lengths[1]).ok_or(Memory)?;
+    let identifiers = spans[0]
+        .blocks
+        .len()
+        .checked_add(spans[1].blocks.len())
+        .ok_or(Memory)?;
+    let bytes = n
+        .checked_mul(std::mem::size_of::<ComparableToken>() + 8)
+        .and_then(|v| v.checked_add(identifiers.checked_mul(8)?))
+        .ok_or(Memory)?;
+    let retained = groups[0]
+        .retained_bytes
+        .checked_add(groups[1].retained_bytes)
+        .ok_or(Memory)?;
+    if retained.checked_add(bytes).ok_or(Memory)? > 64 * 1024 * 1024 {
+        return Err(Memory);
+    }
+    if !charge_work(
+        remaining,
+        n.saturating_mul(12)
+            .saturating_add(identifiers.saturating_mul(12))
+            .saturating_add(128),
+    ) {
+        return Err(Work);
+    }
+    if lengths[0] != lengths[1]
+        || groups.iter().any(|group| {
+            group
+                .selected_tokens()
+                .iter()
+                .any(|token| !token.is_scalar())
+        })
+        || groups[0].selected_tokens() != groups[1].selected_tokens()
+    {
+        return Err(Unavailable);
+    }
+    let copy = |side: usize| -> std::result::Result<GroupText, MaterializationRefusal> {
+        let mut tokens = Vec::new();
+        tokens
+            .try_reserve_exact(lengths[side])
+            .map_err(|_| Memory)?;
+        tokens.extend(
+            groups[side]
+                .selected_tokens()
+                .iter()
+                .map(|token| (*token).clone()),
+        );
+        let blocks = super::try_copy_slice(&spans[side].blocks).ok_or(Memory)?;
+        GroupText::try_new(
+            blocks,
+            spans[side].separator,
+            tokens,
+            None,
+            None,
+            None,
+            None,
+        )
+        .and_then(|group| {
+            group.with_origins(
+                spans[side].canonical_range.start,
+                spans[side].comparable_range.start,
+            )
+        })
+        .ok_or(Memory)
+    };
+    Ok([copy(0)?, copy(1)?])
 }
 
 /// Token-only view of an already closed source span. References preserve full
@@ -4129,6 +4209,9 @@ struct Assessor<'a, 'document> {
     root_reasons: Vec<AssessmentReason>,
     semantic_acceptance: HashMap<usize, DomainKey>,
     local_domains: Vec<views::LocalDomain>,
+    global_prefixes: Option<views::GlobalPrefixSet<'a, 'document>>,
+    active_global_extension: Option<views::GlobalExtension>,
+    global_generation: Option<views::GlobalGeneration>,
     local_anchors: Vec<views::LocalDomain>,
     /// Spans of local domains discovered by the anchored rigid translation
     /// pass, recorded so the proven relation carries the move as an explicit
@@ -4501,17 +4584,24 @@ impl<'a, 'document> Assessor<'a, 'document> {
             })
             .collect::<Vec<_>>();
         let before = self.remaining_work;
-        let discovery = views::discover_recording(
+        let discovery = views::discover_recording_with_prefixes(
             self.sides,
             recovery,
             &anchors,
             &mut self.remaining_work,
             self.options.max_assessment_ranges,
-            &mut self.local_view_work,
             self.anchor_work.order_unique == Some(false) && !self.anchors.is_empty(),
+            views::DiscoveryOutput {
+                work: &mut self.local_view_work,
+                prefixes: Some(&mut self.global_prefixes),
+            },
         )?;
         self.local_view_work.domain_construction =
             before - self.remaining_work - self.local_view_work.total();
+        self.global_generation = self
+            .global_prefixes
+            .as_mut()
+            .and_then(views::GlobalPrefixSet::take_generation);
         self.local_domains = discovery.domains;
         self.local_anchors = discovery.anchors;
         self.discover_footer_domains()?;
@@ -4825,6 +4915,12 @@ impl<'a, 'document> Assessor<'a, 'document> {
                     new_separator: local.new_span.separator.unwrap_or(BlockSeparator::Space),
                 })
             };
+            if let Some(extension) = &self.active_global_extension
+                && proposal.old.as_ref() == Some(&extension.domain.old_span)
+                && proposal.new.as_ref() == Some(&extension.domain.new_span)
+            {
+                return local_key(&extension.domain);
+            }
             // Local emission already supplies a discovered domain verbatim.
             // Avoid rebuilding every other view's tokens to locate that key.
             if let Some(local) = anchors.iter().chain(&self.local_domains).find(|local| {
@@ -5001,6 +5097,28 @@ impl<'a, 'document> Assessor<'a, 'document> {
         Ok(Some(index))
     }
 
+    fn extension_key(
+        &mut self,
+        key: &DomainKey,
+    ) -> std::result::Result<bool, MaterializationRefusal> {
+        let Some(extension) = &self.active_global_extension else {
+            return Ok(false);
+        };
+        let Some((old, new)) = &key.local else {
+            return Ok(false);
+        };
+        let work = old
+            .blocks
+            .len()
+            .saturating_add(new.blocks.len())
+            .saturating_mul(4)
+            .saturating_add(32);
+        if !charge_work(&mut self.remaining_work, work) {
+            return Err(MaterializationRefusal::Work);
+        }
+        Ok(*old == extension.domain.old_span && *new == extension.domain.new_span)
+    }
+
     /// Central paid route for full global proof groups in the new scope.
     /// Legacy unique and local domains retain their existing construction.
     fn scoped_proof_groups(
@@ -5013,6 +5131,18 @@ impl<'a, 'document> Assessor<'a, 'document> {
             .is_some_and(|proof| proof.scope != ProofScope::ExactKey)
         {
             return Ok(Err(MaterializationRefusal::Unavailable));
+        }
+        match self.extension_key(key) {
+            Ok(true) => {
+                let (old, new) = key.local.as_ref().expect("extension has a local key");
+                return Ok(paid_extension_groups(
+                    self.sides,
+                    [old, new],
+                    &mut self.remaining_work,
+                ));
+            }
+            Err(refusal) => return Ok(Err(refusal)),
+            Ok(false) => {}
         }
         if self.bounded_global_materialization(key) {
             if self.output_stop.is_some() {
@@ -5287,7 +5417,19 @@ impl<'a, 'document> Assessor<'a, 'document> {
             };
             (groups, reasons, isolated)
         } else {
-            let groups = proof_groups(self.sides, key)?;
+            let groups = match self.extension_key(key) {
+                Ok(true) => {
+                    let (old, new) = key.local.as_ref().expect("extension has a local key");
+                    match paid_extension_groups(self.sides, [old, new], &mut self.remaining_work) {
+                        Ok(groups) => groups,
+                        Err(refusal) => {
+                            return self.refuse_global_materialization(key, parent, refusal);
+                        }
+                    }
+                }
+                Err(refusal) => return self.refuse_global_materialization(key, parent, refusal),
+                Ok(false) => proof_groups(self.sides, key)?,
+            };
             let (reasons, isolated) = self.domain_reasons(key)?;
             (groups, reasons, isolated)
         };
@@ -6450,6 +6592,9 @@ impl<'a, 'document> Assessor<'a, 'document> {
             root_reasons: Vec::new(),
             semantic_acceptance: HashMap::new(),
             local_domains: Vec::new(),
+            global_prefixes: None,
+            active_global_extension: None,
+            global_generation: None,
             local_anchors: Vec::new(),
             anchored_translations: Vec::new(),
             stationary_members: Vec::new(),
