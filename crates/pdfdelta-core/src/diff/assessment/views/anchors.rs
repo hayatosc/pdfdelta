@@ -401,7 +401,11 @@ pub(super) fn search_explicit_anchors_with_limit(
         return Ok(None);
     }
     let mut summed_retained_bytes = 0usize;
+    let mut scalar_queries = 0usize;
     for (_, needle) in needles {
+        if width > 1 && matches!(needle, [ComparableToken::Scalar(_)]) {
+            scalar_queries += 1;
+        }
         if !charge(remaining, needle.len()) {
             return Ok(None);
         }
@@ -418,13 +422,50 @@ pub(super) fn search_explicit_anchors_with_limit(
     results
         .try_reserve_exact(needles.len())
         .map_err(|_| super::super::allocation_error("explicit anchor results"))?;
+    // A scalar cache stores only fixed-size keys and completed capped counts.
+    // At least two queries amortize the minimum hash-table allocation within
+    // the existing 512-byte/query metadata bound; no payload limit is reset.
+    let mut scalar_cache = HashMap::<char, [OccurrenceSummary; 2]>::new();
+    if scalar_queries >= 2 {
+        scalar_cache
+            .try_reserve(scalar_queries)
+            .map_err(|_| super::super::allocation_error("scalar anchor cache"))?;
+        if scalar_cache.capacity() > scalar_queries.saturating_mul(2) {
+            return Ok(None);
+        }
+    }
     for (input_index, needle) in needles {
         results.push((
             *input_index,
             OccurrenceSummary::default(),
             OccurrenceSummary::default(),
         ));
-        if width == 0 || needle.is_empty() || needle.len() < width {
+        if scalar_queries >= 2
+            && let [ComparableToken::Scalar(scalar)] = needle
+        {
+            // The original two KMP searches each prepay one scalar prefix.
+            // Spend the same two units on the fixed-size cache lookup/insert;
+            // a miss scans the identical views in the identical token order.
+            if !charge(remaining, 2) {
+                return Ok(None);
+            }
+            let summaries = if let Some(summaries) = scalar_cache.get(scalar) {
+                *summaries
+            } else {
+                let Some(old) = search_scalar(views[0], *scalar, remaining) else {
+                    return Ok(None);
+                };
+                let Some(new) = search_scalar(views[1], *scalar, remaining) else {
+                    return Ok(None);
+                };
+                let summaries = [old, new];
+                scalar_cache.insert(*scalar, summaries);
+                summaries
+            };
+            let last = results.last_mut().expect("result was just pushed");
+            last.1 = summaries[0];
+            last.2 = summaries[1];
+        } else if width == 0 || needle.is_empty() || needle.len() < width {
             let old = super::search_views(views[0], needle, remaining)?;
             let new = super::search_views(views[1], needle, remaining)?;
             let (Some(old), Some(new)) = (complete(old), complete(new)) else {
@@ -532,6 +573,32 @@ pub(super) fn search_explicit_anchors_with_limit(
         }
     }
     Ok(Some(results))
+}
+
+/// Single-scalar KMP with its two-sided prefix cost prepaid by the caller.
+/// Each inspected token costs the same one comparison as `search_views`;
+/// every view, including untrusted ones, participates until count reaches two.
+fn search_scalar(views: &[View], scalar: char, remaining: &mut usize) -> Option<OccurrenceSummary> {
+    let mut summary = OccurrenceSummary::default();
+    for (view_index, view) in views.iter().enumerate() {
+        for (start, token) in view.group.tokens.iter().enumerate() {
+            if !charge(remaining, 1) {
+                return None;
+            }
+            if *token == ComparableToken::Scalar(scalar) {
+                summary.count += 1;
+                summary.first.get_or_insert(Occurrence {
+                    view_index,
+                    start,
+                    end: start + 1,
+                });
+                if summary.count == 2 {
+                    return Some(summary);
+                }
+            }
+        }
+    }
+    Some(summary)
 }
 
 fn complete(result: super::SearchResult) -> Option<OccurrenceSummary> {

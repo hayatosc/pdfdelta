@@ -119,7 +119,7 @@ struct AnchorHit {
     new_end: usize,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 struct OccurrenceSummary {
     // A second occurrence conclusively refutes uniqueness.
     count: usize,
@@ -7708,6 +7708,131 @@ mod tests {
             .expect("stays bounded")
             .is_none(),
             "exhausted budget must refuse, not fabricate"
+        );
+    }
+
+    #[test]
+    fn scalar_anchor_cache_preserves_kmp_costs_counts_and_query_slots() {
+        let text = format!("ΩΩ{}Δ", "A".repeat(2_000));
+        let old_blocks = vec![block(1, &text)];
+        let new_blocks = vec![block(101, &text)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None];
+        let mut build_work = 10_000_000;
+        let old_views = build_views(&old, &intervals, None, &[], &mut build_work)
+            .expect("old views")
+            .expect("old views available");
+        let new_views = build_views(&new, &intervals, None, &[], &mut build_work)
+            .expect("new views")
+            .expect("new views available");
+        let observe = |rows: Vec<(usize, OccurrenceSummary, OccurrenceSummary)>| {
+            rows.into_iter()
+                .map(|(index, old, new)| {
+                    let summary = |s: OccurrenceSummary| {
+                        (s.count, s.first.map(|o| (o.view_index, o.start, o.end)))
+                    };
+                    (index, summary(old), summary(new))
+                })
+                .collect::<Vec<_>>()
+        };
+        for scalars in [vec!['Ω', 'Z'], vec!['Ω', 'Z', 'Ω', 'Δ', 'Z', 'Δ']] {
+            let tokens = scalars
+                .iter()
+                .map(|c| [ComparableToken::Scalar(*c)])
+                .collect::<Vec<_>>();
+            // External IDs may repeat; cache identity never replaces input slots.
+            let queries = tokens
+                .iter()
+                .map(|t| (77, t.as_slice()))
+                .collect::<Vec<_>>();
+            let mut reference_work = 1_000_000;
+            let expected = queries
+                .iter()
+                .map(|(id, needle)| {
+                    let complete = |result| match result {
+                        SearchResult::Complete(summary) => summary,
+                        SearchResult::BudgetExceeded => panic!("reference budget"),
+                    };
+                    (
+                        *id,
+                        complete(
+                            search_views(&old_views, needle, &mut reference_work).expect("old"),
+                        ),
+                        complete(
+                            search_views(&new_views, needle, &mut reference_work).expect("new"),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
+            // The original batch prepays 4/query metadata plus 1/scalar payload.
+            let original_cost = 1_000_000 - reference_work + queries.len() * 5;
+            let mut remaining = original_cost;
+            let actual = super::anchors::search_explicit_anchors(
+                [&old_views, &new_views],
+                &queries,
+                4,
+                &mut remaining,
+            )
+            .expect("cached search")
+            .expect("original KMP budget suffices");
+            assert_eq!(observe(actual), observe(expected));
+            if scalars.len() == 2 {
+                assert_eq!(remaining, 0, "unique queries have unchanged charged cost");
+            } else {
+                assert!(remaining > 4_000, "only duplicate full scans are removed");
+            }
+            let consumed = original_cost - remaining;
+            for budget in [0, consumed - 1] {
+                let mut work = budget;
+                assert!(
+                    super::anchors::search_explicit_anchors(
+                        [&old_views, &new_views],
+                        &queries,
+                        4,
+                        &mut work,
+                    )
+                    .expect("bounded search")
+                    .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_anchor_cache_keeps_the_combined_payload_bound() {
+        let first = [ComparableToken::Scalar('Ω')];
+        let second = [ComparableToken::Scalar('Z')];
+        let queries = [(77, first.as_slice()), (77, second.as_slice())];
+        let limit = explicit_anchor_retained_bytes(&first, 1, 1).expect("first bytes")
+            + explicit_anchor_retained_bytes(&second, 1, 1).expect("second bytes");
+        let mut work = 1_000;
+        let result = super::anchors::search_explicit_anchors_with_limit(
+            [&[], &[]],
+            &queries,
+            4,
+            &mut work,
+            limit,
+        )
+        .expect("admitted cache")
+        .expect("combined payload fits");
+        assert_eq!(result.len(), 2);
+        assert!(
+            result
+                .iter()
+                .all(|(_, old, new)| old.count == 0 && new.count == 0)
+        );
+        let mut work = 1_000;
+        assert!(
+            super::anchors::search_explicit_anchors_with_limit(
+                [&[], &[]],
+                &queries,
+                4,
+                &mut work,
+                limit - 1,
+            )
+            .expect("bounded cache")
+            .is_none()
         );
     }
 
