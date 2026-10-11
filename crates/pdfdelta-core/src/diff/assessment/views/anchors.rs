@@ -365,8 +365,9 @@ fn windows(
 /// `old == new`). Long needles (full length >= `width`) are grouped by the
 /// rolling-hash fingerprint of their first `width` tokens and found in one
 /// scan per side with the existing rolling windows; every fingerprint hit is
-/// exact-verified for the complete needle tokens with charged work. Shorter
-/// needles fall back to the existing KMP `search_views`. Fingerprint
+/// exact-verified for the complete needle tokens with charged work. Multiple
+/// short queries share a scan at each complete needle length; a lone short
+/// query and a zero-width request use the existing KMP `search_views`. Fingerprint
 /// collisions only cost work or reject a candidate, never prove equality.
 /// Occurrences are counted across all views (untrusted included) capped at
 /// two, retaining the first in `(view, start)` order. Budget exhaustion
@@ -393,11 +394,136 @@ pub(super) fn search_explicit_anchors_with_limit(
     remaining: &mut usize,
     retained_limit: usize,
 ) -> Result<Option<Vec<(usize, OccurrenceSummary, OccurrenceSummary)>>> {
+    // Prepay the existing four entry visits. The classification below replaces
+    // the batch's separate long-query counting pass; its count is now collected
+    // during result initialization. The cold path retains its original cost.
+    if !charge(remaining, needles.len().saturating_mul(4)) {
+        return Ok(None);
+    }
+    let short_count = needles
+        .iter()
+        .filter(|(_, needle)| !needle.is_empty() && needle.len() < width)
+        .count();
+    if short_count < 2 || width == 0 {
+        return search_explicit_anchor_batch(
+            views,
+            needles,
+            width,
+            remaining,
+            retained_limit,
+            true,
+        );
+    }
+    // All borrowed queries remain live across the batches. Admit their combined
+    // payload, including the existing per-query metadata allowance, rather than
+    // treating each batch as a fresh memory allowance.
+    if !charge(remaining, needles.len().saturating_mul(8)) {
+        return Ok(None);
+    }
+    let mut retained = 0usize;
+    for (_, needle) in needles {
+        if !charge(remaining, needle.len()) {
+            return Ok(None);
+        }
+        let Some(bytes) = super::explicit_anchor_retained_bytes(needle, needle.len(), 1) else {
+            return Ok(None);
+        };
+        let Some(total) = retained.checked_add(bytes).filter(|n| *n <= retained_limit) else {
+            return Ok(None);
+        };
+        retained = total;
+    }
+    let mut widths = Vec::new();
+    widths
+        .try_reserve_exact(needles.len())
+        .map_err(|_| super::super::allocation_error("short explicit anchor widths"))?;
+    for (_, needle) in needles {
+        if !needle.is_empty() && needle.len() < width {
+            if !charge(remaining, widths.len().saturating_add(1)) {
+                return Ok(None);
+            }
+            if !widths.contains(&needle.len()) {
+                widths.push(needle.len());
+            }
+        }
+    }
+    if needles
+        .iter()
+        .any(|(_, needle)| needle.is_empty() || needle.len() >= width)
+    {
+        widths.push(width);
+    }
+    let mut results = Vec::new();
+    results
+        .try_reserve_exact(needles.len())
+        .map_err(|_| super::super::allocation_error("short explicit anchor results"))?;
+    results.extend(needles.iter().map(|(index, _)| {
+        (
+            *index,
+            OccurrenceSummary::default(),
+            OccurrenceSummary::default(),
+        )
+    }));
+    let mut queries = Vec::new();
+    queries
+        .try_reserve_exact(needles.len())
+        .map_err(|_| super::super::allocation_error("short explicit anchor queries"))?;
+    if widths.capacity() > needles.len()
+        || results.capacity() > needles.len()
+        || queries.capacity() > needles.len()
+    {
+        return Ok(None);
+    }
+    for batch_width in widths {
+        if !charge(remaining, needles.len()) {
+            return Ok(None);
+        }
+        queries.clear();
+        for (position, (_, needle)) in needles.iter().enumerate() {
+            if (batch_width < width && needle.len() == batch_width)
+                || (batch_width == width && (needle.is_empty() || needle.len() >= width))
+            {
+                queries.push((position, *needle));
+            }
+        }
+        let Some(batch) = search_explicit_anchor_batch(
+            views,
+            &queries,
+            batch_width,
+            remaining,
+            retained_limit,
+            false,
+        )?
+        else {
+            return Ok(None);
+        };
+        if !charge(remaining, batch.len()) {
+            return Ok(None);
+        }
+        for (position, old, new) in batch {
+            results[position].1 = old;
+            results[position].2 = new;
+        }
+    }
+    Ok(Some(results))
+}
+
+/// One fingerprint width, with full exact verification and whole-view counts.
+/// The caller can use the complete short needle as its fingerprint without
+/// changing the occurrence predicate, capped count, or first occurrence.
+fn search_explicit_anchor_batch(
+    views: [&[View]; 2],
+    needles: &[(usize, &[ComparableToken])],
+    width: usize,
+    remaining: &mut usize,
+    retained_limit: usize,
+    setup_prepaid: bool,
+) -> Result<Option<Vec<(usize, OccurrenceSummary, OccurrenceSummary)>>> {
     if needles.is_empty() {
         return Ok(Some(Vec::new()));
     }
     let setup_charge = needles.len().saturating_mul(4);
-    if !charge(remaining, setup_charge) {
+    if !setup_prepaid && !charge(remaining, setup_charge) {
         return Ok(None);
     }
     let mut summed_retained_bytes = 0usize;
@@ -418,7 +544,11 @@ pub(super) fn search_explicit_anchors_with_limit(
     results
         .try_reserve_exact(needles.len())
         .map_err(|_| super::super::allocation_error("explicit anchor results"))?;
+    let mut long_count = 0usize;
     for (input_index, needle) in needles {
+        if needle.len() >= width {
+            long_count += 1;
+        }
         results.push((
             *input_index,
             OccurrenceSummary::default(),
@@ -438,10 +568,6 @@ pub(super) fn search_explicit_anchors_with_limit(
     if width == 0 {
         return Ok(Some(results));
     }
-    let long_count = needles
-        .iter()
-        .filter(|(_, needle)| needle.len() >= width)
-        .count();
     if long_count == 0 {
         return Ok(Some(results));
     }

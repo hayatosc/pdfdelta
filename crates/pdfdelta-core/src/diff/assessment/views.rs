@@ -7484,6 +7484,126 @@ mod tests {
     }
 
     #[test]
+    fn short_explicit_batches_keep_kmp_counts_with_a_shared_work_budget() {
+        let text = format!("ΩΔ{}ΩΔ", "A".repeat(2_000));
+        let old_blocks = vec![block(1, &text)];
+        let new_blocks = vec![block(101, &text)];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let intervals = [None];
+        let mut build_work = 10_000_000;
+        let old_views = build_views(&old, &intervals, None, &[], &mut build_work)
+            .expect("old views build")
+            .expect("old views available");
+        let new_views = build_views(&new, &intervals, None, &[], &mut build_work)
+            .expect("new views build")
+            .expect("new views available");
+        let single = [ComparableToken::Scalar('Ω')];
+        let pair = [ComparableToken::Scalar('Ω'), ComparableToken::Scalar('Δ')];
+        // Repeated external identifiers do not identify a query slot. Both
+        // lengths must retain their original positions and whole-view counts.
+        let queries = (0..100)
+            .map(|index| {
+                (
+                    77,
+                    if index % 2 == 0 {
+                        &single[..]
+                    } else {
+                        &pair[..]
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut reference_work = 1_000_000;
+        let observe = |rows: Vec<(usize, OccurrenceSummary, OccurrenceSummary)>| {
+            rows.into_iter()
+                .map(|(index, old, new)| {
+                    let summary = |s: OccurrenceSummary| {
+                        (s.count, s.first.map(|o| (o.view_index, o.start, o.end)))
+                    };
+                    (index, summary(old), summary(new))
+                })
+                .collect::<Vec<_>>()
+        };
+        let expected = queries
+            .iter()
+            .map(|(_, needle)| {
+                let summarize = |result| match result {
+                    SearchResult::Complete(summary) => summary,
+                    SearchResult::BudgetExceeded => panic!("reference exhausted"),
+                };
+                (
+                    77,
+                    summarize(search_views(&old_views, needle, &mut reference_work).expect("old")),
+                    summarize(search_views(&new_views, needle, &mut reference_work).expect("new")),
+                )
+            })
+            .collect::<Vec<_>>();
+        let expected = observe(expected);
+        let mut work = 40_000;
+        let actual = super::anchors::search_explicit_anchors(
+            [&old_views, &new_views],
+            &queries,
+            4,
+            &mut work,
+        )
+        .expect("batch search")
+        .expect("shared budget covers the full scan");
+        assert_eq!(observe(actual), expected);
+        assert!(1_000_000 - reference_work > 40_000);
+        let consumed = 40_000 - work;
+        for budget in [0, consumed / 2, consumed - 1] {
+            let mut remaining = budget;
+            assert!(
+                super::anchors::search_explicit_anchors(
+                    [&old_views, &new_views],
+                    &queries,
+                    4,
+                    &mut remaining,
+                )
+                .expect("bounded search")
+                .is_none()
+            );
+        }
+        let mut exact = consumed;
+        assert_eq!(
+            super::anchors::search_explicit_anchors(
+                [&old_views, &new_views],
+                &queries,
+                4,
+                &mut exact,
+            )
+            .expect("exact search")
+            .map(observe),
+            Some(expected)
+        );
+        assert_eq!(exact, 0);
+    }
+
+    #[test]
+    fn short_explicit_batches_share_the_retained_payload_limit() {
+        let needles = [
+            vec![ComparableToken::Scalar('Ω')],
+            vec![ComparableToken::Scalar('Ω'), ComparableToken::Scalar('Δ')],
+        ];
+        let queries = [(0, needles[0].as_slice()), (1, needles[1].as_slice())];
+        let per_query = explicit_anchor_retained_bytes(&needles[1], needles[1].len(), 1)
+            .expect("bounded payload");
+        let mut work = 1_000_000;
+        assert!(
+            super::anchors::search_explicit_anchors_with_limit(
+                [&[], &[]],
+                &queries,
+                4,
+                &mut work,
+                per_query,
+            )
+            .expect("bounded batch")
+            .is_none()
+        );
+    }
+
+    #[test]
     fn h20_batch_matches_kmp_parity() {
         let summary = |result: SearchResult| match result {
             SearchResult::Complete(summary) => summary,
