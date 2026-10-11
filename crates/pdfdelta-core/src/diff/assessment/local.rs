@@ -1782,8 +1782,8 @@ impl Assessor<'_, '_> {
     /// Reconstructs eligible parent claims from immutable records after the
     /// original candidate list has been compacted for its raw-cut fallback.
     /// A recorded flag enables this scan, but supplies no correspondence.
-    /// Every lookup revalidates the exact cached parent, and the scan runs only
-    /// after both existing passes, so it cannot displace their proofs.
+    /// Every lookup revalidates the exact cached parent and the current
+    /// ownership, partitions, candidates and whole unresolved regions.
     pub(super) fn recover_coupled_equal_parents(
         &mut self,
         ownership: &mut [Ownership; 2],

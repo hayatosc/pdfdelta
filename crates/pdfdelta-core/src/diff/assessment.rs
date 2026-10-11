@@ -3518,7 +3518,7 @@ pub(super) fn finish(
     recovery: Option<SentenceRecoveryInput<'_>>,
     recovery_plan: Option<&sentence::SentenceRecoveryPlan>,
     exact_displacement: Option<ExactDisplacementInput<'_>>,
-    proposed: ProposedComparison,
+    mut proposed: ProposedComparison,
     options: DiffOptions,
 ) -> Result<Comparison> {
     let (proposals, proposals_truncated) = collect_relations(
@@ -3959,6 +3959,21 @@ pub(super) fn finish(
         [&old_resolution, &new_resolution],
         &mut comparison.proven_changed_regions,
     )?;
+    // A strict, physically positioned equal parent can update the existing
+    // partitions before broad equality analysis spends the remaining work.
+    // The original complete-parent, candidate, changed-region, ownership and
+    // whole-region publication checks apply to the proposed unresolved context.
+    assessor.recover_coupled_equal_parents(
+        &mut ownership,
+        &comparison.change_candidates,
+        &comparison.proven_changed_regions,
+        local::CoupledPublication {
+            domains: &reviewed.domains,
+            partitions: [&mut old_resolution, &mut new_resolution],
+            unresolved: &mut proposed.unresolved_regions,
+        },
+        options.max_assessment_ranges,
+    )?;
     assessor.recover_mandatory_coarse_equalities(
         &reviewed.domains,
         reviewed.domains.capacity(),
@@ -3980,9 +3995,9 @@ pub(super) fn finish(
         options.max_assessment_ranges,
     )?;
     let review_units = reviewed.units;
-    // All existing proof and diagnostic passes finish before coupled parents
-    // can spend work. Their only diagnostic effect is deleting wholly covered
-    // final regions; every surviving record and its order remain unchanged.
+    // Retry remaining strict parents against the final diagnostic regions.
+    // Only wholly covered regions can be deleted; surviving records keep
+    // their original evidence and order.
     if assessor.recover_coupled_equal_parents(
         &mut ownership,
         &comparison.change_candidates,

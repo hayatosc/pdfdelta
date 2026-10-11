@@ -456,6 +456,16 @@ pub(super) fn literal_source_capacity_bound(
     sides: [&Side<'_>; 2],
     remaining: &mut usize,
 ) -> Option<usize> {
+    // Conservative extra per-block range flags and fixed header bookkeeping.
+    if !charge_work(remaining, 8) {
+        return None;
+    }
+    let header_bytes = sides[0]
+        .blocks
+        .len()
+        .checked_add(sides[1].blocks.len())?
+        .checked_mul(8)?
+        .checked_add(8)?;
     let mut items = 0usize;
     for side in sides {
         if !charge_work(remaining, side.blocks.len()) {
@@ -506,7 +516,7 @@ pub(super) fn literal_source_capacity_bound(
             }
         }
     }
-    items.checked_mul(128)
+    items.checked_mul(128)?.checked_add(header_bytes)
 }
 
 fn shallow_words<T>() -> usize {

@@ -76,13 +76,14 @@
 //! and stores only selection-independent results: the document-wide glyph
 //! sharing index of each side, the structural validity of every normalization
 //! event, the checked issue projection and the complete scalar/count metadata of every block. Selection-dependent
-//! checks always run per call, nothing is stored before its charge is paid and
+//! checks always run per call. Complete canonical map range validity is also
+//! cached, but every selected atom is read again and every physical guard stays.
+//! Nothing is stored before its charge is paid and
 //! its build completed, and an entry can never be used for another side, block
-//! or comparison. The proof is connected from a deferred tail pass: the local
-//! equal/no-edit gate only records a strict-closed candidate, and after every
-//! existing recovery, proof and emission pass the tail pass re-checks the
-//! latest ownership and spends only the remaining budget. A held, exhausted
-//! or failed proof adopts nothing and leaves the candidate pending.
+//! or comparison. The local equal/no-edit gate only records a strict-closed
+//! candidate. Recovery rechecks the latest ownership and spends only the
+//! remaining shared budget. A held, exhausted or failed proof adopts nothing
+//! and leaves the candidate pending.
 //!
 //! A separately named fallback proof keeps [`EqualFragmentCache::prove`]
 //! untouched and adds one narrow allowance: a raw gap between two consecutive
@@ -214,6 +215,8 @@ impl SharingIndex {
 /// Selection-independent cached evidence of one block.
 #[derive(Default)]
 struct BlockCache {
+    /// Whole canonical map range validity; selected atom evidence is never cached.
+    canonical_ranges_validated: bool,
     /// Complete selection-independent scalar counts and issue cost estimate.
     /// This contains no source, position, correspondence or boundary verdict.
     boundary_metadata: Option<BoundaryMetadata>,
@@ -589,6 +592,10 @@ impl<'a> EqualFragmentCache<'a> {
     ) -> Check<&mut BlockCache> {
         let side = self.sides[side_index];
         if !self.tables_ready[side_index] {
+            // Pay the new flag table initialization and fixed header work.
+            if !charge(remaining, side.blocks.len().saturating_add(8)) {
+                return Err(Stop::Exhausted);
+            }
             if !charge(remaining, side.blocks.len()) {
                 return Err(Stop::Exhausted);
             }
@@ -712,6 +719,33 @@ impl<'a> EqualFragmentCache<'a> {
         Ok(())
     }
 
+    /// Reuses only completed global range validity for this immutable block.
+    /// Selected atoms are read again; this stores no glyph or match verdict.
+    fn canonical_glyphs_cached(
+        &mut self,
+        side_index: usize,
+        interval: &SourceInterval,
+        remaining: &mut usize,
+    ) -> Check<Vec<GlyphId>> {
+        if !charge(remaining, 4) {
+            return Err(Stop::Exhausted);
+        }
+        let valid = self
+            .block_cache(side_index, interval.block_index, remaining)?
+            .canonical_ranges_validated;
+        if valid {
+            return canonical_glyphs_validated(self.sides[side_index], interval, remaining);
+        }
+        let glyphs = canonical_glyphs(self.sides[side_index], interval, remaining)?;
+        // Bind and publish the complete range check only after retention is paid.
+        if !charge(remaining, 16) {
+            return Err(Stop::Exhausted);
+        }
+        self.block_cache(side_index, interval.block_index, remaining)?
+            .canonical_ranges_validated = true;
+        Ok(glyphs)
+    }
+
     /// Validates one side's span and collects its selected fragment evidence.
     fn analyze_side(
         &mut self,
@@ -764,7 +798,7 @@ impl<'a> EqualFragmentCache<'a> {
         let [page] = block.pages.as_slice() else {
             return Err(Stop::Held(FragmentHold::MultiplePages));
         };
-        let glyphs = canonical_glyphs(side, &interval, remaining)?;
+        let glyphs = self.canonical_glyphs_cached(side_index, &interval, remaining)?;
         let raw_scalars = raw_counterparts(block, &glyphs, remaining)?;
         let run = RawRun {
             interval: &interval,
@@ -1516,6 +1550,73 @@ fn canonical_glyphs(
     }
     Ok(glyphs)
 }
+/// Reads covering entries from a range-valid immutable canonical map.
+/// The caller has a completed whole-map range check from this same side/block.
+/// Ordered ends allow binary search; gaps and non-unit/non-glyph selected
+/// entries still hold exactly as in the original full scan.
+fn canonical_glyphs_validated(
+    side: &Side<'_>,
+    interval: &SourceInterval,
+    remaining: &mut usize,
+) -> Check<Vec<GlyphId>> {
+    let (block, _) = canonical_block_metadata(side, interval.block_index, remaining)?;
+    let selected = interval.end - interval.start;
+    if !charge(remaining, selected) {
+        return Err(Stop::Exhausted);
+    }
+    let mut glyphs = Vec::new();
+    glyphs
+        .try_reserve(selected)
+        .map_err(|_| allocation_error("equal fragment canonical glyphs"))?;
+    if selected == 0 {
+        return Ok(glyphs);
+    }
+    if !charge(remaining, 4) {
+        return Err(Stop::Exhausted);
+    }
+    let (mut lo, mut hi) = (0, block.canonical.source_map.len());
+    while lo < hi {
+        if !charge(remaining, 3) {
+            return Err(Stop::Exhausted);
+        }
+        let mid = lo + (hi - lo) / 2;
+        if block.canonical.source_map[mid].output_range.end <= interval.start {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    let mut next = interval.start;
+    let mut cursor = lo;
+    while next < interval.end {
+        let Some(entry) = block.canonical.source_map.get(cursor) else {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        };
+        // Original selected-entry fee plus index/cursor bookkeeping. The
+        // original glyph-vector allocation and scalar copy fee stays above.
+        if !charge(remaining, (1 + entry.source.atoms.len()).saturating_add(3)) {
+            return Err(Stop::Exhausted);
+        }
+        if next < entry.output_range.start {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        }
+        if next >= entry.output_range.end {
+            cursor += 1;
+            continue;
+        }
+        if entry.output_range.start != next || entry.output_range.end != next + 1 {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        }
+        let [TextSourceAtom::Glyph(glyph)] = entry.source.atoms.as_slice() else {
+            return Err(Stop::Held(FragmentHold::CanonicalSource));
+        };
+        glyphs.push(*glyph);
+        next += 1;
+        cursor += 1;
+    }
+    Ok(glyphs)
+}
+
 #[cfg(test)]
 fn canonical_glyphs_rescanned(
     block: &BlockText,
@@ -1749,13 +1850,113 @@ fn event_structure_holds(
     Ok(true)
 }
 
+/// Pays bitmap setup, every entry/point boundary visit, every selected source
+/// comparison/write, coverage check and final bitmap scan. There is no whole
+/// map atom-count scan and no later per-event-atom map rescan.
+fn side_event_evidence(
+    mapped: &MappedText,
+    event: &NormalizationEvent,
+    range: ScalarRange,
+    remaining: &mut usize,
+) -> Check<bool> {
+    let atoms = event.source.atoms.len();
+    if !charge(remaining, atoms.saturating_mul(2).saturating_add(4)) {
+        return Err(Stop::Exhausted);
+    }
+    let mut covered = Vec::new();
+    covered
+        .try_reserve_exact(atoms)
+        .map_err(|_| allocation_error("equal fragment event source coverage"))?;
+    covered.resize(atoms, false);
+    let mut next = range.start;
+    for entry in &mapped.source_map {
+        if !charge(remaining, 3) {
+            return Err(Stop::Exhausted);
+        }
+        if !scalar_range_contains_or_touches(range, entry.output_range) {
+            continue;
+        }
+        if !charge(remaining, 5) {
+            return Err(Stop::Exhausted);
+        }
+        if !note_event_atoms(&entry.source, event, &mut covered, remaining)? {
+            return Ok(false);
+        }
+        if range.start < range.end && entry.output_range.end > next {
+            if entry.output_range.start > next {
+                return Ok(false);
+            }
+            next = entry.output_range.end;
+        }
+    }
+    if !charge(remaining, 2) {
+        return Err(Stop::Exhausted);
+    }
+    if range.start < range.end && next < range.end {
+        return Ok(false);
+    }
+    for token in &mapped.unmapped {
+        if !charge(remaining, 3) {
+            return Err(Stop::Exhausted);
+        }
+        let point = ScalarRange {
+            start: token.scalar_index,
+            end: token.scalar_index,
+        };
+        if !scalar_range_contains_or_touches(range, point) {
+            continue;
+        }
+        if !note_event_atoms(&token.source, event, &mut covered, remaining)? {
+            return Ok(false);
+        }
+    }
+    if !charge(remaining, atoms.saturating_add(1)) {
+        return Err(Stop::Exhausted);
+    }
+    Ok(covered.iter().all(|covered| *covered))
+}
+
+fn note_event_atoms(
+    source: &crate::normalize::TextSource,
+    event: &NormalizationEvent,
+    covered: &mut [bool],
+    remaining: &mut usize,
+) -> Check<bool> {
+    if !charge(remaining, 1) {
+        return Err(Stop::Exhausted);
+    }
+    if source.atoms.is_empty() {
+        return Ok(false);
+    }
+    for atom in &source.atoms {
+        if !charge(
+            remaining,
+            event.source.atoms.len().saturating_mul(3).saturating_add(1),
+        ) {
+            return Err(Stop::Exhausted);
+        }
+        let mut present = false;
+        for (index, original) in event.source.atoms.iter().enumerate() {
+            if original == atom {
+                covered[index] = true;
+                present = true;
+            }
+        }
+        if !present {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Whether one side's source map is exactly the event source at `range`.
 ///
 /// Every entry or unmapped token whose range is contained in or touches
 /// `range` must carry a nonempty source inside the event source, every event
 /// source atom must appear in one of them, and a nonempty range must be
 /// covered by the entries without a gap. Each scan is charged before it runs.
-fn side_event_evidence(
+#[cfg(test)]
+fn side_event_evidence_rescanned(
     mapped: &MappedText,
     event: &NormalizationEvent,
     range: ScalarRange,
@@ -4673,6 +4874,262 @@ mod tests {
                 .prove([&ambiguous_source, &ambiguous_source], &mut 100_000)
                 .expect("multi-atom source"),
             FragmentVerdict::Held(FragmentHold::CanonicalSource)
+        );
+    }
+    #[test]
+    fn cached_canonical_ranges_preserve_every_selected_source_veto() {
+        let clean = positioned_block(1, "é日本😀", 0.0, 0.0, 0);
+        let mut cases = vec![clean.clone()];
+        let mut malformed = clean.clone();
+        malformed.canonical.source_map[3].output_range.end = 5;
+        cases.push(malformed);
+        let mut unordered = clean.clone();
+        unordered.canonical.source_map[2].output_range.start = 1;
+        cases.push(unordered);
+        let mut multi_scalar = clean.clone();
+        multi_scalar.canonical.source_map = vec![
+            span_entry(0, 2, glyph(1, 0)),
+            glyph_entry(2, glyph(1, 2)),
+            glyph_entry(3, glyph(1, 3)),
+        ];
+        cases.push(multi_scalar);
+        let mut multi_atom = clean.clone();
+        multi_atom.canonical.source_map[1].source.atoms = vec![
+            TextSourceAtom::Glyph(glyph(1, 1)),
+            TextSourceAtom::Glyph(glyph(1, 2)),
+        ]
+        .into();
+        cases.push(multi_atom);
+        let mut gap = clean.clone();
+        gap.canonical.source_map.remove(1);
+        cases.push(gap);
+        for atom in [
+            TextSourceAtom::SyntheticSpace {
+                preceding: glyph(1, 0),
+                following: glyph(1, 2),
+            },
+            TextSourceAtom::LineBreak {
+                preceding: glyph(1, 0),
+                following: glyph(1, 2),
+            },
+        ] {
+            let mut changed = clean.clone();
+            changed.canonical.source_map[1].source.atoms = vec![atom].into();
+            cases.push(changed);
+        }
+        for block in cases {
+            let blocks = [block];
+            let materialized = side(&blocks);
+            let mut cache = EqualFragmentCache::new([&materialized, &materialized]);
+            // An empty selection may validate global ranges but supplies no
+            // selected source proof. Every later selection must read its atoms.
+            for repeat in 0..2 {
+                for start in 0..=4 {
+                    for end in start..=4 {
+                        let interval = SourceInterval {
+                            block_index: 0,
+                            start,
+                            end,
+                        };
+                        let expected =
+                            canonical_glyphs_rescanned(&blocks[0], &interval, &mut 100_000);
+                        let actual = cache.canonical_glyphs_cached(0, &interval, &mut 100_000);
+                        match (expected, actual) {
+                            (Ok(old), Ok(new)) => assert_eq!(old, new),
+                            (Err(Stop::Held(old)), Err(Stop::Held(new))) => assert_eq!(old, new),
+                            _ => panic!("cached source veto changed on repetition {repeat}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cached_canonical_ranges_never_publish_an_incomplete_cold_scan() {
+        let blocks = [positioned_block(1, &"é日本😀".repeat(64), 0.0, 0.0, 0)];
+        let materialized = side(&blocks);
+        let refs = [&materialized, &materialized];
+        let interval = SourceInterval {
+            block_index: 0,
+            start: 128,
+            end: 131,
+        };
+        let mut cache = EqualFragmentCache::new(refs);
+        let mut work = 100_000;
+        let expected = cache
+            .canonical_glyphs_cached(0, &interval, &mut work)
+            .unwrap_or_else(|_| panic!("complete cold scan"));
+        let cold = 100_000 - work;
+        for mut prefix in 0..cold {
+            let mut fresh = EqualFragmentCache::new(refs);
+            assert!(matches!(
+                fresh.canonical_glyphs_cached(0, &interval, &mut prefix),
+                Err(Stop::Exhausted)
+            ));
+            assert!(
+                fresh.blocks[0]
+                    .first()
+                    .is_none_or(|block| !block.canonical_ranges_validated)
+            );
+        }
+        let mut fresh = EqualFragmentCache::new(refs);
+        let mut exact_cold = cold;
+        let actual = fresh
+            .canonical_glyphs_cached(0, &interval, &mut exact_cold)
+            .unwrap_or_else(|_| panic!("exact cold work"));
+        assert_eq!(actual, expected);
+        assert!(fresh.blocks[0][0].canonical_ranges_validated);
+        let mut work = 100_000;
+        let actual = cache
+            .canonical_glyphs_cached(0, &interval, &mut work)
+            .unwrap_or_else(|_| panic!("complete hot scan"));
+        assert_eq!(actual, expected);
+        let hot = 100_000 - work;
+        assert!(hot < cold);
+        for mut prefix in 0..hot {
+            assert!(matches!(
+                cache.canonical_glyphs_cached(0, &interval, &mut prefix),
+                Err(Stop::Exhausted)
+            ));
+            assert!(cache.blocks[0][0].canonical_ranges_validated);
+        }
+        let mut work = hot;
+        assert_eq!(
+            cache
+                .canonical_glyphs_cached(0, &interval, &mut work)
+                .unwrap_or_else(|_| panic!("exact hot work")),
+            expected
+        );
+        assert_eq!(work, 0);
+    }
+
+    #[test]
+    fn cached_canonical_ranges_are_bound_to_the_original_side_and_block() {
+        let mut malformed = positioned_block(2, "ABCD", 0.0, 0.0, 0);
+        malformed.canonical.source_map[3].output_range.end = 5;
+        let old_blocks = [positioned_block(1, "ABCD", 0.0, 0.0, 0), malformed.clone()];
+        malformed.block = BlockId(101);
+        let new_blocks = [malformed];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut cache = EqualFragmentCache::new([&old, &new]);
+        let good = SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 1,
+        };
+        assert!(
+            cache
+                .canonical_glyphs_cached(0, &good, &mut 100_000)
+                .is_ok()
+        );
+        for (side_index, block_index) in [(0, 1), (1, 0)] {
+            let empty = SourceInterval {
+                block_index,
+                start: 0,
+                end: 0,
+            };
+            assert!(matches!(
+                cache.canonical_glyphs_cached(side_index, &empty, &mut 100_000),
+                Err(Stop::Held(FragmentHold::CanonicalSource))
+            ));
+            assert!(!cache.blocks[side_index][block_index].canonical_ranges_validated);
+        }
+    }
+    #[test]
+    fn fused_event_evidence_preserves_both_membership_directions_and_touching_ranges() {
+        for block in [
+            collapsed_block(1, 0.0, 0.0),
+            deleted_break_block(2, 0.0, 0.0),
+        ] {
+            let original = &block.normalization_events[0];
+            for mapped in [&block.raw, &block.canonical] {
+                let mut maps = vec![mapped.clone()];
+                let mut missing = mapped.clone();
+                missing.source_map.remove(2);
+                maps.push(missing);
+                let mut foreign = mapped.clone();
+                foreign.source_map[2].source.atoms =
+                    vec![TextSourceAtom::Glyph(glyph(99, 0))].into();
+                maps.push(foreign);
+                let mut empty = mapped.clone();
+                empty.source_map[2].source.atoms = Vec::new().into();
+                maps.push(empty);
+                let mut unmapped = mapped.clone();
+                unmapped.unmapped.push(UnmappedToken {
+                    scalar_index: 2,
+                    font_hash: FontProgramHash(vec![1]),
+                    glyph_id: 1,
+                    source: TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(glyph(99, 1))].into(),
+                    },
+                });
+                maps.push(unmapped);
+                let mut events = vec![original.clone()];
+                let mut missing_atom = original.clone();
+                let mut atoms = missing_atom.source.atoms.to_vec();
+                atoms.push(TextSourceAtom::Glyph(glyph(99, 2)));
+                missing_atom.source.atoms = atoms.into();
+                events.push(missing_atom);
+                for mapped in maps {
+                    for event in &events {
+                        for range in [
+                            ScalarRange { start: 2, end: 2 },
+                            ScalarRange { start: 2, end: 3 },
+                            ScalarRange { start: 2, end: 4 },
+                            ScalarRange { start: 0, end: 1 },
+                        ] {
+                            let old =
+                                side_event_evidence_rescanned(&mapped, event, range, &mut 100_000);
+                            let new = side_event_evidence(&mapped, event, range, &mut 100_000);
+                            match (old, new) {
+                                (Ok(old), Ok(new)) => assert_eq!(old, new),
+                                _ => panic!("complete event evidence queries must finish"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fused_event_structure_caches_only_after_every_bitmap_charge_finishes() {
+        let blocks = [collapsed_block(1, 0.0, 0.0)];
+        let materialized = side(&blocks);
+        let refs = [&materialized, &materialized];
+        let mut full = EqualFragmentCache::new(refs);
+        let mut remaining = 100_000;
+        assert!(
+            full.event_structure(0, 0, 0, 6, 5, &mut remaining)
+                .unwrap_or_else(|_| panic!("complete event structure"))
+        );
+        let paid = 100_000 - remaining;
+        for mut prefix in 0..paid {
+            let mut cache = EqualFragmentCache::new(refs);
+            assert!(matches!(
+                cache.event_structure(0, 0, 0, 6, 5, &mut prefix),
+                Err(Stop::Exhausted)
+            ));
+            assert!(cache.blocks[0].first().is_none_or(|block| {
+                block
+                    .events
+                    .as_ref()
+                    .is_none_or(|events| events[0].is_none())
+            }));
+        }
+        let mut cache = EqualFragmentCache::new(refs);
+        let mut remaining = paid;
+        assert!(
+            cache
+                .event_structure(0, 0, 0, 6, 5, &mut remaining)
+                .unwrap_or_else(|_| panic!("exact event work"))
+        );
+        assert_eq!(remaining, 0);
+        assert_eq!(
+            cache.blocks[0][0].events.as_ref().expect("complete table")[0],
+            Some(true)
         );
     }
 }
