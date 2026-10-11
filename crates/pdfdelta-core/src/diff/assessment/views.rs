@@ -6068,8 +6068,26 @@ fn search_views(
     needle: &[ComparableToken],
     remaining_work: &mut usize,
 ) -> Result<SearchResult> {
-    let mut summary = OccurrenceSummary::default();
-    if needle.is_empty() {
+    search_views_from(
+        views,
+        needle,
+        (0, 0),
+        OccurrenceSummary::default(),
+        remaining_work,
+    )
+}
+
+/// Continues exact global counting from an already checked start-position cut.
+/// Matches starting before the cut have been fully verified by the caller;
+/// resetting KMP here excludes only those starts, including overlapping ones.
+fn search_views_from(
+    views: &[View],
+    needle: &[ComparableToken],
+    start: (usize, usize),
+    mut summary: OccurrenceSummary,
+    remaining_work: &mut usize,
+) -> Result<SearchResult> {
+    if needle.is_empty() || summary.count >= 2 {
         return Ok(SearchResult::Complete(summary));
     }
     if !charge(remaining_work, needle.len()) {
@@ -6092,13 +6110,14 @@ fn search_views(
         };
         prefix[index] = matched;
     }
-    for (view_index, view) in views.iter().enumerate() {
+    for (view_index, view) in views.iter().enumerate().skip(start.0) {
         let haystack = &view.group.tokens;
-        if needle.len() > haystack.len() {
+        let from = if view_index == start.0 { start.1 } else { 0 };
+        if needle.len() > haystack.len().saturating_sub(from) {
             continue;
         }
         let mut matched = 0;
-        for (index, token) in haystack.iter().enumerate() {
+        for (index, token) in haystack.iter().enumerate().skip(from) {
             let Some(next) = advance_match(needle, &prefix, matched, token, remaining_work) else {
                 return Ok(SearchResult::BudgetExceeded);
             };
@@ -7708,6 +7727,180 @@ mod tests {
             .expect("stays bounded")
             .is_none(),
             "exhausted budget must refuse, not fabricate"
+        );
+    }
+
+    #[test]
+    fn short_prefix_dispatch_matches_kmp_across_the_resume_cut_and_full_scan() {
+        let observe = |rows: Vec<(usize, OccurrenceSummary, OccurrenceSummary)>| {
+            rows.into_iter()
+                .map(|(id, old, new)| {
+                    let summary = |s: OccurrenceSummary| {
+                        (s.count, s.first.map(|o| (o.view_index, o.start, o.end)))
+                    };
+                    (id, summary(old), summary(new))
+                })
+                .collect::<Vec<_>>()
+        };
+        for (text, patterns, width, sparse) in [
+            (
+                format!("ABAB{}CD", "X".repeat(2_000)),
+                vec![
+                    "AB".to_owned(),
+                    "BABX".to_owned(),
+                    "CD".to_owned(),
+                    "ZQ".to_owned(),
+                ],
+                5,
+                false,
+            ),
+            (
+                format!("{}K00", "A".repeat(2_000)),
+                (0..12).map(|i| format!("K{i:02}")).collect::<Vec<_>>(),
+                4,
+                true,
+            ),
+        ] {
+            let old_blocks = vec![block(1, &text)];
+            let new_blocks = vec![block(101, &text)];
+            let old = side(&old_blocks);
+            let new = side(&new_blocks);
+            let mut build_work = 10_000_000;
+            let old_views = build_views(&old, &[None], None, &[], &mut build_work)
+                .expect("old build")
+                .expect("old views");
+            let new_views = build_views(&new, &[None], None, &[], &mut build_work)
+                .expect("new build")
+                .expect("new views");
+            let tokens = patterns
+                .iter()
+                .map(|p| p.chars().map(ComparableToken::Scalar).collect::<Vec<_>>())
+                .collect::<Vec<_>>();
+            let queries = tokens
+                .iter()
+                .map(|t| (77, t.as_slice()))
+                .collect::<Vec<_>>();
+            let mut reference_work = 1_000_000;
+            let expected = queries
+                .iter()
+                .map(|(id, needle)| {
+                    let complete = |result| match result {
+                        SearchResult::Complete(summary) => summary,
+                        SearchResult::BudgetExceeded => panic!("reference budget"),
+                    };
+                    (
+                        *id,
+                        complete(
+                            search_views(&old_views, needle, &mut reference_work).expect("old"),
+                        ),
+                        complete(
+                            search_views(&new_views, needle, &mut reference_work).expect("new"),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let expected = observe(expected);
+            let mut work = 1_000_000;
+            let actual = super::anchors::search_explicit_anchors(
+                [&old_views, &new_views],
+                &queries,
+                width,
+                &mut work,
+            )
+            .expect("prefix search")
+            .expect("complete");
+            assert_eq!(observe(actual), expected);
+            let consumed = 1_000_000 - work;
+            if sparse {
+                assert!(1_000_000 - reference_work > 40_000);
+                assert!(
+                    consumed < 20_000,
+                    "one full source scan replaces twelve independent scans"
+                );
+            }
+            // A budget cut never turns an unfinished zero/one count into uniqueness.
+            for budget in [0, consumed / 2, consumed - 1] {
+                let mut remaining = budget;
+                assert!(
+                    super::anchors::search_explicit_anchors(
+                        [&old_views, &new_views],
+                        &queries,
+                        width,
+                        &mut remaining
+                    )
+                    .expect("bounded")
+                    .is_none()
+                );
+            }
+            let mut exact = consumed;
+            assert_eq!(
+                super::anchors::search_explicit_anchors(
+                    [&old_views, &new_views],
+                    &queries,
+                    width,
+                    &mut exact
+                )
+                .expect("exact budget")
+                .map(observe),
+                Some(expected)
+            );
+            assert_eq!(exact, 0);
+        }
+    }
+
+    #[test]
+    fn short_prefix_dispatch_shares_admission_with_long_and_opaque_queries() {
+        let mut tokens = (0..4)
+            .map(|i| {
+                format!("K{i:02}")
+                    .chars()
+                    .map(ComparableToken::Scalar)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        tokens.push("longer".chars().map(ComparableToken::Scalar).collect());
+        tokens.push(vec![
+            ComparableToken::Unmapped {
+                font_hash: crate::model::FontProgramHash(vec![0; 4096]),
+                glyph_id: 7,
+            },
+            ComparableToken::Scalar('x'),
+        ]);
+        let queries = tokens
+            .iter()
+            .map(|t| (77, t.as_slice()))
+            .collect::<Vec<_>>();
+        let limit = tokens
+            .iter()
+            .map(|t| explicit_anchor_retained_bytes(t, t.len(), 1).expect("query bytes"))
+            .sum::<usize>();
+        let mut work = 10_000;
+        let result = super::anchors::search_explicit_anchors_with_limit(
+            [&[], &[]],
+            &queries,
+            5,
+            &mut work,
+            limit,
+        )
+        .expect("search")
+        .expect("combined limit");
+        assert_eq!(result.len(), queries.len());
+        assert!(
+            result
+                .iter()
+                .all(|(_, old, new)| old.count == 0 && new.count == 0)
+        );
+        let mut work = 10_000;
+        assert!(
+            super::anchors::search_explicit_anchors_with_limit(
+                [&[], &[]],
+                &queries,
+                5,
+                &mut work,
+                limit - 1
+            )
+            .expect("bounded")
+            .is_none()
         );
     }
 
