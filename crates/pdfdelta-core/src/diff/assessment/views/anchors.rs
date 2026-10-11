@@ -412,6 +412,7 @@ pub(super) fn search_explicit_anchors_with_limit(
             remaining,
             retained_limit,
             true,
+            false,
         );
     }
     // All borrowed queries remain live across the batches. Admit their combined
@@ -493,6 +494,7 @@ pub(super) fn search_explicit_anchors_with_limit(
             remaining,
             retained_limit,
             false,
+            batch_width < width,
         )?
         else {
             return Ok(None);
@@ -518,6 +520,7 @@ fn search_explicit_anchor_batch(
     remaining: &mut usize,
     retained_limit: usize,
     setup_prepaid: bool,
+    capped_short_scan: bool,
 ) -> Result<Option<Vec<(usize, OccurrenceSummary, OccurrenceSummary)>>> {
     if needles.is_empty() {
         return Ok(Some(Vec::new()));
@@ -583,7 +586,12 @@ fn search_explicit_anchor_batch(
             long.push(index);
         }
     }
-    let mut buckets = HashMap::<u64, Vec<usize>>::new();
+    #[derive(Default)]
+    struct Bucket {
+        indices: Vec<usize>,
+        active: usize,
+    }
+    let mut buckets = HashMap::<u64, Bucket>::new();
     buckets
         .try_reserve(long.len())
         .map_err(|_| super::super::allocation_error("explicit anchor buckets"))?;
@@ -592,16 +600,34 @@ fn search_explicit_anchor_batch(
         let hash = prefix_hash(&needle[..width]);
         let bucket = buckets.entry(hash).or_default();
         bucket
+            .indices
             .try_reserve(1)
             .map_err(|_| super::super::allocation_error("explicit anchor bucket"))?;
-        bucket.push(index);
+        bucket.indices.push(index);
     }
     for (side, side_views) in views.into_iter().enumerate() {
-        if !windows(side_views, width, remaining, |hash, occurrence, work| {
-            let Some(indices) = buckets.get(&hash) else {
+        let mut active = long_count;
+        if capped_short_scan {
+            if !charge(remaining, buckets.len().saturating_add(1)) {
+                return Ok(None);
+            }
+            for bucket in buckets.values_mut() {
+                bucket.active = bucket.indices.len();
+            }
+        }
+        let exhausted = !windows(side_views, width, remaining, |hash, occurrence, work| {
+            let Some(bucket) = buckets.get_mut(&hash) else {
                 return Ok(true);
             };
-            for index in indices {
+            if capped_short_scan {
+                if !charge(work, 1) {
+                    return Ok(false);
+                }
+                if bucket.active == 0 {
+                    return Ok(true);
+                }
+            }
+            for index in &bucket.indices {
                 if !charge(work, 1) {
                     return Ok(false);
                 }
@@ -651,9 +677,20 @@ fn search_explicit_anchor_batch(
                     start: occurrence.start,
                     end,
                 });
+                if capped_short_scan && summary.count == 2 {
+                    if !charge(work, 2) {
+                        return Ok(false);
+                    }
+                    bucket.active -= 1;
+                    active -= 1;
+                }
             }
-            Ok(true)
-        })? {
+            // Two exact occurrences prove capped nonuniqueness; an unseen
+            // suffix cannot change the first occurrence or restore uniqueness.
+            // Queries with zero or one occurrence still require all views.
+            Ok(!capped_short_scan || active != 0)
+        })?;
+        if exhausted && (!capped_short_scan || active != 0) {
             return Ok(None);
         }
     }
