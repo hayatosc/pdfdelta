@@ -25,6 +25,64 @@ enum EqualFragmentRetry {
     Stop,
 }
 
+/// A negative-only check of the full coupled source projection premise.
+/// Synthetic separator gaps, reordered parts or unequal component lengths
+/// cannot pass the later physical proof. Success here grants no evidence.
+fn coupled_projection_covers_parent(
+    projected: [&[SourceInterval]; 2],
+    spans: [&TextSpan; 2],
+    remaining: &mut usize,
+) -> Option<bool> {
+    if !charge(
+        remaining,
+        projected[0]
+            .len()
+            .saturating_add(projected[1].len())
+            .saturating_mul(6)
+            .saturating_add(8),
+    ) {
+        return None;
+    }
+    let n = spans[0]
+        .comparable_range
+        .end
+        .saturating_sub(spans[0].comparable_range.start);
+    if n == 0
+        || spans[1]
+            .comparable_range
+            .end
+            .saturating_sub(spans[1].comparable_range.start)
+            != n
+        || projected[0].len() < 2
+        || projected[0].len() != projected[1].len()
+    {
+        return Some(false);
+    }
+    for parts in projected {
+        let mut total = 0usize;
+        let mut previous = None;
+        for part in parts {
+            if part.start >= part.end || previous.is_some_and(|index| index >= part.block_index) {
+                return Some(false);
+            }
+            total = total.saturating_add(part.end - part.start);
+            previous = Some(part.block_index);
+        }
+        if total != n {
+            return Some(false);
+        }
+    }
+    if !charge(remaining, projected[0].len().saturating_mul(3)) {
+        return None;
+    }
+    Some(
+        projected[0]
+            .iter()
+            .zip(projected[1])
+            .all(|(old, new)| old.end - old.start == new.end - new.start),
+    )
+}
+
 /// Final partitions, emitted diagnostics and the original reviewed proofs.
 /// The coupled pass never regenerates or reorders a surviving diagnostic.
 pub(super) struct CoupledPublication<'a> {
@@ -2094,6 +2152,22 @@ impl Assessor<'_, '_> {
             project(self.sides[0], spans[0])?,
             project(self.sides[1], spans[1])?,
         ];
+        if let EqualFragmentProof::CoupledParent(context) = &proof {
+            match coupled_projection_covers_parent(
+                [&accepted[0], &accepted[1]],
+                spans,
+                &mut self.remaining_work,
+            ) {
+                Some(true) => {}
+                Some(false) => return Ok(EqualFragmentRetry::Held),
+                None => return Ok(EqualFragmentRetry::Stop),
+            }
+            match self.coupled_parent_has_strict_premise(relation, context.domains) {
+                Some(true) => {}
+                Some(false) => return Ok(EqualFragmentRetry::Held),
+                None => return Ok(EqualFragmentRetry::Stop),
+            }
+        }
         // The latest changed ownership still wins over a new equality.
         let mut conflict = false;
         for side in 0..2 {
@@ -2430,6 +2504,54 @@ impl Assessor<'_, '_> {
     /// The coupled source proof must then cover all N tokens in that order.
     /// Scores, component guards, the enable flag and a merely established
     /// boundary cannot supply this parent proof.
+    /// Rejects impossible coupled proofs before projecting unrelated vetoes.
+    /// This paid header check grants no correspondence or ownership: the full
+    /// exact-key, source, context and current ownership proof still follows.
+    fn coupled_parent_has_strict_premise(
+        &mut self,
+        relation: usize,
+        domains: &[(super::DomainKey, super::DomainProof)],
+    ) -> Option<bool> {
+        if !self.charge(8) {
+            return None;
+        }
+        let Some(parent) = self.records[relation]
+            .parent
+            .filter(|parent| *parent < relation)
+        else {
+            return Some(false);
+        };
+        let parent_record = &self.records[parent];
+        if parent_record.outcome != RelationOutcome::Established
+            || parent_record.search != SearchCompleteness::Complete
+            || !parent_record.reasons.is_empty()
+        {
+            return Some(false);
+        }
+        if !self.charge(domains.len()) {
+            return None;
+        }
+        let reviewed = domains.iter().find(|(_, proof)| proof.relation == parent);
+        let retained = if reviewed.is_some() {
+            reviewed.map(|(_, proof)| proof)
+        } else {
+            if !self.charge(self.domains.len()) {
+                return None;
+            }
+            self.domains.values().find(|proof| proof.relation == parent)
+        };
+        if !charge(&mut self.remaining_work, 8) {
+            return None;
+        }
+        Some(retained.is_some_and(|proof| {
+            proof.scope == super::ProofScope::ExactKey
+                && proof.strict_unique
+                && proof.unique
+                && proof.edits.is_empty()
+                && proof.search == SearchCompleteness::Complete
+        }))
+    }
+
     fn prove_coupled_equal_parent(
         &mut self,
         relation: usize,
@@ -8770,6 +8892,149 @@ mod tests {
         assert!(exact.adopted);
         assert_eq!(exact.remaining, 0);
         assert_eq!(exact.accepted, full.accepted);
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_projection_filter_matches_the_full_source_guard() -> Result<()> {
+        for control in 0..4 {
+            let mut blocks = [coupled_blocks(0), coupled_blocks(100)];
+            if control == 2 {
+                blocks[1][1] = sourced_block(102, "Par");
+                blocks[1][2] = sourced_block(103, "tIII");
+            }
+            let sides = [side(&blocks[0]), side(&blocks[1])];
+            let alignment = unresolved_alignment(
+                &blocks[0].iter().map(|b| b.block).collect::<Vec<_>>(),
+                &blocks[1].iter().map(|b| b.block).collect::<Vec<_>>(),
+            );
+            let mut a = super::super::Assessor::new(
+                [&sides[0], &sides[1]],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            let separator = if control == 0 {
+                BlockSeparator::Space
+            } else {
+                BlockSeparator::Concatenate
+            };
+            let mut spans = [
+                coupled_span(&blocks[0], separator),
+                coupled_span(&blocks[1], separator),
+            ];
+            if control == 1 {
+                for span in &mut spans {
+                    span.blocks.swap(1, 2);
+                }
+            }
+            a.local_domains.push(LocalDomain {
+                old_span: spans[0].clone(),
+                new_span: spans[1].clone(),
+                source_bounded: false,
+            });
+            a.recover_local(
+                &mut [Ownership::new(), Ownership::new()],
+                &mut Vec::new(),
+                &mut Vec::new(),
+            )?;
+            let child = a.equal_fragment_candidates[0];
+            let parent = a.records[child].parent.expect("complete parent");
+            let proof = a
+                .domains
+                .values()
+                .find(|proof| proof.relation == parent)
+                .expect("retained proof");
+            let (old, new) = a.copy_recorded_spans(child)?.expect("source spans");
+            let spans = [&old, &new];
+            let projected = [
+                project(a.sides[0], spans[0])?,
+                project(a.sides[1], spans[1])?,
+            ];
+            let parts = [&projected[0][..], &projected[1][..]];
+            let mut budget = 1_000_000;
+            let possible = coupled_projection_covers_parent(parts, spans, &mut budget);
+            assert_eq!(possible, Some(control == 3));
+            let used = 1_000_000 - budget;
+            for mut cut in [0, used / 2, used - 1] {
+                assert_eq!(
+                    coupled_projection_covers_parent(parts, spans, &mut cut),
+                    None
+                );
+            }
+            let mut exact = used;
+            assert_eq!(
+                coupled_projection_covers_parent(parts, spans, &mut exact),
+                possible
+            );
+            assert_eq!(exact, 0);
+            let mut full_budget = 1_000_000;
+            let full = super::super::equal_fragment::EqualFragmentCache::new(a.sides)
+                .prove_coupled_positioned_parent(
+                    spans,
+                    &a.records[parent],
+                    proof,
+                    &mut full_budget,
+                )?;
+            assert_eq!(
+                full,
+                if control == 3 {
+                    super::super::equal_fragment::FragmentVerdict::Proven
+                } else {
+                    super::super::equal_fragment::FragmentVerdict::Held(
+                        super::super::equal_fragment::FragmentHold::Projection,
+                    )
+                }
+            );
+            assert!(used < 1_000_000 - full_budget);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coupled_parent_rejects_missing_strict_premise_before_candidate_projection() -> Result<()> {
+        let mut blocks = [coupled_blocks(0), coupled_blocks(100)];
+        for (side_index, side_blocks) in blocks.iter_mut().enumerate() {
+            for index in 0..256 {
+                side_blocks.push(sourced_block(1000 + side_index as u64 * 256 + index, "x"));
+            }
+        }
+        let run = |with_candidates| {
+            run_coupled_parent(
+                [&blocks[0], &blocks[1]],
+                1_000_000,
+                |a, _, candidates, _, _| {
+                    // Isolate this retry from the earlier contiguous proof,
+                    // which uses a different correspondence premise.
+                    a.equal_fragment_candidates.clear();
+                    a.domains
+                        .values_mut()
+                        .for_each(|proof| proof.strict_unique = false);
+                    if with_candidates {
+                        for block in &blocks[0][5..] {
+                            candidates.push(ChangeCandidate {
+                                change: Change::single_occurrence(
+                                    ChangeKind::Deletion,
+                                    Some(strict_closed_fragment_span(block.block.0, 0, 1)),
+                                    None,
+                                    Confidence::High,
+                                    Vec::new(),
+                                ),
+                                relation: 0,
+                                alternative_group: 0,
+                            });
+                        }
+                    }
+                },
+            )
+        };
+        let bare = run(false)?;
+        let unrelated = run(true)?;
+        assert!(!bare.adopted && !unrelated.adopted);
+        assert!(bare.accepted.iter().all(Vec::is_empty));
+        assert!(unrelated.accepted.iter().all(Vec::is_empty));
+        assert_eq!(bare.regions, unrelated.regions);
+        assert_eq!(bare.used, unrelated.used, "irrelevant candidate work");
         Ok(())
     }
 
