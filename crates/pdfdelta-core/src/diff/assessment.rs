@@ -2528,6 +2528,57 @@ fn coarse_substantive_mismatch(
     counts.values().any(|count| *count != 0)
 }
 
+/// A two-sided unresolved gap cannot exist when a whole parent side has no
+/// unresolved source interval. This negative filter publishes no evidence;
+/// invalid projections continue through the original guarded analysis.
+fn coarse_has_unresolved_span(
+    side: &Side<'_>,
+    span: &TextSpan,
+    partition: &[ResolutionRange],
+    ordered: bool,
+    available_bytes: usize,
+    remaining: &mut usize,
+) -> Option<bool> {
+    let count = span.blocks.len();
+    let work = count.checked_mul(usize::BITS as usize + count + 4)?;
+    if !charge_work(remaining, work) {
+        return None;
+    }
+    if count
+        .checked_mul(128)
+        .and_then(|bytes| bytes.checked_add(512))
+        .is_none_or(|bytes| bytes > available_bytes)
+    {
+        return Some(true);
+    }
+    let Some(intervals) = coarse_project(side, span) else {
+        return Some(true);
+    };
+    for interval in intervals {
+        let relevant = if ordered {
+            let start =
+                review::partition_bound(side, partition, interval.block_index, false, remaining)?;
+            let end =
+                review::partition_bound(side, partition, interval.block_index, true, remaining)?;
+            &partition[start..end]
+        } else {
+            partition
+        };
+        if !charge_work(remaining, relevant.len()) {
+            return None;
+        }
+        if relevant.iter().any(|part| {
+            part.block == side.blocks[interval.block_index].block
+                && part.state == ResolutionState::Unresolved
+                && part.comparable_range.start < interval.end
+                && interval.start < part.comparable_range.end
+        }) {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
 /// Checks current ownership and previously reported coarse regions without
 /// mutating either. Synthetic separators never create source intervals.
 fn coarse_gap_is_unresolved(
@@ -6692,6 +6743,17 @@ impl<'a, 'document> Assessor<'a, 'document> {
         else {
             return Ok(());
         };
+        let Some(old_ordered) =
+            review::ordered_partition(self.sides[0], partitions[0], &mut self.remaining_work)
+        else {
+            return Ok(());
+        };
+        let Some(new_ordered) =
+            review::ordered_partition(self.sides[1], partitions[1], &mut self.remaining_work)
+        else {
+            return Ok(());
+        };
+        let ordered = [old_ordered, new_ordered];
         let mut retained_output_bytes = 0usize;
         for (key, proof) in domains {
             if self.records.len() >= self.options.max_assessment_ranges.saturating_sub(1)
@@ -6723,6 +6785,44 @@ impl<'a, 'document> Assessor<'a, 'document> {
             let (Some(old_span), Some(new_span)) = (&parent.old_span, &parent.new_span) else {
                 continue;
             };
+            // A containing region already claims the entire side. Every
+            // proposed interior would fail the existing overlap guard, so
+            // avoid recomputing its mandatory matching analysis. Exact source
+            // span equality is paid and grants no new evidence or ownership.
+            let mut covered = false;
+            for region in output.iter() {
+                for (parent_span, region_span) in [
+                    (old_span, region.old_span.as_ref()),
+                    (new_span, region.new_span.as_ref()),
+                ] {
+                    if !charge_work(&mut self.remaining_work, 8) {
+                        return Ok(());
+                    }
+                    let Some(region_span) = region_span else {
+                        continue;
+                    };
+                    if parent_span.separator != region_span.separator
+                        || parent_span.canonical_range != region_span.canonical_range
+                        || parent_span.comparable_range != region_span.comparable_range
+                        || parent_span.blocks.len() != region_span.blocks.len()
+                    {
+                        continue;
+                    }
+                    if !charge_work(&mut self.remaining_work, parent_span.blocks.len()) {
+                        return Ok(());
+                    }
+                    if parent_span.blocks == region_span.blocks {
+                        covered = true;
+                        break;
+                    }
+                }
+                if covered {
+                    break;
+                }
+            }
+            if covered {
+                continue;
+            }
             let Some(view_limit) = COARSE_MEMORY_BYTES
                 .checked_sub(domain_bytes)
                 .and_then(|bytes| bytes.checked_sub(retained_output_bytes))
@@ -6740,6 +6840,40 @@ impl<'a, 'document> Assessor<'a, 'document> {
             };
             let [old, new] = [views[0].selected_tokens(), views[1].selected_tokens()];
             if proof.exact_lengths() != Some([old.len(), new.len()]) {
+                continue;
+            }
+            // Equal literal sequences have only the full diagonal maximum
+            // matching. They cannot contain a substantively changed interior;
+            // this paid negative check grants no correspondence or ownership.
+            if !charge_work(
+                &mut self.remaining_work,
+                old.len().saturating_add(new.len()),
+            ) {
+                break;
+            }
+            if old == new {
+                continue;
+            }
+            let mut can_have_gap = true;
+            for (side, span) in [old_span, new_span].into_iter().enumerate() {
+                let Some(unresolved) = coarse_has_unresolved_span(
+                    self.sides[side],
+                    span,
+                    partitions[side],
+                    ordered[side],
+                    view_limit
+                        .saturating_sub(views[0].retained_bytes)
+                        .saturating_sub(views[1].retained_bytes),
+                    &mut self.remaining_work,
+                ) else {
+                    return Ok(());
+                };
+                if !unresolved {
+                    can_have_gap = false;
+                    break;
+                }
+            }
+            if !can_have_gap {
                 continue;
             }
             let ids = views[0].blocks.len().checked_add(views[1].blocks.len());
@@ -7596,6 +7730,143 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn review_ordered_ranges_preserve_exhaustive_claims_and_budget_cuts() -> Result<()> {
+        let old_blocks = (0..128)
+            .map(|i| anchor_block(1000 - i * 3, "abc"))
+            .collect::<Vec<_>>();
+        let new_blocks = (0..128)
+            .map(|i| anchor_block(5000 + i * 7, if i == 127 { "abD" } else { "abc" }))
+            .collect::<Vec<_>>();
+        let old =
+            super::super::SidePlan::inspect("old review fixture", &old_blocks)?.materialize()?;
+        let new =
+            super::super::SidePlan::inspect("new review fixture", &new_blocks)?.materialize()?;
+        let alignment = Alignment {
+            spans: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let partitions = [&old_blocks, &new_blocks].map(|blocks| {
+            blocks
+                .iter()
+                .flat_map(|block| {
+                    h8_partition(
+                        block.block,
+                        &[
+                            (0, 1, ResolutionState::Unresolved),
+                            (1, 2, ResolutionState::Unresolved),
+                            (2, 3, ResolutionState::Unresolved),
+                        ],
+                    )
+                })
+                .collect::<Vec<_>>()
+        });
+        let unordered = partitions.clone().map(|mut partition| {
+            partition.reverse();
+            partition
+        });
+        let mut exhaustive = h8_closed_parent([&old, &new], &alignment)?;
+        let expected = review::collect(&mut exhaustive, [&unordered[0], &unordered[1]])?;
+        assert_eq!(expected.units.len(), 1);
+        assert_eq!(expected.units[0].search, SearchCompleteness::Complete);
+        assert_eq!(
+            expected.units[0].changed_count,
+            Some(EditCountBounds { lower: 2, upper: 2 })
+        );
+        assert_eq!(
+            expected.units[0].unresolved_changed_count,
+            expected.units[0].changed_count
+        );
+        let mut indexed = h8_closed_parent([&old, &new], &alignment)?;
+        let parent = indexed.records.clone();
+        indexed.remaining_work = 50_000;
+        let actual = review::collect(&mut indexed, [&partitions[0], &partitions[1]])?;
+        assert_eq!(actual.units, expected.units);
+        assert_eq!(indexed.records, parent);
+        assert!(indexed.mandatory_analyses.is_empty());
+        assert!(indexed.domains.is_empty());
+        let used = 50_000 - indexed.remaining_work;
+        assert!(used > 0 && used < 50_000);
+        for budget in [0, used / 2, used - 1, used] {
+            let mut assessor = h8_closed_parent([&old, &new], &alignment)?;
+            assessor.remaining_work = budget;
+            let result = review::collect(&mut assessor, [&partitions[0], &partitions[1]])?;
+            if budget == used {
+                assert_eq!(result.units, expected.units);
+                assert_eq!(assessor.remaining_work, 0);
+            } else {
+                assert!(
+                    result
+                        .units
+                        .iter()
+                        .all(|unit| unit.search != SearchCompleteness::Complete)
+                );
+            }
+            assert_eq!(assessor.records, parent);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coarse_negative_filters_keep_source_ownership_and_existing_evidence() -> Result<()> {
+        let old_blocks = [anchor_block(1, &"A".repeat(200))];
+        for equal in [false, true] {
+            let new_blocks = [anchor_block(
+                101,
+                &if equal {
+                    "A".repeat(200)
+                } else {
+                    "B".repeat(200)
+                },
+            )];
+            let old = super::super::SidePlan::inspect("old negative fixture", &old_blocks)?
+                .materialize()?;
+            let new = super::super::SidePlan::inspect("new negative fixture", &new_blocks)?
+                .materialize()?;
+            let alignment = Alignment {
+                spans: Vec::new(),
+                main_anchors: Vec::new(),
+                move_candidates: Vec::new(),
+            };
+            let partitions = [
+                h8_partition(BlockId(1), &[(0, 200, ResolutionState::Changed)]),
+                h8_partition(BlockId(101), &[(0, 200, ResolutionState::Unresolved)]),
+            ];
+            let mut assessor = h8_closed_parent([&old, &new], &alignment)?;
+            let parent = assessor.records.clone();
+            let mut output = Vec::new();
+            assessor
+                .collect_mandatory_changed_regions([&partitions[0], &partitions[1]], &mut output)?;
+            assert!(output.is_empty());
+            assert_eq!(assessor.records, parent);
+            assert!(assessor.mandatory_analyses.is_empty());
+            assert!(1_000_000 - assessor.remaining_work < 10_000);
+            if !equal {
+                let region = ProvenChangedRegion {
+                    old_span: parent[0].old_span.clone(),
+                    new_span: parent[0].new_span.clone(),
+                    confidence: super::super::Confidence::High,
+                    proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+                };
+                let mut output = vec![region.clone()];
+                assessor.remaining_work = 10_000;
+                let unresolved = [
+                    h8_partition(BlockId(1), &[(0, 200, ResolutionState::Unresolved)]),
+                    partitions[1].clone(),
+                ];
+                assessor.collect_mandatory_changed_regions(
+                    [&unresolved[0], &unresolved[1]],
+                    &mut output,
+                )?;
+                assert_eq!(output, vec![region]);
+                assert_eq!(assessor.records, parent);
+                assert!(assessor.remaining_work > 0);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn cached_equal_domain_does_not_starve_later_mandatory_source_equalities() -> Result<()> {
         let unchanged = "a".repeat(60);
         let old_blocks = [anchor_block(1, &unchanged), anchor_block(2, "[20] AUTHOR")];
@@ -7706,18 +7977,22 @@ mod assessor_issue_cache_tests {
         let (with_equal, with_equal_work) = run(true, true, true)?;
         assert!(baseline_work <= 16_000 && with_equal_work <= 16_000);
         // Empty cached edits can also be a refused or ambiguous proof. Such
-        // headers must retain the ordinary analysis rather than taking the shortcut.
+        // headers cannot use the header-only shortcut: the literal or resolved
+        // source negative check must still be paid. Independent later proofs
+        // must match the run that omits the unrelated domain entirely.
         for (unique, strict) in [(false, true), (true, false), (false, false)] {
             let (uncertified, work) = run(true, unique, strict)?;
             assert!(work > with_equal_work && work <= 16_000);
             for (side, parts) in uncertified.iter().enumerate() {
                 let block = [BlockId(2), BlockId(102)][side];
-                assert!(
-                    parts
+                let selected = |ranges: &[ResolutionRange]| {
+                    ranges
                         .iter()
                         .filter(|range| range.block == block)
-                        .all(|range| { range.state == ResolutionState::Unresolved })
-                );
+                        .cloned()
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(selected(parts), selected(&baseline[side]));
             }
         }
         for side in 0..2 {

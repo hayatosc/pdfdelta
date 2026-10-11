@@ -1480,7 +1480,17 @@ impl Extraction<'_> {
                     limit: usize::MAX,
                 })?;
         self.charge_convex_clip_work(state.graphics.clip_region.work())?;
-        let path_clip_status = state.graphics.clip_region.glyph_status(bbox)?;
+        let path_clip_status = match state.graphics.clip_region.glyph_status(bbox) {
+            Err(error @ Error::Unresolved(_)) => {
+                let Some(query) = state.graphics.clip_region.glyph_overlap_completion(bbox) else {
+                    return Err(error);
+                };
+                query
+                    .complete(|work| self.charge_convex_clip_work(work))?
+                    .ok_or(error)?
+            }
+            result => result?,
+        };
         let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
         let is_word_space = raw_code.as_slice() == b" ";

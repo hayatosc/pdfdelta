@@ -365,9 +365,11 @@ fn windows(
 /// `old == new`). Long needles (full length >= `width`) are grouped by the
 /// rolling-hash fingerprint of their first `width` tokens and found in one
 /// scan per side with the existing rolling windows; every fingerprint hit is
-/// exact-verified for the complete needle tokens with charged work. Shorter
-/// needles fall back to the existing KMP `search_views`. Fingerprint
-/// collisions only cost work or reject a candidate, never prove equality.
+/// exact-verified for the complete needle tokens with charged work. Repeated
+/// scalar needles reuse completed two-sided counts. Four or more shorter
+/// scalar-prefix needles share an exact prefix dispatch; small batches and
+/// opaque prefixes retain KMP. Fingerprint collisions only cost work or
+/// reject a candidate, never prove equality.
 /// Occurrences are counted across all views (untrusted included) capped at
 /// two, retaining the first in `(view, start)` order. Budget exhaustion
 /// returns `Ok(None)` and never fabricates matches.
@@ -402,7 +404,11 @@ pub(super) fn search_explicit_anchors_with_limit(
     }
     let mut summed_retained_bytes = 0usize;
     let mut scalar_queries = 0usize;
+    let mut wide_short_queries = 0usize;
     for (_, needle) in needles {
+        if needle.len() > 1 && needle.len() < width && needle[0].is_scalar() {
+            wide_short_queries += 1;
+        }
         if width > 1 && matches!(needle, [ComparableToken::Scalar(_)]) {
             scalar_queries += 1;
         }
@@ -465,6 +471,12 @@ pub(super) fn search_explicit_anchors_with_limit(
             let last = results.last_mut().expect("result was just pushed");
             last.1 = summaries[0];
             last.2 = summaries[1];
+        } else if wide_short_queries >= 4
+            && needle.len() > 1
+            && needle.len() < width
+            && needle[0].is_scalar()
+        {
+            // Filled by one source-ordered scan after the scalar queries.
         } else if width == 0 || needle.is_empty() || needle.len() < width {
             let old = super::search_views(views[0], needle, remaining)?;
             let new = super::search_views(views[1], needle, remaining)?;
@@ -475,6 +487,18 @@ pub(super) fn search_explicit_anchors_with_limit(
             last.1 = old;
             last.2 = new;
         }
+    }
+    if wide_short_queries >= 4
+        && !search_short_prefixes(
+            views,
+            needles,
+            width,
+            wide_short_queries,
+            &mut results,
+            remaining,
+        )?
+    {
+        return Ok(None);
     }
     if width == 0 {
         return Ok(Some(results));
@@ -573,6 +597,168 @@ pub(super) fn search_explicit_anchors_with_limit(
         }
     }
     Ok(Some(results))
+}
+
+/// Multiple short lengths share a first-token dispatch, followed by complete
+/// token comparison. Hash collisions never establish a match. The last three
+/// unfinished queries resume KMP at the exact checked start-position cut.
+fn search_short_prefixes(
+    views: [&[View]; 2],
+    needles: &[(usize, &[ComparableToken])],
+    width: usize,
+    count: usize,
+    results: &mut [(usize, OccurrenceSummary, OccurrenceSummary)],
+    remaining: &mut usize,
+) -> Result<bool> {
+    #[derive(Default)]
+    struct Bucket {
+        indices: Vec<usize>,
+        active: usize,
+    }
+    // Includes metadata initialization, first-token hashing and insertion.
+    if !charge(remaining, count.saturating_mul(5).saturating_add(1)) {
+        return Ok(false);
+    }
+    let mut buckets = HashMap::<char, Bucket>::new();
+    buckets
+        .try_reserve(count)
+        .map_err(|_| super::super::allocation_error("short prefix buckets"))?;
+    if buckets.capacity() > count.saturating_mul(2) {
+        return Ok(false);
+    }
+    for (index, (_, needle)) in needles.iter().enumerate() {
+        if needle.len() <= 1 || needle.len() >= width || !needle[0].is_scalar() {
+            continue;
+        }
+        let bucket = buckets
+            .entry(needle[0].as_scalar().expect("scalar prefix admitted"))
+            .or_default();
+        bucket
+            .indices
+            .try_reserve(1)
+            .map_err(|_| super::super::allocation_error("short prefix indices"))?;
+        bucket.indices.push(index);
+    }
+    for (side, side_views) in views.into_iter().enumerate() {
+        let mut active = count;
+        if !charge(remaining, buckets.len().saturating_add(1)) {
+            return Ok(false);
+        }
+        for bucket in buckets.values_mut() {
+            bucket.active = bucket.indices.len();
+        }
+        'scan: {
+            for (view_index, view) in side_views.iter().enumerate() {
+                for start in 0..view.group.tokens.len() {
+                    if active == 0 {
+                        break 'scan;
+                    }
+                    if active <= 3 {
+                        // Preserve the original query slots, including repeated IDs.
+                        if !charge(remaining, needles.len()) {
+                            return Ok(false);
+                        }
+                        for (index, (_, needle)) in needles.iter().enumerate() {
+                            if needle.len() <= 1 || needle.len() >= width || !needle[0].is_scalar()
+                            {
+                                continue;
+                            }
+                            let summary = if side == 0 {
+                                results[index].1
+                            } else {
+                                results[index].2
+                            };
+                            if summary.count >= 2 {
+                                continue;
+                            }
+                            let Some(summary) = complete(super::search_views_from(
+                                side_views,
+                                needle,
+                                (view_index, start),
+                                summary,
+                                remaining,
+                            )?) else {
+                                return Ok(false);
+                            };
+                            if side == 0 {
+                                results[index].1 = summary;
+                            } else {
+                                results[index].2 = summary;
+                            }
+                        }
+                        break 'scan;
+                    }
+                    // One source-token visit and one fixed-size character lookup;
+                    // opaque font payloads are never hashed by this dispatch.
+                    if !charge(remaining, 1) {
+                        return Ok(false);
+                    }
+                    let Some(scalar) = view.group.tokens[start].as_scalar() else {
+                        continue;
+                    };
+                    if !charge(remaining, 1) {
+                        return Ok(false);
+                    }
+                    let Some(bucket) = buckets.get_mut(&scalar) else {
+                        continue;
+                    };
+                    if !charge(remaining, 1) {
+                        return Ok(false);
+                    }
+                    if bucket.active == 0 {
+                        continue;
+                    }
+                    for &index in &bucket.indices {
+                        if !charge(remaining, 1) {
+                            return Ok(false);
+                        }
+                        let summary = if side == 0 {
+                            &mut results[index].1
+                        } else {
+                            &mut results[index].2
+                        };
+                        if summary.count >= 2 {
+                            continue;
+                        }
+                        let needle = needles[index].1;
+                        let Some(end) = start
+                            .checked_add(needle.len())
+                            .filter(|&end| end <= view.group.tokens.len())
+                        else {
+                            continue;
+                        };
+                        let mut equal = true;
+                        for (actual, expected) in view.group.tokens[start..end].iter().zip(needle) {
+                            if !charge(remaining, 1) {
+                                return Ok(false);
+                            }
+                            if actual != expected {
+                                equal = false;
+                                break;
+                            }
+                        }
+                        if !equal {
+                            continue;
+                        }
+                        summary.count += 1;
+                        summary.first.get_or_insert(Occurrence {
+                            view_index,
+                            start,
+                            end,
+                        });
+                        if summary.count == 2 {
+                            if !charge(remaining, 2) {
+                                return Ok(false);
+                            }
+                            bucket.active -= 1;
+                            active -= 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(true)
 }
 
 /// Single-scalar KMP with its two-sided prefix cost prepaid by the caller.

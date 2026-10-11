@@ -29,6 +29,21 @@ pub(super) fn collect(
     domains.sort_by_key(|(_, proof)| proof.relation);
     let mut units = Vec::new();
     let mut output_ranges = 0usize;
+    let Some(old_ordered) = ordered_partition(
+        assessor.sides[0],
+        partitions[0],
+        &mut assessor.remaining_work,
+    ) else {
+        return Ok(ReviewResult { units, domains });
+    };
+    let Some(new_ordered) = ordered_partition(
+        assessor.sides[1],
+        partitions[1],
+        &mut assessor.remaining_work,
+    ) else {
+        return Ok(ReviewResult { units, domains });
+    };
+    let ordered = [old_ordered, new_ordered];
     for (key, proof) in &domains {
         if proof.scope != super::ProofScope::ExactKey {
             continue;
@@ -108,20 +123,27 @@ pub(super) fn collect(
             output_ranges += 1;
             continue;
         };
-        let mapping_work = groups
-            .iter()
-            .enumerate()
-            .try_fold(0usize, |sum, (side, group)| {
-                sum.checked_add(group.tokens.len())?
-                    .checked_add(group.blocks.len().checked_mul(partitions[side].len())?)
-            });
-        if !assessor.charge(mapping_work.unwrap_or(usize::MAX)) {
+        let Some(old_masks) = masks(
+            assessor.sides[0],
+            &groups[0],
+            partitions[0],
+            ordered[0],
+            &mut assessor.remaining_work,
+        )?
+        else {
             break;
-        }
-        let masks = [
-            masks(assessor.sides[0], &groups[0], partitions[0])?,
-            masks(assessor.sides[1], &groups[1], partitions[1])?,
-        ];
+        };
+        let Some(new_masks) = masks(
+            assessor.sides[1],
+            &groups[1],
+            partitions[1],
+            ordered[1],
+            &mut assessor.remaining_work,
+        )?
+        else {
+            break;
+        };
+        let masks = [old_masks, new_masks];
         // Fully resolved units already have exact events and need no extra DP.
         if !masks
             .iter()
@@ -399,7 +421,62 @@ struct Masks {
     unresolved: Vec<bool>,
 }
 
-fn masks(side: &Side<'_>, group: &GroupText, partition: &[ResolutionRange]) -> Result<Masks> {
+/// Checks source-block order once before any binary range lookup. An
+/// unordered diagnostic partition keeps the original exhaustive scan.
+pub(super) fn ordered_partition(
+    side: &Side<'_>,
+    partition: &[ResolutionRange],
+    remaining: &mut usize,
+) -> Option<bool> {
+    let mut previous = None;
+    for part in partition {
+        if !super::charge(remaining, 2) {
+            return None;
+        }
+        let index = side.index[&part.block];
+        if previous.is_some_and(|previous| previous > index) {
+            return Some(false);
+        }
+        previous = Some(index);
+    }
+    Some(true)
+}
+
+/// Finds a source-block boundary without allocating an auxiliary index.
+pub(super) fn partition_bound(
+    side: &Side<'_>,
+    partition: &[ResolutionRange],
+    block: usize,
+    upper: bool,
+    remaining: &mut usize,
+) -> Option<usize> {
+    let mut low = 0;
+    let mut high = partition.len();
+    while low < high {
+        if !super::charge(remaining, 2) {
+            return None;
+        }
+        let middle = low + (high - low) / 2;
+        let index = side.index[&partition[middle].block];
+        if index < block || (upper && index == block) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    Some(low)
+}
+
+fn masks(
+    side: &Side<'_>,
+    group: &GroupText,
+    partition: &[ResolutionRange],
+    ordered: bool,
+    remaining: &mut usize,
+) -> Result<Option<Masks>> {
+    if !super::charge(remaining, group.tokens.len()) {
+        return Ok(None);
+    }
     let mut source = Vec::new();
     source
         .try_reserve_exact(group.tokens.len())
@@ -409,6 +486,9 @@ fn masks(side: &Side<'_>, group: &GroupText, partition: &[ResolutionRange]) -> R
     let mut offset = 0usize;
     let mut preceding_space = false;
     for (position, block) in group.blocks.iter().enumerate() {
+        if !super::charge(remaining, 2) {
+            return Ok(None);
+        }
         let block_index = side.index[block];
         let tokens = &side.canonical[block_index];
         let separator = position > 0
@@ -423,7 +503,22 @@ fn masks(side: &Side<'_>, group: &GroupText, partition: &[ResolutionRange]) -> R
         if start < end {
             source[start - group.comparable_origin..end - group.comparable_origin].fill(true);
         }
-        for part in partition
+        let relevant = if ordered {
+            let Some(start) = partition_bound(side, partition, block_index, false, remaining)
+            else {
+                return Ok(None);
+            };
+            let Some(end) = partition_bound(side, partition, block_index, true, remaining) else {
+                return Ok(None);
+            };
+            &partition[start..end]
+        } else {
+            partition
+        };
+        if !super::charge(remaining, relevant.len()) {
+            return Ok(None);
+        }
+        for part in relevant
             .iter()
             .filter(|part| part.block == *block && part.state == ResolutionState::Unresolved)
         {
@@ -439,7 +534,7 @@ fn masks(side: &Side<'_>, group: &GroupText, partition: &[ResolutionRange]) -> R
             .last()
             .map_or(separator || preceding_space, space_token);
     }
-    Ok(Masks { source, unresolved })
+    Ok(Some(Masks { source, unresolved }))
 }
 
 fn spans(
