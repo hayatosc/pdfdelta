@@ -10400,37 +10400,26 @@ mod assessor_issue_cache_tests {
                         .any(|part| part.state == ResolutionState::Unresolved)
                 );
             }
-            if page_shifted {
-                assert!(capacity > full.len());
-                assert!(
-                    owners
-                        .iter()
-                        .all(|owner| owner.accepted.capacity() > owner.accepted.len())
-                );
-                let used = 1_000_000 - remaining;
-                for budget in (0..=used)
-                    .step_by(257)
-                    .chain([used.saturating_sub(1), used])
-                {
-                    let Outcome {
-                        records: partial,
-                        owners: partial_owners,
-                        ..
-                    } = run(budget, 100)?;
-                    assert_eq!(&partial[1..], &full[1..partial.len()]);
-                    assert_eq!(
-                        partial_owners[0].accepted.len(),
-                        partial_owners[1].accepted.len()
-                    );
-                }
-            } else {
-                // Legacy minimum-only reserve calls and fees stay in their
-                // protected branch; this fixture observes their exact growth.
-                assert_eq!(capacity, full.len());
-                assert!(
-                    owners
-                        .iter()
-                        .all(|owner| owner.accepted.capacity() == owner.accepted.len())
+            assert!(capacity > full.len());
+            assert!(
+                owners
+                    .iter()
+                    .all(|owner| owner.accepted.capacity() > owner.accepted.len())
+            );
+            let used = 1_000_000 - remaining;
+            for budget in (0..=used)
+                .step_by(257)
+                .chain([used.saturating_sub(1), used])
+            {
+                let Outcome {
+                    records: partial,
+                    owners: partial_owners,
+                    ..
+                } = run(budget, 100)?;
+                assert_eq!(&partial[1..], &full[1..partial.len()]);
+                assert_eq!(
+                    partial_owners[0].accepted.len(),
+                    partial_owners[1].accepted.len()
                 );
             }
             for cap in 0..=2 {

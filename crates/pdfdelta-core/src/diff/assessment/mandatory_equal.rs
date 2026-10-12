@@ -555,7 +555,7 @@ fn shallow_words<T>() -> usize {
     std::mem::size_of::<T>().div_ceil(std::mem::size_of::<usize>())
 }
 
-/// Exact requested capacities for the optional page-shift publication route.
+/// Exact requested capacities for guarded optional child publication.
 /// These are allocation requests, not an allocator-overhead or CPU guarantee.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PublicationGrowth {
@@ -2124,8 +2124,8 @@ impl Assessor<'_, '_> {
             .len()
             .saturating_add(if page_shifted { 2 } else { 1 });
         // Fixed logical metadata allowance: three capacity/limit/target rows
-        // and checked transient-byte/copy sums. Only this new route pays it.
-        if page_shifted && !charge_work(&mut self.remaining_work, 128) {
+        // and checked transient-byte/copy sums. Every planned route pays it.
+        if !charge_work(&mut self.remaining_work, 128) {
             return Ok(false);
         }
         let Some(child_bytes) = assumptions
@@ -2134,9 +2134,10 @@ impl Assessor<'_, '_> {
         else {
             return Ok(false);
         };
-        let Some(mut next_retained_children) = retained_children.checked_add(child_bytes) else {
+        if retained_children.checked_add(child_bytes).is_none() {
             return Ok(false);
-        };
+        }
+        let next_retained_children;
         let Some(new_bytes) = publication_memory(
             domain_bytes,
             source_bytes,
@@ -2156,64 +2157,38 @@ impl Assessor<'_, '_> {
         if new_bytes > COARSE_MEMORY_BYTES {
             return Ok(false);
         }
-        let mut growth = if page_shifted {
-            let Some(plan) = publication_growth(
-                [
-                    self.records.len(),
-                    ownership[0].accepted.len(),
-                    ownership[1].accepted.len(),
-                ],
-                [
-                    self.records.capacity(),
-                    ownership[0].accepted.capacity(),
-                    ownership[1].accepted.capacity(),
-                ],
-                self.options.max_assessment_ranges,
-                new_bytes,
-                COARSE_MEMORY_BYTES,
-            ) else {
-                return Ok(false);
-            };
-            Some(plan)
-        } else {
-            None
+        let Some(plan) = publication_growth(
+            [
+                self.records.len(),
+                ownership[0].accepted.len(),
+                ownership[1].accepted.len(),
+            ],
+            [
+                self.records.capacity(),
+                ownership[0].accepted.capacity(),
+                ownership[1].accepted.capacity(),
+            ],
+            self.options.max_assessment_ranges,
+            new_bytes,
+            COARSE_MEMORY_BYTES,
+        ) else {
+            return Ok(false);
         };
-        let commit_work = if let Some(plan) = growth {
-            partitions[0]
-                .len()
-                .saturating_add(partitions[1].len())
-                .saturating_mul(shallow_words::<ResolutionRange>().saturating_add(2))
-                .saturating_add(plan.copy_work)
-                .saturating_add(regions.len().saturating_mul(usize::BITS as usize + 8))
-                .saturating_add(assumptions)
-                .saturating_add(8)
-                // Every new header is written, even when backing arrays stay.
-                .saturating_add(shallow_words::<RelationAssessment>())
-                .saturating_add(2usize.saturating_mul(shallow_words::<SourceInterval>()))
-                // Post-reserve metadata, actual-capacity ledger and a possible
-                // minimum-target downgrade are paid before publication-capacity allocations.
-                .saturating_add(128)
-        } else {
-            partitions[0]
-                .len()
-                .saturating_add(partitions[1].len())
-                .saturating_mul(shallow_words::<ResolutionRange>().saturating_add(2))
-                .saturating_add(
-                    ownership[0]
-                        .accepted
-                        .len()
-                        .saturating_add(ownership[1].accepted.len())
-                        .saturating_mul(shallow_words::<SourceInterval>()),
-                )
-                .saturating_add(
-                    self.records
-                        .len()
-                        .saturating_mul(shallow_words::<RelationAssessment>()),
-                )
-                .saturating_add(regions.len().saturating_mul(usize::BITS as usize + 8))
-                .saturating_add(assumptions)
-                .saturating_add(8)
-        };
+        let mut growth = plan;
+        let commit_work = partitions[0]
+            .len()
+            .saturating_add(partitions[1].len())
+            .saturating_mul(shallow_words::<ResolutionRange>().saturating_add(2))
+            .saturating_add(growth.copy_work)
+            .saturating_add(regions.len().saturating_mul(usize::BITS as usize + 8))
+            .saturating_add(assumptions)
+            .saturating_add(8)
+            // Every new header is written, even when backing arrays stay.
+            .saturating_add(shallow_words::<RelationAssessment>())
+            .saturating_add(2usize.saturating_mul(shallow_words::<SourceInterval>()))
+            // Post-reserve metadata, actual-capacity ledger and a possible
+            // minimum-target downgrade are paid before publication-capacity allocations.
+            .saturating_add(128);
         if !charge_work(&mut self.remaining_work, commit_work) {
             return Ok(false);
         }
@@ -2260,7 +2235,8 @@ impl Assessor<'_, '_> {
         let Some(extra_bytes) = extra.checked_mul(resources.diagnostics.per_entry_bytes) else {
             return Ok(false);
         };
-        if let Some(plan) = &mut growth {
+        {
+            let plan = &mut growth;
             // A split's final diagnostic allowance was not known at the first
             // plan. The same paid old-array move suffices for minimum growth.
             if new_bytes
@@ -2286,7 +2262,8 @@ impl Assessor<'_, '_> {
             return Ok(false);
         }
         let mut child_assumptions = Vec::new();
-        if let Some(plan) = growth {
+        {
+            let plan = growth;
             if child_assumptions.try_reserve_exact(assumptions).is_err()
                 || self
                     .records
@@ -2339,14 +2316,6 @@ impl Assessor<'_, '_> {
                 return Ok(false);
             };
             next_retained_children = actual_retained;
-        } else if child_assumptions.try_reserve_exact(assumptions).is_err()
-            || self.records.try_reserve_exact(1).is_err()
-            || ownership.iter_mut().any(|owner| {
-                owner.accepted.len() >= self.options.max_assessment_ranges
-                    || owner.accepted.try_reserve_exact(1).is_err()
-            })
-        {
-            return Ok(false);
         }
         child_assumptions.extend_from_slice(&self.records[parent_index].assumptions);
         if !child_assumptions.contains(&ComparisonAssumption::MandatoryMatchingEquality) {
@@ -2465,6 +2434,64 @@ mod publication_growth_tests {
             publication_growth([3, 2, 5], [6, 2, 9], 100, 1_000, 10_000).expect("asymmetric");
         assert_eq!(asymmetric.targets, [6, 4, 9]);
         assert_eq!(asymmetric.copy_work, 2 * interval);
+    }
+
+    #[test]
+    fn ordinary_publication_counts_first_moves_and_reuses_actual_spare_capacity() {
+        let record = RelationAssessment {
+            old_span: None,
+            new_span: None,
+            outcome: RelationOutcome::Tentative,
+            reasons: Vec::new(),
+            assumptions: Vec::new(),
+            search: SearchCompleteness::Incomplete,
+            parent: None,
+        };
+        let interval = SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 1,
+        };
+        let mut records = vec![record.clone(); 1727].into_boxed_slice().into_vec();
+        let mut old = vec![interval; 369].into_boxed_slice().into_vec();
+        let mut new = vec![interval; 367].into_boxed_slice().into_vec();
+        let plan = publication_growth(
+            [records.len(), old.len(), new.len()],
+            [records.capacity(), old.capacity(), new.capacity()],
+            10_000,
+            55_588_277,
+            COARSE_MEMORY_BYTES,
+        )
+        .expect("same measured full capacities");
+        assert_eq!(
+            plan.copy_work,
+            1727 * shallow_words::<RelationAssessment>() + 736 * shallow_words::<SourceInterval>()
+        );
+        assert!(plan.extra_bytes > 0);
+        records
+            .try_reserve_exact(plan.targets[0] - records.len())
+            .expect("paid publication capacity");
+        old.try_reserve_exact(plan.targets[1] - old.len())
+            .expect("paid publication capacity");
+        new.try_reserve_exact(plan.targets[2] - new.len())
+            .expect("paid publication capacity");
+        records.push(record);
+        old.push(interval);
+        new.push(interval);
+        let next = publication_growth(
+            [records.len(), old.len(), new.len()],
+            [records.capacity(), old.capacity(), new.capacity()],
+            10_000,
+            55_588_277,
+            COARSE_MEMORY_BYTES,
+        )
+        .expect("actual paid backing arrays retained");
+        assert_eq!(next.copy_work, 0);
+        assert_eq!(next.extra_bytes, 0);
+        assert_eq!(
+            next.targets,
+            [records.capacity(), old.capacity(), new.capacity()]
+        );
     }
 
     #[test]
