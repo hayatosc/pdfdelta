@@ -707,6 +707,87 @@ struct TailResources {
     diagnostics: DiagnosticAllowance,
 }
 
+/// Completed necessary block pairs, never proof or ownership decisions.
+/// A missing pair cannot satisfy the original whole single-block predicate.
+struct CoarsePairFilter<'a> {
+    regions: &'a [ProvenChangedRegion],
+    pairs: Vec<[BlockId; 2]>,
+    bytes: usize,
+}
+
+impl<'a> CoarsePairFilter<'a> {
+    fn build(
+        regions: &'a [ProvenChangedRegion],
+        available_bytes: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        let n = regions.len();
+        if n == 0 || n > 64 {
+            return None;
+        }
+        let bytes = n
+            .checked_mul(std::mem::size_of::<[BlockId; 2]>())?
+            .checked_add(std::mem::size_of::<Self>())?;
+        // At most 64 fixed-size pairs: the quadratic comparison allowance
+        // covers sorting, plus construction, destruction and header work.
+        let work = n
+            .checked_mul(n)?
+            .checked_mul(3)?
+            .checked_add(n.checked_mul(10)?)?
+            .checked_add(32)?;
+        if bytes > available_bytes || work > *remaining / 8 || !charge_work(remaining, work) {
+            return None;
+        }
+        let mut pairs = Vec::new();
+        pairs.try_reserve_exact(n).ok()?;
+        if pairs.capacity() != n {
+            return None;
+        }
+        for region in regions {
+            if region.proof != super::super::ChangedRegionProof::ExactTokenMultisetMismatch {
+                continue;
+            }
+            let (Some(old), Some(new)) = (&region.old_span, &region.new_span) else {
+                continue;
+            };
+            if let ([old], [new]) = (old.blocks.as_slice(), new.blocks.as_slice()) {
+                pairs.push([*old, *new]);
+            }
+        }
+        pairs.sort_unstable();
+        Some(Self {
+            regions,
+            pairs,
+            bytes,
+        })
+    }
+
+    fn may_match(
+        &self,
+        regions: &[ProvenChangedRegion],
+        parent: &RelationAssessment,
+        remaining: &mut usize,
+    ) -> Option<bool> {
+        let comparisons = self
+            .pairs
+            .len()
+            .checked_ilog2()
+            .map_or(0, |n| n as usize + 2);
+        if !charge_work(remaining, comparisons.checked_mul(3)?.checked_add(8)?)
+            || !std::ptr::eq(self.regions, regions)
+        {
+            return None;
+        }
+        let (Some(old), Some(new)) = (&parent.old_span, &parent.new_span) else {
+            return Some(false);
+        };
+        let ([old], [new]) = (old.blocks.as_slice(), new.blocks.as_slice()) else {
+            return Some(false);
+        };
+        Some(self.pairs.binary_search(&[*old, *new]).is_ok())
+    }
+}
+
 struct EqualRun<'a, 'source> {
     page_shifted: bool,
     parent: usize,
@@ -1187,6 +1268,23 @@ impl Assessor<'_, '_> {
             group_peak_bytes: 0,
             diagnostics,
         };
+        // No record, ownership or partition changed during diagnostic setup;
+        // reuse its completed live-capacity ledger before adding this filter.
+        let filter = if charge_work(&mut self.remaining_work, 6) {
+            resources
+                .diagnostics
+                .bytes()
+                .and_then(|bytes| available_diagnostics.checked_sub(bytes))
+                .and_then(|bytes| CoarsePairFilter::build(regions, bytes, &mut self.remaining_work))
+        } else {
+            None
+        };
+        if let Some(filter) = &filter {
+            let Some(source_bytes) = resources.source_bytes.checked_add(filter.bytes) else {
+                return Ok(());
+            };
+            resources.source_bytes = source_bytes;
+        }
         let mut tail_analyses = None;
         // Preserve every existing maximal-run attempt across all parents
         // before spending optional work on a smaller source-complete cut.
@@ -1212,6 +1310,12 @@ impl Assessor<'_, '_> {
                 }
                 let parent_index = proof.relation;
                 let parent = &self.records[parent_index];
+                if !page_shifted
+                    && let Some(filter) = &filter
+                    && filter.may_match(regions, parent, &mut self.remaining_work) == Some(false)
+                {
+                    continue;
+                }
                 if key.local.is_none() {
                     // Pay the marker scan and bounded two-sided field comparisons
                     // before accepting the isolated whole-domain representation.
@@ -2208,6 +2312,132 @@ mod tail_analysis_tests {
 mod coarse_pair_presence_tests {
     use super::*;
     use crate::diff::{ChangedRegionProof, Confidence, TextSpan};
+
+    fn filter_region(old: u64, new: u64) -> ProvenChangedRegion {
+        let span = |block| TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 4 },
+            comparable_range: TokenRange { start: 0, end: 4 },
+        };
+        ProvenChangedRegion {
+            old_span: Some(span(old)),
+            new_span: Some(span(new)),
+            confidence: Confidence::High,
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        }
+    }
+
+    #[test]
+    fn coarse_filter_is_only_exact_context_negative_membership() {
+        let mut regions = vec![
+            filter_region(9, 19),
+            filter_region(2, 8),
+            filter_region(9, 19),
+            filter_region(18, 2),
+        ];
+        let mut wrong = filter_region(1, 101);
+        wrong.proof = ChangedRegionProof::OneSidedNonEmptyRange;
+        regions.push(wrong);
+        let mut multiple = filter_region(1, 101);
+        multiple
+            .old_span
+            .as_mut()
+            .expect("old")
+            .blocks
+            .push(BlockId(9));
+        regions.push(multiple);
+        let mut remaining = 1_000_000;
+        let filter = CoarsePairFilter::build(&regions, 1_000_000, &mut remaining)
+            .expect("small completed filter");
+        for old in 0..20 {
+            for new in (0..20).chain(std::iter::once(101)) {
+                let target = filter_region(old, new);
+                let mut parent = RelationAssessment {
+                    old_span: target.old_span,
+                    new_span: target.new_span,
+                    outcome: RelationOutcome::Established,
+                    search: SearchCompleteness::Complete,
+                    reasons: Vec::new(),
+                    assumptions: Vec::new(),
+                    parent: None,
+                };
+                let expected = regions.iter().any(|r| {
+                    r.proof == ChangedRegionProof::ExactTokenMultisetMismatch
+                        && r.old_span == parent.old_span
+                        && r.new_span == parent.new_span
+                });
+                assert_eq!(
+                    filter.may_match(&regions, &parent, &mut remaining),
+                    Some(expected)
+                );
+                if expected {
+                    // A hit does not certify shape or retain a source verdict.
+                    parent
+                        .old_span
+                        .as_mut()
+                        .expect("old")
+                        .comparable_range
+                        .start = 1;
+                    parent.outcome = RelationOutcome::Tentative;
+                    assert_eq!(
+                        filter.may_match(&regions, &parent, &mut remaining),
+                        Some(true)
+                    );
+                }
+                let cloned = regions.clone();
+                assert_eq!(filter.may_match(&cloned, &parent, &mut remaining), None);
+                parent.old_span = None;
+                assert_eq!(
+                    filter.may_match(&regions, &parent, &mut remaining),
+                    Some(false)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn coarse_filter_pays_setup_lookup_and_live_capacity() {
+        let regions = vec![
+            filter_region(9, 19),
+            filter_region(2, 8),
+            filter_region(9, 19),
+        ];
+        let mut budget = 1_000_000;
+        let filter = CoarsePairFilter::build(&regions, 1_000_000, &mut budget).expect("filter");
+        let work = 1_000_000 - budget;
+        for budget in [0, work - 1, 8 * work - 1] {
+            assert!(CoarsePairFilter::build(&regions, filter.bytes, &mut { budget }).is_none());
+        }
+        assert!(CoarsePairFilter::build(&regions, filter.bytes - 1, &mut 1_000_000).is_none());
+        let mut exact = 8 * work;
+        assert!(CoarsePairFilter::build(&regions, filter.bytes, &mut exact).is_some());
+        assert_eq!(exact, 7 * work);
+        let target = &regions[0];
+        let parent = RelationAssessment {
+            old_span: target.old_span.clone(),
+            new_span: target.new_span.clone(),
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            reasons: Vec::new(),
+            assumptions: Vec::new(),
+            parent: None,
+        };
+        let mut lookup = 1_000_000;
+        assert_eq!(filter.may_match(&regions, &parent, &mut lookup), Some(true));
+        let lookup_work = 1_000_000 - lookup;
+        assert_eq!(
+            filter.may_match(&regions, &parent, &mut (lookup_work - 1)),
+            None
+        );
+        let mut exact = lookup_work;
+        assert_eq!(filter.may_match(&regions, &parent, &mut exact), Some(true));
+        assert_eq!(exact, 0);
+        assert!(
+            CoarsePairFilter::build(&vec![regions[0].clone(); 65], 1_000_000, &mut 1_000_000)
+                .is_none()
+        );
+    }
 
     #[test]
     fn h26_presence_is_only_two_sided_named_singleton_necessity() {
