@@ -8426,6 +8426,261 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn ownership_projection_keeps_general_coordinate_and_invalid_context_vetoes() -> Result<()> {
+        use crate::{model::FontProgramHash, normalize::UnmappedToken};
+        let mut blocks = [
+            anchor_block(9, ""),
+            anchor_block(2, "é雪🙂 A"),
+            anchor_block(7, ""),
+            anchor_block(3, "B C"),
+        ];
+        blocks[2].canonical.unmapped.push(UnmappedToken {
+            scalar_index: 0,
+            font_hash: FontProgramHash(vec![3; 32]),
+            glyph_id: 19,
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(900))].into(),
+            },
+        });
+        let side =
+            super::super::SidePlan::inspect("ownership projection", &blocks)?.materialize()?;
+        let orders = [
+            vec![],
+            vec![BlockId(9)],
+            vec![BlockId(2)],
+            vec![BlockId(7)],
+            vec![BlockId(2), BlockId(3)],
+            vec![BlockId(3), BlockId(2)],
+            vec![BlockId(2), BlockId(2)],
+        ];
+        for ids in &orders {
+            for separator in [BlockSeparator::Space, BlockSeparator::Concatenate] {
+                let group = side.canonical_group(ids, (ids.len() > 1).then_some(separator));
+                let len = group.tokens.len();
+                for (start, end) in [(0, len), (0, 0), (len, len), (0, len.min(1))] {
+                    let original = group.span(start, end);
+                    for shape in 0..5 {
+                        let mut span = original.clone();
+                        match shape {
+                            1 => span.canonical_range.start += 1,
+                            2 => span.canonical_range.end += 1,
+                            3 => span.comparable_range.end += 1,
+                            4 if !span.blocks.is_empty() => span.blocks[0] = BlockId(999),
+                            _ => {}
+                        }
+                        for block_index in 0..blocks.len() {
+                            let selected = SourceInterval {
+                                block_index,
+                                start: 0,
+                                end: 2,
+                            };
+                            let expected = coarse_project(&side, &span).map(|ranges| {
+                                !ranges.iter().any(|r| {
+                                    r.block_index == block_index
+                                        && selected.start < r.end
+                                        && r.start < selected.end
+                                })
+                            });
+                            let mut budget = 10_000;
+                            assert_eq!(
+                                mandatory_equal::ownership_projection_clear(
+                                    &side,
+                                    &span,
+                                    &selected,
+                                    &mut budget
+                                ),
+                                expected,
+                                "ids={ids:?}, shape={shape}, block={block_index}"
+                            );
+                            let used = 10_000 - budget;
+                            assert_eq!(
+                                mandatory_equal::ownership_projection_clear(
+                                    &side,
+                                    &span,
+                                    &selected,
+                                    &mut (used - 1)
+                                ),
+                                None
+                            );
+                            let mut exact = used;
+                            assert_eq!(
+                                mandatory_equal::ownership_projection_clear(
+                                    &side, &span, &selected, &mut exact
+                                ),
+                                expected
+                            );
+                            assert_eq!(exact, 0);
+                        }
+                    }
+                }
+            }
+        }
+        let mut invalid = side.canonical_group(&[BlockId(2)], None).full_span();
+        invalid.canonical_range.start = 1;
+        assert!(
+            mandatory_equal::ownership_projection_clear(
+                &side,
+                &invalid,
+                &SourceInterval {
+                    block_index: 3,
+                    start: 0,
+                    end: 1
+                },
+                &mut 10_000
+            )
+            .is_none(),
+            "unrelated invalid context still vetoes"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn tiny_ownership_projection_retains_whitespace_join_and_endpoint_rules() -> Result<()> {
+        let texts = ["\n", "\t", "\u{2003}", " ", "A", "", "é日🙂", " \n"];
+        let blocks = texts
+            .iter()
+            .cycle()
+            .take(20)
+            .enumerate()
+            .map(|(i, text)| anchor_block(100 - i as u64, text))
+            .collect::<Vec<_>>();
+        let side = super::super::SidePlan::inspect("tiny ownership", &blocks)?.materialize()?;
+        for count in [2, 3, 7, 8, 9, 17] {
+            for reverse in [false, true] {
+                let mut ids = blocks[..count].iter().map(|b| b.block).collect::<Vec<_>>();
+                if reverse {
+                    ids.reverse();
+                }
+                for separator in [BlockSeparator::Space, BlockSeparator::Concatenate] {
+                    let group = side.canonical_group(&ids, Some(separator));
+                    let len = group.tokens.len();
+                    for (start, end) in [(0, len), (0, 0), (len, len), (len.min(1), len)] {
+                        for invalid in [false, true] {
+                            let mut span = group.span(start, end);
+                            if invalid {
+                                span.canonical_range.end += 1;
+                            }
+                            for block_index in 0..blocks.len() {
+                                let selected = SourceInterval {
+                                    block_index,
+                                    start: 0,
+                                    end: 1,
+                                };
+                                let expected = coarse_project(&side, &span).map(|v| {
+                                    !v.iter().any(|r| {
+                                        r.block_index == block_index
+                                            && r.start < selected.end
+                                            && selected.start < r.end
+                                    })
+                                });
+                                assert_eq!(
+                                    mandatory_equal::ownership_projection_clear(
+                                        &side,
+                                        &span,
+                                        &selected,
+                                        &mut 100_000
+                                    ),
+                                    expected,
+                                    "n={count}, reverse={reverse}, range={start}..{end}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn coverage_probe_never_uses_unverified_order_as_a_negative_proof() -> Result<()> {
+        let blocks = (0..64)
+            .map(|i| anchor_block((i * 7) % 64, "A"))
+            .collect::<Vec<_>>();
+        let side = super::super::SidePlan::inspect("coverage probe", &blocks)?.materialize()?;
+        let original = blocks
+            .iter()
+            .enumerate()
+            .map(|(i, b)| ResolutionRange {
+                block: b.block,
+                comparable_range: TokenRange { start: 0, end: 1 },
+                canonical_range: ScalarRange { start: 0, end: 1 },
+                state: if i % 3 == 0 {
+                    ResolutionState::Equal
+                } else {
+                    ResolutionState::Unresolved
+                },
+            })
+            .collect::<Vec<_>>();
+        for shape in 0..4 {
+            let mut parts = original.clone();
+            match shape {
+                1 => parts.reverse(),
+                2 => parts.rotate_left(17),
+                3 => parts[0].block = BlockId(999),
+                _ => {}
+            }
+            for block in 0..=64 {
+                let selected = SourceInterval {
+                    block_index: 0,
+                    start: 0,
+                    end: 1,
+                };
+                let expected = parts.iter().any(|p| {
+                    p.block == BlockId(block)
+                        && p.state == ResolutionState::Unresolved
+                        && p.comparable_range.start == 0
+                        && 1 <= p.comparable_range.end
+                });
+                assert_eq!(
+                    mandatory_equal::unresolved_cover_probe(
+                        &side,
+                        &parts,
+                        BlockId(block),
+                        &selected,
+                        &mut 10_000
+                    ),
+                    Some(expected),
+                    "shape={shape}, block={block}"
+                );
+            }
+        }
+        let selected = SourceInterval {
+            block_index: 20,
+            start: 0,
+            end: 1,
+        };
+        let mut budget = 10_000;
+        assert_eq!(
+            mandatory_equal::unresolved_cover_probe(
+                &side,
+                &original,
+                blocks[20].block,
+                &selected,
+                &mut budget
+            ),
+            Some(true)
+        );
+        assert!(
+            10_000 - budget < 21,
+            "an actual witness saves the unvisited prefix"
+        );
+        for budget in [0, 1, 2] {
+            assert!(
+                mandatory_equal::unresolved_cover_probe(
+                    &side,
+                    &original,
+                    blocks[20].block,
+                    &selected,
+                    &mut { budget }
+                )
+                .is_none()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn literal_capacity_cache_pays_complete_scans_and_rejects_other_sides() -> Result<()> {
         let old_blocks = (1..=32)
             .map(|i| anchor_block(i, "ABCD"))

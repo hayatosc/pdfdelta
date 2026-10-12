@@ -821,6 +821,226 @@ fn unresolved_cover(
     Some(false)
 }
 
+/// Searches for an actual coverage witness; ordering only guides the probe.
+/// A miss or unknown header falls back to the original linear predicate, so
+/// unordered, overlapping or incomplete diagnostic partitions retain it too.
+pub(super) fn unresolved_cover_probe(
+    side: &Side<'_>,
+    partitions: &[ResolutionRange],
+    block: BlockId,
+    selected: &SourceInterval,
+    remaining: &mut usize,
+) -> Option<bool> {
+    if partitions.len() >= 32 && *remaining >= 32 {
+        if !charge_work(remaining, 2) {
+            return None;
+        }
+        if let Some(&target) = side.index.get(&block) {
+            let (mut low, mut high) = (0, partitions.len());
+            while low < high {
+                if !charge_work(remaining, 3) {
+                    return None;
+                }
+                let middle = low + (high - low) / 2;
+                let part = &partitions[middle];
+                if part.block == block
+                    && part.state == ResolutionState::Unresolved
+                    && part.comparable_range.start <= selected.start
+                    && selected.end <= part.comparable_range.end
+                {
+                    return Some(true);
+                }
+                let Some(&index) = side.index.get(&part.block) else {
+                    break;
+                };
+                if index < target || (index == target && part.comparable_range.end < selected.end) {
+                    low = middle + 1;
+                } else {
+                    high = middle;
+                }
+            }
+        }
+    }
+    unresolved_cover(partitions, block, selected, remaining)
+}
+
+/// Exactly the original overlap/invalid-projection veto. A literal singleton
+/// needs no duplicate-block set, vector allocation or offset walk. Every
+/// coordinate is validated even for an unrelated block; invalid context holds.
+pub(super) fn ownership_projection_clear(
+    side: &Side<'_>,
+    span: &super::TextSpan,
+    selected: &SourceInterval,
+    remaining: &mut usize,
+) -> Option<bool> {
+    if !charge_work(remaining, 4) {
+        return None;
+    }
+    if let [block] = span.blocks.as_slice()
+        && span.separator.is_none()
+        && let Some(&index) = side.index.get(block)
+        && side.blocks[index].canonical.unmapped.is_empty()
+    {
+        // Twelve units cover the range/scalar checks and overlap comparisons
+        // after the four-unit selector. No projected buffer is constructed.
+        if !charge_work(remaining, 12) {
+            return None;
+        }
+        let range = span.comparable_range;
+        if range.start > range.end
+            || range.end > side.canonical[index].len()
+            || span.canonical_range.start != range.start
+            || span.canonical_range.end != range.end
+        {
+            return None;
+        }
+        return Some(
+            range.start == range.end
+                || index != selected.block_index
+                || selected.end <= range.start
+                || range.end <= selected.start,
+        );
+    }
+    // A tiny literal block list needs only a bounded stack of source indices.
+    // This is an implementation choice, not a change to source coordinates.
+    if (2..=8).contains(&span.blocks.len())
+        && let Some(separator) = span.separator
+    {
+        if !separator.valid_for(span.blocks.len()) {
+            return None;
+        }
+        if !charge_work(remaining, 8) {
+            return None;
+        }
+        let mut indices = [0usize; 8];
+        let mut literal = true;
+        for (position, block) in span.blocks.iter().enumerate() {
+            if !charge_work(remaining, position + 3) {
+                return None;
+            }
+            let &index = side.index.get(block)?;
+            if indices[..position].contains(&index) {
+                return None;
+            }
+            indices[position] = index;
+            if !side.blocks[index].canonical.unmapped.is_empty() {
+                literal = false;
+                break;
+            }
+        }
+        if literal {
+            return literal_overlap_stream(
+                side,
+                span,
+                selected,
+                indices[..span.blocks.len()].iter().copied(),
+                16,
+                remaining,
+            );
+        }
+    }
+    // A completed strictly increasing source-index walk proves uniqueness.
+    // Other orders keep the original general projection, including its vetoes.
+    if span.blocks.len() > 8
+        && span
+            .separator
+            .is_some_and(|s| s.valid_for(span.blocks.len()))
+    {
+        let mut previous = None;
+        let mut ordered_literal = true;
+        for block in &span.blocks {
+            if !charge_work(remaining, 4) {
+                return None;
+            }
+            let &index = side.index.get(block)?;
+            if previous.is_some_and(|p| p >= index)
+                || !side.blocks[index].canonical.unmapped.is_empty()
+            {
+                ordered_literal = false;
+                break;
+            }
+            previous = Some(index);
+        }
+        if ordered_literal {
+            return literal_overlap_stream(
+                side,
+                span,
+                selected,
+                span.blocks.iter().map(|block| side.index[block]),
+                18,
+                remaining,
+            );
+        }
+    }
+
+    if !charge_work(
+        remaining,
+        span.blocks.len().saturating_mul(usize::BITS as usize + 8),
+    ) {
+        return None;
+    }
+    let other = coarse_project(side, span)?;
+    Some(!other.iter().any(|other| {
+        selected.block_index == other.block_index
+            && selected.start < other.end
+            && other.start < selected.end
+    }))
+}
+
+fn literal_overlap_stream(
+    side: &Side<'_>,
+    span: &super::TextSpan,
+    selected: &SourceInterval,
+    indices: impl Iterator<Item = usize>,
+    per_block_work: usize,
+    remaining: &mut usize,
+) -> Option<bool> {
+    let range = span.comparable_range;
+    if range.start > range.end
+        || span.canonical_range.start != range.start
+        || span.canonical_range.end != range.end
+    {
+        return None;
+    }
+    let (mut offset, mut clear) = (0usize, true);
+    let mut previous = None;
+    for (position, index) in indices.enumerate() {
+        if !charge_work(remaining, per_block_work) {
+            return None;
+        }
+        let tokens = &side.canonical[index];
+        let mut join = false;
+        if position > 0 && span.separator?.at(position - 1) == super::BlockSeparator::Space {
+            let canonical = !previous.is_some_and(super::super::is_space_token)
+                && !tokens.first().is_some_and(super::super::is_space_token);
+            let projected = !previous.is_some_and(super::space_token)
+                && !tokens.first().is_some_and(super::space_token);
+            if canonical != projected {
+                return None;
+            }
+            join = canonical;
+        }
+        if join {
+            offset = offset.checked_add(1)?;
+            previous = Some(&super::COARSE_SPACE);
+        }
+        let end = offset.checked_add(tokens.len())?;
+        let start = range.start.max(offset);
+        let stop = range.end.min(end);
+        if index == selected.block_index && start < stop {
+            clear &= selected.end <= start - offset || stop - offset <= selected.start;
+        }
+        offset = end;
+        if let Some(last) = tokens.last() {
+            previous = Some(last);
+        }
+    }
+    if range.end > offset {
+        return None;
+    }
+    Some(clear)
+}
+
 /// Bounds possible final diagnostic output without generating it twice.
 /// A retained projected interval can intersect only one unresolved partition,
 /// so original/aligned regions + unresolved partitions + projected intervals
@@ -1756,7 +1976,8 @@ impl Assessor<'_, '_> {
         };
         let intervals = [*old_interval, *new_interval];
         for side in 0..2 {
-            if unresolved_cover(
+            if unresolved_cover_probe(
+                self.sides[side],
                 partitions[side],
                 spans[side].blocks[0],
                 &intervals[side],
@@ -1793,20 +2014,13 @@ impl Assessor<'_, '_> {
                         }),
                 )
             {
-                if !charge_work(
+                if ownership_projection_clear(
+                    self.sides[side],
+                    span,
+                    selected,
                     &mut self.remaining_work,
-                    span.blocks.len().saturating_mul(usize::BITS as usize + 8),
-                ) {
-                    return Ok(false);
-                }
-                let Some(other) = coarse_project(self.sides[side], span) else {
-                    return Ok(false);
-                };
-                if other.iter().any(|other| {
-                    selected.block_index == other.block_index
-                        && selected.start < other.end
-                        && other.start < selected.end
-                }) {
+                ) != Some(true)
+                {
                     return Ok(false);
                 }
             }

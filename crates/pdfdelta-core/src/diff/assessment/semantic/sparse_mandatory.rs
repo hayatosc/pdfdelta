@@ -51,7 +51,110 @@ pub(in crate::diff::assessment) fn mandatory_literal_analysis_with_memory_limit(
     if dense_work <= *remaining {
         return mandatory_match_analysis_with_memory_limit(old, new, remaining, memory_limit);
     }
+    if old.len() == new.len()
+        && let Some(analysis) = single_replacement(old, new, remaining, memory_limit)?
+    {
+        return Ok(Some(analysis));
+    }
     sparse(old, new, remaining, memory_limit)
+}
+
+/// One replacement has LCS length N-1: the unchanged diagonal attains it,
+/// while a full N/N matching would require equal inputs. Every optimum deletes
+/// one token on each side. Off-diagonal deletion windows can extend only into
+/// adjacent constant runs of the two replacement symbols. Their extreme
+/// windows remove every diagonal inside their union; outside it every optimum
+/// retains the diagonal. This enumerates all possible ambiguity, not one edit.
+fn single_replacement(
+    old: &[&ComparableToken],
+    new: &[&ComparableToken],
+    remaining: &mut usize,
+    memory_limit: usize,
+) -> Result<Option<MandatoryMatchAnalysis>> {
+    if !charge(remaining, 8) {
+        return Ok(None);
+    }
+    let mut changed = None;
+    for (i, (a, b)) in old.iter().zip(new).enumerate() {
+        if !charge(remaining, 1) {
+            return Ok(None);
+        }
+        if a != b {
+            if changed.is_some() {
+                return Ok(None);
+            }
+            changed = Some(i);
+        }
+    }
+    let excluded = if let Some(p) = changed {
+        let (mut left, mut right) = (p, p);
+        if p > 0 {
+            if !charge(remaining, 2) {
+                return Ok(None);
+            }
+            let symbol = old[p - 1];
+            if symbol == old[p] || symbol == new[p] {
+                while left > 0 {
+                    if !charge(remaining, 1) {
+                        return Ok(None);
+                    }
+                    if old[left - 1] != symbol {
+                        break;
+                    }
+                    left -= 1;
+                }
+            }
+        }
+        if p + 1 < old.len() {
+            if !charge(remaining, 2) {
+                return Ok(None);
+            }
+            let symbol = old[p + 1];
+            if symbol == old[p] || symbol == new[p] {
+                while right + 1 < old.len() {
+                    if !charge(remaining, 1) {
+                        return Ok(None);
+                    }
+                    if old[right + 1] != symbol {
+                        break;
+                    }
+                    right += 1;
+                }
+            }
+        }
+        Some(left..right + 1)
+    } else {
+        None
+    };
+    let count = old.len()
+        - excluded
+            .as_ref()
+            .map_or(0, std::iter::ExactSizeIterator::len);
+    let bytes = count
+        .checked_mul(std::mem::size_of::<(usize, usize)>())
+        .and_then(|n| n.checked_add(std::mem::size_of::<Vec<(usize, usize)>>()))
+        .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
+        .ok_or_else(memory_limit_error)?;
+    if bytes > memory_limit.min(MAX_SEMANTIC_MEMORY_BYTES) {
+        return Err(memory_limit_error());
+    }
+    if !charge(
+        remaining,
+        old.len()
+            .checked_add(count.checked_mul(2).ok_or_else(cells_limit_error)?)
+            .ok_or_else(cells_limit_error)?,
+    ) {
+        return Ok(None);
+    }
+    let mut pairs = reserve(count)?;
+    for i in 0..old.len() {
+        if excluded.as_ref().is_none_or(|r| !r.contains(&i)) {
+            pairs.push((i + 1, i + 1));
+        }
+    }
+    Ok(Some(MandatoryMatchAnalysis {
+        unique_pairs: pairs,
+    }))
 }
 
 fn reserve<T>(n: usize) -> Result<Vec<T>> {
@@ -147,12 +250,16 @@ fn sparse(
             .as_scalar()
             .expect("the immutable input was validated");
         let mut j = heads[scalar as usize % BUCKETS];
+        let mut rank_upper = tails.len();
         while j != NONE {
             if !charge(remaining, 1) {
                 return Ok(None);
             }
             if *token == new[j] {
-                let (mut lo, mut hi) = (0, tails.len());
+                // Later matches in this row have smaller new coordinates.
+                // The previous insertion rank is therefore a valid upper
+                // bound; every matching candidate and comparison still runs.
+                let (mut lo, mut hi) = (0, rank_upper);
                 while lo < hi {
                     if !charge(remaining, 1) {
                         return Ok(None);
@@ -176,6 +283,7 @@ fn sparse(
                     next: ranks[lo],
                 });
                 ranks[lo] = edges.len() - 1;
+                rank_upper = lo;
             }
             j = next[j];
         }
@@ -247,6 +355,64 @@ mod tests {
         word.iter()
             .map(|b| ComparableToken::Scalar(alphabet[usize::from(*b)]))
             .collect()
+    }
+
+    #[test]
+    fn single_replacement_matches_all_maximum_paths_including_repeated_runs() {
+        let words = super::super::super::all_words(5);
+        for a in &words {
+            for b in &words {
+                if a.len() != b.len() {
+                    continue;
+                }
+                let expected_supported = a.iter().zip(b).filter(|(a, b)| a != b).count() <= 1;
+                let a = tokens(a, ['a', '\u{161}']);
+                let b = tokens(b, ['a', '\u{161}']);
+                let a = a.iter().collect::<Vec<_>>();
+                let b = b.iter().collect::<Vec<_>>();
+                let result = single_replacement(&a, &b, &mut 1_000_000, MAX_SEMANTIC_MEMORY_BYTES)
+                    .expect("replacement");
+                assert_eq!(result.is_some(), expected_supported);
+                if let Some(result) = result {
+                    let expected = mandatory_match_analysis_with_memory_limit(
+                        &a,
+                        &b,
+                        &mut 1_000_000,
+                        MAX_SEMANTIC_MEMORY_BYTES,
+                    )
+                    .expect("matrix")
+                    .expect("complete");
+                    assert_eq!(result.pairs(), expected.pairs(), "a={a:?}, b={b:?}");
+                }
+            }
+        }
+        let a = (0..109)
+            .map(|i| ComparableToken::Scalar(char::from_u32(0x400 + i).expect("scalar")))
+            .collect::<Vec<_>>();
+        let mut b = a.clone();
+        b[2] = b[1].clone();
+        let a = a.iter().collect::<Vec<_>>();
+        let b = b.iter().collect::<Vec<_>>();
+        let mut remaining = 1_000_000;
+        let complete = single_replacement(&a, &b, &mut remaining, MAX_SEMANTIC_MEMORY_BYTES)
+            .expect("replacement")
+            .expect("complete");
+        let used = 1_000_000 - remaining;
+        assert!(used < 500);
+        assert_eq!(complete.pairs().len(), 107);
+        assert!(
+            single_replacement(&a, &b, &mut (used - 1), MAX_SEMANTIC_MEMORY_BYTES)
+                .expect("refusal")
+                .is_none()
+        );
+        let mut exact = used;
+        assert!(
+            single_replacement(&a, &b, &mut exact, MAX_SEMANTIC_MEMORY_BYTES)
+                .expect("exact")
+                .is_some()
+        );
+        assert_eq!(exact, 0);
+        assert!(single_replacement(&a, &b, &mut 1_000_000, 0).is_err());
     }
 
     #[test]
