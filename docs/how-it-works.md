@@ -463,3 +463,29 @@ the trigger is recomputed and paid again. `work_used` continues to describe
 consumed logical search allowance, including refused charges, rather than CPU
 instructions. The optional receipt adds accounting only; source proof, all path
 fees, first witness, decisions, and memory admission stay unchanged.
+
+### Explicit scoped evidence and edit witnesses
+
+A comparison can retain a literal token-multiset mismatch in
+`assessment.scoped_change_evidence`. Each non-owning link refers to an
+established, complete source correspondence in `assessment.relations`. Its
+source scope may already contain known equal or changed tokens. It therefore
+does not replace `proven_changed_regions`, does not classify the scope as
+wholly unresolved, and does not authorize recovery or token ownership. Core
+callers can read the same information through
+`ComparisonAssessment::scoped_difference_evidence()` after validation.
+
+`assessment.localized_edit_witnesses` refers to the established relation and
+the contiguous published change indices. Atomic edit coordinates are relative
+to that relation's old/new source spans. Empty boundaries include their actual
+block-local comparable and canonical offsets; all representations at a
+concatenated block boundary are retained. `strict_unique_in_declared_literal_model`
+concerns only the declared literal token model. Otherwise the script is one
+optimal witness, not a unique target location or an author's historical edits.
+`origin_relations` identifies tentative physical claims discharged during
+publication; it does not establish their original empty-anchor associations.
+
+`assessment.evidence_link_work` reports additional prepaid planning,
+verification, retention and output allowance consumed from the same shared
+search budget. It is not a CPU-time measurement. A refused or unused
+reservation is not refunded to make other processing appear cheaper.

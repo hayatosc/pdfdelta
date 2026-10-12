@@ -7,10 +7,10 @@ mod sentence;
 pub(crate) use assessment::ExactDisplacementInput;
 pub use assessment::{
     ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AnchorWork, AssessmentReason, AssessmentWork,
-    ChangeCandidate, ComparisonAssessment, ComparisonAssumption, EditCountBounds, LocalTextClaims,
-    LocalTextSide, LocalViewWork, LocalizedEditScript, RelationAssessment, RelationOutcome,
-    ResolutionRange, ResolutionState, ReviewUnit, SearchCompleteness, SuffixReuseWork,
-    local_text_claims,
+    ChangeCandidate, ComparisonAssessment, ComparisonAssumption, EditCountBounds, EvidenceLinkWork,
+    LocalTextClaims, LocalTextSide, LocalViewWork, LocalizedEditScript, RelationAssessment,
+    RelationOutcome, ResolutionRange, ResolutionState, ReviewUnit, ScopedChangeEvidence,
+    SearchCompleteness, SuffixReuseWork, WitnessSourceAnchor, local_text_claims,
 };
 
 pub use recovery::container::{

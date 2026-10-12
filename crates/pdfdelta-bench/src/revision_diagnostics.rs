@@ -2406,6 +2406,8 @@ mod tests {
         let mut comparison = diagnostic_comparison(Vec::new(), Vec::new());
         comparison.assessment = Some(ComparisonAssessment {
             localized_edits: Vec::new(),
+            scoped_change_evidence: Vec::new(),
+            evidence_link_work: Default::default(),
             policy_version: 1,
             relations: vec![
                 RelationAssessment {

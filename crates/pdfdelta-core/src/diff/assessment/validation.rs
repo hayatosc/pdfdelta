@@ -183,6 +183,93 @@ pub(super) fn validate(
     for (index, region) in comparison.proven_changed_regions.iter().enumerate() {
         validate_proven_changed_region(sides, &lookups, region, &coarse_certificates[index])?;
     }
+    for trace in &assessment.localized_edits {
+        let relation = &assessment.relations[trace.relation];
+        let mut offsets = std::collections::HashMap::new();
+        for (which, context) in [relation.old_span.as_ref(), relation.new_span.as_ref()]
+            .into_iter()
+            .enumerate()
+        {
+            if !trace
+                .source_anchors
+                .iter()
+                .any(|anchor| anchor.side == which)
+            {
+                continue;
+            }
+            let context =
+                context.ok_or_else(|| invalid("localized source anchor context is absent"))?;
+            let mut offset = 0usize;
+            let mut preceding_space = false;
+            for (position, id) in context.blocks.iter().enumerate() {
+                let index = sides[which].index[id];
+                let tokens = &sides[which].canonical[index];
+                let separator = position > 0
+                    && context.separator.map(|s| s.at(position - 1))
+                        == Some(crate::alignment::BlockSeparator::Space)
+                    && !preceding_space
+                    && !tokens.first().is_some_and(super::space_token);
+                offset += usize::from(separator);
+                offsets.insert((which, *id), offset);
+                offset += tokens.len();
+                preceding_space = tokens
+                    .last()
+                    .map_or(separator || preceding_space, super::space_token);
+            }
+        }
+        for anchor in &trace.source_anchors {
+            let context = if anchor.side == 0 {
+                relation.old_span.as_ref()
+            } else {
+                relation.new_span.as_ref()
+            }
+            .ok_or_else(|| invalid("source anchor has no context"))?;
+            let edit = &trace.edits[anchor.edit];
+            let range = if anchor.side == 0 {
+                &edit.old
+            } else {
+                &edit.new
+            };
+            let index = sides[anchor.side].index[&anchor.block];
+            let tokens = &sides[anchor.side].canonical[index];
+            if anchor.comparable_offset > tokens.len()
+                || anchor.canonical_offset
+                    != super::block_scalar_boundary(
+                        &sides[anchor.side].blocks[index].canonical,
+                        anchor.comparable_offset,
+                    )
+                || offsets[&(anchor.side, anchor.block)].saturating_add(anchor.comparable_offset)
+                    != context.comparable_range.start.saturating_add(range.start)
+            {
+                return Err(invalid(
+                    "source anchor does not bind its exact witness boundary",
+                ));
+            }
+        }
+    }
+    for evidence in &assessment.scoped_change_evidence {
+        let relation = &assessment.relations[evidence.relation];
+        let tokens = [relation.old_span.as_ref(), relation.new_span.as_ref()]
+            .into_iter()
+            .enumerate()
+            .map(|(side, span)| {
+                span.map(|span| super::span_tokens(sides[side], span))
+                    .transpose()
+                    .map(Option::unwrap_or_default)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut counts = std::collections::HashMap::new();
+        for (side, values) in tokens.iter().enumerate() {
+            for token in values {
+                *counts.entry(token).or_insert(0_i64) += if side == 0 { 1 } else { -1 };
+            }
+        }
+        if counts.values().all(|value| *value == 0) {
+            return Err(invalid(
+                "scoped difference link has equal token multiplicities",
+            ));
+        }
+    }
     for formatting in &comparison.formatting_changes {
         validate_formatting_change(sides, &lookups, formatting)?;
     }
@@ -774,6 +861,8 @@ mod tests {
     ) -> ComparisonAssessment {
         ComparisonAssessment {
             localized_edits: Vec::new(),
+            scoped_change_evidence: Vec::new(),
+            evidence_link_work: Default::default(),
             review_units: Vec::new(),
             policy_version: super::super::ASSESSMENT_POLICY_VERSION,
             relations: Vec::new(),
@@ -1064,6 +1153,8 @@ mod tests {
             });
         let assessment = ComparisonAssessment {
             localized_edits: Vec::new(),
+            scoped_change_evidence: Vec::new(),
+            evidence_link_work: Default::default(),
             review_units: Vec::new(),
             policy_version: super::super::ASSESSMENT_POLICY_VERSION,
             relations: vec![super::super::RelationAssessment {
@@ -1177,6 +1268,8 @@ mod tests {
         };
         let assessment = ComparisonAssessment {
             localized_edits: Vec::new(),
+            scoped_change_evidence: Vec::new(),
+            evidence_link_work: Default::default(),
             review_units: Vec::new(),
             policy_version: super::super::ASSESSMENT_POLICY_VERSION,
             relations: vec![sentinel.clone()],

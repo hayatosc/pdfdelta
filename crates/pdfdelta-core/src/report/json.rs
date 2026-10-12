@@ -103,7 +103,7 @@ fn build_report<'a>(
     new_blocks: &[BlockText],
     old_glyph_evidence: &[GlyphEvidence],
     new_glyph_evidence: &[GlyphEvidence],
-    comparison: &Comparison,
+    comparison: &'a Comparison,
     extraction: &'a ExtractionStatus,
     compact: bool,
 ) -> Result<JsonReport<'a>> {
@@ -156,7 +156,7 @@ struct JsonReport<'a> {
     schema_version: u32,
     difference_status: &'static str,
     comparison_scope: JsonComparisonScope,
-    assessment: Option<JsonAssessment>,
+    assessment: Option<JsonAssessment<'a>>,
     summary: JsonSummary,
     changes: Vec<JsonChange>,
     change_candidates: Vec<JsonChangeCandidate>,
@@ -168,7 +168,7 @@ struct JsonReport<'a> {
 
 impl<'a> JsonReport<'a> {
     fn new(
-        comparison: &Comparison,
+        comparison: &'a Comparison,
         extraction: &'a ExtractionStatus,
         summary: ReportSummary,
         old: &SideIndex<'_>,
@@ -282,7 +282,7 @@ impl From<super::ComparisonScope> for JsonComparisonScope {
 }
 
 #[derive(Serialize)]
-struct JsonAssessment {
+struct JsonAssessment<'a> {
     policy_version: u32,
     work_limit: usize,
     work_used: usize,
@@ -292,10 +292,129 @@ struct JsonAssessment {
     #[serde(skip_serializing_if = "Option::is_none")]
     suffix_reuse_work: Option<JsonSuffixReuseWork>,
     candidates_truncated: bool,
+    evidence_link_work: JsonEvidenceLinkWork,
+    #[serde(serialize_with = "serialize_scoped_change_evidence")]
+    scoped_change_evidence: &'a [crate::diff::ScopedChangeEvidence],
+    #[serde(serialize_with = "serialize_localized_edit_witnesses")]
+    localized_edit_witnesses: &'a [crate::diff::LocalizedEditScript],
     old_resolution: Vec<JsonResolutionRange>,
     new_resolution: Vec<JsonResolutionRange>,
     relations: Vec<JsonRelationAssessment>,
     review_units: Vec<JsonReviewUnit>,
+}
+
+#[derive(Serialize)]
+struct JsonEvidenceLinkWork {
+    planning: usize,
+    verification: usize,
+    retention: usize,
+    output: usize,
+}
+
+/// Links retain a proved literal difference without reclassifying a partly
+/// resolved scope as an unresolved coarse region or granting ownership.
+fn serialize_scoped_change_evidence<S: Serializer>(
+    links: &[crate::diff::ScopedChangeEvidence],
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Link {
+        relation: usize,
+        proof: &'static str,
+        owns_tokens: bool,
+    }
+    let mut sequence = serializer.serialize_seq(Some(links.len()))?;
+    for link in links {
+        sequence.serialize_element(&Link {
+            relation: link.relation,
+            proof: match link.proof {
+                ChangedRegionProof::ExactTokenMultisetMismatch => "exact_token_multiset_mismatch",
+                ChangedRegionProof::OneSidedNonEmptyRange => "one_sided_non_empty_range",
+            },
+            owns_tokens: false,
+        })?;
+    }
+    sequence.end()
+}
+
+fn serialize_localized_edit_witnesses<S: Serializer>(
+    traces: &[crate::diff::LocalizedEditScript],
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Witness<'a> {
+        relation: usize,
+        changes: JsonRange,
+        strict_unique_in_declared_literal_model: bool,
+        origin_relations: &'a [usize],
+        origin_link_meaning: &'static str,
+        source_anchors: AnchorSlice<'a>,
+        edits: EditSlice<'a>,
+    }
+    struct AnchorSlice<'a>(&'a [crate::diff::WitnessSourceAnchor]);
+    impl Serialize for AnchorSlice<'_> {
+        fn serialize<T: Serializer>(&self, serializer: T) -> std::result::Result<T::Ok, T::Error> {
+            #[derive(Serialize)]
+            struct Anchor {
+                edit: usize,
+                side: &'static str,
+                block: u64,
+                comparable_offset: usize,
+                canonical_offset: usize,
+            }
+            let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
+            for point in self.0 {
+                sequence.serialize_element(&Anchor {
+                    edit: point.edit,
+                    side: if point.side == 0 { "old" } else { "new" },
+                    block: point.block.0,
+                    comparable_offset: point.comparable_offset,
+                    canonical_offset: point.canonical_offset,
+                })?;
+            }
+            sequence.end()
+        }
+    }
+    struct EditSlice<'a>(&'a [crate::diff::AtomicEdit]);
+    impl Serialize for EditSlice<'_> {
+        fn serialize<T: Serializer>(&self, serializer: T) -> std::result::Result<T::Ok, T::Error> {
+            #[derive(Serialize)]
+            struct Edit {
+                old: JsonRange,
+                new: JsonRange,
+            }
+            let mut sequence = serializer.serialize_seq(Some(self.0.len()))?;
+            for edit in self.0 {
+                sequence.serialize_element(&Edit {
+                    old: JsonRange {
+                        start: edit.old.start,
+                        end: edit.old.end,
+                    },
+                    new: JsonRange {
+                        start: edit.new.start,
+                        end: edit.new.end,
+                    },
+                })?;
+            }
+            sequence.end()
+        }
+    }
+    let mut sequence = serializer.serialize_seq(Some(traces.len()))?;
+    for trace in traces {
+        sequence.serialize_element(&Witness {
+            relation: trace.relation,
+            changes: JsonRange {
+                start: trace.changes.start,
+                end: trace.changes.end,
+            },
+            strict_unique_in_declared_literal_model: trace.strict_unique,
+            origin_relations: &trace.origin_relations,
+            origin_link_meaning: "discharged_physical_claim_not_original_anchor_proof",
+            source_anchors: AnchorSlice(&trace.source_anchors),
+            edits: EditSlice(&trace.edits),
+        })?;
+    }
+    sequence.end()
 }
 
 #[derive(Serialize)]
@@ -327,9 +446,9 @@ struct JsonReviewUnit {
     mandatory_new: Vec<JsonTextSpan>,
 }
 
-impl JsonAssessment {
+impl<'a> JsonAssessment<'a> {
     fn new(
-        assessment: &crate::diff::ComparisonAssessment,
+        assessment: &'a crate::diff::ComparisonAssessment,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
         old_sources: &ReportSources<'_>,
@@ -345,6 +464,14 @@ impl JsonAssessment {
             suffix_reuse_work: (assessment.suffix_reuse_work.attempts != 0)
                 .then_some(assessment.suffix_reuse_work.into()),
             candidates_truncated: assessment.candidates_truncated,
+            evidence_link_work: JsonEvidenceLinkWork {
+                planning: assessment.evidence_link_work.planning,
+                verification: assessment.evidence_link_work.verification,
+                retention: assessment.evidence_link_work.retention,
+                output: assessment.evidence_link_work.output,
+            },
+            scoped_change_evidence: &assessment.scoped_change_evidence,
+            localized_edit_witnesses: &assessment.localized_edits,
             review_units: assessment
                 .review_units
                 .iter()
@@ -1256,6 +1383,64 @@ fn candidate_source(source: CandidateSource) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_witness_json_keeps_empty_target_and_tentative_origin() {
+        #[derive(Serialize)]
+        struct Wrapper<'a> {
+            #[serde(serialize_with = "serialize_localized_edit_witnesses")]
+            witnesses: &'a [crate::diff::LocalizedEditScript],
+            #[serde(serialize_with = "serialize_scoped_change_evidence")]
+            facts: &'a [crate::diff::ScopedChangeEvidence],
+        }
+        let traces = [crate::diff::LocalizedEditScript {
+            relation: 8,
+            changes: 2..3,
+            edits: vec![crate::diff::AtomicEdit {
+                old: 1..2,
+                new: 1..1,
+            }],
+            strict_unique: false,
+            origin_relations: vec![4],
+            source_anchors: vec![crate::diff::WitnessSourceAnchor {
+                edit: 0,
+                side: 1,
+                block: crate::layout::BlockId(101),
+                comparable_offset: 7,
+                canonical_offset: 6,
+            }],
+        }];
+        let facts = [crate::diff::ScopedChangeEvidence {
+            relation: 8,
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+        let value = serde_json::to_value(Wrapper {
+            witnesses: &traces,
+            facts: &facts,
+        })
+        .expect("serializable receipts");
+        assert_eq!(
+            value["witnesses"][0]["edits"][0]["new"],
+            serde_json::json!({"start":1,"end":1})
+        );
+        assert_eq!(
+            value["witnesses"][0]["origin_relations"],
+            serde_json::json!([4])
+        );
+        assert_eq!(
+            value["witnesses"][0]["strict_unique_in_declared_literal_model"],
+            false
+        );
+        assert_eq!(
+            value["witnesses"][0]["source_anchors"][0]["comparable_offset"],
+            7
+        );
+        assert_eq!(value["facts"][0]["owns_tokens"], false);
+        assert_eq!(
+            value["witnesses"][0]["origin_link_meaning"],
+            "discharged_physical_claim_not_original_anchor_proof"
+        );
+    }
 
     #[test]
     fn compact_source_digest_matches_streamed_native_array() -> Result<()> {

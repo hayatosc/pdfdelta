@@ -457,6 +457,11 @@ pub struct ComparisonAssessment {
     /// Additional programmatic evidence for emitted local changes. Standard
     /// reports summarize the corresponding relations rather than these edits.
     pub localized_edits: Vec<LocalizedEditScript>,
+    /// Non-owning literal difference facts, including scopes containing known
+    /// equal or changed tokens. These links never authorize recovery or ownership.
+    pub scoped_change_evidence: Vec<ScopedChangeEvidence>,
+    /// Prepaid link construction, verification, retention and output allowance.
+    pub evidence_link_work: EvidenceLinkWork,
     /// Non-owning quantitative claims under each established domain's premises.
     pub review_units: Vec<ReviewUnit>,
 }
@@ -500,6 +505,46 @@ pub struct ReviewUnit {
     pub mandatory_new: Vec<TextSpan>,
 }
 
+/// A paid literal difference fact under one established source correspondence.
+/// Unlike a coarse unresolved region, this may contain already resolved tokens.
+/// It proves neither a particular edit location nor new token ownership.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScopedChangeEvidence {
+    pub relation: usize,
+    pub proof: super::ChangedRegionProof,
+}
+
+/// Charged logical allowance for evidence links, not measured CPU instructions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EvidenceLinkWork {
+    pub planning: usize,
+    pub verification: usize,
+    pub retention: usize,
+    pub output: usize,
+}
+
+impl EvidenceLinkWork {
+    fn total(self) -> Option<usize> {
+        self.planning
+            .checked_add(self.verification)?
+            .checked_add(self.retention)?
+            .checked_add(self.output)
+    }
+}
+
+/// One block-local representation of an empty boundary in a literal witness.
+/// Multiple entries may represent the same concatenated block boundary. None
+/// independently proves a historical insertion/deletion position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WitnessSourceAnchor {
+    pub edit: usize,
+    /// 0 = old, 1 = new.
+    pub side: usize,
+    pub block: crate::layout::BlockId,
+    pub comparable_offset: usize,
+    pub canonical_offset: usize,
+}
+
 /// One optimal edit witness for a completed local comparison.
 ///
 /// When several optimal paths exist, their emitted semantic ranges agree;
@@ -512,9 +557,32 @@ pub struct LocalizedEditScript {
     pub changes: Range<usize>,
     /// Coordinates start at zero within the relation's old/new spans.
     pub edits: Vec<super::AtomicEdit>,
+    /// Uniqueness applies only to this declared literal token model, not the
+    /// author's history or an unregistered normalization interpretation.
+    pub strict_unique: bool,
+    /// Original tentative source claims discharged by the publication. This
+    /// reference does not establish their original empty-anchor association.
+    pub origin_relations: Vec<usize>,
+    /// Actual empty-boundary coordinates from this optimal script. Ambiguous
+    /// block-boundary representations are all retained, never selected.
+    pub source_anchors: Vec<WitnessSourceAnchor>,
 }
 
 impl ComparisonAssessment {
+    /// Reads non-owning literal difference facts from a validated assessment.
+    /// Scopes can contain known equal or changed tokens. They are not coarse
+    /// unresolved regions and must not authorize recovery or token ownership.
+    /// No new matching, counting, normalization choice or location is inferred.
+    pub fn scoped_difference_evidence(
+        &self,
+    ) -> impl Iterator<Item = (&RelationAssessment, super::ChangedRegionProof)> {
+        self.scoped_change_evidence.iter().filter_map(|link| {
+            self.relations
+                .get(link.relation)
+                .map(|relation| (relation, link.proof))
+        })
+    }
+
     /// Checks the structural evidence and exclusive token accounting.
     ///
     /// Caller-supplied assessments remain assertions about source evidence.
@@ -616,6 +684,36 @@ impl ComparisonAssessment {
                 return Err(invalid("candidate alternative group is out of bounds"));
             }
         }
+        if self
+            .evidence_link_work
+            .total()
+            .is_none_or(|work| work > self.work_used)
+        {
+            return Err(invalid("evidence link work exceeds the shared allowance"));
+        }
+        let mut evidence_relations = HashSet::new();
+        for evidence in &self.scoped_change_evidence {
+            let relation = self
+                .relations
+                .get(evidence.relation)
+                .ok_or_else(|| invalid("scoped change evidence has no relation"))?;
+            let nonempty = |span: &Option<TextSpan>| {
+                span.as_ref()
+                    .is_some_and(|s| s.comparable_range.start < s.comparable_range.end)
+            };
+            if !evidence_relations.insert(evidence.relation)
+                || relation.outcome != RelationOutcome::Established
+                || relation.search != SearchCompleteness::Complete
+                || !relation.reasons.is_empty()
+                || !evidence
+                    .proof
+                    .matches_span_shape(nonempty(&relation.old_span), nonempty(&relation.new_span))
+            {
+                return Err(invalid(
+                    "scoped change evidence lacks a complete established scope",
+                ));
+            }
+        }
         let mut previous_change_end = 0;
         for trace in &self.localized_edits {
             let relation = self
@@ -634,6 +732,27 @@ impl ComparisonAssessment {
                 return Err(invalid(
                     "localized edits require distinct emitted changes and an established context",
                 ));
+            }
+            if trace
+                .origin_relations
+                .iter()
+                .any(|origin| *origin >= self.relations.len())
+            {
+                return Err(invalid("localized witness origin has no relation"));
+            }
+            for anchor in &trace.source_anchors {
+                let edit = trace
+                    .edits
+                    .get(anchor.edit)
+                    .ok_or_else(|| invalid("source anchor has no edit"))?;
+                let (context, range) = match anchor.side {
+                    0 => (old, &edit.old),
+                    1 => (new, &edit.new),
+                    _ => return Err(invalid("source anchor has an invalid side")),
+                };
+                if !range.is_empty() || !context.blocks.contains(&anchor.block) {
+                    return Err(invalid("source anchor is outside its empty witness side"));
+                }
             }
             let lengths = [
                 old.comparable_range
@@ -4211,6 +4330,8 @@ pub(super) fn finish(
         suffix_reuse_work: assessor.suffix_reuse_work,
         candidates_truncated: candidates_truncated || assessor.output_stop.is_some(),
         localized_edits: assessor.localized_edits,
+        scoped_change_evidence: assessor.scoped_change_evidence,
+        evidence_link_work: assessor.evidence_link_work,
         review_units,
     };
     validation::validate(sides, &assessment, &comparison)?;
@@ -4314,6 +4435,8 @@ struct Assessor<'a, 'document> {
     exact_displacements: Vec<(TextSpan, TextSpan)>,
     footer_domains: Vec<views::LocalDomain>,
     localized_edits: Vec<LocalizedEditScript>,
+    scoped_change_evidence: Vec<ScopedChangeEvidence>,
+    evidence_link_work: EvidenceLinkWork,
     localized_edit_count: usize,
     proposal_relations: HashMap<ProposalKey, usize>,
     semantic_rejections: HashSet<ProposalKey>,
@@ -5781,6 +5904,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
         if self.output_stop.is_some() {
             return Ok(DomainState::Stopped(relation));
         }
+        if key.local.is_some()
+            && closed
+            && !closure_incomplete
+            && !(search == SearchCompleteness::Complete && strict_unique && edits.is_empty())
+        {
+            self.capture_scoped_change_evidence(relation, [&old, &new])?;
+        }
         if search == SearchCompleteness::Incomplete {
             // The domain boundary remains established; dependent localization
             // records carry the incomplete-search reason.
@@ -6724,6 +6854,8 @@ impl<'a, 'document> Assessor<'a, 'document> {
             exact_displacements: Vec::new(),
             footer_domains: Vec::new(),
             localized_edits: Vec::new(),
+            scoped_change_evidence: Vec::new(),
+            evidence_link_work: Default::default(),
             localized_edit_count: 0,
             proposal_relations: HashMap::new(),
             semantic_rejections: HashSet::new(),
@@ -7174,6 +7306,191 @@ impl<'a, 'document> Assessor<'a, 'document> {
         );
         self.domains.extend(domains);
         result
+    }
+
+    /// Charges each phase from the original shared budget. Failed requests
+    /// retain only the allowance actually consumed, never fabricate a receipt.
+    fn charge_evidence_link(&mut self, phase: usize, requested: usize) -> bool {
+        let before = self.remaining_work;
+        let paid = self.charge(requested);
+        let consumed = before - self.remaining_work;
+        let target = match phase {
+            0 => &mut self.evidence_link_work.planning,
+            1 => &mut self.evidence_link_work.verification,
+            2 => &mut self.evidence_link_work.retention,
+            _ => &mut self.evidence_link_work.output,
+        };
+        *target = target.saturating_add(consumed);
+        paid
+    }
+
+    /// Resolve zero-width witness coordinates from the immutable side's real
+    /// block token arrays. The caller prepays both this walk and validation.
+    fn witness_source_anchors(
+        &self,
+        relation: usize,
+        edits: &[super::AtomicEdit],
+    ) -> Result<Vec<WitnessSourceAnchor>> {
+        let record = &self.records[relation];
+        let bound = edits
+            .iter()
+            .map(|edit| {
+                if edit.old.is_empty() {
+                    record.old_span.as_ref().map_or(0, |s| s.blocks.len())
+                } else {
+                    record.new_span.as_ref().map_or(0, |s| s.blocks.len())
+                }
+            })
+            .sum::<usize>();
+        if bound > self.options.max_assessment_ranges
+            || bound.saturating_mul(std::mem::size_of::<WitnessSourceAnchor>())
+                > COARSE_MEMORY_BYTES
+        {
+            return Err(invalid("witness anchors exceed bounded storage"));
+        }
+        let mut output = Vec::new();
+        output
+            .try_reserve_exact(bound)
+            .map_err(|_| allocation_error("witness source anchors"))?;
+        if output.capacity() > bound {
+            return Err(invalid("witness anchor allocator exceeds prepaid storage"));
+        }
+        for (edit_index, edit) in edits.iter().enumerate() {
+            for (side, range) in [&edit.old, &edit.new].into_iter().enumerate() {
+                if !range.is_empty() {
+                    continue;
+                }
+                let span = if side == 0 {
+                    record.old_span.as_ref()
+                } else {
+                    record.new_span.as_ref()
+                }
+                .ok_or_else(|| invalid("witness anchor context is absent"))?;
+                let point = span.comparable_range.start.saturating_add(range.start);
+                let mut offset = 0usize;
+                let mut preceding_space = false;
+                for (position, id) in span.blocks.iter().enumerate() {
+                    let block_index = self.sides[side].index[id];
+                    let tokens = &self.sides[side].canonical[block_index];
+                    let separator = position > 0
+                        && span.separator.map(|s| s.at(position - 1))
+                            == Some(BlockSeparator::Space)
+                        && !preceding_space
+                        && !tokens.first().is_some_and(space_token);
+                    offset += usize::from(separator);
+                    if offset <= point && point <= offset + tokens.len() {
+                        if output.len() >= self.options.max_assessment_ranges {
+                            return Err(invalid("witness source anchors exceed bounded output"));
+                        }
+                        output.push(WitnessSourceAnchor {
+                            edit: edit_index,
+                            side,
+                            block: *id,
+                            comparable_offset: point - offset,
+                            canonical_offset: block_scalar_boundary(
+                                &self.sides[side].blocks[block_index].canonical,
+                                point - offset,
+                            ),
+                        });
+                    }
+                    offset += tokens.len();
+                    preceding_space = tokens
+                        .last()
+                        .map_or(separator || preceding_space, space_token);
+                }
+                if point > offset {
+                    return Err(invalid("witness anchor leaves its source frame"));
+                }
+            }
+        }
+        Ok(output)
+    }
+
+    /// Retains a scalar-only literal mismatch without classifying its source
+    /// tokens as unresolved or changing the coarse-region admission guards.
+    fn capture_scoped_change_evidence(
+        &mut self,
+        relation: usize,
+        groups: [&super::GroupText; 2],
+    ) -> Result<()> {
+        if !self.charge_evidence_link(0, 128) {
+            return Ok(());
+        }
+        let scope = self
+            .records
+            .get(relation)
+            .ok_or_else(|| invalid("scoped evidence relation is missing"))?;
+        if scope.outcome != RelationOutcome::Established
+            || scope.search != SearchCompleteness::Complete
+            || !scope.reasons.is_empty()
+        {
+            return Ok(());
+        }
+        let count = groups[0]
+            .tokens
+            .len()
+            .saturating_add(groups[1].tokens.len());
+        if count.saturating_mul(128) > COARSE_MEMORY_BYTES
+            || self.scoped_change_evidence.len() >= self.options.max_assessment_ranges
+            || self.remaining_work < count.saturating_mul(6)
+        {
+            return Ok(());
+        }
+        // Three operations per token for the constructor and the same reserved
+        // allowance for source-side verification of the retained fact.
+        if !self.charge_evidence_link(1, count.saturating_mul(6)) {
+            return Ok(());
+        }
+        if groups
+            .iter()
+            .flat_map(|g| &g.tokens)
+            .any(|t| !matches!(t, ComparableToken::Scalar(_)))
+        {
+            return Ok(());
+        }
+        let mut counts = HashMap::<&ComparableToken, i64>::new();
+        counts
+            .try_reserve(count)
+            .map_err(|_| allocation_error("scoped literal evidence"))?;
+        for (group, delta) in [(groups[0], 1), (groups[1], -1)] {
+            for token in &group.tokens {
+                *counts.entry(token).or_default() += delta;
+            }
+        }
+        if counts.values().all(|n| *n == 0) {
+            return Ok(());
+        }
+        let copies = if self.scoped_change_evidence.len() == self.scoped_change_evidence.capacity()
+        {
+            self.scoped_change_evidence.len()
+        } else {
+            0
+        };
+        if !self.charge_evidence_link(2, 64usize.saturating_add(copies.saturating_mul(16)))
+            || !self.charge_evidence_link(3, 128)
+        {
+            return Ok(());
+        }
+        self.scoped_change_evidence
+            .try_reserve_exact(1)
+            .map_err(|_| allocation_error("scoped evidence links"))?;
+        if self
+            .scoped_change_evidence
+            .capacity()
+            .saturating_mul(std::mem::size_of::<ScopedChangeEvidence>())
+            > COARSE_MEMORY_BYTES
+        {
+            return Ok(());
+        }
+        self.scoped_change_evidence.push(ScopedChangeEvidence {
+            relation,
+            proof: if groups.iter().any(|g| g.tokens.is_empty()) {
+                super::ChangedRegionProof::OneSidedNonEmptyRange
+            } else {
+                super::ChangedRegionProof::ExactTokenMultisetMismatch
+            },
+        });
+        Ok(())
     }
 
     fn charge(&mut self, work: usize) -> bool {
@@ -12930,9 +13247,21 @@ mod assessor_issue_cache_tests {
                 new_separator: BlockSeparator::Space,
             };
             let before = assessor.remaining_work;
+            let before_links = assessor
+                .evidence_link_work
+                .total()
+                .expect("bounded link work");
             assert_eq!(assessor.prove_domain(&key)?, DomainState::Ready);
             let after = assessor.remaining_work;
-            assert_eq!(before - after, 42048);
+            assert_eq!(
+                before - after,
+                42048
+                    + assessor
+                        .evidence_link_work
+                        .total()
+                        .expect("bounded link work")
+                    - before_links
+            );
             assert_eq!(assessor.suffix_reuse_work.attempts, index + 1);
             assert_eq!(
                 assessor.suffix_reuse_work.allowance_used,

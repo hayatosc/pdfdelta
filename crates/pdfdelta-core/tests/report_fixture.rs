@@ -326,6 +326,8 @@ fn reports_tentative_candidates_with_assessment_evidence_without_counting_covera
     };
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        scoped_change_evidence: Vec::new(),
+        evidence_link_work: Default::default(),
         review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: vec![RelationAssessment {
@@ -430,6 +432,8 @@ fn historical_tentative_relation_does_not_block_complete_partition() -> Result<(
     comparison.new_coverage = comparison.old_coverage;
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        scoped_change_evidence: Vec::new(),
+        evidence_link_work: Default::default(),
         review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: vec![RelationAssessment {
@@ -484,6 +488,8 @@ fn rejects_assessment_resolution_without_source_block() -> Result<()> {
     comparison.new_coverage = comparison.old_coverage;
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        scoped_change_evidence: Vec::new(),
+        evidence_link_work: Default::default(),
         review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: Vec::new(),
@@ -1831,6 +1837,8 @@ fn json_resolution_partition_keeps_a_boundary_line_break_once() -> Result<()> {
     };
     comparison.assessment = Some(ComparisonAssessment {
         localized_edits: Vec::new(),
+        scoped_change_evidence: Vec::new(),
+        evidence_link_work: Default::default(),
         review_units: Vec::new(),
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: Vec::new(),

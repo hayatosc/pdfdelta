@@ -693,6 +693,35 @@ impl Assessor<'_, '_> {
             if event_count > 0 {
                 reserve_capacity(&mut self.localized_edits, 1)?;
             }
+            let anchor_bound = edits
+                .iter()
+                .map(|edit| {
+                    if edit.old.is_empty() {
+                        groups[0].blocks.len()
+                    } else {
+                        groups[1].blocks.len()
+                    }
+                })
+                .sum::<usize>();
+            if event_count > 0
+                && (anchor_bound > limit
+                    || !self.charge_evidence_link(0, 128)
+                    || !self.charge_evidence_link(1, anchor_bound.saturating_mul(64))
+                    || !self.charge_evidence_link(
+                        3,
+                        anchor_bound
+                            .saturating_mul(32)
+                            .saturating_add(edits.len().saturating_mul(32)),
+                    ))
+            {
+                self.mark_recovery_incomplete(relation, super::AssessmentReason::WorkLimit)?;
+                break;
+            }
+            let source_anchors = if event_count > 0 {
+                self.witness_source_anchors(relation, &edits)?
+            } else {
+                Vec::new()
+            };
             // Commit the domain's ownership, change events and witness together.
             let base = changes.len();
             for (index, events, changed) in committable {
@@ -716,6 +745,9 @@ impl Assessor<'_, '_> {
                 self.localized_edits.push(super::LocalizedEditScript {
                     relation,
                     changes: base..base + event_count,
+                    strict_unique,
+                    origin_relations: Vec::new(),
+                    source_anchors,
                     edits,
                 });
             }
@@ -3090,11 +3122,48 @@ impl Assessor<'_, '_> {
             self.mark_local_work_limit(relation);
             return Ok(LocalRecoveryStep::Stop { truncated: false });
         }
+        let anchor_bound = self.domains[&key]
+            .edits
+            .iter()
+            .map(|edit| {
+                if edit.old.is_empty() {
+                    proposal.old.as_ref().map_or(0, |s| s.blocks.len())
+                } else {
+                    proposal.new.as_ref().map_or(0, |s| s.blocks.len())
+                }
+            })
+            .sum::<usize>();
+        if anchor_bound > limit
+            || !self.charge_evidence_link(0, 128)
+            || !self.charge_evidence_link(1, anchor_bound.saturating_mul(64))
+            || !self.charge_evidence_link(2, superseded.len().saturating_mul(32))
+            || !self.charge_evidence_link(
+                3,
+                edit_count
+                    .saturating_mul(32)
+                    .saturating_add(anchor_bound.saturating_mul(32))
+                    .saturating_add(superseded.len().saturating_mul(16)),
+            )
+        {
+            self.mark_local_work_limit(relation);
+            return Ok(LocalRecoveryStep::Stop { truncated: false });
+        }
+        let mut origins = Vec::new();
+        origins
+            .try_reserve_exact(superseded.len())
+            .map_err(|_| super::allocation_error("localized witness origins"))?;
+        if origins.capacity() > superseded.len() {
+            return Ok(LocalRecoveryStep::Continue);
+        }
+        origins.extend(superseded.iter().map(|&i| candidates[i].relation));
+        let strict_unique = self.domains[&key].strict_unique
+            && self.domains[&key].search == SearchCompleteness::Complete;
         let mut edits = Vec::new();
         edits
             .try_reserve_exact(edit_count)
             .map_err(|_| super::allocation_error("localized edit witness"))?;
         edits.extend_from_slice(&self.domains[&key].edits);
+        let source_anchors = self.witness_source_anchors(relation, &edits)?;
         super::reserve_ranges(&mut self.localized_edits, 1, limit)?;
         let changed_events = changes.len()..changes.len() + local_changes.len();
         for side in 0..2 {
@@ -3111,6 +3180,9 @@ impl Assessor<'_, '_> {
         self.localized_edits.push(super::LocalizedEditScript {
             relation,
             changes: changed_events,
+            strict_unique,
+            origin_relations: origins,
+            source_anchors,
             edits,
         });
         for (index, occurrences) in residue_updates {
@@ -4022,6 +4094,54 @@ mod tests {
                 }
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_scoped_links_are_paid_non_owning_and_reject_unclosed_scopes() -> Result<()> {
+        let old_blocks = [sourced_block(1, "ABC")];
+        let new_blocks = [sourced_block(101, "ABX")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = matched_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut a =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        let relation = a.record(super::super::RelationAssessment {
+            old_span: Some(span(1, 3)),
+            new_span: Some(span(101, 3)),
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: Vec::new(),
+            reasons: Vec::new(),
+        })?;
+        let groups = [
+            super::super::domain_group(&old, 0..1, BlockSeparator::Concatenate),
+            super::super::domain_group(&new, 0..1, BlockSeparator::Concatenate),
+        ];
+        let before = a.remaining_work;
+        a.capture_scoped_change_evidence(relation, [&groups[0], &groups[1]])?;
+        assert_eq!(a.scoped_change_evidence.len(), 1);
+        assert_eq!(a.scoped_change_evidence[0].relation, relation);
+        assert_eq!(
+            a.scoped_change_evidence[0].proof,
+            ChangedRegionProof::ExactTokenMultisetMismatch
+        );
+        assert_eq!(
+            before - a.remaining_work,
+            a.evidence_link_work.total().expect("bounded fee")
+        );
+        assert!(
+            a.localized_edits.is_empty(),
+            "a difference link localizes no edit"
+        );
+        a.records[relation].outcome = RelationOutcome::Tentative;
+        a.capture_scoped_change_evidence(relation, [&groups[0], &groups[1]])?;
+        assert_eq!(
+            a.scoped_change_evidence.len(),
+            1,
+            "unclosed source claims get no positive link"
+        );
         Ok(())
     }
 
