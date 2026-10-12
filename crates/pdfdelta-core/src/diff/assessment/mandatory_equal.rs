@@ -933,43 +933,41 @@ pub(super) fn ownership_projection_clear(
                 side,
                 span,
                 selected,
-                indices[..span.blocks.len()].iter().copied(),
+                indices[..span.blocks.len()]
+                    .iter()
+                    .copied()
+                    .map(ProjectionBlock::Known),
+                false,
                 16,
                 remaining,
-            );
+            )
+            .and_then(|result| match result {
+                LiteralProjection::Clear(clear) => Some(clear),
+                LiteralProjection::General => None,
+            });
         }
     }
-    // A completed strictly increasing source-index walk proves uniqueness.
-    // Other orders keep the original general projection, including its vetoes.
+    // Source order, uniqueness and coordinates are checked in the same paid
+    // walk. No result is returned until every block has passed. A nonliteral
+    // or unordered list falls back to the unchanged general projection.
     if span.blocks.len() > 8
         && span
             .separator
             .is_some_and(|s| s.valid_for(span.blocks.len()))
     {
-        let mut previous = None;
-        let mut ordered_literal = true;
-        for block in &span.blocks {
-            if !charge_work(remaining, 4) {
-                return None;
-            }
-            let &index = side.index.get(block)?;
-            if previous.is_some_and(|p| p >= index)
-                || !side.blocks[index].canonical.unmapped.is_empty()
-            {
-                ordered_literal = false;
-                break;
-            }
-            previous = Some(index);
-        }
-        if ordered_literal {
-            return literal_overlap_stream(
-                side,
-                span,
-                selected,
-                span.blocks.iter().map(|block| side.index[block]),
-                18,
-                remaining,
-            );
+        match literal_overlap_stream(
+            side,
+            span,
+            selected,
+            span.blocks
+                .iter()
+                .map(|block| ProjectionBlock::Named(*block)),
+            true,
+            20,
+            remaining,
+        )? {
+            LiteralProjection::Clear(clear) => return Some(clear),
+            LiteralProjection::General => {}
         }
     }
 
@@ -987,14 +985,25 @@ pub(super) fn ownership_projection_clear(
     }))
 }
 
+enum ProjectionBlock {
+    Known(usize),
+    Named(BlockId),
+}
+
+enum LiteralProjection {
+    Clear(bool),
+    General,
+}
+
 fn literal_overlap_stream(
     side: &Side<'_>,
     span: &super::TextSpan,
     selected: &SourceInterval,
-    indices: impl Iterator<Item = usize>,
+    indices: impl Iterator<Item = ProjectionBlock>,
+    ordered_literal: bool,
     per_block_work: usize,
     remaining: &mut usize,
-) -> Option<bool> {
+) -> Option<LiteralProjection> {
     let range = span.comparable_range;
     if range.start > range.end
         || span.canonical_range.start != range.start
@@ -1004,9 +1013,22 @@ fn literal_overlap_stream(
     }
     let (mut offset, mut clear) = (0usize, true);
     let mut previous = None;
+    let mut previous_index = None;
     for (position, index) in indices.enumerate() {
         if !charge_work(remaining, per_block_work) {
             return None;
+        }
+        let index = match index {
+            ProjectionBlock::Known(index) => index,
+            ProjectionBlock::Named(block) => *side.index.get(&block)?,
+        };
+        if ordered_literal {
+            if previous_index.is_some_and(|p| p >= index)
+                || !side.blocks[index].canonical.unmapped.is_empty()
+            {
+                return Some(LiteralProjection::General);
+            }
+            previous_index = Some(index);
         }
         let tokens = &side.canonical[index];
         let mut join = false;
@@ -1038,7 +1060,7 @@ fn literal_overlap_stream(
     if range.end > offset {
         return None;
     }
-    Some(clear)
+    Some(LiteralProjection::Clear(clear))
 }
 
 /// Bounds possible final diagnostic output without generating it twice.

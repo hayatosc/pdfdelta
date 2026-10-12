@@ -8681,6 +8681,41 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn long_ownership_projection_pays_every_visit_and_validates_after_overlap() -> Result<()> {
+        let blocks = (0..52)
+            .map(|i| anchor_block(200 - i, "ABCD"))
+            .collect::<Vec<_>>();
+        let side = super::super::SidePlan::inspect("long owner", &blocks)?.materialize()?;
+        let selected = SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 1,
+        };
+        let ids = blocks.iter().map(|b| b.block).collect::<Vec<_>>();
+        let group = side.canonical_group(&ids, Some(BlockSeparator::Concatenate));
+        let mut span = group.span(0, group.tokens.len());
+        let work = 4 + 20 * 52;
+        assert_eq!(
+            mandatory_equal::ownership_projection_clear(&side, &span, &selected, &mut (work - 1)),
+            None
+        );
+        let mut remaining = work;
+        assert_eq!(
+            mandatory_equal::ownership_projection_clear(&side, &span, &selected, &mut remaining),
+            Some(false)
+        );
+        assert_eq!(remaining, 0);
+        span.comparable_range.end += 1;
+        span.canonical_range.end += 1;
+        assert!(coarse_project(&side, &span).is_none());
+        assert_eq!(
+            mandatory_equal::ownership_projection_clear(&side, &span, &selected, &mut 100_000),
+            None
+        );
+        Ok(())
+    }
+
+    #[test]
     fn literal_capacity_cache_pays_complete_scans_and_rejects_other_sides() -> Result<()> {
         let old_blocks = (1..=32)
             .map(|i| anchor_block(i, "ABCD"))
