@@ -8681,6 +8681,70 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn tiny_ownership_projection_pays_actual_initialized_stack_width() -> Result<()> {
+        let blocks = (0..8)
+            .map(|i| anchor_block(100 - i, "ABCD"))
+            .collect::<Vec<_>>();
+        let side = super::super::SidePlan::inspect("tiny stack owner", &blocks)?.materialize()?;
+        let selected = SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 1,
+        };
+        for count in [2usize, 3, 4, 7, 8] {
+            let ids = blocks[..count].iter().map(|b| b.block).collect::<Vec<_>>();
+            let group = side.canonical_group(&ids, Some(BlockSeparator::Concatenate));
+            let span = group.span(0, group.tokens.len());
+            let width = match count {
+                2 => 2,
+                3..=4 => 4,
+                _ => 8,
+            };
+            let work = 4 + 2 + width + count * (count - 1) / 2 + 19 * count;
+            assert_eq!(
+                mandatory_equal::ownership_projection_clear(
+                    &side,
+                    &span,
+                    &selected,
+                    &mut (work - 1)
+                ),
+                None
+            );
+            let mut remaining = work;
+            assert_eq!(
+                mandatory_equal::ownership_projection_clear(
+                    &side,
+                    &span,
+                    &selected,
+                    &mut remaining
+                ),
+                Some(false)
+            );
+            assert_eq!(remaining, 0);
+            if count == 2 {
+                assert_eq!(work, 47);
+                let unrelated = SourceInterval {
+                    block_index: 7,
+                    start: 0,
+                    end: 1,
+                };
+                let mut remaining = 49;
+                assert_eq!(
+                    mandatory_equal::ownership_projection_clear(
+                        &side,
+                        &span,
+                        &unrelated,
+                        &mut remaining
+                    ),
+                    Some(true)
+                );
+                assert_eq!(remaining, 2);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn long_ownership_projection_pays_every_visit_and_validates_after_overlap() -> Result<()> {
         let blocks = (0..52)
             .map(|i| anchor_block(200 - i, "ABCD"))

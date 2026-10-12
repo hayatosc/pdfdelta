@@ -909,42 +909,17 @@ pub(super) fn ownership_projection_clear(
         if !separator.valid_for(span.blocks.len()) {
             return None;
         }
-        if !charge_work(remaining, 8) {
+        // Pay selection of the stack width and the helper's capacity premise.
+        if !charge_work(remaining, 2) {
             return None;
         }
-        let mut indices = [0usize; 8];
-        let mut literal = true;
-        for (position, block) in span.blocks.iter().enumerate() {
-            if !charge_work(remaining, position + 3) {
-                return None;
-            }
-            let &index = side.index.get(block)?;
-            if indices[..position].contains(&index) {
-                return None;
-            }
-            indices[position] = index;
-            if !side.blocks[index].canonical.unmapped.is_empty() {
-                literal = false;
-                break;
-            }
-        }
-        if literal {
-            return literal_overlap_stream(
-                side,
-                span,
-                selected,
-                indices[..span.blocks.len()]
-                    .iter()
-                    .copied()
-                    .map(ProjectionBlock::Known),
-                false,
-                16,
-                remaining,
-            )
-            .and_then(|result| match result {
-                LiteralProjection::Clear(clear) => Some(clear),
-                LiteralProjection::General => None,
-            });
+        let projection = match span.blocks.len() {
+            2 => tiny_literal_projection::<2>(side, span, selected, remaining),
+            3..=4 => tiny_literal_projection::<4>(side, span, selected, remaining),
+            _ => tiny_literal_projection::<8>(side, span, selected, remaining),
+        }?;
+        if let LiteralProjection::Clear(clear) = projection {
+            return Some(clear);
         }
     }
     // Source order, uniqueness and coordinates are checked in the same paid
@@ -983,6 +958,47 @@ pub(super) fn ownership_projection_clear(
             && selected.start < other.end
             && other.start < selected.end
     }))
+}
+
+fn tiny_literal_projection<const N: usize>(
+    side: &Side<'_>,
+    span: &super::TextSpan,
+    selected: &SourceInterval,
+    remaining: &mut usize,
+) -> Option<LiteralProjection> {
+    if span.blocks.len() > N {
+        return Some(LiteralProjection::General);
+    }
+    // Every initialized stack slot is paid; shorter lists use smaller arrays.
+    if !charge_work(remaining, N) {
+        return None;
+    }
+    let mut indices = [0usize; N];
+    for (position, block) in span.blocks.iter().enumerate() {
+        if !charge_work(remaining, position + 3) {
+            return None;
+        }
+        let &index = side.index.get(block)?;
+        if indices[..position].contains(&index) {
+            return None;
+        }
+        indices[position] = index;
+        if !side.blocks[index].canonical.unmapped.is_empty() {
+            return Some(LiteralProjection::General);
+        }
+    }
+    literal_overlap_stream(
+        side,
+        span,
+        selected,
+        indices[..span.blocks.len()]
+            .iter()
+            .copied()
+            .map(ProjectionBlock::Known),
+        false,
+        16,
+        remaining,
+    )
 }
 
 enum ProjectionBlock {
