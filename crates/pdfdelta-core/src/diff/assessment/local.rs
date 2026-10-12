@@ -6,7 +6,7 @@ use super::{
 use crate::{
     Result,
     alignment::BlockSeparator,
-    diff::{Confidence, ProvenChangedRegion, Side},
+    diff::{ChangeKind, Confidence, ProvenChangedRegion, Side},
 };
 
 /// Outcome of one deferred equal-fragment retry.
@@ -2897,6 +2897,8 @@ impl Assessor<'_, '_> {
             return Ok(LocalRecoveryStep::Continue);
         }
         let mut superseded = Vec::new();
+        let mut residue_updates = Vec::new();
+        let mut residue_live_bytes = 0usize;
         for (index, candidate) in candidates.iter().enumerate() {
             // Cover the additional containment bookkeeping even when a
             // candidate projects to no nonempty source interval.
@@ -2946,7 +2948,97 @@ impl Assessor<'_, '_> {
                 }
             }
             if overlaps_domain && !wholly_covered {
-                return Ok(LocalRecoveryStep::Continue);
+                // One-sided remainders keep their original hypothesis and
+                // relation provenance. A disconnected two-sided remainder
+                // requires correspondence evidence this pass does not have.
+                let side = match candidate.change.kind {
+                    ChangeKind::Deletion => 0,
+                    ChangeKind::Insertion => 1,
+                    ChangeKind::Replacement | ChangeKind::Move => {
+                        return Ok(LocalRecoveryStep::Continue);
+                    }
+                };
+                if !self.charge(256usize.saturating_add(candidates.len().saturating_mul(32))) {
+                    self.mark_local_work_limit(relation);
+                    return Ok(LocalRecoveryStep::Stop { truncated: false });
+                }
+                let mut occurrences = Vec::new();
+                let mut occurrence_body_bytes = 0usize;
+                for occurrence in &candidate.change.occurrences {
+                    let spans = [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()];
+                    let Some(span) = spans[side] else {
+                        return Err(super::invalid("one-sided candidate has no source span"));
+                    };
+                    if spans[1 - side].is_some() {
+                        return Err(super::invalid(
+                            "one-sided candidate has an opposite source span",
+                        ));
+                    }
+                    let Some(residues) = candidate_side_residue(
+                        self.sides[side],
+                        span,
+                        &accepted[side],
+                        self.options.max_assessment_ranges,
+                        (64usize * 1024 * 1024)
+                            .saturating_sub(residue_live_bytes)
+                            .saturating_sub(occurrence_body_bytes)
+                            .saturating_sub(occurrences.capacity().saturating_mul(
+                                2 * std::mem::size_of::<super::super::ChangeOccurrence>(),
+                            )),
+                        &mut self.remaining_work,
+                    )?
+                    else {
+                        return Ok(LocalRecoveryStep::Continue);
+                    };
+                    let count = occurrences.len().saturating_add(residues.len());
+                    if count > self.options.max_assessment_ranges {
+                        return Ok(LocalRecoveryStep::Continue);
+                    }
+                    occurrences
+                        .try_reserve_exact(residues.len())
+                        .map_err(|_| super::allocation_error("candidate residue occurrences"))?;
+                    for span in residues {
+                        occurrence_body_bytes = occurrence_body_bytes.saturating_add(
+                            span.blocks
+                                .capacity()
+                                .saturating_mul(std::mem::size_of::<crate::layout::BlockId>()),
+                        );
+                        occurrences.push(if side == 0 {
+                            super::super::ChangeOccurrence {
+                                old_span: Some(span),
+                                new_span: None,
+                            }
+                        } else {
+                            super::super::ChangeOccurrence {
+                                old_span: None,
+                                new_span: Some(span),
+                            }
+                        });
+                    }
+                }
+                let previous_capacity = residue_updates.capacity();
+                super::reserve_ranges(&mut residue_updates, 1, self.options.max_assessment_ranges)?;
+                residue_live_bytes = residue_live_bytes
+                    .saturating_add(occurrence_body_bytes)
+                    .saturating_add(
+                        occurrences
+                            .capacity()
+                            .saturating_mul(std::mem::size_of::<super::super::ChangeOccurrence>()),
+                    )
+                    .saturating_add(
+                        residue_updates
+                            .capacity()
+                            .saturating_sub(previous_capacity)
+                            .saturating_mul(std::mem::size_of::<(
+                                usize,
+                                Vec<super::super::ChangeOccurrence>,
+                            )>()),
+                    );
+                if residue_live_bytes > 64 * 1024 * 1024 {
+                    return Ok(LocalRecoveryStep::Continue);
+                }
+                residue_updates.push((index, occurrences));
+                continue;
             }
             if overlaps_domain {
                 superseded.push(index);
@@ -3004,6 +3096,9 @@ impl Assessor<'_, '_> {
             changes: changed_events,
             edits,
         });
+        for (index, occurrences) in residue_updates {
+            candidates[index].change.occurrences = occurrences;
+        }
         let mut next = superseded.into_iter().peekable();
         let mut index = 0;
         candidates.retain(|_| {
@@ -3016,6 +3111,180 @@ impl Assessor<'_, '_> {
         });
         Ok(LocalRecoveryStep::Continue)
     }
+}
+
+/// Subtracts established source intervals without inventing a correspondence
+/// between disconnected old/new remainders. Scalar coordinates and block
+/// separators remain in the original candidate's coordinate frame.
+fn candidate_side_residue(
+    side: &Side<'_>,
+    span: &TextSpan,
+    accepted: &[SourceInterval],
+    limit: usize,
+    memory_limit: usize,
+    remaining: &mut usize,
+) -> Result<Option<Vec<TextSpan>>> {
+    let slots = span.blocks.len().saturating_mul(accepted.len());
+    let fragments = slots.saturating_add(1);
+    let words = span.blocks.len().saturating_mul(fragments);
+    let bytes = fragments
+        .saturating_mul(std::mem::size_of::<(usize, usize)>())
+        .saturating_add(words.saturating_mul(256))
+        .saturating_add(slots.saturating_mul(std::mem::size_of::<(usize, usize)>()))
+        .saturating_add(fragments.saturating_mul(std::mem::size_of::<TextSpan>()))
+        .saturating_add(words.saturating_mul(std::mem::size_of::<crate::layout::BlockId>()));
+    if !charge(
+        remaining,
+        128usize.saturating_add(span.blocks.len().saturating_mul(32)),
+    ) || fragments > limit
+        || bytes > memory_limit
+    {
+        return Ok(None);
+    }
+    let token_bound = span
+        .blocks
+        .iter()
+        .map(|id| {
+            side.index
+                .get(id)
+                .map_or(0, |&index| side.canonical[index].len())
+        })
+        .sum::<usize>();
+    let cost = slots
+        .saturating_mul(16)
+        .saturating_add(words.saturating_mul(32))
+        .saturating_add(token_bound.saturating_mul(fragments).saturating_mul(4))
+        .saturating_add(span.blocks.len().saturating_mul(32));
+    if !charge(remaining, cost) {
+        return Ok(None);
+    }
+    project(side, span)?;
+    let mut cuts = Vec::new();
+    cuts.try_reserve_exact(slots)
+        .map_err(|_| super::allocation_error("candidate residue cuts"))?;
+    if cuts.capacity() > slots {
+        return Ok(None);
+    }
+    let mut token_offset = 0;
+    let mut preceding_space = false;
+    for (position, id) in span.blocks.iter().enumerate() {
+        let index = side.index[id];
+        let tokens = &side.canonical[index];
+        let separator = position > 0
+            && span.separator.map(|s| s.at(position - 1)) == Some(BlockSeparator::Space)
+            && !preceding_space
+            && !tokens.first().is_some_and(super::space_token);
+        token_offset += usize::from(separator);
+        for interval in accepted.iter().filter(|r| r.block_index == index) {
+            let start = (token_offset + interval.start).max(span.comparable_range.start);
+            let end = (token_offset + interval.end).min(span.comparable_range.end);
+            if start < end {
+                cuts.push((start, end));
+            }
+        }
+        token_offset += tokens.len();
+        preceding_space = tokens
+            .last()
+            .map_or(separator || preceding_space, super::space_token);
+    }
+    if !charge(
+        remaining,
+        cuts.len()
+            .saturating_mul(cuts.len().checked_ilog2().unwrap_or(0) as usize + 1),
+    ) {
+        return Ok(None);
+    }
+    cuts.sort_unstable();
+    let mut ranges = Vec::new();
+    ranges
+        .try_reserve_exact(fragments)
+        .map_err(|_| super::allocation_error("candidate residue ranges"))?;
+    if ranges.capacity() > fragments {
+        return Ok(None);
+    }
+    let mut cursor = span.comparable_range.start;
+    for (start, end) in cuts {
+        if cursor < start {
+            ranges.push((cursor, start));
+        }
+        cursor = cursor.max(end);
+    }
+    if cursor < span.comparable_range.end {
+        ranges.push((cursor, span.comparable_range.end));
+    }
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(ranges.len())
+        .map_err(|_| super::allocation_error("candidate residue spans"))?;
+    for (start, end) in ranges {
+        let scalar = |boundary: usize| -> Result<usize> {
+            let mut token_offset = 0;
+            let mut scalar_offset = 0;
+            let mut preceding_space = false;
+            for (position, id) in span.blocks.iter().enumerate() {
+                let index = side.index[id];
+                let tokens = &side.canonical[index];
+                let separator = position > 0
+                    && span.separator.map(|s| s.at(position - 1)) == Some(BlockSeparator::Space)
+                    && !preceding_space
+                    && !tokens.first().is_some_and(super::space_token);
+                token_offset += usize::from(separator);
+                scalar_offset += usize::from(separator);
+                if boundary >= token_offset && boundary <= token_offset + tokens.len() {
+                    return Ok(scalar_offset
+                        + super::block_scalar_boundary(
+                            &side.blocks[index].canonical,
+                            boundary - token_offset,
+                        ));
+                }
+                if separator && boundary + 1 == token_offset {
+                    return Ok(scalar_offset - 1);
+                }
+                token_offset += tokens.len();
+                scalar_offset += tokens.len() - side.blocks[index].canonical.unmapped.len();
+                preceding_space = tokens
+                    .last()
+                    .map_or(separator || preceding_space, super::space_token);
+            }
+            Err(super::invalid(
+                "candidate residue boundary is outside its source frame",
+            ))
+        };
+        let mut residue = copy_span(span)?;
+        residue.comparable_range = super::super::TokenRange { start, end };
+        residue.canonical_range = crate::normalize::ScalarRange {
+            start: scalar(start)?,
+            end: scalar(end)?,
+        };
+        let projected = project(side, &residue)?;
+        if projected.is_empty()
+            || projected.iter().any(|r| {
+                accepted
+                    .iter()
+                    .any(|a| r.block_index == a.block_index && r.start < a.end && a.start < r.end)
+            })
+        {
+            return Ok(None);
+        }
+        output.push(residue);
+    }
+    let actual_bytes = output
+        .capacity()
+        .saturating_mul(std::mem::size_of::<TextSpan>())
+        .saturating_add(
+            output
+                .iter()
+                .map(|s| {
+                    s.blocks
+                        .capacity()
+                        .saturating_mul(std::mem::size_of::<crate::layout::BlockId>())
+                })
+                .sum::<usize>(),
+        );
+    if actual_bytes > bytes {
+        return Ok(None);
+    }
+    Ok(Some(output))
 }
 
 /// Backed change events and their changed source intervals for one hunk.
@@ -3289,7 +3558,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_local_recovery_preserves_whole_candidate() -> Result<()> {
+    fn partial_local_recovery_keeps_proof_and_candidate_residue() -> Result<()> {
         let old_blocks = [sourced_block(1, "ABCD")];
         let new_blocks = [sourced_block(101, "ABXD")];
         let old = side(&old_blocks);
@@ -3324,8 +3593,23 @@ mod tests {
                 relation: 0,
                 alternative_group: 0,
             }];
+            let origin = assessor.record(super::super::RelationAssessment {
+                old_span: candidates[0].change.occurrences[0].old_span.clone(),
+                new_span: candidates[0].change.occurrences[0].new_span.clone(),
+                parent: None,
+                outcome: RelationOutcome::Tentative,
+                search: SearchCompleteness::Incomplete,
+                assumptions: Vec::new(),
+                reasons: vec![super::super::AssessmentReason::DomainNotClosed],
+            })?;
+            candidates[0].relation = origin;
+            candidates[0].alternative_group = origin;
             let before = candidates.clone();
             assessor.recover_local_domain(0, &mut owners, &mut changes, &mut candidates)?;
+            assert!(
+                !changes.is_empty(),
+                "candidate residue must not veto the local proof"
+            );
             if candidate_end == 3 {
                 assert!(
                     !changes.is_empty(),
@@ -3333,18 +3617,246 @@ mod tests {
                 );
                 assert!(candidates.is_empty());
             } else {
+                assert_eq!(candidates.len(), 1);
+                assert_eq!(candidates[0].relation, before[0].relation);
                 assert_eq!(
-                    candidates, before,
-                    "a partial overlap cannot supersede the whole candidate"
+                    assessor.records[origin].old_span,
+                    before[0].change.occurrences[0].old_span
                 );
-                assert!(changes.is_empty());
+                assert_eq!(
+                    assessor.records[origin].new_span,
+                    before[0].change.occurrences[0].new_span
+                );
                 assert!(
-                    owners
+                    assessor
+                        .localized_edits
                         .iter()
-                        .all(|owner| owner.accepted.is_empty() && owner.changed.is_empty())
+                        .all(|proof| proof.relation != origin)
                 );
+                assert_eq!(candidates[0].alternative_group, before[0].alternative_group);
+                let occurrence = &candidates[0].change.occurrences[0];
+                let residue = if candidate_side == 0 {
+                    occurrence.old_span.as_ref()
+                } else {
+                    occurrence.new_span.as_ref()
+                }
+                .expect("unresolved D retains its source");
+                assert_eq!(
+                    residue.comparable_range,
+                    super::super::super::TokenRange { start: 3, end: 4 }
+                );
+                assert_eq!(residue.canonical_range, ScalarRange { start: 3, end: 4 });
+                for owner in &owners {
+                    assert!(owner.accepted.iter().any(|r| r.start == 0 && r.end == 3));
+                    assert!(owner.changed.iter().any(|r| r.start == 2 && r.end == 3));
+                }
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn candidate_residue_tracks_unicode_components_and_paid_refusals() -> Result<()> {
+        let blocks = [sourced_block(1, "AšB"), sourced_block(2, "C中D")];
+        let source = side(&blocks);
+        let original = TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 0, end: 7 },
+            comparable_range: super::super::super::TokenRange { start: 0, end: 7 },
+        };
+        let accepted = [
+            SourceInterval {
+                block_index: 0,
+                start: 1,
+                end: 2,
+            },
+            SourceInterval {
+                block_index: 1,
+                start: 1,
+                end: 2,
+            },
+        ];
+        let mut remaining = 10_000;
+        let result = candidate_side_residue(
+            &source,
+            &original,
+            &accepted,
+            100,
+            64 * 1024 * 1024,
+            &mut remaining,
+        )?
+        .expect("paid physical residues");
+        assert_eq!(
+            result
+                .iter()
+                .map(|s| (s.comparable_range.start, s.comparable_range.end))
+                .collect::<Vec<_>>(),
+            vec![(0, 1), (2, 5), (6, 7)]
+        );
+        assert!(
+            result
+                .iter()
+                .all(|s| s.canonical_range.start == s.comparable_range.start
+                    && s.canonical_range.end == s.comparable_range.end)
+        );
+        let physical = result
+            .iter()
+            .map(|s| project(&source, s))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            physical,
+            vec![
+                SourceInterval {
+                    block_index: 0,
+                    start: 0,
+                    end: 1
+                },
+                SourceInterval {
+                    block_index: 0,
+                    start: 2,
+                    end: 3
+                },
+                SourceInterval {
+                    block_index: 1,
+                    start: 0,
+                    end: 1
+                },
+                SourceInterval {
+                    block_index: 1,
+                    start: 2,
+                    end: 3
+                },
+            ]
+        );
+        let used = 10_000 - remaining;
+        for budget in 0..used {
+            let mut remaining = budget;
+            assert!(
+                candidate_side_residue(
+                    &source,
+                    &original,
+                    &accepted,
+                    100,
+                    64 * 1024 * 1024,
+                    &mut remaining
+                )?
+                .is_none()
+            );
+        }
+        let mut exact = used;
+        assert_eq!(
+            candidate_side_residue(
+                &source,
+                &original,
+                &accepted,
+                100,
+                64 * 1024 * 1024,
+                &mut exact
+            )?,
+            Some(result)
+        );
+        assert_eq!(exact, 0);
+        assert!(
+            candidate_side_residue(
+                &source,
+                &original,
+                &accepted,
+                4,
+                64 * 1024 * 1024,
+                &mut 10_000
+            )?
+            .is_none()
+        );
+        assert!(
+            candidate_side_residue(&source, &original, &accepted, 100, 0, &mut 10_000)?.is_none()
+        );
+        let full = [
+            SourceInterval {
+                block_index: 0,
+                start: 0,
+                end: 3,
+            },
+            SourceInterval {
+                block_index: 1,
+                start: 0,
+                end: 3,
+            },
+        ];
+        assert!(
+            candidate_side_residue(
+                &source,
+                &original,
+                &full,
+                100,
+                64 * 1024 * 1024,
+                &mut 10_000
+            )?
+            .is_none(),
+            "a synthetic separator alone is not a physical content residue"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn candidate_residue_preserves_unmapped_comparable_width() -> Result<()> {
+        let mut block = sourced_block(1, "AB");
+        block
+            .canonical
+            .unmapped
+            .push(crate::normalize::UnmappedToken {
+                scalar_index: 1,
+                font_hash: crate::model::FontProgramHash(vec![37]),
+                glyph_id: 9,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(9001))].into(),
+                },
+            });
+        block.raw = block.canonical.clone();
+        block.font_size_signatures = None;
+        block.position_signatures = None;
+        let blocks = [block];
+        let source = side(&blocks);
+        let original = TextSpan {
+            blocks: vec![BlockId(1)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: super::super::super::TokenRange { start: 0, end: 3 },
+        };
+        let accepted = [SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 1,
+        }];
+        let residues = candidate_side_residue(
+            &source,
+            &original,
+            &accepted,
+            100,
+            64 * 1024 * 1024,
+            &mut 10_000,
+        )?
+        .expect("unmapped residual is retained");
+        assert_eq!(residues.len(), 1);
+        assert_eq!(
+            residues[0].comparable_range,
+            super::super::super::TokenRange { start: 1, end: 3 }
+        );
+        assert_eq!(
+            residues[0].canonical_range,
+            ScalarRange { start: 1, end: 2 }
+        );
+        assert_eq!(
+            project(&source, &residues[0])?,
+            vec![SourceInterval {
+                block_index: 0,
+                start: 1,
+                end: 3
+            }]
+        );
         Ok(())
     }
 

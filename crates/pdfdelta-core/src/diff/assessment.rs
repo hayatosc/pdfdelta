@@ -237,6 +237,10 @@ pub struct RelationAssessment {
 /// `relation` indexes the owning comparison's relation assessments. Candidates
 /// in the same alternative group compete; their spans may overlap. Neither
 /// their confidence labels nor their exact edit ranges resolve source tokens.
+/// A partially discharged one-sided candidate retains its originating tentative
+/// relation while its occurrences name only the remaining source ranges. The
+/// originating relation preserves the original scope; localized edit witnesses
+/// separately record the established source portions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChangeCandidate {
     pub change: ChangeEvent,
