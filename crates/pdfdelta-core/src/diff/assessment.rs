@@ -10,6 +10,7 @@ mod context_projection;
 mod deferred;
 mod document_claims;
 mod equal_fragment;
+mod evidence_index;
 mod exact;
 mod footers;
 mod hypotheses;
@@ -3510,13 +3511,26 @@ fn candidate_groups(
     Ok(false)
 }
 
+#[cfg(test)]
 fn unresolved_output(
+    sides: [&Side<'_>; 2],
+    alignment: &Alignment,
+    partitions: [&[ResolutionRange]; 2],
+    original: Vec<UnresolvedRegion>,
+    limit: usize,
+) -> Result<Vec<UnresolvedRegion>> {
+    unresolved_output_with_evidence(sides, alignment, partitions, original, limit, None)
+}
+
+fn unresolved_output_with_evidence(
     sides: [&Side<'_>; 2],
     alignment: &Alignment,
     partitions: [&[ResolutionRange]; 2],
     mut original: Vec<UnresolvedRegion>,
     limit: usize,
+    evidence_index: Option<&evidence_index::EvidenceIndex<'_, '_>>,
 ) -> Result<Vec<UnresolvedRegion>> {
+    let evidence_index = evidence_index.filter(|index| index.is_bound(alignment, sides));
     let mut output = Vec::new();
     let mut retained = [Vec::<SourceInterval>::new(), Vec::new()];
     for aligned in &alignment.spans {
@@ -3591,16 +3605,26 @@ fn unresolved_output(
                 let span = group.span(start, end);
                 if evidence_block != Some(range.block) {
                     block_evidence.clear();
-                    for aligned in &alignment.spans {
-                        let blocks = if side == 0 {
-                            &aligned.old
-                        } else {
-                            &aligned.new
-                        };
-                        if blocks.contains(&range.block) {
-                            for reason in &aligned.evidence {
-                                if !block_evidence.contains(reason) {
-                                    block_evidence.push(*reason);
+                    if let Some(index) = evidence_index {
+                        block_evidence.extend_from_slice(
+                            index
+                                .lookup(alignment, sides, side, range.block)
+                                .ok_or_else(|| {
+                                    invalid("bound diagnostic evidence block is absent")
+                                })?,
+                        );
+                    } else {
+                        for aligned in &alignment.spans {
+                            let blocks = if side == 0 {
+                                &aligned.old
+                            } else {
+                                &aligned.new
+                            };
+                            if blocks.contains(&range.block) {
+                                for reason in &aligned.evidence {
+                                    if !block_evidence.contains(reason) {
+                                        block_evidence.push(*reason);
+                                    }
                                 }
                             }
                         }
@@ -4118,13 +4142,15 @@ pub(super) fn finish(
     )?;
     comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
     comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
-    comparison.unresolved_regions = unresolved_output(
+    comparison.unresolved_regions = unresolved_output_with_evidence(
         sides,
         alignment,
         [&old_resolution, &new_resolution],
         proposed.unresolved_regions,
         options.max_assessment_ranges,
+        assessor.diagnostic_evidence.as_ref(),
     )?;
+    assessor.diagnostic_evidence = None;
     let review_units = reviewed.units;
     // Retry remaining strict parents against the final diagnostic regions.
     // Only wholly covered regions can be deleted; surviving records keep
@@ -4251,6 +4277,7 @@ struct Assessor<'a, 'document> {
     /// proof paths.
     mandatory_analyses:
         HashMap<DomainKey, Option<std::sync::Arc<semantic::MandatoryMatchAnalysis>>>,
+    diagnostic_evidence: Option<evidence_index::EvidenceIndex<'a, 'document>>,
     records: Vec<RelationAssessment>,
     output_stop: Option<usize>,
     root_relation: Option<usize>,
@@ -6635,6 +6662,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             domains: HashMap::new(),
             forced_equal_relations: std::collections::HashSet::new(),
             mandatory_analyses: HashMap::new(),
+            diagnostic_evidence: None,
             records: Vec::new(),
             output_stop: None,
             root_relation: None,
@@ -8313,6 +8341,190 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn indexed_diagnostic_bound_covers_monotone_equal_publication() -> Result<()> {
+        let old_blocks = (1..=32).map(|i| anchor_block(i, "A")).collect::<Vec<_>>();
+        let new_blocks = (101..=132)
+            .map(|i| anchor_block(i, "B"))
+            .collect::<Vec<_>>();
+        let old = super::super::SidePlan::inspect("bound old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("bound new", &new_blocks)?.materialize()?;
+        let sides = [&old, &new];
+        let mut alignment = issue_alignment();
+        alignment.spans[0].old = old_blocks.iter().map(|b| b.block).collect();
+        alignment.spans[0].new = new_blocks.iter().map(|b| b.block).collect();
+        alignment.spans = vec![alignment.spans[0].clone(); 100];
+        let original = sides
+            .iter()
+            .enumerate()
+            .flat_map(|(side, input)| {
+                input.blocks.iter().map(move |b| UnresolvedRegion {
+                    old_span: (side == 0).then(|| local_span(b.block.0, 0, 1)),
+                    new_span: (side == 1).then(|| local_span(b.block.0, 0, 1)),
+                    evidence: vec![AlignmentEvidence::CandidateCompetition],
+                })
+            })
+            .collect::<Vec<_>>();
+        for seed in [0, 1, 7, 16] {
+            let mut partitions: [Vec<ResolutionRange>; 2] = std::array::from_fn(|side| {
+                sides[side]
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, b)| {
+                        h8_partition(
+                            b.block,
+                            &[(
+                                0,
+                                1,
+                                if i < seed {
+                                    ResolutionState::Equal
+                                } else {
+                                    ResolutionState::Unresolved
+                                },
+                            )],
+                        )
+                    })
+                    .collect()
+            });
+            let mut assessor = Assessor::new(sides, &alignment, None, DiffOptions::default())?;
+            let count = mandatory_equal::indexed_count_for_test(
+                &mut assessor,
+                [&partitions[0], &partitions[1]],
+                &original,
+            )
+            .expect("profitable indexed allowance");
+            for cutoff in seed..=32 {
+                for parts in &mut partitions {
+                    for (i, part) in parts.iter_mut().enumerate() {
+                        if i < cutoff {
+                            part.state = ResolutionState::Equal;
+                        }
+                    }
+                }
+                let ordinary = unresolved_output(
+                    sides,
+                    &alignment,
+                    [&partitions[0], &partitions[1]],
+                    original.clone(),
+                    10_000,
+                )?;
+                let indexed = unresolved_output_with_evidence(
+                    sides,
+                    &alignment,
+                    [&partitions[0], &partitions[1]],
+                    original.clone(),
+                    10_000,
+                    assessor.diagnostic_evidence.as_ref(),
+                )?;
+                assert_eq!(ordinary, indexed);
+                assert!(ordinary.len() <= count, "seed={seed}, cutoff={cutoff}");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn alignment_reason_index_matches_full_scans_and_refuses_partial_builds() -> Result<()> {
+        let old_blocks = (1..=32)
+            .map(|i| anchor_block(33 - i, "AB"))
+            .collect::<Vec<_>>();
+        let new_blocks = (101..=132)
+            .map(|i| anchor_block(i, "CD"))
+            .collect::<Vec<_>>();
+        let old = super::super::SidePlan::inspect("index old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("index new", &new_blocks)?.materialize()?;
+        let sides = [&old, &new];
+        let mut alignment = issue_alignment();
+        let seed = alignment.spans[0].clone();
+        alignment.spans.clear();
+        for i in 0..100 {
+            let mut row = seed.clone();
+            row.old = vec![
+                old_blocks[i % 32].block,
+                old_blocks[(i + 1) % 32].block,
+                old_blocks[i % 32].block,
+            ];
+            row.new = vec![new_blocks[i % 32].block];
+            row.evidence = if i % 2 == 0 {
+                vec![
+                    AlignmentEvidence::ReadingOrderUnknown,
+                    AlignmentEvidence::ExactCanonical,
+                    AlignmentEvidence::ReadingOrderUnknown,
+                ]
+            } else {
+                vec![
+                    AlignmentEvidence::NormalizationIssue,
+                    AlignmentEvidence::ExactCanonical,
+                ]
+            };
+            alignment.spans.push(row);
+        }
+        let mut budget = 1_000_000;
+        let index = evidence_index::EvidenceIndex::build(&alignment, sides, 1_000_000, &mut budget)
+            .expect("complete index");
+        let used = 1_000_000 - budget;
+        assert!(index.bytes() < 10_000);
+        let mut scanned = 0;
+        for side in 0..2 {
+            for block in sides[side].blocks {
+                let mut expected = Vec::new();
+                for row in &alignment.spans {
+                    let blocks = if side == 0 { &row.old } else { &row.new };
+                    scanned += blocks.len() + 1;
+                    if blocks.contains(&block.block) {
+                        for reason in &row.evidence {
+                            // Include the original deduplication walk, with
+                            // the same reason/header allowance as index setup.
+                            scanned += expected.len() + 4;
+                            if !expected.contains(reason) {
+                                expected.push(*reason);
+                            }
+                        }
+                    }
+                }
+                assert_eq!(
+                    index.lookup(&alignment, sides, side, block.block),
+                    Some(expected.as_slice())
+                );
+            }
+        }
+        assert!(used < scanned / 2, "index={used}, full scans={scanned}");
+        let another = alignment.clone();
+        assert!(
+            index
+                .lookup(&another, sides, 0, old_blocks[0].block)
+                .is_none()
+        );
+        assert!(
+            index
+                .lookup(&alignment, [&new, &old], 0, old_blocks[0].block)
+                .is_none()
+        );
+        for mut cut in [0, used / 2, used - 1] {
+            assert!(
+                evidence_index::EvidenceIndex::build(&alignment, sides, 1_000_000, &mut cut)
+                    .is_none()
+            );
+        }
+        let mut exact = used;
+        assert!(
+            evidence_index::EvidenceIndex::build(&alignment, sides, 1_000_000, &mut exact)
+                .is_some()
+        );
+        assert_eq!(exact, 0);
+        assert!(
+            evidence_index::EvidenceIndex::build(
+                &alignment,
+                sides,
+                index.bytes() - 1,
+                &mut 1_000_000
+            )
+            .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn unresolved_fragments_keep_ordered_evidence_across_block_revisits() -> Result<()> {
         let old_blocks = [anchor_block(1, "ABCDEF"), anchor_block(2, "GH")];
         let new_blocks = [anchor_block(101, "IJKLMN")];
@@ -8403,6 +8615,36 @@ mod assessor_issue_cache_tests {
             )?,
             expected
         );
+        let mut indexed_work = 1_000_000;
+        let index = evidence_index::EvidenceIndex::build(
+            &alignment,
+            [&old, &new],
+            1_000_000,
+            &mut indexed_work,
+        )
+        .expect("complete ordered reasons");
+        assert_eq!(
+            unresolved_output_with_evidence(
+                [&old, &new],
+                &alignment,
+                [&old_parts, &new_parts],
+                original.clone(),
+                11,
+                Some(&index),
+            )?,
+            expected
+        );
+        assert!(matches!(
+            unresolved_output_with_evidence(
+                [&old, &new],
+                &alignment,
+                [&old_parts, &new_parts],
+                original.clone(),
+                10,
+                Some(&index),
+            ),
+            Err(Error::LimitExceeded { .. })
+        ));
         assert!(matches!(
             unresolved_output(
                 [&old, &new],

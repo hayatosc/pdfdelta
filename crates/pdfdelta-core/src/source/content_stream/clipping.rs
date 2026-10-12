@@ -138,6 +138,100 @@ impl ClipRegion {
     }
 }
 
+/// One immutable glyph/clip query after the original corner proof held.
+/// Payment precedes the quadratic retained-half-plane scan. A completed
+/// vertex certificate proves only partial intersection, never full visibility.
+pub(super) struct GlyphOverlapCompletion<'clip> {
+    clip: &'clip ConvexClip,
+    glyph: Rect,
+}
+
+impl ClipRegion {
+    pub(super) fn glyph_overlap_completion(
+        &self,
+        glyph: Rect,
+    ) -> Option<GlyphOverlapCompletion<'_>> {
+        match self {
+            Self::Convex(clip) => Some(GlyphOverlapCompletion { clip, glyph }),
+            _ => None,
+        }
+    }
+}
+
+impl GlyphOverlapCompletion<'_> {
+    /// The original constraints stay borrowed until the charged proof ends.
+    /// Fixed binding and geometry checks, every vertex/quad/edge visit, and
+    /// the independent exterior-corner proof fit this conservative bound.
+    pub(super) fn complete(
+        self,
+        pay: impl FnOnce(usize) -> Result<()>,
+    ) -> Result<Option<GlyphPathClipStatus>> {
+        let n = self.clip.quads.len();
+        let Some(work) = n
+            .checked_mul(n)
+            .and_then(|x| x.checked_mul(64))
+            .and_then(|x| n.checked_mul(64).and_then(|y| x.checked_add(y)))
+            .and_then(|x| x.checked_add(64))
+        else {
+            return Ok(None);
+        };
+        pay(work)?;
+        Ok(self
+            .has_strict_partial_witness()
+            .then_some(GlyphPathClipStatus::PartiallyOutside))
+    }
+
+    fn has_strict_partial_witness(&self) -> bool {
+        let glyph = self.glyph;
+        if ![glyph.min.x, glyph.min.y, glyph.max.x, glyph.max.y]
+            .into_iter()
+            .all(f64::is_finite)
+            || glyph.min.x >= glyph.max.x
+            || glyph.min.y >= glyph.max.y
+        {
+            return false;
+        }
+        let excluded = corners(glyph).into_iter().any(|p| {
+            self.clip
+                .quads
+                .iter()
+                .flat_map(|q| q.edges())
+                .any(|(a, b)| side(a, b, p) == Some(Ordering::Less))
+        });
+        if !excluded {
+            return false;
+        }
+        for (index, quad) in self.clip.quads.iter().enumerate() {
+            // An original strict vertex has a positive-area interior sector.
+            // Its strict position inside the glyph and every other quad
+            // gives that sector a nonempty included neighborhood. Boundary
+            // contact or uncertain arithmetic in another quad never suffices.
+            if !(0..4).all(|i| {
+                side(quad.0[i], quad.0[(i + 1) % 4], quad.0[(i + 2) % 4]) == Some(Ordering::Greater)
+            }) {
+                continue;
+            }
+            for p in quad.0 {
+                if !(p.x > glyph.min.x
+                    && p.x < glyph.max.x
+                    && p.y > glyph.min.y
+                    && p.y < glyph.max.y)
+                {
+                    continue;
+                }
+                if self.clip.quads.iter().enumerate().all(|(other, q)| {
+                    other == index
+                        || q.edges()
+                            .all(|(a, b)| side(a, b, p) == Some(Ordering::Greater))
+                }) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
 impl ConvexClip {
     fn glyph_status(&self, glyph: Rect) -> Result<GlyphPathClipStatus> {
         if disjoint(glyph, self.bounds) {
@@ -399,5 +493,235 @@ mod tests {
             GlyphPathClipStatus::Inside
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod convex_witness_regressions {
+    use super::*;
+    fn point(x: f64, y: f64) -> Vec2 {
+        Vec2 { x, y }
+    }
+    fn rect(x: f64, y: f64, xx: f64, yy: f64) -> Rect {
+        Rect {
+            min: point(x, y),
+            max: point(xx, yy),
+        }
+    }
+    fn recorded() -> (ConvexClip, Rect) {
+        (
+            ConvexClip {
+                bounds: rect(
+                    f64::from_bits(4_643_494_689_342_212_926),
+                    f64::from_bits(4_649_295_748_548_854_964),
+                    f64::from_bits(4_643_622_932_689_975_847),
+                    f64::from_bits(4_649_363_663_901_509_126),
+                ),
+                quads: vec![
+                    Quad::new([
+                        point(
+                            f64::from_bits(4_639_745_555_168_231_424),
+                            f64::from_bits(4_649_163_100_726_348_324),
+                        ),
+                        point(
+                            f64::from_bits(4_646_703_235_480_099_068),
+                            f64::from_bits(4_649_163_100_726_348_324),
+                        ),
+                        point(
+                            f64::from_bits(4_646_703_235_480_099_068),
+                            f64::from_bits(4_649_544_401_513_908_148),
+                        ),
+                        point(
+                            f64::from_bits(4_639_745_555_168_231_424),
+                            f64::from_bits(4_649_544_401_513_908_148),
+                        ),
+                    ])
+                    .expect("recorded strict quad"),
+                    Quad::new([
+                        point(
+                            f64::from_bits(4_643_622_932_689_975_847),
+                            f64::from_bits(4_649_341_483_373_450_330),
+                        ),
+                        point(
+                            f64::from_bits(4_643_515_028_892_827_063),
+                            f64::from_bits(4_649_383_635_198_595_950),
+                        ),
+                        point(
+                            f64::from_bits(4_643_443_565_073_559_838),
+                            f64::from_bits(4_649_337_900_083_808_679),
+                        ),
+                        point(
+                            f64::from_bits(4_643_551_468_870_708_622),
+                            f64::from_bits(4_649_295_748_548_854_964),
+                        ),
+                    ])
+                    .expect("recorded strict quad"),
+                    Quad::new([
+                        point(
+                            f64::from_bits(4_643_813_121_562_525_416),
+                            f64::from_bits(4_649_267_187_455_306_466),
+                        ),
+                        point(
+                            f64::from_bits(4_643_566_153_161_480_152),
+                            f64::from_bits(4_649_363_663_901_509_126),
+                        ),
+                        point(
+                            f64::from_bits(4_643_494_689_342_212_926),
+                            f64::from_bits(4_649_317_929_076_913_759),
+                        ),
+                        point(
+                            f64::from_bits(4_643_741_657_743_258_191),
+                            f64::from_bits(4_649_221_452_572_672_718),
+                        ),
+                    ])
+                    .expect("recorded strict quad"),
+                    Quad::new([
+                        point(
+                            f64::from_bits(4_643_813_121_562_525_416),
+                            f64::from_bits(4_649_267_187_455_306_466),
+                        ),
+                        point(
+                            f64::from_bits(4_643_566_153_161_480_152),
+                            f64::from_bits(4_649_363_663_901_509_126),
+                        ),
+                        point(
+                            f64::from_bits(4_643_494_689_342_212_926),
+                            f64::from_bits(4_649_317_929_076_913_759),
+                        ),
+                        point(
+                            f64::from_bits(4_643_741_657_743_258_191),
+                            f64::from_bits(4_649_221_452_572_672_718),
+                        ),
+                    ])
+                    .expect("recorded strict quad"),
+                    Quad::new([
+                        point(
+                            f64::from_bits(4_639_745_555_168_231_424),
+                            f64::from_bits(4_648_978_527_299_361_603),
+                        ),
+                        point(
+                            f64::from_bits(4_647_073_285_419_994_804),
+                            f64::from_bits(4_648_978_527_299_361_603),
+                        ),
+                        point(
+                            f64::from_bits(4_647_073_285_419_994_804),
+                            f64::from_bits(4_649_544_401_513_908_148),
+                        ),
+                        point(
+                            f64::from_bits(4_639_745_555_168_231_424),
+                            f64::from_bits(4_649_544_401_513_908_148),
+                        ),
+                    ])
+                    .expect("recorded strict quad"),
+                ],
+            },
+            rect(
+                f64::from_bits(4_643_594_378_567_517_445),
+                f64::from_bits(4_649_196_984_916_164_889),
+                f64::from_bits(4_643_944_177_007_842_173),
+                f64::from_bits(4_649_389_068_596_135_144),
+            ),
+        )
+    }
+    fn paid_vertex_witness(
+        clip: &ConvexClip,
+        glyph: Rect,
+        remaining: &mut usize,
+    ) -> Option<GlyphPathClipStatus> {
+        GlyphOverlapCompletion { clip, glyph }
+            .complete(|work| {
+                let Some(after) = remaining.checked_sub(work) else {
+                    *remaining = 0;
+                    return Err(Error::LimitExceeded {
+                        resource: "test clipping work",
+                        limit: work,
+                    });
+                };
+                *remaining = after;
+                Ok(())
+            })
+            .ok()
+            .flatten()
+    }
+    #[test]
+    fn actual_ddpm_clip_has_strict_inner_vertex_but_no_interior_glyph_corner() {
+        let (clip, glyph) = recorded();
+        assert!(matches!(
+            clip.glyph_status(glyph),
+            Err(Error::Unresolved(_))
+        ));
+        assert!(corners(glyph).into_iter().all(|p| {
+            clip.quads
+                .iter()
+                .flat_map(|q| q.edges())
+                .any(|(a, b)| side(a, b, p) != Some(Ordering::Greater))
+        }));
+        assert!(corners(glyph).into_iter().any(|p| {
+            clip.quads
+                .iter()
+                .flat_map(|q| q.edges())
+                .any(|(a, b)| side(a, b, p) == Some(Ordering::Less))
+        }));
+        let mut remaining = 100_000;
+        let witness = paid_vertex_witness(&clip, glyph, &mut remaining)
+            .expect("strict source-coordinate witness");
+        assert_eq!(witness, GlyphPathClipStatus::PartiallyOutside);
+        let work = 100_000 - remaining;
+        assert_eq!(work, 1984);
+        for prefix in 0..work {
+            let mut short = prefix;
+            assert!(paid_vertex_witness(&clip, glyph, &mut short).is_none());
+            assert_eq!(short, 0);
+        }
+        let mut exact = work;
+        assert_eq!(paid_vertex_witness(&clip, glyph, &mut exact), Some(witness));
+        assert_eq!(exact, 0);
+        // The original corner-only classifier retains its conservative result.
+        assert!(matches!(
+            clip.glyph_status(glyph),
+            Err(Error::Unresolved(_))
+        ));
+    }
+    #[test]
+    fn vertex_witness_holds_for_contact_only_and_zero_width_glyphs() {
+        let a = Quad::new([
+            point(-4.0, 0.0),
+            point(0.0, -4.0),
+            point(4.0, 0.0),
+            point(0.0, 4.0),
+        ])
+        .expect("strict quad");
+        let b = Quad::new([
+            point(4.0, 0.0),
+            point(8.0, -4.0),
+            point(12.0, 0.0),
+            point(8.0, 4.0),
+        ])
+        .expect("strict quad");
+        let contact = ConvexClip {
+            bounds: rect(-4.0, -4.0, 12.0, 4.0),
+            quads: vec![a, b],
+        };
+        assert_eq!(
+            paid_vertex_witness(&contact, rect(-20.0, -20.0, 20.0, 20.0), &mut 100_000),
+            None
+        );
+        let (clip, glyph) = recorded();
+        assert_eq!(
+            paid_vertex_witness(
+                &clip,
+                rect(glyph.min.x, glyph.min.y, glyph.min.x, glyph.max.y),
+                &mut 100_000
+            ),
+            None
+        );
+        assert_eq!(
+            paid_vertex_witness(
+                &clip,
+                rect(f64::NAN, glyph.min.y, glyph.max.x, glyph.max.y),
+                &mut 100_000
+            ),
+            None
+        );
     }
 }
