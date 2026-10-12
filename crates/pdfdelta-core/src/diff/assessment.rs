@@ -4278,6 +4278,7 @@ struct Assessor<'a, 'document> {
     mandatory_analyses:
         HashMap<DomainKey, Option<std::sync::Arc<semantic::MandatoryMatchAnalysis>>>,
     diagnostic_evidence: Option<evidence_index::EvidenceIndex<'a, 'document>>,
+    literal_capacity: Option<mandatory_equal::LiteralCapacity<'a, 'document>>,
     records: Vec<RelationAssessment>,
     output_stop: Option<usize>,
     root_relation: Option<usize>,
@@ -6663,6 +6664,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             forced_equal_relations: std::collections::HashSet::new(),
             mandatory_analyses: HashMap::new(),
             diagnostic_evidence: None,
+            literal_capacity: None,
             records: Vec::new(),
             output_stop: None,
             root_relation: None,
@@ -8387,7 +8389,7 @@ mod assessor_issue_cache_tests {
                     .collect()
             });
             let mut assessor = Assessor::new(sides, &alignment, None, DiffOptions::default())?;
-            let count = mandatory_equal::indexed_count_for_test(
+            let count = mandatory_equal::indexed_copy_count_for_test(
                 &mut assessor,
                 [&partitions[0], &partitions[1]],
                 &original,
@@ -8418,6 +8420,206 @@ mod assessor_issue_cache_tests {
                 )?;
                 assert_eq!(ordinary, indexed);
                 assert!(ordinary.len() <= count, "seed={seed}, cutoff={cutoff}");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn literal_capacity_cache_pays_complete_scans_and_rejects_other_sides() -> Result<()> {
+        let old_blocks = (1..=32)
+            .map(|i| anchor_block(i, "ABCD"))
+            .collect::<Vec<_>>();
+        let new_blocks = (101..=132)
+            .map(|i| anchor_block(i, "EFGH"))
+            .collect::<Vec<_>>();
+        let old = super::super::SidePlan::inspect("capacity old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("capacity new", &new_blocks)?.materialize()?;
+        let sides = [&old, &new];
+        let alignment = issue_alignment();
+        let mut raw_budget = 1_000_000;
+        let raw = mandatory_equal::literal_source_capacity_bound(sides, &mut raw_budget)
+            .expect("complete original bound");
+        let scan_work = 1_000_000 - raw_budget;
+        let mut assessor = Assessor::new(sides, &alignment, None, DiffOptions::default())?;
+        let bound = raw + std::mem::size_of_val(&assessor.literal_capacity);
+        let first_work = scan_work + 14;
+        for budget in [0, 7, 8 + scan_work - 1, 8 + scan_work, first_work - 1] {
+            assessor.remaining_work = budget;
+            assert!(assessor.cached_literal_source_capacity_bound().is_none());
+            assert!(
+                assessor.literal_capacity.is_none(),
+                "partial scan never retained"
+            );
+        }
+        assessor.remaining_work = first_work;
+        assert_eq!(assessor.cached_literal_source_capacity_bound(), Some(bound));
+        assert_eq!(assessor.remaining_work, 0);
+        assessor.remaining_work = 7;
+        assert!(assessor.cached_literal_source_capacity_bound().is_none());
+        assert!(assessor.literal_capacity.is_some());
+        assessor.remaining_work = 8;
+        assert_eq!(assessor.cached_literal_source_capacity_bound(), Some(bound));
+        assert_eq!(assessor.remaining_work, 0);
+        assert!(
+            first_work + 8 < 2 * scan_work,
+            "only an actual duplicate scan is saved"
+        );
+        // Equal numeric bounds do not allow a cache from different side identities.
+        assessor.sides = [&new, &old];
+        assessor.remaining_work = first_work;
+        assert_eq!(assessor.cached_literal_source_capacity_bound(), Some(bound));
+        assert_eq!(
+            assessor.remaining_work, 0,
+            "different sides pay a fresh scan"
+        );
+        assessor.remaining_work = 8;
+        assert_eq!(assessor.cached_literal_source_capacity_bound(), Some(bound));
+        assert_eq!(assessor.remaining_work, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn diagnostic_copy_bound_covers_partial_and_whole_block_intervals() -> Result<()> {
+        let old_blocks = (1..=8).map(|i| anchor_block(i, "ABCD")).collect::<Vec<_>>();
+        let new_blocks = (101..=108)
+            .map(|i| anchor_block(i, "EFGH"))
+            .collect::<Vec<_>>();
+        let old = super::super::SidePlan::inspect("copy old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("copy new", &new_blocks)?.materialize()?;
+        let sides = [&old, &new];
+        let mut alignment = issue_alignment();
+        alignment.spans[0].old = old_blocks.iter().map(|b| b.block).collect();
+        alignment.spans[0].new = new_blocks.iter().map(|b| b.block).collect();
+        alignment.spans[0].old_separator = Some(BlockSeparator::Space);
+        alignment.spans[0].new_separator = Some(BlockSeparator::Space);
+        alignment.spans[0].evidence = vec![AlignmentEvidence::ExactCanonical];
+        alignment.spans = vec![alignment.spans[0].clone(); 100];
+        for shape in 0..4 {
+            let mut original = Vec::new();
+            for (side, input) in sides.iter().enumerate() {
+                for blocks in input.blocks.chunks(2) {
+                    let ids = blocks.iter().map(|b| b.block).collect::<Vec<_>>();
+                    let group = input.canonical_group(&ids, Some(BlockSeparator::Space));
+                    let span = match shape {
+                        0 => group.span(0, group.tokens.len()),
+                        1 => group.span(1, group.tokens.len() - 1),
+                        2 => input.canonical_group(&ids[..1], None).span(0, 4),
+                        _ => input.canonical_group(&ids[..1], None).span(1, 3),
+                    };
+                    original.push(UnresolvedRegion {
+                        old_span: (side == 0).then(|| span.clone()),
+                        new_span: (side == 1).then_some(span),
+                        evidence: vec![AlignmentEvidence::CandidateCompetition],
+                    });
+                }
+            }
+            for seed in [0, 1, 4, 7] {
+                let initial: [Vec<ResolutionRange>; 2] = std::array::from_fn(|side| {
+                    sides[side]
+                        .blocks
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(i, b)| {
+                            h8_partition(
+                                b.block,
+                                &[(
+                                    0,
+                                    4,
+                                    if i < seed {
+                                        ResolutionState::Equal
+                                    } else {
+                                        ResolutionState::Unresolved
+                                    },
+                                )],
+                            )
+                        })
+                        .collect()
+                });
+                let mut assessor = Assessor::new(sides, &alignment, None, DiffOptions::default())?;
+                let count = mandatory_equal::indexed_copy_count_for_test(
+                    &mut assessor,
+                    [&initial[0], &initial[1]],
+                    &original,
+                );
+                if seed == 7 {
+                    assert!(
+                        count.is_none(),
+                        "two unresolved blocks do not justify setup"
+                    );
+                    assert!(assessor.diagnostic_evidence.is_none());
+                    continue;
+                }
+                let count = count.expect("profitable indexed allowance");
+                assert!(
+                    count >= alignment.spans.len(),
+                    "discarded copies remain paid"
+                );
+                for cutoff in seed..=8 {
+                    for middle in [false, true] {
+                        let partitions: [Vec<ResolutionRange>; 2] = std::array::from_fn(|side| {
+                            sides[side]
+                                .blocks
+                                .iter()
+                                .enumerate()
+                                .flat_map(|(i, b)| {
+                                    if i < seed || (!middle && i < cutoff) {
+                                        h8_partition(b.block, &[(0, 4, ResolutionState::Equal)])
+                                    } else if i < cutoff {
+                                        h8_partition(
+                                            b.block,
+                                            &[
+                                                (0, 1, ResolutionState::Unresolved),
+                                                (1, 3, ResolutionState::Equal),
+                                                (3, 4, ResolutionState::Unresolved),
+                                            ],
+                                        )
+                                    } else {
+                                        h8_partition(
+                                            b.block,
+                                            &[(0, 4, ResolutionState::Unresolved)],
+                                        )
+                                    }
+                                })
+                                .collect()
+                        });
+                        let extra = partitions
+                            .iter()
+                            .enumerate()
+                            .map(|(side, p)| {
+                                let after = p
+                                    .iter()
+                                    .filter(|r| r.state == ResolutionState::Unresolved)
+                                    .count();
+                                let before = initial[side]
+                                    .iter()
+                                    .filter(|r| r.state == ResolutionState::Unresolved)
+                                    .count();
+                                after.saturating_sub(before)
+                            })
+                            .sum::<usize>();
+                        let ordinary = unresolved_output(
+                            sides,
+                            &alignment,
+                            [&partitions[0], &partitions[1]],
+                            original.clone(),
+                            10_000,
+                        )?;
+                        let indexed = unresolved_output_with_evidence(
+                            sides,
+                            &alignment,
+                            [&partitions[0], &partitions[1]],
+                            original.clone(),
+                            10_000,
+                            assessor.diagnostic_evidence.as_ref(),
+                        )?;
+                        assert_eq!(ordinary, indexed);
+                        assert!(
+                            ordinary.len() <= count + extra,
+                            "shape={shape}, seed={seed}, cutoff={cutoff}, middle={middle}"
+                        );
+                    }
+                }
             }
         }
         Ok(())

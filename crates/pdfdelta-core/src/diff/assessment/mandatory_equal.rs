@@ -519,6 +519,38 @@ pub(super) fn literal_source_capacity_bound(
     items.checked_mul(128)?.checked_add(header_bytes)
 }
 
+/// A completed requested-capacity calculation bound to immutable source sides.
+/// This stores a numeric allocation bound, never physical matching evidence.
+pub(super) struct LiteralCapacity<'a, 'd> {
+    sides: [&'a Side<'d>; 2],
+    bytes: usize,
+}
+
+impl Assessor<'_, '_> {
+    /// Reuses only a fully paid scan of these exact immutable sides. Cache
+    /// storage remains part of the source allowance on both misses and hits.
+    pub(super) fn cached_literal_source_capacity_bound(&mut self) -> Option<usize> {
+        if !charge_work(&mut self.remaining_work, 8) {
+            return None;
+        }
+        if let Some(cached) = &self.literal_capacity
+            && (0..2).all(|side| std::ptr::eq(cached.sides[side], self.sides[side]))
+        {
+            return Some(cached.bytes);
+        }
+        let bytes = literal_source_capacity_bound(self.sides, &mut self.remaining_work)?
+            .checked_add(std::mem::size_of_val(&self.literal_capacity))?;
+        if !charge_work(&mut self.remaining_work, 6) {
+            return None;
+        }
+        self.literal_capacity = Some(LiteralCapacity {
+            sides: self.sides,
+            bytes,
+        });
+        Some(bytes)
+    }
+}
+
 fn shallow_words<T>() -> usize {
     std::mem::size_of::<T>().div_ceil(std::mem::size_of::<usize>())
 }
@@ -650,6 +682,8 @@ pub(super) struct EqualConstraints<'a> {
 
 struct DiagnosticAllowance {
     upper_count: usize,
+    #[cfg(test)]
+    copy_count: usize,
     per_entry_bytes: usize,
     projected_intervals: usize,
     per_split_work: usize,
@@ -840,6 +874,8 @@ fn diagnostic_allowance(
     }
     Some(DiagnosticAllowance {
         upper_count: count,
+        #[cfg(test)]
+        copy_count: count,
         per_entry_bytes: unit,
         projected_intervals: projected,
         per_split_work,
@@ -911,8 +947,10 @@ fn indexed_diagnostic_allowance(
         }
     }
     let mut original_outputs = original.len();
+    let mut partial_intervals = 0usize;
     for region in original {
         let mut blocked = false;
+        let mut partial = 0usize;
         for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
             .into_iter()
             .enumerate()
@@ -920,9 +958,13 @@ fn indexed_diagnostic_allowance(
             let Some(span) = span else {
                 continue;
             };
-            if !charge_work(&mut assessor.remaining_work, 10) {
+            if !charge_work(&mut assessor.remaining_work, 14) {
                 return None;
             }
+            // A contiguous span has at most two partial endpoint blocks.
+            // Whole-block intervals can only remove a fallback range, never
+            // split it. Their storage and range limits stay fully reserved.
+            partial = partial.checked_add(span.blocks.len().min(2))?;
             if span.blocks.len() != 1 {
                 continue;
             }
@@ -930,9 +972,9 @@ fn indexed_diagnostic_allowance(
             if span.comparable_range.start == 0
                 && span.comparable_range.end == assessor.sides[side].canonical[block].len()
                 && span.comparable_range.end > 0
-                && confirmed[side][block]
             {
-                blocked = true;
+                partial = partial.checked_sub(1)?;
+                blocked |= confirmed[side][block];
             }
         }
         if blocked {
@@ -940,6 +982,8 @@ fn indexed_diagnostic_allowance(
             for span in [&region.old_span, &region.new_span].into_iter().flatten() {
                 projected = projected.checked_sub(span.blocks.len())?;
             }
+        } else {
+            partial_intervals = partial_intervals.checked_add(partial)?;
         }
     }
     let mut scan = 0usize;
@@ -1044,9 +1088,18 @@ fn indexed_diagnostic_allowance(
         .checked_add(3)?
         .checked_add(shallow_words::<UnresolvedRegion>())?;
     // Twelve units cover immutable binding checks and the source-block lookup.
+    // Aligned spans cover whole source blocks. Only original partial
+    // endpoints can split a fallback interval; full projected intervals
+    // remain in the independent storage/range ledger above.
+    // Every aligned reason vector is copied before the emitter filters
+    // ownership. Pay all of those copies, including discarded regions.
+    let copy_count = original_outputs
+        .checked_add(assessor.alignment.spans.len())?
+        .checked_add(unresolved)?
+        .checked_add(partial_intervals)?;
     let work = unresolved
         .checked_mul(12)?
-        .checked_add(count.checked_mul(output_work)?)?
+        .checked_add(copy_count.checked_mul(output_work)?)?
         .checked_add(shallow_words::<Vec<AlignmentEvidence>>())?
         .checked_add(shallow_words::<Option<BlockId>>())?;
     if !charge_work(&mut assessor.remaining_work, work) {
@@ -1057,6 +1110,8 @@ fn indexed_diagnostic_allowance(
     }
     Some(DiagnosticAllowance {
         upper_count: count,
+        #[cfg(test)]
+        copy_count,
         per_entry_bytes: unit,
         projected_intervals: projected,
         per_split_work: 12usize.checked_add(output_work)?,
@@ -1065,13 +1120,13 @@ fn indexed_diagnostic_allowance(
 }
 
 #[cfg(test)]
-pub(super) fn indexed_count_for_test(
+pub(super) fn indexed_copy_count_for_test(
     assessor: &mut Assessor<'_, '_>,
     partitions: [&[ResolutionRange]; 2],
     original: &[UnresolvedRegion],
 ) -> Option<usize> {
     indexed_diagnostic_allowance(assessor, partitions, original, COARSE_MEMORY_BYTES)
-        .map(|value| value.upper_count)
+        .map(|value| value.copy_count)
 }
 
 impl Assessor<'_, '_> {
@@ -1103,9 +1158,7 @@ impl Assessor<'_, '_> {
         else {
             return Ok(());
         };
-        let Some(source_bytes) =
-            literal_source_capacity_bound(self.sides, &mut self.remaining_work)
-        else {
+        let Some(source_bytes) = self.cached_literal_source_capacity_bound() else {
             return Ok(());
         };
         let Some(available_diagnostics) = publication_memory(

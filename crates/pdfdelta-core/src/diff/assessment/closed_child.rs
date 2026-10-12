@@ -10,7 +10,7 @@ use super::{
     RelationOutcome, ResolutionRange, Result, ScalarRange, SearchCompleteness, Side,
     SourceInterval, TextSpan, TokenRange, borrowed_group_pair, charge_work, coarse_project,
     coarse_reviewed_domain_bytes, coarse_source_guard, equal_fragment, light_group_metadata, local,
-    mandatory_equal, semantic,
+    semantic,
 };
 
 /// Optional initial-component proof; larger domains keep every existing result.
@@ -113,9 +113,7 @@ impl Assessor<'_, '_> {
         ) else {
             return Ok(false);
         };
-        let Some(cache_bytes) =
-            mandatory_equal::literal_source_capacity_bound(self.sides, &mut self.remaining_work)
-        else {
+        let Some(cache_bytes) = self.cached_literal_source_capacity_bound() else {
             return Ok(false);
         };
         let Some(view_limit) = COARSE_MEMORY_BYTES
