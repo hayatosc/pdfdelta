@@ -798,6 +798,29 @@ struct EqualRun<'a, 'source> {
     groups: &'a [GroupMaterializationPlan; 2],
 }
 
+/// The original coverage predicate, paying each range actually visited.
+/// A missing or exhausted search holds; a hit needs no unvisited suffix.
+fn unresolved_cover(
+    partitions: &[ResolutionRange],
+    block: BlockId,
+    selected: &SourceInterval,
+    remaining: &mut usize,
+) -> Option<bool> {
+    for part in partitions {
+        if !charge_work(remaining, 1) {
+            return None;
+        }
+        if part.block == block
+            && part.state == ResolutionState::Unresolved
+            && part.comparable_range.start <= selected.start
+            && selected.end <= part.comparable_range.end
+        {
+            return Some(true);
+        }
+    }
+    Some(false)
+}
+
 /// Bounds possible final diagnostic output without generating it twice.
 /// A retained projected interval can intersect only one unresolved partition,
 /// so original/aligned regions + unresolved partitions + projected intervals
@@ -1521,7 +1544,7 @@ impl Assessor<'_, '_> {
                         if let Some(analysis) = tail_cached {
                             analysis
                         } else {
-                            fresh = match semantic::mandatory_match_analysis_with_memory_limit(
+                            fresh = match semantic::mandatory_literal_analysis_with_memory_limit(
                                 tokens[0],
                                 tokens[1],
                                 &mut self.remaining_work,
@@ -1733,15 +1756,13 @@ impl Assessor<'_, '_> {
         };
         let intervals = [*old_interval, *new_interval];
         for side in 0..2 {
-            if !charge_work(&mut self.remaining_work, partitions[side].len()) {
-                return Ok(false);
-            }
-            if !partitions[side].iter().any(|part| {
-                part.block == spans[side].blocks[0]
-                    && part.state == ResolutionState::Unresolved
-                    && part.comparable_range.start <= intervals[side].start
-                    && intervals[side].end <= part.comparable_range.end
-            }) {
+            if unresolved_cover(
+                partitions[side],
+                spans[side].blocks[0],
+                &intervals[side],
+                &mut self.remaining_work,
+            ) != Some(true)
+            {
                 return Ok(false);
             }
         }
@@ -2312,6 +2333,68 @@ mod tail_analysis_tests {
 mod coarse_pair_presence_tests {
     use super::*;
     use crate::diff::{ChangedRegionProof, Confidence, TextSpan};
+
+    #[test]
+    fn unresolved_cover_keeps_the_predicate_and_pays_only_visited_ranges() {
+        let mut parts = (0..100)
+            .map(|i| ResolutionRange {
+                block: BlockId(i),
+                comparable_range: TokenRange { start: 0, end: 4 },
+                canonical_range: ScalarRange { start: 0, end: 4 },
+                state: ResolutionState::Unresolved,
+            })
+            .collect::<Vec<_>>();
+        parts[2].state = ResolutionState::Equal;
+        for block in [0, 2, 5, 99, 100] {
+            for (start, end) in [(0, 4), (1, 3), (0, 5)] {
+                let selected = SourceInterval {
+                    block_index: block as usize,
+                    start,
+                    end,
+                };
+                let expected = parts.iter().any(|p| {
+                    p.block == BlockId(block)
+                        && p.state == ResolutionState::Unresolved
+                        && p.comparable_range.start <= start
+                        && end <= p.comparable_range.end
+                });
+                let mut budget = 1_000;
+                assert_eq!(
+                    unresolved_cover(&parts, BlockId(block), &selected, &mut budget),
+                    Some(expected)
+                );
+                let used = 1_000 - budget;
+                assert_eq!(
+                    unresolved_cover(&parts, BlockId(block), &selected, &mut (used - 1)),
+                    None
+                );
+                let mut exact = used;
+                assert_eq!(
+                    unresolved_cover(&parts, BlockId(block), &selected, &mut exact),
+                    Some(expected)
+                );
+                assert_eq!(exact, 0);
+                if expected {
+                    assert_eq!(used, block as usize + 1);
+                } else {
+                    assert_eq!(used, parts.len());
+                }
+            }
+        }
+        assert_eq!(
+            unresolved_cover(
+                &[],
+                BlockId(0),
+                &SourceInterval {
+                    block_index: 0,
+                    start: 0,
+                    end: 1,
+                },
+                &mut 0
+            ),
+            Some(false)
+        );
+    }
 
     fn filter_region(old: u64, new: u64) -> ProvenChangedRegion {
         let span = |block| TextSpan {

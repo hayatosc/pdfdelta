@@ -3,6 +3,9 @@
 use super::charge;
 use crate::{Error, Result, diff::AtomicEdit};
 
+mod sparse_mandatory;
+pub(super) use sparse_mandatory::mandatory_literal_analysis_with_memory_limit;
+
 const MAX_SEMANTIC_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 const DP_CELLS_RESOURCE: &str = "semantic uniqueness DP cells";
 const DP_MEMORY_RESOURCE: &str = "semantic uniqueness DP memory";
