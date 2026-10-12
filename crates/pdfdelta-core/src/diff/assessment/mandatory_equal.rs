@@ -695,7 +695,13 @@ fn diagnostic_allowance(
     assessor: &mut Assessor<'_, '_>,
     partitions: [&[ResolutionRange]; 2],
     original: &[UnresolvedRegion],
+    available_bytes: usize,
 ) -> Option<DiagnosticAllowance> {
+    if let Some(indexed) =
+        indexed_diagnostic_allowance(assessor, partitions, original, available_bytes)
+    {
+        return Some(indexed);
+    }
     let mut count = original.len().checked_add(assessor.alignment.spans.len())?;
     let mut projected = 0usize;
     let mut evidence_work = 0usize;
@@ -841,6 +847,233 @@ fn diagnostic_allowance(
     })
 }
 
+/// Prepays the same possible outputs using completed immutable reason rows.
+/// The retained index is consumed by the actual final diagnostic emitter;
+/// neither output payload, output limits nor physical ownership is relaxed.
+fn indexed_diagnostic_allowance(
+    assessor: &mut Assessor<'_, '_>,
+    partitions: [&[ResolutionRange]; 2],
+    original: &[UnresolvedRegion],
+    available_bytes: usize,
+) -> Option<DiagnosticAllowance> {
+    let metadata = original
+        .len()
+        .checked_mul(6)?
+        .checked_add(assessor.alignment.spans.len().checked_mul(8)?)?
+        .checked_add(partitions[0].len())?
+        .checked_add(partitions[1].len())?;
+    if !charge_work(&mut assessor.remaining_work, metadata) {
+        return None;
+    }
+    let mut projected = 0usize;
+    let mut raw_copy = 0usize;
+    for region in original {
+        raw_copy = raw_copy.max(region.evidence.len());
+        for span in [&region.old_span, &region.new_span].into_iter().flatten() {
+            projected = projected.checked_add(span.blocks.len())?;
+        }
+    }
+    // A whole aligned side touching current confirmed ownership can never
+    // contribute retained intervals after an equality-only tail. If its span
+    // copy later fails, that side contributes no intervals either. Keep the
+    // other side and every possible region in the output bound unchanged.
+    let mut confirmed = [Vec::new(), Vec::new()];
+    let scratch_bytes = assessor.sides[0]
+        .blocks
+        .len()
+        .checked_add(assessor.sides[1].blocks.len())?
+        .checked_add(2 * std::mem::size_of::<Vec<bool>>())?;
+    if scratch_bytes > available_bytes {
+        return None;
+    }
+    for (side, flags) in confirmed.iter_mut().enumerate() {
+        let n = assessor.sides[side].blocks.len();
+        if !charge_work(
+            &mut assessor.remaining_work,
+            n.checked_mul(2)?
+                .checked_add(partitions[side].len().checked_mul(8)?)?,
+        ) {
+            return None;
+        }
+        flags.try_reserve_exact(n).ok()?;
+        if flags.capacity() != n {
+            return None;
+        }
+        flags.resize(n, false);
+        for range in partitions[side] {
+            let &block = assessor.sides[side].index.get(&range.block)?;
+            if range.state != ResolutionState::Unresolved
+                && range.comparable_range.start < range.comparable_range.end
+                && range.comparable_range.end <= assessor.sides[side].canonical[block].len()
+            {
+                flags[block] = true;
+            }
+        }
+    }
+    let mut original_outputs = original.len();
+    for region in original {
+        let mut blocked = false;
+        for (side, span) in [region.old_span.as_ref(), region.new_span.as_ref()]
+            .into_iter()
+            .enumerate()
+        {
+            let Some(span) = span else {
+                continue;
+            };
+            if !charge_work(&mut assessor.remaining_work, 10) {
+                return None;
+            }
+            if span.blocks.len() != 1 {
+                continue;
+            }
+            let &block = assessor.sides[side].index.get(&span.blocks[0])?;
+            if span.comparable_range.start == 0
+                && span.comparable_range.end == assessor.sides[side].canonical[block].len()
+                && span.comparable_range.end > 0
+                && confirmed[side][block]
+            {
+                blocked = true;
+            }
+        }
+        if blocked {
+            original_outputs = original_outputs.checked_sub(1)?;
+            for span in [&region.old_span, &region.new_span].into_iter().flatten() {
+                projected = projected.checked_sub(span.blocks.len())?;
+            }
+        }
+    }
+    let mut scan = 0usize;
+    let mut aligned_outputs = 0usize;
+    for aligned in &assessor.alignment.spans {
+        raw_copy = raw_copy.max(aligned.evidence.len());
+        let mut blocked_sides = [false; 2];
+        let ids = aligned.old.len().checked_add(aligned.new.len())?;
+        for (side, ids) in [&aligned.old, &aligned.new].into_iter().enumerate() {
+            if !charge_work(
+                &mut assessor.remaining_work,
+                ids.len().checked_mul(3)?.checked_add(1)?,
+            ) {
+                return None;
+            }
+            let mut blocked = false;
+            for id in ids {
+                let &block = assessor.sides[side].index.get(id)?;
+                blocked |= confirmed[side][block];
+            }
+            blocked_sides[side] = blocked;
+            if !blocked {
+                projected = projected.checked_add(ids.len())?;
+            }
+        }
+        if !charge_work(
+            &mut assessor.remaining_work,
+            aligned.evidence.len().checked_mul(2)?.checked_add(4)?,
+        ) {
+            return None;
+        }
+        // With both full sides blocked, only a failed pair of span copies
+        // could avoid their confirmed tokens. Without an empty-span issue
+        // marker that representation cannot survive the original emitter.
+        if !blocked_sides.iter().all(|blocked| *blocked)
+            || aligned.evidence.contains(&AlignmentEvidence::ExtractionGap)
+            || aligned
+                .evidence
+                .contains(&AlignmentEvidence::NormalizationIssue)
+        {
+            aligned_outputs = aligned_outputs.checked_add(1)?;
+        }
+        scan = scan.checked_add(ids.checked_add(1)?)?;
+    }
+    let unresolved = partitions
+        .iter()
+        .flat_map(|p| p.iter())
+        .filter(|p| p.state == ResolutionState::Unresolved)
+        .count();
+    let count = original_outputs
+        .checked_add(aligned_outputs)?
+        .checked_add(unresolved)?
+        .checked_add(projected)?;
+    let blocks = assessor.sides[0]
+        .blocks
+        .len()
+        .checked_add(assessor.sides[1].blocks.len())?;
+    if count > assessor.options.max_assessment_ranges
+        || scan.checked_mul(unresolved)? <= blocks.checked_add(scan)?.checked_mul(4)?
+    {
+        return None;
+    }
+    let mut fresh = None;
+    let index = if let Some(index) = &assessor.diagnostic_evidence {
+        if !index.is_bound(assessor.alignment, assessor.sides) {
+            return None;
+        }
+        index
+    } else {
+        fresh = Some(super::evidence_index::EvidenceIndex::build(
+            assessor.alignment,
+            assessor.sides,
+            available_bytes.checked_sub(scratch_bytes)?,
+            &mut assessor.remaining_work,
+        )?);
+        fresh.as_ref()?
+    };
+    let reasons = index.reason_count();
+    let unit = 3usize
+        .checked_mul(std::mem::size_of::<UnresolvedRegion>())?
+        .checked_add(3 * std::mem::size_of::<BlockId>())?
+        .checked_add(3 * std::mem::size_of::<SourceInterval>())?
+        .checked_add(reasons.checked_mul(4 * std::mem::size_of::<AlignmentEvidence>())?)?;
+    let cache_bytes = reasons
+        .checked_mul(8 * std::mem::size_of::<AlignmentEvidence>())?
+        .checked_add(std::mem::size_of::<Vec<AlignmentEvidence>>())?
+        .checked_add(std::mem::size_of::<Option<BlockId>>())?
+        .checked_add(std::mem::size_of::<usize>())?
+        .checked_add(index.bytes())?;
+    if count
+        .checked_mul(unit)?
+        .checked_add(cache_bytes)?
+        .checked_add(scratch_bytes)?
+        > available_bytes
+    {
+        return None;
+    }
+    let output_work = index
+        .maximum_copy_len()
+        .max(raw_copy)
+        .checked_mul(shallow_words::<AlignmentEvidence>())?
+        .checked_add(3)?
+        .checked_add(shallow_words::<UnresolvedRegion>())?;
+    // Twelve units cover immutable binding checks and the source-block lookup.
+    let work = unresolved
+        .checked_mul(12)?
+        .checked_add(count.checked_mul(output_work)?)?
+        .checked_add(shallow_words::<Vec<AlignmentEvidence>>())?
+        .checked_add(shallow_words::<Option<BlockId>>())?;
+    if !charge_work(&mut assessor.remaining_work, work) {
+        return None;
+    }
+    if let Some(index) = fresh {
+        assessor.diagnostic_evidence = Some(index);
+    }
+    Some(DiagnosticAllowance {
+        upper_count: count,
+        per_entry_bytes: unit,
+        projected_intervals: projected,
+        per_split_work: 12usize.checked_add(output_work)?,
+        evidence_cache_bytes: cache_bytes,
+    })
+}
+
+#[cfg(test)]
+pub(super) fn indexed_count_for_test(
+    assessor: &mut Assessor<'_, '_>,
+    partitions: [&[ResolutionRange]; 2],
+    original: &[UnresolvedRegion],
+) -> Option<usize> {
+    indexed_diagnostic_allowance(assessor, partitions, original, COARSE_MEMORY_BYTES)
+        .map(|value| value.upper_count)
+}
+
 impl Assessor<'_, '_> {
     /// Finishes optional whole-coarse literal equality after every previous
     /// recovery, review and coarse proof. Refusal leaves all prior output
@@ -875,9 +1108,24 @@ impl Assessor<'_, '_> {
         else {
             return Ok(());
         };
-        let Some(diagnostics) =
-            diagnostic_allowance(self, [&*partitions[0], &*partitions[1]], original)
-        else {
+        let Some(available_diagnostics) = publication_memory(
+            domain_bytes,
+            source_bytes,
+            0,
+            &self.records,
+            self.records.capacity(),
+            ownership,
+            [&*partitions[0], &*partitions[1]],
+        )
+        .and_then(|bytes| COARSE_MEMORY_BYTES.checked_sub(bytes)) else {
+            return Ok(());
+        };
+        let Some(diagnostics) = diagnostic_allowance(
+            self,
+            [&*partitions[0], &*partitions[1]],
+            original,
+            available_diagnostics,
+        ) else {
             return Ok(());
         };
         let mut resources = TailResources {
