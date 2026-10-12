@@ -3316,6 +3316,122 @@ fn candidate_occurrence_residue(
 /// Subtracts established source intervals without inventing a correspondence
 /// between disconnected old/new remainders. Scalar coordinates and block
 /// separators remain in the original candidate's coordinate frame.
+/// Source coordinates validated once for one immutable side and original span.
+/// The cache is private to a single residue transaction: it cannot license a
+/// different block population, separator shape, source, or original range.
+struct CandidateCoordinateFrame<'side, 'document> {
+    side: &'side Side<'document>,
+    original: &'side TextSpan,
+    blocks: Vec<CandidateBlockCoordinates>,
+}
+
+struct CandidateBlockCoordinates {
+    block_index: usize,
+    token_start: usize,
+    token_end: usize,
+    scalar_start: usize,
+}
+
+impl<'side, 'document> CandidateCoordinateFrame<'side, 'document> {
+    /// All construction, validation and retained storage are prepaid by the
+    /// caller. Capacity is checked against the original block population.
+    fn new(side: &'side Side<'document>, original: &'side TextSpan) -> Result<Option<Self>> {
+        project(side, original)?;
+        let mut blocks = Vec::new();
+        blocks
+            .try_reserve_exact(original.blocks.len())
+            .map_err(|_| super::allocation_error("candidate coordinate frame"))?;
+        if blocks.capacity() > original.blocks.len() {
+            return Ok(None);
+        }
+        let mut token_offset = 0usize;
+        let mut scalar_offset = 0usize;
+        let mut preceding_space = false;
+        for (position, id) in original.blocks.iter().enumerate() {
+            let block_index = side.index[id];
+            let tokens = &side.canonical[block_index];
+            let separator = position > 0
+                && original.separator.map(|s| s.at(position - 1)) == Some(BlockSeparator::Space)
+                && !preceding_space
+                && !tokens.first().is_some_and(super::space_token);
+            token_offset += usize::from(separator);
+            scalar_offset += usize::from(separator);
+            blocks.push(CandidateBlockCoordinates {
+                block_index,
+                token_start: token_offset,
+                token_end: token_offset + tokens.len(),
+                scalar_start: scalar_offset,
+            });
+            token_offset += tokens.len();
+            scalar_offset += tokens.len() - side.blocks[block_index].canonical.unmapped.len();
+            preceding_space = tokens
+                .last()
+                .map_or(separator || preceding_space, super::space_token);
+        }
+        Ok(Some(Self {
+            side,
+            original,
+            blocks,
+        }))
+    }
+
+    /// Search the validated frame, preserving zero-width unmapped glyphs and
+    /// the inserted separator's scalar boundary. No new source is materialized.
+    fn scalar(&self, boundary: usize) -> Result<usize> {
+        if boundary < self.original.comparable_range.start
+            || boundary > self.original.comparable_range.end
+        {
+            return Err(super::invalid(
+                "candidate residue boundary leaves its original span",
+            ));
+        }
+        let index = self.blocks.partition_point(|b| b.token_end < boundary);
+        let block = self
+            .blocks
+            .get(index)
+            .ok_or_else(|| super::invalid("candidate residue boundary leaves its source frame"))?;
+        if boundary < block.token_start {
+            if boundary + 1 == block.token_start {
+                return Ok(block.scalar_start - 1);
+            }
+            return Err(super::invalid(
+                "candidate residue boundary is outside its source frame",
+            ));
+        }
+        Ok(block.scalar_start
+            + super::block_scalar_boundary(
+                &self.side.blocks[block.block_index].canonical,
+                boundary - block.token_start,
+            ))
+    }
+
+    /// Recheck physical non-emptiness and every accepted-owner intersection
+    /// using the original side's validated block offsets, with unchanged strict
+    /// overlap endpoints. The caller prepays every frame/owner comparison.
+    fn physical_status(
+        &self,
+        start: usize,
+        end: usize,
+        accepted: &[SourceInterval],
+    ) -> (bool, bool) {
+        let mut present = false;
+        let mut overlap = false;
+        for block in &self.blocks {
+            let first = start.max(block.token_start);
+            let last = end.min(block.token_end);
+            if first < last {
+                present = true;
+                overlap |= accepted.iter().any(|a| {
+                    a.block_index == block.block_index
+                        && first - block.token_start < a.end
+                        && a.start < last - block.token_start
+                });
+            }
+        }
+        (present, overlap)
+    }
+}
+
 fn candidate_side_residue(
     side: &Side<'_>,
     span: &TextSpan,
@@ -3377,12 +3493,24 @@ fn candidate_side_residue(
     let cost = structural_cost
         .saturating_add(slots.saturating_mul(16))
         .saturating_add(words.saturating_mul(32))
-        .saturating_add(token_bound.saturating_mul(fragments).saturating_mul(4))
+        // Build and validate the immutable source frame once. Fragment
+        // boundaries now search its metadata instead of rescanning the source.
+        .saturating_add(token_bound.saturating_mul(4))
+        .saturating_add(fragments.saturating_mul(32).saturating_mul(
+            span.blocks.len().checked_ilog2().unwrap_or(0) as usize
+                + token_bound.checked_ilog2().unwrap_or(0) as usize
+                + 2,
+        ))
+        // Each residue still checks physical ownership against every accepted
+        // interval. Sharing coordinates never discharges that guard.
+        .saturating_add(slots.saturating_mul(fragments).saturating_mul(16))
         .saturating_add(span.blocks.len().saturating_mul(32));
     if !charge(remaining, cost) {
         return Ok(None);
     }
-    project(side, span)?;
+    let Some(frame) = CandidateCoordinateFrame::new(side, span)? else {
+        return Ok(None);
+    };
     if let Some((proof, _, _)) = context.exact {
         project(side, proof)?;
     }
@@ -3492,69 +3620,36 @@ fn candidate_side_residue(
         .try_reserve_exact(ranges.len())
         .map_err(|_| super::allocation_error("candidate residue spans"))?;
     for (start, end) in ranges {
-        let scalar = |boundary: usize| -> Result<usize> {
-            let mut token_offset = 0;
-            let mut scalar_offset = 0;
-            let mut preceding_space = false;
-            for (position, id) in span.blocks.iter().enumerate() {
-                let index = side.index[id];
-                let tokens = &side.canonical[index];
-                let separator = position > 0
-                    && span.separator.map(|s| s.at(position - 1)) == Some(BlockSeparator::Space)
-                    && !preceding_space
-                    && !tokens.first().is_some_and(super::space_token);
-                token_offset += usize::from(separator);
-                scalar_offset += usize::from(separator);
-                if boundary >= token_offset && boundary <= token_offset + tokens.len() {
-                    return Ok(scalar_offset
-                        + super::block_scalar_boundary(
-                            &side.blocks[index].canonical,
-                            boundary - token_offset,
-                        ));
-                }
-                if separator && boundary + 1 == token_offset {
-                    return Ok(scalar_offset - 1);
-                }
-                token_offset += tokens.len();
-                scalar_offset += tokens.len() - side.blocks[index].canonical.unmapped.len();
-                preceding_space = tokens
-                    .last()
-                    .map_or(separator || preceding_space, super::space_token);
-            }
-            Err(super::invalid(
-                "candidate residue boundary is outside its source frame",
-            ))
-        };
         let mut residue = copy_span(span)?;
         residue.comparable_range = super::super::TokenRange { start, end };
         residue.canonical_range = crate::normalize::ScalarRange {
-            start: scalar(start)?,
-            end: scalar(end)?,
+            start: frame.scalar(start)?,
+            end: frame.scalar(end)?,
         };
-        let projected = project(side, &residue)?;
-        if projected.is_empty()
-            || projected.iter().any(|r| {
-                accepted
-                    .iter()
-                    .any(|a| r.block_index == a.block_index && r.start < a.end && a.start < r.end)
-            })
-        {
+        let (physical, overlap) = frame.physical_status(start, end, accepted);
+        if !physical || overlap {
             return Ok(None);
         }
         output.push(residue);
     }
-    let actual_bytes = output
+    let actual_bytes = frame
+        .blocks
         .capacity()
-        .saturating_mul(std::mem::size_of::<TextSpan>())
+        .saturating_mul(std::mem::size_of::<CandidateBlockCoordinates>())
         .saturating_add(
             output
-                .iter()
-                .map(|s| {
-                    s.blocks
-                        .capacity()
-                        .saturating_mul(std::mem::size_of::<crate::layout::BlockId>())
-                })
-                .sum::<usize>(),
+                .capacity()
+                .saturating_mul(std::mem::size_of::<TextSpan>())
+                .saturating_add(
+                    output
+                        .iter()
+                        .map(|s| {
+                            s.blocks
+                                .capacity()
+                                .saturating_mul(std::mem::size_of::<crate::layout::BlockId>())
+                        })
+                        .sum::<usize>(),
+                ),
         );
     if actual_bytes > bytes {
         return Ok(None);
@@ -3927,6 +4022,195 @@ mod tests {
                 }
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn candidate_coordinate_frame_preserves_all_source_boundaries() -> Result<()> {
+        let mut first = sourced_block(1, "AšB");
+        first
+            .canonical
+            .unmapped
+            .push(crate::normalize::UnmappedToken {
+                scalar_index: 1,
+                font_hash: crate::model::FontProgramHash(vec![37]),
+                glyph_id: 9,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(9001))].into(),
+                },
+            });
+        first.raw = first.canonical.clone();
+        first.font_size_signatures = None;
+        first.position_signatures = None;
+        let blocks = [first, sourced_block(2, ""), sourced_block(3, "中D")];
+        let source = side(&blocks);
+        let owners = [
+            SourceInterval {
+                block_index: 0,
+                start: 1,
+                end: 2,
+            },
+            SourceInterval {
+                block_index: 2,
+                start: 1,
+                end: 2,
+            },
+        ];
+        for (separator, scalars) in [
+            (BlockSeparator::Space, vec![0, 1, 1, 2, 3, 4, 5, 6]),
+            (BlockSeparator::Concatenate, vec![0, 1, 1, 2, 3, 4, 5]),
+        ] {
+            let original = TextSpan {
+                blocks: vec![BlockId(1), BlockId(2), BlockId(3)],
+                separator: Some(separator),
+                canonical_range: ScalarRange {
+                    start: 0,
+                    end: *scalars.last().expect("boundaries"),
+                },
+                comparable_range: super::super::super::TokenRange {
+                    start: 0,
+                    end: scalars.len() - 1,
+                },
+            };
+            let frame =
+                CandidateCoordinateFrame::new(&source, &original)?.expect("validated frame");
+            for (start, scalar_start) in scalars.iter().enumerate() {
+                assert_eq!(frame.scalar(start)?, *scalar_start);
+                for (end, scalar_end) in scalars.iter().enumerate().skip(start) {
+                    let mut query = original.clone();
+                    query.comparable_range = super::super::super::TokenRange { start, end };
+                    query.canonical_range = ScalarRange {
+                        start: *scalar_start,
+                        end: *scalar_end,
+                    };
+                    let projected = project(&source, &query)?;
+                    let overlap = projected.iter().any(|p| {
+                        owners.iter().any(|a| {
+                            p.block_index == a.block_index && p.start < a.end && a.start < p.end
+                        })
+                    });
+                    assert_eq!(
+                        frame.physical_status(start, end, &owners),
+                        (!projected.is_empty(), overlap)
+                    );
+                }
+            }
+            assert!(frame.scalar(scalars.len()).is_err());
+            let mut invalid = original.clone();
+            invalid.canonical_range.end += 1;
+            assert!(CandidateCoordinateFrame::new(&source, &invalid).is_err());
+            invalid = original.clone();
+            invalid.blocks[2] = BlockId(1);
+            assert!(CandidateCoordinateFrame::new(&source, &invalid).is_err());
+            let mut scoped = original.clone();
+            scoped.comparable_range.start = 2;
+            scoped.canonical_range.start = 1;
+            let frame = CandidateCoordinateFrame::new(&source, &scoped)?.expect("scoped frame");
+            assert!(frame.scalar(1).is_err());
+            assert_eq!(frame.scalar(2)?, 1);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn candidate_residue_shared_frame_keeps_paid_work_for_later_proofs() -> Result<()> {
+        // Twenty source blocks and three interior claims reproduce the large
+        // repeated frame, without depending on parser or external input files.
+        let blocks = (1..=20)
+            .map(|id| sourced_block(id, &"A".repeat(70)))
+            .collect::<Vec<_>>();
+        let source = side(&blocks);
+        let original = TextSpan {
+            blocks: blocks.iter().map(|b| b.block).collect(),
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange {
+                start: 0,
+                end: 1419,
+            },
+            comparable_range: super::super::super::TokenRange {
+                start: 0,
+                end: 1419,
+            },
+        };
+        let owners = [0, 10, 19].map(|block_index| SourceInterval {
+            block_index,
+            start: 20,
+            end: 30,
+        });
+        let before = original.clone();
+        let mut work = 250_000;
+        let residues = candidate_side_residue(
+            &source,
+            &original,
+            physical_candidate_residue(&owners),
+            100,
+            64 * 1024 * 1024,
+            &mut work,
+        )?
+        .expect("shared frame retains later proof budget");
+        let used = 250_000 - work;
+        assert!(
+            work >= 100_000,
+            "frame sharing must remove repeated source walks"
+        );
+        assert_eq!(original, before);
+        assert_eq!(residues.len(), 4);
+        let mut retained = Vec::new();
+        for residue in &residues {
+            assert_eq!(residue.blocks, original.blocks);
+            assert_eq!(residue.separator, original.separator);
+            assert_eq!(
+                residue.comparable_range.start,
+                residue.canonical_range.start
+            );
+            assert_eq!(residue.comparable_range.end, residue.canonical_range.end);
+            for interval in project(&source, residue)? {
+                for token in interval.start..interval.end {
+                    retained.push((interval.block_index, token));
+                }
+            }
+        }
+        let expected = (0..20)
+            .flat_map(|block| {
+                (0..70).filter_map(move |token| {
+                    (!([0, 10, 19].contains(&block) && (20..30).contains(&token)))
+                        .then_some((block, token))
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(retained, expected);
+        assert!(
+            candidate_side_residue(
+                &source,
+                &original,
+                physical_candidate_residue(&owners),
+                100,
+                64 * 1024 * 1024,
+                &mut (used - 1)
+            )?
+            .is_none()
+        );
+        let mut exact = used;
+        assert_eq!(
+            candidate_side_residue(
+                &source,
+                &original,
+                physical_candidate_residue(&owners),
+                100,
+                64 * 1024 * 1024,
+                &mut exact
+            )?,
+            Some(residues)
+        );
+        assert_eq!(exact, 0);
+        let old_tokens = (0..200).collect::<Vec<_>>();
+        let mut new_tokens = old_tokens.clone();
+        new_tokens[100] = 201;
+        assert_eq!(
+            super::super::exact::check(&old_tokens, &new_tokens, &mut work)?,
+            super::super::exact::ExactUniqueness::Unique,
+            "saved shared work must fund an actual complete later proof"
+        );
         Ok(())
     }
 
