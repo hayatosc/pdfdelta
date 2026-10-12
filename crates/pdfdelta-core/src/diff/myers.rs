@@ -34,49 +34,11 @@ pub(super) fn diff<T: Eq>(
     new: &[T],
     max_edit_distance: usize,
 ) -> Result<Option<Vec<AtomicEdit>>> {
-    let max_distance = old
-        .len()
-        .checked_add(new.len())
-        .ok_or(Error::LimitExceeded {
-            resource: "Myers input tokens",
-            limit: usize::MAX,
-        })?;
-    if max_distance == 0 {
+    if old.is_empty() && new.is_empty() {
         return Ok(Some(Vec::new()));
     }
-
-    // Only diagonals within the capped distance are ever visited, so the
-    // frontier is sized on the effective bound instead of the full input
-    // length.
-    let distance_bound = max_distance
-        .min(max_edit_distance)
-        .min(MAX_MYERS_EDIT_DISTANCE);
-    // The offset arithmetic below casts the effective internal bound to
-    // isize. Keep the representation check local even though the current
-    // trace-allocation cap is much smaller.
-    if distance_bound > isize::MAX as usize {
-        return Err(Error::LimitExceeded {
-            resource: "Myers diagonal offset",
-            limit: isize::MAX as usize,
-        });
-    }
-    let frontier_len = distance_bound
-        .checked_mul(2)
-        .and_then(|length| length.checked_add(3))
-        .ok_or(Error::LimitExceeded {
-            resource: "Myers frontier entries",
-            limit: usize::MAX,
-        })?;
-    let trace_bytes = maximum_trace_bytes(distance_bound).ok_or(Error::LimitExceeded {
-        resource: "Myers trace bytes",
-        limit: MAX_MYERS_TRACE_BYTES,
-    })?;
-    if trace_bytes > MAX_MYERS_TRACE_BYTES {
-        return Err(Error::LimitExceeded {
-            resource: "Myers trace bytes",
-            limit: MAX_MYERS_TRACE_BYTES,
-        });
-    }
+    let (distance_bound, frontier_len) =
+        reconstruction_admission(old.len(), new.len(), max_edit_distance)?;
     let offset = distance_bound as isize + 1;
     let mut frontier = vec![0; frontier_len];
     frontier[index(1, offset)] = 0;
@@ -127,6 +89,55 @@ fn maximum_trace_bytes(distance_bound: usize) -> Option<usize> {
         .checked_add(frontier_entries)?
         .checked_mul(std::mem::size_of::<usize>())?
         .checked_add(layer_count.checked_mul(std::mem::size_of::<Vec<usize>>())?)
+}
+
+/// Shares the unchanged Myers dimensional, distance and trace-memory admission.
+pub(super) fn reconstruction_admission(
+    old_len: usize,
+    new_len: usize,
+    max_edit_distance: usize,
+) -> Result<(usize, usize)> {
+    let max_distance = old_len.checked_add(new_len).ok_or(Error::LimitExceeded {
+        resource: "Myers input tokens",
+        limit: usize::MAX,
+    })?;
+    if max_distance == 0 {
+        return Ok((0, 3));
+    }
+
+    // Only diagonals within the capped distance are ever visited, so the
+    // frontier is sized on the effective bound instead of the full input
+    // length.
+    let distance_bound = max_distance
+        .min(max_edit_distance)
+        .min(MAX_MYERS_EDIT_DISTANCE);
+    // The offset arithmetic below casts the effective internal bound to
+    // isize. Keep the representation check local even though the current
+    // trace-allocation cap is much smaller.
+    if distance_bound > isize::MAX as usize {
+        return Err(Error::LimitExceeded {
+            resource: "Myers diagonal offset",
+            limit: isize::MAX as usize,
+        });
+    }
+    let frontier_len = distance_bound
+        .checked_mul(2)
+        .and_then(|length| length.checked_add(3))
+        .ok_or(Error::LimitExceeded {
+            resource: "Myers frontier entries",
+            limit: usize::MAX,
+        })?;
+    let trace_bytes = maximum_trace_bytes(distance_bound).ok_or(Error::LimitExceeded {
+        resource: "Myers trace bytes",
+        limit: MAX_MYERS_TRACE_BYTES,
+    })?;
+    if trace_bytes > MAX_MYERS_TRACE_BYTES {
+        return Err(Error::LimitExceeded {
+            resource: "Myers trace bytes",
+            limit: MAX_MYERS_TRACE_BYTES,
+        });
+    }
+    Ok((distance_bound, frontier_len))
 }
 
 fn backtrack<T: Eq>(

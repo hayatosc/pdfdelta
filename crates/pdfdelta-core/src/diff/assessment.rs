@@ -5525,7 +5525,11 @@ impl<'a, 'document> Assessor<'a, 'document> {
         };
         let mut exact_displacement_proof = false;
         if reasons.is_empty() {
-            let exact = exact::check_retaining(&old.tokens, &new.tokens, &mut self.remaining_work);
+            let exact = exact::check_retaining_for_reconstruction(
+                &old.tokens,
+                &new.tokens,
+                &mut self.remaining_work,
+            );
             let mut retained = None;
             let exact = exact.map(|checked| {
                 retained = checked.suffix;
@@ -5565,24 +5569,55 @@ impl<'a, 'document> Assessor<'a, 'document> {
                             );
                         if old.tokens == new.tokens {
                             unique = true;
-                        } else if self.charge(bound) {
-                            match myers::diff(
-                                &old.tokens,
-                                &new.tokens,
-                                self.options.max_edit_distance,
-                            ) {
-                                Ok(Some(script)) => {
+                        } else {
+                            let reconstructed = if let Some(table) = retained.take() {
+                                match table.reconstruct_unique(
+                                    &old.tokens,
+                                    &new.tokens,
+                                    self.options.max_edit_distance,
+                                    &mut self.remaining_work,
+                                ) {
+                                    Ok(result) => result,
+                                    Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                                        exact::ReconstructedScript::Unavailable
+                                    }
+                                    Err(error) => return Err(error),
+                                }
+                            } else {
+                                exact::ReconstructedScript::Unavailable
+                            };
+                            match reconstructed {
+                                exact::ReconstructedScript::Ready(script) => {
                                     unique = true;
                                     edits = script;
                                 }
-                                Ok(None)
-                                | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                                exact::ReconstructedScript::DistanceExceeded => {
                                     search = SearchCompleteness::Incomplete;
                                 }
-                                Err(error) => return Err(error),
+                                exact::ReconstructedScript::Unavailable => {
+                                    if self.charge(bound) {
+                                        match myers::diff(
+                                            &old.tokens,
+                                            &new.tokens,
+                                            self.options.max_edit_distance,
+                                        ) {
+                                            Ok(Some(script)) => {
+                                                unique = true;
+                                                edits = script;
+                                            }
+                                            Ok(None)
+                                            | Err(
+                                                Error::LimitExceeded { .. } | Error::Unresolved(_),
+                                            ) => {
+                                                search = SearchCompleteness::Incomplete;
+                                            }
+                                            Err(error) => return Err(error),
+                                        }
+                                    } else {
+                                        search = SearchCompleteness::Incomplete;
+                                    }
+                                }
                             }
-                        } else {
-                            search = SearchCompleteness::Incomplete;
                         }
                     }
                 }

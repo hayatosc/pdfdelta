@@ -232,8 +232,11 @@ impl<T> RetainedCheck<'_, T> {
     }
 }
 
-/// An incomplete suffix, never exposed as an alignment proof.
+/// A private suffix with exact input bindings; it carries no source verdict.
 ///
+/// A complete form is returned only after exact uniqueness is proved and its
+/// retention metadata is paid. The incomplete form belongs to an Ambiguous
+/// result and cannot reconstruct a unique script.
 /// Its matrix is the original forward buffer. The lower/right completed
 /// contour contains suffix cells; the remaining interior still contains
 /// unusable prefix cells. The exact check has already returned Ambiguous and
@@ -246,6 +249,12 @@ pub(super) struct RetainedSuffix<'a, T> {
     next_old: usize,
     next_new: usize,
     completed: usize,
+}
+
+pub(super) enum ReconstructedScript {
+    Unavailable,
+    DistanceExceeded,
+    Ready(Vec<crate::diff::AtomicEdit>),
 }
 
 impl<T: Eq> RetainedSuffix<'_, T> {
@@ -262,6 +271,122 @@ impl<T: Eq> RetainedSuffix<'_, T> {
                 resource: DP_CELLS_RESOURCE,
                 limit: usize::MAX,
             })
+    }
+
+    /// Uses only a complete unique table with the original immutable inputs.
+    /// All traversal, output capacity and table-plus-output live bytes are
+    /// admitted before reconstruction; no physical source verdict is reused.
+    pub(super) fn reconstruct_unique(
+        self,
+        old: &[T],
+        new: &[T],
+        max_distance: usize,
+        remaining: &mut usize,
+    ) -> Result<ReconstructedScript> {
+        use crate::diff::{AtomicEdit, myers};
+        // Prepay immutable binding, original Myers admission, live-capacity
+        // arithmetic, fallback metadata, and table release on every exit.
+        if *remaining < 128 {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        if !super::charge(remaining, 128) {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        if !std::ptr::eq(old, self.old)
+            || !std::ptr::eq(new, self.new)
+            || self.completed
+                != old
+                    .len()
+                    .checked_mul(new.len())
+                    .ok_or(Error::Unresolved("unique table dimensions".to_owned()))?
+        {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        let (bound, _) = myers::reconstruction_admission(old.len(), new.len(), max_distance)?;
+        let length = old
+            .len()
+            .checked_add(new.len())
+            .ok_or(Error::Unresolved("unique script dimensions".to_owned()))?;
+        let distance = length
+            .checked_sub(
+                self.table[0]
+                    .checked_mul(2)
+                    .ok_or(Error::Unresolved("unique script rank".to_owned()))?,
+            )
+            .ok_or(Error::Unresolved("unique script distance".to_owned()))?;
+        if distance > bound {
+            return Ok(ReconstructedScript::DistanceExceeded);
+        }
+        let bytes = self
+            .table
+            .capacity()
+            .checked_mul(std::mem::size_of::<usize>())
+            .and_then(|x| x.checked_add(distance.checked_mul(std::mem::size_of::<AtomicEdit>())?))
+            .and_then(|x| {
+                x.checked_add(
+                    std::mem::size_of::<Self>()
+                        + std::mem::size_of::<Vec<AtomicEdit>>()
+                        + 16 * std::mem::size_of::<usize>(),
+                )
+            });
+        if bytes.is_none_or(|x| x > MAX_EXACT_MEMORY_BYTES) {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        let work = length
+            .checked_mul(8)
+            .and_then(|x| x.checked_add(distance.checked_mul(4)?));
+        let Some(work) = work else {
+            return Ok(ReconstructedScript::Unavailable);
+        };
+        if work > *remaining {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        if !super::charge(remaining, work) {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        let mut edits = Vec::new();
+        if edits.try_reserve_exact(distance).is_err() || edits.capacity() != distance {
+            return Ok(ReconstructedScript::Unavailable);
+        }
+        let columns = new.len() + 1;
+        let (mut i, mut j, mut start_i, mut start_j) = (0, 0, 0, 0);
+        while i < old.len() && j < new.len() {
+            if old[i] == new[j] {
+                if start_i < i {
+                    edits.push(AtomicEdit {
+                        old: start_i..i,
+                        new: start_j..start_j,
+                    });
+                }
+                if start_j < j {
+                    edits.push(AtomicEdit {
+                        old: i..i,
+                        new: start_j..j,
+                    });
+                }
+                i += 1;
+                j += 1;
+                start_i = i;
+                start_j = j;
+            } else if self.table[i * columns + j + 1] >= self.table[(i + 1) * columns + j] {
+                j += 1;
+            } else {
+                i += 1;
+            }
+        }
+        if start_i < old.len() {
+            edits.push(AtomicEdit {
+                old: start_i..old.len(),
+                new: start_j..start_j,
+            });
+        }
+        if start_j < new.len() {
+            edits.push(AtomicEdit {
+                old: old.len()..old.len(),
+                new: start_j..new.len(),
+            });
+        }
+        Ok(ReconstructedScript::Ready(edits))
     }
 
     /// Completes every unpaid cell before returning a usable suffix table.
@@ -293,6 +418,17 @@ impl<T: Eq> RetainedSuffix<'_, T> {
             return Err(Error::Unresolved(
                 "suffix continuation input identity mismatch".to_owned(),
             ));
+        }
+        if self.completed
+            == old
+                .len()
+                .checked_mul(new.len())
+                .ok_or(Error::LimitExceeded {
+                    resource: DP_CELLS_RESOURCE,
+                    limit: usize::MAX,
+                })?
+        {
+            return Ok(Some(self.table));
         }
         let columns = new.len() + 1;
         for old_index in (0..=self.next_old).rev() {
@@ -333,10 +469,29 @@ impl<T: Eq> RetainedSuffix<'_, T> {
 /// # Errors
 /// Returns the original dimensional and configured memory refusals, and prefix
 /// allocation failure. The two rolling-row allocations are no longer needed.
+#[cfg(test)]
 pub(super) fn check_retaining<'a, T: Eq>(
     old: &'a [T],
     new: &'a [T],
     remaining_cells: &mut usize,
+) -> Result<RetainedCheck<'a, T>> {
+    check_retaining_internal(old, new, remaining_cells, false)
+}
+
+/// Also preserves a paid complete unique table for immediate same-input use.
+pub(super) fn check_retaining_for_reconstruction<'a, T: Eq>(
+    old: &'a [T],
+    new: &'a [T],
+    remaining_cells: &mut usize,
+) -> Result<RetainedCheck<'a, T>> {
+    check_retaining_internal(old, new, remaining_cells, true)
+}
+
+fn check_retaining_internal<'a, T: Eq>(
+    old: &'a [T],
+    new: &'a [T],
+    remaining_cells: &mut usize,
+    retain_unique: bool,
 ) -> Result<RetainedCheck<'a, T>> {
     if old.is_empty() || new.is_empty() {
         return Ok(RetainedCheck::plain(ExactUniqueness::Unique));
@@ -506,6 +661,24 @@ pub(super) fn check_retaining<'a, T: Eq>(
     }
 
     debug_assert_eq!(prefix[0], lcs_length);
+    // Ten shallow words hold the suffix input references, vector and cursor
+    // fields; six more cover classification, retention and release metadata.
+    if retain_unique && matching_edges == lcs_length && *remaining_cells >= 16 {
+        if !super::charge(remaining_cells, 16) {
+            return Ok(RetainedCheck::plain(ExactUniqueness::Unique));
+        }
+        return Ok(RetainedCheck {
+            outcome: ExactUniqueness::Unique,
+            suffix: Some(RetainedSuffix {
+                old,
+                new,
+                table: prefix,
+                next_old: 0,
+                next_new: 0,
+                completed: forward_cells,
+            }),
+        });
+    }
     Ok(RetainedCheck::plain(if matching_edges == lcs_length {
         ExactUniqueness::Unique
     } else {
@@ -799,6 +972,189 @@ fn charge_cell(remaining_cells: &mut usize) -> bool {
 mod tests {
     use super::super::all_words;
     use super::{ExactUniqueness, check};
+
+    #[test]
+    fn unique_match_gap_deletion_order_matches_myers_minimal_reproduction() {
+        use crate::diff::{AtomicEdit, myers};
+        for old in &all_words(4) {
+            for new in &all_words(4) {
+                if super::check(old, new, &mut 1_000_000).expect("exact oracle")
+                    != super::ExactUniqueness::Unique
+                {
+                    continue;
+                }
+                let columns = new.len() + 1;
+                let mut suffix = vec![0; (old.len() + 1) * columns];
+                for i in (0..old.len()).rev() {
+                    for j in (0..new.len()).rev() {
+                        suffix[i * columns + j] = if old[i] == new[j] {
+                            suffix[(i + 1) * columns + j + 1] + 1
+                        } else {
+                            suffix[(i + 1) * columns + j].max(suffix[i * columns + j + 1])
+                        };
+                    }
+                }
+                let mut pairs = Vec::new();
+                let (mut i, mut j) = (0, 0);
+                while i < old.len() && j < new.len() {
+                    if old[i] == new[j] {
+                        pairs.push((i, j));
+                        i += 1;
+                        j += 1;
+                    } else if suffix[i * columns + j + 1] >= suffix[(i + 1) * columns + j] {
+                        j += 1;
+                    } else {
+                        i += 1;
+                    }
+                }
+                let mut edits = Vec::new();
+                let (mut i, mut j) = (0, 0);
+                for (x, y) in pairs.into_iter().chain([(old.len(), new.len())]) {
+                    if i < x {
+                        edits.push(AtomicEdit {
+                            old: i..x,
+                            new: j..j,
+                        });
+                    }
+                    if j < y {
+                        edits.push(AtomicEdit {
+                            old: x..x,
+                            new: j..y,
+                        });
+                    }
+                    i = x + 1;
+                    j = y + 1;
+                }
+                assert_eq!(
+                    edits,
+                    myers::diff(old, new, 100)
+                        .expect("Myers")
+                        .expect("within bound"),
+                    "old={old:?} new={new:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn complete_unique_reconstruction_keeps_myers_order_identity_budget_and_distance() {
+        use super::{ExactUniqueness, ReconstructedScript};
+        use crate::diff::myers;
+        for a in &all_words(4) {
+            for b in &all_words(4) {
+                let old = a
+                    .iter()
+                    .map(|x| if *x == 0 { 'a' } else { 'š' })
+                    .collect::<Vec<_>>();
+                let new = b
+                    .iter()
+                    .map(|x| if *x == 0 { 'a' } else { 'š' })
+                    .collect::<Vec<_>>();
+                let checked = super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                    .expect("check");
+                if checked.outcome != ExactUniqueness::Unique {
+                    continue;
+                }
+                let Some(table) = checked.suffix else {
+                    continue;
+                };
+                let mut work = 1_000_000;
+                let ReconstructedScript::Ready(script) = table
+                    .reconstruct_unique(&old, &new, 100, &mut work)
+                    .expect("reconstruction")
+                else {
+                    panic!("complete unique");
+                };
+                assert_eq!(Some(script), myers::diff(&old, &new, 100).expect("Myers"));
+                let used = 1_000_000 - work;
+                let checked = super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                    .expect("check");
+                assert!(matches!(
+                    checked
+                        .suffix
+                        .expect("complete")
+                        .reconstruct_unique(&old, &new, 100, &mut (used - 1))
+                        .expect("bounded"),
+                    ReconstructedScript::Unavailable
+                ));
+                let checked = super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                    .expect("check");
+                assert!(matches!(
+                    checked
+                        .suffix
+                        .expect("complete")
+                        .reconstruct_unique(&old, &new, 0, &mut 1_000_000)
+                        .expect("distance"),
+                    ReconstructedScript::DistanceExceeded
+                ));
+                let checked = super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                    .expect("check");
+                assert!(matches!(
+                    checked
+                        .suffix
+                        .expect("complete")
+                        .reconstruct_unique(&old.clone(), &new, 100, &mut 1_000_000)
+                        .expect("identity"),
+                    ReconstructedScript::Unavailable
+                ));
+            }
+        }
+        let old = [0, 0];
+        let new = [0];
+        let check = super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+            .expect("ambiguous");
+        assert_eq!(check.outcome, ExactUniqueness::Ambiguous);
+        if let Some(table) = check.suffix {
+            assert!(matches!(
+                table
+                    .reconstruct_unique(&old, &new, 100, &mut 1_000_000)
+                    .expect("incomplete"),
+                ReconstructedScript::Unavailable
+            ));
+        }
+    }
+
+    #[test]
+    fn unique_reconstruction_rejects_reversed_bindings_and_excess_live_capacity() {
+        use super::ReconstructedScript;
+        let old = ['a', 'b'];
+        let new = ['a', 'c'];
+        let checked =
+            super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000).expect("unique");
+        assert!(matches!(
+            checked
+                .suffix
+                .expect("complete")
+                .reconstruct_unique(&new, &old, 100, &mut 1_000_000)
+                .expect("reversed"),
+            ReconstructedScript::Unavailable
+        ));
+        let checked =
+            super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000).expect("unique");
+        let mut table = checked.suffix.expect("complete");
+        table
+            .table
+            .try_reserve_exact(super::MAX_EXACT_MEMORY_BYTES / std::mem::size_of::<usize>() + 1)
+            .expect("test capacity");
+        assert!(matches!(
+            table
+                .reconstruct_unique(&old, &new, 100, &mut 1_000_000)
+                .expect("memory bound"),
+            ReconstructedScript::Unavailable
+        ));
+        let checked =
+            super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000).expect("unique");
+        let mut work = 3;
+        assert!(
+            checked
+                .suffix
+                .expect("complete")
+                .complete_for(&old, &new, &mut work)
+                .expect("already complete")
+                .is_some()
+        );
+        assert_eq!(work, 0);
+    }
 
     #[test]
     fn retained_suffix_exact_outcomes_and_charges_match_rolling_oracle() {
