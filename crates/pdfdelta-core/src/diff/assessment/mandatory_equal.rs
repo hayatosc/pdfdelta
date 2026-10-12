@@ -987,6 +987,20 @@ fn tiny_literal_projection<const N: usize>(
             return Some(LiteralProjection::General);
         }
     }
+    if N == 2 {
+        // Pay both source-index comparisons, including the selected-block
+        // case that still takes the original full interval projection.
+        if !charge_work(remaining, 2) {
+            return None;
+        }
+        if indices[0] != selected.block_index && indices[1] != selected.block_index {
+            // Pay the complete header validation before copying its index pair.
+            if !charge_work(remaining, 20) {
+                return None;
+            }
+            return unrelated_literal_pair(side, span, [indices[0], indices[1]]);
+        }
+    }
     literal_overlap_stream(
         side,
         span,
@@ -999,6 +1013,48 @@ fn tiny_literal_projection<const N: usize>(
         16,
         remaining,
     )
+}
+
+/// Validates the full joined coordinate system even when neither literal
+/// source block can overlap the selected block. No clipped intervals are
+/// materialized; every source, duplicate and unmapped premise is already paid
+/// by the bounded header walk. Range checks remain specific to this span.
+fn unrelated_literal_pair(
+    side: &Side<'_>,
+    span: &super::TextSpan,
+    indices: [usize; 2],
+) -> Option<LiteralProjection> {
+    // The caller prepays twenty units for the index-pair copy, endpoint
+    // agreement, both boundary headers, Unicode/projected-space agreement,
+    // checked joined length and range bounds before entering this function.
+    let range = span.comparable_range;
+    if range.start > range.end
+        || span.canonical_range.start != range.start
+        || span.canonical_range.end != range.end
+    {
+        return None;
+    }
+    let old = &side.canonical[indices[0]];
+    let new = &side.canonical[indices[1]];
+    let mut join = false;
+    if span.separator?.at(0) == super::BlockSeparator::Space {
+        let canonical = !old.last().is_some_and(super::super::is_space_token)
+            && !new.first().is_some_and(super::super::is_space_token);
+        let projected = !old.last().is_some_and(super::space_token)
+            && !new.first().is_some_and(super::space_token);
+        if canonical != projected {
+            return None;
+        }
+        join = canonical;
+    }
+    let length = old
+        .len()
+        .checked_add(new.len())?
+        .checked_add(usize::from(join))?;
+    if range.end > length {
+        return None;
+    }
+    Some(LiteralProjection::Clear(true))
 }
 
 enum ProjectionBlock {

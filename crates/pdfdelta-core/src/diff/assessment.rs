@@ -8681,6 +8681,50 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn unrelated_literal_pair_keeps_full_coordinate_bounds_after_source_validation() -> Result<()> {
+        let blocks = [
+            anchor_block(411, &"A".repeat(727)),
+            anchor_block(412, &"B".repeat(634)),
+            anchor_block(474, "X"),
+        ];
+        let side = super::super::SidePlan::inspect("unrelated pair", &blocks)?.materialize()?;
+        let group =
+            side.canonical_group(&[BlockId(411), BlockId(412)], Some(BlockSeparator::Space));
+        let selected = SourceInterval {
+            block_index: 2,
+            start: 0,
+            end: 1,
+        };
+        for (start, end) in [(78, 224), (144, 277), (799, 992)] {
+            let span = group.span(start, end);
+            assert!(coarse_project(&side, &span).is_some());
+            assert_eq!(
+                mandatory_equal::ownership_projection_clear(&side, &span, &selected, &mut 36),
+                None
+            );
+            let mut work = 37;
+            assert_eq!(
+                mandatory_equal::ownership_projection_clear(&side, &span, &selected, &mut work),
+                Some(true)
+            );
+            assert_eq!(work, 0);
+            assert_eq!(
+                mandatory_equal::ownership_projection_clear(&side, &span, &selected, &mut 34),
+                None
+            );
+        }
+        let mut invalid = group.span(78, 224);
+        invalid.comparable_range.end = group.tokens.len() + 1;
+        invalid.canonical_range.end = invalid.comparable_range.end;
+        assert!(coarse_project(&side, &invalid).is_none());
+        assert_eq!(
+            mandatory_equal::ownership_projection_clear(&side, &invalid, &selected, &mut 37),
+            None
+        );
+        Ok(())
+    }
+
+    #[test]
     fn tiny_ownership_projection_pays_actual_initialized_stack_width() -> Result<()> {
         let blocks = (0..8)
             .map(|i| anchor_block(100 - i, "ABCD"))
@@ -8700,7 +8744,8 @@ mod assessor_issue_cache_tests {
                 3..=4 => 4,
                 _ => 8,
             };
-            let work = 4 + 2 + width + count * (count - 1) / 2 + 19 * count;
+            let work =
+                4 + 2 + width + count * (count - 1) / 2 + 19 * count + usize::from(count == 2) * 2;
             assert_eq!(
                 mandatory_equal::ownership_projection_clear(
                     &side,
@@ -8722,13 +8767,13 @@ mod assessor_issue_cache_tests {
             );
             assert_eq!(remaining, 0);
             if count == 2 {
-                assert_eq!(work, 47);
+                assert_eq!(work, 49);
                 let unrelated = SourceInterval {
                     block_index: 7,
                     start: 0,
                     end: 1,
                 };
-                let mut remaining = 49;
+                let mut remaining = 37;
                 assert_eq!(
                     mandatory_equal::ownership_projection_clear(
                         &side,
@@ -8738,7 +8783,7 @@ mod assessor_issue_cache_tests {
                     ),
                     Some(true)
                 );
-                assert_eq!(remaining, 2);
+                assert_eq!(remaining, 0);
             }
         }
         Ok(())
