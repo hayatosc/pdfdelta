@@ -2898,7 +2898,14 @@ impl Assessor<'_, '_> {
         }
         let mut superseded = Vec::new();
         for (index, candidate) in candidates.iter().enumerate() {
+            // Cover the additional containment bookkeeping even when a
+            // candidate projects to no nonempty source interval.
+            if !self.charge(8) {
+                self.mark_local_work_limit(relation);
+                return Ok(LocalRecoveryStep::Stop { truncated: false });
+            }
             let mut overlaps_domain = false;
+            let mut wholly_covered = true;
             for occurrence in &candidate.change.occurrences {
                 for (side, span) in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
                     .into_iter()
@@ -2917,8 +2924,29 @@ impl Assessor<'_, '_> {
                             return Ok(LocalRecoveryStep::Stop { truncated: false });
                         };
                         overlaps_domain |= overlap;
+                        // An overlap does not discharge the candidate's
+                        // remaining source obligations. Pay the complete
+                        // containment scan before deciding to replace it.
+                        let coverage_cost = source
+                            .len()
+                            .saturating_mul(accepted[side].len().saturating_add(1))
+                            .saturating_mul(8);
+                        if !self.charge(coverage_cost) {
+                            self.mark_local_work_limit(relation);
+                            return Ok(LocalRecoveryStep::Stop { truncated: false });
+                        }
+                        wholly_covered &= source.iter().all(|interval| {
+                            accepted[side].iter().any(|range| {
+                                range.block_index == interval.block_index
+                                    && range.start <= interval.start
+                                    && interval.end <= range.end
+                            })
+                        });
                     }
                 }
+            }
+            if overlaps_domain && !wholly_covered {
+                return Ok(LocalRecoveryStep::Continue);
             }
             if overlaps_domain {
                 superseded.push(index);
@@ -3258,6 +3286,66 @@ mod tests {
             .expect("test blocks are valid")
             .materialize()
             .expect("test blocks materialize")
+    }
+
+    #[test]
+    fn partial_local_recovery_preserves_whole_candidate() -> Result<()> {
+        let old_blocks = [sourced_block(1, "ABCD")];
+        let new_blocks = [sourced_block(101, "ABXD")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = matched_alignment(&[BlockId(1)], &[BlockId(101)]);
+        for (candidate_end, candidate_side) in [(3, 0), (4, 0), (3, 1), (4, 1)] {
+            let mut assessor = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            assessor.local_domains.push(LocalDomain {
+                old_span: span(1, 3),
+                new_span: span(101, 3),
+                source_bounded: true,
+            });
+            let mut owners = [Ownership::new(), Ownership::new()];
+            let mut changes = Vec::new();
+            let mut candidates = vec![super::super::ChangeCandidate {
+                change: Change::single_occurrence(
+                    if candidate_side == 0 {
+                        ChangeKind::Deletion
+                    } else {
+                        ChangeKind::Insertion
+                    },
+                    (candidate_side == 0).then(|| span(1, candidate_end)),
+                    (candidate_side == 1).then(|| span(101, candidate_end)),
+                    Confidence::Low,
+                    Vec::new(),
+                ),
+                relation: 0,
+                alternative_group: 0,
+            }];
+            let before = candidates.clone();
+            assessor.recover_local_domain(0, &mut owners, &mut changes, &mut candidates)?;
+            if candidate_end == 3 {
+                assert!(
+                    !changes.is_empty(),
+                    "complete candidate control must recover"
+                );
+                assert!(candidates.is_empty());
+            } else {
+                assert_eq!(
+                    candidates, before,
+                    "a partial overlap cannot supersede the whole candidate"
+                );
+                assert!(changes.is_empty());
+                assert!(
+                    owners
+                        .iter()
+                        .all(|owner| owner.accepted.is_empty() && owner.changed.is_empty())
+                );
+            }
+        }
+        Ok(())
     }
 
     #[test]
