@@ -6,7 +6,7 @@ use super::{
 use crate::{
     Result,
     alignment::BlockSeparator,
-    diff::{ChangeKind, Confidence, ProvenChangedRegion, Side},
+    diff::{Confidence, ProvenChangedRegion, Side},
 };
 
 /// Outcome of one deferred equal-fragment retry.
@@ -2948,16 +2948,6 @@ impl Assessor<'_, '_> {
                 }
             }
             if overlaps_domain && !wholly_covered {
-                // One-sided remainders keep their original hypothesis and
-                // relation provenance. A disconnected two-sided remainder
-                // requires correspondence evidence this pass does not have.
-                let side = match candidate.change.kind {
-                    ChangeKind::Deletion => 0,
-                    ChangeKind::Insertion => 1,
-                    ChangeKind::Replacement | ChangeKind::Move => {
-                        return Ok(LocalRecoveryStep::Continue);
-                    }
-                };
                 if !self.charge(256usize.saturating_add(candidates.len().saturating_mul(32))) {
                     self.mark_local_work_limit(relation);
                     return Ok(LocalRecoveryStep::Stop { truncated: false });
@@ -2965,55 +2955,78 @@ impl Assessor<'_, '_> {
                 let mut occurrences = Vec::new();
                 let mut occurrence_body_bytes = 0usize;
                 for occurrence in &candidate.change.occurrences {
-                    let spans = [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()];
-                    let Some(span) = spans[side] else {
-                        return Err(super::invalid("one-sided candidate has no source span"));
-                    };
-                    if spans[1 - side].is_some() {
+                    if !super::super::valid_change_occurrence_shape(
+                        candidate.change.kind,
+                        occurrence.old_span.as_ref(),
+                        occurrence.new_span.as_ref(),
+                    ) {
                         return Err(super::invalid(
-                            "one-sided candidate has an opposite source span",
+                            "candidate residue has an invalid original occurrence shape",
                         ));
                     }
-                    let Some(residues) = candidate_side_residue(
-                        self.sides[side],
-                        span,
-                        &accepted[side],
+                    let strict = self.domains[&key].strict_unique
+                        && self.domains[&key].search == SearchCompleteness::Complete;
+                    let contexts = std::array::from_fn(|side| CandidateResidueSource {
+                        accepted: &accepted[side],
+                        exact: strict.then(|| {
+                            (
+                                if side == 0 {
+                                    proposal.old.as_ref()
+                                } else {
+                                    proposal.new.as_ref()
+                                }
+                                .expect("local recovery has both source spans"),
+                                self.domains[&key].edits.as_slice(),
+                                side,
+                            )
+                        }),
+                    });
+                    let memory_limit = (64usize * 1024 * 1024)
+                        .saturating_sub(residue_live_bytes)
+                        .saturating_sub(occurrence_body_bytes)
+                        .saturating_sub(occurrences.capacity().saturating_mul(
+                            2 * std::mem::size_of::<super::super::ChangeOccurrence>(),
+                        ));
+                    let Some(residues) = candidate_occurrence_residue(
+                        self.sides,
+                        occurrence,
+                        contexts,
                         self.options.max_assessment_ranges,
-                        (64usize * 1024 * 1024)
-                            .saturating_sub(residue_live_bytes)
-                            .saturating_sub(occurrence_body_bytes)
-                            .saturating_sub(occurrences.capacity().saturating_mul(
-                                2 * std::mem::size_of::<super::super::ChangeOccurrence>(),
-                            )),
+                        memory_limit,
                         &mut self.remaining_work,
                     )?
                     else {
                         return Ok(LocalRecoveryStep::Continue);
                     };
-                    let count = occurrences.len().saturating_add(residues.len());
-                    if count > self.options.max_assessment_ranges {
+                    if occurrences.len().saturating_add(residues.len())
+                        > self.options.max_assessment_ranges
+                    {
                         return Ok(LocalRecoveryStep::Continue);
                     }
                     occurrences
                         .try_reserve_exact(residues.len())
                         .map_err(|_| super::allocation_error("candidate residue occurrences"))?;
-                    for span in residues {
-                        occurrence_body_bytes = occurrence_body_bytes.saturating_add(
-                            span.blocks
-                                .capacity()
-                                .saturating_mul(std::mem::size_of::<crate::layout::BlockId>()),
-                        );
-                        occurrences.push(if side == 0 {
-                            super::super::ChangeOccurrence {
-                                old_span: Some(span),
-                                new_span: None,
-                            }
-                        } else {
-                            super::super::ChangeOccurrence {
-                                old_span: None,
-                                new_span: Some(span),
-                            }
-                        });
+                    for occurrence in residues {
+                        if !super::super::valid_change_occurrence_shape(
+                            candidate.change.kind,
+                            occurrence.old_span.as_ref(),
+                            occurrence.new_span.as_ref(),
+                        ) {
+                            return Err(super::invalid(
+                                "candidate residue changed its occurrence shape",
+                            ));
+                        }
+                        for span in [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()]
+                            .into_iter()
+                            .flatten()
+                        {
+                            occurrence_body_bytes = occurrence_body_bytes.saturating_add(
+                                span.blocks
+                                    .capacity()
+                                    .saturating_mul(std::mem::size_of::<crate::layout::BlockId>()),
+                            );
+                        }
+                        occurrences.push(occurrence);
                     }
                 }
                 let previous_capacity = residue_updates.capacity();
@@ -3037,7 +3050,11 @@ impl Assessor<'_, '_> {
                 if residue_live_bytes > 64 * 1024 * 1024 {
                     return Ok(LocalRecoveryStep::Continue);
                 }
-                residue_updates.push((index, occurrences));
+                if occurrences.is_empty() {
+                    superseded.push(index);
+                } else {
+                    residue_updates.push((index, occurrences));
+                }
                 continue;
             }
             if overlaps_domain {
@@ -3113,18 +3130,211 @@ impl Assessor<'_, '_> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct CandidateResidueSource<'a> {
+    accepted: &'a [SourceInterval],
+    exact: Option<(&'a TextSpan, &'a [super::super::myers::AtomicEdit], usize)>,
+}
+#[cfg(test)]
+fn physical_candidate_residue(accepted: &[SourceInterval]) -> CandidateResidueSource<'_> {
+    CandidateResidueSource {
+        accepted,
+        exact: None,
+    }
+}
+
+/// Keeps the original association only when no fragment correspondence must
+/// be selected. An original empty anchor remains at its original source frame.
+fn candidate_occurrence_residue(
+    sides: [&Side<'_>; 2],
+    occurrence: &super::super::ChangeOccurrence,
+    contexts: [CandidateResidueSource<'_>; 2],
+    limit: usize,
+    memory_limit: usize,
+    remaining: &mut usize,
+) -> Result<Option<Vec<super::super::ChangeOccurrence>>> {
+    if !charge(remaining, 256) {
+        return Ok(None);
+    }
+    let originals = [occurrence.old_span.as_ref(), occurrence.new_span.as_ref()];
+    let mut pieces = [Vec::new(), Vec::new()];
+    let mut live_bytes = 0usize;
+    for which in 0..2 {
+        let Some(span) = originals[which] else {
+            continue;
+        };
+        if span.comparable_range.start == span.comparable_range.end {
+            if !charge(
+                remaining,
+                128usize.saturating_add(span.blocks.len().saturating_mul(64)),
+            ) {
+                return Ok(None);
+            }
+            let expected = std::mem::size_of::<TextSpan>().saturating_add(
+                span.blocks
+                    .len()
+                    .saturating_mul(std::mem::size_of::<crate::layout::BlockId>()),
+            );
+            if live_bytes.saturating_add(expected) > memory_limit {
+                return Ok(None);
+            }
+            project(sides[which], span)?;
+            pieces[which]
+                .try_reserve_exact(1)
+                .map_err(|_| super::allocation_error("candidate empty anchor"))?;
+            pieces[which].push(copy_span(span)?);
+        } else {
+            let Some(result) = candidate_side_residue(
+                sides[which],
+                span,
+                contexts[which],
+                limit,
+                memory_limit.saturating_sub(live_bytes),
+                remaining,
+            )?
+            else {
+                return Ok(None);
+            };
+            pieces[which] = result;
+        }
+        live_bytes = live_bytes
+            .saturating_add(
+                pieces[which]
+                    .capacity()
+                    .saturating_mul(std::mem::size_of::<TextSpan>()),
+            )
+            .saturating_add(
+                pieces[which]
+                    .iter()
+                    .map(|s| {
+                        s.blocks
+                            .capacity()
+                            .saturating_mul(std::mem::size_of::<crate::layout::BlockId>())
+                    })
+                    .sum::<usize>(),
+            );
+        if live_bytes > memory_limit {
+            return Ok(None);
+        }
+    }
+    let empty = |which: usize| {
+        pieces[which].len() == 1
+            && pieces[which][0].comparable_range.start == pieces[which][0].comparable_range.end
+    };
+    let count = if originals[0].is_none() {
+        pieces[1].len()
+    } else if originals[1].is_none() {
+        pieces[0].len()
+    } else if pieces.iter().all(Vec::is_empty) {
+        0
+    } else if pieces.iter().any(Vec::is_empty) {
+        return Ok(None);
+    } else if empty(0) {
+        pieces[1].len()
+    } else if empty(1) {
+        pieces[0].len()
+    } else if pieces[0].len() == 1 && pieces[1].len() == 1 {
+        1
+    } else {
+        return Ok(None);
+    };
+    if count > limit {
+        return Ok(None);
+    }
+    let repeated_blocks = if empty(0) {
+        pieces[0][0].blocks.len().saturating_mul(count)
+    } else if empty(1) {
+        pieces[1][0].blocks.len().saturating_mul(count)
+    } else {
+        0
+    };
+    let output_bytes = count
+        .saturating_mul(std::mem::size_of::<super::super::ChangeOccurrence>())
+        .saturating_add(
+            repeated_blocks.saturating_mul(std::mem::size_of::<crate::layout::BlockId>()),
+        );
+    if live_bytes.saturating_add(output_bytes) > memory_limit
+        || !charge(
+            remaining,
+            count
+                .saturating_mul(64)
+                .saturating_add(repeated_blocks.saturating_mul(32))
+                .saturating_add(128),
+        )
+    {
+        return Ok(None);
+    }
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(count)
+        .map_err(|_| super::allocation_error("paired candidate residues"))?;
+    if output.capacity() > count {
+        return Ok(None);
+    }
+    let [mut old, mut new] = pieces;
+    if originals[0].is_none() {
+        output.extend(new.into_iter().map(|span| super::super::ChangeOccurrence {
+            old_span: None,
+            new_span: Some(span),
+        }));
+    } else if originals[1].is_none() {
+        output.extend(old.into_iter().map(|span| super::super::ChangeOccurrence {
+            old_span: Some(span),
+            new_span: None,
+        }));
+    } else if count > 0
+        && old.len() == 1
+        && old[0].comparable_range.start == old[0].comparable_range.end
+    {
+        let anchor = old.pop().expect("one original anchor");
+        for span in new {
+            output.push(super::super::ChangeOccurrence {
+                old_span: Some(copy_span(&anchor)?),
+                new_span: Some(span),
+            });
+        }
+    } else if count > 0
+        && new.len() == 1
+        && new[0].comparable_range.start == new[0].comparable_range.end
+    {
+        let anchor = new.pop().expect("one original anchor");
+        for span in old {
+            output.push(super::super::ChangeOccurrence {
+                old_span: Some(span),
+                new_span: Some(copy_span(&anchor)?),
+            });
+        }
+    } else if count == 1 {
+        output.push(super::super::ChangeOccurrence {
+            old_span: old.pop(),
+            new_span: new.pop(),
+        });
+    }
+    Ok(Some(output))
+}
+
 /// Subtracts established source intervals without inventing a correspondence
 /// between disconnected old/new remainders. Scalar coordinates and block
 /// separators remain in the original candidate's coordinate frame.
 fn candidate_side_residue(
     side: &Side<'_>,
     span: &TextSpan,
-    accepted: &[SourceInterval],
+    context: CandidateResidueSource<'_>,
     limit: usize,
     memory_limit: usize,
     remaining: &mut usize,
 ) -> Result<Option<Vec<TextSpan>>> {
-    let slots = span.blocks.len().saturating_mul(accepted.len());
+    let accepted = context.accepted;
+    let structural_slots = if context.exact.is_some() {
+        span.blocks.len().saturating_sub(1)
+    } else {
+        0
+    };
+    let slots = span
+        .blocks
+        .len()
+        .saturating_mul(accepted.len())
+        .saturating_add(structural_slots);
     let fragments = slots.saturating_add(1);
     let words = span.blocks.len().saturating_mul(fragments);
     let bytes = fragments
@@ -3150,8 +3360,22 @@ fn candidate_side_residue(
                 .map_or(0, |&index| side.canonical[index].len())
         })
         .sum::<usize>();
-    let cost = slots
-        .saturating_mul(16)
+    let structural_cost = context.exact.map_or(0, |(proof, edits, _)| {
+        span.blocks
+            .len()
+            .saturating_mul(proof.blocks.len())
+            .saturating_mul(64)
+            .saturating_add(
+                span.blocks
+                    .len()
+                    .saturating_mul(edits.len())
+                    .saturating_mul(16),
+            )
+            .saturating_add(proof.blocks.len().saturating_mul(32))
+            .saturating_add(256)
+    });
+    let cost = structural_cost
+        .saturating_add(slots.saturating_mul(16))
         .saturating_add(words.saturating_mul(32))
         .saturating_add(token_bound.saturating_mul(fragments).saturating_mul(4))
         .saturating_add(span.blocks.len().saturating_mul(32));
@@ -3159,6 +3383,9 @@ fn candidate_side_residue(
         return Ok(None);
     }
     project(side, span)?;
+    if let Some((proof, _, _)) = context.exact {
+        project(side, proof)?;
+    }
     let mut cuts = Vec::new();
     cuts.try_reserve_exact(slots)
         .map_err(|_| super::allocation_error("candidate residue cuts"))?;
@@ -3174,6 +3401,54 @@ fn candidate_side_residue(
             && span.separator.map(|s| s.at(position - 1)) == Some(BlockSeparator::Space)
             && !preceding_space
             && !tokens.first().is_some_and(super::space_token);
+        if separator && let Some((proof, edits, which)) = context.exact {
+            let previous = span.blocks[position - 1];
+            if let Some(boundary) = proof
+                .blocks
+                .windows(2)
+                .position(|ids| ids == [previous, *id])
+            {
+                let mut proof_offset = 0usize;
+                let mut proof_preceding_space = false;
+                for (proof_position, proof_id) in proof.blocks.iter().enumerate() {
+                    let proof_tokens = &side.canonical[side.index[proof_id]];
+                    let proof_separator = proof_position > 0
+                        && proof.separator.map(|s| s.at(proof_position - 1))
+                            == Some(BlockSeparator::Space)
+                        && !proof_preceding_space
+                        && !proof_tokens.first().is_some_and(super::space_token);
+                    if proof_position == boundary + 1 {
+                        if proof_separator
+                            && proof_offset >= proof.comparable_range.start
+                            && proof_offset < proof.comparable_range.end
+                        {
+                            let local = proof_offset - proof.comparable_range.start;
+                            let changed = edits.iter().any(|edit| {
+                                if which == 0 {
+                                    edit.old.contains(&local)
+                                } else {
+                                    edit.new.contains(&local)
+                                }
+                            });
+                            if !changed {
+                                let start = token_offset.max(span.comparable_range.start);
+                                let end = token_offset
+                                    .saturating_add(1)
+                                    .min(span.comparable_range.end);
+                                if start < end {
+                                    cuts.push((start, end));
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    proof_offset += usize::from(proof_separator) + proof_tokens.len();
+                    proof_preceding_space = proof_tokens
+                        .last()
+                        .map_or(proof_separator || proof_preceding_space, super::space_token);
+                }
+            }
+        }
         token_offset += usize::from(separator);
         for interval in accepted.iter().filter(|r| r.block_index == index) {
             let start = (token_offset + interval.start).max(span.comparable_range.start);
@@ -3681,7 +3956,7 @@ mod tests {
         let result = candidate_side_residue(
             &source,
             &original,
-            &accepted,
+            physical_candidate_residue(&accepted),
             100,
             64 * 1024 * 1024,
             &mut remaining,
@@ -3739,7 +4014,7 @@ mod tests {
                 candidate_side_residue(
                     &source,
                     &original,
-                    &accepted,
+                    physical_candidate_residue(&accepted),
                     100,
                     64 * 1024 * 1024,
                     &mut remaining
@@ -3752,7 +4027,7 @@ mod tests {
             candidate_side_residue(
                 &source,
                 &original,
-                &accepted,
+                physical_candidate_residue(&accepted),
                 100,
                 64 * 1024 * 1024,
                 &mut exact
@@ -3764,7 +4039,7 @@ mod tests {
             candidate_side_residue(
                 &source,
                 &original,
-                &accepted,
+                physical_candidate_residue(&accepted),
                 4,
                 64 * 1024 * 1024,
                 &mut 10_000
@@ -3772,7 +4047,15 @@ mod tests {
             .is_none()
         );
         assert!(
-            candidate_side_residue(&source, &original, &accepted, 100, 0, &mut 10_000)?.is_none()
+            candidate_side_residue(
+                &source,
+                &original,
+                physical_candidate_residue(&accepted),
+                100,
+                0,
+                &mut 10_000
+            )?
+            .is_none()
         );
         let full = [
             SourceInterval {
@@ -3790,13 +4073,309 @@ mod tests {
             candidate_side_residue(
                 &source,
                 &original,
-                &full,
+                physical_candidate_residue(&full),
                 100,
                 64 * 1024 * 1024,
                 &mut 10_000
             )?
             .is_none(),
             "a synthetic separator alone is not a physical content residue"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn candidate_structural_residue_requires_exact_unchanged_gap() -> Result<()> {
+        let blocks = [sourced_block(1, "AB"), sourced_block(2, "CD")];
+        let source = side(&blocks);
+        let original = TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 0, end: 5 },
+            comparable_range: super::super::super::TokenRange { start: 0, end: 5 },
+        };
+        let accepted = [
+            SourceInterval {
+                block_index: 0,
+                start: 0,
+                end: 2,
+            },
+            SourceInterval {
+                block_index: 1,
+                start: 0,
+                end: 2,
+            },
+        ];
+        assert!(
+            candidate_side_residue(
+                &source,
+                &original,
+                physical_candidate_residue(&accepted),
+                100,
+                64 * 1024 * 1024,
+                &mut 100_000
+            )?
+            .is_none()
+        );
+        let context = CandidateResidueSource {
+            accepted: &accepted,
+            exact: Some((&original, &[], 0)),
+        };
+        assert_eq!(
+            candidate_side_residue(
+                &source,
+                &original,
+                context,
+                100,
+                64 * 1024 * 1024,
+                &mut 100_000
+            )?,
+            Some(Vec::new())
+        );
+        let changed = [super::super::super::myers::AtomicEdit {
+            old: 2..3,
+            new: 2..2,
+        }];
+        let context = CandidateResidueSource {
+            accepted: &accepted,
+            exact: Some((&original, &changed, 0)),
+        };
+        assert!(
+            candidate_side_residue(
+                &source,
+                &original,
+                context,
+                100,
+                64 * 1024 * 1024,
+                &mut 100_000
+            )?
+            .is_none()
+        );
+        let mut other_model = original.clone();
+        other_model.separator = Some(BlockSeparator::Concatenate);
+        other_model.comparable_range.end = 4;
+        other_model.canonical_range.end = 4;
+        let context = CandidateResidueSource {
+            accepted: &accepted,
+            exact: Some((&other_model, &[], 0)),
+        };
+        assert!(
+            candidate_side_residue(
+                &source,
+                &original,
+                context,
+                100,
+                64 * 1024 * 1024,
+                &mut 100_000
+            )?
+            .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn mixed_candidate_residues_keep_local_proof_and_original_empty_anchor() -> Result<()> {
+        let old_blocks = [sourced_block(1, "ABCD"), sourced_block(2, "Q")];
+        let new_blocks = [sourced_block(101, "ABXD")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = matched_alignment(&[BlockId(1)], &[BlockId(101)]);
+        for reverse in [false, true] {
+            let mut assessor = super::super::Assessor::new(
+                [&old, &new],
+                &alignment,
+                None,
+                DiffOptions::default(),
+            )?;
+            assessor.local_domains.push(LocalDomain {
+                old_span: span(1, 3),
+                new_span: span(101, 3),
+                source_bounded: true,
+            });
+            let mut candidates = vec![
+                ChangeCandidate {
+                    change: Change::single_occurrence(
+                        ChangeKind::Deletion,
+                        Some(span(1, 4)),
+                        None,
+                        Confidence::Low,
+                        Vec::new(),
+                    ),
+                    relation: 0,
+                    alternative_group: 0,
+                },
+                ChangeCandidate {
+                    change: Change::single_occurrence(
+                        ChangeKind::Replacement,
+                        Some(span(2, 0)),
+                        Some(span(101, 4)),
+                        Confidence::Low,
+                        Vec::new(),
+                    ),
+                    relation: 0,
+                    alternative_group: 0,
+                },
+            ];
+            for candidate in &mut candidates {
+                let occurrence = &candidate.change.occurrences[0];
+                let origin = assessor.record(super::super::RelationAssessment {
+                    old_span: occurrence.old_span.clone(),
+                    new_span: occurrence.new_span.clone(),
+                    parent: None,
+                    outcome: RelationOutcome::Tentative,
+                    search: SearchCompleteness::Incomplete,
+                    assumptions: Vec::new(),
+                    reasons: vec![super::super::AssessmentReason::DomainNotClosed],
+                })?;
+                candidate.relation = origin;
+                candidate.alternative_group = origin;
+            }
+            if reverse {
+                candidates.reverse();
+            }
+            let originals = candidates.clone();
+            let mut ownership = [Ownership::new(), Ownership::new()];
+            let mut changes = Vec::new();
+            assessor.recover_local_domain(0, &mut ownership, &mut changes, &mut candidates)?;
+            assert!(
+                !changes.is_empty(),
+                "a mixed candidate must not veto the established C/X proof"
+            );
+            assert_eq!(candidates.len(), 2);
+            for (candidate, original) in candidates.iter().zip(&originals) {
+                assert_eq!(candidate.relation, original.relation);
+                assert_eq!(candidate.alternative_group, original.alternative_group);
+                let origin = &assessor.records[candidate.relation];
+                assert_eq!(origin.old_span, original.change.occurrences[0].old_span);
+                assert_eq!(origin.new_span, original.change.occurrences[0].new_span);
+                let occurrence = &candidate.change.occurrences[0];
+                if candidate.change.kind == ChangeKind::Deletion {
+                    assert_eq!(
+                        occurrence
+                            .old_span
+                            .as_ref()
+                            .expect("deletion residue keeps its source")
+                            .comparable_range,
+                        super::super::super::TokenRange { start: 3, end: 4 }
+                    );
+                } else {
+                    assert_eq!(
+                        occurrence.old_span,
+                        Some(span(2, 0)),
+                        "keep the original external anchor, never move it into the proof"
+                    );
+                    assert_eq!(
+                        occurrence
+                            .new_span
+                            .as_ref()
+                            .expect("replacement residue keeps its new source")
+                            .comparable_range,
+                        super::super::super::TokenRange { start: 3, end: 4 }
+                    );
+                }
+            }
+            assert!(ownership.iter().all(|side| {
+                side.accepted.iter().any(|r| r.start == 0 && r.end == 3)
+                    && side.changed.iter().any(|r| r.start == 2 && r.end == 3)
+            }));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn paired_candidate_residue_never_selects_disconnected_correspondences() -> Result<()> {
+        let old_blocks = [sourced_block(1, "ABCD")];
+        let new_blocks = [sourced_block(101, "ABXD")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let occurrence = super::super::super::ChangeOccurrence {
+            old_span: Some(span(1, 4)),
+            new_span: Some(span(101, 4)),
+        };
+        let accepted = [SourceInterval {
+            block_index: 0,
+            start: 0,
+            end: 3,
+        }];
+        let contexts = [
+            physical_candidate_residue(&accepted),
+            physical_candidate_residue(&accepted),
+        ];
+        let mut remaining = 100_000;
+        let residues = candidate_occurrence_residue(
+            [&old, &new],
+            &occurrence,
+            contexts,
+            100,
+            64 * 1024 * 1024,
+            &mut remaining,
+        )?
+        .expect("one original residual association");
+        assert_eq!(residues.len(), 1);
+        for side in [residues[0].old_span.as_ref(), residues[0].new_span.as_ref()] {
+            assert_eq!(
+                side.expect("paired residue keeps both source scopes")
+                    .comparable_range,
+                super::super::super::TokenRange { start: 3, end: 4 }
+            );
+        }
+        let used = 100_000 - remaining;
+        let mut short = used - 1;
+        assert!(
+            candidate_occurrence_residue(
+                [&old, &new],
+                &occurrence,
+                contexts,
+                100,
+                64 * 1024 * 1024,
+                &mut short
+            )?
+            .is_none()
+        );
+        let mut exact = used;
+        assert_eq!(
+            candidate_occurrence_residue(
+                [&old, &new],
+                &occurrence,
+                contexts,
+                100,
+                64 * 1024 * 1024,
+                &mut exact
+            )?,
+            Some(residues)
+        );
+        assert_eq!(exact, 0);
+        let middle = [SourceInterval {
+            block_index: 0,
+            start: 1,
+            end: 2,
+        }];
+        let contexts = [
+            physical_candidate_residue(&middle),
+            physical_candidate_residue(&middle),
+        ];
+        assert!(
+            candidate_occurrence_residue(
+                [&old, &new],
+                &occurrence,
+                contexts,
+                100,
+                64 * 1024 * 1024,
+                &mut 100_000
+            )?
+            .is_none(),
+            "matching counts do not prove a fragment pairing"
+        );
+        assert!(
+            candidate_occurrence_residue(
+                [&old, &new],
+                &occurrence,
+                contexts,
+                100,
+                0,
+                &mut 100_000
+            )?
+            .is_none()
         );
         Ok(())
     }
@@ -3834,7 +4413,7 @@ mod tests {
         let residues = candidate_side_residue(
             &source,
             &original,
-            &accepted,
+            physical_candidate_residue(&accepted),
             100,
             64 * 1024 * 1024,
             &mut 10_000,
