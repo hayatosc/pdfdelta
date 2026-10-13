@@ -182,6 +182,30 @@ impl<'a> OwnershipBuckets<'a> {
         })
     }
 
+    /// Keeps the original single-owner containment predicate and its eight
+    /// operations per inspected interval. The complete immutable index skips
+    /// only owners from different physical blocks; it never merges owners.
+    fn contains_all(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
+        for interval in source {
+            if !charge(remaining, 2 * 8) {
+                return None;
+            }
+            let start = *self.offsets.get(interval.block_index)?;
+            let end = *self.offsets.get(interval.block_index.checked_add(1)?)?;
+            if !charge(remaining, (end - start).saturating_mul(8)) {
+                return None;
+            }
+            if !self.intervals[start..end].iter().any(|owner| {
+                owner.block_index == interval.block_index
+                    && owner.start <= interval.start
+                    && interval.end <= owner.end
+            }) {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+
     /// Prepays the two offset lookups and every original interval inspected.
     fn range(&self, block_index: usize, remaining: &mut usize) -> Option<std::ops::Range<usize>> {
         if !charge(remaining, 2) {
@@ -2931,6 +2955,17 @@ impl Assessor<'_, '_> {
         let mut superseded = Vec::new();
         let mut residue_updates = Vec::new();
         let mut residue_live_bytes = 0usize;
+        // Both populations stay immutable until the whole domain commits.
+        // Setup is paid from the shared budget and uses the existing bounded
+        // grouping; unavailable indexes retain the original exhaustive rule.
+        let containment: [Option<OwnershipBuckets<'_>>; 2] = std::array::from_fn(|side| {
+            OwnershipBuckets::build(
+                &accepted[side],
+                self.sides[side].blocks.len(),
+                candidates.len().saturating_mul(8),
+                &mut self.remaining_work,
+            )
+        });
         for (index, candidate) in candidates.iter().enumerate() {
             // Cover the additional containment bookkeeping even when a
             // candidate projects to no nonempty source interval.
@@ -2961,21 +2996,28 @@ impl Assessor<'_, '_> {
                         // An overlap does not discharge the candidate's
                         // remaining source obligations. Pay the complete
                         // containment scan before deciding to replace it.
-                        let coverage_cost = source
-                            .len()
-                            .saturating_mul(accepted[side].len().saturating_add(1))
-                            .saturating_mul(8);
-                        if !self.charge(coverage_cost) {
+                        let covered = if let Some(index) = &containment[side] {
+                            index.contains_all(&source, &mut self.remaining_work)
+                        } else {
+                            let coverage_cost = source
+                                .len()
+                                .saturating_mul(accepted[side].len().saturating_add(1))
+                                .saturating_mul(8);
+                            self.charge(coverage_cost).then(|| {
+                                source.iter().all(|interval| {
+                                    accepted[side].iter().any(|range| {
+                                        range.block_index == interval.block_index
+                                            && range.start <= interval.start
+                                            && interval.end <= range.end
+                                    })
+                                })
+                            })
+                        };
+                        let Some(covered) = covered else {
                             self.mark_local_work_limit(relation);
                             return Ok(LocalRecoveryStep::Stop { truncated: false });
-                        }
-                        wholly_covered &= source.iter().all(|interval| {
-                            accepted[side].iter().any(|range| {
-                                range.block_index == interval.block_index
-                                    && range.start <= interval.start
-                                    && interval.end <= range.end
-                            })
-                        });
+                        };
+                        wholly_covered &= covered;
                     }
                 }
             }
@@ -4968,6 +5010,51 @@ mod tests {
             "later source proofs lost their budget"
         );
         Ok(())
+    }
+
+    #[test]
+    fn candidate_containment_index_preserves_single_owner_and_pays_every_query() {
+        let interval = |block_index, start, end| SourceInterval {
+            block_index,
+            start,
+            end,
+        };
+        let mut owners = (0..128)
+            .map(|block| interval(block, 0, 4))
+            .collect::<Vec<_>>();
+        let mut budget = 1_040;
+        let source = (0..10)
+            .map(|block| interval(block, 1, 3))
+            .collect::<Vec<_>>();
+        let legacy_cost = source.len() * (owners.len() + 1) * 8;
+        assert!(!charge(&mut 1_040, legacy_cost));
+        let grouped = OwnershipBuckets::build(&owners, 128, 128 * 8, &mut budget)
+            .expect("fully funded immutable grouping");
+        assert_eq!(grouped.contains_all(&source, &mut budget), Some(true));
+        assert_eq!(budget, 1_040 - (128 * 3 + 128 * 3 + 1) - 10 * 3 * 8);
+        assert_eq!(grouped.contains_all(&source, &mut 0), None);
+        assert_eq!(grouped.contains_all(&[interval(128, 0, 1)], &mut 100), None);
+        owners[0] = interval(0, 0, 2);
+        owners.extend([interval(0, 2, 4), interval(0, 0, 2), interval(0, 2, 2)]);
+        let grouped = OwnershipBuckets::build(&owners, 128, 128 * 8, &mut 100_000)
+            .expect("duplicate and empty original owners retained");
+        for block in [0, 1, 127] {
+            for start in 0..=5 {
+                for end in start..=5 {
+                    let query = interval(block, start, end);
+                    let oracle = owners.iter().any(|owner| {
+                        owner.block_index == block && owner.start <= start && end <= owner.end
+                    });
+                    assert_eq!(grouped.contains_all(&[query], &mut 100_000), Some(oracle));
+                }
+            }
+        }
+        assert_eq!(
+            grouped.contains_all(&[interval(0, 0, 4)], &mut 100_000),
+            Some(false),
+            "adjacent owners cannot discharge one crossing source obligation"
+        );
+        assert_eq!(grouped.contains_all(&[], &mut 0), Some(true));
     }
 
     #[test]
