@@ -817,6 +817,137 @@ fn traversal_error() -> Error {
     Error::Unresolved("semantic uniqueness traversal did not produce a path".to_owned())
 }
 
+/// Tries only a complete two-path negative certificate. The original full
+/// semantic admission and memory guard are retained. Every probe phase pays
+/// from the original counter, keeping the ordinary matrix allowance intact
+/// for a no-claim fallback. No allowance is booked, transferred or refunded.
+pub(super) fn negative_pair_probe<T, S, F, G>(
+    old: &[T],
+    new: &[T],
+    remaining: &mut usize,
+    retained: &super::exact::RetainedSuffix<'_, T>,
+    mut callback_bound: G,
+    mut signature: F,
+) -> Result<bool>
+where
+    T: Eq,
+    S: Eq,
+    F: FnMut(&[AtomicEdit], &mut usize) -> Result<Option<S>>,
+    G: FnMut(&[AtomicEdit]) -> Option<usize>,
+{
+    let fallback = old
+        .len()
+        .checked_mul(new.len())
+        .ok_or_else(cells_limit_error)?;
+    if *remaining < fallback {
+        return Ok(false);
+    }
+    preflight_memory(old.len(), new.len())?;
+    let Some(paths) = retained.optimal_pair_certificate(old, new, remaining, fallback)? else {
+        return Ok(false);
+    };
+    let token_count = old
+        .len()
+        .checked_add(new.len())
+        .ok_or_else(cells_limit_error)?;
+    let build_work = token_count.checked_mul(2).ok_or_else(cells_limit_error)?;
+    let distance = token_count
+        .checked_sub(
+            paths[0]
+                .len()
+                .checked_mul(2)
+                .ok_or_else(cells_limit_error)?,
+        )
+        .ok_or_else(traversal_error)?;
+    let setup = build_work
+        .checked_add(distance.checked_mul(2).ok_or_else(cells_limit_error)?)
+        .ok_or_else(cells_limit_error)?;
+    if remaining.checked_sub(fallback).is_none_or(|v| v < setup) {
+        return Ok(false);
+    }
+    if !charge(remaining, build_work) {
+        return Ok(false);
+    }
+    let mut scripts = [Vec::new(), Vec::new()];
+    for (pairs, script) in paths.iter().zip(&mut scripts) {
+        let mut path = Vec::new();
+        path.try_reserve_exact(distance)
+            .map_err(|_| Error::Unresolved("negative semantic path allocation".to_owned()))?;
+        let (mut x, mut y) = (0, 0);
+        for &(u, v) in pairs.iter().chain(std::iter::once(&(old.len(), new.len()))) {
+            for a in x..u {
+                path.push(PathEdit {
+                    old_index: a,
+                    new_index: y,
+                    deletion: true,
+                });
+            }
+            for b in y..v {
+                path.push(PathEdit {
+                    old_index: u,
+                    new_index: b,
+                    deletion: false,
+                });
+            }
+            x = u + 1;
+            y = v + 1;
+        }
+        if path.len() != distance || path.capacity() > distance {
+            return Ok(false);
+        }
+        if !charge(remaining, path.len()) {
+            return Ok(false);
+        }
+        *script = canonicalize(&path)?;
+        if script.capacity() > distance {
+            return Ok(false);
+        }
+    }
+    let inspect = scripts
+        .iter()
+        .try_fold(0usize, |sum, s| {
+            sum.checked_add(token_count.checked_add(s.len())?)
+        })
+        .ok_or_else(cells_limit_error)?;
+    if remaining.checked_sub(fallback).is_none_or(|v| v < inspect) {
+        return Ok(false);
+    }
+    if !charge(remaining, inspect) {
+        return Ok(false);
+    }
+    let mut total = 0usize;
+    for script in &scripts {
+        let Some(bound) = callback_bound(script)
+            .and_then(|v| v.checked_add(token_count)?.checked_add(script.len()))
+        else {
+            return Ok(false);
+        };
+        total = total.checked_add(bound).ok_or_else(cells_limit_error)?;
+    }
+    if remaining.checked_sub(fallback).is_none_or(|v| v < total) {
+        return Ok(false);
+    }
+    let mut previous = None;
+    for script in &scripts {
+        if !charge(
+            remaining,
+            token_count
+                .checked_add(script.len())
+                .ok_or_else(cells_limit_error)?,
+        ) {
+            return Ok(false);
+        }
+        let Some(current) = signature(script, remaining)? else {
+            return Ok(false);
+        };
+        if let Some(previous) = previous.as_ref() {
+            return Ok(previous != &current);
+        }
+        previous = Some(current);
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::all_words;
@@ -1502,6 +1633,148 @@ mod tests {
             .expect("bounded distinct pairing traversal");
         assert!(matches!(result, Outcome::Unique { .. }), "{result:?}");
         assert!(remaining > 90_000);
+    }
+
+    #[test]
+    fn negative_pair_certificate_matches_independent_optimal_path_oracle() {
+        let words = all_words(3);
+        let mut accepted = 0;
+        for old_word in &words {
+            for new_word in &words {
+                // A disjoint unique suffix forces every optimum to append the
+                // same pairs; the independent prefix path oracle is unchanged.
+                let old: Vec<u8> = old_word.iter().copied().chain(100..108).collect();
+                let new: Vec<u8> = new_word.iter().copied().chain(100..108).collect();
+                let oracle = brute_signatures(old_word, new_word);
+                let checked = super::super::exact::check_retaining_for_reconstruction(
+                    &old,
+                    &new,
+                    &mut 1_000_000,
+                )
+                .expect("funded exact checker");
+                let Some(table) = checked.suffix else {
+                    continue;
+                };
+                let mut callbacks = Vec::new();
+                let mut remaining = 1_000_000;
+                let negative = super::negative_pair_probe(
+                    &old,
+                    &new,
+                    &mut remaining,
+                    &table,
+                    |_| Some(0),
+                    |edits, _| {
+                        let sig = script_signature(edits);
+                        callbacks.push(sig.clone());
+                        Ok(Some(sig))
+                    },
+                )
+                .expect("paid negative certificate");
+                assert!(
+                    callbacks.iter().all(|s| oracle.contains(s)),
+                    "old={old_word:?} new={new_word:?}"
+                );
+                if negative {
+                    accepted += 1;
+                    assert_eq!(callbacks.len(), 2);
+                    assert_ne!(callbacks[0], callbacks[1]);
+                    assert!(oracle.len() > 1);
+                }
+                let mut constant_work = 1_000_000;
+                assert!(
+                    !super::negative_pair_probe(
+                        &old,
+                        &new,
+                        &mut constant_work,
+                        &table,
+                        |_| Some(0),
+                        |_, _| Ok(Some(()))
+                    )
+                    .expect("same signatures make no claim")
+                );
+                let outcome = super::check_hunks_retained(
+                    &old,
+                    &new,
+                    &mut constant_work,
+                    Some(table),
+                    &mut super::super::SuffixReuseWork::default(),
+                    |_, _| Ok(Some(())),
+                )
+                .expect("unchanged ordinary fallback");
+                assert!(matches!(outcome, Outcome::Unique { .. }));
+            }
+        }
+        assert!(
+            accepted > 0,
+            "oracle includes a complete negative certificate"
+        );
+    }
+
+    #[test]
+    fn negative_pair_probe_preserves_full_admission_and_failed_probe_fees() {
+        let old: Vec<u8> = b"ab".iter().copied().chain(100..108).collect();
+        let new: Vec<u8> = b"abb".iter().copied().chain(100..108).collect();
+        let checked =
+            super::super::exact::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                .expect("funded literal ambiguity");
+        let table = checked.suffix.expect("paid reverse contour");
+        let full = old.len() * new.len();
+        let mut refused = full - 1;
+        let mut callbacks = 0;
+        assert!(
+            !super::negative_pair_probe(
+                &old,
+                &new,
+                &mut refused,
+                &table,
+                |_| Some(0),
+                |_, _| {
+                    callbacks += 1;
+                    Ok(Some(()))
+                }
+            )
+            .expect("ordinary full admission")
+        );
+        assert_eq!(refused, full - 1);
+        assert_eq!(callbacks, 0);
+        let cloned_old = old.clone();
+        let cloned_new = new.clone();
+        let mut different_binding = 1_000_000;
+        assert!(
+            !super::negative_pair_probe(
+                &cloned_old,
+                &cloned_new,
+                &mut different_binding,
+                &table,
+                |_| Some(0),
+                |_, _| {
+                    callbacks += 1;
+                    Ok(Some(()))
+                }
+            )
+            .expect("same text is not the same immutable input")
+        );
+        assert_eq!(callbacks, 0);
+        let mut paid = 1_000_000;
+        assert!(
+            !super::negative_pair_probe(
+                &old,
+                &new,
+                &mut paid,
+                &table,
+                |_| Some(0),
+                |_, _| {
+                    callbacks += 1;
+                    Ok(None::<()>)
+                }
+            )
+            .expect("callback refusal")
+        );
+        assert_eq!(callbacks, 1);
+        assert!(
+            paid < 1_000_000 && paid >= full,
+            "all actual probe fees retained with fallback allowance"
+        );
     }
 
     #[test]

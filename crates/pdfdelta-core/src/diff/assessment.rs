@@ -5247,6 +5247,36 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let [old, new] = groups;
         let sides = self.sides;
         let limit = self.options.max_assessment_ranges;
+        if let Some(table) = retained.as_ref()
+            && semantic::negative_pair_probe(
+                &old.tokens,
+                &new.tokens,
+                &mut self.remaining_work,
+                table,
+                |edits| {
+                    let mut hunks = 0usize;
+                    let complete = visit_domain_hunks(old, new, edits, |_, _| {
+                        let Some(next) = hunks.checked_add(1) else {
+                            return false;
+                        };
+                        hunks = next;
+                        hunks <= limit
+                    });
+                    // Each projected event has at most one occurrence per
+                    // atomic edit. The probe already paid this hunk inspection;
+                    // the unchanged source callback pays its own work below.
+                    complete.then_some(())?;
+                    old.tokens
+                        .len()
+                        .checked_add(new.tokens.len())?
+                        .checked_add(edits.len())?
+                        .checked_mul(hunks.checked_add(1)?)
+                },
+                |edits, remaining| semantic_signature(sides, [old, new], edits, remaining, limit),
+            )?
+        {
+            return Ok(());
+        }
         match semantic::check_hunks_retained(
             &old.tokens,
             &new.tokens,
@@ -13276,7 +13306,7 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
-    fn retained_suffix_distinct_domains_preserve_source_proof_and_cache_costs() -> Result<()> {
+    fn negative_pair_distinct_domains_preserve_source_proof_and_cache_costs() -> Result<()> {
         let old_blocks = [
             anchor_block(1, &"AB".repeat(64)),
             anchor_block(11, &"CD".repeat(64)),
@@ -13309,28 +13339,21 @@ mod assessor_issue_cache_tests {
             let after = assessor.remaining_work;
             assert_eq!(
                 before - after,
-                34176
+                // 16,383 literal cells plus 8,785 fully paid negative
+                // certificate, canonicalization and source-callback work.
+                25168
                     + assessor
                         .evidence_link_work
                         .total()
                         .expect("bounded link work")
                     - before_links
             );
-            assert_eq!(assessor.suffix_reuse_work.attempts, index + 1);
-            assert_eq!(
-                assessor.suffix_reuse_work.allowance_used,
-                16128 * (index + 1)
-            );
-            assert_eq!(
-                assessor.suffix_reuse_work.recomputed_cells,
-                15874 * (index + 1)
-            );
-            assert_eq!(assessor.suffix_reuse_work.binding_work, 3 * (index + 1));
-            assert_eq!(assessor.suffix_reuse_work.accounting_work, 16 * (index + 1));
-            assert_eq!(
-                assessor.suffix_reuse_work.unused_allowance,
-                235 * (index + 1)
-            );
+            assert_eq!(assessor.suffix_reuse_work.attempts, 0);
+            assert_eq!(assessor.suffix_reuse_work.allowance_used, 0);
+            assert_eq!(assessor.suffix_reuse_work.recomputed_cells, 0);
+            assert_eq!(assessor.suffix_reuse_work.binding_work, 0);
+            assert_eq!(assessor.suffix_reuse_work.accounting_work, 0);
+            assert_eq!(assessor.suffix_reuse_work.unused_allowance, 0);
             assert_eq!(assessor.prove_domain(&key)?, DomainState::Ready);
             assert_eq!(assessor.remaining_work, after);
             let [old_group, new_group] = proof_groups(assessor.sides, &key)?;
@@ -13366,7 +13389,7 @@ mod assessor_issue_cache_tests {
                 }
             }
             eprintln!(
-                "RETAINED_SUFFIX_DOMAIN index={index} original_cost=42048 allowance_cost={} actual_suffix_cells=8002 unused_allowance=8107 binding_paid=3 accounting_paid=16 triggering_cell_recomputed=true source_signature_oracle_preserved=true same_key_repeat_work=0",
+                "NEGATIVE_PAIR_DOMAIN index={index} prior_retained_cost=36084 paid_cost={} literal_cells=16383 certificate_and_callbacks=8785 suffix_allowance_booked=0 allowance_refunded=0 source_signature_oracle_preserved=true same_key_repeat_work=0",
                 before - after
             );
         }

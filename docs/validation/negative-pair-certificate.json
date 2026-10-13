@@ -1,0 +1,81 @@
+{
+  "base_sha": "b9b17a016fb1134e2714b7e1f5e589217f4eacd0",
+  "domain": 1052,
+  "rank": 1207,
+  "dimensions": [
+    246,
+    335
+  ],
+  "total_paid": 227892,
+  "costs": {
+    "original_exact": 136541,
+    "ordinary_semantic": 87250,
+    "block_visit": 31,
+    "old_changed_overlap": 123,
+    "new_changed_overlap": 141,
+    "receipt_planning": 128,
+    "receipt_verification": 3486,
+    "receipt_retention": 64,
+    "receipt_publication": 128
+  },
+  "ordinary_semantic_breakdown": {
+    "full_matrix_allowance": 82410,
+    "path_canonicalization_and_source_callbacks": 4840
+  },
+  "partial_contour": {
+    "next_old": 84,
+    "next_new": 139,
+    "completed": 54130,
+    "first_new": 170,
+    "first_prefix_rank": 84,
+    "lcs_length": 246
+  },
+  "minimum_input_sha256": "b130d24fdbb6ca38665a6217c809ddeac7dbccaed79ea3172bf4e1503953f44a",
+  "two_pair_paths_full_oracle_verified": true,
+  "original_source_callbacks_verified_different": true,
+  "shadow_callback_actual_costs": [
+    6411,
+    2330
+  ],
+  "shadow_not_production_work_or_recovery": true,
+  "ordinary_native_result_reproduced": {
+    "changes": 69,
+    "unresolved": 1792
+  },
+  "no_unused_allowance_refund": true,
+  "candidate_adoption": "pending quality/full72/full36/full1495links584witnesses",
+  "target_28_tokens_two_changes": "unassessed until proof/ownership/publication",
+  "status": "unadopted candidate; pending full72/full36/full retention",
+  "quality": {
+    "workspace": [
+      3402,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2126,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "patch_sha256": "179a80271718cab9ec918203f87a21ae5d07a2d6721406213eb96d5bab15f0ed",
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "adoption": "unadopted pending full36 retention"
+  },
+  "method": "Two optimal pair sequences from the original paid partial prefix/suffix contour; only unequal original source-callback signatures certify ambiguity. Current input bindings, original full semantic admission and memory guard retained. All new row-repair/path/canonicalization/source callback work paid directly; ordinary fallback allowance protected but never booked/transferred/refunded. Same signatures or unavailable proof makes no claim and runs ordinary fallback.",
+  "preservation_required": {
+    "links": 1495,
+    "localized_witnesses": 584,
+    "all_old_positive_candidates_formatting_regions": true,
+    "physical_scope_content_hash_proof": true,
+    "prior_recoveries_and_long_two": true
+  }
+}

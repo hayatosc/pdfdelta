@@ -3,6 +3,7 @@
 mod single_edit;
 pub(super) use single_edit::check as check_unique_single_edit_script;
 mod banded;
+mod negative_pair;
 
 use crate::{Error, Result};
 
@@ -259,6 +260,14 @@ pub(super) struct RetainedSuffix<'a, T> {
     next_old: usize,
     next_new: usize,
     completed: usize,
+    row_ambiguity: Option<RowAmbiguity>,
+}
+
+#[derive(Clone, Copy)]
+struct RowAmbiguity {
+    first_new: usize,
+    first_prefix_rank: usize,
+    lcs_length: usize,
 }
 
 pub(super) enum ReconstructedScript {
@@ -696,6 +705,7 @@ fn check_retaining_internal<'a, T: Eq>(
     for old_index in (0..old.len()).rev() {
         let prefix_row = old_index * columns;
         let mut row_has_match = false;
+        let mut first_match = None;
         for new_index in (0..new.len()).rev() {
             if !charge_cell(remaining_cells) {
                 return Ok(RetainedCheck::plain(ExactUniqueness::BudgetExceeded));
@@ -727,12 +737,22 @@ fn check_retaining_internal<'a, T: Eq>(
                                 next_old: old_index,
                                 next_new: new_index,
                                 completed,
+                                row_ambiguity: if row_has_match {
+                                    first_match.map(|(first_new, first_prefix_rank)| RowAmbiguity {
+                                        first_new,
+                                        first_prefix_rank,
+                                        lcs_length,
+                                    })
+                                } else {
+                                    None
+                                },
                             });
                         return Ok(RetainedCheck {
                             outcome: ExactUniqueness::Ambiguous,
                             suffix,
                         });
                     }
+                    first_match.get_or_insert((new_index, prefix[prefix_row + new_index]));
                     row_has_match = true;
                 }
                 suffix_after_match
@@ -764,6 +784,7 @@ fn check_retaining_internal<'a, T: Eq>(
                 next_old: 0,
                 next_new: 0,
                 completed: forward_cells,
+                row_ambiguity: None,
             }),
         });
     }
