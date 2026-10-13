@@ -1,5 +1,8 @@
 //! Bounded exact uniqueness checks for token alignments.
 
+mod sparse;
+pub(super) use sparse::check as check_sparse_unique_script;
+
 use crate::{Error, Result};
 
 const MAX_EXACT_MEMORY_BYTES: usize = 64 * 1024 * 1024;
