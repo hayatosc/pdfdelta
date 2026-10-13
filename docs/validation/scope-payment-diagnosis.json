@@ -1,0 +1,449 @@
+{
+  "status": "diagnosis complete; no new production repair adopted",
+  "verified_base": "b9b17a016fb1134e2714b7e1f5e589217f4eacd0",
+  "rejected_candidate_code": "6006724a0ebefd932d3dfa125df9b73e97642ea1",
+  "rejected_candidate_record": "369731b17383d212413bdad798177c96756f78b5",
+  "experiment": "Same test executable and frozen PDF inputs; test-only switch enables or disables precisely the rejected consecutive-column early ambiguity check. All fee formulas, queues, original guards and shared budgets remain unchanged. Both native result counts and receipt fee ledgers reproduced. Temporary diagnostics removed.",
+  "target": {
+    "domain": 326,
+    "queued_rank": 1273,
+    "dimensions": [
+      446,
+      447
+    ],
+    "original_dense_request": 398724,
+    "base_visited": false,
+    "base_last_scope_ordinal": 1255,
+    "base_last_overlap_request": 249,
+    "base_last_overlap_remaining": 58,
+    "remaining_original_missing_positive_tokens": 28,
+    "remaining_original_missing_changes": 2,
+    "ambiguity_ownership_reconstruction_publication": "Not reached; still unassessed. No historical or diagnostic fact is supplied as production proof."
+  },
+  "causal_findings": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "same_queue": true,
+      "same_scope_order_prefix": true,
+      "visited": {
+        "base": 1256,
+        "candidate": 1210
+      },
+      "phase_totals": {
+        "base": {
+          "receipt": 549196,
+          "other_cache_or_refusal": 12129,
+          "pre_exact_including_ownership": 635438,
+          "exact": 6179033,
+          "reconstruction_or_semantic": 1994106,
+          "post_proof_publication": 601702
+        },
+        "candidate": {
+          "receipt": 471520,
+          "other_cache_or_refusal": 10266,
+          "pre_exact_including_ownership": 620847,
+          "exact": 6272718,
+          "reconstruction_or_semantic": 1996387,
+          "post_proof_publication": 599866
+        }
+      },
+      "first_local_scope_cost_difference": {
+        "ordinal": 499,
+        "index": 962,
+        "cost_delta": -1,
+        "before_delta": 0
+      },
+      "first_proof_verdict_difference": {
+        "ordinal": 1209,
+        "index": 510,
+        "cost_delta": 181305,
+        "before_delta": 69133,
+        "base": {
+          "before": 116322,
+          "after": 112172,
+          "net_cost": 4150,
+          "cost_by_phase": {
+            "pre_exact_including_ownership": 161,
+            "exact": 153,
+            "reconstruction_or_semantic": 0,
+            "receipt": 3836,
+            "post_proof_publication": 0
+          },
+          "exact_stage": "EXACT_STAGE records=4555 old=293 new=293 before=116161 after=116008 result=Ok((BudgetExceeded, false))",
+          "proof": "PROOF_FINAL records=4555 old=293 new=293 work=116008 unique=false strict=false search=Incomplete edits=[]",
+          "assessment": "LOCAL_ASSESS index=510 relation=4556 work=112172 outcome=Tentative search=Incomplete reasons=[WorkLimit]"
+        },
+        "candidate": {
+          "before": 185455,
+          "after": 0,
+          "net_cost": 185455,
+          "cost_by_phase": {
+            "pre_exact_including_ownership": 161,
+            "exact": 171867,
+            "reconstruction_or_semantic": 4832,
+            "receipt": 3836,
+            "post_proof_publication": 4759
+          },
+          "exact_stage": "EXACT_STAGE records=4555 old=293 new=293 before=185294 after=13427 result=Ok((Unique, false))",
+          "proof": "PROOF_FINAL records=4555 old=293 new=293 work=8595 unique=true strict=true search=Complete edits=[AtomicEdit { old: 152..154, new: 152..152 }, AtomicEdit { old: 154..154, new: 152..154 }]",
+          "assessment": "LOCAL_ASSESS index=510 relation=4556 work=4759 outcome=Established search=Complete reasons=[]"
+        }
+      },
+      "largest_base_scope_payments": [
+        {
+          "ordinal": 1207,
+          "domain": 1052,
+          "physical_scope_old": "(Some(BlockId(543)), Some(BlockId(554)), TokenRange { start: 2408, end: 2654 })",
+          "physical_scope_new": "(Some(BlockId(742)), Some(BlockId(760)), TokenRange { start: 1581, end: 1916 })",
+          "total": 227892,
+          "phases": {
+            "pre_exact_including_ownership": 295,
+            "exact": 136541,
+            "reconstruction_or_semantic": 87250,
+            "receipt": 3806,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 1182,
+          "domain": 443,
+          "physical_scope_old": "(Some(BlockId(230)), Some(BlockId(235)), TokenRange { start: 705, end: 976 })",
+          "physical_scope_new": "(Some(BlockId(344)), Some(BlockId(356)), TokenRange { start: 2146, end: 2419 })",
+          "total": 201110,
+          "phases": {
+            "pre_exact_including_ownership": 357,
+            "exact": 119470,
+            "reconstruction_or_semantic": 77699,
+            "receipt": 3584,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 1187,
+          "domain": 1231,
+          "physical_scope_old": "(Some(BlockId(658)), Some(BlockId(672)), TokenRange { start: 3018, end: 3296 })",
+          "physical_scope_new": "(Some(BlockId(884)), Some(BlockId(899)), TokenRange { start: 3424, end: 3703 })",
+          "total": 193055,
+          "phases": {
+            "pre_exact_including_ownership": 265,
+            "exact": 107804,
+            "reconstruction_or_semantic": 81324,
+            "receipt": 3662,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 1177,
+          "domain": 671,
+          "physical_scope_old": "(Some(BlockId(353)), Some(BlockId(369)), TokenRange { start: 2825, end: 3106 })",
+          "physical_scope_new": "(Some(BlockId(518)), Some(BlockId(531)), TokenRange { start: 1200, end: 1456 })",
+          "total": 190391,
+          "phases": {
+            "pre_exact_including_ownership": 370,
+            "exact": 106120,
+            "reconstruction_or_semantic": 80359,
+            "receipt": 3542,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 1165,
+          "domain": 1242,
+          "physical_scope_old": "(Some(BlockId(658)), Some(BlockId(672)), TokenRange { start: 2661, end: 2912 })",
+          "physical_scope_new": "(Some(BlockId(905)), Some(BlockId(922)), TokenRange { start: 368, end: 619 })",
+          "total": 185206,
+          "phases": {
+            "pre_exact_including_ownership": 370,
+            "exact": 114960,
+            "reconstruction_or_semantic": 66544,
+            "receipt": 3332,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 1198,
+          "domain": 355,
+          "physical_scope_old": "(Some(BlockId(181)), Some(BlockId(199)), TokenRange { start: 2970, end: 3257 })",
+          "physical_scope_new": "(Some(BlockId(311)), Some(BlockId(325)), TokenRange { start: 0, end: 287 })",
+          "total": 184192,
+          "phases": {
+            "pre_exact_including_ownership": 399,
+            "exact": 164790,
+            "reconstruction_or_semantic": 4728,
+            "receipt": 7220,
+            "post_proof_publication": 7055
+          }
+        },
+        {
+          "ordinal": 1200,
+          "domain": 314,
+          "physical_scope_old": "(Some(BlockId(168)), Some(BlockId(178)), TokenRange { start: 1744, end: 2032 })",
+          "physical_scope_new": "(Some(BlockId(267)), Some(BlockId(275)), TokenRange { start: 1688, end: 1976 })",
+          "total": 183998,
+          "phases": {
+            "pre_exact_including_ownership": 393,
+            "exact": 165938,
+            "reconstruction_or_semantic": 4744,
+            "receipt": 5888,
+            "post_proof_publication": 7035
+          }
+        },
+        {
+          "ordinal": 1194,
+          "domain": 1301,
+          "physical_scope_old": "(Some(BlockId(693)), Some(BlockId(713)), TokenRange { start: 2599, end: 2880 })",
+          "physical_scope_new": "(Some(BlockId(928)), Some(BlockId(946)), TokenRange { start: 3304, end: 3585 })",
+          "total": 178285,
+          "phases": {
+            "pre_exact_including_ownership": 520,
+            "exact": 158108,
+            "reconstruction_or_semantic": 4632,
+            "receipt": 7724,
+            "post_proof_publication": 7301
+          }
+        }
+      ],
+      "observed_result": {
+        "base": [
+          "LINK_RESULT edpb-controller-processor-v1-to-v2-1 changes=69 unresolved=1792 work=32000000 fees=EvidenceLinkWork { planning: 27248, verification: 435116, retention: 17648, output: 82256 }"
+        ],
+        "candidate": [
+          "LINK_RESULT edpb-controller-processor-v1-to-v2-1 changes=68 unresolved=1793 work=32000000 fees=EvidenceLinkWork { planning: 24544, verification: 368160, retention: 12480, output: 79408 }"
+        ]
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "same_queue": true,
+      "same_scope_order_prefix": true,
+      "visited": {
+        "base": 829,
+        "candidate": 826
+      },
+      "phase_totals": {
+        "base": {
+          "pre_exact_including_ownership": 657927,
+          "exact": 11516623,
+          "reconstruction_or_semantic": 6863682,
+          "receipt": 1020690,
+          "post_proof_publication": 2739957,
+          "other_cache_or_refusal": 3186
+        },
+        "candidate": {
+          "pre_exact_including_ownership": 650059,
+          "exact": 11632488,
+          "reconstruction_or_semantic": 6870822,
+          "receipt": 992776,
+          "post_proof_publication": 2755952,
+          "other_cache_or_refusal": 7141
+        }
+      },
+      "first_local_scope_cost_difference": {
+        "ordinal": 141,
+        "index": 113,
+        "cost_delta": -1167,
+        "before_delta": 1830
+      },
+      "first_proof_verdict_difference": {
+        "ordinal": 823,
+        "index": 166,
+        "cost_delta": 406820,
+        "before_delta": 265297,
+        "base": {
+          "before": 152692,
+          "after": 146541,
+          "net_cost": 6151,
+          "cost_by_phase": {
+            "pre_exact_including_ownership": 605,
+            "exact": 0,
+            "reconstruction_or_semantic": 0,
+            "receipt": 5546,
+            "post_proof_publication": 0
+          },
+          "exact_stage": "EXACT_STAGE records=2688 old=434 new=437 before=152087 after=152087 result=Ok((BudgetExceeded, false))",
+          "proof": "PROOF_FINAL records=2688 old=434 new=437 work=152087 unique=false strict=false search=Incomplete edits=[]",
+          "assessment": "LOCAL_ASSESS index=166 relation=2689 work=146541 outcome=Tentative search=Incomplete reasons=[WorkLimit]"
+        },
+        "candidate": {
+          "before": 417989,
+          "after": 5018,
+          "net_cost": 412971,
+          "cost_by_phase": {
+            "pre_exact_including_ownership": 605,
+            "exact": 379332,
+            "reconstruction_or_semantic": 7140,
+            "receipt": 8906,
+            "post_proof_publication": 16988
+          },
+          "exact_stage": "EXACT_STAGE records=2688 old=434 new=437 before=417384 after=38052 result=Ok((Unique, false))",
+          "proof": "PROOF_FINAL records=2688 old=434 new=437 work=30912 unique=true strict=true search=Complete edits=[AtomicEdit { old: 413..417, new: 413..413 }, AtomicEdit { old: 417..417, new: 413..420 }]",
+          "assessment": "LOCAL_ASSESS index=166 relation=2689 work=25366 outcome=Established search=Complete reasons=[]"
+        }
+      },
+      "largest_base_scope_payments": [
+        {
+          "ordinal": 822,
+          "domain": 239,
+          "physical_scope_old": "(Some(BlockId(189)), Some(BlockId(216)), TokenRange { start: 2112, end: 2489 })",
+          "physical_scope_new": "(Some(BlockId(176)), Some(BlockId(190)), TokenRange { start: 876, end: 1360 })",
+          "total": 525734,
+          "phases": {
+            "pre_exact_including_ownership": 1090,
+            "exact": 328464,
+            "reconstruction_or_semantic": 190694,
+            "receipt": 5486,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 820,
+          "domain": 404,
+          "physical_scope_old": "(Some(BlockId(304)), Some(BlockId(330)), TokenRange { start: 2080, end: 2455 })",
+          "physical_scope_new": "(Some(BlockId(290)), Some(BlockId(297)), TokenRange { start: 10, end: 464 })",
+          "total": 440034,
+          "phases": {
+            "pre_exact_including_ownership": 708,
+            "exact": 256258,
+            "reconstruction_or_semantic": 177774,
+            "receipt": 5294,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 821,
+          "domain": 12,
+          "physical_scope_old": "(Some(BlockId(13)), Some(BlockId(38)), TokenRange { start: 1120, end: 1427 })",
+          "physical_scope_new": "(Some(BlockId(11)), Some(BlockId(46)), TokenRange { start: 1097, end: 1632 })",
+          "total": 383723,
+          "phases": {
+            "pre_exact_including_ownership": 1394,
+            "exact": 195335,
+            "reconstruction_or_semantic": 181622,
+            "receipt": 5372,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 819,
+          "domain": 257,
+          "physical_scope_old": "(Some(BlockId(220)), Some(BlockId(243)), TokenRange { start: 685, end: 1092 })",
+          "physical_scope_new": "(Some(BlockId(194)), Some(BlockId(210)), TokenRange { start: 440, end: 848 })",
+          "total": 368578,
+          "phases": {
+            "pre_exact_including_ownership": 708,
+            "exact": 184474,
+            "reconstruction_or_semantic": 178186,
+            "receipt": 5210,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 818,
+          "domain": 109,
+          "physical_scope_old": "(Some(BlockId(84)), Some(BlockId(106)), TokenRange { start: 480, end: 823 })",
+          "physical_scope_new": "(Some(BlockId(74)), Some(BlockId(92)), TokenRange { start: 1100, end: 1488 })",
+          "total": 318367,
+          "phases": {
+            "pre_exact_including_ownership": 709,
+            "exact": 170435,
+            "reconstruction_or_semantic": 142517,
+            "receipt": 4706,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 814,
+          "domain": 531,
+          "physical_scope_old": "(Some(BlockId(376)), Some(BlockId(399)), TokenRange { start: 2064, end: 2389 })",
+          "physical_scope_new": "(Some(BlockId(334)), Some(BlockId(346)), TokenRange { start: 1853, end: 2176 })",
+          "total": 286259,
+          "phases": {
+            "pre_exact_including_ownership": 230,
+            "exact": 172371,
+            "reconstruction_or_semantic": 109450,
+            "receipt": 4208,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 808,
+          "domain": 108,
+          "physical_scope_old": "(Some(BlockId(84)), Some(BlockId(106)), TokenRange { start: 400, end: 708 })",
+          "physical_scope_new": "(Some(BlockId(74)), Some(BlockId(92)), TokenRange { start: 1019, end: 1328 })",
+          "total": 274316,
+          "phases": {
+            "pre_exact_including_ownership": 605,
+            "exact": 168337,
+            "reconstruction_or_semantic": 101352,
+            "receipt": 4022,
+            "post_proof_publication": 0
+          }
+        },
+        {
+          "ordinal": 817,
+          "domain": 185,
+          "physical_scope_old": "(Some(BlockId(161)), Some(BlockId(185)), TokenRange { start: 1052, end: 1384 })",
+          "physical_scope_new": "(Some(BlockId(132)), Some(BlockId(149)), TokenRange { start: 1373, end: 1712 })",
+          "total": 260660,
+          "phases": {
+            "pre_exact_including_ownership": 699,
+            "exact": 225112,
+            "reconstruction_or_semantic": 5532,
+            "receipt": 11098,
+            "post_proof_publication": 18219
+          }
+        }
+      ],
+      "observed_result": {
+        "base": [
+          "LINK_RESULT edpb-design-default-v1-to-v2 changes=96 unresolved=1585 work=32000000 fees=EvidenceLinkWork { planning: 53120, verification: 775566, retention: 37984, output: 157616 }"
+        ],
+        "candidate": [
+          "LINK_RESULT edpb-design-default-v1-to-v2 changes=97 unresolved=1578 work=32000000 fees=EvidenceLinkWork { planning: 52736, verification: 747684, retention: 37728, output: 158224 }"
+        ]
+      }
+    }
+  ],
+  "first_missing_receipts": {
+    "controller": {
+      "base_relation": 4557,
+      "base_domain": 1218,
+      "base_ordinal": 1210,
+      "candidate_reached": false,
+      "missing_strict_witness_base_relation": 4576
+    },
+    "design": {
+      "base_relation": 2692,
+      "domain": 707,
+      "ordinal": 825,
+      "candidate_validation_request": 3206,
+      "candidate_validation_remaining": 3138,
+      "candidate_observed_reasons": [
+        "NormalizationUncertainty",
+        "DomainNotClosed"
+      ],
+      "meaning": "Affordability failed at the existing validation charge; the emitted reason is not independent evidence of changed physical normalization. Later domains256/618/14 are unvisited."
+    }
+  },
+  "interpretation": "Budget redistribution is verified for this exact rejected variant: initial savings cross original dense admission thresholds in controller510 and design166; their newly admitted proof, reconstruction and publication spend the saving plus existing tail allowance. Neither threshold nor failure is caused by changed input scopes or queue order. Smaller ledger/receipt totals coincide with lost evidence, not a successful improvement.",
+  "next": "Keep the verified base. The controller proof and semantic phases dominate the visited-scope ledger. Before any repair, isolate a complete same-input proof implementation with explicitly charged work and unchanged admissions; test its interaction with later domain admission and exact physical receipt retention. Do not extend early stopping, refund unused suffix allowance, skip semantic obligations or pre-adopt target changes. No justified production repair follows merely from these costs.",
+  "historical_capture_cpu_seconds": {
+    "verified_base": 716.119272,
+    "rejected_candidate": 627.282495,
+    "meaning": "Previously saved single uncontrolled full36 captures, not measurements of this paired debug diagnosis. No new speedup claim or new capture CPU measurement."
+  },
+  "historical_work_used": {
+    "verified_base": 812391018,
+    "rejected_candidate": 812297331,
+    "meaning": "Logical search-work ledger, independent of process CPU."
+  },
+  "preservation_required": {
+    "links": 1495,
+    "localized_witnesses": 584,
+    "all_positive_native_events_candidates_formatting_regions": true,
+    "physical_scope_text_hash_and_proof": true,
+    "prior_recoveries_W9_151_regions_and_two_long_candidates": true
+  },
+  "new_full36_adoption": "Not applicable: production source is unchanged and no candidate is adopted. Existing base full72/full36 and full retention remain the validated baseline.",
+  "public_record_policy": "Aggregate payments and public frozen-panel scope coordinates only; no PDF content, private diagnostics, credentials or archive."
+}
