@@ -177,6 +177,9 @@ pub(super) fn check_recording<T: Eq>(
     let mut suffix_current = allocate_row(columns, "exact uniqueness suffix row")?;
     let lcs_length = prefix[prefix_cells - 1];
     let mut matching_edges = 0usize;
+    // Consecutive eligible edges sharing a new coordinate cannot coexist in
+    // one ordered matching. Both edges already have optimal-path certificates.
+    let mut previous_match_new = None;
 
     for old_index in (0..old.len()).rev() {
         suffix_current.fill(0);
@@ -201,10 +204,14 @@ pub(super) fn check_recording<T: Eq>(
                         resource: DP_CELLS_RESOURCE,
                         limit: usize::MAX,
                     })?;
-                    if row_has_match || matching_edges > lcs_length {
+                    if row_has_match
+                        || previous_match_new == Some(new_index)
+                        || matching_edges > lcs_length
+                    {
                         return Ok(ExactUniqueness::Ambiguous);
                     }
                     row_has_match = true;
+                    previous_match_new = Some(new_index);
                 }
                 suffix_after_match
                     .checked_add(1)
@@ -692,6 +699,9 @@ fn check_retaining_internal<'a, T: Eq>(
         prefix[old_index * columns + new.len()] = 0;
     }
     let mut matching_edges = 0usize;
+    // Consecutive eligible edges sharing a new coordinate cannot coexist in
+    // one ordered matching. Both edges already have optimal-path certificates.
+    let mut previous_match_new = None;
 
     for old_index in (0..old.len()).rev() {
         let prefix_row = old_index * columns;
@@ -714,7 +724,10 @@ fn check_retaining_internal<'a, T: Eq>(
                         resource: DP_CELLS_RESOURCE,
                         limit: usize::MAX,
                     })?;
-                    if row_has_match || matching_edges > lcs_length {
+                    if row_has_match
+                        || previous_match_new == Some(new_index)
+                        || matching_edges > lcs_length
+                    {
                         let completed = forward_cells - (old_index * new.len() + new_index + 1);
                         let suffix = (completed
                             >= RetainedSuffix::<T>::BINDING_WORK
@@ -734,6 +747,7 @@ fn check_retaining_internal<'a, T: Eq>(
                         });
                     }
                     row_has_match = true;
+                    previous_match_new = Some(new_index);
                 }
                 suffix_after_match
                     .checked_add(1)
@@ -1661,6 +1675,61 @@ mod tests {
                 assert_eq!(classify(old, new), expected, "old={old:?}, new={new:?}");
             }
         }
+    }
+
+    #[test]
+    fn consecutive_column_checker_matches_independent_pair_sequence_oracle() {
+        let words = all_words(4);
+        for old in &words {
+            for new in &words {
+                let expected = if matching_pair_sequences(old, new).len() <= 1 {
+                    ExactUniqueness::Unique
+                } else {
+                    ExactUniqueness::Ambiguous
+                };
+                let actual = super::check_retaining_for_reconstruction(old, new, &mut 100_000)
+                    .expect("funded full checker");
+                assert_eq!(actual.outcome, expected, "old={old:?}, new={new:?}");
+                assert_eq!(
+                    classify(old, new),
+                    expected,
+                    "rolling old={old:?}, new={new:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn consecutive_same_column_ambiguity_pays_cells_and_preserves_full_admission() {
+        use std::cell::Cell;
+        struct Counted<'a>(u32, &'a Cell<usize>);
+        impl PartialEq for Counted<'_> {
+            fn eq(&self, other: &Self) -> bool {
+                self.1.set(self.1.get() + 1);
+                self.0 == other.0
+            }
+        }
+        impl Eq for Counted<'_> {}
+        let calls = Cell::new(0);
+        let mut old: Vec<_> = (0..200).map(|i| Counted(i, &calls)).collect();
+        old.push(Counted(199, &calls));
+        let new: Vec<_> = (0..200).map(|i| Counted(i, &calls)).collect();
+        let mut remaining = 100_000;
+        let result = super::check_retaining_for_reconstruction(&old, &new, &mut remaining)
+            .expect("original dense admission");
+        assert_eq!(result.outcome, ExactUniqueness::Ambiguous);
+        assert_eq!(calls.get(), 40_401);
+        assert_eq!(remaining, 100_000 - 40_401);
+        let suffix = result.suffix.expect("paid reverse cursor");
+        assert_eq!(suffix.completed, 200);
+        assert_eq!((suffix.next_old, suffix.next_new), (199, 199));
+        calls.set(0);
+        let mut refused = 80_399;
+        let result = super::check_retaining_for_reconstruction(&old, &new, &mut refused)
+            .expect("unchanged full dense admission");
+        assert_eq!(result.outcome, ExactUniqueness::BudgetExceeded);
+        assert_eq!(calls.get(), 0);
+        assert_eq!(refused, 80_399);
     }
 
     #[test]
