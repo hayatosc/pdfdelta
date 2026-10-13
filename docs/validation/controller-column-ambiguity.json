@@ -1,0 +1,143 @@
+{
+  "status": "rejected; do not adopt",
+  "verified_base": "b9b17a016fb1134e2714b7e1f5e589217f4eacd0",
+  "candidate_code_sha": "6006724a0ebefd932d3dfa125df9b73e97642ea1",
+  "candidate_branch": "improvement/h27-controller-column-ambiguity-unadopted-20261013",
+  "mechanism": "Consecutive already-certified optimal matching edges with the same new coordinate certify ambiguity during the original paid reverse DP. Original full dense admission, memory limits, and downstream guards remain. Constant state; no extra allocation or scan.",
+  "diagnosis": {
+    "original_events": [
+      66,
+      67
+    ],
+    "base_target_generated": true,
+    "base_target_rank": 1273,
+    "base_visits": 1256,
+    "base_target_visited": false,
+    "base_last_overlap_request": 249,
+    "base_last_overlap_remaining": 58,
+    "base_target_dimensions": [
+      446,
+      447
+    ],
+    "base_dense_proof_request": 398724,
+    "target_ownership_ambiguity_reconstruction_publication": "Not reached; not inferred from historical proof.",
+    "candidate_target_recovered": false,
+    "remaining_original_missing_positive_tokens": 28,
+    "remaining_original_missing_changes": 2
+  },
+  "quality": {
+    "workspace": [
+      3402,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2126,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "patch_sha256": "3562a7e289082b16b5005aa3feb16d50ca1fbc7f75b80cf1468801268c9e8b3e",
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "adoption": "unadopted pending full36 retention"
+  },
+  "fixed_input_count": 72,
+  "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+  "panel": {
+    "fixed_denominator": 36,
+    "outcomes": {
+      "captured": 36
+    },
+    "meaningful_complete": 1,
+    "engine_complete": 1,
+    "incomplete_comparisons": 35,
+    "empty_native_text": 4
+  },
+  "binary_sha256": "377b326d585e10710c37cb749b4b77a2129c550cbed96ac93dccb9cf48de11cb",
+  "memory": {
+    "cgroup": "/sys/fs/cgroup",
+    "memory_max": 5999996928,
+    "memory_swap_max": 0,
+    "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "peak_bytes": 5608996864
+  },
+  "retention": {
+    "old_links": 1495,
+    "exact_old_links_preserved": 1474,
+    "current_links": 1474,
+    "lost_links_by_pair": [
+      {
+        "pair": "edpb-design-default-v1-to-v2",
+        "old_links": 329,
+        "new_links": 325,
+        "exact_link_scopes_and_proofs_preserved": 325
+      },
+      {
+        "pair": "edpb-controller-processor-v1-to-v2-1",
+        "old_links": 142,
+        "new_links": 125,
+        "exact_link_scopes_and_proofs_preserved": 125
+      }
+    ],
+    "old_witnesses": 584,
+    "exact_old_witnesses_preserved": 583,
+    "changed_to_unresolved_old_tokens": 1,
+    "controller_old_change_counts": [
+      69,
+      68
+    ],
+    "design_old_region_counts": [
+      158,
+      0
+    ],
+    "restrictions_old_candidate_counts": [
+      87,
+      86
+    ],
+    "restrictions_old_changes_preserved": 66,
+    "design_original_four_recovered": 2,
+    "original_352_tokens_two_changes_retained": true,
+    "all_root_physical_identity_preserved": true
+  },
+  "work": {
+    "base": 812391018,
+    "candidate": 812297331,
+    "delta": -93687,
+    "evidence_fees": {
+      "evidence_link_work.planning": 275760,
+      "evidence_link_work.verification": 4568142,
+      "evidence_link_work.retention": 161136,
+      "evidence_link_work.output": 1278896
+    },
+    "evidence_fee_deltas": {
+      "evidence_link_work.planning": -2960,
+      "evidence_link_work.verification": -91254,
+      "evidence_link_work.retention": -5392,
+      "evidence_link_work.output": -336
+    },
+    "warning": "Lower work and receipt fees coexist with lost evidence; they are not a successful improvement."
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 562.3237729950051,
+    "cpu_seconds": {
+      "self_user_seconds": 28.352775,
+      "self_system_seconds": 1.125353,
+      "children_user_seconds": 545.32815,
+      "children_system_seconds": 52.476217
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
+  },
+  "total_cpu_seconds": 627.282495,
+  "cpu_warning": "Single uncontrolled capture; no speedup claim. Process CPU including CLI children is separate from charged logical work.",
+  "next": "Keep verified base. Trace its immediately preceding paid scopes and original full reconstruction/overlap fees. Establish a same-input cost-preserving optimization with exact retention before extending early-ambiguity shortcuts. Candidate allocation-change causality not yet proved.",
+  "public_record_policy": "Only public frozen-panel identities, aggregate validation and source hashes; no report archive, document contents, credentials or personal data."
+}
