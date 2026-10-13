@@ -45,7 +45,7 @@
   "no_unused_allowance_refund": true,
   "candidate_adoption": "pending quality/full72/full36/full1495links584witnesses",
   "target_28_tokens_two_changes": "unassessed until proof/ownership/publication",
-  "status": "unadopted candidate; pending full72/full36/full retention",
+  "status": "rejected; do not adopt",
   "quality": {
     "workspace": [
       3402,
@@ -65,10 +65,10 @@
       "literal_secret": 0
     },
     "public_api_added": 0,
-    "patch_sha256": "179a80271718cab9ec918203f87a21ae5d07a2d6721406213eb96d5bab15f0ed",
+    "patch_sha256": "dfae5bf5761057106b55e73ccd89c8709477afb90085556f2dd3157bc14d133b",
     "bench": true,
     "six_fresh_gates_passed": true,
-    "adoption": "unadopted pending full36 retention"
+    "adoption": "rejected after full36/full retention"
   },
   "method": "Two optimal pair sequences from the original paid partial prefix/suffix contour; only unequal original source-callback signatures certify ambiguity. Current input bindings, original full semantic admission and memory guard retained. All new row-repair/path/canonicalization/source callback work paid directly; ordinary fallback allowance protected but never booked/transferred/refunded. Same signatures or unavailable proof makes no claim and runs ordinary fallback.",
   "preservation_required": {
@@ -77,5 +77,193 @@
     "all_old_positive_candidates_formatting_regions": true,
     "physical_scope_content_hash_proof": true,
     "prior_recoveries_and_long_two": true
+  },
+  "candidate_code_sha": "f0540501d576fdf77a63f52e5b1e33c91314e04a",
+  "candidate_branch": "improvement/h27-negative-pair-certificate-unadopted-20261013",
+  "fixed_input_count": 72,
+  "panel": {
+    "fixed_denominator": 36,
+    "outcomes": {
+      "captured": 36
+    },
+    "meaningful_complete": 1,
+    "engine_complete": 1,
+    "incomplete_comparisons": 35,
+    "empty_native_text": 4
+  },
+  "memory": {
+    "cgroup": "/sys/fs/cgroup",
+    "memory_max": 5999996928,
+    "memory_swap_max": 0,
+    "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "peak_bytes": 5674991616
+  },
+  "binary_sha256": "333ee9d46e1dd9e7d3550a2b7bc2b04f3265e42e75b6862ef103add208e94fb7",
+  "remaining_original_missing_positive_tokens": 28,
+  "remaining_original_missing_changes": [
+    66,
+    67
+  ],
+  "source_signature_statement": "The 1052 partial-contour paths are both optimal and have distinct original physical source callbacks. The replacement reaches the same Ambiguous conclusion. Neither unvisited target change is claimed recovered.",
+  "retention": {
+    "old_links": 1495,
+    "exact_old_links_preserved": 1482,
+    "current_links": 1482,
+    "old_localized_witnesses": 584,
+    "exact_old_localized_witnesses_preserved": 583,
+    "current_localized_witnesses": 589,
+    "lost_links_by_pair": [
+      {
+        "pair": "edpb-controller-processor-v1-to-v2-1",
+        "old_links": 142,
+        "new_links": 129,
+        "exact_link_scopes_and_proofs_preserved": 129
+      }
+    ],
+    "controller_changed_to_unresolved_old_tokens": 1,
+    "controller_old_changes_exact": [
+      69,
+      68
+    ],
+    "controller_old_candidates_exact": [
+      133,
+      132
+    ],
+    "restrictions_old_candidates_exact": [
+      87,
+      86
+    ],
+    "design_all_old_links_and_158_regions_preserved": true,
+    "original_controller_352_tokens_two_changes_retained": true,
+    "design_original_four_preserved": 4,
+    "W9_actual_anchor_151_regions_and_long_two_preserved": true,
+    "all_root_physical_identity_preserved": true
+  },
+  "measured_scope1052": {
+    "base_total": 227892,
+    "candidate_total": 167241,
+    "base_semantic": 87250,
+    "candidate_semantic": 26599,
+    "delta": -60651,
+    "same_ambiguous_outcome": true,
+    "exact_and_source_guards_and_receipt_fees_preserved": true
+  },
+  "allocation_causality": {
+    "same_queue": true,
+    "same_visit_scope_order_prefix": true,
+    "base_visits": 1256,
+    "candidate_visits": 1217,
+    "new_cost_increases": [
+      {
+        "ordinal": 1216,
+        "index": 389,
+        "base_before": 89324,
+        "candidate_before": 252900,
+        "base_cost": 5006,
+        "candidate_cost": 252900,
+        "cost_delta": 247894
+      },
+      {
+        "ordinal": 1209,
+        "index": 510,
+        "base_before": 116322,
+        "candidate_before": 866727,
+        "base_cost": 4150,
+        "candidate_cost": 191140,
+        "cost_delta": 186990
+      },
+      {
+        "ordinal": 1210,
+        "index": 1218,
+        "base_before": 112172,
+        "candidate_before": 675587,
+        "base_cost": 4335,
+        "candidate_cost": 191085,
+        "cost_delta": 186750
+      },
+      {
+        "ordinal": 1215,
+        "index": 317,
+        "base_before": 97634,
+        "candidate_before": 432867,
+        "base_cost": 8310,
+        "candidate_cost": 179967,
+        "cost_delta": 171657
+      },
+      {
+        "ordinal": 1205,
+        "index": 1053,
+        "base_before": 414896,
+        "candidate_before": 1416186,
+        "base_cost": 27640,
+        "candidate_cost": 187734,
+        "cost_delta": 160094
+      },
+      {
+        "ordinal": 1206,
+        "index": 1150,
+        "base_before": 387256,
+        "candidate_before": 1228452,
+        "base_cost": 42462,
+        "candidate_cost": 193904,
+        "cost_delta": 151442
+      }
+    ],
+    "meaning": "Savings changed later original admission and tight-band eligibility. Domains1053 and1150 spend more before1052; later newly admitted scopes exhaust the allowance before thirteen old receipts and one strict witness. This is observed same-scope native accounting, not a hypothetical redistribution."
+  },
+  "work": {
+    "base": 812391018,
+    "candidate": 811550646,
+    "delta": -840372,
+    "evidence_fees": {
+      "evidence_link_work.planning": 277312,
+      "evidence_link_work.verification": 4620230,
+      "evidence_link_work.retention": 165760,
+      "evidence_link_work.output": 1284096
+    },
+    "evidence_fee_deltas": {
+      "evidence_link_work.planning": -1408,
+      "evidence_link_work.verification": -39166,
+      "evidence_link_work.retention": -768,
+      "evidence_link_work.output": 4864
+    },
+    "warning": "Lower logical work and some evidence fees coexist with lost old evidence and are not accepted as improvement."
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 597.9421354240039,
+    "cpu_seconds": {
+      "self_user_seconds": 32.640777,
+      "self_system_seconds": 1.213238,
+      "children_user_seconds": 577.853526,
+      "children_system_seconds": 44.295155
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
+  },
+  "total_cpu_seconds": 656.002696,
+  "cpu_warning": "Single uncontrolled full36 capture; separate from logical work; no speedup claim.",
+  "next": "Keep verified b9b. Isolate an optional-probe affordability guard including both original source callbacks before spending repair/path fees. For domain389, available above the protected matrix is18133; a proven lower bound for this probe including two callbacks is128+32*607=19552, before row/edits extras. This suggests declining the impossible probe without executing/bookkeeping/refunding it. The guard is not implemented or verified and cannot be claimed to restore all receipts or the28tokens. Re-evaluate dense-versus-tight-band transitions and the full1495/584 retention after any change.",
+  "public_record_policy": "Only public frozen-panel identities and aggregate validation/source hashes; no token dump, PDF contents, private diagnostic archive or credentials.",
+  "first_missing_receipt": {
+    "base_relation": 4569,
+    "domain": 389,
+    "ordinal": 1216,
+    "candidate_scope_reached": true,
+    "dimensions": [
+      303,
+      304
+    ],
+    "candidate_before": 252900,
+    "remaining_before_exact": 252379,
+    "exact_paid": 142134,
+    "remaining_after_exact": 110245,
+    "negative_probe_no_claim_paid": 17134,
+    "remaining_after_probe": 93111,
+    "ordinary_semantic_matrix_paid": 92112,
+    "later_source_callback_request": 608,
+    "later_source_callback_remaining": 86,
+    "receipt_planning_request": 128,
+    "receipt_planning_remaining": 0,
+    "meaning": "The same physical relation is established/complete, but no scoped receipt is published. Later twelve old receipt scopes and the missing strict witness are unvisited. Normalization budget refusal is not claimed physical uncertainty."
   }
 }
