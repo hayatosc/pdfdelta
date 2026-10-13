@@ -36,6 +36,10 @@ pub(super) enum ExactUniqueness {
 /// and for every comparison made by the equal-input fast path. `BudgetExceeded`
 /// therefore carries no uniqueness claim and lets callers share one bound
 /// across multiple checks.
+/// Two eligible diagonals in one old-token row already certify ambiguity:
+/// both occur on optimal paths but cannot occur together in one pair sequence.
+/// This predicate is part of the charged reverse-cell uniqueness recurrence,
+/// with no extra traversal, allocation, retained certificate or work refund.
 ///
 /// # Errors
 ///
@@ -176,6 +180,7 @@ pub(super) fn check_recording<T: Eq>(
     for old_index in (0..old.len()).rev() {
         suffix_current.fill(0);
         let prefix_row = old_index * columns;
+        let mut row_has_match = false;
         for new_index in (0..new.len()).rev() {
             if !charge_cell(remaining_cells) {
                 *refused_request = 1;
@@ -195,9 +200,10 @@ pub(super) fn check_recording<T: Eq>(
                         resource: DP_CELLS_RESOURCE,
                         limit: usize::MAX,
                     })?;
-                    if matching_edges > lcs_length {
+                    if row_has_match || matching_edges > lcs_length {
                         return Ok(ExactUniqueness::Ambiguous);
                     }
+                    row_has_match = true;
                 }
                 suffix_after_match
                     .checked_add(1)
@@ -612,6 +618,7 @@ fn check_retaining_internal<'a, T: Eq>(
 
     for old_index in (0..old.len()).rev() {
         let prefix_row = old_index * columns;
+        let mut row_has_match = false;
         for new_index in (0..new.len()).rev() {
             if !charge_cell(remaining_cells) {
                 return Ok(RetainedCheck::plain(ExactUniqueness::BudgetExceeded));
@@ -630,7 +637,7 @@ fn check_retaining_internal<'a, T: Eq>(
                         resource: DP_CELLS_RESOURCE,
                         limit: usize::MAX,
                     })?;
-                    if matching_edges > lcs_length {
+                    if row_has_match || matching_edges > lcs_length {
                         let completed = forward_cells - (old_index * new.len() + new_index + 1);
                         let suffix = (completed
                             >= RetainedSuffix::<T>::BINDING_WORK
@@ -649,6 +656,7 @@ fn check_retaining_internal<'a, T: Eq>(
                             suffix,
                         });
                     }
+                    row_has_match = true;
                 }
                 suffix_after_match
                     .checked_add(1)
@@ -1232,11 +1240,11 @@ mod tests {
         let new = b"AB".repeat(63);
         let mut remaining = 1_000_000;
         let checked = super::check_retaining(&old, &new, &mut remaining).expect("check");
-        assert_eq!(1_000_000 - remaining, 24255);
+        assert_eq!(1_000_000 - remaining, 16383);
         let suffix = checked.suffix.expect("retained cells");
-        assert_eq!(suffix.completed, 8126);
-        assert_eq!(suffix.pending_work().expect("pending"), 8005);
-        let mut too_small = 8004;
+        assert_eq!(suffix.completed, 254);
+        assert_eq!(suffix.pending_work().expect("pending"), 15877);
+        let mut too_small = 15876;
         assert!(
             suffix
                 .complete_for(&old, &new, &mut too_small)
@@ -1576,6 +1584,72 @@ mod tests {
                 assert_eq!(classify(old, new), expected, "old={old:?}, new={new:?}");
             }
         }
+    }
+
+    #[test]
+    fn same_row_ambiguity_keeps_full_admission_and_pays_each_inspected_cell() {
+        use std::cell::Cell;
+        struct Token<'a>(u8, &'a Cell<usize>);
+        impl PartialEq for Token<'_> {
+            fn eq(&self, other: &Self) -> bool {
+                self.1.set(self.1.get() + 1);
+                self.0 == other.0
+            }
+        }
+        impl Eq for Token<'_> {}
+        let probes = Cell::new(0);
+        let old: Vec<_> = (0..40).map(|x| Token(x, &probes)).collect();
+        let new: Vec<_> = (0..40).chain([39]).map(|x| Token(x, &probes)).collect();
+        let forward = old.len() * new.len();
+        let mut refused = forward * 2 - 1;
+        assert_eq!(
+            check(&old, &new, &mut refused).expect("original preflight"),
+            ExactUniqueness::BudgetExceeded
+        );
+        assert_eq!((refused, probes.get()), (forward * 2 - 1, 0));
+        let mut work = forward * 2;
+        assert_eq!(
+            check(&old, &new, &mut work).expect("two optimal last-row edges"),
+            ExactUniqueness::Ambiguous
+        );
+        assert_eq!(work, forward - 2);
+        assert_eq!(probes.get(), forward + 2);
+        // Only two eligible edges were inspected, fewer than LCS length 40.
+        // They cannot both match old index39 in one ordered pair sequence.
+        assert_eq!(
+            matching_pair_sequences(
+                &(0..40).collect::<Vec<_>>(),
+                &(0..40).chain([39]).collect::<Vec<_>>()
+            )
+            .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn early_row_certificate_keeps_paid_partial_suffix_cursor_and_allocation() {
+        let old: Vec<u8> = (0..40).collect();
+        let new: Vec<u8> = old.iter().copied().chain([200; 30]).chain([39]).collect();
+        let forward = old.len() * new.len();
+        let mut work = forward * 2;
+        let checked = super::check_retaining(&old, &new, &mut work).expect("row certificate");
+        assert_eq!(checked.outcome, ExactUniqueness::Ambiguous);
+        assert_eq!(work, forward - 32);
+        let suffix = checked
+            .suffix
+            .expect("31 completed cells admit same-input continuation");
+        let pointer = suffix.table.as_ptr();
+        let capacity = suffix.table.capacity();
+        assert_eq!(suffix.completed, 31);
+        let mut remaining = suffix.pending_work().expect("ordinary pending work");
+        assert_eq!(remaining, forward - 31 + 3);
+        let table = suffix
+            .complete_for(&old, &new, &mut remaining)
+            .expect("same immutable inputs")
+            .expect("funded");
+        assert_eq!(remaining, 0);
+        assert_eq!((table.as_ptr(), table.capacity()), (pointer, capacity));
+        assert_eq!(table, independent_suffix(&old, &new));
     }
 
     fn matching_pair_sequences(old: &[u8], new: &[u8]) -> Vec<Vec<(usize, usize)>> {

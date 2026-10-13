@@ -13303,7 +13303,7 @@ mod assessor_issue_cache_tests {
             let after = assessor.remaining_work;
             assert_eq!(
                 before - after,
-                42048
+                34176
                     + assessor
                         .evidence_link_work
                         .total()
@@ -13317,13 +13317,13 @@ mod assessor_issue_cache_tests {
             );
             assert_eq!(
                 assessor.suffix_reuse_work.recomputed_cells,
-                8002 * (index + 1)
+                15874 * (index + 1)
             );
             assert_eq!(assessor.suffix_reuse_work.binding_work, 3 * (index + 1));
             assert_eq!(assessor.suffix_reuse_work.accounting_work, 16 * (index + 1));
             assert_eq!(
                 assessor.suffix_reuse_work.unused_allowance,
-                8107 * (index + 1)
+                235 * (index + 1)
             );
             assert_eq!(assessor.prove_domain(&key)?, DomainState::Ready);
             assert_eq!(assessor.remaining_work, after);

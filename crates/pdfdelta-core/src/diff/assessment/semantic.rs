@@ -1112,17 +1112,22 @@ mod tests {
             super::super::SuffixReuseWork {
                 attempts: 1,
                 allowance_used: 16128,
-                recomputed_cells: 8002,
+                recomputed_cells: 15874,
                 binding_work: 3,
                 accounting_work: 16,
-                unused_allowance: 8107,
+                unused_allowance: 235,
             }
         );
         let suffix = super::super::exact::check_retaining(&old, &new, &mut 1_000_000)
             .expect("exact")
             .suffix
             .expect("continuation");
-        let mut below_original_allowance = 10_000;
+        let mut below_original_allowance = old.len() * new.len() - 1;
+        assert!(
+            suffix.pending_work().expect("actual pending cells")
+                + super::super::SuffixReuseWork::ACCOUNTING_WORK
+                <= below_original_allowance
+        );
         let mut refused = super::super::SuffixReuseWork::default();
         assert_eq!(
             super::check_hunks_retained(
