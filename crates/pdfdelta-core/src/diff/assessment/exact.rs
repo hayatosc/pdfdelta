@@ -500,6 +500,10 @@ pub(super) fn check_retaining_for_reconstruction<'a, T: Eq>(
 /// Preserves the ordinary equal-input scout and full dense admission before
 /// an optional lower-cost literal certificate. A failed attempt keeps its
 /// charges and enough original allowance for dense proof and reconstruction.
+/// The optional certificate runs only when the original uncached Myers work
+/// would not fit after the full dense check. Ample-budget domains follow the
+/// original checker without a speculative scan, avoiding unnecessary changes
+/// to which later domains can spend the shared allowance.
 /// No diagnostic input, physical verdict or cross-scope cache is reused.
 pub(super) fn check_for_localization<'a, T: Eq>(
     old: &'a [T],
@@ -545,10 +549,15 @@ pub(super) fn check_for_localization<'a, T: Eq>(
             .and_then(|work| n.checked_add(work))
             .and_then(|work| work.checked_add(128 + 16))
     });
+    let uncached_reconstruction = old
+        .len()
+        .checked_add(new.len())
+        .map(|length| length.saturating_mul(max_distance.min(length).saturating_add(1)));
     if let (Some(forward), Some(dense), Some(reserve), Some(bytes)) =
         (forward, dense, reserve, bytes)
         && dense <= *remaining
         && bytes <= MAX_EXACT_MEMORY_BYTES
+        && uncached_reconstruction.is_some_and(|work| work > remaining.saturating_sub(dense))
         && let Some(script) = banded::check_reserved(
             old,
             new,
@@ -1708,6 +1717,26 @@ mod tests {
         assert_eq!(result.outcome, ExactUniqueness::Unique);
         assert_eq!(script, Some(Vec::new()));
         assert_eq!(equal, 99_800);
+    }
+
+    #[test]
+    fn ample_allowance_keeps_original_table_and_charges_without_probe() {
+        let old: Vec<u32> = (0..200).collect();
+        let mut new = old.clone();
+        new[33] = 10_000;
+        let mut expected_work = 1_000_000;
+        let expected = super::check_retaining_for_reconstruction(&old, &new, &mut expected_work)
+            .expect("ordinary full checker");
+        let mut actual_work = 1_000_000;
+        let (actual, script) = super::check_for_localization(&old, &new, 400, &mut actual_work)
+            .expect("ample allowance");
+        assert_eq!(actual.outcome, expected.outcome);
+        assert!(script.is_none());
+        assert_eq!(actual_work, expected_work);
+        let actual = actual.suffix.expect("original complete table");
+        let expected = expected.suffix.expect("ordinary complete table");
+        assert_eq!(actual.table, expected.table);
+        assert_eq!(actual.completed, expected.completed);
     }
 
     #[test]
