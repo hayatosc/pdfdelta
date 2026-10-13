@@ -2,6 +2,9 @@
 
 mod single_edit;
 pub(super) use single_edit::check as check_unique_single_edit_script;
+mod banded;
+pub(super) use banded::check as check_unique_banded_script;
+mod prefix_ambiguity;
 
 use crate::{Error, Result};
 
@@ -601,6 +604,18 @@ fn check_retaining_internal<'a, T: Eq>(
     }
 
     let lcs_length = prefix[prefix_cells - 1];
+    // A tight shared allowance can fund a full semantic matrix after an early
+    // ambiguity certificate, but not after a late reverse-table rejection.
+    // Keep enough work for the original full reverse pass even on a negative
+    // certificate attempt. Neither the dense admission nor its memory cap is
+    // relaxed; only the reconstruction-capable caller uses this alternative.
+    if retain_unique
+        && *remaining_cells < dp_cells
+        && prefix_ambiguity::admitted(old.len(), new.len(), forward_cells, *remaining_cells)
+        && prefix_ambiguity::check(old, new, &prefix, remaining_cells)
+    {
+        return Ok(RetainedCheck::plain(ExactUniqueness::Ambiguous));
+    }
     // Only the current prefix cell is needed for its uniqueness decision.
     // Later reverse cells never read the processed row/column again. The
     // completed lower/right region can therefore store suffix values in place.

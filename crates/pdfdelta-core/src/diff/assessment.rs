@@ -5787,12 +5787,25 @@ impl<'a, 'document> Assessor<'a, 'document> {
                     }
                 }
                 Ok(exact::ExactUniqueness::BudgetExceeded) => {
-                    match exact::check_unique_single_edit_script(
+                    let script = exact::check_unique_single_edit_script(
                         &old.tokens,
                         &new.tokens,
                         self.options.max_edit_distance,
                         &mut self.remaining_work,
-                    ) {
+                    )
+                    .and_then(|script| {
+                        if script.is_some() {
+                            Ok(script)
+                        } else {
+                            exact::check_unique_banded_script(
+                                &old.tokens,
+                                &new.tokens,
+                                self.options.max_edit_distance,
+                                &mut self.remaining_work,
+                            )
+                        }
+                    });
+                    match script {
                         Ok(Some(script)) => {
                             strict_unique = true;
                             unique = true;
