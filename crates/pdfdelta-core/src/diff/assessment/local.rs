@@ -217,6 +217,149 @@ impl<'a> OwnershipBuckets<'a> {
     }
 }
 
+/// Complete immutable local owners grouped by exact physical block keys.
+/// Every owner remains separate and keeps its original order within a block.
+/// The full document bound distinguishes absent owners from invalid inputs.
+struct SparseCandidateContainment<'a> {
+    source_block_count: usize,
+    buckets: std::collections::HashMap<usize, (usize, usize, usize)>,
+    intervals: Vec<&'a SourceInterval>,
+}
+
+impl<'a> SparseCandidateContainment<'a> {
+    fn build(
+        intervals: &'a [SourceInterval],
+        source_block_count: usize,
+        expected_queries: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        let count = intervals.len();
+        // Two fully prepaid input walks and one upper-bounded bucket walk.
+        // The existing eight-operation inspection fee includes every hash
+        // lookup, counter update, retained reference and bucket coordinate.
+        let work = count.checked_mul(3 * 8)?.checked_add(32)?;
+        let bytes = count
+            .checked_mul(128 + std::mem::size_of::<&SourceInterval>())?
+            .checked_add(std::mem::size_of::<Self>())?;
+        if count < 3
+            || bytes > 32 * 1024 * 1024
+            || work >= expected_queries.saturating_mul(count) / 2
+            || work > *remaining
+            || !charge(remaining, work)
+        {
+            return None;
+        }
+        let mut buckets = std::collections::HashMap::new();
+        buckets.try_reserve(count).ok()?;
+        if buckets
+            .capacity()
+            .checked_mul(128)?
+            .checked_add(count.checked_mul(std::mem::size_of::<&SourceInterval>())?)?
+            .checked_add(std::mem::size_of::<Self>())?
+            > 32 * 1024 * 1024
+        {
+            return None;
+        }
+        for interval in intervals {
+            if interval.block_index >= source_block_count {
+                return None;
+            }
+            let entry = buckets
+                .entry(interval.block_index)
+                .or_insert((0usize, 0usize, 0usize));
+            entry.1 = entry.1.checked_add(1)?;
+        }
+        let mut start = 0usize;
+        for bucket in buckets.values_mut() {
+            let end = start.checked_add(bucket.1)?;
+            *bucket = (start, end, start);
+            start = end;
+        }
+        let mut ordered = Vec::new();
+        ordered.try_reserve_exact(count).ok()?;
+        ordered.resize(count, intervals.first()?);
+        let bytes = buckets
+            .capacity()
+            .checked_mul(128)?
+            .checked_add(
+                ordered
+                    .capacity()
+                    .checked_mul(std::mem::size_of::<&SourceInterval>())?,
+            )?
+            .checked_add(std::mem::size_of::<Self>())?;
+        if bytes > 32 * 1024 * 1024 {
+            return None;
+        }
+        for interval in intervals {
+            let bucket = buckets.get_mut(&interval.block_index)?;
+            ordered[bucket.2] = interval;
+            bucket.2 += 1;
+        }
+        Some(Self {
+            source_block_count,
+            buckets,
+            intervals: ordered,
+        })
+    }
+
+    fn contains_all(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
+        for interval in source {
+            // The same two eight-operation lookups now check the original
+            // source bound and the exact block key, rather than empty offsets.
+            if !charge(remaining, 2 * 8) || interval.block_index >= self.source_block_count {
+                return None;
+            }
+            let Some(&(start, end, _)) = self.buckets.get(&interval.block_index) else {
+                return Some(false);
+            };
+            if !charge(remaining, (end - start).saturating_mul(8)) {
+                return None;
+            }
+            if !self.intervals[start..end].iter().any(|owner| {
+                owner.block_index == interval.block_index
+                    && owner.start <= interval.start
+                    && interval.end <= owner.end
+            }) {
+                return Some(false);
+            }
+        }
+        Some(true)
+    }
+}
+
+/// Prefer sparse grouping while retaining the existing funded dense route.
+enum CandidateContainment<'a> {
+    Sparse(SparseCandidateContainment<'a>),
+    Dense(OwnershipBuckets<'a>),
+}
+
+impl<'a> CandidateContainment<'a> {
+    fn build(
+        intervals: &'a [SourceInterval],
+        source_block_count: usize,
+        expected_queries: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        if let Some(index) = SparseCandidateContainment::build(
+            intervals,
+            source_block_count,
+            expected_queries,
+            remaining,
+        ) {
+            return Some(Self::Sparse(index));
+        }
+        OwnershipBuckets::build(intervals, source_block_count, expected_queries, remaining)
+            .map(Self::Dense)
+    }
+
+    fn contains_all(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
+        match self {
+            Self::Sparse(index) => index.contains_all(source, remaining),
+            Self::Dense(index) => index.contains_all(source, remaining),
+        }
+    }
+}
+
 impl Assessor<'_, '_> {
     /// Known input order also closes gaps between verified global anchors.
     /// These gaps can cross soft block or page boundaries even when the
@@ -2958,8 +3101,8 @@ impl Assessor<'_, '_> {
         // Both populations stay immutable until the whole domain commits.
         // Setup is paid from the shared budget and uses the existing bounded
         // grouping; unavailable indexes retain the original exhaustive rule.
-        let containment: [Option<OwnershipBuckets<'_>>; 2] = std::array::from_fn(|side| {
-            OwnershipBuckets::build(
+        let containment: [Option<CandidateContainment<'_>>; 2] = std::array::from_fn(|side| {
+            CandidateContainment::build(
                 &accepted[side],
                 self.sides[side].blocks.len(),
                 candidates.len().saturating_mul(8),
@@ -5010,6 +5153,83 @@ mod tests {
             "later source proofs lost their budget"
         );
         Ok(())
+    }
+
+    #[test]
+    fn sparse_candidate_index_preserves_source_bounds_original_owners_and_fees() {
+        let interval = |block_index, start, end| SourceInterval {
+            block_index,
+            start,
+            end,
+        };
+        let duplicate_owners = (0..500).map(|_| interval(0, 0, 4)).collect::<Vec<_>>();
+        let mut fallback_budget = 6_500;
+        let fallback =
+            CandidateContainment::build(&duplicate_owners, 1, 1_000, &mut fallback_budget)
+                .expect("preserve the previously funded dense route");
+        assert!(matches!(&fallback, CandidateContainment::Dense(_)));
+        assert_eq!(
+            fallback.contains_all(&[interval(0, 0, 4)], &mut fallback_budget),
+            Some(true)
+        );
+        assert_eq!(fallback_budget, 6_500 - (3 + 500 * 3 + 1) - (2 + 500) * 8);
+        let mut owners = (0..128)
+            .map(|block| interval(block, 0, 4))
+            .collect::<Vec<_>>();
+        let queries = (0..10)
+            .map(|block| interval(block, 1, 3))
+            .collect::<Vec<_>>();
+        let mut budget = 3_500;
+        assert!(OwnershipBuckets::build(&owners, 10_000, 128 * 8, &mut 3_500).is_none());
+        assert!(!charge(&mut 3_500, queries.len() * (owners.len() + 1) * 8));
+        let grouped = SparseCandidateContainment::build(&owners, 10_000, 128 * 8, &mut budget)
+            .expect("all actual owners and every lookup are prepaid");
+        assert_eq!(grouped.contains_all(&queries, &mut budget), Some(true));
+        assert_eq!(budget, 3_500 - (128 * 3 * 8 + 32) - 10 * 3 * 8);
+        assert_eq!(grouped.intervals.len(), owners.len());
+        assert_eq!(grouped.buckets.len(), 128);
+        assert_eq!(
+            grouped.contains_all(&[interval(9_999, 0, 1)], &mut 100),
+            Some(false)
+        );
+        assert_eq!(
+            grouped.contains_all(&[interval(10_000, 0, 1)], &mut 100),
+            None
+        );
+        assert_eq!(grouped.contains_all(&queries, &mut 0), None);
+        assert_eq!(grouped.contains_all(&[], &mut 0), Some(true));
+        owners[0] = interval(0, 0, 2);
+        owners.extend([interval(0, 2, 4), interval(0, 0, 2), interval(0, 2, 2)]);
+        let grouped = SparseCandidateContainment::build(&owners, 10_000, 128 * 8, &mut 100_000)
+            .expect("duplicates and empty original owners survive");
+        let &(start, end, _) = grouped.buckets.get(&0).expect("original block");
+        assert_eq!(end - start, 4);
+        for (original, stored) in owners
+            .iter()
+            .filter(|owner| owner.block_index == 0)
+            .zip(&grouped.intervals[start..end])
+        {
+            assert!(std::ptr::eq(original, *stored));
+        }
+        for block in [0, 1, 127, 128, 9_999] {
+            for start in 0..=5 {
+                for end in start..=5 {
+                    let oracle = owners.iter().any(|owner| {
+                        owner.block_index == block && owner.start <= start && end <= owner.end
+                    });
+                    assert_eq!(
+                        grouped.contains_all(&[interval(block, start, end)], &mut 100_000),
+                        Some(oracle)
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            grouped.contains_all(&[interval(0, 0, 4)], &mut 100_000),
+            Some(false)
+        );
+        assert!(SparseCandidateContainment::build(&owners, 127, 128 * 8, &mut 100_000).is_none());
+        assert!(SparseCandidateContainment::build(&owners, 10_000, 128 * 8, &mut 0).is_none());
     }
 
     #[test]
