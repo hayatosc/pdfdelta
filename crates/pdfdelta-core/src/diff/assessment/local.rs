@@ -4098,6 +4098,64 @@ mod tests {
     }
 
     #[test]
+    fn scoped_evidence_capacity_reuse_preserves_budget_and_every_source_link() -> Result<()> {
+        let old_blocks = [sourced_block(1, "ABC")];
+        let new_blocks = [sourced_block(101, "ABX")];
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let alignment = matched_alignment(&[BlockId(1)], &[BlockId(101)]);
+        let mut a =
+            super::super::Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+        a.remaining_work = 250_000;
+        let groups = [
+            super::super::domain_group(&old, 0..1, BlockSeparator::Concatenate),
+            super::super::domain_group(&new, 0..1, BlockSeparator::Concatenate),
+        ];
+        for _ in 0..315 {
+            let relation = a.record(super::super::RelationAssessment {
+                old_span: Some(span(1, 3)),
+                new_span: Some(span(101, 3)),
+                parent: None,
+                outcome: RelationOutcome::Established,
+                search: SearchCompleteness::Complete,
+                assumptions: Vec::new(),
+                reasons: Vec::new(),
+            })?;
+            a.capture_scoped_change_evidence(relation, [&groups[0], &groups[1]])?;
+        }
+        assert_eq!(
+            a.scoped_change_evidence.len(),
+            315,
+            "every paid source link must survive"
+        );
+        assert!(
+            a.evidence_link_work.retention <= 40_000,
+            "remove actual repeated buffer relocation"
+        );
+        assert!(a.scoped_change_evidence.capacity() <= a.options.max_assessment_ranges);
+        assert!(
+            a.scoped_change_evidence.capacity()
+                * std::mem::size_of::<super::super::ScopedChangeEvidence>()
+                <= super::super::COARSE_MEMORY_BYTES
+        );
+        for (index, link) in a.scoped_change_evidence.iter().enumerate() {
+            assert_eq!(link.relation, index);
+            assert_eq!(a.records[index].old_span, Some(span(1, 3)));
+            assert_eq!(a.records[index].new_span, Some(span(101, 3)));
+            assert_eq!(link.proof, ChangedRegionProof::ExactTokenMultisetMismatch);
+        }
+        let old_tokens = (0..200).collect::<Vec<_>>();
+        let mut new_tokens = old_tokens.clone();
+        new_tokens[100] = 201;
+        assert_eq!(
+            super::super::exact::check(&old_tokens, &new_tokens, &mut a.remaining_work)?,
+            super::super::exact::ExactUniqueness::Unique,
+            "remaining allowance must fund a real subsequent proof"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn explicit_scoped_links_are_paid_non_owning_and_reject_unclosed_scopes() -> Result<()> {
         let old_blocks = [sourced_block(1, "ABC")];
         let new_blocks = [sourced_block(101, "ABX")];

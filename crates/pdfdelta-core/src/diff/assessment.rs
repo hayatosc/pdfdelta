@@ -7460,25 +7460,56 @@ impl<'a, 'document> Assessor<'a, 'document> {
         if counts.values().all(|n| *n == 0) {
             return Ok(());
         }
-        let copies = if self.scoped_change_evidence.len() == self.scoped_change_evidence.capacity()
-        {
-            self.scoped_change_evidence.len()
+        let length = self.scoped_change_evidence.len();
+        let capacity = self.scoped_change_evidence.capacity();
+        let required = length.saturating_add(1);
+        let byte_limit = COARSE_MEMORY_BYTES / std::mem::size_of::<ScopedChangeEvidence>();
+        let capacity_limit = self.options.max_assessment_ranges.min(byte_limit);
+        let grow = required > capacity;
+        let desired = if grow {
+            capacity
+                .saturating_mul(2)
+                .max(4)
+                .max(required)
+                .min(capacity_limit)
+        } else {
+            capacity
+        };
+        if desired < required || capacity > capacity_limit {
+            return Ok(());
+        }
+        // Reuse only this assessor's immutable relation references. New spare
+        // slots are explicitly prepaid and checked against the original limits.
+        if grow && !self.charge_evidence_link(0, 16) {
+            return Ok(());
+        }
+        let copies = if grow { length } else { 0 };
+        let extra_slots = if grow {
+            desired.saturating_sub(capacity).saturating_sub(1)
         } else {
             0
         };
-        if !self.charge_evidence_link(2, 64usize.saturating_add(copies.saturating_mul(16)))
-            || !self.charge_evidence_link(3, 128)
+        if !self.charge_evidence_link(
+            2,
+            64usize
+                .saturating_add(copies.saturating_mul(16))
+                .saturating_add(extra_slots.saturating_mul(16)),
+        ) || !self.charge_evidence_link(3, 128)
         {
             return Ok(());
         }
-        self.scoped_change_evidence
-            .try_reserve_exact(1)
-            .map_err(|_| allocation_error("scoped evidence links"))?;
-        if self
-            .scoped_change_evidence
-            .capacity()
-            .saturating_mul(std::mem::size_of::<ScopedChangeEvidence>())
-            > COARSE_MEMORY_BYTES
+        if grow {
+            self.scoped_change_evidence
+                .try_reserve_exact(desired - length)
+                .map_err(|_| allocation_error("scoped evidence links"))?;
+        }
+        if self.scoped_change_evidence.capacity() > desired
+            || self.scoped_change_evidence.capacity() > capacity_limit
+            || self
+                .scoped_change_evidence
+                .capacity()
+                .saturating_mul(std::mem::size_of::<ScopedChangeEvidence>())
+                > COARSE_MEMORY_BYTES
         {
             return Ok(());
         }
