@@ -5652,14 +5652,17 @@ impl<'a, 'document> Assessor<'a, 'document> {
         };
         let mut exact_displacement_proof = false;
         if reasons.is_empty() {
-            let exact = exact::check_retaining_for_reconstruction(
+            let exact = exact::check_for_localization(
                 &old.tokens,
                 &new.tokens,
+                self.options.max_edit_distance,
                 &mut self.remaining_work,
             );
             let mut retained = None;
-            let exact = exact.map(|checked| {
+            let mut prepared_script = None;
+            let exact = exact.map(|(checked, script)| {
                 retained = checked.suffix;
+                prepared_script = script;
                 checked.outcome
             });
             match exact {
@@ -5681,6 +5684,9 @@ impl<'a, 'document> Assessor<'a, 'document> {
                             &mut edits,
                             &mut search,
                         )?;
+                    } else if let Some(script) = prepared_script.take() {
+                        unique = true;
+                        edits = script;
                     } else {
                         // Charge the bounded reconstruction as well as the
                         // exhaustive uniqueness search before running Myers.

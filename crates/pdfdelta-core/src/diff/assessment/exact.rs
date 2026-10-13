@@ -2,6 +2,7 @@
 
 mod single_edit;
 pub(super) use single_edit::check as check_unique_single_edit_script;
+mod banded;
 
 use crate::{Error, Result};
 
@@ -484,7 +485,7 @@ pub(super) fn check_retaining<'a, T: Eq>(
     new: &'a [T],
     remaining_cells: &mut usize,
 ) -> Result<RetainedCheck<'a, T>> {
-    check_retaining_internal(old, new, remaining_cells, false)
+    check_retaining_internal(old, new, remaining_cells, false, false)
 }
 
 /// Also preserves a paid complete unique table for immediate same-input use.
@@ -493,7 +494,73 @@ pub(super) fn check_retaining_for_reconstruction<'a, T: Eq>(
     new: &'a [T],
     remaining_cells: &mut usize,
 ) -> Result<RetainedCheck<'a, T>> {
-    check_retaining_internal(old, new, remaining_cells, true)
+    check_retaining_internal(old, new, remaining_cells, true, false)
+}
+
+/// Preserves the ordinary equal-input scout and full dense admission before
+/// an optional lower-cost literal certificate. A failed attempt keeps its
+/// charges and enough original allowance for dense proof and reconstruction.
+/// No diagnostic input, physical verdict or cross-scope cache is reused.
+pub(super) fn check_for_localization<'a, T: Eq>(
+    old: &'a [T],
+    new: &'a [T],
+    max_distance: usize,
+    remaining: &mut usize,
+) -> Result<(RetainedCheck<'a, T>, Option<Vec<crate::diff::AtomicEdit>>)> {
+    if old.is_empty() || old.len() != new.len() {
+        return check_retaining_for_reconstruction(old, new, remaining).map(|r| (r, None));
+    }
+    let mut identical = true;
+    for (a, b) in old.iter().zip(new) {
+        if !charge_cell(remaining) {
+            return Ok((RetainedCheck::plain(ExactUniqueness::BudgetExceeded), None));
+        }
+        if a != b {
+            identical = false;
+            break;
+        }
+    }
+    if identical {
+        return Ok((
+            RetainedCheck::plain(ExactUniqueness::Unique),
+            Some(Vec::new()),
+        ));
+    }
+    let forward = old.len().checked_mul(new.len());
+    let dense = forward.and_then(|n| n.checked_mul(2));
+    let bytes = old
+        .len()
+        .checked_add(1)
+        .and_then(|rows| {
+            new.len()
+                .checked_add(1)
+                .and_then(|columns| rows.checked_mul(columns))
+        })
+        .and_then(|cells| cells.checked_add(new.len().checked_add(1)?.checked_mul(2)?))
+        .and_then(|cells| cells.checked_mul(size_of::<usize>()));
+    let reserve = dense.and_then(|n| {
+        old.len()
+            .checked_add(new.len())
+            .and_then(|length| length.checked_mul(12))
+            .and_then(|work| n.checked_add(work))
+            .and_then(|work| work.checked_add(128 + 16))
+    });
+    if let (Some(forward), Some(dense), Some(reserve), Some(bytes)) =
+        (forward, dense, reserve, bytes)
+        && dense <= *remaining
+        && bytes <= MAX_EXACT_MEMORY_BYTES
+        && let Some(script) = banded::check_reserved(
+            old,
+            new,
+            max_distance,
+            remaining,
+            reserve,
+            forward.saturating_sub(1),
+        )?
+    {
+        return Ok((RetainedCheck::plain(ExactUniqueness::Unique), Some(script)));
+    }
+    check_retaining_internal(old, new, remaining, true, true).map(|r| (r, None))
 }
 
 fn check_retaining_internal<'a, T: Eq>(
@@ -501,12 +568,13 @@ fn check_retaining_internal<'a, T: Eq>(
     new: &'a [T],
     remaining_cells: &mut usize,
     retain_unique: bool,
+    identical_already_checked: bool,
 ) -> Result<RetainedCheck<'a, T>> {
     if old.is_empty() || new.is_empty() {
         return Ok(RetainedCheck::plain(ExactUniqueness::Unique));
     }
 
-    if old.len() == new.len() {
+    if old.len() == new.len() && !identical_already_checked {
         let mut identical = true;
         for (old_token, new_token) in old.iter().zip(new) {
             if !charge_cell(remaining_cells) {
@@ -1584,6 +1652,62 @@ mod tests {
                 assert_eq!(classify(old, new), expected, "old={old:?}, new={new:?}");
             }
         }
+    }
+
+    #[test]
+    fn admitted_band_preserves_dense_script_with_full_fallback_reserved() {
+        let old: Vec<u32> = (0..200).collect();
+        let mut new = old.clone();
+        new[33] = 10_000;
+        let mut work = 100_000;
+        let (result, script) = super::check_for_localization(&old, &new, 400, &mut work)
+            .expect("admitted literal certificate");
+        assert_eq!(result.outcome, ExactUniqueness::Unique);
+        assert!(result.suffix.is_none());
+        let script = script.expect("complete certified band");
+        let oracle = super::check_retaining_for_reconstruction(&old, &new, &mut 100_000)
+            .expect("dense oracle");
+        let super::ReconstructedScript::Ready(expected) = oracle
+            .suffix
+            .expect("complete table")
+            .reconstruct_unique(&old, &new, 400, &mut 100_000)
+            .expect("original admission")
+        else {
+            panic!("funded dense script");
+        };
+        assert_eq!(script, expected);
+        assert_eq!(100_000 - work, 6976);
+        let mut refused = 80_033;
+        let (result, script) = super::check_for_localization(&old, &new, 400, &mut refused)
+            .expect("ordinary full matrix preflight");
+        assert_eq!(result.outcome, ExactUniqueness::BudgetExceeded);
+        assert!(script.is_none());
+        assert_eq!(refused, 79_999, "only the original scout ran");
+    }
+
+    #[test]
+    fn negative_band_keeps_charges_and_original_dense_classification() {
+        let old = b"ab".repeat(100);
+        let new = b"ba".repeat(100);
+        let mut original = 100_000;
+        let expected = super::check_retaining_for_reconstruction(&old, &new, &mut original)
+            .expect("dense oracle");
+        let mut actual = 100_000;
+        let (result, script) =
+            super::check_for_localization(&old, &new, 400, &mut actual).expect("paid fallback");
+        assert_eq!(result.outcome, expected.outcome);
+        assert_eq!(
+            actual + 146,
+            original,
+            "metadata and six real Hamming probes are not refunded"
+        );
+        assert!(script.is_none());
+        let mut equal = 100_000;
+        let (result, script) = super::check_for_localization(&old, &old, 0, &mut equal)
+            .expect("ordinary identical fast path");
+        assert_eq!(result.outcome, ExactUniqueness::Unique);
+        assert_eq!(script, Some(Vec::new()));
+        assert_eq!(equal, 99_800);
     }
 
     #[test]
