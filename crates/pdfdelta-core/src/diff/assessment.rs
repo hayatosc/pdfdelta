@@ -5786,8 +5786,25 @@ impl<'a, 'document> Assessor<'a, 'document> {
                         }
                     }
                 }
-                Ok(exact::ExactUniqueness::BudgetExceeded)
-                | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                Ok(exact::ExactUniqueness::BudgetExceeded) => {
+                    match exact::check_unique_single_edit_script(
+                        &old.tokens,
+                        &new.tokens,
+                        self.options.max_edit_distance,
+                        &mut self.remaining_work,
+                    ) {
+                        Ok(Some(script)) => {
+                            strict_unique = true;
+                            unique = true;
+                            edits = script;
+                        }
+                        Ok(None) | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
+                            search = SearchCompleteness::Incomplete;
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
+                Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => {
                     search = SearchCompleteness::Incomplete;
                 }
                 Err(error) => return Err(error),

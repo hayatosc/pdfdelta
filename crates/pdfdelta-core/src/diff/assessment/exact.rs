@@ -1,5 +1,8 @@
 //! Bounded exact uniqueness checks for token alignments.
 
+mod single_edit;
+pub(super) use single_edit::check as check_unique_single_edit_script;
+
 use crate::{Error, Result};
 
 const MAX_EXACT_MEMORY_BYTES: usize = 64 * 1024 * 1024;
