@@ -1,5 +1,8 @@
 //! Bounded exact uniqueness checks for token alignments.
 
+mod subsequence;
+pub(super) use subsequence::check as check_unique_subsequence_script;
+
 use crate::{Error, Result};
 
 const MAX_EXACT_MEMORY_BYTES: usize = 64 * 1024 * 1024;
