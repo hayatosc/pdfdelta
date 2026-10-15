@@ -1,5 +1,5 @@
 {
-  "status": "unadopted candidate; six fresh gates passed; pending fixed72/full36/all evidence retention",
+  "status": "verified improvement: all adopted evidence and prior rejected positive information retained; first five lost scope links repaired",
   "verified_base": "3efbcb829d08234ef2cb9272a821809552ca98ec",
   "previous_rejected_record": "42d1116c3ea4462368134c17289bfebac57a106c",
   "causal_observation": {
@@ -69,7 +69,7 @@
     "W9_151_design_four_long_two_block_candidates": true,
     "full_scope_content_source_hash_proof_ownership_context": true
   },
-  "actual_pdf_quality": "Not evaluated yet. Original Controller28tokens/2changes remain unresolved until native proof and publication; bag mismatch facts do not resolve tokens.",
+  "actual_pdf_quality": "Fixed72 hashes verified. Full36 captured, complete1/incomplete35, empty4excluded. Added168positive tokens/4changes and14distinct non-owning scope proof keys, with all adopted1498links/590witnesses/16009candidate contexts and all rejected-f76positive594witnesses retained. Original Controller28tokens/2changes remain unresolved; bag mismatch does not localize or own them.",
   "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
   "quality": {
     "workspace": [
@@ -90,9 +90,148 @@
       "literal_secret": 0
     },
     "public_api_added": 0,
-    "patch_sha256": "69a4bc8a3c2ccda6df68c45955fc43038480c6ff2c1d98a852379a569067c8e5",
+    "patch_sha256": "ed77e90199414e006d436fabd9b3a2487564570ad5e49c220a30ac6b16fad3b9",
     "bench": true,
     "six_fresh_gates_passed": true,
-    "adoption": "unadopted pending full36 retention"
-  }
+    "adoption": "verified full36:1498links590witnesses16009candidate contexts and all rejectedpositive evidence retained",
+    "patch_sha256_meaning": "Pre-record staged explanation diff. Production source exactly equals evaluated1dccb8039b6c5096c07d2d21928043ae1c0a132e."
+  },
+  "evaluated_code": "1dccb8039b6c5096c07d2d21928043ae1c0a132e",
+  "replay": {
+    "head": "1dccb8039b6c5096c07d2d21928043ae1c0a132e",
+    "tree": "87e412ad962e2473b286e76d2ad8d89384c9e5ae",
+    "binary_sha256": "c6020f8fdaaa06523a30d810079aab5ef3fd0e3de3b47cef149ebaad41b49675",
+    "production_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "totals": {
+      "fixed_denominator": 36,
+      "outcomes": {
+        "captured": 36
+      },
+      "meaningful_complete": 1,
+      "engine_complete": 1,
+      "incomplete_comparisons": 35,
+      "empty_native_text": 4
+    },
+    "memory": {
+      "cgroup": "/sys/fs/cgroup",
+      "memory_max": 5999996928,
+      "memory_swap_max": 0,
+      "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "peak_bytes": 5068632064
+    },
+    "limit_scale": 1,
+    "timeout_seconds": 180,
+    "output_budget_bytes": 1000000000
+  },
+  "retention": {
+    "old_links": 1498,
+    "old_links_exact": 1498,
+    "current_links": 1512,
+    "old_witnesses": 590,
+    "old_witnesses_exact": 590,
+    "current_witnesses": 594,
+    "rejected_f76_witnesses_exact": 594,
+    "old_candidate_contexts_exact": 16009,
+    "old_candidate_contexts": 16009,
+    "all_prior_native_changes_candidates_formats_coarse_regions_exact": true,
+    "all_old_positive_tokens_preserved": true,
+    "full_W9_151_design_four_long_two_block_candidate_evidence_preserved": true
+  },
+  "new_scope_links": {
+    "pair": "edpb-controller-processor-v1-to-v2-1",
+    "old_receipts": 145,
+    "current_receipts": 159,
+    "old_unique_scope_proof_keys": 145,
+    "current_unique_scope_proof_keys": 159,
+    "new_distinct_scope_proof_keys": 14,
+    "additional_receipts": 14,
+    "additional_receipts_for_already_existing_scope_proof_keys": 0
+  },
+  "gains": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "positive_old": 4,
+      "positive_new": 5,
+      "events": {
+        "changes": {
+          "old": 68,
+          "new": 69,
+          "exact_preserved": 68
+        },
+        "change_candidates": {
+          "old": 86,
+          "new": 86,
+          "exact_preserved": 86
+        },
+        "formatting_only_changes": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        },
+        "proven_changed_regions": {
+          "old": 21,
+          "new": 21,
+          "exact_preserved": 21
+        }
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "positive_old": 77,
+      "positive_new": 82,
+      "events": {
+        "changes": {
+          "old": 73,
+          "new": 76,
+          "exact_preserved": 73
+        },
+        "change_candidates": {
+          "old": 132,
+          "new": 132,
+          "exact_preserved": 132
+        },
+        "formatting_only_changes": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        },
+        "proven_changed_regions": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        }
+      }
+    }
+  ],
+  "work": {
+    "baseline": 811550646,
+    "current": 810771711,
+    "delta": -778935,
+    "evidence_link_fees": {
+      "baseline": {
+        "evidence_link_work.planning": 279616,
+        "evidence_link_work.verification": 4686604,
+        "evidence_link_work.retention": 166784,
+        "evidence_link_work.output": 1286816
+      },
+      "current": {
+        "evidence_link_work.planning": 281792,
+        "evidence_link_work.verification": 4763104,
+        "evidence_link_work.retention": 167680,
+        "evidence_link_work.output": 1293088
+      }
+    }
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 678.1885267149992,
+    "cpu_seconds": {
+      "self_user_seconds": 44.358844999999995,
+      "self_system_seconds": 2.042742,
+      "children_user_seconds": 654.552123,
+      "children_system_seconds": 57.076008
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
+  },
+  "cpu_interpretation": "One uncontrolled run including capture tooling and native children. CPU758.029718s versus verified-baseline639.305457s; no speedup claim. Charged search work is a separate ledger; all actual proof/planning/retention/output fees are included."
 }
