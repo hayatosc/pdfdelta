@@ -11331,11 +11331,20 @@ mod assessor_issue_cache_tests {
             .collect::<Vec<_>>();
         assert_eq!(older_ranges, vec![(6, 8), (3, 4), (4, 5)]);
         let used = 1_000_000 - full.remaining_work;
+        // The same two closed source pairs can retain every older certificate
+        // while leaving the later page-shift pair unresolved. This isolates
+        // shared-work starvation from source identity or matching ambiguity.
+        let mut isolated_starvation = None;
         for budget in (0..=used).step_by(53).chain([used.saturating_sub(1), used]) {
             let partial = run(budget)?;
             let count = partial.records.len().saturating_sub(2).min(3);
             assert_eq!(&partial.records[2..2 + count], &older[..count]);
+            if partial.records.len() == 5 && partial.remaining_work == 0 {
+                isolated_starvation = Some(budget);
+                assert_eq!(&partial.records[2..], older);
+            }
         }
+        assert!(isolated_starvation.is_some());
         Ok(())
     }
 
