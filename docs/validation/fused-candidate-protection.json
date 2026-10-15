@@ -1,0 +1,242 @@
+{
+  "status": "unadopted",
+  "adopted_base": "96d4eacdfa2f8f2278a6cc45cdcfd2de368c35d3",
+  "production_patch_sha256": "3bf190006eb7f72a8f6be8d5b5192bfbcb8fd21c1e832f5c8a1ac6edd5bd450d",
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
+  "hypothesis": "Reuse a complete immutable source-block index to compute overlap and single-owner containment in one pass; keep all owners, multiplicity, strict endpoints and complete source projection. Do not merge adjacent owners.",
+  "accounting": {
+    "per_query": 8,
+    "per_source_interval_lookup": 16,
+    "per_owner_both_predicates": 16,
+    "index_build": "Existing fully paid dense/sparse build, allocation bounds and exhaustive fallback unchanged. No refunds or raised caps."
+  },
+  "minimal_test": {
+    "name": "fused_candidate_protection_matches_both_oracles_and_pays_for_reuse",
+    "passed": true,
+    "coverage": [
+      "Dense and sparse grouping against original overlap and single-owner containment oracles",
+      "Containment failure on an earlier interval must not hide overlap on a later interval",
+      "Duplicate, adjacent, zero-width and missing-block owners",
+      "Empty projection, invalid block bound, exact funded and one-unit-short queries"
+    ]
+  },
+  "controller_core_preview": {
+    "changes": 76,
+    "unresolved_regions": 1771,
+    "work_used": 32000000,
+    "target_two_changes_recovered": false,
+    "baseline_evidence_link_work": {
+      "planning": 29936,
+      "verification": 530760,
+      "retention": 18768,
+      "output": 91840
+    },
+    "candidate_evidence_link_work": {
+      "planning": 29296,
+      "verification": 505386,
+      "retention": 18413,
+      "output": 91072
+    },
+    "native_physical_retention": "Verified below; ledger differences are not proof counts."
+  },
+  "full36_replay": {
+    "performed": false,
+    "reason": "Not promising in Controller diagnosis; positive changes did not increase and evidence retention/output ledger decreased. Do not claim full-panel retention or adoption."
+  },
+  "cpu": "Cause remains unresolved. Earlier single-thread ABBA did not reproduce the parallel-run slowdown; no speedup claim.",
+  "limits": {
+    "aggregate_memory_bytes": 6000000000,
+    "swap_bytes": 0,
+    "changed": false
+  },
+  "prior_candidates": "56fec445308739112b83b2c5c66de0177575bfbe remains separately saved and unadopted.",
+  "native_replay": {
+    "head": "96d4eacdfa2f8f2278a6cc45cdcfd2de368c35d3",
+    "binary_sha256": "cce7db8035baca88df928ee29c34101788bf6d22ecbd914f0913cef2b16603b6",
+    "production_patch_sha256": "3bf190006eb7f72a8f6be8d5b5192bfbcb8fd21c1e832f5c8a1ac6edd5bd450d",
+    "totals": {
+      "fixed_denominator": 36,
+      "outcomes": {
+        "not_run": 35,
+        "captured": 1
+      },
+      "meaningful_complete": 0,
+      "engine_complete": 0,
+      "incomplete_comparisons": 1,
+      "empty_native_text": 0
+    },
+    "memory": {
+      "cgroup": "/sys/fs/cgroup",
+      "memory_max": 5999996928,
+      "memory_swap_max": 0,
+      "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "peak_bytes": 859242496
+    },
+    "summary": {
+      "unsupported_extraction_issues": 0,
+      "formatting_only_changes": 0,
+      "unresolved_extraction_issues": 0,
+      "unresolved_regions": 1771,
+      "proven_changed_regions": 0,
+      "tentative_candidates": 132,
+      "content_changes": 76,
+      "established_changes": 76,
+      "uncertain_changes": 0,
+      "difference_status": "detected",
+      "old_extraction_complete": true,
+      "old_alignment_coverage": {
+        "total_tokens": 153416,
+        "resolved_tokens": 71695,
+        "ratio": 0.46732413829066066
+      },
+      "new_extraction_complete": true,
+      "new_alignment_coverage": {
+        "total_tokens": 174613,
+        "resolved_tokens": 71945,
+        "ratio": 0.41202545056782713
+      },
+      "comparison_complete": false,
+      "empty_native_text": false,
+      "meaningful_complete": false,
+      "candidates_truncated": false
+    },
+    "all_input_hashes_verified": true,
+    "events_and_positive_physical_ranges": {
+      "largest_root_physical_equal": true,
+      "old_root_blocks": 1930,
+      "new_root_blocks": 1930,
+      "old": {
+        "transitions": {
+          "equal->equal": 71600,
+          "unresolved->unresolved": 81721,
+          "changed->changed": 95
+        },
+        "missing_tokens": 0,
+        "old_total": 153416,
+        "new_total": 153416,
+        "exact_range_physical_tokens": 153416,
+        "identical_range_tokens": 153416
+      },
+      "new": {
+        "transitions": {
+          "unresolved->unresolved": 102668,
+          "equal->equal": 71814,
+          "changed->changed": 131
+        },
+        "missing_tokens": 0,
+        "old_total": 174613,
+        "new_total": 174613,
+        "exact_range_physical_tokens": 174613,
+        "identical_range_tokens": 174613
+      },
+      "work_changes": {},
+      "events": {
+        "changes": {
+          "old": 76,
+          "new": 76,
+          "exact_preserved": 76
+        },
+        "change_candidates": {
+          "old": 132,
+          "new": 132,
+          "exact_preserved": 132
+        },
+        "formatting_only_changes": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        },
+        "proven_changed_regions": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        }
+      }
+    },
+    "links": {
+      "baseline": 159,
+      "candidate": 153,
+      "exact_preserved": 153,
+      "missing": [
+        {
+          "scope_digest": "51e9c23ef4532e7b4b597471b027cdb11afa500cef5d2272530fa248e648c7df",
+          "count": 1,
+          "old_relation_ids": [
+            4661
+          ]
+        },
+        {
+          "scope_digest": "8c8c76427af00052c119b3489746a2f6c2575ae8a76206e0cdf24586864ea5bd",
+          "count": 1,
+          "old_relation_ids": [
+            4663
+          ]
+        },
+        {
+          "scope_digest": "5a0f266f80cfbe44106d02ef490561d199922c8c799800db524bc51c2d70daa6",
+          "count": 1,
+          "old_relation_ids": [
+            4665
+          ]
+        },
+        {
+          "scope_digest": "8875602f5fb34273eaf0365c7fe24f85ac6c2b917297b1eaa1f452008ae29dfe",
+          "count": 1,
+          "old_relation_ids": [
+            4667
+          ]
+        },
+        {
+          "scope_digest": "d0661bcdd745d8eaf329b3ceaa97e43873d7ee81569ffc12bea4556e4bfcc40c",
+          "count": 1,
+          "old_relation_ids": [
+            4669
+          ]
+        },
+        {
+          "scope_digest": "e20638c2c75389755254cd519314b1953bbaa8ca40be16727e7af239b746a66f",
+          "count": 1,
+          "old_relation_ids": [
+            4675
+          ]
+        }
+      ]
+    },
+    "localized_witnesses": {
+      "baseline": 73,
+      "candidate": 73,
+      "exact_preserved": 73
+    },
+    "candidate_contexts": {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "old_candidates": 132,
+      "current_candidates": 132,
+      "exact_events_context_ancestors_and_alternative_groups_preserved": 132,
+      "missing_context_signatures": {}
+    },
+    "decision": "Reject: six exact existing non-owning scope/proof links are lost. Equal headline counts and retained positive ownership do not compensate for lost evidence. No full36 adoption claim."
+  },
+  "quality": {
+    "workspace": [
+      3412,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2136,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "bench": true,
+    "six_fresh_gates_passed": true
+  },
+  "outstanding": "Controller original 28 positive tokens and two changes remain unrecovered. A single general fused query is not consistently cheaper for small owner populations. Further reuse needs a funded cost-aware strategy and retention proof."
+}
