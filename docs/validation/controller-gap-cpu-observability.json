@@ -1,0 +1,113 @@
+{
+  "status": "unadopted",
+  "adopted_base": "96d4eacdfa2f8f2278a6cc45cdcfd2de368c35d3",
+  "controller": {
+    "missing_positive_tokens": 28,
+    "missing_changes": 2,
+    "baseline_cause": "Domain 326 reaches a cached complete unique proof; candidate protection exhausts the shared budget before publication.",
+    "candidate": "Validated nonempty source with a complete negative overlap cannot be wholly contained. Skip only this redundant containment query; projection, overlap, ownership, empty-anchor handling, and bookkeeping remain paid.",
+    "preview": {
+      "changes": 76,
+      "unresolved_regions": 1771,
+      "work_used": 32000000,
+      "target_domain_visited": false,
+      "conclusion": "No recovery. Earlier domains consume the remaining budget. Full physical-evidence retention is not yet verified; do not adopt based on equal counts."
+    }
+  },
+  "cpu": {
+    "historical_per_pair_cpu_available": false,
+    "paired_design": "Sequential fixed-input and fixed-binary ABBA; native process wait4 CPU; 6 GB and zero swap; diagnostic subsets only.",
+    "w9_old_seconds": [
+      9.8637,
+      7.984884
+    ],
+    "w9_new_seconds": [
+      7.859944,
+      7.305653
+    ],
+    "controller_old_seconds": [
+      49.629739,
+      45.415837
+    ],
+    "controller_new_seconds": [
+      48.400696,
+      47.685096
+    ],
+    "nist_controls_old_seconds": [
+      86.401836,
+      73.499231
+    ],
+    "nist_controls_new_seconds": [
+      93.710767,
+      98.966921
+    ],
+    "conclusion": "W9 historical slowdown was not reproduced. NIST Controls slowdown trend was reproduced but its cause remains unisolated; unchanged pipeline phases also vary. Parallel phase wall durations are not additive CPU.",
+    "nist_controls_single_thread": {
+      "design": "Fixed-input/binary hash verified; sequential ABBA per pair,6GB/swap0,180s each,1GB total output. Native CLI wait4 CPU and phase wall tracing. RAYON_NUM_THREADS=1 for both versions; not a controlled full36 speedup estimate.",
+      "old_seconds": [
+        84.88955,
+        86.56567100000001
+      ],
+      "new_seconds": [
+        82.227267,
+        80.644422
+      ],
+      "report_sha256": [
+        "10c4f10f515fb40727d348a7ba4292b52ca9772ee747a6d5a7af71275f68dbee",
+        "10c4f10f515fb40727d348a7ba4292b52ca9772ee747a6d5a7af71275f68dbee",
+        "10c4f10f515fb40727d348a7ba4292b52ca9772ee747a6d5a7af71275f68dbee",
+        "10c4f10f515fb40727d348a7ba4292b52ca9772ee747a6d5a7af71275f68dbee"
+      ],
+      "conclusion": "Parallel-run slowdown did not reproduce with one Rayon thread. This is evidence of execution-condition sensitivity, not causal proof or a full-panel speedup estimate."
+    }
+  },
+  "source_checkpoint": {
+    "commit": "96d4eacdfa2f8f2278a6cc45cdcfd2de368c35d3",
+    "library_id": "libfile_c1530263295c8191abfc43039e8b04ba",
+    "version": 0,
+    "sha256": "3ceeca5a18630d85919b9f8fa41ddb728aa8b9c8fb5780a1a4e2f2194a019c95",
+    "tracked_members": 434,
+    "exclusions": [
+      "Downloaded frozen panel PDFs",
+      "Ignored diagnostic reports and traces",
+      "Build outputs and environment caches",
+      "Git metadata and credentials"
+    ],
+    "restore": "Verify archive and member hashes, extract source, fetch the named improvement branch, then reacquire and hash-check the frozen 72 inputs for full native replay.",
+    "all_member_hashes_verified": true,
+    "privacy_scan_matches": 0
+  },
+  "limits": {
+    "aggregate_memory_bytes": 6000000000,
+    "swap_bytes": 0,
+    "panel_pairs": 36,
+    "excluded_empty_extraction_pairs": 4,
+    "unchanged": true
+  },
+  "quality": {
+    "workspace": [
+      3412,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2136,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "python_tests": {
+      "passed": 15,
+      "failed": 0
+    }
+  }
+}

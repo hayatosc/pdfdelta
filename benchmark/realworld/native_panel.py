@@ -14,6 +14,10 @@ import hashlib
 import json
 import math
 import os
+try:
+    import resource
+except ImportError:
+    resource = None
 from pathlib import Path
 import signal
 import subprocess
@@ -244,6 +248,17 @@ def read_native_summary(path):
     return summary
 
 
+def child_usage_snapshot():
+    """Sample reaped-child usage; capture runs exactly one CLI at a time."""
+    if resource is None:
+        return None
+    value = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return {"user_seconds": value.ru_utime, "system_seconds": value.ru_stime,
+            "minor_faults": value.ru_minflt, "major_faults": value.ru_majflt,
+            "voluntary_context_switches": value.ru_nvcsw,
+            "involuntary_context_switches": value.ru_nivcsw}
+
+
 def capture_pair(binary, root, pair, destination, timeout):
     sources = {side: check_source(root, pair[side]) for side in ("old", "new")}
     record = {"pair": pair["id"], "inputs": sources}
@@ -254,6 +269,7 @@ def capture_pair(binary, root, pair, destination, timeout):
                "--native-text-only", "--limit-scale", "1", "--quiet", "--json", str(report)]
     log = destination / (pair["id"] + ".log")
     started = time.monotonic()
+    usage_before = child_usage_snapshot()
     with log.open("xb") as output:
         process = subprocess.Popen(command, stdout=output, stderr=output, start_new_session=True)
         try:
@@ -268,7 +284,13 @@ def capture_pair(binary, root, pair, destination, timeout):
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-    record.update(command=command, exit_code=process.returncode, wall_seconds=round(time.monotonic() - started, 3))
+    # poll/wait has reaped the single CLI child. Sample before Python-side
+    # compression and streaming validation so their CPU is not charged to it.
+    usage_after = child_usage_snapshot()
+    native_usage = None if usage_before is None or usage_after is None else {
+        key: usage_after[key] - value for key, value in usage_before.items()}
+    record.update(command=command, exit_code=process.returncode, wall_seconds=round(time.monotonic() - started, 3),
+                  native_process_usage=native_usage)
     with log.open("rb") as source, gzip.open(str(log) + ".gz", "xb") as sink:
         while chunk := source.read(65536):
             sink.write(chunk)

@@ -1035,6 +1035,11 @@ fn writes_complete_phase_trace_separately_from_the_report() {
         0
     );
     assert_eq!(phase(&trace, "report", None)["status"], "completed");
+    assert!(
+        phase(&trace, "report", None)["metrics"]["duration_us"]
+            .as_u64()
+            .is_some()
+    );
     assert_no_temporary_reports(&directory);
 }
 

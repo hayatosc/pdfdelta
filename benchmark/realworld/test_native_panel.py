@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -87,6 +88,32 @@ class NativePanelTests(unittest.TestCase):
                 stream.write(invalid)
             with self.assertRaises(ValueError):
                 native_panel.read_native_summary(self.report)
+
+    @unittest.skipIf(native_panel.resource is None, "child CPU accounting is unavailable")
+    def test_capture_records_native_child_cpu_and_still_validates_report(self):
+        source = {"path": "source.pdf", "bytes": 3, "sha256": hashlib.sha256(b"pdf").hexdigest()}
+        pair = {"id": "cpu-pair", "old": source, "new": source}
+        self.root.joinpath("source.pdf").write_bytes(b"pdf")
+        binary = self.root / "engine.py"
+        binary.write_text("#!" + sys.executable + "\n"
+                          "import gzip,json,sys,time\n"
+                          "start=time.process_time()\n"
+                          "while time.process_time()-start<0.04: pass\n"
+                          "with gzip.open(sys.argv[sys.argv.index('--json')+1],'wt') as f: "
+                          "json.dump(" + repr(artifact()) + ",f)\n"
+                          "sys.exit(1)\n")
+        binary.chmod(0o700)
+        result = native_panel.capture_pair(binary, self.root, pair, self.root, 10)
+        self.assertEqual(result["status"], "captured")
+        self.assertTrue(result["summary"]["meaningful_complete"])
+        usage = result["native_process_usage"]
+        self.assertGreaterEqual(usage["user_seconds"] + usage["system_seconds"], 0.035)
+        self.assertTrue(all(value >= 0 for value in usage.values()))
+        self.assertIn("major_faults", usage)
+
+    def test_unavailable_child_usage_is_not_fabricated_as_zero_cpu(self):
+        with patch.object(native_panel, "resource", None):
+            self.assertIsNone(native_panel.child_usage_snapshot())
 
     def test_missing_or_mismatched_input_never_runs_engine(self):
         source = {"path": "source.pdf", "bytes": 3, "sha256": hashlib.sha256(b"pdf").hexdigest()}

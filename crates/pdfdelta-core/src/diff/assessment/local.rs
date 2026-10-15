@@ -3139,7 +3139,14 @@ impl Assessor<'_, '_> {
                         // An overlap does not discharge the candidate's
                         // remaining source obligations. Pay the complete
                         // containment scan before deciding to replace it.
-                        let covered = if let Some(index) = &containment[side] {
+                        let covered = if !overlap && !source.is_empty() {
+                            // Projection above validates the full original
+                            // frame and emits only nonempty source intervals.
+                            // A paid complete non-overlap cannot wholly cover
+                            // any of those intervals. Empty anchors still take
+                            // the original vacuous-containment path below.
+                            Some(false)
+                        } else if let Some(index) = &containment[side] {
                             index.contains_all(&source, &mut self.remaining_work)
                         } else {
                             let coverage_cost = source
@@ -4182,6 +4189,64 @@ mod tests {
             .expect("test blocks are valid")
             .materialize()
             .expect("test blocks materialize")
+    }
+
+    #[test]
+    fn validated_nonoverlap_excludes_containment_but_keeps_empty_anchors() -> Result<()> {
+        let blocks = [sourced_block(1, "ab"), sourced_block(2, "cd")];
+        let source = side(&blocks);
+        let group = source.canonical_group(&[BlockId(1), BlockId(2)], Some(BlockSeparator::Space));
+        let mut empty = 0;
+        let mut excluded = 0;
+        for start in 0..=group.tokens.len() {
+            for end in start..=group.tokens.len() {
+                let span = group.span(start, end);
+                let projected = project(&source, &span)?;
+                assert!(projected.iter().all(|r| r.start < r.end));
+                for block_index in 0..blocks.len() {
+                    for owner_start in 0..=2 {
+                        for owner_end in owner_start..=2 {
+                            let owners = [SourceInterval {
+                                block_index,
+                                start: owner_start,
+                                end: owner_end,
+                            }];
+                            let overlap =
+                                overlaps(&projected, &owners, &mut 10_000).expect("paid overlap");
+                            let oracle = projected.iter().all(|r| {
+                                owners.iter().any(|o| {
+                                    o.block_index == r.block_index
+                                        && o.start <= r.start
+                                        && r.end <= o.end
+                                })
+                            });
+                            if !overlap && !projected.is_empty() {
+                                assert!(
+                                    !oracle,
+                                    "nonempty original source cannot be contained without overlap"
+                                );
+                                excluded += 1;
+                            }
+                            if projected.is_empty() {
+                                assert!(
+                                    oracle,
+                                    "zero-width or separator-only sources retain vacuous coverage"
+                                );
+                                empty += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(empty > 0 && excluded > 0);
+        let mut invalid = group.span(0, 1);
+        invalid.canonical_range.end += 1;
+        assert!(
+            project(&source, &invalid).is_err(),
+            "disjointness must not hide an invalid original coordinate frame"
+        );
+        Ok(())
     }
 
     #[test]

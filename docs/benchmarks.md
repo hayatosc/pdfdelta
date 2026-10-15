@@ -468,6 +468,17 @@ effective cgroup limit, processes pairs sequentially at `--limit-scale 1`,
 uses a 180-second timeout, and stops adding reports at a 1 GB output budget.
 It records the source commit/tree, production diff, binary and input hashes,
 command arguments, report hashes, elapsed time, memory peak, and OOM counters.
+On platforms providing `resource.getrusage`, each row also records native CLI
+user/system CPU time, page faults and context switches. These are deltas around
+one sequential child process, sampled before capture-tool compression and
+streaming validation. An unavailable measurement is `null`, never zero CPU.
+Keep this per-pair process usage separate from capture-tool CPU and charged
+search-work counters. Historical captures without it support wall-time
+comparisons only; a single run cannot establish a speedup or its cause.
+The CLI's existing `--trace-json` report phase records wall time for summary
+construction and requested report output. It excludes final teardown and trace
+file writing. Pipeline side phases may overlap, so their durations must not be
+summed as if they were additive CPU time.
 Output directories must be new, preventing a duplicate capture from silently
 overwriting evidence. `--pair ID` selects a diagnostic subset while keeping
 the denominator at 36 and marking every unselected pair `not_run`.

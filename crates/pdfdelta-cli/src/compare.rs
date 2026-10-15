@@ -383,6 +383,7 @@ pub fn compare_documents_traced<W: Write>(
             new_input.path.display()
         )
     })?;
+    let report_started = std::time::Instant::now();
     let summary = summarize(&outcome.comparison, &outcome.extraction).map_err(|error| {
         format!(
             "cannot summarize comparison for {} and {}: {error}",
@@ -475,7 +476,14 @@ pub fn compare_documents_traced<W: Write>(
             return Err(error);
         }
     }
-    trace.complete("report", None, []);
+    trace.complete(
+        "report",
+        None,
+        [(
+            "duration_us",
+            crate::trace::duration_metric(report_started.elapsed()),
+        )],
+    );
 
     Ok((status.code(), !summary.comparison_complete))
 }
