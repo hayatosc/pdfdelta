@@ -1,5 +1,5 @@
 {
-  "status": "unadopted candidate; six fresh gates passed; pending fixed72/full36/full physical evidence retention",
+  "status": "rejected for adoption: same five prior Controller scope/proof links missing",
   "verified_base": "3efbcb829d08234ef2cb9272a821809552ca98ec",
   "previous_rejected_candidate": "f76f0dad21ddd82624c49d7f69d0df8f6a549ab2",
   "change": "Carry the original paid identical-input scout prefix and first mismatch together with the same immutable slices into the ample single-substitution probe. Scan only the still-uninspected tail. Complete band proof, source callbacks, ownership/context and publication remain mandatory.",
@@ -42,5 +42,119 @@
     "six_fresh_gates_passed": true,
     "adoption": "unadopted pending full36 retention"
   },
-  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a"
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
+  "evaluated_head": "c11b18dee03ef508dead6071a6001439d8dd207f",
+  "replay": {
+    "head": "c11b18dee03ef508dead6071a6001439d8dd207f",
+    "tree": "436bd913d6cd2e48b3bc0f4c895ade2a9008bb16",
+    "binary_sha256": "ab0e30c066529acb8deb84031dfdc7c685b093a25a9e3d65fb675f628c725e13",
+    "production_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "totals": {
+      "fixed_denominator": 36,
+      "outcomes": {
+        "captured": 36
+      },
+      "meaningful_complete": 1,
+      "engine_complete": 1,
+      "incomplete_comparisons": 35,
+      "empty_native_text": 4
+    },
+    "memory": {
+      "cgroup": "/sys/fs/cgroup",
+      "memory_max": 5999996928,
+      "memory_swap_max": 0,
+      "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "peak_bytes": 5653635072
+    },
+    "limit_scale": 1,
+    "timeout_seconds": 180,
+    "output_budget_bytes": 1000000000
+  },
+  "retention": {
+    "adopted_links": 1498,
+    "exact_adopted_links_preserved": 1493,
+    "missing_adopted_links": 5,
+    "adopted_witnesses": 590,
+    "exact_adopted_witnesses_preserved": 590,
+    "rejected_f76_witnesses": 594,
+    "exact_f76_witnesses_preserved": 594,
+    "all_prior_positive_tokens_changes_candidates_formats_coarse_regions_preserved": true,
+    "old_controller_link_relations_missing": [
+      4619,
+      4633,
+      4635,
+      4637,
+      4639
+    ],
+    "missing_link_proof": "exact_token_multiset_mismatch",
+    "no_strict_replacement_for_missing_link_scopes": true
+  },
+  "work": {
+    "baseline": 811550646,
+    "current": 810771711,
+    "delta_vs_adopted": -778935,
+    "delta_vs_rejected_f76": -7074,
+    "evidence_link_fees": {
+      "baseline": {
+        "evidence_link_work.planning": 279616,
+        "evidence_link_work.verification": 4686604,
+        "evidence_link_work.retention": 166784,
+        "evidence_link_work.output": 1286816
+      },
+      "current": {
+        "evidence_link_work.planning": 279360,
+        "evidence_link_work.verification": 4672480,
+        "evidence_link_work.retention": 166464,
+        "evidence_link_work.output": 1290656
+      }
+    }
+  },
+  "gains_do_not_authorize_adoption": {
+    "added_positive_tokens": 168,
+    "added_changes": 4,
+    "restrictions_changes": [
+      68,
+      69
+    ],
+    "controller_changes": [
+      73,
+      76
+    ],
+    "controller_unresolved": [
+      1782,
+      1771
+    ],
+    "original_controller_missing_positive_tokens": 28,
+    "original_controller_missing_changes": [
+      66,
+      67
+    ]
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 635.7297727489968,
+    "cpu_seconds": {
+      "self_user_seconds": 30.240619,
+      "self_system_seconds": 1.392376,
+      "children_user_seconds": 612.874347,
+      "children_system_seconds": 53.130815
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
+  },
+  "causal_limits": "Reusing the paid prefix reduces measured charged work by7074 versus f76, while native Controller events, resolution states and recorded stage/link fees match f76. This does not isolate why its late five scope receipts remain unfunded; do not claim an independent source rejection or target queue visitation without native instrumentation.",
+  "decision": "Keep3efbcb8 as adopted source and matching release. Preserve f76/c11 code, lockfile, tests, captures and this rejection explanation separately. Next experiment needs an actual Controller cost trace at first missing receipt4619 before claiming a repair.",
+  "target_scope_evidence": {
+    "relation": 1569,
+    "parent": null,
+    "outcome": "established",
+    "search": "complete",
+    "scope_tokens": [
+      446,
+      447
+    ],
+    "proof": "exact_token_multiset_mismatch",
+    "owns_tokens": false,
+    "localized_edit_witnesses": 0,
+    "meaning": "Non-owning bag mismatch proves a change somewhere in the complete physical scope; it does not localize or resolve the original28tokens/2changes. Parent relation and receipt existence alone do not establish local queue visitation."
+  }
 }
