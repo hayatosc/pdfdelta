@@ -877,6 +877,46 @@ struct SourceInterval {
 /// source block. Both scalar and comparable coordinates must describe the same
 /// interval, including zero-width scalar intervals containing unmapped tokens.
 fn project(side: &Side<'_>, span: &TextSpan) -> Result<Vec<SourceInterval>> {
+    if let [block] = span.blocks.as_slice()
+        && span.separator.is_none()
+    {
+        // A single source id cannot repeat or introduce a join. Keep the
+        // original result allocation/error order and both exact scalar cuts, without
+        // allocating a duplicate-id table or walking a generic group frame.
+        let mut ranges = Vec::new();
+        ranges
+            .try_reserve_exact(1)
+            .map_err(|_| allocation_error("source projection"))?;
+        // Keep the original hasher construction in the same place: removing
+        // membership storage must not perturb later seeded map traversals.
+        let _seen = HashSet::<usize>::new();
+        let &block_index = side
+            .index
+            .get(block)
+            .ok_or_else(|| invalid("assessment refers to an unknown block"))?;
+        let tokens = &side.canonical[block_index];
+        let range = span.comparable_range;
+        let canonical = &side.blocks[block_index].canonical;
+        if range.start > range.end
+            || range.end > tokens.len()
+            || block_scalar_boundary(canonical, range.start) != span.canonical_range.start
+            || block_scalar_boundary(canonical, range.end) != span.canonical_range.end
+        {
+            return Err(invalid("assessment source coordinates do not agree"));
+        }
+        if range.start < range.end {
+            ranges.push(SourceInterval {
+                block_index,
+                start: range.start,
+                end: range.end,
+            });
+        }
+        return Ok(ranges);
+    }
+    project_general(side, span)
+}
+
+fn project_general(side: &Side<'_>, span: &TextSpan) -> Result<Vec<SourceInterval>> {
     if span
         .separator
         .is_some_and(|separator| !separator.valid_for(span.blocks.len()))
@@ -8905,6 +8945,81 @@ mod assessor_issue_cache_tests {
                 assert!(ordinary.len() <= count, "seed={seed}, cutoff={cutoff}");
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn single_block_projection_matches_general_ranges_and_refusals() -> Result<()> {
+        use crate::{model::FontProgramHash, normalize::UnmappedToken};
+        let mut blocks = [
+            anchor_block(9, ""),
+            anchor_block(2, "é雪🙂 A"),
+            anchor_block(7, ""),
+            anchor_block(5, "AéB"),
+        ];
+        for (index, positions) in [(2, vec![0]), (3, vec![0, 1, 1, 3])] {
+            for (ordinal, scalar_index) in positions.into_iter().enumerate() {
+                blocks[index].canonical.unmapped.push(UnmappedToken {
+                    scalar_index,
+                    font_hash: FontProgramHash(vec![3; 32]),
+                    glyph_id: ordinal as u16,
+                    source: TextSource {
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId(900 + ordinal as u64))].into(),
+                    },
+                });
+            }
+        }
+        let side = super::super::SidePlan::inspect("single projection", &blocks)?.materialize()?;
+        for block in &blocks {
+            let index = side.index[&block.block];
+            let tokens = side.canonical[index].len();
+            let scalars = block.canonical.text.chars().count();
+            for start in 0..=tokens + 1 {
+                for end in 0..=tokens + 1 {
+                    for scalar_start in 0..=scalars + 1 {
+                        for scalar_end in 0..=scalars + 1 {
+                            let span = TextSpan {
+                                blocks: vec![block.block],
+                                separator: None,
+                                comparable_range: TokenRange { start, end },
+                                canonical_range: ScalarRange {
+                                    start: scalar_start,
+                                    end: scalar_end,
+                                },
+                            };
+                            let expected = project_general(&side, &span);
+                            let actual = project(&side, &span);
+                            match (actual, expected) {
+                                (Ok(actual), Ok(expected)) => {
+                                    assert_eq!(actual, expected);
+                                    assert_eq!(actual.capacity(), expected.capacity());
+                                }
+                                (Err(actual), Err(expected)) => {
+                                    assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+                                }
+                                (actual, expected) => panic!(
+                                    "projection differs: {span:?}: {actual:?} vs {expected:?}"
+                                ),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let unknown = TextSpan {
+            blocks: vec![BlockId(999)],
+            separator: None,
+            comparable_range: TokenRange { start: 2, end: 1 },
+            canonical_range: ScalarRange { start: 3, end: 0 },
+        };
+        assert_eq!(
+            project(&side, &unknown)
+                .expect_err("unknown source")
+                .to_string(),
+            project_general(&side, &unknown)
+                .expect_err("unknown source")
+                .to_string(),
+        );
         Ok(())
     }
 
