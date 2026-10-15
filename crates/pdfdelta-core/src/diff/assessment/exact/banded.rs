@@ -82,16 +82,16 @@ pub(super) fn check_reserved<T: Eq>(
         new,
         max_distance,
         remaining,
-        reserve,
-        ceiling,
-        usize::MAX,
+        [reserve, ceiling, usize::MAX],
+        None,
     )
 }
 
 /// Limits an ample-budget probe to a single positional substitution. A second
 /// mismatch stops the paid scout before any DP allocation. This is still a
 /// complete optimal-edge-union proof, not a chosen diagonal alignment.
-pub(super) fn check_single_substitution_reserved<T: Eq>(
+#[cfg(test)]
+fn check_single_substitution_reserved<T: Eq>(
     old: &[T],
     new: &[T],
     max_distance: usize,
@@ -99,7 +99,35 @@ pub(super) fn check_single_substitution_reserved<T: Eq>(
     reserve: usize,
     ceiling: usize,
 ) -> Result<Option<Vec<AtomicEdit>>> {
-    check_reserved_radius(old, new, max_distance, remaining, reserve, ceiling, 1)
+    check_reserved_radius(
+        old,
+        new,
+        max_distance,
+        remaining,
+        [reserve, ceiling, 1],
+        None,
+    )
+}
+
+/// The original scout paid every literal through the first mismatch. The
+/// receipt carries both immutable slices and cannot transfer to another scope.
+/// Only its uninspected tail is probed; complete band and physical proofs,
+/// original admissions, and all earlier charges remain necessary.
+pub(super) fn check_single_substitution_after_prefix_reserved<T: Eq>(
+    paid: super::PaidMismatch<'_, T>,
+    max_distance: usize,
+    remaining: &mut usize,
+    reserve: usize,
+    ceiling: usize,
+) -> Result<Option<Vec<AtomicEdit>>> {
+    check_reserved_radius(
+        paid.old,
+        paid.new,
+        max_distance,
+        remaining,
+        [reserve, ceiling, 1],
+        Some(paid.index),
+    )
 }
 
 fn check_reserved_radius<T: Eq>(
@@ -107,10 +135,10 @@ fn check_reserved_radius<T: Eq>(
     new: &[T],
     max_distance: usize,
     remaining: &mut usize,
-    reserve: usize,
-    ceiling: usize,
-    radius_ceiling: usize,
+    limits: [usize; 3],
+    paid_mismatch: Option<usize>,
 ) -> Result<Option<Vec<AtomicEdit>>> {
+    let [reserve, ceiling, radius_ceiling] = limits;
     let n = old.len();
     if n == 0 || n != new.len() {
         return Ok(None);
@@ -142,8 +170,8 @@ fn check_reserved_radius<T: Eq>(
     if radius_limit == 0 {
         return Ok(None);
     }
-    let mut radius = 0;
-    for (a, b) in old.iter().zip(new) {
+    let (mut radius, start) = paid_mismatch.map_or((0, 0), |index| (1, index + 1));
+    for (a, b) in old[start..].iter().zip(&new[start..]) {
         if !super::super::charge(remaining, 3) {
             return Ok(None);
         }

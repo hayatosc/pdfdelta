@@ -1,0 +1,46 @@
+{
+  "status": "unadopted candidate; six fresh gates passed; pending fixed72/full36/full physical evidence retention",
+  "verified_base": "3efbcb829d08234ef2cb9272a821809552ca98ec",
+  "previous_rejected_candidate": "f76f0dad21ddd82624c49d7f69d0df8f6a549ab2",
+  "change": "Carry the original paid identical-input scout prefix and first mismatch together with the same immutable slices into the ample single-substitution probe. Scan only the still-uninspected tail. Complete band proof, source callbacks, ownership/context and publication remain mandatory.",
+  "accounting": "All original scout charges remain. No refund, allowance transfer or cap increase. The original128 metadata and every remaining literal/table/edge/script charge stay paid. For first mismatch33 and second99, new extra failed-scout cost128+3*(100-34)=326 instead of428. Full original2NM/memory admission and dense reconstruction reserve stay unchanged.",
+  "identity": "Private receipt includes both borrowed input slices and mismatch index; the receiving function accepts no replacement slices. No cross-scope cache or content-based rebinding.",
+  "tests": "Dense-oracle classification and canonical-script agreement over exhaustive repeated binary cores with zero/64 unique prefix and64 unique suffix; original ample success/failure cost and matrix-refusal tests retained with exact newly executed costs.",
+  "preservation_required": {
+    "links": 1498,
+    "localized_witnesses": 590,
+    "all_prior_native_information": true,
+    "additional_prior_positive_tokens": 455,
+    "W9_151_design_four_long_two_block_candidates": true,
+    "all_original_scope_content_hash_proofs_and_two_candidate_discharge_proofs": true,
+    "rejected_candidate_additional_positive_tokens": 168,
+    "rejected_candidate_witnesses_for_separate_audit": 594,
+    "rejected_candidate_status": "Remains rejected; positive evidence separately checked, never treated as an adopted baseline."
+  },
+  "target": "Original Controller28tokens/2changes remain unresolved; no recovery claim before actual native proof and publication.",
+  "quality": {
+    "workspace": [
+      3409,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2133,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "patch_sha256": "6bb823c5957e360b69320a6ebf52ba63d3cbc6f40435e658f5289772778aef32",
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "adoption": "unadopted pending full36 retention"
+  },
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a"
+}

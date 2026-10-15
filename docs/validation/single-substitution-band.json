@@ -1,5 +1,5 @@
 {
-  "status": "unadopted candidate; six fresh gates passed; pending fixed72/full36 and full retention audit",
+  "status": "rejected for adoption: five prior Controller physical scope links missing",
   "verified_base": "3efbcb829d08234ef2cb9272a821809552ca98ec",
   "hypothesis": "Several equal-length Controller domains around290tokens consume about170000 units in dense literal uniqueness before the unreached446/447 target domain. Limit an ample-budget alternative to one positional mismatch, certify the full optimal matching-edge union in radius1, retain original dense fallback for all negative attempts. No target-specific dispatch.",
   "proof": "One positional mismatch provides an explicit edit-distance2 path. Every optimal insertion/deletion alignment lies within radius1. Complete forward/reverse distances and the union of every eligible matching edge establish uniqueness only when union size equals LCS length. Canonical script is checked against the unchanged full dense oracle.",
@@ -18,7 +18,7 @@
     "complete_physical_scopes_content_hashes_ownership_and_proofs": true,
     "W9_151_long_two_block_candidates_and_design_four": true
   },
-  "actual_pdf_quality": "Unassessed for candidate. Verified baseline remains complete1/incomplete35 on36, empty4excluded. Original Controller28tokens/2changes still unresolved until actual proof and publication.",
+  "actual_pdf_quality": "Complete1/incomplete35, empty4excluded. All old native changes/candidates/formats/coarse regions and590witnesses retained, but old Controller links4619/4633/4635/4637/4639 missing; no strict replacements. Rejected despite positive gain. Original28tokens/2changes still unresolved.",
   "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
   "quality": {
     "workspace": [
@@ -43,5 +43,47 @@
     "bench": true,
     "six_fresh_gates_passed": true,
     "adoption": "unadopted pending full36 retention"
+  },
+  "evaluated_head": "f76f0dad21ddd82624c49d7f69d0df8f6a549ab2",
+  "replay": {
+    "fixed_denominator": 36,
+    "outcomes": {
+      "captured": 36
+    },
+    "meaningful_complete": 1,
+    "engine_complete": 1,
+    "incomplete_comparisons": 35,
+    "empty_native_text": 4
+  },
+  "retention": {
+    "old_links": 1498,
+    "old_links_exact": 1493,
+    "missing_links": 5,
+    "current_links": 1493,
+    "old_witnesses": 590,
+    "old_witnesses_exact": 590,
+    "current_witnesses": 594,
+    "all_old_positive_tokens_changes_candidates_formats_coarse_regions_preserved": true
+  },
+  "gains_are_insufficient_for_adoption": {
+    "added_positive_tokens": 168,
+    "added_changes": 4,
+    "work_delta": -771861,
+    "remaining_original_controller_tokens": 28,
+    "remaining_original_controller_changes": [
+      66,
+      67
+    ]
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 621.366401076999,
+    "cpu_seconds": {
+      "self_user_seconds": 30.466731,
+      "self_system_seconds": 1.327472,
+      "children_user_seconds": 599.139611,
+      "children_system_seconds": 51.649148
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
   }
 }

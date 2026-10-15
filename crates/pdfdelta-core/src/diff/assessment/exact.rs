@@ -517,6 +517,15 @@ pub(super) fn check_retaining_for_reconstruction<'a, T: Eq>(
     check_retaining_internal(old, new, remaining_cells, true, false)
 }
 
+/// Immutable same-call inputs and the first mismatch found by the paid
+/// identical-input scout. The slices prevent rebinding its prefix metadata
+/// to another scope or to a copied allocation.
+struct PaidMismatch<'a, T> {
+    old: &'a [T],
+    new: &'a [T],
+    index: usize,
+}
+
 /// Preserves the ordinary equal-input scout and full dense admission before
 /// an optional lower-cost literal certificate. A failed attempt keeps its
 /// charges and enough original allowance for dense proof and reconstruction.
@@ -535,6 +544,7 @@ pub(super) fn check_for_localization<'a, T: Eq>(
         return check_retaining_for_reconstruction(old, new, remaining).map(|r| (r, None));
     }
     let mut identical = true;
+    let mut equal_prefix = 0;
     for (a, b) in old.iter().zip(new) {
         if !charge_cell(remaining) {
             return Ok((RetainedCheck::plain(ExactUniqueness::BudgetExceeded), None));
@@ -543,6 +553,7 @@ pub(super) fn check_for_localization<'a, T: Eq>(
             identical = false;
             break;
         }
+        equal_prefix += 1;
     }
     if identical {
         return Ok((
@@ -588,9 +599,12 @@ pub(super) fn check_for_localization<'a, T: Eq>(
                     forward.saturating_sub(1),
                 )?
             } else {
-                banded::check_single_substitution_reserved(
-                    old,
-                    new,
+                banded::check_single_substitution_after_prefix_reserved(
+                    PaidMismatch {
+                        old,
+                        new,
+                        index: equal_prefix,
+                    },
                     max_distance,
                     remaining,
                     reserve,
@@ -1707,6 +1721,50 @@ mod tests {
     }
 
     #[test]
+    fn paid_prefix_entrypoint_matches_dense_with_repeated_literal_choices() {
+        for prefix in [0u16, 64] {
+            for n in 1..=4 {
+                let words: Vec<Vec<u16>> = (0..1usize << n)
+                    .map(|bits| {
+                        let mut word: Vec<u16> = (100..100 + prefix).collect();
+                        word.extend((0..n).map(|i| u16::from(bits & (1 << i) != 0)));
+                        word.extend(300..364);
+                        word
+                    })
+                    .collect();
+                for old in &words {
+                    for new in &words {
+                        let (actual, script) =
+                            super::check_for_localization(old, new, 400, &mut 1_000_000)
+                                .expect("same-input prefix receipt");
+                        let oracle =
+                            super::check_retaining_for_reconstruction(old, new, &mut 1_000_000)
+                                .expect("complete dense oracle");
+                        assert_eq!(actual.outcome, oracle.outcome, "{old:?} -> {new:?}");
+                        if let Some(script) = script {
+                            assert_eq!(oracle.outcome, ExactUniqueness::Unique);
+                            let expected = if old == new {
+                                Vec::new()
+                            } else {
+                                let super::ReconstructedScript::Ready(expected) = oracle
+                                    .suffix
+                                    .expect("complete unique table")
+                                    .reconstruct_unique(old, new, 400, &mut 1_000_000)
+                                    .expect("original admission")
+                                else {
+                                    panic!("dense funded");
+                                };
+                                expected
+                            };
+                            assert_eq!(script, expected);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn ample_single_substitution_preserves_dense_proof_and_admission() {
         let old: Vec<u32> = (0..200).collect();
         let mut new = old.clone();
@@ -1727,7 +1785,7 @@ mod tests {
             panic!("dense admitted");
         };
         assert_eq!(script, expected);
-        assert_eq!(1_000_000 - remaining, 6976);
+        assert_eq!(1_000_000 - remaining, 6976 - 3 * 34);
         let mut refused = 80_033;
         let (result, script) = super::check_for_localization(&old, &new, 400, &mut refused)
             .expect("original matrix refusal");
@@ -1806,7 +1864,7 @@ mod tests {
             .expect("ample allowance");
         assert_eq!(actual.outcome, expected.outcome);
         assert!(script.is_none());
-        assert_eq!(actual_work, expected_work - 128 - 3 * 100);
+        assert_eq!(actual_work, expected_work - 128 - 3 * (100 - 34));
         let actual = actual.suffix.expect("original complete table");
         let expected = expected.suffix.expect("ordinary complete table");
         assert_eq!(actual.table, expected.table);
