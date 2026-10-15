@@ -1,5 +1,5 @@
 {
-  "status": "unadopted pending fixed72/full36 retention",
+  "status": "verified: all baseline evidence retained; one new non-owning fact; completion and coverage unchanged",
   "adopted_base": "96d4eacdfa2f8f2278a6cc45cdcfd2de368c35d3",
   "rejected_fusion": "f606c4de445989068c1425a62e197af1f6b67899",
   "budget_compatibility": {
@@ -49,7 +49,103 @@
       "Every consumed late-work unit is included in evidence-link accounting"
     ]
   },
-  "full36": null,
+  "full36": {
+    "binary_sha256": "fca8f4540a20e76b523a66276145ea264b184bc719198937667492b28202e788",
+    "production_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "panel_sha256": "c3aa4a5dd7edb3b7b4b5144ea31a9eb48645fa5ebe5a27546f3be09b0dd6e744",
+    "inputs_verified": 72,
+    "totals": {
+      "fixed_denominator": 36,
+      "outcomes": {
+        "captured": 36
+      },
+      "meaningful_complete": 1,
+      "engine_complete": 1,
+      "incomplete_comparisons": 35,
+      "empty_native_text": 4
+    },
+    "memory": {
+      "cgroup": "/sys/fs/cgroup",
+      "memory_max": 5999996928,
+      "memory_swap_max": 0,
+      "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "peak_bytes": 5578248192
+    },
+    "retention": {
+      "old_links": 1512,
+      "current_links": 1513,
+      "all_old_links_exact": 1512,
+      "old_witnesses": 594,
+      "all_old_witnesses_exact": 594,
+      "candidate_contexts": 16009,
+      "all_candidate_contexts_exact": 16009,
+      "all_relation_objects_exact_in_order": 51430,
+      "novel_distinct_scope_proof_keys": 1,
+      "added_duplicate_keys": 0,
+      "missing": 0
+    },
+    "novel": [
+      {
+        "pair": "irs-schedule-c-2024-to-2025",
+        "old": 1,
+        "current": 2,
+        "missing": 0,
+        "added_distinct_scope_proof_keys": 1,
+        "added_existing_keys": 0,
+        "repeated_new_keys": 0,
+        "novel": [
+          {
+            "scope_digest": "3ccbcaef70e13fbb73fdcc92b72c6ab1acf3d400898cddcb7cae848f69b54805",
+            "proof": "exact_token_multiset_mismatch",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "charged_work": {
+      "baseline": 810771711,
+      "current": 810776035,
+      "delta": {
+        "work_used": 4324,
+        "work_by_stage.emission": 4324,
+        "evidence_link_work.planning": 368,
+        "evidence_link_work.verification": 3764,
+        "evidence_link_work.retention": 64,
+        "evidence_link_work.output": 128
+      },
+      "all_new_work_is_accounted": true
+    },
+    "same_all_pair_summaries": true,
+    "same_all_physical_resolution_ranges": true,
+    "same_all_prior_changes_candidates_formatting_and_coarse_regions": true,
+    "files_verified": [
+      {
+        "capture": "semantic-deferral-core-replay-20261015",
+        "head": "1dccb8039b6c5096c07d2d21928043ae1c0a132e",
+        "reports_sha256_and_gzip_integrity_verified": 36,
+        "binary_sha256_verified": "c6020f8fdaaa06523a30d810079aab5ef3fd0e3de3b47cef149ebaad41b49675"
+      },
+      {
+        "capture": "late-closed-evidence-core-replay-20261015",
+        "head": "e63cce48ba8dbd69cbcd0b9204859e12441bc7bc",
+        "reports_sha256_and_gzip_integrity_verified": 36,
+        "binary_sha256_verified": "fca8f4540a20e76b523a66276145ea264b184bc719198937667492b28202e788"
+      }
+    ],
+    "reproduce": "Replay the frozen native panel at the production commit with documented native_panel.py commands and unchanged caps. Compare baseline96d/evaluated1dcc reports by streaming all physical resolution ranges, event signatures, witness records, complete relation objects and candidate ancestry/alternatives; preserve every old non-owning link. Normalize inert separator tags for single-block physical-scope novelty checks. Report bytes and retained binary gzip are locally hash/CRC verified. Captures and temporary audit scripts remain excluded from the source checkpoint.",
+    "limitations": "No new complete pair, token ownership or localized change. Controller original28tokens/twochanges remain unresolved. Single capture timing is not a controlled speedup estimate.",
+    "capture_cpu": {
+      "elapsed_seconds": 656.9619379630021,
+      "cpu_seconds": {
+        "self_user_seconds": 35.693868,
+        "self_system_seconds": 1.5971469999999999,
+        "children_user_seconds": 633.191055,
+        "children_system_seconds": 56.026333
+      },
+      "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+      "exitcode": 0
+    }
+  },
   "quality": {
     "workspace": [
       3415,
@@ -81,5 +177,6 @@
     "full_panel_pairs": 36,
     "empty_extraction_pairs_excluded_from_success": 4
   },
-  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a"
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
+  "production_commit": "e63cce48ba8dbd69cbcd0b9204859e12441bc7bc"
 }
