@@ -277,6 +277,17 @@ pub(super) enum ReconstructedScript {
 }
 
 impl<T: Eq> RetainedSuffix<'_, T> {
+    /// A paid complete LCS rank establishes distance one; this hint supplies
+    /// no semantic or physical verdict and is valid only for these slices.
+    pub(super) fn has_one_edit_rank(&self, old: &[T], new: &[T]) -> bool {
+        old.len().abs_diff(new.len()) == 1
+            && std::ptr::eq(old, self.old)
+            && std::ptr::eq(new, self.new)
+            && self
+                .row_ambiguity
+                .is_some_and(|w| w.lcs_length == old.len().min(new.len()))
+    }
+
     /// Prepayment for the continuation lookup and both immutable slice bindings.
     const BINDING_WORK: usize = 3;
 

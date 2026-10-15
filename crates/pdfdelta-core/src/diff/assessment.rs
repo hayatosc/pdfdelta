@@ -5247,7 +5247,19 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let [old, new] = groups;
         let sides = self.sides;
         let limit = self.options.max_assessment_ranges;
-        if let Some(table) = retained.as_ref()
+        let one_edit = if let Some(table) = retained.as_ref() {
+            semantic::one_edit_retained(
+                &old.tokens,
+                &new.tokens,
+                &mut self.remaining_work,
+                table,
+                |edits, remaining| semantic_signature(sides, [old, new], edits, remaining, limit),
+            )?
+        } else {
+            None
+        };
+        if one_edit.is_none()
+            && let Some(table) = retained.as_ref()
             && semantic::negative_pair_probe(
                 &old.tokens,
                 &new.tokens,
@@ -5278,14 +5290,19 @@ impl<'a, 'document> Assessor<'a, 'document> {
         {
             return Ok(());
         }
-        match semantic::check_hunks_retained(
-            &old.tokens,
-            &new.tokens,
-            &mut self.remaining_work,
-            retained,
-            &mut self.suffix_reuse_work,
-            |edits, remaining| semantic_signature(sides, [old, new], edits, remaining, limit),
-        ) {
+        let outcome = if let Some(outcome) = one_edit {
+            Ok(outcome)
+        } else {
+            semantic::check_hunks_retained(
+                &old.tokens,
+                &new.tokens,
+                &mut self.remaining_work,
+                retained,
+                &mut self.suffix_reuse_work,
+                |edits, remaining| semantic_signature(sides, [old, new], edits, remaining, limit),
+            )
+        };
+        match outcome {
             Ok(semantic::Outcome::Unique {
                 signature,
                 edits: witness,

@@ -817,6 +817,119 @@ fn traversal_error() -> Error {
     Error::Unresolved("semantic uniqueness traversal did not produce a path".to_owned())
 }
 
+/// Enumerates every optimal script when an immutable paid LCS rank already
+/// proves distance one. The common prefix and shifted suffix delimit all gap
+/// positions. Descending positions preserve the ordinary equal-edge-first
+/// witness order. Every original source callback remains necessary.
+///
+/// The ordinary full-matrix and live-memory admissions remain mandatory.
+/// This complete alternative never books or refunds a suffix allowance.
+pub(super) fn one_edit_retained<T, S, F>(
+    old: &[T],
+    new: &[T],
+    remaining: &mut usize,
+    retained: &super::exact::RetainedSuffix<'_, T>,
+    mut signature: F,
+) -> Result<Option<Outcome<S>>>
+where
+    T: Eq,
+    S: Eq,
+    F: FnMut(&[AtomicEdit], &mut usize) -> Result<Option<S>>,
+{
+    if !retained.has_one_edit_rank(old, new) {
+        return Ok(None);
+    }
+    let matrix = old
+        .len()
+        .checked_mul(new.len())
+        .ok_or_else(cells_limit_error)?;
+    let count = old
+        .len()
+        .checked_add(new.len())
+        .ok_or_else(cells_limit_error)?;
+    let setup = count
+        .checked_mul(3)
+        .and_then(|v| v.checked_add(128 + 32))
+        .ok_or_else(cells_limit_error)?;
+    if *remaining < matrix || setup > matrix {
+        return Ok(None);
+    }
+    preflight_memory(old.len(), new.len())?;
+    if !charge(remaining, setup) {
+        return Ok(Some(Outcome::BudgetExceeded));
+    }
+    let (short, long, deletion) = if old.len() < new.len() {
+        (old, new, false)
+    } else {
+        (new, old, true)
+    };
+    let mut prefix = 0;
+    while prefix < short.len() && short[prefix] == long[prefix] {
+        prefix += 1;
+    }
+    let mut suffix = 0;
+    while suffix < short.len() && short[short.len() - 1 - suffix] == long[long.len() - 1 - suffix] {
+        suffix += 1;
+    }
+    let earliest = short.len() - suffix;
+    if earliest > prefix {
+        return Err(traversal_error());
+    }
+    let mut script = Vec::new();
+    script
+        .try_reserve_exact(1)
+        .map_err(|_| Error::Unresolved("single-edit semantic allocation".to_owned()))?;
+    let mut first_edits = Vec::new();
+    first_edits
+        .try_reserve_exact(1)
+        .map_err(|_| Error::Unresolved("single-edit witness allocation".to_owned()))?;
+    if script.capacity() != 1 || first_edits.capacity() != 1 {
+        return Err(memory_limit_error());
+    }
+    let mut first_signature = None;
+    for position in (earliest..=prefix).rev() {
+        // One paid position/canonical-edit operation, then the unchanged
+        // complete token-plus-edit preflight for the source callback.
+        if !charge(
+            remaining,
+            count.checked_add(2).ok_or_else(cells_limit_error)?,
+        ) {
+            return Ok(Some(Outcome::BudgetExceeded));
+        }
+        let edit = if deletion {
+            AtomicEdit {
+                old: position..position + 1,
+                new: position..position,
+            }
+        } else {
+            AtomicEdit {
+                old: position..position,
+                new: position..position + 1,
+            }
+        };
+        if script.is_empty() {
+            script.push(edit);
+        } else {
+            script[0] = edit;
+        }
+        let Some(current) = signature(&script, remaining)? else {
+            return Ok(Some(Outcome::BudgetExceeded));
+        };
+        if let Some(first) = first_signature.as_ref() {
+            if first != &current {
+                return Ok(Some(Outcome::Ambiguous));
+            }
+        } else {
+            first_edits.push(script[0].clone());
+            first_signature = Some(current);
+        }
+    }
+    Ok(Some(Outcome::Unique {
+        signature: first_signature.ok_or_else(traversal_error)?,
+        edits: first_edits,
+    }))
+}
+
 /// Tries only a complete two-path negative certificate. The original full
 /// semantic admission and memory guard are retained. Every probe phase pays
 /// from the original counter, keeping the ordinary matrix allowance intact
@@ -1657,6 +1770,99 @@ mod tests {
             .expect("bounded distinct pairing traversal");
         assert!(matches!(result, Outcome::Unique { .. }), "{result:?}");
         assert!(remaining > 90_000);
+    }
+
+    #[test]
+    fn complete_one_edit_interval_matches_full_source_oracle_and_first_witness() {
+        let words = all_words(3);
+        let mut tested = 0;
+        for a in &words {
+            for b in &words {
+                let old: Vec<u8> = a.iter().copied().chain(100..164).collect();
+                let new: Vec<u8> = b.iter().copied().chain(100..164).collect();
+                let checked = super::super::exact::check_retaining_for_reconstruction(
+                    &old,
+                    &new,
+                    &mut 1_000_000,
+                )
+                .expect("funded complete literal rank");
+                let Some(table) = checked.suffix else {
+                    continue;
+                };
+                for constant in [false, true] {
+                    let signature = |edits: &[AtomicEdit]| {
+                        if constant {
+                            Vec::new()
+                        } else {
+                            script_signature(edits)
+                        }
+                    };
+                    let actual =
+                        super::one_edit_retained(&old, &new, &mut 1_000_000, &table, |edits, _| {
+                            Ok(Some(signature(edits)))
+                        })
+                        .expect("complete interval");
+                    if let Some(actual) = actual {
+                        tested += 1;
+                        let expected =
+                            super::check_hunks(&old, &new, &mut 1_000_000, |edits, _| {
+                                Ok(Some(signature(edits)))
+                            })
+                            .expect("independent full traversal");
+                        assert_eq!(actual, expected, "old={a:?} new={b:?} constant={constant}");
+                    }
+                }
+            }
+        }
+        assert!(
+            tested > 0,
+            "both interval semantics and canonical witnesses exercised"
+        );
+    }
+
+    #[test]
+    fn one_edit_interval_keeps_original_admission_binding_and_callback_failure() {
+        let old: Vec<u8> = b"ab".iter().copied().chain(100..164).collect();
+        let new: Vec<u8> = b"abb".iter().copied().chain(100..164).collect();
+        let checked =
+            super::super::exact::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                .expect("paid rank");
+        let table = checked.suffix.expect("contour");
+        let matrix = old.len() * new.len();
+        let mut work = matrix - 1;
+        let mut calls = 0;
+        assert!(
+            super::one_edit_retained(&old, &new, &mut work, &table, |_, _| {
+                calls += 1;
+                Ok(Some(()))
+            })
+            .expect("full admission")
+            .is_none()
+        );
+        assert_eq!(work, matrix - 1);
+        assert_eq!(calls, 0);
+        assert!(
+            super::one_edit_retained(
+                &old.clone(),
+                &new.clone(),
+                &mut 1_000_000,
+                &table,
+                |_, _| {
+                    calls += 1;
+                    Ok(Some(()))
+                }
+            )
+            .expect("immutable bindings")
+            .is_none()
+        );
+        assert_eq!(calls, 0);
+        let actual = super::one_edit_retained(&old, &new, &mut 1_000_000, &table, |_, _| {
+            calls += 1;
+            Ok(None::<()>)
+        })
+        .expect("source callback refusal");
+        assert_eq!(actual, Some(Outcome::BudgetExceeded));
+        assert_eq!(calls, 1);
     }
 
     #[test]

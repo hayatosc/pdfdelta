@@ -1,0 +1,45 @@
+{
+  "status": "unadopted candidate; pending full72/full36/all original evidence audit",
+  "verified_base": "b9b17a016fb1134e2714b7e1f5e589217f4eacd0",
+  "previous_candidate": "836b04018ecfd2970fbf16ae17d7aeac864c359e",
+  "method": "Only an immutable already-paid full LCS rank proving insertion/deletion distance1 qualifies. The maximal equal prefix and shifted suffix delimit every optimal gap position. Descending enumeration preserves the original equal-edge-first canonical witness. Every original physical source callback is checked; equal signatures across all positions alone establish semantic uniqueness, never strict literal uniqueness.",
+  "guards": "Original full matrix and memory admission; decline if linear setup exceeds original matrix work. Constant live scripts; all scanning/setup, position and callback fees paid directly. No borrowed or refunded suffix allowance; budget/source refusal remains incomplete.",
+  "tests": [
+    "independent full path traversal outcome and first canonical witness in both directions",
+    "original matrix admission cut unchanged",
+    "same values in different input slices cannot reuse rank",
+    "callback refusal is incomplete"
+  ],
+  "quality": {
+    "workspace": [
+      3405,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2129,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "patch_sha256": "1e4a28a1b54526c9d3ab273dadf936da5bbdab10ed08bcca49001232bd4adb90",
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "adoption": "unadopted pending full36 retention"
+  },
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
+  "preservation_required": {
+    "links": 1495,
+    "localized_witnesses": 584,
+    "all_old_native_information": true,
+    "full_physical_scope_content_hash_and_proof": true
+  },
+  "target_28_tokens_two_changes": "No recovery claim before actual proof/ownership/publication."
+}
