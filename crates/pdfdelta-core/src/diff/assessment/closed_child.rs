@@ -13,10 +13,14 @@ use super::{
     semantic,
 };
 
-/// Optional initial-component proof; larger domains keep every existing result.
-const MAX_PARENT_TOKENS: usize = 512;
+/// Optional component proofs; larger domains keep every existing result.
+pub(super) const MAX_PARENT_TOKENS: usize = 512;
 
-fn eligible_header(key: &DomainKey, proof: &DomainProof, record: &RelationAssessment) -> bool {
+pub(super) fn eligible_header(
+    key: &DomainKey,
+    proof: &DomainProof,
+    record: &RelationAssessment,
+) -> bool {
     key.local.is_none()
         && key.old.len() > 1
         && key.new.len() > 1
@@ -32,7 +36,7 @@ fn eligible_header(key: &DomainKey, proof: &DomainProof, record: &RelationAssess
             .contains(&ComparisonAssumption::AlternativeLineBreakNormalization)
 }
 
-fn component_span(side: &Side<'_>, index: usize) -> Option<TextSpan> {
+pub(super) fn component_span(side: &Side<'_>, index: usize) -> Option<TextSpan> {
     let block = &side.blocks[index];
     let len = side.canonical[index].len();
     if len == 0 || !block.canonical.unmapped.is_empty() {
@@ -78,7 +82,7 @@ fn suffix_partition(parts: &[ResolutionRange], component: &TextSpan) -> Option<T
     selected
 }
 
-fn copy_span(span: &TextSpan) -> Option<TextSpan> {
+pub(super) fn copy_span(span: &TextSpan) -> Option<TextSpan> {
     Some(TextSpan {
         blocks: super::super::try_copy_slice(&span.blocks)?,
         separator: span.separator,
@@ -594,7 +598,7 @@ impl Assessor<'_, '_> {
     }
 
     /// Returns the paired projection only when every latest claim is disjoint.
-    fn closed_child_latest_veto(
+    pub(super) fn closed_child_latest_veto(
         &mut self,
         ownership: &[Ownership; 2],
         candidates: &[ChangeCandidate],
@@ -659,7 +663,7 @@ impl Assessor<'_, '_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::super::UnresolvedRegion;
     use super::*;
     use crate::{
@@ -673,7 +677,7 @@ mod tests {
         },
     };
 
-    fn block(id: u64, text: &str) -> BlockText {
+    pub(in crate::diff::assessment) fn block(id: u64, text: &str) -> BlockText {
         let mapped = MappedText {
             text: text.into(),
             source_map: text

@@ -744,6 +744,9 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::MandatoryInitialComponentBoundary => {
             "mandatory_initial_component_boundary"
         }
+        ComparisonAssumption::MandatoryTerminalComponentBoundary => {
+            "mandatory_terminal_component_boundary"
+        }
         ComparisonAssumption::PageShiftedMandatoryMatchingEquality => {
             "page_shifted_mandatory_matching_equality"
         }

@@ -6,6 +6,7 @@
 
 mod claims;
 mod closed_child;
+mod closed_terminal;
 mod context_projection;
 mod deferred;
 mod document_claims;
@@ -159,6 +160,13 @@ pub enum ComparisonAssumption {
     /// parent and component source guards both pass. This establishes closure
     /// without resolving the component's edit locations or granting ownership.
     MandatoryInitialComponentBoundary,
+    /// The final complete physical component inherits an independently closed
+    /// exact parent's end, checked against its original complete source end.
+    /// Two consecutive mandatory matching pairs at its first real source
+    /// tokens fix the left point on every optimal path. Whole-parent source
+    /// guards and literal component-prefix guards still apply; this grants
+    /// no ownership to the component's remaining ambiguous edits.
+    MandatoryTerminalComponentBoundary,
     /// The candidate sits still and is proven by an independently
     /// established stationary neighbour correspondence; raw coordinates are
     /// never used to adopt the move.
@@ -4312,10 +4320,25 @@ pub(super) fn finish(
     let before_deferred = assessor.remaining_work;
     assessor.discover_deferred_domains()?;
     let after_deferred = assessor.remaining_work;
-    drop(reviewed.domains);
     // These append-only facts run after every existing proof consumer. They
     // neither own source tokens nor displace an earlier diagnostic or receipt.
     assessor.capture_late_closed_child_evidence(closed_child_start..closed_child_end)?;
+    if assessor.recover_source_closed_terminal_children(
+        &mut ownership,
+        &comparison.change_candidates,
+        &comparison.proven_changed_regions,
+        local::CoupledPublication {
+            domains: &reviewed.domains,
+            partitions: [&mut old_resolution, &mut new_resolution],
+            unresolved: &mut comparison.unresolved_regions,
+        },
+        reviewed.domains.capacity(),
+        options.max_assessment_ranges,
+    )? {
+        comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
+        comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
+    }
+    drop(reviewed.domains);
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,
