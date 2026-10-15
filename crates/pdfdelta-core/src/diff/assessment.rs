@@ -5247,7 +5247,13 @@ impl<'a, 'document> Assessor<'a, 'document> {
         let [old, new] = groups;
         let sides = self.sides;
         let limit = self.options.max_assessment_ranges;
-        let one_edit = if let Some(table) = retained.as_ref() {
+        let one_edit = if let Some(table) = retained.as_ref()
+            && semantic::tight_one_edit_allowance(
+                old.tokens.len(),
+                new.tokens.len(),
+                self.remaining_work,
+                old.tokens.len().saturating_add(new.tokens.len()),
+            )? {
             semantic::one_edit_retained(
                 &old.tokens,
                 &new.tokens,

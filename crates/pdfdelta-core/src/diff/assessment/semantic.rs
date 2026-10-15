@@ -817,6 +817,31 @@ fn traversal_error() -> Error {
     Error::Unresolved("semantic uniqueness traversal did not produce a path".to_owned())
 }
 
+/// Preserves the ample-budget traversal and prices. The complete one-edit
+/// alternative is used only when the optional two-source probe cannot fit
+/// above the original semantic matrix allowance.
+pub(super) fn tight_one_edit_allowance(
+    old_len: usize,
+    new_len: usize,
+    remaining: usize,
+    minimum_callback_work: usize,
+) -> Result<bool> {
+    let matrix = old_len.checked_mul(new_len).ok_or_else(cells_limit_error)?;
+    let count = old_len.checked_add(new_len).ok_or_else(cells_limit_error)?;
+    let minimum = count
+        .checked_mul(30)
+        .and_then(|v| {
+            minimum_callback_work
+                .checked_mul(2)
+                .and_then(|c| v.checked_add(c))
+        })
+        .and_then(|v| v.checked_add(128))
+        .ok_or_else(cells_limit_error)?;
+    Ok(remaining
+        .checked_sub(matrix)
+        .is_some_and(|available| available < minimum))
+}
+
 /// Enumerates every optimal script when an immutable paid LCS rank already
 /// proves distance one. The common prefix and shifted suffix delimit all gap
 /// positions. Descending positions preserve the ordinary equal-edge-first
@@ -1770,6 +1795,17 @@ mod tests {
             .expect("bounded distinct pairing traversal");
         assert!(matches!(result, Outcome::Unique { .. }), "{result:?}");
         assert!(remaining > 90_000);
+    }
+
+    #[test]
+    fn tight_interval_dispatch_preserves_ample_budget_and_original_matrix_cut() {
+        assert!(super::tight_one_edit_allowance(303, 304, 110_245, 607).expect("tight"));
+        assert!(!super::tight_one_edit_allowance(303, 304, 1_000_000, 607).expect("ample"));
+        assert!(!super::tight_one_edit_allowance(303, 304, 92_111, 607).expect("original refusal"));
+        assert!(
+            !super::tight_one_edit_allowance(303, 304, 92_112 + 19_552, 607)
+                .expect("probe fits exactly")
+        );
     }
 
     #[test]

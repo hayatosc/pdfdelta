@@ -1,5 +1,5 @@
 {
-  "status": "unadopted candidate; pending full72/full36/all original evidence audit",
+  "status": "rejected: five old restrictions links and21 regions not retained",
   "verified_base": "b9b17a016fb1134e2714b7e1f5e589217f4eacd0",
   "previous_candidate": "836b04018ecfd2970fbf16ae17d7aeac864c359e",
   "method": "Only an immutable already-paid full LCS rank proving insertion/deletion distance1 qualifies. The maximal equal prefix and shifted suffix delimit every optimal gap position. Descending enumeration preserves the original equal-edge-first canonical witness. Every original physical source callback is checked; equal signatures across all positions alone establish semantic uniqueness, never strict literal uniqueness.",
@@ -41,5 +41,62 @@
     "all_old_native_information": true,
     "full_physical_scope_content_hash_and_proof": true
   },
-  "target_28_tokens_two_changes": "No recovery claim before actual proof/ownership/publication."
+  "target_28_tokens_two_changes": "No recovery claim before actual proof/ownership/publication.",
+  "candidate_code_sha": "ddaed51bf327b10fa86b7a7dcf4362dd3470cece",
+  "full36": {
+    "captured": 36,
+    "complete": 1,
+    "incomplete": 35,
+    "empty_native_text_excluded": 4
+  },
+  "retention": {
+    "old_links": 1495,
+    "exact_old_links": 1490,
+    "current_links": 1498,
+    "old_witnesses": 584,
+    "exact_old_witnesses": 584,
+    "current_witnesses": 590,
+    "old_positive_tokens_preserved": true,
+    "old_changes_preserved": true,
+    "restrictions_old_regions": [
+      21,
+      0
+    ],
+    "restrictions_missing_old_link_relations": [
+      1444,
+      1446,
+      1448,
+      1450,
+      1452
+    ],
+    "candidate_promotions_not_yet_full_supersession_audited": 2,
+    "original_controller_missing_tokens": 28,
+    "original_controller_missing_changes": [
+      66,
+      67
+    ],
+    "long_two_native_events_preserved": true
+  },
+  "work_used": 811550646,
+  "work_delta_vs_base": -840372,
+  "evidence_fee_deltas": {
+    "evidence_link_work.planning": 777,
+    "evidence_link_work.verification": -4442,
+    "evidence_link_work.retention": 256,
+    "evidence_link_work.output": 7584
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 587.6547929799999,
+    "cpu_seconds": {
+      "self_user_seconds": 35.764261999999995,
+      "self_system_seconds": 1.504661,
+      "children_user_seconds": 568.041598,
+      "children_system_seconds": 38.554859
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
+  },
+  "total_cpu_seconds": 643.8653800000001,
+  "cpu_warning": "Single uncontrolled full36 run; not a speedup comparison. Logical work and source fees are separate.",
+  "next": "Restrict complete one-edit interval dispatch to already-admitted original semantic matrices whose remaining allowance cannot fit the optional two-source probe. Preserve original ample-budget traversal and pricing. The intrinsic complete algorithm and all source/memory guards remain unchanged. Pendingfresh6/72/36/allretention."
 }
