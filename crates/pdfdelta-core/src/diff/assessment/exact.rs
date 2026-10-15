@@ -520,10 +520,10 @@ pub(super) fn check_retaining_for_reconstruction<'a, T: Eq>(
 /// Preserves the ordinary equal-input scout and full dense admission before
 /// an optional lower-cost literal certificate. A failed attempt keeps its
 /// charges and enough original allowance for dense proof and reconstruction.
-/// The optional certificate runs only when the original uncached Myers work
-/// would not fit after the full dense check. Ample-budget domains follow the
-/// original checker without a speculative scan, avoiding unnecessary changes
-/// to which later domains can spend the shared allowance.
+/// Tight allowances may use the complete affordable Hamming band. Ample
+/// allowances attempt only a single positional substitution, stopping at the
+/// second paid mismatch. Both paths preserve full dense admission and its
+/// reconstruction reserve; every failed probe keeps its actual charges.
 /// No diagnostic input, physical verdict or cross-scope cache is reused.
 pub(super) fn check_for_localization<'a, T: Eq>(
     old: &'a [T],
@@ -577,15 +577,26 @@ pub(super) fn check_for_localization<'a, T: Eq>(
         (forward, dense, reserve, bytes)
         && dense <= *remaining
         && bytes <= MAX_EXACT_MEMORY_BYTES
-        && uncached_reconstruction.is_some_and(|work| work > remaining.saturating_sub(dense))
-        && let Some(script) = banded::check_reserved(
-            old,
-            new,
-            max_distance,
-            remaining,
-            reserve,
-            forward.saturating_sub(1),
-        )?
+        && let Some(script) =
+            if uncached_reconstruction.is_some_and(|work| work > remaining.saturating_sub(dense)) {
+                banded::check_reserved(
+                    old,
+                    new,
+                    max_distance,
+                    remaining,
+                    reserve,
+                    forward.saturating_sub(1),
+                )?
+            } else {
+                banded::check_single_substitution_reserved(
+                    old,
+                    new,
+                    max_distance,
+                    remaining,
+                    reserve,
+                    forward.saturating_sub(1),
+                )?
+            }
     {
         return Ok((RetainedCheck::plain(ExactUniqueness::Unique), Some(script)));
     }
@@ -1696,6 +1707,36 @@ mod tests {
     }
 
     #[test]
+    fn ample_single_substitution_preserves_dense_proof_and_admission() {
+        let old: Vec<u32> = (0..200).collect();
+        let mut new = old.clone();
+        new[33] = 10_000;
+        let mut remaining = 1_000_000;
+        let (result, script) = super::check_for_localization(&old, &new, 400, &mut remaining)
+            .expect("ample original admission");
+        assert_eq!(result.outcome, ExactUniqueness::Unique);
+        let script = script.expect("complete radius-one certificate");
+        let oracle = super::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+            .expect("dense oracle");
+        let super::ReconstructedScript::Ready(expected) = oracle
+            .suffix
+            .expect("dense table")
+            .reconstruct_unique(&old, &new, 400, &mut 1_000_000)
+            .expect("dense reconstruction")
+        else {
+            panic!("dense admitted");
+        };
+        assert_eq!(script, expected);
+        assert_eq!(1_000_000 - remaining, 6976);
+        let mut refused = 80_033;
+        let (result, script) = super::check_for_localization(&old, &new, 400, &mut refused)
+            .expect("original matrix refusal");
+        assert_eq!(result.outcome, ExactUniqueness::BudgetExceeded);
+        assert!(script.is_none());
+        assert_eq!(refused, 79_999);
+    }
+
+    #[test]
     fn admitted_band_preserves_dense_script_with_full_fallback_reserved() {
         let old: Vec<u32> = (0..200).collect();
         let mut new = old.clone();
@@ -1752,10 +1793,11 @@ mod tests {
     }
 
     #[test]
-    fn ample_allowance_keeps_original_table_and_charges_without_probe() {
+    fn ample_multiple_substitutions_keep_dense_table_and_pay_failed_probe() {
         let old: Vec<u32> = (0..200).collect();
         let mut new = old.clone();
         new[33] = 10_000;
+        new[99] = 20_000;
         let mut expected_work = 1_000_000;
         let expected = super::check_retaining_for_reconstruction(&old, &new, &mut expected_work)
             .expect("ordinary full checker");
@@ -1764,7 +1806,7 @@ mod tests {
             .expect("ample allowance");
         assert_eq!(actual.outcome, expected.outcome);
         assert!(script.is_none());
-        assert_eq!(actual_work, expected_work);
+        assert_eq!(actual_work, expected_work - 128 - 3 * 100);
         let actual = actual.suffix.expect("original complete table");
         let expected = expected.suffix.expect("ordinary complete table");
         assert_eq!(actual.table, expected.table);

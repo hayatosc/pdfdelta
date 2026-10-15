@@ -1,0 +1,47 @@
+{
+  "status": "unadopted candidate; six fresh gates passed; pending fixed72/full36 and full retention audit",
+  "verified_base": "3efbcb829d08234ef2cb9272a821809552ca98ec",
+  "hypothesis": "Several equal-length Controller domains around290tokens consume about170000 units in dense literal uniqueness before the unreached446/447 target domain. Limit an ample-budget alternative to one positional mismatch, certify the full optimal matching-edge union in radius1, retain original dense fallback for all negative attempts. No target-specific dispatch.",
+  "proof": "One positional mismatch provides an explicit edit-distance2 path. Every optimal insertion/deletion alignment lies within radius1. Complete forward/reverse distances and the union of every eligible matching edge establish uniqueness only when union size equals LCS length. Canonical script is checked against the unchanged full dense oracle.",
+  "guards": "Original full2NM work admission and original live-memory preflight remain mandatory. Preserve full dense-plus-reconstruction fallback reserve. Require the complete probe ceiling below the original forward pass. Pay128 metadata, each Hamming probe, all table words/cells/edge checks and output; no refund or raised cap. Original physical/context/ownership/publication guards remain unchanged.",
+  "changes": "Tight-budget multi-mismatch band is unchanged. Ample probes stop at the second positional mismatch, before allocation. Success still requires complete literal uniqueness.",
+  "tests": "Added exhaustive binary-prefix plus unique64token-suffix comparisons against the unchanged dense checker, canonical-script agreement, original matrix refusal, and ample one-mismatch exact cost. Replaced the former no-ample-probe cost contract with a two-mismatch fallback contract that compares the original complete table and completed count and accounts for all428 extra scout units.",
+  "initial_gate_failure": "First workspace run1732pass/1fail/2ignore: old test required no ample probe and no returned script. This is the deliberately changed optimization contract. No proof assertion was relaxed: new success and fallback tests separately require complete dense-oracle agreement. Final six fresh gates must all pass before any commit.",
+  "preservation_required": {
+    "all_prior_native_information": true,
+    "links": 1498,
+    "localized_witnesses": 590,
+    "prior_added_positive_tokens": 455,
+    "original_baseline_links": 1495,
+    "original_baseline_witnesses": 584,
+    "prior_two_candidate_discharge_proofs": true,
+    "complete_physical_scopes_content_hashes_ownership_and_proofs": true,
+    "W9_151_long_two_block_candidates_and_design_four": true
+  },
+  "actual_pdf_quality": "Unassessed for candidate. Verified baseline remains complete1/incomplete35 on36, empty4excluded. Original Controller28tokens/2changes still unresolved until actual proof and publication.",
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
+  "quality": {
+    "workspace": [
+      3408,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2132,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "patch_sha256": "9d8e35aa36b6dc364f2b0b80c9df68b4a51d33180a8a6b8f3d87a4486da16c91",
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "adoption": "unadopted pending full36 retention"
+  }
+}

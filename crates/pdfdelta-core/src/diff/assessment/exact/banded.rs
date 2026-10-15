@@ -77,6 +77,40 @@ pub(super) fn check_reserved<T: Eq>(
     reserve: usize,
     ceiling: usize,
 ) -> Result<Option<Vec<AtomicEdit>>> {
+    check_reserved_radius(
+        old,
+        new,
+        max_distance,
+        remaining,
+        reserve,
+        ceiling,
+        usize::MAX,
+    )
+}
+
+/// Limits an ample-budget probe to a single positional substitution. A second
+/// mismatch stops the paid scout before any DP allocation. This is still a
+/// complete optimal-edge-union proof, not a chosen diagonal alignment.
+pub(super) fn check_single_substitution_reserved<T: Eq>(
+    old: &[T],
+    new: &[T],
+    max_distance: usize,
+    remaining: &mut usize,
+    reserve: usize,
+    ceiling: usize,
+) -> Result<Option<Vec<AtomicEdit>>> {
+    check_reserved_radius(old, new, max_distance, remaining, reserve, ceiling, 1)
+}
+
+fn check_reserved_radius<T: Eq>(
+    old: &[T],
+    new: &[T],
+    max_distance: usize,
+    remaining: &mut usize,
+    reserve: usize,
+    ceiling: usize,
+    radius_ceiling: usize,
+) -> Result<Option<Vec<AtomicEdit>>> {
     let n = old.len();
     if n == 0 || n != new.len() {
         return Ok(None);
@@ -104,7 +138,7 @@ pub(super) fn check_reserved<T: Eq>(
         return Ok(None);
     }
     let (bound, _) = myers::reconstruction_admission(n, n, max_distance)?;
-    let radius_limit = affordable.min(n).min(bound / 2);
+    let radius_limit = affordable.min(n).min(bound / 2).min(radius_ceiling);
     if radius_limit == 0 {
         return Ok(None);
     }
@@ -268,6 +302,50 @@ pub(super) fn check_reserved<T: Eq>(
 mod tests {
     use super::super::{ExactUniqueness, ReconstructedScript, check_retaining_for_reconstruction};
     use super::check;
+
+    #[test]
+    fn single_substitution_probe_matches_complete_dense_oracle() {
+        for n in 1..=4 {
+            let words: Vec<Vec<u16>> = (0..1usize << n)
+                .map(|bits| {
+                    let mut word = (0..n)
+                        .map(|i| u16::from(bits & (1 << i) != 0))
+                        .collect::<Vec<_>>();
+                    word.extend(100..164);
+                    word
+                })
+                .collect();
+            for old in &words {
+                for new in &words {
+                    let mismatch = old.iter().zip(new).filter(|(a, b)| a != b).count();
+                    let actual = super::check_single_substitution_reserved(
+                        old,
+                        new,
+                        200,
+                        &mut 1_000_000,
+                        0,
+                        usize::MAX,
+                    )
+                    .expect("bounded complete probe");
+                    let oracle = check_retaining_for_reconstruction(old, new, &mut 1_000_000)
+                        .expect("complete dense oracle");
+                    if mismatch == 1 && oracle.outcome == ExactUniqueness::Unique {
+                        let ReconstructedScript::Ready(expected) = oracle
+                            .suffix
+                            .expect("dense unique table")
+                            .reconstruct_unique(old, new, 200, &mut 1_000_000)
+                            .expect("dense script")
+                        else {
+                            panic!("dense admitted");
+                        };
+                        assert_eq!(actual, Some(expected), "{old:?} -> {new:?}");
+                    } else {
+                        assert!(actual.is_none(), "{old:?} -> {new:?}");
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn band_union_and_canonical_script_match_dense_oracle() {
