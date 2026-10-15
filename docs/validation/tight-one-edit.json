@@ -1,5 +1,5 @@
 {
-  "status": "unadopted candidate; pending fixed72/full36/full evidence retention",
+  "status": "verified improvement; all original physical evidence retained; two tentative candidates discharged through source-backed strict witnesses",
   "verified_base": "b9b17a016fb1134e2714b7e1f5e589217f4eacd0",
   "previous_candidate": "ddaed51bf327b10fa86b7a7dcf4362dd3470cece",
   "change": "Use complete one-edit semantic interval only when the original semantic matrix is admitted but remaining work above it cannot fit the optional two-source probe minimum. Ample-budget domains keep original traversal and prices.",
@@ -24,10 +24,11 @@
       "literal_secret": 0
     },
     "public_api_added": 0,
-    "patch_sha256": "d53b6c939e08b4b255215fab8fa38212c37b14a758d47cf91caae0ec06513c91",
+    "patch_sha256": "14f7f471a45fdb7bf6c9cfc86a02969aa4cdc165220816ad4fcd962d16f072bd",
     "bench": true,
     "six_fresh_gates_passed": true,
-    "adoption": "unadopted pending full36 retention"
+    "adoption": "verified: all physical evidence retained; candidates discharged through original-origin strict proofs",
+    "patch_sha256_meaning": "Pre-record staged validation explanation diff; production source is exactly evaluated47823da"
   },
   "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
   "preservation_required": {
@@ -36,5 +37,177 @@
     "all_old_native_information": true,
     "complete_scope_content_source_hash_proof": true
   },
-  "target28tokens2changes": "Unassessed until native proof, ownership and publication are complete."
+  "target28tokens2changes": "Still unresolved: original controller changes66/67 not recovered; original64/65 and352 recovered tokens retained. Complete PDF comparisons remain1/36, empty4 excluded.",
+  "evaluated_code": "47823da1d867c7ada80e12de39f3932015b6e883",
+  "replay": {
+    "binary_sha256": "935edb45afbabf49fe9940b40ad751dd4ebd6ffe0942c063b81e5e30ea055c52",
+    "head": "47823da1d867c7ada80e12de39f3932015b6e883",
+    "tree": "198360030d8c61dbe098e4b2b1edca96b37ce9d1",
+    "production_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "limit_scale": 1,
+    "timeout_seconds": 180,
+    "output_budget_bytes": 1000000000,
+    "memory": {
+      "cgroup": "/sys/fs/cgroup",
+      "memory_max": 5999996928,
+      "memory_swap_max": 0,
+      "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "peak_bytes": 5694730240
+    },
+    "totals": {
+      "fixed_denominator": 36,
+      "outcomes": {
+        "captured": 36
+      },
+      "meaningful_complete": 1,
+      "engine_complete": 1,
+      "incomplete_comparisons": 35,
+      "empty_native_text": 4
+    }
+  },
+  "retention": {
+    "old_links_exact": 1495,
+    "old_links_total": 1495,
+    "current_links": 1498,
+    "old_witnesses_exact": 584,
+    "old_witnesses_total": 584,
+    "current_witnesses": 590,
+    "all_old_changes_formats_coarse_regions_exact": true,
+    "all_old_positive_tokens_preserved": true,
+    "other_33_pairs_summary_unchanged": true,
+    "full_long_two_block_candidate_events_preserved": true,
+    "W9_anchor_and_151_baseline_scopes_preserved": true,
+    "design_original_four_nonowning_scopes_preserved": true
+  },
+  "candidate_discharge": [
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "old_candidate": 21,
+      "origin_relation": 857,
+      "event": 68,
+      "witness_relation": 4556,
+      "meaning": "Same complete old/new source hashes, text, pages, token widths and glyph identities in a larger coordinate frame; strict witness retains origin857. Original tentative context/reasons remain. Not counted as an exact candidate event."
+    },
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "old_candidate": 35,
+      "origin_relation": 288,
+      "event": 66,
+      "witness_relation": 1439,
+      "meaning": "Tentative replacement with empty new side becomes high-confidence deletion of the identical physical space glyph. Full source hash/geometry/operator remain equal; zero-width target is explicitly anchored at new block218 offset28; strict witness retains origin288. Original tentative context/reasons remain. Not counted as an exact candidate event."
+    }
+  ],
+  "gains": [
+    {
+      "pair": "edpb-restrictions-v1-to-final",
+      "added_positive_old": 68,
+      "added_positive_new": 70,
+      "events": {
+        "changes": {
+          "old": 66,
+          "new": 68,
+          "exact_preserved": 66
+        },
+        "change_candidates": {
+          "old": 87,
+          "new": 86,
+          "exact_preserved": 86
+        },
+        "formatting_only_changes": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        },
+        "proven_changed_regions": {
+          "old": 21,
+          "new": 21,
+          "exact_preserved": 21
+        }
+      }
+    },
+    {
+      "pair": "edpb-design-default-v1-to-v2",
+      "added_positive_old": 37,
+      "added_positive_new": 39,
+      "events": {
+        "changes": {
+          "old": 96,
+          "new": 97,
+          "exact_preserved": 96
+        },
+        "change_candidates": {
+          "old": 437,
+          "new": 437,
+          "exact_preserved": 437
+        },
+        "formatting_only_changes": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        },
+        "proven_changed_regions": {
+          "old": 158,
+          "new": 158,
+          "exact_preserved": 158
+        }
+      }
+    },
+    {
+      "pair": "edpb-controller-processor-v1-to-v2-1",
+      "added_positive_old": 118,
+      "added_positive_new": 123,
+      "events": {
+        "changes": {
+          "old": 69,
+          "new": 73,
+          "exact_preserved": 69
+        },
+        "change_candidates": {
+          "old": 133,
+          "new": 132,
+          "exact_preserved": 132
+        },
+        "formatting_only_changes": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        },
+        "proven_changed_regions": {
+          "old": 0,
+          "new": 0,
+          "exact_preserved": 0
+        }
+      }
+    }
+  ],
+  "work": {
+    "baseline": 812391018,
+    "current": 811550646,
+    "delta": -840372,
+    "evidence_link_fees": {
+      "baseline": {
+        "evidence_link_work.planning": 278720,
+        "evidence_link_work.verification": 4659396,
+        "evidence_link_work.retention": 166528,
+        "evidence_link_work.output": 1279232
+      },
+      "current": {
+        "evidence_link_work.planning": 279616,
+        "evidence_link_work.verification": 4686604,
+        "evidence_link_work.retention": 166784,
+        "evidence_link_work.output": 1286816
+      }
+    }
+  },
+  "measured_cpu": {
+    "elapsed_seconds": 583.4796307279994,
+    "cpu_seconds": {
+      "self_user_seconds": 32.669813,
+      "self_system_seconds": 1.374969,
+      "children_user_seconds": 560.81612,
+      "children_system_seconds": 44.444555
+    },
+    "meaning": "Measured capture workload process CPU including native CLI children and capture tooling. Single run; not a controlled speedup comparison. Independent of charged search-work ledger.",
+    "exitcode": 0
+  }
 }
