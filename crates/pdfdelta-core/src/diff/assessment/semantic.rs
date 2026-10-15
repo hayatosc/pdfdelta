@@ -817,6 +817,32 @@ fn traversal_error() -> Error {
     Error::Unresolved("semantic uniqueness traversal did not produce a path".to_owned())
 }
 
+/// Defers an optional retained search that cannot meet its unchanged full
+/// matrix admission. The caller must keep the result incomplete. No matrix,
+/// traversal or callback is started and no earlier charge is refunded.
+/// Sixteen units prepay the new binding/dimension/admission bookkeeping on
+/// this declined branch; funded calls keep their original costs and guards.
+pub(super) fn defer_unfunded_retained<T: Eq>(
+    old: &[T],
+    new: &[T],
+    remaining: &mut usize,
+    retained: &super::exact::RetainedSuffix<'_, T>,
+) -> bool {
+    if !retained.is_bound_to(old, new) {
+        return false;
+    }
+    let Some(matrix) = old.len().checked_mul(new.len()) else {
+        return false;
+    };
+    if matrix <= *remaining {
+        return false;
+    }
+    // The original retained result came from an ambiguous exact comparison,
+    // so the ordinary identical-input semantic fast path cannot apply here.
+    charge(remaining, 16);
+    true
+}
+
 /// Preserves the ample-budget traversal and prices. The complete one-edit
 /// alternative is used only when the optional two-source probe cannot fit
 /// above the original semantic matrix allowance.
@@ -1795,6 +1821,78 @@ mod tests {
             .expect("bounded distinct pairing traversal");
         assert!(matches!(result, Outcome::Unique { .. }), "{result:?}");
         assert!(remaining > 90_000);
+    }
+
+    #[test]
+    fn unfunded_retained_deferral_keeps_source_work_and_original_refusal() {
+        let old = b"ab".repeat(181);
+        let mut new = old.clone();
+        new[157] = b'a';
+        let exact = super::super::exact::check_retaining(&old, &new, &mut 1_000_000)
+            .expect("complete literal oracle");
+        assert_eq!(
+            exact.outcome,
+            super::super::exact::ExactUniqueness::Ambiguous
+        );
+        let retained = exact.suffix.expect("paid ambiguous matrix");
+        let mut remaining = 127_525;
+        assert!(super::defer_unfunded_retained(
+            &old,
+            &new,
+            &mut remaining,
+            &retained
+        ));
+        assert_eq!(remaining, 127_525 - 16);
+        let callbacks = std::cell::Cell::new(0);
+        let mut original = 127_525;
+        let result = super::check_hunks_retained(
+            &old,
+            &new,
+            &mut original,
+            Some(retained),
+            &mut super::super::SuffixReuseWork::default(),
+            |_, _| {
+                callbacks.set(callbacks.get() + 1);
+                Ok(Some(()))
+            },
+        )
+        .expect("original refused admission");
+        assert_eq!(result, super::Outcome::BudgetExceeded);
+        assert_eq!(original, 0);
+        assert_eq!(callbacks.get(), 0);
+    }
+
+    #[test]
+    fn retained_deferral_cannot_rebind_or_change_funded_admission() {
+        let old = b"ab".repeat(32);
+        let mut new = old.clone();
+        new[19] = b'a';
+        let exact = super::super::exact::check_retaining(&old, &new, &mut 1_000_000)
+            .expect("literal oracle");
+        let retained = exact.suffix.expect("retained ambiguity");
+        let copied = old.clone();
+        let mut remaining = 20;
+        assert!(!super::defer_unfunded_retained(
+            &copied,
+            &new,
+            &mut remaining,
+            &retained
+        ));
+        assert_eq!(remaining, 20);
+        let mut funded = old.len() * new.len();
+        let original = funded;
+        assert!(!super::defer_unfunded_retained(
+            &old,
+            &new,
+            &mut funded,
+            &retained
+        ));
+        assert_eq!(funded, original);
+        let mut tiny = 15;
+        assert!(super::defer_unfunded_retained(
+            &old, &new, &mut tiny, &retained
+        ));
+        assert_eq!(tiny, 0, "decline metadata is still paid");
     }
 
     #[test]

@@ -5298,6 +5298,18 @@ impl<'a, 'document> Assessor<'a, 'document> {
         }
         let outcome = if let Some(outcome) = one_edit {
             Ok(outcome)
+        } else if retained.as_ref().is_some_and(|table| {
+            semantic::defer_unfunded_retained(
+                &old.tokens,
+                &new.tokens,
+                &mut self.remaining_work,
+                table,
+            )
+        }) {
+            // A declined optional search establishes no edits or ownership.
+            // Keep its incomplete status and the unspent work for independent
+            // source-backed facts in this same closed physical domain.
+            Ok(semantic::Outcome::BudgetExceeded)
         } else {
             semantic::check_hunks_retained(
                 &old.tokens,

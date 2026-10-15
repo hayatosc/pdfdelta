@@ -1,0 +1,98 @@
+{
+  "status": "unadopted candidate; six fresh gates passed; pending fixed72/full36/all evidence retention",
+  "verified_base": "3efbcb829d08234ef2cb9272a821809552ca98ec",
+  "previous_rejected_record": "42d1116c3ea4462368134c17289bfebac57a106c",
+  "causal_observation": {
+    "diagnostic_only": true,
+    "same_binary_switch": "Only the ample single-substitution alternative is disabled in baseline mode; immutable inputs and original shared fees unchanged.",
+    "baseline_matches_verified_capture": {
+      "changes": 73,
+      "unresolved": 1782,
+      "planning": 27888,
+      "verification": 456628,
+      "retention": 17872,
+      "output": 86816
+    },
+    "candidate_matches_c11_capture": {
+      "changes": 76,
+      "unresolved": 1771,
+      "planning": 27504,
+      "verification": 440136,
+      "retention": 17552,
+      "output": 89408
+    },
+    "domain": {
+      "local_index": 1184,
+      "parent_receipt_relation": 4619,
+      "lengths": [
+        362,
+        362
+      ],
+      "full_semantic_admission": 131044
+    },
+    "baseline": {
+      "entry": 33993,
+      "before_exact": 33334,
+      "after_exact": 33177,
+      "exact": "BudgetExceeded",
+      "receipt_fees": [
+        128,
+        4344,
+        64,
+        128
+      ],
+      "exit": 28513
+    },
+    "candidate": {
+      "entry": 344457,
+      "before_exact": 343771,
+      "after_exact": 127525,
+      "exact": "Ambiguous",
+      "semantic_admission_shortfall": 3519,
+      "after_semantic": 0,
+      "planning_request128_refused_at0": true,
+      "exit": 0
+    },
+    "cause": "Candidate starts an otherwise unaffordable optional retained semantic search. Original full-matrix admission refuses and sets the shared remainder to0 before any suffix continuation or source callback. This removes the established domain bag-receipt funding; all earlier literal/band work remains genuinely charged.",
+    "limits": "Record covers the first missing domain directly. Later four scope links are absent after the same stop; target326 visitation is not inferred from a complete parent relation."
+  },
+  "change": "Before the optional original retained semantic search, decline only when the identical immutable pair cannot afford the unchanged full matrix admission. Keep BudgetExceeded/incomplete, spend16 bookkeeping units on this branch, preserve unspent actual work for independent full-scope physical evidence. No search is started or claimed complete.",
+  "guards": "Require retained input slice identity; original equal/one-sided paths remain unchanged. Funded calls retain the original matrix/memory/traversal/callback limits and accounting. No cap increase, budget refund, callback skipping in a completed proof, ownership claim or narrower physical scope. Original inner refusal behavior is unchanged and tested directly.",
+  "tests": "Actual-sized362/362 ambiguous retained example at127525 work: new decline spends16 and invokes no callback; original full checker still refuses and consumes remainder0. Separate tests reject binding to copied equal-value arrays, leave funded full-matrix admission untouched, and charge tiny decline metadata to exhaustion.",
+  "preservation_required": {
+    "adopted_links": 1498,
+    "adopted_witnesses": 590,
+    "all_adopted_information": true,
+    "adopted_additional_positive_tokens": 455,
+    "separate_rejected_candidate_witnesses": 594,
+    "separate_rejected_candidate_positive_gain": 168,
+    "W9_151_design_four_long_two_block_candidates": true,
+    "full_scope_content_source_hash_proof_ownership_context": true
+  },
+  "actual_pdf_quality": "Not evaluated yet. Original Controller28tokens/2changes remain unresolved until native proof and publication; bag mismatch facts do not resolve tokens.",
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a",
+  "quality": {
+    "workspace": [
+      3411,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2135,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "patch_sha256": "69a4bc8a3c2ccda6df68c45955fc43038480c6ff2c1d98a852379a569067c8e5",
+    "bench": true,
+    "six_fresh_gates_passed": true,
+    "adoption": "unadopted pending full36 retention"
+  }
+}

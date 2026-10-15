@@ -277,6 +277,12 @@ pub(super) enum ReconstructedScript {
 }
 
 impl<T: Eq> RetainedSuffix<'_, T> {
+    /// Identity of the immutable pair that paid for this retained matrix.
+    /// This is neither a semantic verdict nor a transferable content match.
+    pub(super) fn is_bound_to(&self, old: &[T], new: &[T]) -> bool {
+        std::ptr::eq(old, self.old) && std::ptr::eq(new, self.new)
+    }
+
     /// A paid complete LCS rank establishes distance one; this hint supplies
     /// no semantic or physical verdict and is valid only for these slices.
     pub(super) fn has_one_edit_rank(&self, old: &[T], new: &[T]) -> bool {
