@@ -5253,6 +5253,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 &new.tokens,
                 &mut self.remaining_work,
                 table,
+                old.tokens.len().saturating_add(new.tokens.len()),
                 |edits| {
                     let mut hunks = 0usize;
                     let complete = visit_domain_hunks(old, new, edits, |_, _| {

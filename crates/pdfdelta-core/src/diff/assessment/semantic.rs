@@ -826,6 +826,7 @@ pub(super) fn negative_pair_probe<T, S, F, G>(
     new: &[T],
     remaining: &mut usize,
     retained: &super::exact::RetainedSuffix<'_, T>,
+    minimum_callback_work: usize,
     mut callback_bound: G,
     mut signature: F,
 ) -> Result<bool>
@@ -840,6 +841,29 @@ where
         .checked_mul(new.len())
         .ok_or_else(cells_limit_error)?;
     if *remaining < fallback {
+        return Ok(false);
+    }
+    // A successful negative proof needs both callbacks. Before inspecting
+    // tokens or allocating paths, reject probes that cannot pay even the
+    // structural lower bound plus both caller-declared minimum callback fees.
+    // This is an affordability check, never a reservation or a refund.
+    let token_count = old
+        .len()
+        .checked_add(new.len())
+        .ok_or_else(cells_limit_error)?;
+    let minimum_probe = token_count
+        .checked_mul(30)
+        .and_then(|v| {
+            minimum_callback_work
+                .checked_mul(2)
+                .and_then(|callbacks| v.checked_add(callbacks))
+        })
+        .and_then(|v| v.checked_add(128))
+        .ok_or_else(cells_limit_error)?;
+    if remaining
+        .checked_sub(fallback)
+        .is_none_or(|v| v < minimum_probe)
+    {
         return Ok(false);
     }
     preflight_memory(old.len(), new.len())?;
@@ -1662,6 +1686,7 @@ mod tests {
                     &new,
                     &mut remaining,
                     &table,
+                    0,
                     |_| Some(0),
                     |edits, _| {
                         let sig = script_signature(edits);
@@ -1687,6 +1712,7 @@ mod tests {
                         &new,
                         &mut constant_work,
                         &table,
+                        0,
                         |_| Some(0),
                         |_, _| Ok(Some(()))
                     )
@@ -1711,6 +1737,53 @@ mod tests {
     }
 
     #[test]
+    fn unaffordable_source_pair_skips_probe_without_spending_or_callbacks() {
+        // The recorded failure had 303/304 tokens and 18,133 units above
+        // the ordinary matrix price. Two source callbacks require at least
+        // 19,552 probe units, so no speculative work can yield a certificate.
+        let old: Vec<u32> = [0, 1].into_iter().chain(100..401).collect();
+        let new: Vec<u32> = [0, 1, 1].into_iter().chain(100..401).collect();
+        assert_eq!((old.len(), new.len()), (303, 304));
+        let checked =
+            super::super::exact::check_retaining_for_reconstruction(&old, &new, &mut 1_000_000)
+                .expect("funded original literal proof");
+        let table = checked.suffix.expect("same-input ambiguity contour");
+        let mut remaining = 110_245;
+        let mut calls = 0;
+        assert!(
+            !super::negative_pair_probe(
+                &old,
+                &new,
+                &mut remaining,
+                &table,
+                607,
+                |_| {
+                    calls += 1;
+                    Some(607)
+                },
+                |_, _| Ok(Some(()))
+            )
+            .expect("early affordability refusal")
+        );
+        assert_eq!(remaining, 110_245);
+        assert_eq!(calls, 0);
+        let mut ordinary = remaining;
+        let actual = super::check_hunks_retained(
+            &old,
+            &new,
+            &mut remaining,
+            Some(table),
+            &mut super::super::SuffixReuseWork::default(),
+            |_, _| Ok(Some(())),
+        )
+        .expect("fully available original fallback");
+        let expected = super::check_hunks(&old, &new, &mut ordinary, |_, _| Ok(Some(())))
+            .expect("independent ordinary traversal");
+        assert_eq!(actual, expected);
+        assert_eq!(remaining, ordinary);
+    }
+
+    #[test]
     fn negative_pair_probe_preserves_full_admission_and_failed_probe_fees() {
         let old: Vec<u8> = b"ab".iter().copied().chain(100..108).collect();
         let new: Vec<u8> = b"abb".iter().copied().chain(100..108).collect();
@@ -1727,6 +1800,7 @@ mod tests {
                 &new,
                 &mut refused,
                 &table,
+                0,
                 |_| Some(0),
                 |_, _| {
                     callbacks += 1;
@@ -1746,6 +1820,7 @@ mod tests {
                 &cloned_new,
                 &mut different_binding,
                 &table,
+                0,
                 |_| Some(0),
                 |_, _| {
                     callbacks += 1;
@@ -1762,6 +1837,7 @@ mod tests {
                 &new,
                 &mut paid,
                 &table,
+                0,
                 |_| Some(0),
                 |_, _| {
                     callbacks += 1;
