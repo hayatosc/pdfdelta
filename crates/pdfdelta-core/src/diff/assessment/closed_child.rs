@@ -88,6 +88,156 @@ fn copy_span(span: &TextSpan) -> Option<TextSpan> {
 }
 
 impl Assessor<'_, '_> {
+    /// Retains literal differences only for the new whole-component closures.
+    /// The caller runs this after all existing consumers. Every original
+    /// record, ownership decision and diagnostic remains unchanged.
+    pub(super) fn capture_late_closed_child_evidence(
+        &mut self,
+        relations: std::ops::Range<usize>,
+    ) -> Result<()> {
+        if self.output_stop.is_some() {
+            return Ok(());
+        }
+        for relation in relations {
+            if self.remaining_work == 0 || !self.charge_evidence_link(0, 16) {
+                break;
+            }
+            let Some(record) = self.records.get(relation) else {
+                return Err(super::invalid("late closed-component relation is missing"));
+            };
+            let assumptions = record.assumptions.len();
+            if !self.charge_evidence_link(0, assumptions.saturating_mul(8)) {
+                break;
+            }
+            let record = &self.records[relation];
+            if record.outcome != RelationOutcome::Established
+                || record.search != SearchCompleteness::Complete
+                || !record.reasons.is_empty()
+                || !record
+                    .assumptions
+                    .contains(&ComparisonAssumption::MandatoryInitialComponentBoundary)
+                || record
+                    .assumptions
+                    .contains(&ComparisonAssumption::AlternativeLineBreakNormalization)
+                || !record.parent.is_some_and(|parent| {
+                    parent < relation
+                        && self.records[parent].outcome == RelationOutcome::Established
+                        && self.records[parent].search == SearchCompleteness::Complete
+                        && self.records[parent].reasons.is_empty()
+                })
+            {
+                continue;
+            }
+            let (Some(old), Some(new)) = (&record.old_span, &record.new_span) else {
+                continue;
+            };
+            if old.blocks.len() != 1 || new.blocks.len() != 1 {
+                continue;
+            }
+            let ids = [old.blocks[0], new.blocks[0]];
+            // Fixed-size component copies and full-scope equality checks.
+            if !self.charge_evidence_link(0, 64) {
+                break;
+            }
+            let (Some(&old_index), Some(&new_index)) = (
+                self.sides[0].index.get(&ids[0]),
+                self.sides[1].index.get(&ids[1]),
+            ) else {
+                continue;
+            };
+            let (Some(old), Some(new)) = (
+                component_span(self.sides[0], old_index),
+                component_span(self.sides[1], new_index),
+            ) else {
+                continue;
+            };
+            if self.records[relation].old_span.as_ref() != Some(&old)
+                || self.records[relation].new_span.as_ref() != Some(&new)
+                || old.comparable_range.end > MAX_PARENT_TOKENS
+                || new.comparable_range.end > MAX_PARENT_TOKENS
+            {
+                continue;
+            }
+            // Components have one identifier each. Every linked scope is
+            // inspected, including links appended by an earlier iteration.
+            if !self.charge_evidence_link(0, self.scoped_change_evidence.len().saturating_mul(64)) {
+                break;
+            }
+            let same_component = |prior: Option<&TextSpan>, current: &TextSpan| {
+                prior.is_some_and(|prior| {
+                    prior.blocks == current.blocks
+                        && prior.canonical_range == current.canonical_range
+                        && prior.comparable_range == current.comparable_range
+                })
+            };
+            // A single block has no inter-block cut. An inert separator tag
+            // cannot make another receipt for the same original source scope.
+            if self.scoped_change_evidence.iter().any(|link| {
+                let prior = &self.records[link.relation];
+                same_component(prior.old_span.as_ref(), &old)
+                    && same_component(prior.new_span.as_ref(), &new)
+            }) {
+                continue;
+            }
+            let before = self.remaining_work;
+            let views = borrowed_group_pair(
+                self.sides,
+                [&old, &new],
+                &mut self.remaining_work,
+                COARSE_MEMORY_BYTES,
+            );
+            self.evidence_link_work.verification = self
+                .evidence_link_work
+                .verification
+                .saturating_add(before - self.remaining_work);
+            let Ok(views) = views else { continue };
+            let count = views
+                .iter()
+                .map(|v| v.selected_tokens().len())
+                .sum::<usize>();
+            let bytes = views
+                .iter()
+                .map(|v| v.retained_bytes)
+                .sum::<usize>()
+                .saturating_add(count.saturating_mul(std::mem::size_of::<ComparableToken>() + 128))
+                .saturating_add(4096);
+            if bytes > COARSE_MEMORY_BYTES
+                || !self.charge_evidence_link(1, count.saturating_mul(12).saturating_add(128))
+            {
+                continue;
+            }
+            if views
+                .iter()
+                .flat_map(super::BorrowedGroupView::selected_tokens)
+                .any(|t| !t.is_scalar())
+            {
+                continue;
+            }
+            let copy = |side: usize, span: TextSpan| -> Option<super::super::GroupText> {
+                let selected = views[side].selected_tokens();
+                let mut tokens = Vec::new();
+                tokens.try_reserve_exact(selected.len()).ok()?;
+                tokens.extend(selected.iter().map(|token| (*token).clone()));
+                super::super::GroupText::try_new(
+                    span.blocks,
+                    span.separator,
+                    tokens,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            };
+            let (Some(old), Some(new)) = (copy(0, old), copy(1, new)) else {
+                continue;
+            };
+            // Reuse the original constructor, verification, retention and
+            // output charging. This fact still grants no edit ownership.
+            self.capture_scoped_change_evidence(relation, [&old, &new])?;
+        }
+        Ok(())
+    }
+
     /// Attempts only whole final unresolved suffixes after all prior consumers.
     /// Every raw source, latest ownership, diagnostic, work and output veto is
     /// checked before either side or either new proof record is published.
@@ -660,6 +810,15 @@ mod tests {
     }
 
     fn run_with_work(case: Case, budget: usize, limit: usize) -> Result<(bool, usize)> {
+        run_with_late_evidence(case, budget, limit, None)
+    }
+
+    fn run_with_late_evidence(
+        case: Case,
+        budget: usize,
+        limit: usize,
+        mutation: Option<usize>,
+    ) -> Result<(bool, usize)> {
         let mut old_blocks = [block(1, "AAA X tail "), block(2, "YZ")];
         let mut new_blocks = [block(101, "AA X tail "), block(102, "YZ")];
         match case {
@@ -962,7 +1121,94 @@ mod tests {
                 "no partial owner for {case:?}"
             );
         }
+        if let Some(mutation) = mutation {
+            assert!(adopted, "late evidence starts from a real guarded closure");
+            match mutation {
+                1 => a.records[1].search = SearchCompleteness::Incomplete,
+                2 => a.records[1].outcome = RelationOutcome::Tentative,
+                3 => a.records[1]
+                    .reasons
+                    .push(super::super::AssessmentReason::WorkLimit),
+                4 => a.records[1].parent = None,
+                5 => {
+                    a.records[1]
+                        .old_span
+                        .as_mut()
+                        .expect("closed old")
+                        .canonical_range
+                        .end -= 1;
+                }
+                6 => a.records[1].assumptions.clear(),
+                7 => a.records[1]
+                    .assumptions
+                    .push(ComparisonAssumption::AlternativeLineBreakNormalization),
+                8 => a.remaining_work = 0,
+                9 => a.remaining_work = 1,
+                10 => a.output_stop = Some(0),
+                _ => {}
+            }
+            let records = a.records.clone();
+            let partitions = parts.clone();
+            let diagnostics = regions.clone();
+            let owned = [owners[0].accepted.clone(), owners[1].accepted.clone()];
+            let before_work = a.remaining_work;
+            let before_fees = a.evidence_link_work.total().expect("bounded fees");
+            a.capture_late_closed_child_evidence(1..3)?;
+            assert_eq!(a.records, records);
+            assert_eq!(parts, partitions);
+            assert_eq!(regions, diagnostics);
+            assert_eq!(
+                [owners[0].accepted.clone(), owners[1].accepted.clone()],
+                owned
+            );
+            assert_eq!(
+                before_work - a.remaining_work,
+                a.evidence_link_work.total().expect("bounded fees") - before_fees,
+                "all late work, including source materialization, is accounted"
+            );
+            assert_eq!(a.scoped_change_evidence.len(), usize::from(mutation == 0));
+            if mutation == 0 {
+                assert_eq!(a.scoped_change_evidence[0].relation, 1);
+                assert_eq!(
+                    a.scoped_change_evidence[0].proof,
+                    ChangedRegionProof::ExactTokenMultisetMismatch
+                );
+                assert!(
+                    a.evidence_link_work.planning > 0
+                        && a.evidence_link_work.verification > 0
+                        && a.evidence_link_work.retention > 0
+                        && a.evidence_link_work.output > 0
+                );
+                let mut alias = a.records[1].clone();
+                alias.old_span.as_mut().expect("old alias").separator = Some(BlockSeparator::Space);
+                alias.new_span.as_mut().expect("new alias").separator = Some(BlockSeparator::Space);
+                a.records.push(alias);
+                a.scoped_change_evidence[0].relation = 3;
+                a.capture_late_closed_child_evidence(1..4)?;
+                assert_eq!(
+                    a.scoped_change_evidence.len(),
+                    1,
+                    "same physical scope is not counted again under a new relation id"
+                );
+            }
+        }
         Ok((adopted, budget - a.remaining_work))
+    }
+
+    #[test]
+    fn late_closed_child_evidence_preserves_every_old_claim_and_deduplicates_scopes() -> Result<()>
+    {
+        assert!(run_with_late_evidence(Case::Positive, 32_000_000, 1024, Some(0))?.0);
+        Ok(())
+    }
+
+    #[test]
+    fn late_closed_child_evidence_keeps_context_scope_budget_and_normalization_guards() -> Result<()>
+    {
+        for mutation in 1..=10 {
+            assert!(run_with_late_evidence(Case::Positive, 32_000_000, 1024, Some(mutation))?.0);
+        }
+        Ok(())
     }
 
     #[test]

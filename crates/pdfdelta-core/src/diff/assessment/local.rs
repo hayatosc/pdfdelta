@@ -186,6 +186,17 @@ impl<'a> OwnershipBuckets<'a> {
     /// operations per inspected interval. The complete immutable index skips
     /// only owners from different physical blocks; it never merges owners.
     fn contains_all(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
+        self.contains_all_after_overlap(source, false, remaining)
+    }
+
+    /// A complete negative overlap is reused only after paying the original
+    /// lookup and owner-inspection charges, in their original order.
+    fn contains_all_after_overlap(
+        &self,
+        source: &[SourceInterval],
+        disjoint: bool,
+        remaining: &mut usize,
+    ) -> Option<bool> {
         for interval in source {
             if !charge(remaining, 2 * 8) {
                 return None;
@@ -194,6 +205,11 @@ impl<'a> OwnershipBuckets<'a> {
             let end = *self.offsets.get(interval.block_index.checked_add(1)?)?;
             if !charge(remaining, (end - start).saturating_mul(8)) {
                 return None;
+            }
+            // Nonempty containment implies strict overlap with that same
+            // original owner. Empty anchors retain the full original test.
+            if disjoint && interval.start < interval.end {
+                return Some(false);
             }
             if !self.intervals[start..end].iter().any(|owner| {
                 owner.block_index == interval.block_index
@@ -303,6 +319,17 @@ impl<'a> SparseCandidateContainment<'a> {
     }
 
     fn contains_all(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
+        self.contains_all_after_overlap(source, false, remaining)
+    }
+
+    /// A complete negative overlap is reused only after paying the original
+    /// lookup and owner-inspection charges, in their original order.
+    fn contains_all_after_overlap(
+        &self,
+        source: &[SourceInterval],
+        disjoint: bool,
+        remaining: &mut usize,
+    ) -> Option<bool> {
         for interval in source {
             // The same two eight-operation lookups now check the original
             // source bound and the exact block key, rather than empty offsets.
@@ -314,6 +341,11 @@ impl<'a> SparseCandidateContainment<'a> {
             };
             if !charge(remaining, (end - start).saturating_mul(8)) {
                 return None;
+            }
+            // Nonempty containment implies strict overlap with that same
+            // original owner. Empty anchors retain the full original test.
+            if disjoint && interval.start < interval.end {
+                return Some(false);
             }
             if !self.intervals[start..end].iter().any(|owner| {
                 owner.block_index == interval.block_index
@@ -329,8 +361,8 @@ impl<'a> SparseCandidateContainment<'a> {
 
 /// Prefer sparse grouping while retaining the existing funded dense route.
 enum CandidateContainment<'a> {
-    Sparse(SparseCandidateContainment<'a>),
-    Dense(OwnershipBuckets<'a>),
+    Sparse(SparseCandidateContainment<'a>, &'a [SourceInterval]),
+    Dense(OwnershipBuckets<'a>, &'a [SourceInterval]),
 }
 
 impl<'a> CandidateContainment<'a> {
@@ -346,17 +378,46 @@ impl<'a> CandidateContainment<'a> {
             expected_queries,
             remaining,
         ) {
-            return Some(Self::Sparse(index));
+            return Some(Self::Sparse(index, intervals));
         }
         OwnershipBuckets::build(intervals, source_block_count, expected_queries, remaining)
-            .map(Self::Dense)
+            .map(|index| Self::Dense(index, intervals))
     }
 
+    #[cfg(test)]
     fn contains_all(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<bool> {
         match self {
-            Self::Sparse(index) => index.contains_all(source, remaining),
-            Self::Dense(index) => index.contains_all(source, remaining),
+            Self::Sparse(index, _) => index.contains_all(source, remaining),
+            Self::Dense(index, _) => index.contains_all(source, remaining),
         }
+    }
+
+    /// Keeps overlap and containment attached to the exact immutable owners
+    /// used to build this index. Reuse cannot be supplied by another domain.
+    /// Charges and refusals stay in the original overlap-then-lookup order;
+    /// the original owner-inspection reservation is retained even if unused.
+    fn protect(&self, source: &[SourceInterval], remaining: &mut usize) -> Option<(bool, bool)> {
+        let owners = match self {
+            Self::Sparse(_, owners) | Self::Dense(_, owners) => *owners,
+        };
+        let overlap = overlaps(source, owners, remaining)?;
+        let covered = match self {
+            Self::Sparse(index, _) => {
+                if overlap {
+                    index.contains_all(source, remaining)
+                } else {
+                    index.contains_all_after_overlap(source, true, remaining)
+                }
+            }
+            Self::Dense(index, _) => {
+                if overlap {
+                    index.contains_all(source, remaining)
+                } else {
+                    index.contains_all_after_overlap(source, true, remaining)
+                }
+            }
+        }?;
+        Some((overlap, covered))
     }
 }
 
@@ -3129,37 +3190,35 @@ impl Assessor<'_, '_> {
                             return Ok(LocalRecoveryStep::Stop { truncated: false });
                         }
                         let source = project(self.sides[side], span)?;
-                        let Some(overlap) =
-                            overlaps(&source, &accepted[side], &mut self.remaining_work)
-                        else {
+                        let protection = if let Some(index) = &containment[side] {
+                            index.protect(&source, &mut self.remaining_work)
+                        } else {
+                            overlaps(&source, &accepted[side], &mut self.remaining_work).and_then(
+                                |overlap| {
+                                    let coverage_cost = source
+                                        .len()
+                                        .saturating_mul(accepted[side].len().saturating_add(1))
+                                        .saturating_mul(8);
+                                    self.charge(coverage_cost).then(|| {
+                                        (
+                                            overlap,
+                                            source.iter().all(|interval| {
+                                                accepted[side].iter().any(|range| {
+                                                    range.block_index == interval.block_index
+                                                        && range.start <= interval.start
+                                                        && interval.end <= range.end
+                                                })
+                                            }),
+                                        )
+                                    })
+                                },
+                            )
+                        };
+                        let Some((overlap, covered)) = protection else {
                             self.mark_local_work_limit(relation);
                             return Ok(LocalRecoveryStep::Stop { truncated: false });
                         };
                         overlaps_domain |= overlap;
-                        // An overlap does not discharge the candidate's
-                        // remaining source obligations. Pay the complete
-                        // containment scan before deciding to replace it.
-                        let covered = if let Some(index) = &containment[side] {
-                            index.contains_all(&source, &mut self.remaining_work)
-                        } else {
-                            let coverage_cost = source
-                                .len()
-                                .saturating_mul(accepted[side].len().saturating_add(1))
-                                .saturating_mul(8);
-                            self.charge(coverage_cost).then(|| {
-                                source.iter().all(|interval| {
-                                    accepted[side].iter().any(|range| {
-                                        range.block_index == interval.block_index
-                                            && range.start <= interval.start
-                                            && interval.end <= range.end
-                                    })
-                                })
-                            })
-                        };
-                        let Some(covered) = covered else {
-                            self.mark_local_work_limit(relation);
-                            return Ok(LocalRecoveryStep::Stop { truncated: false });
-                        };
                         wholly_covered &= covered;
                     }
                 }
@@ -5167,7 +5226,7 @@ mod tests {
         let fallback =
             CandidateContainment::build(&duplicate_owners, 1, 1_000, &mut fallback_budget)
                 .expect("preserve the previously funded dense route");
-        assert!(matches!(&fallback, CandidateContainment::Dense(_)));
+        assert!(matches!(&fallback, CandidateContainment::Dense(..)));
         assert_eq!(
             fallback.contains_all(&[interval(0, 0, 4)], &mut fallback_budget),
             Some(true)
@@ -5230,6 +5289,87 @@ mod tests {
         );
         assert!(SparseCandidateContainment::build(&owners, 127, 128 * 8, &mut 100_000).is_none());
         assert!(SparseCandidateContainment::build(&owners, 10_000, 128 * 8, &mut 0).is_none());
+    }
+
+    #[test]
+    fn lazy_candidate_protection_preserves_small_domain_budget_boundary() {
+        let owners = (0..5)
+            .map(|block_index| SourceInterval {
+                block_index,
+                start: 0,
+                end: 4,
+            })
+            .collect::<Vec<_>>();
+        let source = [SourceInterval {
+            block_index: 7,
+            start: 0,
+            end: 1,
+        }];
+        let index = CandidateContainment::build(&owners, 8, 1024, &mut 100_000)
+            .expect("complete immutable owners");
+        let mut budget = 22;
+        assert_eq!(index.protect(&source, &mut budget), Some((false, false)));
+        assert_eq!(budget, 0, "six overlap units precede sixteen lookup units");
+        assert_eq!(index.protect(&source, &mut 21), None);
+        // The rejected fused route charged eight setup units first. Its
+        // sixteen-unit lookup then failed at this valid legacy boundary.
+        let mut rejected = 22;
+        assert!(charge(&mut rejected, 8));
+        assert!(!charge(&mut rejected, 16));
+        assert_eq!(rejected, 0);
+    }
+
+    #[test]
+    fn lazy_candidate_protection_preserves_every_original_charge_and_refusal() {
+        let interval = |block_index, start, end| SourceInterval {
+            block_index,
+            start,
+            end,
+        };
+        let owners = [
+            interval(0, 0, 2),
+            interval(0, 2, 4),
+            interval(0, 0, 2),
+            interval(0, 2, 2),
+            interval(1, 0, 4),
+        ];
+        let sparse = SparseCandidateContainment::build(&owners, 8, 1024, &mut 100_000)
+            .expect("complete sparse owners");
+        let dense =
+            OwnershipBuckets::build(&owners, 8, 1024, &mut 100_000).expect("complete dense owners");
+        for index in [
+            CandidateContainment::Sparse(sparse, &owners),
+            CandidateContainment::Dense(dense, &owners),
+        ] {
+            for block in [0, 1, 7, 8] {
+                for start in 0..=5 {
+                    for end in start..=5 {
+                        for source in [
+                            vec![],
+                            vec![interval(block, start, end)],
+                            vec![interval(7, 0, 1), interval(block, start, end)],
+                            vec![interval(0, 0, 0), interval(block, start, end)],
+                        ] {
+                            for initial in 0..=160 {
+                                let mut original = initial;
+                                let expected =
+                                    overlaps(&source, &owners, &mut original).and_then(|overlap| {
+                                        index
+                                            .contains_all(&source, &mut original)
+                                            .map(|covered| (overlap, covered))
+                                    });
+                                let mut reused = initial;
+                                assert_eq!(index.protect(&source, &mut reused), expected);
+                                assert_eq!(
+                                    reused, original,
+                                    "every original refusal boundary is retained"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

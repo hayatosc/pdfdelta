@@ -4292,6 +4292,7 @@ pub(super) fn finish(
         comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
         comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
     }
+    let closed_child_start = assessor.records.len();
     if assessor.recover_source_closed_initial_children(
         &mut ownership,
         &comparison.change_candidates,
@@ -4307,9 +4308,14 @@ pub(super) fn finish(
         comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
         comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
     }
+    let closed_child_end = assessor.records.len();
     let before_deferred = assessor.remaining_work;
     assessor.discover_deferred_domains()?;
+    let after_deferred = assessor.remaining_work;
     drop(reviewed.domains);
+    // These append-only facts run after every existing proof consumer. They
+    // neither own source tokens nor displace an earlier diagnostic or receipt.
+    assessor.capture_late_closed_child_evidence(closed_child_start..closed_child_end)?;
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,
@@ -4322,8 +4328,9 @@ pub(super) fn finish(
             local_views: after_initial_localization - after_views,
             localization: (after_anchors - after_initial_localization)
                 + (after_views - after_localization),
-            emission: after_localization - before_deferred,
-            deferred_anchors: before_deferred - assessor.remaining_work,
+            emission: after_localization - before_deferred
+                + (after_deferred - assessor.remaining_work),
+            deferred_anchors: before_deferred - after_deferred,
         },
         anchor_work: assessor.anchor_work,
         local_view_work: assessor.local_view_work,

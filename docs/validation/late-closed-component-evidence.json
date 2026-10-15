@@ -1,0 +1,85 @@
+{
+  "status": "unadopted pending fixed72/full36 retention",
+  "adopted_base": "96d4eacdfa2f8f2278a6cc45cdcfd2de368c35d3",
+  "rejected_fusion": "f606c4de445989068c1425a62e197af1f6b67899",
+  "budget_compatibility": {
+    "small_counterexample": "Five owners and one disjoint nonempty interval complete at 22 legacy units; eight fused setup units followed by a sixteen-unit lookup fail at the same boundary. Regression test fixes this boundary.",
+    "lazy_reuse": "Overlap runs first against the exact immutable owners captured by the index. Containment retains every original lookup and owner-inspection reservation, in the original order, even when the negative overlap disproves nonempty containment. Empty anchors use the original predicate.",
+    "exhaustive_small_test": "Dense/sparse populations, duplicates, adjacent and empty owners, mixed intervals, invalid blocks, and each budget 0..160 preserve both result and remaining allowance.",
+    "controller_core_preview": {
+      "content_changes": 76,
+      "unresolved_regions": 1771,
+      "work_used": 32000000,
+      "evidence_link_work": {
+        "planning": 29936,
+        "verification": 530760,
+        "retention": 18768,
+        "output": 91840
+      },
+      "matches_adopted_ledger": true,
+      "remaining_original_positive_tokens": 28,
+      "remaining_original_changes": 2
+    },
+    "limitation": "Keeping the original shared-budget trajectory cannot itself fund the remaining Controller proof publication. No CPU speedup claim."
+  },
+  "late_evidence": {
+    "scope": "Only newly source-closed, whole single-component records under MandatoryInitialComponentBoundary, established/complete/reason-free with an established complete parent.",
+    "ordering": "Runs after every existing proof, ownership, diagnostic and deferred-domain consumer. Never edits earlier records, candidates, partitions or diagnostics.",
+    "guards": [
+      "Whole-component exact source frame and original 512-token parent bound",
+      "Original scalar-only literal multiset constructor and independent source verification",
+      "No alternative-line-break normalization, orphan or incomplete context",
+      "Deduplicate complete old/new single-component physical scopes, including prior receipts with another relation id or an inert inter-block separator tag",
+      "Pay source reconstruction, scope checks, copies, verification, retention and output; preserve 6 GB/swap0 and all prior caps",
+      "Existing output-stop veto forbids optional late receipts"
+    ],
+    "ownership": "Adds non-owning evidence only. Does not localize ambiguous edits, increase coverage, or turn unresolved comparisons into successes.",
+    "schedule_c_core_preview": {
+      "links_before": 1,
+      "links_after": 2,
+      "content_changes": 11,
+      "unresolved_regions": 15,
+      "work_used": 11927335
+    },
+    "tests": [
+      "Real guarded closure preserves all previous records, ownership and diagnostics",
+      "Incomplete/tentative/reason-bearing/orphan/altered-scope/alternative-normalization/missing-assumption contexts rejected",
+      "Zero or insufficient budget cannot publish a partial receipt",
+      "New relation id cannot duplicate an existing full physical scope",
+      "Every consumed late-work unit is included in evidence-link accounting"
+    ]
+  },
+  "full36": null,
+  "quality": {
+    "workspace": [
+      3415,
+      0,
+      2
+    ],
+    "all_features_library": [
+      2139,
+      0,
+      2
+    ],
+    "privacy_scan": {
+      "private_key": 0,
+      "github_token": 0,
+      "aws_key": 0,
+      "email": 0,
+      "literal_secret": 0
+    },
+    "public_api_added": 0,
+    "bench": true,
+    "six_fresh_gates_passed": true
+  },
+  "cpu_causality": "Unresolved. Earlier single-thread ABBA did not reproduce the parallel-run slowdown; this is not causal attribution or a full-panel speedup estimate.",
+  "limits": {
+    "aggregate_memory_bytes": 6000000000,
+    "swap_bytes": 0,
+    "limit_scale": 1,
+    "timeout_seconds": 180,
+    "full_panel_pairs": 36,
+    "empty_extraction_pairs_excluded_from_success": 4
+  },
+  "lockfile_sha256": "95c05e484c7650fb4b9a84dea599af943338aee3238120401e9fc46f0fd0d01a"
+}
