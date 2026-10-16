@@ -31,7 +31,8 @@ use super::{
 
 mod clipping;
 use clipping::{
-    ClipRegion, OrthogonalGrid, PendingOrthogonal, Quad, RectangularCutout, SeparatedCutout,
+    ClipRegion, FrozenPath, OrthogonalGrid, PathWitness, PendingOrthogonal, Quad,
+    RectangularCutout, SeparatedCutout, SourceOrigin,
 };
 
 mod paint_bounds;
@@ -277,6 +278,7 @@ struct CurrentPath {
     clip_pending: bool,
     clip_even_odd: bool,
     has_unclosed_prior_subpath: bool,
+    witness_source: Option<Arc<FrozenPath>>,
     paint_bounds: paint_bounds::Bounds,
 }
 
@@ -740,11 +742,78 @@ impl<'a> Extraction<'a> {
     ) -> Result<()> {
         self.account_stream_invocation()?;
         let bytes = self.decoded_stream_bytes(stream)?;
-        let operations = parser.parse_fragment(bytes.as_slice())?;
-
-        for operation in operations {
+        let mut operations = parser.parse_fragment(bytes.as_slice())?;
+        // Retain only the current pure path's typed operands. Completed runs
+        // release buffers as before; a paid freeze moves its exact source run.
+        let mut run: Option<(usize, Matrix)> = None;
+        let mut released = 0;
+        let invocation = self.stream_invocations;
+        for index in 0..operations.len() {
+            let operator = operations[index].operator.as_slice();
+            let terminates = matches!(
+                operator,
+                b"n" | b"S" | b"s" | b"B" | b"B*" | b"b" | b"b*" | b"f" | b"F" | b"f*"
+            );
+            if matches!(operator, b"m" | b"re")
+                && run.is_none()
+                && state.current_path.drawn_subpaths == 0
+                && state.current_path.segments.is_empty()
+                && !state.current_path.has_unsupported_segments
+                && !state.current_path.clip_pending
+            {
+                run = Some((index, state.graphics.ctm));
+            } else if !matches!(
+                operator,
+                b"m" | b"l" | b"c" | b"v" | b"y" | b"h" | b"re" | b"W" | b"W*"
+            ) && !terminates
+            {
+                run = None;
+            }
+            if operator == b"n"
+                && operations[index].operands.is_empty()
+                && state.current_path.drawn_subpaths != 0
+                && state.current_path.clip_pending
+                && state.current_path.primitive_certainty == ClipCertainty::Exact
+                && state.graphics.clip_certainty == ClipCertainty::Exact
+                && !state.current_path.has_unclosed_prior_subpath
+                && state.current_path.current_point == state.current_path.subpath_start
+                && (state.current_path.has_unsupported_segments
+                    || matches!(state.graphics.clip_region, ClipRegion::Witness { .. }))
+                && match &state.graphics.clip_region {
+                    ClipRegion::Unbounded | ClipRegion::Rectangle(_) => {
+                        self.limits.max_nesting_depth > 0
+                    }
+                    ClipRegion::Witness { node, .. } => {
+                        node.depth() < self.limits.max_nesting_depth
+                    }
+                    _ => false,
+                }
+                && let Some((first, ctm)) = run
+            {
+                let origin = SourceOrigin {
+                    stream,
+                    page,
+                    invocation,
+                    first_operator: operations[first].index,
+                    terminator: operations[index].index,
+                };
+                state.current_path.witness_source = self.freeze_path_source(
+                    &mut operations,
+                    first..index,
+                    ctm,
+                    page_geometry,
+                    origin,
+                    state.current_path.clip_even_odd,
+                )?;
+            }
+            let keep_from = run.map_or(index, |(start, _)| start);
+            for operation in &mut operations[released..keep_from] {
+                operation.operands = Vec::new();
+                operation.operator = Vec::new();
+            }
+            released = keep_from;
             self.apply_operation(
-                &operation,
+                &operations[index],
                 stream,
                 page,
                 page_geometry,
@@ -752,8 +821,69 @@ impl<'a> Extraction<'a> {
                 state,
                 form_depth,
             )?;
+            if terminates {
+                run = None;
+            }
+            if run.is_none() {
+                for operation in &mut operations[released..=index] {
+                    operation.operands = Vec::new();
+                    operation.operator = Vec::new();
+                }
+                released = index + 1;
+            }
         }
         Ok(())
+    }
+
+    /// Moves one complete typed path run only after all storage and geometry
+    /// work is prepaid. Unaffordable optional preparation keeps the refusal.
+    ///
+    /// # Errors
+    /// Propagates rejection by the shared clipping-work ceiling. No source run
+    /// is moved before its complete retention and normalization fees are paid.
+    fn freeze_path_source(
+        &mut self,
+        operations: &mut [Operation],
+        range: std::ops::Range<usize>,
+        ctm: Matrix,
+        page_geometry: PageGeometry,
+        origin: SourceOrigin,
+        even_odd: bool,
+    ) -> Result<Option<Arc<FrozenPath>>> {
+        let n = range.len();
+        let Some(validation) = FrozenPath::validation_work(n).filter(|&n| {
+            n <= self
+                .limits
+                .max_operators
+                .saturating_sub(self.convex_clip_work)
+        }) else {
+            return Ok(None);
+        };
+        self.charge_convex_clip_work(validation)?;
+        let work = FrozenPath::retention_work(&operations[range.clone()]).and_then(|retention| {
+            retention.checked_add(FrozenPath::normalization_work(&operations[range.clone()])?)
+        });
+        let Some(work) = work.filter(|&n| {
+            n <= self
+                .limits
+                .max_operators
+                .saturating_sub(self.convex_clip_work)
+        }) else {
+            return Ok(None);
+        };
+        self.charge_convex_clip_work(work)?;
+        let Ok(matrix) = page_geometry.transform.concatenate(ctm) else {
+            return Ok(None);
+        };
+        let mut owned = Vec::with_capacity(n);
+        for operation in &mut operations[range] {
+            owned.push(Operation {
+                operator: std::mem::take(&mut operation.operator),
+                operands: std::mem::take(&mut operation.operands),
+                index: operation.index,
+            });
+        }
+        Ok(FrozenPath::new(owned, matrix, origin, even_odd).map(Arc::new))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1302,6 +1432,7 @@ impl Extraction<'_> {
         }
 
         let mut incoming_certainty = ClipCertainty::Unproven;
+        let mut legacy_rectangle_uncertain = false;
         let mut clip_update = if state.current_path.clip_pending {
             if state.current_path.has_unsupported_segments {
                 Some(state.graphics.clip_region.intersect_unsupported(format!(
@@ -1315,6 +1446,7 @@ impl Extraction<'_> {
                     // intersection. Approximate legacy matches retain their
                     // old behavior elsewhere without gaining that witness.
                     incoming_certainty = certainty;
+                    legacy_rectangle_uncertain = certainty != ClipCertainty::Exact;
                     Some(
                         state
                             .graphics
@@ -1449,6 +1581,32 @@ impl Extraction<'_> {
                 crop,
             });
             incoming_certainty = ClipCertainty::Exact;
+        }
+
+        if let Some(ClipRegion::Unsupported(reason)) = &clip_update
+            && !legacy_rectangle_uncertain
+            && let Some(source) = state.current_path.witness_source.take()
+        {
+            let prior = match &state.graphics.clip_region {
+                ClipRegion::Unbounded => Some((None, None)),
+                ClipRegion::Rectangle(rect) => Some((None, Some(*rect))),
+                ClipRegion::Witness { node, crop } => Some((Some(Arc::clone(node)), *crop)),
+                _ => None,
+            };
+            if let Some((parent, crop)) = prior
+                && let Some(node) = PathWitness::new(
+                    source,
+                    parent,
+                    Arc::clone(reason),
+                    self.limits.max_nesting_depth,
+                )
+            {
+                clip_update = Some(ClipRegion::Witness {
+                    node: Arc::new(node),
+                    crop,
+                });
+                incoming_certainty = ClipCertainty::Exact;
+            }
         }
 
         if stroke && !state.current_path.has_unsupported_segments {
@@ -1801,7 +1959,16 @@ impl Extraction<'_> {
                 })?;
         self.activate_orthogonal_clip(&mut state.graphics)?;
         self.charge_convex_clip_work(state.graphics.clip_region.work())?;
-        let path_clip_status = state.graphics.clip_region.glyph_status(bbox)?;
+        let path_clip_status = match &state.graphics.clip_region {
+            ClipRegion::Witness { node, crop } => node.glyph_status(
+                bbox,
+                *crop,
+                page,
+                &mut self.convex_clip_work,
+                self.limits.max_operators,
+            )?,
+            other => other.glyph_status(bbox)?,
+        };
         let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
         let is_word_space = raw_code.as_slice() == b" ";
@@ -3153,6 +3320,7 @@ impl GraphicsState {
                 | ClipRegion::SeparatedCutout(_)
                 | ClipRegion::Orthogonal { .. }
                 | ClipRegion::PendingOrthogonal { .. }
+                | ClipRegion::Witness { .. }
         ) && incoming != ClipCertainty::Exact
         {
             self.clip_region.intersect_unsupported(

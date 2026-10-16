@@ -4,7 +4,9 @@
 use std::{cmp::Ordering, sync::Arc};
 
 mod orthogonal;
+mod witness;
 pub(super) use orthogonal::{OrthogonalGrid, PendingOrthogonal};
+pub(super) use witness::{FrozenPath, PathWitness, SourceOrigin};
 
 use super::{Error, GlyphPathClipStatus, PathSegment, Rect, Result, Vec2, bounding_rect};
 
@@ -26,6 +28,10 @@ pub(super) enum ClipRegion {
     Orthogonal {
         grid: Arc<OrthogonalGrid>,
         crop: Rect,
+    },
+    Witness {
+        node: Arc<PathWitness>,
+        crop: Option<Rect>,
     },
     Convex(Arc<ConvexClip>),
     Empty,
@@ -458,6 +464,7 @@ impl ClipRegion {
     pub(super) fn intersect_unsupported(&self, reason: String) -> Self {
         match self {
             Self::Empty | Self::Unsupported(_) => self.clone(),
+            Self::Witness { node, .. } => Self::Unsupported(node.reason()),
             _ => Self::Unsupported(reason.into()),
         }
     }
@@ -473,6 +480,7 @@ impl ClipRegion {
             Self::RectangularCutout(_) => 64,
             Self::Orthogonal { grid, .. } => grid.work(),
             Self::PendingOrthogonal { .. } => 0,
+            Self::Witness { .. } => 0,
             // Two classifications, retained constraints and bounded allocation
             // on rectangular intersection share the existing work ceiling.
             Self::SeparatedCutout(_) => 192,
@@ -502,6 +510,17 @@ impl ClipRegion {
             }
             Self::RectangularCutout(clip) => clip.intersect_rectangle(rectangle),
             Self::SeparatedCutout(clip) => clip.intersect_rectangle(rectangle),
+            Self::Witness { node, crop } => {
+                let crop = crop.map_or(rectangle, |old| intersection(old, rectangle));
+                if empty(crop) {
+                    Self::Empty
+                } else {
+                    Self::Witness {
+                        node: Arc::clone(node),
+                        crop: Some(crop),
+                    }
+                }
+            }
             Self::PendingOrthogonal { pending, crop } => {
                 let crop = crop.map_or(rectangle, |old| intersection(old, rectangle));
                 if empty(crop) {
@@ -546,7 +565,8 @@ impl ClipRegion {
             | Self::RectangularCutout(_)
             | Self::SeparatedCutout(_)
             | Self::Orthogonal { .. }
-            | Self::PendingOrthogonal { .. } => {
+            | Self::PendingOrthogonal { .. }
+            | Self::Witness { .. } => {
                 self.intersect_unsupported("compound clipping composition is not certified".into())
             }
         }
@@ -564,7 +584,8 @@ impl ClipRegion {
             | Self::RectangularCutout(_)
             | Self::SeparatedCutout(_)
             | Self::Orthogonal { .. }
-            | Self::PendingOrthogonal { .. } => {
+            | Self::PendingOrthogonal { .. }
+            | Self::Witness { .. } => {
                 self.intersect_unsupported("concave clipping composition is not certified".into())
             }
         }
@@ -589,7 +610,8 @@ impl ClipRegion {
             Self::RectanglePair(_)
             | Self::SeparatedCutout(_)
             | Self::Orthogonal { .. }
-            | Self::PendingOrthogonal { .. } => {
+            | Self::PendingOrthogonal { .. }
+            | Self::Witness { .. } => {
                 return self.intersect_unsupported(
                     "convex intersection with compound clipping is not certified".into(),
                 );
@@ -622,7 +644,7 @@ impl ClipRegion {
     pub(super) fn segment_is_visible(&self, segment: PathSegment) -> bool {
         match self {
             Self::Unbounded => true,
-            Self::Empty | Self::Unsupported(_) => false,
+            Self::Empty | Self::Unsupported(_) | Self::Witness { .. } => false,
             Self::Rectangle(rect) => inside(segment.from, *rect) && inside(segment.to, *rect),
             Self::RectanglePair(parts) => parts
                 .iter()
@@ -644,6 +666,7 @@ impl ClipRegion {
 
     pub(super) fn glyph_status(&self, glyph: Rect) -> Result<GlyphPathClipStatus> {
         match self {
+            Self::Witness { node, .. } => Err(Error::Unsupported(node.reason().to_string())),
             Self::Unbounded => Ok(GlyphPathClipStatus::Unclipped),
             Self::Empty => Ok(GlyphPathClipStatus::Outside),
             Self::Rectangle(clip) => Ok(rectangle_status(glyph, *clip)),

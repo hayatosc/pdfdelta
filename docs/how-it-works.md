@@ -110,6 +110,29 @@ partial table as a proof.
   by clones of the same frozen source owner; cropping remains state-local.
   Passive drawing uncertainty is retained until a glyph activates the proof. Nonrectangular
   compositions remain unsupported.
+  A separate fallback can certify partial glyph boxes against literally closed
+  cubic and straight paths from a pure construction run ending in `W n` or
+  `W* n`, within one content stream and under one fixed transform. It freezes
+  the complete typed source run in an immutable owner after charging validation,
+  actual operand/operator capacities, copied headers and every potential output
+  edge, including four edges for each rectangle. Finite canonical coordinates,
+  literal closure and strict primitive/prior provenance are checked before a
+  source becomes a constraint. Later pure path constraints keep their complete
+  predecessor chain; strict rectangular crops remain local to the graphics state.
+  Only clones of that same source owner share prepared geometry.
+  For a query point, a control hull that avoids it permits a chord homotopy that
+  also avoids it. Checked exact dyadic integers, bounded subdivision and winding
+  or parity establish individual point membership. One strict inside and one
+  strict outside point in the glyph box certify `PartiallyOutside`. Equal or
+  missing witnesses never certify whole-box visibility or absence. The relative
+  witness positions are generated from the full intersection of source control
+  bounds and the glyph box; generation and storage are prepaid even when a
+  sufficient certificate stops the search early. Every visited edge, orientation
+  and subdivision is additionally charged under the same shared ceiling.
+  Overflow and unsupported geometry retain uncertainty; actual active work
+  exhaustion remains a resource-limit error. Passive drawing queries keep their
+  previous uncertainty. This does not rasterize or replace the clipping set with
+  a polygon, and does not resolve opacity or overpainting.
   Strict clipping provenance survives graphics saves and matrix changes;
   legacy approximate rectangle matches retain their behavior but cannot
   authorize a new concave proof or intersection. All prior constraints must

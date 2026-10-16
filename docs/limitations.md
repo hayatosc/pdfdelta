@@ -103,10 +103,22 @@ ambiguous positions. The containing coarse proof still prevents completion.
   remain unsupported. An additional demand-driven budgeted fallback supports literally closed, finite orthogonal
   subpaths with exact source provenance, including overlapping bounds and holes
   under the specified fill rule. Before a glyph activates the proof, passive
-  drawing evidence retains its original uncertainty. Diagonal/curved or open subpaths, uncertified
-  prior constraints and unaffordable proofs remain unsupported. Later straight
+  drawing evidence retains its original uncertainty. A separate exact point-witness
+  fallback can certify partially clipped glyph boxes for finite, literally closed
+  cubic/straight paths in one pure construction run ending in `W n` or `W* n`,
+  within a single content stream and fixed transform. It requires an unbounded
+  or strictly witnessed rectangular prior, or a predecessor from the same owned
+  witness chain. All predecessor paths are retained; subsequent rectangles need
+  strict source witnesses. Integer overflow, missing opposite point witnesses,
+  source spans crossing streams, intervening context changes, open subpaths,
+  uncertified priors and unaffordable preparation remain unsupported. Equal probe
+  values never prove an entire box inside or outside. Subdivision and source
+  chains are explicitly bounded; all source capacities, potential edges and query
+  work share the existing clipping ceiling. Active exhaustion is still an error.
+  Other diagonal/curved compositions remain unsupported. Later straight
   segments must fit within one certified cell; crossing several cells is
-  conservatively held. General nonrectangular compositions, transparency,
+  conservatively held. Nonrectangular compositions outside the owned witness
+  chain, transparency,
   colors, and occlusion by later paint remain
   unsupported. Glyphs fully outside the CropBox or a supported clip are excluded
   from comparison; uncertain clipping preserves an extraction issue.

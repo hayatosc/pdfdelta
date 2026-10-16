@@ -7732,3 +7732,183 @@ fn invalid_form_beside_valid_native_text_stays_unresolved() -> Result<()> {
     assert_eq!(mapped_text(outcome.document().items()), "A");
     Ok(())
 }
+
+#[test]
+fn curve_witness_retains_partial_glyphs_and_restores_graphics_state() -> Result<()> {
+    for rule in ["W", "W*"] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content=pdf.add_object(Stream::new(dictionary!{},format!("q 40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h {rule} n BT /F1 40 Tf 35 80 Td (A) Tj ET Q BT /F1 10 Tf 60 200 Td (B) Tj ET").into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete(), "{:?}", outcome.issues());
+        let glyphs = outcome.document().items();
+        assert_eq!(mapped_text(glyphs), "AB");
+        assert_eq!(
+            glyphs[0].path_clip_status,
+            GlyphPathClipStatus::PartiallyOutside
+        );
+        assert_eq!(glyphs[1].path_clip_status, GlyphPathClipStatus::Unclipped);
+        assert_eq!(glyphs[0].raw_code, b"A");
+    }
+    Ok(())
+}
+
+#[test]
+fn curve_witness_keeps_open_changed_context_and_uncertified_clips_unsupported() -> Result<()> {
+    let closed = "40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n";
+    for (prefix, path, suffix, cap) in [
+        (
+            "",
+            "40 40 m 140 40 l 140 140 l 40 140 40 40 40 41 c W n",
+            "",
+            5_000_000,
+        ),
+        (
+            "",
+            "40 40 m 140 40 l 140 140 l 1 0 0 1 0 0 cm 40 140 40 40 40 40 c h W n",
+            "",
+            5_000_000,
+        ),
+        (
+            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n 1 -0.00000000000000001 0 1 0 0 cm",
+            closed,
+            "",
+            5_000_000,
+        ),
+        (
+            "",
+            closed,
+            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n",
+            5_000_000,
+        ),
+        ("", closed, "", 100),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{prefix} {path} {suffix} BT /F1 40 Tf 35 80 Td (A) Tj ET").into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: cap,
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert!(
+            !outcome.is_complete(),
+            "prefix={prefix} path={path} suffix={suffix} cap={cap}"
+        );
+        assert!(
+            outcome
+                .issues()
+                .iter()
+                .any(|i| i.kind() == ExtractionIssueKind::Unsupported)
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn curve_witness_composition_keeps_every_source_constraint() -> Result<()> {
+    for (mask, complete) in [
+        (
+            "50 60 m 80 60 l 80 120 l 65 120 l 65 95 l 50 95 l 50 60 l W n",
+            true,
+        ),
+        (
+            "30 60 m 80 60 l 80 70 l 45 70 l 45 120 l 30 120 l 30 60 l W n",
+            false,
+        ),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content=pdf.add_object(Stream::new(dictionary!{},format!("20 20 200 200 re W n 40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n {mask} BT /F1 40 Tf 35 80 Td (A) Tj ET").into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert_eq!(outcome.is_complete(), complete, "{:?}", outcome.issues());
+        if complete {
+            assert_eq!(outcome.document().items().len(), 1);
+            assert_eq!(
+                outcome.document().items()[0].path_clip_status,
+                GlyphPathClipStatus::PartiallyOutside
+            );
+        } else {
+            assert!(!outcome.issues().is_empty());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn curve_witness_owners_do_not_reuse_geometry_across_transforms() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content=pdf.add_object(Stream::new(dictionary!{},b"q 40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n BT /F1 40 Tf 35 80 Td (A) Tj ET Q q 1 0 0 1 100 0 cm 40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n BT /F1 40 Tf 35 80 Td (B) Tj ET Q".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete(), "{:?}", outcome.issues());
+    let glyphs = outcome.document().items();
+    assert_eq!(mapped_text(glyphs), "AB");
+    assert!(
+        glyphs
+            .iter()
+            .all(|g| g.path_clip_status == GlyphPathClipStatus::PartiallyOutside)
+    );
+    assert_eq!(glyphs[1].bbox.min.x - glyphs[0].bbox.min.x, 100.0);
+    Ok(())
+}
+
+#[test]
+fn curve_witness_does_not_certify_paths_with_source_split_between_streams() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let first = pdf.add_object(Stream::new(dictionary! {}, b"40 40 m 140 40 l".to_vec()));
+    let second = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"140 140 l 40 140 40 40 40 40 c h W n BT /F1 40 Tf 35 80 Td (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        Object::Array(vec![first.into(), second.into()]),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(
+        outcome
+            .issues()
+            .iter()
+            .any(|i| i.kind() == ExtractionIssueKind::Unsupported)
+    );
+    Ok(())
+}
