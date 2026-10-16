@@ -398,6 +398,7 @@ pub(super) fn compatible_child(
 /// Fallible partition snapshot for one newly proven, entirely unresolved run.
 /// Other blocks and states are copied exactly; the selected block has no
 /// unmapped tokens, so scalar and comparable bounds coincide.
+#[cfg(test)]
 fn equal_partition(
     source: &[ResolutionRange],
     block: BlockId,
@@ -410,14 +411,31 @@ fn equal_partition(
 /// The other entries retain their states, including zero-width scalar ranges.
 /// A split leaves zero, one or two unresolved children, so the increase is
 /// exactly `children.saturating_sub(1)`; no population scan is needed.
+#[cfg(test)]
 fn partition_split<const COUNT: bool>(
     source: &[ResolutionRange],
     block: BlockId,
     range: Range<usize>,
 ) -> Option<(Vec<ResolutionRange>, usize)> {
-    let capacity = source.len().checked_add(2)?;
+    partition_split_capacity::<COUNT>(source, block, range, source.len().checked_add(2)?)
+}
+
+fn partition_split_capacity<const COUNT: bool>(
+    source: &[ResolutionRange],
+    block: BlockId,
+    range: Range<usize>,
+    capacity: usize,
+) -> Option<(Vec<ResolutionRange>, usize)> {
+    if capacity < source.len().checked_add(2)? {
+        return None;
+    }
     let mut output = Vec::new();
-    output.try_reserve_exact(capacity).ok()?;
+    if output.try_reserve_exact(capacity).is_err() {
+        let minimum = source.len().checked_add(2)?;
+        if capacity <= minimum || output.try_reserve_exact(minimum).is_err() {
+            return None;
+        }
+    }
     let mut found = false;
     let mut unresolved_children = 0usize;
     for part in source {
@@ -455,10 +473,197 @@ fn partition_split<const COUNT: bool>(
                 }
             }
         } else {
-            output.push(part.clone());
+            output.push(*part);
         }
     }
     found.then_some((output, unresolved_children.saturating_sub(1)))
+}
+
+/// Scoped proof that both partitions are ordered by their immutable source
+/// block indices and have non-overlapping comparable ranges. No text, source
+/// verdict, correspondence or ownership is cached. Only the paired publisher
+/// below mutates these vectors during the equality tail; replacing one interval
+/// by its ordered subintervals preserves this proof. Lengths bind each use.
+struct PartitionOrder {
+    lengths: [usize; 2],
+}
+
+impl PartitionOrder {
+    fn inspect(
+        sides: [&Side<'_>; 2],
+        partitions: [&Vec<ResolutionRange>; 2],
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        if partitions.iter().any(|p| p.len() < 32) {
+            return None;
+        }
+        let before = *remaining;
+        if !charge_work(remaining, 16) {
+            return None;
+        }
+        let scan = partitions[0]
+            .len()
+            .checked_add(partitions[1].len())?
+            .checked_mul(8)?;
+        // Metadata and every full scan visit are paid even on rejection;
+        // the original one-sixty-fourth eligibility bound is unchanged.
+        if scan.checked_add(16)? > before / 64 || !charge_work(remaining, scan) {
+            return None;
+        }
+        for side in 0..2 {
+            let mut previous = None;
+            for part in partitions[side] {
+                let index = *sides[side].index.get(&part.block)?;
+                if part.comparable_range.start > part.comparable_range.end
+                    || part.comparable_range.end > sides[side].canonical[index].len()
+                {
+                    return None;
+                }
+                if let Some((before, end)) = previous
+                    && (index < before || (index == before && part.comparable_range.start < end))
+                {
+                    return None;
+                }
+                previous = Some((index, part.comparable_range.end));
+            }
+        }
+        Some(Self {
+            lengths: [partitions[0].len(), partitions[1].len()],
+        })
+    }
+}
+
+#[cfg(test)]
+pub(super) fn partition_order_for_test(
+    sides: [&Side<'_>; 2],
+    partitions: [&Vec<ResolutionRange>; 2],
+    remaining: &mut usize,
+) -> bool {
+    PartitionOrder::inspect(sides, partitions, remaining).is_some()
+}
+
+/// Fully checked replacement of one unique unresolved interval. Preparation
+/// performs every refusal and pays every visited header. Publication needs no
+/// allocation: both sides must already have room for the two possible additions.
+#[derive(Clone, Copy)]
+struct PartitionEdit {
+    index: usize,
+    old_len: usize,
+    count: usize,
+    additional: usize,
+    pieces: [ResolutionRange; 3],
+}
+
+impl PartitionEdit {
+    #[cfg(test)]
+    fn prepare(
+        source: &Vec<ResolutionRange>,
+        block: BlockId,
+        range: Range<usize>,
+        witness: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        Self::prepare_with_order(source, block, range, witness, None, 0, remaining)
+    }
+
+    fn prepare_with_order(
+        source: &Vec<ResolutionRange>,
+        block: BlockId,
+        range: Range<usize>,
+        witness: usize,
+        order: Option<&PartitionOrder>,
+        side: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        if range.start >= range.end || source.capacity() < source.len().checked_add(2)? {
+            return None;
+        }
+        let mut found = None;
+        if order.is_some_and(|proof| proof.lengths.get(side) == Some(&source.len())) {
+            if !charge_work(remaining, 8) {
+                return None;
+            }
+            let part = source.get(witness)?;
+            if part.block != block
+                || part.state != ResolutionState::Unresolved
+                || part.comparable_range.start > range.start
+                || range.end > part.comparable_range.end
+            {
+                return None;
+            }
+            found = Some(witness);
+        } else {
+            for (index, part) in source.iter().enumerate() {
+                if !charge_work(remaining, 1) {
+                    return None;
+                }
+                if part.block != block {
+                    continue;
+                }
+                if !charge_work(remaining, 4) {
+                    return None;
+                }
+                if part.comparable_range.start <= range.start
+                    && range.end <= part.comparable_range.end
+                {
+                    if found.is_some() || part.state != ResolutionState::Unresolved {
+                        return None;
+                    }
+                    found = Some(index);
+                }
+            }
+        }
+        let index = found?;
+        if index != witness {
+            return None;
+        }
+        let original = source[index];
+        let mut result = Self {
+            index,
+            old_len: source.len(),
+            count: 0,
+            additional: 0,
+            pieces: [original; 3],
+        };
+        let mut unresolved = 0usize;
+        for (start, end, state) in [
+            (
+                original.comparable_range.start,
+                range.start,
+                ResolutionState::Unresolved,
+            ),
+            (range.start, range.end, ResolutionState::Equal),
+            (
+                range.end,
+                original.comparable_range.end,
+                ResolutionState::Unresolved,
+            ),
+        ] {
+            if start < end {
+                result.pieces[result.count] = ResolutionRange {
+                    block,
+                    comparable_range: TokenRange { start, end },
+                    canonical_range: ScalarRange { start, end },
+                    state,
+                };
+                result.count += 1;
+                unresolved += usize::from(state == ResolutionState::Unresolved);
+            }
+        }
+        result.additional = unresolved.saturating_sub(1);
+        Some(result)
+    }
+
+    /// All indices and capacity are checked in preparation. The owning vectors
+    /// remain unchanged until both source proofs and every fallible reserve pass.
+    fn publish(self, source: &mut Vec<ResolutionRange>) {
+        debug_assert_eq!(source.len(), self.old_len);
+        let extra = self.count - 1;
+        debug_assert!(source.capacity() >= self.old_len + extra);
+        source.resize(self.old_len + extra, self.pieces[0]);
+        source.copy_within(self.index + 1..self.old_len, self.index + self.count);
+        source[self.index..self.index + self.count].copy_from_slice(&self.pieces[..self.count]);
+    }
 }
 
 /// Conservative requested-capacity allowance for the shared literal-source
@@ -721,6 +926,7 @@ struct TailResources {
     // their largest additional group peak while later output payload grows.
     group_peak_bytes: usize,
     diagnostics: DiagnosticAllowance,
+    partition_order: Option<PartitionOrder>,
 }
 
 /// Completed necessary block pairs, never proof or ownership decisions.
@@ -816,13 +1022,13 @@ struct EqualRun<'a, 'source> {
 
 /// The original coverage predicate, paying each range actually visited.
 /// A missing or exhausted search holds; a hit needs no unvisited suffix.
-fn unresolved_cover(
+fn unresolved_cover_index(
     partitions: &[ResolutionRange],
     block: BlockId,
     selected: &SourceInterval,
     remaining: &mut usize,
-) -> Option<bool> {
-    for part in partitions {
+) -> Option<Option<usize>> {
+    for (index, part) in partitions.iter().enumerate() {
         if !charge_work(remaining, 1) {
             return None;
         }
@@ -831,22 +1037,22 @@ fn unresolved_cover(
             && part.comparable_range.start <= selected.start
             && selected.end <= part.comparable_range.end
         {
-            return Some(true);
+            return Some(Some(index));
         }
     }
-    Some(false)
+    Some(None)
 }
 
 /// Searches for an actual coverage witness; ordering only guides the probe.
 /// A miss or unknown header falls back to the original linear predicate, so
 /// unordered, overlapping or incomplete diagnostic partitions retain it too.
-pub(super) fn unresolved_cover_probe(
+fn unresolved_cover_probe_index(
     side: &Side<'_>,
     partitions: &[ResolutionRange],
     block: BlockId,
     selected: &SourceInterval,
     remaining: &mut usize,
-) -> Option<bool> {
+) -> Option<Option<usize>> {
     if partitions.len() >= 32 && *remaining >= 32 {
         if !charge_work(remaining, 2) {
             return None;
@@ -864,7 +1070,7 @@ pub(super) fn unresolved_cover_probe(
                     && part.comparable_range.start <= selected.start
                     && selected.end <= part.comparable_range.end
                 {
-                    return Some(true);
+                    return Some(Some(middle));
                 }
                 let Some(&index) = side.index.get(&part.block) else {
                     break;
@@ -877,7 +1083,29 @@ pub(super) fn unresolved_cover_probe(
             }
         }
     }
-    unresolved_cover(partitions, block, selected, remaining)
+    unresolved_cover_index(partitions, block, selected, remaining)
+}
+
+#[cfg(test)]
+fn unresolved_cover(
+    partitions: &[ResolutionRange],
+    block: BlockId,
+    selected: &SourceInterval,
+    remaining: &mut usize,
+) -> Option<bool> {
+    unresolved_cover_index(partitions, block, selected, remaining).map(|index| index.is_some())
+}
+
+#[cfg(test)]
+pub(super) fn unresolved_cover_probe(
+    side: &Side<'_>,
+    partitions: &[ResolutionRange],
+    block: BlockId,
+    selected: &SourceInterval,
+    remaining: &mut usize,
+) -> Option<bool> {
+    unresolved_cover_probe_index(side, partitions, block, selected, remaining)
+        .map(|index| index.is_some())
 }
 
 /// Exactly the original overlap/invalid-projection veto. A literal singleton
@@ -1592,7 +1820,10 @@ impl Assessor<'_, '_> {
         else {
             return Ok(());
         };
-        let Some(source_bytes) = self.cached_literal_source_capacity_bound() else {
+        let Some(source_bytes) = self
+            .cached_literal_source_capacity_bound()
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Option<PartitionOrder>>()))
+        else {
             return Ok(());
         };
         let Some(available_diagnostics) = publication_memory(
@@ -1620,6 +1851,7 @@ impl Assessor<'_, '_> {
             retained_children: 0,
             group_peak_bytes: 0,
             diagnostics,
+            partition_order: None,
         };
         // No record, ownership or partition changed during diagnostic setup;
         // reuse its completed live-capacity ledger before adding this filter.
@@ -1638,6 +1870,11 @@ impl Assessor<'_, '_> {
             };
             resources.source_bytes = source_bytes;
         }
+        resources.partition_order = PartitionOrder::inspect(
+            self.sides,
+            [&*partitions[0], &*partitions[1]],
+            &mut self.remaining_work,
+        );
         let mut tail_analyses = None;
         // Preserve every existing maximal-run attempt across all parents
         // before spending optional work on a smaller source-complete cut.
@@ -2085,17 +2322,18 @@ impl Assessor<'_, '_> {
             return Ok(false);
         };
         let intervals = [*old_interval, *new_interval];
+        let mut witnesses = [0usize; 2];
         for side in 0..2 {
-            if unresolved_cover_probe(
+            let Some(Some(witness)) = unresolved_cover_probe_index(
                 self.sides[side],
                 partitions[side],
                 spans[side].blocks[0],
                 &intervals[side],
                 &mut self.remaining_work,
-            ) != Some(true)
-            {
+            ) else {
                 return Ok(false);
-            }
+            };
+            witnesses[side] = witness;
         }
         // Candidate ownership and every other coarse obligation retain their
         // original veto. Only this exact whole parent's coarse proof composes.
@@ -2139,9 +2377,9 @@ impl Assessor<'_, '_> {
             .assumptions
             .len()
             .saturating_add(if page_shifted { 2 } else { 1 });
-        // Fixed logical metadata allowance: three capacity/limit/target rows
-        // and checked transient-byte/copy sums. Every planned route pays it.
-        if !charge_work(&mut self.remaining_work, 128) {
+        // Prepay the publication and optional partition-growth target rows.
+        let large = partitions.iter().all(|p| p.len() >= 32);
+        if !charge_work(&mut self.remaining_work, if large { 192 } else { 128 }) {
             return Ok(false);
         }
         let Some(child_bytes) = assumptions
@@ -2170,12 +2408,80 @@ impl Assessor<'_, '_> {
         .and_then(|bytes| bytes.checked_add(ids.checked_mul(std::mem::size_of::<BlockId>())?)) else {
             return Ok(false);
         };
-        let Some(new_bytes) = new_bytes.checked_add(4 * std::mem::size_of::<usize>()) else {
+        let Some(new_bytes) = new_bytes
+            .checked_add(4 * std::mem::size_of::<usize>())
+            .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<PartitionEdit>()))
+        else {
             return Ok(false);
         };
         if new_bytes > COARSE_MEMORY_BYTES {
             return Ok(false);
         }
+        let partition_count = partitions[0].len().saturating_add(partitions[1].len());
+
+        let tails = partitions
+            .iter()
+            .enumerate()
+            .map(|(side, p)| p.len().saturating_sub(witnesses[side] + 1))
+            .sum::<usize>();
+        // Covers both fixed plans, their construction/copies, placeholder
+        // extension and final row writes; moved suffix words are paid separately.
+        let inplace_copy = tails
+            .saturating_mul(shallow_words::<ResolutionRange>())
+            .saturating_add(384);
+        let ordered = resources
+            .partition_order
+            .as_ref()
+            .is_some_and(|proof| proof.lengths == [partitions[0].len(), partitions[1].len()]);
+        let scan_bound = if ordered {
+            16
+        } else {
+            partition_count.saturating_add(
+                4usize.saturating_mul(
+                    views[0]
+                        .selected_tokens()
+                        .len()
+                        .saturating_add(views[1].selected_tokens().len()),
+                ),
+            )
+        };
+        let inplace = large
+            && partitions
+                .iter()
+                .all(|p| p.capacity().saturating_sub(p.len()) >= 2)
+            && inplace_copy.saturating_add(scan_bound).saturating_add(64)
+                <= partition_count.saturating_mul(shallow_words::<ResolutionRange>());
+        let mut capacities = [
+            partitions[0].len().checked_add(2),
+            partitions[1].len().checked_add(2),
+        ];
+        let mut snapshot_extra = 0usize;
+        if large && !inplace {
+            let proposed = [
+                partitions[0].len().checked_mul(2),
+                partitions[1].len().checked_mul(2),
+            ];
+            if let [Some(a), Some(b)] = proposed {
+                let extra = a
+                    .saturating_sub(partitions[0].len() + 2)
+                    .checked_add(b.saturating_sub(partitions[1].len() + 2))
+                    .and_then(|slots| slots.checked_mul(std::mem::size_of::<ResolutionRange>()));
+                if let Some(extra) = extra
+                    && new_bytes
+                        .checked_add(extra)
+                        .is_some_and(|bytes| bytes <= COARSE_MEMORY_BYTES)
+                {
+                    capacities = [Some(a), Some(b)];
+                    snapshot_extra = extra;
+                }
+            }
+        }
+        let [Some(old_capacity), Some(new_capacity)] = capacities else {
+            return Ok(false);
+        };
+        let Some(new_bytes) = new_bytes.checked_add(snapshot_extra) else {
+            return Ok(false);
+        };
         let Some(plan) = publication_growth(
             [
                 self.records.len(),
@@ -2194,7 +2500,6 @@ impl Assessor<'_, '_> {
             return Ok(false);
         };
         let mut growth = plan;
-        let partition_count = partitions[0].len().saturating_add(partitions[1].len());
         // Sixteen units cover the two local three-piece counters. The original
         // two population scans remain the route for smaller partitions.
         let counted_split = partition_count.saturating_mul(2) >= 16;
@@ -2203,8 +2508,13 @@ impl Assessor<'_, '_> {
         } else {
             partition_count.saturating_mul(2)
         };
-        let commit_work = partition_count
-            .saturating_mul(shallow_words::<ResolutionRange>())
+        let partition_work = if inplace {
+            inplace_copy
+        } else {
+            partition_count.saturating_mul(shallow_words::<ResolutionRange>())
+        };
+        let commit_work = partition_work
+            .saturating_add(if large { 64 } else { 0 })
             .saturating_add(count_work)
             // Both checked route selectors are additional paid metadata.
             .saturating_add(4)
@@ -2221,42 +2531,98 @@ impl Assessor<'_, '_> {
         if !charge_work(&mut self.remaining_work, commit_work) {
             return Ok(false);
         }
-        let prepare = |side: usize| {
-            let (block, interval) = if side == 0 {
-                (old.blocks[0], intervals[0])
-            } else {
-                (new.blocks[0], intervals[1])
+        let mut edits = None;
+        let mut snapshots = None;
+        let additional;
+        let actual_snapshot_extra;
+        if inplace {
+            let Some(old_edit) = PartitionEdit::prepare_with_order(
+                partitions[0],
+                old.blocks[0],
+                intervals[0].start..intervals[0].end,
+                witnesses[0],
+                resources.partition_order.as_ref(),
+                0,
+                &mut self.remaining_work,
+            ) else {
+                return Ok(false);
             };
-            let range = interval.start..interval.end;
-            if counted_split {
-                partition_split::<true>(partitions[side], block, range)
+            let Some(new_edit) = PartitionEdit::prepare_with_order(
+                partitions[1],
+                new.blocks[0],
+                intervals[1].start..intervals[1].end,
+                witnesses[1],
+                resources.partition_order.as_ref(),
+                1,
+                &mut self.remaining_work,
+            ) else {
+                return Ok(false);
+            };
+            additional = [old_edit.additional, new_edit.additional];
+            actual_snapshot_extra = 0;
+            edits = Some([old_edit, new_edit]);
+        } else {
+            let prepare = |side: usize| {
+                let (block, interval, capacity) = if side == 0 {
+                    (old.blocks[0], intervals[0], old_capacity)
+                } else {
+                    (new.blocks[0], intervals[1], new_capacity)
+                };
+                if counted_split {
+                    partition_split_capacity::<true>(
+                        partitions[side],
+                        block,
+                        interval.start..interval.end,
+                        capacity,
+                    )
+                } else {
+                    partition_split_capacity::<false>(
+                        partitions[side],
+                        block,
+                        interval.start..interval.end,
+                        capacity,
+                    )
+                }
+            };
+            let (Some((next_old, old_extra)), Some((next_new, new_extra))) =
+                (prepare(0), prepare(1))
+            else {
+                return Ok(false);
+            };
+            additional = if counted_split {
+                [old_extra, new_extra]
             } else {
-                equal_partition(partitions[side], block, range).map(|items| (items, 0))
-            }
-        };
-        let (Some((next_old, old_extra)), Some((next_new, new_extra))) = (prepare(0), prepare(1))
-        else {
-            return Ok(false);
-        };
+                let mut result = [0usize; 2];
+                for (side, next) in [&next_old, &next_new].into_iter().enumerate() {
+                    let before = partitions[side]
+                        .iter()
+                        .filter(|p| p.state == ResolutionState::Unresolved)
+                        .count();
+                    let after = next
+                        .iter()
+                        .filter(|p| p.state == ResolutionState::Unresolved)
+                        .count();
+                    result[side] = after.saturating_sub(before);
+                }
+                result
+            };
+            let Some(extra) = next_old
+                .capacity()
+                .saturating_sub(partitions[0].len() + 2)
+                .checked_add(next_new.capacity().saturating_sub(partitions[1].len() + 2))
+                .and_then(|slots| slots.checked_mul(std::mem::size_of::<ResolutionRange>()))
+            else {
+                return Ok(false);
+            };
+            actual_snapshot_extra = extra;
+            snapshots = Some([next_old, next_new]);
+        }
         // Splitting one unresolved range creates at most one additional
         // whole-block materialization per side. Its nested copies and final
         // diagnostic scans/capacity are approved before any source verdict.
         let mut extra = 0usize;
         let mut regeneration_work = 0usize;
-        for (side, next) in [&next_old, &next_new].into_iter().enumerate() {
-            let additional = if counted_split {
-                [old_extra, new_extra][side]
-            } else {
-                let before = partitions[side]
-                    .iter()
-                    .filter(|p| p.state == ResolutionState::Unresolved)
-                    .count();
-                let after = next
-                    .iter()
-                    .filter(|p| p.state == ResolutionState::Unresolved)
-                    .count();
-                after.saturating_sub(before)
-            };
+        for (side, additional) in additional.into_iter().enumerate() {
             extra = extra.saturating_add(additional);
             regeneration_work =
                 regeneration_work.saturating_add(additional.saturating_mul(groups[side].copy_work));
@@ -2335,7 +2701,13 @@ impl Assessor<'_, '_> {
                 )
             })
             .and_then(|bytes| bytes.checked_add(ids.checked_mul(std::mem::size_of::<BlockId>())?))
-            .and_then(|bytes| bytes.checked_add(extra_bytes));
+            .and_then(|bytes| bytes.checked_add(extra_bytes))
+            .and_then(|bytes| bytes.checked_add(actual_snapshot_extra))
+            .and_then(|bytes| {
+                bytes.checked_add(
+                    4 * std::mem::size_of::<usize>() + 2 * std::mem::size_of::<PartitionEdit>(),
+                )
+            });
             if actual_bytes.is_none_or(|bytes| bytes > COARSE_MEMORY_BYTES) {
                 return Ok(false);
             }
@@ -2388,8 +2760,18 @@ impl Assessor<'_, '_> {
         // completed source check used the remaining work exactly.
         ownership[0].accepted.push(intervals[0]);
         ownership[1].accepted.push(intervals[1]);
-        *partitions[0] = next_old;
-        *partitions[1] = next_new;
+        if let Some([old_edit, new_edit]) = edits {
+            old_edit.publish(partitions[0]);
+            new_edit.publish(partitions[1]);
+        } else if let Some([next_old, next_new]) = snapshots {
+            *partitions[0] = next_old;
+            *partitions[1] = next_new;
+        } else {
+            unreachable!("both partition preparations completed before source proof");
+        }
+        if let Some(order) = resources.partition_order.as_mut() {
+            order.lengths = [partitions[0].len(), partitions[1].len()];
+        }
         self.records.push(RelationAssessment {
             old_span: Some(old),
             new_span: Some(new),
@@ -2993,7 +3375,7 @@ mod partition_tests {
             for end in start + 1..=10 {
                 let (actual, extra) = partition_split::<true>(&source, BlockId(1), start..end)
                     .expect("a nonempty cut inside one unresolved interval must split");
-                let mut expected = vec![source[0].clone()];
+                let mut expected = vec![source[0]];
                 if start > 0 {
                     expected.push(row(1, 0, start, ResolutionState::Unresolved));
                 }
@@ -3003,6 +3385,21 @@ mod partition_tests {
                 }
                 expected.extend_from_slice(&source[2..]);
                 assert_eq!(actual, expected);
+                let mut inplace = source.clone();
+                inplace
+                    .try_reserve_exact(2)
+                    .expect("small fixture capacity");
+                let cap = inplace.capacity();
+                let mut work = 8;
+                let edit = PartitionEdit::prepare(&inplace, BlockId(1), start..end, 1, &mut work)
+                    .expect("paid exact unique interval");
+                assert_eq!(work, 0);
+                assert_eq!(inplace, source, "preparation must not publish");
+                assert_eq!(edit.additional, extra);
+                edit.publish(&mut inplace);
+                assert_eq!(inplace, expected);
+                assert_eq!(inplace.capacity(), cap, "publication must not allocate");
+
                 let before = source
                     .iter()
                     .filter(|r| r.state == ResolutionState::Unresolved)
@@ -3020,7 +3417,37 @@ mod partition_tests {
         }
         assert!(partition_split::<true>(&source, BlockId(8), 0..1).is_none());
         assert!(partition_split::<true>(&source, BlockId(1), 0..11).is_none());
-        let duplicate = vec![source[1].clone(), source[1].clone()];
+        let duplicate = vec![source[1], source[1]];
         assert!(partition_split::<true>(&duplicate, BlockId(1), 2..8).is_none());
+    }
+    #[test]
+    fn split_preparation_refuses_atomically_on_either_side_and_every_scan_budget() {
+        let source = vec![
+            row(8, 0, 1, ResolutionState::Changed),
+            row(1, 0, 10, ResolutionState::Unresolved),
+            row(9, 1, 2, ResolutionState::Equal),
+        ];
+        let mut left = source.clone();
+        left.try_reserve_exact(2).expect("capacity");
+        for budget in 0..7 {
+            let mut work = budget;
+            assert!(PartitionEdit::prepare(&left, BlockId(1), 2..8, 1, &mut work).is_none());
+            assert_eq!(left, source);
+        }
+        let mut work = 100;
+        let ready =
+            PartitionEdit::prepare(&left, BlockId(1), 2..8, 1, &mut work).expect("left prepared");
+        let mut right = vec![source[1], source[1]];
+        right.try_reserve_exact(2).expect("capacity");
+        let before = right.clone();
+        assert!(PartitionEdit::prepare(&right, BlockId(1), 2..8, 0, &mut work).is_none());
+        assert_eq!(left, source, "left stays pending when right refuses");
+        assert_eq!(right, before);
+        assert_eq!(ready.index, 1);
+        assert!(PartitionEdit::prepare(&left, BlockId(1), 2..8, 0, &mut work).is_none());
+        assert!(PartitionEdit::prepare(&left, BlockId(1), 0..11, 1, &mut work).is_none());
+        assert!(PartitionEdit::prepare(&left, BlockId(1), 3..3, 1, &mut work).is_none());
+        let full = source.clone().into_boxed_slice().into_vec();
+        assert!(PartitionEdit::prepare(&full, BlockId(1), 2..8, 1, &mut work).is_none());
     }
 }

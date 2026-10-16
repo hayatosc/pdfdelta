@@ -261,7 +261,8 @@ pub enum ResolutionState {
 /// Synthetic separators between blocks never contribute to this interval's
 /// token count. Canonical bounds preserve projection for unmapped tokens,
 /// including intervals with a nonempty token range and zero scalar width.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// This flat value owns no buffers; moving a reserved suffix copies only rows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResolutionRange {
     pub block: BlockId,
     pub comparable_range: TokenRange,
@@ -8542,7 +8543,7 @@ mod assessor_issue_cache_tests {
                     ranges
                         .iter()
                         .filter(|range| range.block == block)
-                        .cloned()
+                        .copied()
                         .collect::<Vec<_>>()
                 };
                 assert_eq!(selected(parts), selected(&baseline[side]));
@@ -8554,7 +8555,7 @@ mod assessor_issue_cache_tests {
                 parts
                     .iter()
                     .filter(|range| range.block == block)
-                    .cloned()
+                    .copied()
                     .collect::<Vec<_>>()
             };
             assert!(
@@ -11412,6 +11413,290 @@ mod assessor_issue_cache_tests {
                 assert_eq!(regions, regions_before);
                 assert_eq!(owners[0].accepted.len(), owners[1].accepted.len());
                 let children = &assessor.records[2..];
+                if children.iter().any(|child| child.parent == Some(1)) {
+                    assert!(children.len() >= 4);
+                    assert!(children[..3].iter().all(|child| child.parent == Some(0)
+                        && !child.assumptions.contains(
+                            &ComparisonAssumption::PageShiftedMandatoryMatchingEquality
+                        )));
+                    assert!(children[3..].iter().all(|child| child.parent == Some(1)
+                        && child.assumptions.contains(
+                            &ComparisonAssumption::PageShiftedMandatoryMatchingEquality
+                        )));
+                }
+                for child in children {
+                    let range = child.old_span.as_ref().expect("paired").comparable_range;
+                    let gold = if child.parent == Some(0) {
+                        [(6, 8), (3, 4), (4, 5)]
+                    } else {
+                        [(0, 1), (3, 4), (5, 10)]
+                    };
+                    assert!(gold.contains(&(range.start, range.end)));
+                }
+                Ok(assessor)
+            };
+        let full = run(1_000_000)?;
+        assert_eq!(full.records.len(), 8);
+        let older = &full.records[2..5];
+        let older_ranges = older
+            .iter()
+            .map(|child| {
+                let span = child.old_span.as_ref().expect("paired older certificate");
+                (span.comparable_range.start, span.comparable_range.end)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(older_ranges, vec![(6, 8), (3, 4), (4, 5)]);
+        let used = 1_000_000 - full.remaining_work;
+        let mut saw_starvation = false;
+        for budget in (0..=used).step_by(53).chain([used.saturating_sub(1), used]) {
+            let partial = run(budget)?;
+            let count = partial.records.len().saturating_sub(2).min(3);
+            assert_eq!(&partial.records[2..2 + count], &older[..count]);
+            saw_starvation |= count == 3 && partial.records.len() == 5 && budget < used;
+        }
+        assert!(
+            saw_starvation,
+            "the unchanged source fixture must isolate later shared-work starvation"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn h27_partition_order_refuses_overlap_unknown_bounds_and_unfunded_setup() -> Result<()> {
+        let old_blocks = (10..42).map(|id| anchor_block(id, "Q")).collect::<Vec<_>>();
+        let new_blocks = (100..132)
+            .map(|id| anchor_block(id, "Q"))
+            .collect::<Vec<_>>();
+        let old = super::super::SidePlan::inspect("order old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("order new", &new_blocks)?.materialize()?;
+        let parts = [
+            old_blocks
+                .iter()
+                .map(|b| ResolutionRange {
+                    block: b.block,
+                    comparable_range: TokenRange { start: 0, end: 1 },
+                    canonical_range: ScalarRange { start: 0, end: 1 },
+                    state: ResolutionState::Unresolved,
+                })
+                .collect::<Vec<_>>(),
+            new_blocks
+                .iter()
+                .map(|b| ResolutionRange {
+                    block: b.block,
+                    comparable_range: TokenRange { start: 0, end: 1 },
+                    canonical_range: ScalarRange { start: 0, end: 1 },
+                    state: ResolutionState::Unresolved,
+                })
+                .collect::<Vec<_>>(),
+        ];
+        let mut paid = 1_000_000;
+        assert!(mandatory_equal::partition_order_for_test(
+            [&old, &new],
+            [&parts[0], &parts[1]],
+            &mut paid
+        ));
+        assert_eq!(1_000_000 - paid, 16 + 8 * 64);
+        for variant in 0..5 {
+            let mut broken = parts.clone();
+            match variant {
+                0 => broken[1].insert(0, parts[1][0]),
+                1 => broken[0].swap(0, 1),
+                2 => broken[1][0].block = BlockId(999),
+                3 => broken[0][0].comparable_range.end = 2,
+                _ => broken[1][0].comparable_range.start = 2,
+            }
+            let before = broken.clone();
+            assert!(!mandatory_equal::partition_order_for_test(
+                [&old, &new],
+                [&broken[0], &broken[1]],
+                &mut 1_000_000
+            ));
+            assert_eq!(broken, before, "refusal cannot publish either side");
+        }
+        let mut small = 1000;
+        assert!(!mandatory_equal::partition_order_for_test(
+            [&old, &new],
+            [&parts[0], &parts[1]],
+            &mut small
+        ));
+        assert_eq!(small, 984, "a declined full scan still pays its metadata");
+        Ok(())
+    }
+
+    #[test]
+    fn h27_reserved_partitions_keep_certificates_atomic_under_source_and_budget_refusals()
+    -> Result<()> {
+        let mut old_blocks = (1000..1064)
+            .map(|id| anchor_block(id, "Q"))
+            .collect::<Vec<_>>();
+        old_blocks.extend([anchor_block(1, "XfiCD KL Y"), anchor_block(2, "[30] OTHER")]);
+        let mut new_blocks = (2000..2064)
+            .map(|id| anchor_block(id, "Q"))
+            .collect::<Vec<_>>();
+        new_blocks.extend([
+            anchor_block(101, "ZfiCD KL W"),
+            anchor_block(102, "[65] OTHER"),
+        ]);
+        // The older same-page parent requires the final H14 singleton pass:
+        // KL is source-complete immediately; fiCD lacks a ligature-safe cut.
+        for block in [&mut old_blocks[64], &mut new_blocks[64]] {
+            block.canonical.source_map[1].output_range = ScalarRange { start: 1, end: 3 };
+            block.canonical.source_map.remove(2);
+            block.raw = block.canonical.clone();
+        }
+        new_blocks[65].pages = vec![1];
+        let old =
+            super::super::SidePlan::inspect("H19 priority old", &old_blocks)?.materialize()?;
+        let new =
+            super::super::SidePlan::inspect("H19 priority new", &new_blocks)?.materialize()?;
+        let alignment = Alignment {
+            spans: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let run =
+            |budget| -> Result<Assessor<'_, '_>> {
+                let mut assessor = h8_closed_parent([&old, &new], &alignment)?;
+                assessor.records.clear();
+                assessor.domains.clear();
+                assessor.remaining_work = budget;
+                let mut domains = Vec::new();
+                let mut regions = Vec::new();
+                for (index, (a, b)) in [(BlockId(1), BlockId(101)), (BlockId(2), BlockId(102))]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let spans = [
+                        old.canonical_group(&[a], None).full_span(),
+                        new.canonical_group(&[b], None).full_span(),
+                    ];
+                    let lengths = [spans[0].comparable_range.end, spans[1].comparable_range.end];
+                    let parent = RelationAssessment {
+                        old_span: Some(spans[0].clone()),
+                        new_span: Some(spans[1].clone()),
+                        parent: None,
+                        outcome: RelationOutcome::Established,
+                        search: SearchCompleteness::Complete,
+                        assumptions: vec![
+                            ComparisonAssumption::InputReadingOrder,
+                            ComparisonAssumption::CanonicalNormalization,
+                            ComparisonAssumption::LocalEvidenceBoundaries,
+                        ],
+                        reasons: Vec::new(),
+                    };
+                    regions.push(ProvenChangedRegion {
+                        old_span: parent.old_span.clone(),
+                        new_span: parent.new_span.clone(),
+                        confidence: super::super::Confidence::High,
+                        proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+                    });
+                    assessor.records.push(parent);
+                    domains.push((
+                        DomainKey {
+                            local: None,
+                            old: index + 64..index + 65,
+                            new: index + 64..index + 65,
+                            old_separator: BlockSeparator::Space,
+                            new_separator: BlockSeparator::Space,
+                        },
+                        DomainProof {
+                            scope: ProofScope::ExactKey,
+                            relation: index,
+                            unique: false,
+                            search: SearchCompleteness::Complete,
+                            edits: Vec::new(),
+                            lengths,
+                            strict_unique: false,
+                            stable_events: None,
+                        },
+                    ));
+                }
+                let parents = assessor.records.clone();
+                let regions_before = regions.clone();
+                let mut parts = [
+                    h8_partition(BlockId(1), &[(0, 10, ResolutionState::Unresolved)]),
+                    h8_partition(BlockId(101), &[(0, 10, ResolutionState::Unresolved)]),
+                ];
+                parts[0].extend(h8_partition(
+                    BlockId(2),
+                    &[(0, 10, ResolutionState::Unresolved)],
+                ));
+                parts[1].extend(h8_partition(
+                    BlockId(102),
+                    &[(0, 10, ResolutionState::Unresolved)],
+                ));
+                for (side, padding) in [(0, 1000u64), (1, 2000u64)] {
+                    let mut padded = (padding..padding + 64)
+                        .map(|id| ResolutionRange {
+                            block: BlockId(id),
+                            comparable_range: TokenRange { start: 0, end: 1 },
+                            canonical_range: ScalarRange { start: 0, end: 1 },
+                            state: ResolutionState::Unresolved,
+                        })
+                        .collect::<Vec<_>>();
+                    padded.extend_from_slice(&parts[side]);
+                    padded.try_reserve_exact(2).expect("fixture spare capacity");
+                    parts[side] = padded;
+                }
+                let before_parts = parts.clone();
+                let before_cap = [parts[0].capacity(), parts[1].capacity()];
+                let mut owners = [Ownership::new(), Ownership::new()];
+                let [a, b] = &mut parts;
+                assessor.recover_mandatory_coarse_equalities(
+                    &domains,
+                    domains.capacity(),
+                    &mut owners,
+                    [a, b],
+                    mandatory_equal::EqualConstraints {
+                        candidates: &[],
+                        regions: &regions,
+                        original: &[],
+                    },
+                )?;
+                assert_eq!(&assessor.records[..2], parents.as_slice());
+                assert_eq!(regions, regions_before);
+                assert_eq!(owners[0].accepted.len(), owners[1].accepted.len());
+                let children = &assessor.records[2..];
+                assert!(
+                    mandatory_equal::partition_order_for_test(
+                        [&old, &new],
+                        [&parts[0], &parts[1]],
+                        &mut 1_000_000
+                    ),
+                    "every paired replacement preserves the full ordering proof"
+                );
+
+                for side in 0..2 {
+                    assert_eq!(
+                        parts[side].capacity(),
+                        before_cap[side],
+                        "reserved publication must not allocate"
+                    );
+                    assert_eq!(&parts[side][..64], &before_parts[side][..64]);
+                    let published = parts[side]
+                        .iter()
+                        .filter(|r| r.state == ResolutionState::Equal)
+                        .map(|r| (r.block, r.comparable_range))
+                        .collect::<Vec<_>>();
+                    let mut certified = children
+                        .iter()
+                        .map(|r| {
+                            let span = if side == 0 {
+                                r.old_span.as_ref()
+                            } else {
+                                r.new_span.as_ref()
+                            }
+                            .expect("paired certificate");
+                            (span.blocks[0], span.comparable_range)
+                        })
+                        .collect::<Vec<_>>();
+                    certified.sort_by_key(|(block, range)| (block.0, range.start));
+                    assert_eq!(
+                        published, certified,
+                        "no partition publication without its two-sided certificate"
+                    );
+                }
+
                 if children.iter().any(|child| child.parent == Some(1)) {
                     assert!(children.len() >= 4);
                     assert!(children[..3].iter().all(|child| child.parent == Some(0)

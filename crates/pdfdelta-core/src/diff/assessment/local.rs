@@ -4063,7 +4063,7 @@ pub(super) fn coupled_partition(
                 && range.start < part.comparable_range.end
                 && part.comparable_range.start < range.end
         });
-        let mut next = part.clone();
+        let mut next = *part;
         let touched = if let Some(range) = overlap {
             if part.state == super::ResolutionState::Changed {
                 return Ok(None);

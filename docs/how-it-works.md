@@ -320,14 +320,30 @@ fresh-analysis path, and failed or exhausted analyses are never cached. Source
 proofs, parent guards, candidates, partitions and ownership are checked again
 for every run. Cached matching pairs alone never establish equality.
 
-Equality publication prepares both complete partition snapshots before adopting
-either side. For sufficiently large partitions, the replacement interval also
+Equality publication prepares both partition updates before adopting either
+side. For sufficiently large partitions, the replacement interval also
 counts its unresolved children, avoiding two full population scans on each
 side. Only one unique unresolved interval may be replaced; every other state
 and projection is copied exactly. The local counters, route selection and
 additional live metadata are paid explicitly. Small partitions retain the
 population scans. Future diagnostic copies, source validation, ownership and
 both-sided publication remain fully reserved and checked.
+
+Large resolution partitions may reuse their reserved capacity. Both split
+plans, all output capacities, future diagnostic costs and literal source proofs
+must finish before either side changes. The final flat-row shifts and writes
+need no allocation. Missing spare capacity retains full snapshots; optional
+amortized snapshot capacity stays inside the same live-memory bound and actual
+capacities are checked before proof publication.
+
+A paid, scoped scan can establish source-block ordering and non-overlapping
+comparable ranges for both partitions. Every permitted split preserves that
+property and refreshes its length binding. This proves uniqueness without
+repeating the full population walk; the selected unresolved interval is still
+checked on every use. Failed or unfunded setup keeps the full uniqueness scan.
+No ownership, correspondence, normalization or physical source verdict is
+cached by this metadata proof. Scans, suffix moves, row construction, capacity
+growth and all final diagnostic reservations remain explicitly charged.
 
 Final unresolved fragments reuse only the most recently emitted block's
 alignment reasons on the current side. They keep first-occurrence order and
