@@ -86,10 +86,13 @@ ambiguous positions. The containing coarse proof still prevents completion.
   right-to-left text, non-horizontal text, and mixed or unknown text direction
   preserve every glyph but report the affected window as unresolved reading
   order.
-- Curved or compound clipping paths, transparency, colors, and occlusion by
-  later paint are not interpreted, so overpainted text can still appear in the
-  comparison input. Glyphs fully outside the CropBox or a supported rectangular
-  clip are excluded from comparison.
+- Supported clips include rectangles, certified convex quadrilaterals, and
+  two explicitly closed, strictly separated axis-aligned rectangles under a
+  rectangular prior clip. The two rectangles retain their excluded gap under
+  either fill rule. Other compound paths and their general compositions, curved
+  clipping paths, transparency, colors, and occlusion by later paint remain
+  unsupported. Glyphs fully outside the CropBox or a supported clip are excluded
+  from comparison; uncertain clipping preserves an extraction issue.
 
 ## Diff and reporting
 

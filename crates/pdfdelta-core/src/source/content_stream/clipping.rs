@@ -10,6 +10,8 @@ pub(super) enum ClipRegion {
     #[default]
     Unbounded,
     Rectangle(Rect),
+    /// Two strictly separated rectangles; the gap remains excluded.
+    RectanglePair([Rect; 2]),
     Convex(Arc<ConvexClip>),
     Empty,
     Unsupported(Arc<str>),
@@ -62,6 +64,7 @@ impl ClipRegion {
     pub(super) fn work(&self) -> usize {
         match self {
             Self::Convex(clip) => clip.quads.len().saturating_mul(16),
+            Self::RectanglePair(_) => 32,
             _ => 0,
         }
     }
@@ -83,6 +86,29 @@ impl ClipRegion {
                 }
             }
             Self::Convex(_) => self.intersect_quad(Quad::rectangle(rectangle)),
+            Self::RectanglePair(parts) => {
+                rectangle_pair(parts.map(|part| intersection(part, rectangle)))
+            }
+        }
+    }
+
+    /// Accepts only separated components under a rectangular prior clip.
+    /// Other compositions retain uncertainty instead of approximating a union.
+    pub(super) fn intersect_rectangle_pair(&self, parts: [Rect; 2]) -> Self {
+        if parts.iter().any(|part| empty(*part)) || !separated(parts[0], parts[1]) {
+            return self.intersect_unsupported(
+                "compound clipping rectangles are not strictly separated".into(),
+            );
+        }
+        match self {
+            Self::Unbounded => Self::RectanglePair(parts),
+            Self::Rectangle(rectangle) => {
+                rectangle_pair(parts.map(|part| intersection(part, *rectangle)))
+            }
+            Self::Empty | Self::Unsupported(_) => self.clone(),
+            Self::Convex(_) | Self::RectanglePair(_) => {
+                self.intersect_unsupported("compound clipping composition is not certified".into())
+            }
         }
     }
 
@@ -91,6 +117,11 @@ impl ClipRegion {
         let (bounds, mut quads) = match self {
             Self::Empty => return Self::Empty,
             Self::Unsupported(_) => return self.clone(),
+            Self::RectanglePair(_) => {
+                return self.intersect_unsupported(
+                    "convex intersection with compound clipping is not certified".into(),
+                );
+            }
             Self::Unbounded => (bounds, Vec::new()),
             Self::Rectangle(rectangle) => {
                 let bounds = intersection(bounds, *rectangle);
@@ -116,6 +147,9 @@ impl ClipRegion {
             Self::Unbounded => true,
             Self::Empty | Self::Unsupported(_) => false,
             Self::Rectangle(rect) => inside(segment.from, *rect) && inside(segment.to, *rect),
+            Self::RectanglePair(parts) => parts
+                .iter()
+                .any(|rect| inside(segment.from, *rect) && inside(segment.to, *rect)),
             Self::Convex(clip) => [segment.from, segment.to].into_iter().all(|point| {
                 clip.quads
                     .iter()
@@ -132,9 +166,38 @@ impl ClipRegion {
             Self::Unbounded => Ok(GlyphPathClipStatus::Unclipped),
             Self::Empty => Ok(GlyphPathClipStatus::Outside),
             Self::Rectangle(clip) => Ok(rectangle_status(glyph, *clip)),
+            Self::RectanglePair(parts) => {
+                let statuses = parts.map(|part| rectangle_status(glyph, part));
+                Ok(if statuses.contains(&GlyphPathClipStatus::Inside) {
+                    GlyphPathClipStatus::Inside
+                } else if statuses
+                    .iter()
+                    .all(|status| *status == GlyphPathClipStatus::Outside)
+                {
+                    GlyphPathClipStatus::Outside
+                } else {
+                    // A connected glyph box cannot be wholly contained in two
+                    // separated components unless it is contained in one.
+                    GlyphPathClipStatus::PartiallyOutside
+                })
+            }
             Self::Convex(clip) => clip.glyph_status(glyph),
             Self::Unsupported(reason) => Err(Error::Unsupported(reason.to_string())),
         }
+    }
+}
+
+fn separated(a: Rect, b: Rect) -> bool {
+    a.max.x < b.min.x || b.max.x < a.min.x || a.max.y < b.min.y || b.max.y < a.min.y
+}
+
+/// Intersections of separated rectangles remain separated or become empty.
+fn rectangle_pair(parts: [Rect; 2]) -> ClipRegion {
+    match parts.map(empty) {
+        [true, true] => ClipRegion::Empty,
+        [false, true] => ClipRegion::Rectangle(parts[0]),
+        [true, false] => ClipRegion::Rectangle(parts[1]),
+        [false, false] => ClipRegion::RectanglePair(parts),
     }
 }
 
@@ -309,6 +372,58 @@ mod tests {
             point(x, 4.0),
         ])
         .expect("strict convex diamond")
+    }
+
+    #[test]
+    fn separated_rectangles_keep_the_gap_and_prior_intersections() -> Result<()> {
+        let pair = ClipRegion::Unbounded
+            .intersect_rectangle_pair([rect(0.0, 0.0, 10.0, 2.0), rect(0.0, 4.0, 10.0, 6.0)]);
+        for (glyph, expected) in [
+            (rect(1.0, 0.5, 2.0, 1.5), GlyphPathClipStatus::Inside),
+            (rect(1.0, 2.5, 2.0, 3.5), GlyphPathClipStatus::Outside),
+            (
+                rect(1.0, 1.0, 2.0, 5.0),
+                GlyphPathClipStatus::PartiallyOutside,
+            ),
+            (
+                rect(-1.0, -1.0, 11.0, 7.0),
+                GlyphPathClipStatus::PartiallyOutside,
+            ),
+        ] {
+            assert_eq!(pair.glyph_status(glyph)?, expected);
+        }
+        assert_eq!(pair.work(), 32);
+        assert!(!pair.segment_is_visible(PathSegment {
+            from: point(1.0, 1.0),
+            to: point(1.0, 5.0)
+        }));
+        assert!(pair.segment_is_visible(PathSegment {
+            from: point(1.0, 1.0),
+            to: point(2.0, 1.0)
+        }));
+        assert_eq!(
+            pair.intersect_rectangle(rect(0.0, 0.0, 5.0, 1.0)),
+            ClipRegion::Rectangle(rect(0.0, 0.0, 5.0, 1.0))
+        );
+        assert_eq!(
+            pair.intersect_rectangle(rect(0.0, 2.5, 5.0, 3.5)),
+            ClipRegion::Empty
+        );
+        assert!(matches!(
+            pair.intersect_quad(diamond(0.0)),
+            ClipRegion::Unsupported(_)
+        ));
+        assert!(matches!(
+            ClipRegion::Unbounded
+                .intersect_rectangle_pair([rect(0.0, 0.0, 5.0, 5.0), rect(4.0, 4.0, 6.0, 6.0)]),
+            ClipRegion::Unsupported(_)
+        ));
+        assert!(matches!(
+            ClipRegion::Unbounded
+                .intersect_rectangle_pair([rect(0.0, 0.0, 5.0, 5.0), rect(5.0, 0.0, 6.0, 5.0)]),
+            ClipRegion::Unsupported(_)
+        ));
+        Ok(())
     }
 
     #[test]

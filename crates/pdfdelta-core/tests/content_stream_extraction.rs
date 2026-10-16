@@ -812,6 +812,73 @@ fn recognizes_single_line_built_rectangular_clips() -> Result<()> {
 }
 
 #[test]
+fn separated_rectangle_clips_preserve_gap_glyphs_and_graphics_restore() -> Result<()> {
+    for rule in ["W", "W*"] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
+            "q 20 20 m 100 20 l 100 40 l 20 40 l 20 20 l 20 60 m 20 80 l 100 80 l 100 60 l 20 60 l {rule} n BT /F1 10 Tf 1 0 0 1 30 25 Tm (A) Tj 1 0 0 1 30 45 Tm (G) Tj 1 0 0 1 30 65 Tm (B) Tj ET Q BT /F1 10 Tf 1 0 0 1 30 45 Tm (C) Tj ET"
+        ).into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font" => dictionary! {"F1" => font}}),
+            None,
+            None,
+        );
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete());
+        let glyphs = outcome.document().items();
+        assert_eq!(mapped_text(glyphs), "AGBC");
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|glyph| glyph.path_clip_status)
+                .collect::<Vec<_>>(),
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Unclipped
+            ]
+        );
+        assert_eq!(glyphs[1].raw_code, b"G");
+        assert_eq!(glyphs[1].provenance.content_stream.object_number, content.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn separated_rectangle_proofs_share_the_existing_work_ceiling() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"0 0 100 20 re 0 40 100 20 re W n BT /F1 10 Tf 1 0 0 1 10 5 Tm (Repeated) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font" => dictionary! {"F1" => font}}),
+        None,
+        None,
+    );
+    assert!(matches!(
+        extract(
+            pdf,
+            ExtractionLimits {
+                max_operators: 50,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded {
+            resource: "convex clipping work",
+            limit: 50
+        })
+    ));
+}
+
+#[test]
 fn convex_quadrilateral_clips_classify_glyphs_without_box_substitution() -> Result<()> {
     for (path, rule) in [
         ("40 80 m 100 20 l 160 80 l 100 140 l h", "W"),

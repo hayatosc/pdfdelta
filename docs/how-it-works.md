@@ -86,7 +86,11 @@ partial table as a proof.
   stream decoding.
 - Bounded content-stream extraction of text and straight-path operators,
   normalized page boxes, CropBox classification, axis-aligned rectangular
-  clipping, and isolated Form XObjects.
+  clipping, certified convex quadrilaterals, strictly separated rectangular
+  pairs, and isolated Form XObjects. Rectangular pairs keep both components
+  and their gap; general compound compositions remain unsupported. Their
+  proofs and per-glyph classification use the existing shared clipping work
+  ceiling.
 - Fonts: Type 1 / Type1C / MMType1, TrueType, axis-aligned Type 3, and Type 0
   with Identity-H, bounded Identity-V, and UniJIS-UTF16-H (Adobe-Japan1).
 - Text mapping: ToUnicode, Standard / WinAnsi / MacRoman encodings with

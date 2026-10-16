@@ -403,6 +403,42 @@ impl CurrentPath {
         ])
     }
 
+    /// Two explicitly closed, strictly axis-aligned rectangular subpaths.
+    /// Exact continuity and strict separation make both PDF fill rules agree;
+    /// no rounded bounding box or implicit inter-subpath edge is introduced.
+    fn clipping_rectangle_pair(&self) -> Option<[Rect; 2]> {
+        if self.has_unsupported_segments || self.drawn_subpaths != 2 || self.segments.len() != 8 {
+            return None;
+        }
+        let rectangle = |segments: &[PathSegment]| {
+            if !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
+                || segments[3].to != segments[0].from
+                || !segments.iter().all(|segment| {
+                    (segment.from.x == segment.to.x) != (segment.from.y == segment.to.y)
+                })
+            {
+                return None;
+            }
+            let points = [
+                segments[0].from,
+                segments[0].to,
+                segments[1].to,
+                segments[2].to,
+            ];
+            Quad::new(points)?;
+            Some(bounding_rect(points))
+        };
+        let parts = [
+            rectangle(&self.segments[..4])?,
+            rectangle(&self.segments[4..])?,
+        ];
+        (parts[0].max.x < parts[1].min.x
+            || parts[1].max.x < parts[0].min.x
+            || parts[0].max.y < parts[1].min.y
+            || parts[1].max.y < parts[0].min.y)
+            .then_some(parts)
+    }
+
     fn mark_current_subpath_drawn(&mut self) {
         if !self.current_subpath_has_segment {
             self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
@@ -1171,6 +1207,16 @@ impl Extraction<'_> {
                 self.charge_convex_clip_work(state.graphics.clip_region.work())?;
                 if let Some(rectangle) = state.current_path.clipping_rectangle() {
                     Some(state.graphics.clip_region.intersect_rectangle(rectangle))
+                } else if state.current_path.drawn_subpaths == 2 {
+                    // Two fixed-size proofs and their classification/copy cost
+                    // share the same document-wide clipping work ceiling.
+                    self.charge_convex_clip_work(32)?;
+                    Some(match state.current_path.clipping_rectangle_pair() {
+                        Some(parts) => state.graphics.clip_region.intersect_rectangle_pair(parts),
+                        None => state.graphics.clip_region.intersect_unsupported(format!(
+                            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}", operation.index
+                        )),
+                    })
                 } else {
                     self.charge_convex_clip_work(16)?;
                     Some(match state.current_path.clipping_quad() {
@@ -3282,6 +3328,43 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use crate::pdf::{DecodedStream, PdfVersion, RawStream};
+
+    #[test]
+    fn rectangle_pair_proof_rejects_touching_skewed_open_and_extra_paths() {
+        let corners = |y: f64| {
+            [
+                Vec2 { x: 0.0, y },
+                Vec2 { x: 10.0, y },
+                Vec2 {
+                    x: 10.0,
+                    y: y + 2.0,
+                },
+                Vec2 { x: 0.0, y: y + 2.0 },
+            ]
+        };
+        let pair = |second: [Vec2; 4]| {
+            let mut path = CurrentPath::default();
+            path.append_rectangle(corners(0.0), None);
+            path.append_rectangle(second, None);
+            path
+        };
+        let valid = pair(corners(4.0));
+        assert!(valid.clipping_rectangle_pair().is_some());
+        assert!(pair(corners(2.0)).clipping_rectangle_pair().is_none());
+        assert!(pair(corners(1.0)).clipping_rectangle_pair().is_none());
+        let mut skewed = corners(4.0);
+        skewed[1].y = skewed[1].y.next_up();
+        assert!(pair(skewed).clipping_rectangle_pair().is_none());
+        let mut open = valid.clone();
+        open.segments[7].to.x = open.segments[7].to.x.next_up();
+        assert!(open.clipping_rectangle_pair().is_none());
+        let mut extra = valid.clone();
+        extra.append_rectangle(corners(8.0), None);
+        assert!(extra.clipping_rectangle_pair().is_none());
+        let mut curved = valid;
+        curved.has_unsupported_segments = true;
+        assert!(curved.clipping_rectangle_pair().is_none());
+    }
 
     fn empty_map(scope_id: u64) -> Arc<ScopedResourceMap> {
         Arc::new(ScopedResourceMap {
