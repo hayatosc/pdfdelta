@@ -46,6 +46,8 @@ pub(crate) struct SimpleFontDecoder {
     missing_width: f64,
     base14: Option<Base14>,
     type3_identity_glyph_ids: Option<BTreeMap<u8, u16>>,
+    // Unknown built-in Type1C encodings authorize only explicit Differences.
+    difference_only_identity: bool,
     ascent: f64,
     descent: f64,
 }
@@ -258,8 +260,8 @@ impl SimpleFontDecoder {
                 // stable selector. When the code-to-selector binding is fixed by a
                 // public named encoding or by the document's own Differences, the
                 // identity includes that canonical binding instead of refusing all
-                // explicit encodings. Unknown private encodings and ambiguous
-                // Differences keep the refusal.
+                // explicit encodings. An unknown Type1C base authorizes only
+                // explicitly named codes; ambiguous bindings keep the refusal.
                 explicit_encoding_identity_source(
                     pdf,
                     &dictionary,
@@ -300,6 +302,10 @@ impl SimpleFontDecoder {
                 missing_width,
                 base14,
                 type3_identity_glyph_ids,
+                difference_only_identity: identity_source.is_some()
+                    && type3.is_none()
+                    && encoding.explicit_encoding
+                    && matches!(encoding.base, FallbackEncoding::Unknown),
                 ascent,
                 descent,
             },
@@ -381,13 +387,14 @@ impl SimpleFontDecoder {
     fn decoded_glyph(&self, code: u8, mapping: UnicodeMapping) -> Result<DecodedGlyph> {
         // A missing procedure affects uses of its code, not unrelated encoding
         // entries. A Unicode declaration cannot supply the absent drawing.
-        if self
-            .differences
-            .get(&code)
-            .is_some_and(|entry| entry.missing_type3_procedure)
-        {
+        let difference = self.differences.get(&code);
+        if difference.is_some_and(|entry| entry.missing_type3_procedure) {
             return unresolved("Type 3 font code references a missing CharProc");
         }
+        let opaque_selector_allowed = !self.difference_only_identity
+            || difference.is_some_and(|entry| {
+                !entry.glyph_name.is_empty() && entry.glyph_name != b".notdef"
+            });
         let glyph_id = if matches!(mapping, UnicodeMapping::Unmapped) {
             self.type3_identity_glyph_ids
                 .as_ref()
@@ -406,6 +413,7 @@ impl SimpleFontDecoder {
         Ok(DecodedGlyph {
             raw_code: vec![code],
             mapping,
+            opaque_selector_allowed,
             glyph_id,
             width_1000_em: self.width(code),
             vertical: None,
@@ -654,13 +662,22 @@ fn explicit_encoding_identity_source(
     max_indirections: usize,
     subtype: SimpleSubtype,
 ) -> Result<Option<FontIdentitySource>> {
-    if encoding.identity_ambiguous || matches!(encoding.base, FallbackEncoding::Unknown) {
+    if encoding.identity_ambiguous {
         return Ok(None);
     }
     let limit = remaining_selector_bytes.min(limits.max_decoded_font_bytes);
     let Some(domain) = identity_domain(pdf, dictionary, max_indirections, subtype)? else {
         return Ok(None);
     };
+    // A declared Differences name selects a Type1C glyph independently of
+    // the implicit base. Unknown base codes gain no authority: the decoder
+    // refuses every unmapped code without its own non-.notdef name. Keep
+    // TrueType and other unknown selector domains on the original refusal.
+    if matches!(encoding.base, FallbackEncoding::Unknown)
+        && (!matches!(domain, FontIdentityDomain::SimpleType1C) || encoding.differences.is_empty())
+    {
+        return Ok(None);
+    }
     let Some(source) = resolve_font_identity_source(pdf, dictionary, max_indirections, domain)?
     else {
         return Ok(None);
@@ -668,8 +685,9 @@ fn explicit_encoding_identity_source(
     let Some((reference, domain)) = source.into_embedded() else {
         return Ok(None);
     };
-    // The selector binds every raw code to its glyph name through the declared
-    // encoding. Each field is length-prefixed so arbitrary name bytes (including
+    // The selector binds the declared code/name map and its base. With an
+    // unknown base, the decoder authorizes only explicit named codes. Each
+    // field is length-prefixed so arbitrary name bytes (including
     // NUL and tag-like content) remain injective, and the entry count is bound.
     let base = encoding.base.identity_name();
     let mut total = 8usize
@@ -690,6 +708,11 @@ fn explicit_encoding_identity_source(
             })?;
     }
     if total > limit {
+        // Optional partial-base evidence must not consume the old mapped-text
+        // path's budget. Refuse this new identity while retaining that path.
+        if matches!(encoding.base, FallbackEncoding::Unknown) {
+            return Ok(None);
+        }
         return Err(Error::LimitExceeded {
             resource: "simple-font selector identity bytes",
             limit,
@@ -700,12 +723,15 @@ fn explicit_encoding_identity_source(
         limit,
     })?;
     let mut selector = Vec::new();
-    selector
-        .try_reserve(total)
-        .map_err(|_| Error::LimitExceeded {
+    if selector.try_reserve(total).is_err() {
+        if matches!(encoding.base, FallbackEncoding::Unknown) {
+            return Ok(None);
+        }
+        return Err(Error::LimitExceeded {
             resource: "simple-font selector identity bytes",
             limit,
-        })?;
+        });
+    }
     selector.extend_from_slice(&count.to_be_bytes());
     selector.extend_from_slice(&(base.len() as u64).to_be_bytes());
     selector.extend_from_slice(base);
@@ -1963,6 +1989,228 @@ mod tests {
             implicit_identity.hash,
             "the explicit selector binding must not collapse into the implicit identity"
         );
+        Ok(())
+    }
+
+    fn difference_only_type1c_fixture() -> (MockPdf, PdfObject) {
+        let pdf = MockPdf {
+            objects: HashMap::from([(
+                object_ref(1),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"Type1C".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(1), b"opaque embedded CFF program".to_vec())]),
+        };
+        let font = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (
+                b"BaseFont".to_vec(),
+                PdfObject::Name(b"FixturePrivate".to_vec()),
+            ),
+            (b"FirstChar".to_vec(), PdfObject::Integer(2)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array(vec![PdfObject::Integer(600); 4]),
+            ),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([(
+                    b"Differences".to_vec(),
+                    PdfObject::Array(vec![
+                        PdfObject::Integer(2),
+                        PdfObject::Name(b"g1004".to_vec()),
+                        PdfObject::Name(b"g856".to_vec()),
+                        PdfObject::Name(b".notdef".to_vec()),
+                        PdfObject::Name(Vec::new()),
+                    ]),
+                )])),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                    (b"FontFile3".to_vec(), PdfObject::Reference(object_ref(1))),
+                ])),
+            ),
+        ]));
+        (pdf, font)
+    }
+
+    #[test]
+    fn type1c_unknown_base_authorizes_only_its_explicit_named_codes() -> Result<()> {
+        let (pdf, font) = difference_only_type1c_fixture();
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let source = loaded.identity_source.as_ref().expect("scoped selector");
+        assert!(loaded.decoder.difference_only_identity);
+        let glyphs = loaded.decoder.decode(&[1, 2, 3, 4, 5, 255], 6, 4096)?;
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|g| g.opaque_selector_allowed)
+                .collect::<Vec<_>>(),
+            vec![false, true, true, false, false, false]
+        );
+        for (glyph, code) in glyphs.iter().zip([1, 2, 3, 4, 5, 255]) {
+            assert_eq!(glyph.raw_code, vec![code]);
+            assert_eq!(glyph.mapping, UnicodeMapping::Unmapped);
+            assert_eq!(glyph.glyph_id, u16::from(code));
+        }
+        let first = load_font_identity(&pdf, source, 4096)?;
+        let again = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(
+            first.hash,
+            load_font_identity(
+                &pdf,
+                again.identity_source.as_ref().expect("fixture component"),
+                4096
+            )?
+            .hash
+        );
+        assert_eq!(first.decoded_bytes, b"opaque embedded CFF program".len());
+        assert_eq!(loaded.decoded_font_bytes, source.selector_bytes());
+        assert!(matches!(
+            load_font_identity(&pdf, source, first.decoded_bytes - 1),
+            Err(Error::LimitExceeded { .. })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn type1c_partial_selector_binds_names_program_and_domain() -> Result<()> {
+        let (mut pdf, mut font) = difference_only_type1c_fixture();
+        let hash = |pdf: &MockPdf, font: &PdfObject| -> Result<_> {
+            let loaded = SimpleFontDecoder::load(pdf, font, LIMITS)?;
+            load_font_identity(
+                pdf,
+                loaded.identity_source.as_ref().expect("scoped selector"),
+                4096,
+            )
+            .map(|x| x.hash)
+        };
+        let first = hash(&pdf, &font)?;
+        pdf.streams
+            .insert(object_ref(1), b"different embedded CFF program".to_vec());
+        assert_ne!(first, hash(&pdf, &font)?);
+        pdf.streams
+            .insert(object_ref(1), b"opaque embedded CFF program".to_vec());
+        let PdfObject::Dictionary(f) = &mut font else {
+            unreachable!()
+        };
+        let PdfObject::Dictionary(e) = f
+            .get_mut(b"Encoding".as_slice())
+            .expect("fixture component")
+        else {
+            unreachable!()
+        };
+        let PdfObject::Array(a) = e
+            .get_mut(b"Differences".as_slice())
+            .expect("fixture component")
+        else {
+            unreachable!()
+        };
+        a[1] = PdfObject::Name(b"g_other".to_vec());
+        assert_ne!(first, hash(&pdf, &font)?);
+        let PdfObject::Dictionary(f) = &mut font else {
+            unreachable!()
+        };
+        let PdfObject::Dictionary(e) = f
+            .get_mut(b"Encoding".as_slice())
+            .expect("fixture component")
+        else {
+            unreachable!()
+        };
+        let PdfObject::Array(a) = e
+            .get_mut(b"Differences".as_slice())
+            .expect("fixture component")
+        else {
+            unreachable!()
+        };
+        a[1] = PdfObject::Name(b"g1004".to_vec());
+        e.insert(
+            b"BaseEncoding".to_vec(),
+            PdfObject::Name(b"StandardEncoding".to_vec()),
+        );
+        assert_ne!(first, hash(&pdf, &font)?);
+        Ok(())
+    }
+
+    #[test]
+    fn type1c_partial_selector_retains_ambiguity_and_resource_refusals() -> Result<()> {
+        let (pdf, font) = difference_only_type1c_fixture();
+        for control in 0..5 {
+            let mut f = font.clone();
+            let PdfObject::Dictionary(d) = &mut f else {
+                unreachable!()
+            };
+            match control {
+                0 => {
+                    let PdfObject::Dictionary(e) = d
+                        .get_mut(b"Encoding".as_slice())
+                        .expect("fixture component")
+                    else {
+                        unreachable!()
+                    };
+                    e.insert(
+                        b"Differences".to_vec(),
+                        PdfObject::Array(vec![
+                            PdfObject::Integer(2),
+                            PdfObject::Name(b"g0".to_vec()),
+                            PdfObject::Integer(2),
+                            PdfObject::Name(b"g1".to_vec()),
+                        ]),
+                    );
+                }
+                1 => {
+                    let PdfObject::Dictionary(e) = d
+                        .get_mut(b"Encoding".as_slice())
+                        .expect("fixture component")
+                    else {
+                        unreachable!()
+                    };
+                    e.insert(b"Differences".to_vec(), PdfObject::Array(Vec::new()));
+                }
+                2 => {
+                    let PdfObject::Dictionary(e) = d
+                        .get_mut(b"FontDescriptor".as_slice())
+                        .expect("fixture component")
+                    else {
+                        unreachable!()
+                    };
+                    e.remove(b"FontFile3".as_slice());
+                }
+                3 => {
+                    d.insert(b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec()));
+                }
+                4 => {
+                    let PdfObject::Dictionary(e) = d
+                        .get_mut(b"FontDescriptor".as_slice())
+                        .expect("fixture component")
+                    else {
+                        unreachable!()
+                    };
+                    e.insert(b"FontFile".to_vec(), PdfObject::Reference(object_ref(1)));
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                SimpleFontDecoder::load(&pdf, &f, LIMITS)?
+                    .identity_source
+                    .is_none(),
+                "control {control}"
+            );
+        }
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let needed = loaded.decoded_font_bytes;
+        for budget in 0..needed {
+            let mut limits = LIMITS;
+            limits.max_decoded_font_bytes = budget;
+            let refused = SimpleFontDecoder::load(&pdf, &font, limits)?;
+            assert!(refused.identity_source.is_none());
+            assert_eq!(refused.decoded_font_bytes, 0);
+        }
         Ok(())
     }
 
@@ -3272,6 +3520,7 @@ mod tests {
         DecodedGlyph {
             raw_code: vec![code],
             mapping: UnicodeMapping::Mapped(text.into()),
+            opaque_selector_allowed: true,
             glyph_id: u16::from(code),
             width_1000_em: width,
             vertical: None,

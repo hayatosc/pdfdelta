@@ -7097,3 +7097,100 @@ fn invalid_form_beside_valid_native_text_stays_unresolved() -> Result<()> {
     assert_eq!(mapped_text(outcome.document().items()), "A");
     Ok(())
 }
+
+fn difference_only_type1c_pdf(content_bytes: &[u8]) -> LopdfDocument {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"opaque CFF program", false, None);
+    let descriptor = embedded_font_descriptor(&pdf, font);
+    let program = embedded_font_program(&pdf, font);
+    pdf.objects
+        .get_mut(&program)
+        .expect("fixture component")
+        .as_stream_mut()
+        .expect("fixture component")
+        .dict
+        .set("Subtype", "Type1C");
+    let fd = pdf
+        .objects
+        .get_mut(&descriptor)
+        .expect("fixture component")
+        .as_dict_mut()
+        .expect("fixture component");
+    fd.remove(b"FontFile2");
+    fd.set("FontFile3", program);
+    let f = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture component")
+        .as_dict_mut()
+        .expect("fixture component");
+    f.set("Subtype", "Type1");
+    f.set("FirstChar", 0);
+    f.set("LastChar", 255);
+    f.set("Widths", vec![Object::Integer(600); 256]);
+    f.set("Encoding",dictionary!{"Differences"=>vec![Object::Integer(2),Object::Name(b"g1004".to_vec()),Object::Name(b"g856".to_vec()),Object::Integer(65),Object::Name(b"A".to_vec())]});
+    let content = pdf.add_object(Stream::new(dictionary! {}, content_bytes.to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    pdf
+}
+
+#[test]
+fn type1c_difference_only_codes_retain_nonempty_opaque_source_evidence() -> Result<()> {
+    let outcome = extract_outcome(
+        difference_only_type1c_pdf(b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0203> Tj ET"),
+        ExtractionLimits::default(),
+    )?;
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 2);
+    for (g, code) in glyphs.iter().zip([2, 3]) {
+        assert_eq!(g.raw_code, vec![code]);
+        let DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } = &g.text
+        else {
+            panic!("no Unicode declaration")
+        };
+        assert_eq!(font_hash.0.len(), 32);
+        assert_eq!(*glyph_id, u16::from(code));
+        assert!(g.bbox.max.x > g.bbox.min.x);
+        assert_eq!(g.provenance.operator_index, 3);
+    }
+    Ok(())
+}
+
+#[test]
+fn type1c_cached_selector_never_authorizes_an_uncovered_code() -> Result<()> {
+    for cached in [false, true] {
+        let bytes = if cached {
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <02> Tj <4101> Tj ET".as_slice()
+        } else {
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <4101> Tj ET".as_slice()
+        };
+        let outcome = extract_outcome(
+            difference_only_type1c_pdf(bytes),
+            ExtractionLimits::default(),
+        )?;
+        assert!(!outcome.is_complete());
+        assert!(!outcome.issues().is_empty());
+        let glyphs = outcome.document().items();
+        // The existing page transaction rolls back its whole glyph scope.
+        // A cached hash must never turn the unsupported code into a glyph.
+        assert!(glyphs.is_empty());
+        assert!(outcome.issues().iter().any(|issue| {
+            issue
+                .description()
+                .contains("font code has no Unicode mapping or stable font identity")
+        }));
+        assert!(glyphs.iter().all(|g| g.raw_code != [1]));
+    }
+    Ok(())
+}

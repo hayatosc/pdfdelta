@@ -1416,6 +1416,12 @@ impl Extraction<'_> {
         let is_vertical = glyph.vertical.is_some();
         let text = match glyph.mapping {
             UnicodeMapping::Mapped(text) => DecodedText::Mapped(text),
+            UnicodeMapping::Unmapped if !glyph.opaque_selector_allowed => {
+                return Err(operation_error(
+                    operation,
+                    "font code has no Unicode mapping or stable font identity",
+                ));
+            }
             UnicodeMapping::Unmapped => DecodedText::Unmapped {
                 font_hash: font_hash.cloned().ok_or_else(|| {
                     operation_error(
@@ -1727,9 +1733,9 @@ impl Extraction<'_> {
                 limit: remaining_mapped_text_bytes,
             })
         })?;
-        let needs_identity = glyphs
-            .iter()
-            .any(|glyph| matches!(glyph.mapping, UnicodeMapping::Unmapped));
+        let needs_identity = glyphs.iter().any(|glyph| {
+            glyph.opaque_selector_allowed && matches!(glyph.mapping, UnicodeMapping::Unmapped)
+        });
         let mut loaded_identity = None;
         let font_hash = if needs_identity {
             let cached = self.font_cache.get(key).ok_or_else(|| {

@@ -14,10 +14,9 @@ use sha2::{Digest, Sha256};
 use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
-/// key, the extraction contract, or the cached payload shape. Version 19
-/// invalidates native outcomes lacking an image issue when only invisible or
-/// excluded glyphs were retained.
-const CACHE_FORMAT_VERSION: u32 = 19;
+/// key, the extraction contract, or the cached payload shape. Version 20
+/// invalidates outcomes produced before code-scoped `Type1C` Differences identity.
+const CACHE_FORMAT_VERSION: u32 = 20;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during

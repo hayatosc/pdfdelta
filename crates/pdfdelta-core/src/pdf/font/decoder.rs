@@ -37,6 +37,9 @@ pub(crate) struct VerticalGlyphMetrics {
 pub(crate) struct DecodedGlyph {
     pub(crate) raw_code: Vec<u8>,
     pub(crate) mapping: UnicodeMapping,
+    /// Whether an unmapped code has a proven selector in this font identity.
+    /// The emitter must also possess the complete program/selector hash.
+    pub(crate) opaque_selector_allowed: bool,
     pub(crate) glyph_id: u16,
     pub(crate) width_1000_em: f64,
     pub(crate) vertical: Option<VerticalGlyphMetrics>,

@@ -278,6 +278,7 @@ impl CompositeFontDecoder {
                 .copied()
                 .unwrap_or(self.default_width);
             glyphs.push(DecodedGlyph {
+                opaque_selector_allowed: true,
                 raw_code: source.to_vec(),
                 mapping,
                 glyph_id,
