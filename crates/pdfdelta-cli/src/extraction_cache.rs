@@ -14,11 +14,11 @@ use sha2::{Digest, Sha256};
 use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
-/// key, the extraction contract, or the cached payload shape. Version 33
-/// invalidates outcomes predating affordable source validation before metered
-/// text admission for owned exact curve witnesses with strict prior constraints.
+/// key, the extraction contract, or the cached payload shape. Version 34
+/// invalidates outcomes predating strict whole-box boundary exclusion and exact
+/// winding for owned curve witnesses with every original prior constraint.
 /// The separate font-decoding experiment has a different extraction contract.
-const CACHE_FORMAT_VERSION: u32 = 33;
+const CACHE_FORMAT_VERSION: u32 = 34;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during
@@ -468,7 +468,7 @@ mod tests {
         let mut payload: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).expect("payload")).expect("valid payload");
         for version in [
-            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
         ] {
             payload["cache_version"] = serde_json::json!(version);
             payload["issues"] = serde_json::json!([]);

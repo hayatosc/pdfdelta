@@ -1,6 +1,6 @@
-//! Exact point witnesses for partially clipped glyph boxes. Closed control
-//! hulls authorize chord homotopies only when they avoid the query point.
-//! Equal probe values never authorize whole-box visibility or absence.
+//! Exact witnesses for closed path clipping. Strict control-hull exclusion
+//! authorizes whole-box chord homotopies; opposite point witnesses establish
+//! partial clipping. Equal probe values alone never classify a whole box.
 use crate::{
     Error, Result,
     model::{GlyphPathClipStatus, PageId, Rect},
@@ -269,6 +269,88 @@ fn point_state(clips: &[(Vec<IntEdge>, bool)], point: I, budget: &mut Budget) ->
     }
     if held { None } else { Some(true) }
 }
+/// A complete boundary exclusion certificate: each closed control hull lies
+/// strictly on one side of the closed query box. Every curve can then be
+/// homotoped to its chord without touching any point in that connected box.
+/// One exact chord winding classifies the whole box, including every parent.
+fn whole_box(clips: &[&PreparedPath], bbox: [f64; 4], budget: &mut Budget) -> Option<bool> {
+    if !bbox.into_iter().all(f64::is_finite) || bbox[0] >= bbox[2] || bbox[1] >= bbox[3] {
+        return None;
+    }
+    budget.charge(clips.len().checked_mul(128)?)?;
+    let mut chords = Vec::with_capacity(clips.len());
+    let mut power = None::<i32>;
+    budget.charge(128)?;
+    for x in [bbox[0], bbox[1]] {
+        let (_, e) = dyadic(x)?;
+        if x != 0.0 {
+            power = Some(power.map_or(e, |old| old.min(e)));
+        }
+    }
+    for clip in clips {
+        budget.charge(clip.edges.len().checked_mul(32)?)?;
+        let mut endpoints = Vec::with_capacity(clip.edges.len());
+        for edge in &clip.edges {
+            // Covers all four controls, extrema, comparisons and endpoint storage.
+            budget.charge(128)?;
+            let (controls, a, b): (&[P], P, P) = match edge {
+                Edge::Line(a, b) => (std::slice::from_ref(a), *a, *b),
+                Edge::Cubic(c) => (c, c[0], c[3]),
+            };
+            if !controls
+                .iter()
+                .chain([&a, &b])
+                .flatten()
+                .all(|x| x.is_finite())
+            {
+                return None;
+            }
+            let separated = (0..2).any(|axis| {
+                let low = controls
+                    .iter()
+                    .map(|p| p[axis])
+                    .fold(a[axis].min(b[axis]), f64::min);
+                let high = controls
+                    .iter()
+                    .map(|p| p[axis])
+                    .fold(a[axis].max(b[axis]), f64::max);
+                high < bbox[axis] || low > bbox[axis + 2]
+            });
+            if !separated {
+                return None;
+            }
+            budget.charge(256)?;
+            for x in a.into_iter().chain(b) {
+                let (_, e) = dyadic(x)?;
+                if x != 0.0 {
+                    power = Some(power.map_or(e, |old| old.min(e)));
+                }
+            }
+            endpoints.push((a, b));
+        }
+        chords.push((endpoints, clip.even_odd));
+    }
+    let power = power?;
+    let convert = |p: P| Some([integer(p[0], power)?, integer(p[1], power)?]);
+    let query = convert([bbox[0], bbox[1]])?;
+    let mut result = true;
+    for (edges, even_odd) in chords {
+        let mut winding = 0_i64;
+        for (a, b) in edges {
+            budget.charge(32)?;
+            let a = shifted(convert(a)?, query)?;
+            let b = shifted(convert(b)?, query)?;
+            winding = winding.checked_add(line_winding(a, b, budget)?)?;
+        }
+        result &= if even_odd {
+            winding % 2 != 0
+        } else {
+            winding != 0
+        };
+    }
+    Some(result)
+}
+
 fn partial(
     clips: &[&PreparedPath],
     bbox: [f64; 4],
@@ -686,8 +768,9 @@ impl PathWitness {
         Arc::clone(&self.reason)
     }
 
-    /// Only opposite strict witnesses certify a partial box. Sampling failure,
-    /// arithmetic overflow and equal probe values preserve the original refusal.
+    /// Complete boundary exclusion and exact winding certify a whole box;
+    /// opposite strict witnesses certify a partial box. Arithmetic overflow,
+    /// boundary contact and equal probe values alone preserve refusal.
     /// Actual shared-work exhaustion remains a resource-limit error.
     ///
     /// # Errors
@@ -741,12 +824,28 @@ impl PathWitness {
             if let Some(rectangle) = &rectangle {
                 paths.push(rectangle);
             }
-            partial(
-                &paths,
-                [glyph.min.x, glyph.min.y, glyph.max.x, glyph.max.y],
-                8,
-                &mut budget,
-            )
+            let bbox = [glyph.min.x, glyph.min.y, glyph.max.x, glyph.max.y];
+            // Reserve the complete optional bound and the original partial-proof
+            // minimum before attempting a new certificate. Low-budget legacy
+            // behavior therefore remains authoritative; attempted work is paid.
+            let whole_bound = edges?
+                .checked_mul(576)?
+                .checked_add(self.depth.checked_add(1)?.checked_mul(128)?)?
+                .checked_add(128)?;
+            if whole_bound
+                .checked_add(minimum?)
+                .is_some_and(|n| n <= limit.saturating_sub(budget.used))
+                && let Some(inside) = whole_box(&paths, bbox, &mut budget)
+            {
+                return Some(if inside {
+                    GlyphPathClipStatus::Inside
+                } else {
+                    GlyphPathClipStatus::Outside
+                });
+            }
+            partial(&paths, bbox, 8, &mut budget)
+                .filter(|(partial, ..)| *partial)
+                .map(|_| GlyphPathClipStatus::PartiallyOutside)
         })();
         *used = budget.used;
         if budget.exhausted {
@@ -755,11 +854,7 @@ impl PathWitness {
                 limit,
             });
         }
-        if matches!(result, Some((true, ..))) {
-            Ok(GlyphPathClipStatus::PartiallyOutside)
-        } else {
-            Err(held())
-        }
+        result.ok_or_else(held)
     }
 }
 
@@ -830,6 +925,74 @@ mod tests {
             },
             even_odd,
         )
+    }
+    #[test]
+    fn curve_witness_whole_box_requires_complete_strict_boundary_exclusion() {
+        let owned = source(b"0 0 m 100 0 l 100 100 l 0 100 l 0 100 0 0 0 0 c h W")
+            .expect("closed curved fixture");
+        for (bbox, expected) in [
+            ([30., 30., 40., 40.], Some(true)),
+            ([110., 30., 120., 40.], Some(false)),
+            ([0., 30., 5., 40.], None),
+            ([95., 30., 105., 40.], None),
+            ([30., 30., 30., 40.], None),
+        ] {
+            let mut budget = Budget::new(0, 5_000_000);
+            assert_eq!(whole_box(&[&owned.geometry], bbox, &mut budget), expected);
+            if bbox[0] < bbox[2] {
+                assert!(budget.used > 0);
+            }
+            assert!(!budget.exhausted);
+        }
+        let looped = source(b"0 0 m 100 150 -100 150 0 0 c h W").expect("closed loop");
+        let mut budget = Budget::new(0, 5_000_000);
+        assert_eq!(
+            whole_box(&[&looped.geometry], [-1., 40., 1., 60.], &mut budget),
+            None
+        );
+    }
+    #[test]
+    fn curve_witness_whole_box_retains_holes_parents_and_ulp_boundaries() {
+        for (rule, expected) in [("W", true), ("W*", false)] {
+            let bytes = format!("0 0 100 100 re 20 20 60 60 re {rule}");
+            let owned = source(bytes.as_bytes()).expect("two original closed subpaths");
+            let mut budget = Budget::new(0, 5_000_000);
+            assert_eq!(
+                whole_box(&[&owned.geometry], [30., 30., 40., 40.], &mut budget),
+                Some(expected)
+            );
+        }
+        let outer = source(b"1 1 99 99 re W").expect("outer");
+        let other = source(b"60 1 40 99 re W").expect("parent");
+        let mut budget = Budget::new(0, 5_000_000);
+        assert_eq!(
+            whole_box(
+                &[&outer.geometry, &other.geometry],
+                [30., 30., 40., 40.],
+                &mut budget
+            ),
+            Some(false)
+        );
+        let mut budget = Budget::new(0, 5_000_000);
+        assert_eq!(
+            whole_box(
+                &[&outer.geometry],
+                [1.0_f64.next_up(), 30., 2., 40.],
+                &mut budget
+            ),
+            Some(true)
+        );
+        let mut budget = Budget::new(0, 5_000_000);
+        assert_eq!(
+            whole_box(&[&outer.geometry], [1., 30., 2., 40.], &mut budget),
+            None
+        );
+        let mut budget = Budget::new(0, 0);
+        assert_eq!(
+            whole_box(&[&outer.geometry], [30., 30., 40., 40.], &mut budget),
+            None
+        );
+        assert!(budget.exhausted);
     }
     #[test]
     fn curve_witness_does_not_replace_a_curved_loop_by_its_zero_chord() {

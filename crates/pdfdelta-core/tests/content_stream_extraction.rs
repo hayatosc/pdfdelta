@@ -7761,6 +7761,30 @@ fn curve_witness_retains_partial_glyphs_and_restores_graphics_state() -> Result<
 }
 
 #[test]
+fn curve_witness_whole_box_keeps_inside_and_outside_physical_glyphs() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(dictionary! {},
+        b"q 40 40 m 140 40 l 140 140 l 40 140 l 40 140 40 40 40 40 c h W n BT /F1 10 Tf 60 80 Td (A) Tj 100 0 Td (B) Tj ET Q".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete(), "{:?}", outcome.issues());
+    let glyphs = outcome.document().items();
+    assert_eq!(mapped_text(glyphs), "AB");
+    assert_eq!(glyphs[0].path_clip_status, GlyphPathClipStatus::Inside);
+    assert_eq!(glyphs[1].path_clip_status, GlyphPathClipStatus::Outside);
+    assert_eq!(glyphs[0].raw_code, b"A");
+    assert_eq!(glyphs[1].raw_code, b"B");
+    Ok(())
+}
+
+#[test]
 fn curve_witness_keeps_open_changed_context_and_uncertified_clips_unsupported() -> Result<()> {
     let closed = "40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n";
     for (prefix, path, suffix, cap) in [

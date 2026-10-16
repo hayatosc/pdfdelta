@@ -127,6 +127,16 @@ partial table as a proof.
   Later pure path constraints keep their complete
   predecessor chain; strict rectangular crops remain local to the graphics state.
   Only clones of that same source owner share prepared geometry.
+  A whole-box certificate additionally requires every boundary edge's closed
+  control bounds to lie strictly beyond one side of the closed glyph box.
+  The complete box then avoids every curve-to-chord homotopy. One exact dyadic
+  chord winding, under each original fill rule and every predecessor/crop,
+  establishes membership throughout that connected box. Boundary contact,
+  overlapping control bounds and arithmetic refusal keep this proof unavailable.
+  Its full work bound plus the original partial-proof preparation minimum must
+  fit before attempting it; capacities, control inspections, conversions and
+  winding operations are charged without refunds. Low-budget partial-proof
+  behavior remains authoritative.
   For a query point, a control hull that avoids it permits a chord homotopy that
   also avoids it. Checked exact dyadic integers, bounded subdivision and winding
   or parity establish individual point membership. One strict inside and one

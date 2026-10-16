@@ -109,7 +109,11 @@ ambiguous positions. The containing coarse proof still prevents completion.
   within a single content stream and fixed transform. It requires an unbounded
   or strictly witnessed rectangular prior, or a predecessor from the same owned
   witness chain. All predecessor paths are retained; subsequent rectangles need
-  strict source witnesses. Integer overflow, missing opposite point witnesses,
+  strict source witnesses. A separate whole-box proof requires every closed
+  boundary control bound to be strictly disjoint from the glyph box and an exact
+  chord winding for every source constraint and crop. It cannot use equal probes
+  as a substitute for complete boundary exclusion. Integer overflow, missing
+  opposite point witnesses without a whole-box proof,
   source spans crossing streams, intervening context changes, open subpaths,
   uncertified priors and unaffordable preparation remain unsupported. Preparation
   additionally requires a text-object or text-show operator within the next 16
