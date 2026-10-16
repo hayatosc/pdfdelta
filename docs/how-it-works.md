@@ -87,10 +87,15 @@ partial table as a proof.
 - Bounded content-stream extraction of text and straight-path operators,
   normalized page boxes, CropBox classification, axis-aligned rectangular
   clipping, certified convex quadrilaterals, strictly separated rectangular
-  pairs, certified six-edge L shapes, and isolated Form XObjects. Rectangular
-  pairs keep both components and their gap; L shapes retain an exact rectangular
+  pairs, certified six-edge L shapes, a strictly separated rectangle/L-shape
+  pair, and isolated Form XObjects. Rectangular pairs keep both components
+  and their gap; L shapes retain an exact rectangular
   corner subtraction. Literal closure, finite axis-aligned edges and cyclic
-  boundary equality are required. General compound compositions remain unsupported.
+  boundary equality are required. The rectangle/L pair retains both the
+  inter-component gap and the corner cutout; their outer bounds must be
+  strictly separated. Each proof is prepaid and each classification/copy is
+  charged to the existing shared clipping work ceiling. Other compound
+  compositions remain unsupported.
   Strict clipping provenance survives graphics saves and matrix changes;
   legacy approximate rectangle matches retain their behavior but cannot
   authorize a new L-shape proof or intersection. All prior constraints must

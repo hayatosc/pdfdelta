@@ -14,6 +14,8 @@ pub(super) enum ClipRegion {
     RectanglePair([Rect; 2]),
     /// Exact rectangular set difference with its excluded corner retained.
     CornerCutout(CornerCutout),
+    /// Two strictly separated components, retaining the corner and the gap.
+    SeparatedCutout(Arc<SeparatedCutout>),
     Convex(Arc<ConvexClip>),
     Empty,
     Unsupported(Arc<str>),
@@ -32,6 +34,72 @@ pub(super) struct ConvexClip {
 pub(super) struct CornerCutout {
     bounds: Rect,
     removed: Rect,
+}
+
+/// A rectangle and a certified L boundary whose outer bounds are strictly
+/// separated. Both fill rules therefore agree regardless of winding.
+/// The fixed allocation keeps the graphics-state enum payload unchanged.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SeparatedCutout {
+    rectangle: Rect,
+    corner: CornerCutout,
+}
+
+impl SeparatedCutout {
+    /// Prepaid bound for the L proof, separation and fixed allocation/copy.
+    /// The caller also retains the ordinary compound-path proof charge.
+    pub(super) const PROOF_WORK: usize = CornerCutout::PROOF_WORK + 128;
+
+    pub(super) fn new(rectangle: Rect, corner: CornerCutout) -> Option<Self> {
+        ([
+            rectangle.min.x,
+            rectangle.min.y,
+            rectangle.max.x,
+            rectangle.max.y,
+        ]
+        .into_iter()
+        .all(f64::is_finite)
+            && !empty(rectangle)
+            && separated(rectangle, corner.bounds))
+        .then_some(Self { rectangle, corner })
+    }
+
+    fn intersect_rectangle(self, crop: Rect) -> ClipRegion {
+        let rectangle = intersection(self.rectangle, crop);
+        let corner = self.corner.intersect_rectangle(crop);
+        if empty(rectangle) {
+            return corner;
+        }
+        match corner {
+            ClipRegion::Empty => ClipRegion::Rectangle(rectangle),
+            ClipRegion::Rectangle(other) => rectangle_pair([rectangle, other]),
+            ClipRegion::CornerCutout(corner) => {
+                ClipRegion::SeparatedCutout(Arc::new(Self { rectangle, corner }))
+            }
+            // Corner/rectangle intersection has no other result. Retain
+            // uncertainty if its contract is ever extended.
+            _ => ClipRegion::Unsupported("uncertified separated corner intersection".into()),
+        }
+    }
+
+    fn glyph_status(self, glyph: Rect) -> Result<GlyphPathClipStatus> {
+        let a = rectangle_status(glyph, self.rectangle);
+        let b = self.corner.glyph_status(glyph)?;
+        Ok(if [a, b].contains(&GlyphPathClipStatus::Inside) {
+            GlyphPathClipStatus::Inside
+        } else if a == GlyphPathClipStatus::Outside && b == GlyphPathClipStatus::Outside {
+            GlyphPathClipStatus::Outside
+        } else {
+            // A connected box meeting both strictly separated outer bounds
+            // also crosses positive excluded area between the components.
+            GlyphPathClipStatus::PartiallyOutside
+        })
+    }
+
+    fn segment_is_visible(self, segment: PathSegment) -> bool {
+        (inside(segment.from, self.rectangle) && inside(segment.to, self.rectangle))
+            || self.corner.segment_is_visible(segment)
+    }
 }
 
 impl CornerCutout {
@@ -262,6 +330,9 @@ impl ClipRegion {
             // Bounds classification, fixed copying and the conservative
             // four-strip segment proof under the same shared ceiling.
             Self::CornerCutout(_) => 64,
+            // Two classifications, retained constraints and bounded allocation
+            // on rectangular intersection share the existing work ceiling.
+            Self::SeparatedCutout(_) => 192,
             _ => 0,
         }
     }
@@ -287,6 +358,7 @@ impl ClipRegion {
                 rectangle_pair(parts.map(|part| intersection(part, rectangle)))
             }
             Self::CornerCutout(clip) => clip.intersect_rectangle(rectangle),
+            Self::SeparatedCutout(clip) => clip.intersect_rectangle(rectangle),
         }
     }
 
@@ -304,7 +376,10 @@ impl ClipRegion {
                 rectangle_pair(parts.map(|part| intersection(part, *rectangle)))
             }
             Self::Empty | Self::Unsupported(_) => self.clone(),
-            Self::Convex(_) | Self::RectanglePair(_) | Self::CornerCutout(_) => {
+            Self::Convex(_)
+            | Self::RectanglePair(_)
+            | Self::CornerCutout(_)
+            | Self::SeparatedCutout(_) => {
                 self.intersect_unsupported("compound clipping composition is not certified".into())
             }
         }
@@ -317,9 +392,23 @@ impl ClipRegion {
             Self::Unbounded => Self::CornerCutout(clip),
             Self::Rectangle(rectangle) => clip.intersect_rectangle(*rectangle),
             Self::Empty | Self::Unsupported(_) => self.clone(),
-            Self::Convex(_) | Self::RectanglePair(_) | Self::CornerCutout(_) => {
+            Self::Convex(_)
+            | Self::RectanglePair(_)
+            | Self::CornerCutout(_)
+            | Self::SeparatedCutout(_) => {
                 self.intersect_unsupported("concave clipping composition is not certified".into())
             }
+        }
+    }
+
+    /// All previous constraints must remain rectangular; no general union or
+    /// concave composition is inferred from component bounds.
+    pub(super) fn intersect_separated_cutout(&self, clip: SeparatedCutout) -> Self {
+        match self {
+            Self::Unbounded => Self::SeparatedCutout(Arc::new(clip)),
+            Self::Rectangle(rectangle) => clip.intersect_rectangle(*rectangle),
+            Self::Empty | Self::Unsupported(_) => self.clone(),
+            _ => self.intersect_unsupported("separated corner composition is not certified".into()),
         }
     }
 
@@ -328,7 +417,7 @@ impl ClipRegion {
         let (bounds, mut quads) = match self {
             Self::Empty => return Self::Empty,
             Self::Unsupported(_) => return self.clone(),
-            Self::RectanglePair(_) => {
+            Self::RectanglePair(_) | Self::SeparatedCutout(_) => {
                 return self.intersect_unsupported(
                     "convex intersection with compound clipping is not certified".into(),
                 );
@@ -367,6 +456,7 @@ impl ClipRegion {
                 .iter()
                 .any(|rect| inside(segment.from, *rect) && inside(segment.to, *rect)),
             Self::CornerCutout(clip) => clip.segment_is_visible(segment),
+            Self::SeparatedCutout(clip) => clip.segment_is_visible(segment),
             Self::Convex(clip) => [segment.from, segment.to].into_iter().all(|point| {
                 clip.quads
                     .iter()
@@ -400,6 +490,7 @@ impl ClipRegion {
             }
             Self::Convex(clip) => clip.glyph_status(glyph),
             Self::CornerCutout(clip) => clip.glyph_status(glyph),
+            Self::SeparatedCutout(clip) => clip.glyph_status(glyph),
             Self::Unsupported(reason) => Err(Error::Unsupported(reason.to_string())),
         }
     }
@@ -605,6 +696,111 @@ mod tests {
             point(2.0, 4.0),
             point(0.0, 4.0),
         ]
+    }
+
+    #[test]
+    fn separated_cutout_matches_exact_cell_oracle_and_crop_normalization() -> Result<()> {
+        let corner = CornerCutout::from_l_shape(l_points()).expect("exact L");
+        let parts = SeparatedCutout::new(rect(6.0, 0.0, 7.0, 4.0), corner).expect("separated");
+        let clip = ClipRegion::Unbounded.intersect_separated_cutout(parts);
+        assert_eq!(clip.work(), 192);
+        for x0 in -1..8 {
+            for x1 in x0 + 1..=8 {
+                for y0 in -1..5 {
+                    for y1 in y0 + 1..=5 {
+                        let mut included = 0;
+                        for x in x0..x1 {
+                            for y in y0..y1 {
+                                included += i32::from(
+                                    (0..4).contains(&y)
+                                        && (((0..4).contains(&x) && (x < 2 || y < 2)) || x == 6),
+                                );
+                            }
+                        }
+                        let expected = if included == 0 {
+                            GlyphPathClipStatus::Outside
+                        } else if included == (x1 - x0) * (y1 - y0) {
+                            GlyphPathClipStatus::Inside
+                        } else {
+                            GlyphPathClipStatus::PartiallyOutside
+                        };
+                        assert_eq!(
+                            clip.glyph_status(rect(
+                                f64::from(x0),
+                                f64::from(y0),
+                                f64::from(x1),
+                                f64::from(y1)
+                            ))?,
+                            expected
+                        );
+                    }
+                }
+            }
+        }
+        assert!(matches!(
+            clip.intersect_rectangle(rect(5.0, 0.0, 8.0, 4.0)),
+            ClipRegion::Rectangle(_)
+        ));
+        assert!(matches!(
+            clip.intersect_rectangle(rect(-1.0, -1.0, 5.0, 5.0)),
+            ClipRegion::CornerCutout(_)
+        ));
+        assert!(matches!(
+            clip.intersect_rectangle(rect(-1.0, -1.0, 8.0, 1.0)),
+            ClipRegion::RectanglePair(_)
+        ));
+        assert!(matches!(
+            clip.intersect_rectangle(rect(4.5, 0.0, 5.5, 4.0)),
+            ClipRegion::Empty
+        ));
+        assert!(clip.glyph_status(rect(1.0, 1.0, 1.0, 2.0)).is_err());
+        assert!(!clip.segment_is_visible(PathSegment {
+            from: point(1.0, 1.0),
+            to: point(6.5, 1.0)
+        }));
+        assert!(clip.segment_is_visible(PathSegment {
+            from: point(6.2, 1.0),
+            to: point(6.8, 3.0)
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn separated_cutout_retains_prior_constraints_and_rejects_touching_bounds() {
+        let corner = CornerCutout::from_l_shape(l_points()).expect("exact L");
+        for rectangle in [
+            rect(4.0, 0.0, 5.0, 1.0),
+            rect(3.0, 3.0, 5.0, 5.0),
+            rect(5.0, 0.0, 5.0, 1.0),
+            rect(f64::NAN, 8.0, 9.0, 10.0),
+        ] {
+            assert!(SeparatedCutout::new(rectangle, corner).is_none());
+        }
+        let parts = SeparatedCutout::new(rect(6.0, 0.0, 7.0, 4.0), corner).expect("separated");
+        for prior in [
+            ClipRegion::Unbounded.intersect_corner_cutout(corner),
+            ClipRegion::Unbounded
+                .intersect_rectangle_pair([rect(0.0, 0.0, 1.0, 1.0), rect(2.0, 0.0, 3.0, 1.0)]),
+            ClipRegion::Unbounded.intersect_quad(diamond(0.0)),
+        ] {
+            assert!(matches!(
+                prior.intersect_separated_cutout(parts),
+                ClipRegion::Unsupported(_)
+            ));
+        }
+        let clip = ClipRegion::Unbounded.intersect_separated_cutout(parts);
+        assert!(matches!(
+            clip.intersect_corner_cutout(corner),
+            ClipRegion::Unsupported(_)
+        ));
+        assert!(matches!(
+            clip.intersect_quad(diamond(0.0)),
+            ClipRegion::Unsupported(_)
+        ));
+        assert!(matches!(
+            clip.intersect_separated_cutout(parts),
+            ClipRegion::Unsupported(_)
+        ));
     }
 
     #[test]

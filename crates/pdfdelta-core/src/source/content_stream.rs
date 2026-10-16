@@ -30,7 +30,7 @@ use super::{
 };
 
 mod clipping;
-use clipping::{ClipRegion, CornerCutout, Quad};
+use clipping::{ClipRegion, CornerCutout, Quad, SeparatedCutout};
 
 mod paint_bounds;
 use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
@@ -440,27 +440,9 @@ impl CurrentPath {
         if self.has_unsupported_segments || self.drawn_subpaths != 2 || self.segments.len() != 8 {
             return None;
         }
-        let rectangle = |segments: &[PathSegment]| {
-            if !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
-                || segments[3].to != segments[0].from
-                || !segments.iter().all(|segment| {
-                    (segment.from.x == segment.to.x) != (segment.from.y == segment.to.y)
-                })
-            {
-                return None;
-            }
-            let points = [
-                segments[0].from,
-                segments[0].to,
-                segments[1].to,
-                segments[2].to,
-            ];
-            Quad::new(points)?;
-            Some(bounding_rect(points))
-        };
         let parts = [
-            rectangle(&self.segments[..4])?,
-            rectangle(&self.segments[4..])?,
+            Self::strict_rectangle(&self.segments[..4])?,
+            Self::strict_rectangle(&self.segments[4..])?,
         ];
         (parts[0].max.x < parts[1].min.x
             || parts[1].max.x < parts[0].min.x
@@ -469,19 +451,60 @@ impl CurrentPath {
             .then_some(parts)
     }
 
-    fn clipping_corner_cutout(&self) -> Option<CornerCutout> {
-        if self.has_unsupported_segments
-            || self.drawn_subpaths != 1
-            || self.segments.len() != 6
-            || !self
-                .segments
-                .windows(2)
-                .all(|pair| pair[0].to == pair[1].from)
-            || self.segments[5].to != self.segments[0].from
+    fn strict_rectangle(segments: &[PathSegment]) -> Option<Rect> {
+        if segments.len() != 4 {
+            return None;
+        }
+        if !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
+            || segments[3].to != segments[0].from
+            || !segments
+                .iter()
+                .all(|segment| (segment.from.x == segment.to.x) != (segment.from.y == segment.to.y))
         {
             return None;
         }
-        CornerCutout::from_l_shape(std::array::from_fn(|i| self.segments[i].from))
+        let points = [
+            segments[0].from,
+            segments[0].to,
+            segments[1].to,
+            segments[2].to,
+        ];
+        Quad::new(points)?;
+        Some(bounding_rect(points))
+    }
+
+    fn corner_from_segments(segments: &[PathSegment]) -> Option<CornerCutout> {
+        if segments.len() != 6
+            || !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
+            || segments[5].to != segments[0].from
+        {
+            return None;
+        }
+        CornerCutout::from_l_shape(std::array::from_fn(|i| segments[i].from))
+    }
+
+    fn clipping_corner_cutout(&self) -> Option<CornerCutout> {
+        if self.has_unsupported_segments || self.drawn_subpaths != 1 {
+            return None;
+        }
+        Self::corner_from_segments(&self.segments)
+    }
+
+    fn clipping_separated_cutout(&self) -> Option<SeparatedCutout> {
+        if self.has_unsupported_segments || self.drawn_subpaths != 2 || self.segments.len() != 10 {
+            return None;
+        }
+        // At most one six-edge proof: a valid simple L cannot begin with an
+        // independently closed four-edge rectangle. No speculative second
+        // L proof is attempted after a failed first one.
+        if let Some(rectangle) = Self::strict_rectangle(&self.segments[..4]) {
+            SeparatedCutout::new(rectangle, Self::corner_from_segments(&self.segments[4..])?)
+        } else {
+            SeparatedCutout::new(
+                Self::strict_rectangle(&self.segments[6..])?,
+                Self::corner_from_segments(&self.segments[..6])?,
+            )
+        }
     }
 
     fn mark_current_subpath_drawn(&mut self) {
@@ -1267,7 +1290,26 @@ impl Extraction<'_> {
                     // Two fixed-size proofs and their classification/copy cost
                     // share the same document-wide clipping work ceiling.
                     self.charge_convex_clip_work(32)?;
-                    Some(match state.current_path.clipping_rectangle_pair() {
+                    if state.current_path.segments.len() == 10
+                        && state.graphics.clip_certainty == ClipCertainty::Exact
+                        && state.current_path.primitive_certainty == ClipCertainty::Exact
+                        && matches!(
+                            &state.graphics.clip_region,
+                            ClipRegion::Unbounded | ClipRegion::Rectangle(_)
+                        )
+                    {
+                        self.charge_convex_clip_work(SeparatedCutout::PROOF_WORK)?;
+                        Some(match state.current_path.clipping_separated_cutout() {
+                            Some(clip) => {
+                                incoming_certainty = ClipCertainty::Exact;
+                                state.graphics.clip_region.intersect_separated_cutout(clip)
+                            },
+                            None => state.graphics.clip_region.intersect_unsupported(format!(
+                                "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}", operation.index
+                            )),
+                        })
+                    } else {
+                        Some(match state.current_path.clipping_rectangle_pair() {
                         Some(parts) => {
                             incoming_certainty = state.current_path.primitive_certainty;
                             state.graphics.clip_region.intersect_rectangle_pair(parts)
@@ -1276,6 +1318,7 @@ impl Extraction<'_> {
                             "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}", operation.index
                         )),
                     })
+                    }
                 } else if state.current_path.drawn_subpaths == 1
                     && state.current_path.segments.len() == 6
                     && state.graphics.clip_certainty == ClipCertainty::Exact
@@ -2958,8 +3001,10 @@ impl Default for GraphicsState {
 
 impl GraphicsState {
     fn rectangle_clip_update(&self, rectangle: Rect, incoming: ClipCertainty) -> ClipRegion {
-        if matches!(&self.clip_region, ClipRegion::CornerCutout(_))
-            && incoming != ClipCertainty::Exact
+        if matches!(
+            &self.clip_region,
+            ClipRegion::CornerCutout(_) | ClipRegion::SeparatedCutout(_)
+        ) && incoming != ClipCertainty::Exact
         {
             self.clip_region.intersect_unsupported(
                 "rectangular intersection with concave clipping has no strict source certificate"
@@ -3597,6 +3642,41 @@ mod tests {
         assert!(split.clipping_corner_cutout().is_none());
         path.has_unsupported_segments = true;
         assert!(path.clipping_corner_cutout().is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn separated_cutout_path_rejects_open_skewed_extra_and_curved_components() -> Result<()> {
+        let mut path = CurrentPath::default();
+        path.append_rectangle(
+            [
+                Vec2 { x: 6.0, y: 0.0 },
+                Vec2 { x: 7.0, y: 0.0 },
+                Vec2 { x: 7.0, y: 4.0 },
+                Vec2 { x: 6.0, y: 4.0 },
+            ],
+            None,
+            ClipCertainty::Exact,
+        );
+        path.move_to(Vec2 { x: 0.0, y: 0.0 });
+        for (x, y) in [(4.0, 0.0), (4.0, 2.0), (2.0, 2.0), (2.0, 4.0), (0.0, 4.0)] {
+            path.line_to(Vec2 { x, y })?;
+        }
+        path.close()?;
+        assert!(path.clipping_separated_cutout().is_some());
+        for index in [3, 9] {
+            let mut open = path.clone();
+            open.segments[index].to.x = open.segments[index].to.x.next_up();
+            assert!(open.clipping_separated_cutout().is_none());
+        }
+        let mut skewed = path.clone();
+        skewed.segments[1].from.x = skewed.segments[1].from.x.next_up();
+        assert!(skewed.clipping_separated_cutout().is_none());
+        let mut extra = path.clone();
+        extra.drawn_subpaths = 3;
+        assert!(extra.clipping_separated_cutout().is_none());
+        path.has_unsupported_segments = true;
+        assert!(path.clipping_separated_cutout().is_none());
         Ok(())
     }
 
