@@ -30,7 +30,7 @@ use super::{
 };
 
 mod clipping;
-use clipping::{ClipRegion, CornerCutout, Quad, SeparatedCutout};
+use clipping::{ClipRegion, Quad, RectangularCutout, SeparatedCutout};
 
 mod paint_bounds;
 use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
@@ -473,17 +473,17 @@ impl CurrentPath {
         Some(bounding_rect(points))
     }
 
-    fn corner_from_segments(segments: &[PathSegment]) -> Option<CornerCutout> {
+    fn corner_from_segments(segments: &[PathSegment]) -> Option<RectangularCutout> {
         if segments.len() != 6
             || !segments.windows(2).all(|pair| pair[0].to == pair[1].from)
             || segments[5].to != segments[0].from
         {
             return None;
         }
-        CornerCutout::from_l_shape(std::array::from_fn(|i| segments[i].from))
+        RectangularCutout::from_l_shape(std::array::from_fn(|i| segments[i].from))
     }
 
-    fn clipping_corner_cutout(&self) -> Option<CornerCutout> {
+    fn clipping_corner_cutout(&self) -> Option<RectangularCutout> {
         if self.has_unsupported_segments || self.drawn_subpaths != 1 {
             return None;
         }
@@ -505,6 +505,21 @@ impl CurrentPath {
                 Self::corner_from_segments(&self.segments[..6])?,
             )
         }
+    }
+
+    fn clipping_edge_notch(&self) -> Option<RectangularCutout> {
+        if self.has_unsupported_segments
+            || self.drawn_subpaths != 1
+            || self.segments.len() != 8
+            || !self
+                .segments
+                .windows(2)
+                .all(|pair| pair[0].to == pair[1].from)
+            || self.segments[7].to != self.segments[0].from
+        {
+            return None;
+        }
+        RectangularCutout::from_edge_notch(std::array::from_fn(|i| self.segments[i].from))
     }
 
     fn mark_current_subpath_drawn(&mut self) {
@@ -1330,14 +1345,36 @@ impl Extraction<'_> {
                 {
                     // Only these prior regions can use the completed proof.
                     // Other compositions keep the ordinary refusal and fee.
-                    self.charge_convex_clip_work(CornerCutout::PROOF_WORK)?;
+                    self.charge_convex_clip_work(RectangularCutout::PROOF_WORK)?;
                     Some(match state.current_path.clipping_corner_cutout() {
                         Some(clip) => {
                             incoming_certainty = ClipCertainty::Exact;
-                            state.graphics.clip_region.intersect_corner_cutout(clip)
+                            state.graphics.clip_region.intersect_rectangular_cutout(clip)
                         },
                         None => state.graphics.clip_region.intersect_unsupported(format!(
                             "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}", operation.index
+                        )),
+                    })
+                } else if state.current_path.drawn_subpaths == 1
+                    && state.current_path.segments.len() == 8
+                    && state.graphics.clip_certainty == ClipCertainty::Exact
+                    && state.current_path.primitive_certainty == ClipCertainty::Exact
+                    && matches!(
+                        &state.graphics.clip_region,
+                        ClipRegion::Unbounded | ClipRegion::Rectangle(_)
+                    )
+                {
+                    // Retain the ordinary nonrectangular proof charge; the
+                    // new fixed proof shares the same document-wide ceiling.
+                    self.charge_convex_clip_work(16)?;
+                    self.charge_convex_clip_work(RectangularCutout::EDGE_PROOF_WORK)?;
+                    Some(match state.current_path.clipping_edge_notch() {
+                        Some(clip)=>{
+                            incoming_certainty=ClipCertainty::Exact;
+                            state.graphics.clip_region.intersect_rectangular_cutout(clip)
+                        },
+                        None=>state.graphics.clip_region.intersect_unsupported(format!(
+                            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}",operation.index
                         )),
                     })
                 } else {
@@ -3003,7 +3040,7 @@ impl GraphicsState {
     fn rectangle_clip_update(&self, rectangle: Rect, incoming: ClipCertainty) -> ClipRegion {
         if matches!(
             &self.clip_region,
-            ClipRegion::CornerCutout(_) | ClipRegion::SeparatedCutout(_)
+            ClipRegion::RectangularCutout(_) | ClipRegion::SeparatedCutout(_)
         ) && incoming != ClipCertainty::Exact
         {
             self.clip_region.intersect_unsupported(
@@ -3642,6 +3679,34 @@ mod tests {
         assert!(split.clipping_corner_cutout().is_none());
         path.has_unsupported_segments = true;
         assert!(path.clipping_corner_cutout().is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn edge_notch_path_requires_literal_closure_and_one_subpath() -> Result<()> {
+        let mut path = CurrentPath::default();
+        path.move_to(Vec2 { x: 0.0, y: 0.0 });
+        for (x, y) in [
+            (1.0, 0.0),
+            (1.0, 2.0),
+            (3.0, 2.0),
+            (3.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 4.0),
+            (0.0, 4.0),
+        ] {
+            path.line_to(Vec2 { x, y })?;
+        }
+        path.close()?;
+        assert!(path.clipping_edge_notch().is_some());
+        let mut open = path.clone();
+        open.segments[7].to.x = open.segments[7].to.x.next_up();
+        assert!(open.clipping_edge_notch().is_none());
+        let mut split = path.clone();
+        split.drawn_subpaths = 2;
+        assert!(split.clipping_edge_notch().is_none());
+        path.has_unsupported_segments = true;
+        assert!(path.clipping_edge_notch().is_none());
         Ok(())
     }
 

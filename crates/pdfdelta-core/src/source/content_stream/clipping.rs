@@ -12,8 +12,8 @@ pub(super) enum ClipRegion {
     Rectangle(Rect),
     /// Two strictly separated rectangles; the gap remains excluded.
     RectanglePair([Rect; 2]),
-    /// Exact rectangular set difference with its excluded corner retained.
-    CornerCutout(CornerCutout),
+    /// Exact rectangular set difference with its certified cutout retained.
+    RectangularCutout(RectangularCutout),
     /// Two strictly separated components, retaining the corner and the gap.
     SeparatedCutout(Arc<SeparatedCutout>),
     Convex(Arc<ConvexClip>),
@@ -27,11 +27,11 @@ pub(super) struct ConvexClip {
     quads: Vec<Quad>,
 }
 
-/// A rectangular region with a rectangular corner removed. The six-vertex
-/// constructor certifies the boundary; later rectangular intersections retain
-/// the exact set difference, including when it reduces to a strip.
+/// A rectangular region with a certified rectangular cutout removed. Strict
+/// six-vertex corner and eight-vertex edge-notch constructors certify the
+/// boundary. Rectangular intersections retain the exact set difference.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct CornerCutout {
+pub(super) struct RectangularCutout {
     bounds: Rect,
     removed: Rect,
 }
@@ -42,15 +42,15 @@ pub(super) struct CornerCutout {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct SeparatedCutout {
     rectangle: Rect,
-    corner: CornerCutout,
+    corner: RectangularCutout,
 }
 
 impl SeparatedCutout {
     /// Prepaid bound for the L proof, separation and fixed allocation/copy.
     /// The caller also retains the ordinary compound-path proof charge.
-    pub(super) const PROOF_WORK: usize = CornerCutout::PROOF_WORK + 128;
+    pub(super) const PROOF_WORK: usize = RectangularCutout::PROOF_WORK + 128;
 
-    pub(super) fn new(rectangle: Rect, corner: CornerCutout) -> Option<Self> {
+    pub(super) fn new(rectangle: Rect, corner: RectangularCutout) -> Option<Self> {
         ([
             rectangle.min.x,
             rectangle.min.y,
@@ -73,7 +73,7 @@ impl SeparatedCutout {
         match corner {
             ClipRegion::Empty => ClipRegion::Rectangle(rectangle),
             ClipRegion::Rectangle(other) => rectangle_pair([rectangle, other]),
-            ClipRegion::CornerCutout(corner) => {
+            ClipRegion::RectangularCutout(corner) => {
                 ClipRegion::SeparatedCutout(Arc::new(Self { rectangle, corner }))
             }
             // Corner/rectangle intersection has no other result. Retain
@@ -102,12 +102,142 @@ impl SeparatedCutout {
     }
 }
 
-impl CornerCutout {
+impl RectangularCutout {
     /// Prepaid bound for finite/axis tests, extrema, corner membership and all
     /// twelve cyclic boundary comparisons (at most 72 vertex comparisons),
     /// including fixed metadata construction. No candidate-dependent work is
     /// performed before the caller pays this existing clipping-work budget.
     pub(super) const PROOF_WORK: usize = 512;
+
+    /// Includes finite/axis tests, extrema, two interior vertices, optional
+    /// axis transposition, both possible notch sides and all sixteen cyclic
+    /// boundary comparisons per side (at most 256 vertex comparisons), plus
+    /// the caller's literal closure checks and fixed metadata construction.
+    pub(super) const EDGE_PROOF_WORK: usize = 1024;
+
+    /// Certifies one simple eight-edge boundary with a rectangular notch
+    /// strictly inside exactly one outer edge. No epsilon, orientation
+    /// arithmetic or bounding-box replacement certifies the boundary.
+    /// The caller prepays [`Self::EDGE_PROOF_WORK`].
+    pub(super) fn from_edge_notch(mut points: [Vec2; 8]) -> Option<Self> {
+        if !points.iter().all(|p| p.x.is_finite() && p.y.is_finite())
+            || !(0..8).all(|i| {
+                let next = points[(i + 1) % 8];
+                (points[i].x == next.x) != (points[i].y == next.y)
+            })
+        {
+            return None;
+        }
+        let mut bounds = Rect {
+            min: points[0],
+            max: points[0],
+        };
+        for p in &points[1..] {
+            bounds.min.x = bounds.min.x.min(p.x);
+            bounds.min.y = bounds.min.y.min(p.y);
+            bounds.max.x = bounds.max.x.max(p.x);
+            bounds.max.y = bounds.max.y.max(p.y);
+        }
+        let original_bounds = bounds;
+        let mut interiors = [None; 2];
+        let mut count = 0;
+        for p in points {
+            if bounds.min.x < p.x && p.x < bounds.max.x && bounds.min.y < p.y && p.y < bounds.max.y
+            {
+                if count == 2 {
+                    return None;
+                }
+                interiors[count] = Some(p);
+                count += 1;
+            }
+        }
+        let [Some(mut a), Some(mut b)] = interiors else {
+            return None;
+        };
+        fn transpose(p: Vec2) -> Vec2 {
+            Vec2 { x: p.y, y: p.x }
+        }
+        let transposed = if a.y == b.y {
+            false
+        } else if a.x == b.x {
+            true
+        } else {
+            return None;
+        };
+        if transposed {
+            points = points.map(transpose);
+            a = transpose(a);
+            b = transpose(b);
+            bounds = Rect {
+                min: transpose(bounds.min),
+                max: transpose(bounds.max),
+            };
+        }
+        let (left, right) = (a.x.min(b.x), a.x.max(b.x));
+        if left >= right {
+            return None;
+        }
+        for base in [bounds.min.y, bounds.max.y] {
+            let far = if base == bounds.min.y {
+                bounds.max.y
+            } else {
+                bounds.min.y
+            };
+            let expected = [
+                Vec2 {
+                    x: bounds.min.x,
+                    y: base,
+                },
+                Vec2 { x: left, y: base },
+                Vec2 { x: left, y: a.y },
+                Vec2 { x: right, y: a.y },
+                Vec2 { x: right, y: base },
+                Vec2 {
+                    x: bounds.max.x,
+                    y: base,
+                },
+                Vec2 {
+                    x: bounds.max.x,
+                    y: far,
+                },
+                Vec2 {
+                    x: bounds.min.x,
+                    y: far,
+                },
+            ];
+            let matches = [false, true].into_iter().any(|reverse| {
+                (0..8).any(|shift| {
+                    (0..8).all(|i| {
+                        expected[i] == points[(shift + if reverse { 8 - i } else { i }) % 8]
+                    })
+                })
+            });
+            if matches {
+                let removed = Rect {
+                    min: Vec2 {
+                        x: left,
+                        y: base.min(a.y),
+                    },
+                    max: Vec2 {
+                        x: right,
+                        y: base.max(a.y),
+                    },
+                };
+                return Some(Self {
+                    bounds: original_bounds,
+                    removed: if transposed {
+                        Rect {
+                            min: transpose(removed.min),
+                            max: transpose(removed.max),
+                        }
+                    } else {
+                        removed
+                    },
+                });
+            }
+        }
+        None
+    }
 
     /// Certifies a simple finite six-edge axis-aligned boundary in either
     /// winding and at any cyclic start. The caller prepays [`Self::PROOF_WORK`].
@@ -216,7 +346,7 @@ impl CornerCutout {
         if contains(removed, bounds) {
             return ClipRegion::Empty;
         }
-        ClipRegion::CornerCutout(Self { bounds, removed })
+        ClipRegion::RectangularCutout(Self { bounds, removed })
     }
 
     fn glyph_status(self, glyph: Rect) -> Result<GlyphPathClipStatus> {
@@ -329,7 +459,7 @@ impl ClipRegion {
             Self::RectanglePair(_) => 32,
             // Bounds classification, fixed copying and the conservative
             // four-strip segment proof under the same shared ceiling.
-            Self::CornerCutout(_) => 64,
+            Self::RectangularCutout(_) => 64,
             // Two classifications, retained constraints and bounded allocation
             // on rectangular intersection share the existing work ceiling.
             Self::SeparatedCutout(_) => 192,
@@ -357,7 +487,7 @@ impl ClipRegion {
             Self::RectanglePair(parts) => {
                 rectangle_pair(parts.map(|part| intersection(part, rectangle)))
             }
-            Self::CornerCutout(clip) => clip.intersect_rectangle(rectangle),
+            Self::RectangularCutout(clip) => clip.intersect_rectangle(rectangle),
             Self::SeparatedCutout(clip) => clip.intersect_rectangle(rectangle),
         }
     }
@@ -378,7 +508,7 @@ impl ClipRegion {
             Self::Empty | Self::Unsupported(_) => self.clone(),
             Self::Convex(_)
             | Self::RectanglePair(_)
-            | Self::CornerCutout(_)
+            | Self::RectangularCutout(_)
             | Self::SeparatedCutout(_) => {
                 self.intersect_unsupported("compound clipping composition is not certified".into())
             }
@@ -387,14 +517,14 @@ impl ClipRegion {
 
     /// Retains the certified subtraction under a rectangular prior clip;
     /// other compositions remain uncertain rather than dropping constraints.
-    pub(super) fn intersect_corner_cutout(&self, clip: CornerCutout) -> Self {
+    pub(super) fn intersect_rectangular_cutout(&self, clip: RectangularCutout) -> Self {
         match self {
-            Self::Unbounded => Self::CornerCutout(clip),
+            Self::Unbounded => Self::RectangularCutout(clip),
             Self::Rectangle(rectangle) => clip.intersect_rectangle(*rectangle),
             Self::Empty | Self::Unsupported(_) => self.clone(),
             Self::Convex(_)
             | Self::RectanglePair(_)
-            | Self::CornerCutout(_)
+            | Self::RectangularCutout(_)
             | Self::SeparatedCutout(_) => {
                 self.intersect_unsupported("concave clipping composition is not certified".into())
             }
@@ -422,7 +552,7 @@ impl ClipRegion {
                     "convex intersection with compound clipping is not certified".into(),
                 );
             }
-            Self::CornerCutout(_) => {
+            Self::RectangularCutout(_) => {
                 return self.intersect_unsupported(
                     "convex intersection with concave clipping is not certified".into(),
                 );
@@ -455,7 +585,7 @@ impl ClipRegion {
             Self::RectanglePair(parts) => parts
                 .iter()
                 .any(|rect| inside(segment.from, *rect) && inside(segment.to, *rect)),
-            Self::CornerCutout(clip) => clip.segment_is_visible(segment),
+            Self::RectangularCutout(clip) => clip.segment_is_visible(segment),
             Self::SeparatedCutout(clip) => clip.segment_is_visible(segment),
             Self::Convex(clip) => [segment.from, segment.to].into_iter().all(|point| {
                 clip.quads
@@ -489,7 +619,7 @@ impl ClipRegion {
                 })
             }
             Self::Convex(clip) => clip.glyph_status(glyph),
-            Self::CornerCutout(clip) => clip.glyph_status(glyph),
+            Self::RectangularCutout(clip) => clip.glyph_status(glyph),
             Self::SeparatedCutout(clip) => clip.glyph_status(glyph),
             Self::Unsupported(reason) => Err(Error::Unsupported(reason.to_string())),
         }
@@ -698,9 +828,138 @@ mod tests {
         ]
     }
 
+    fn notch_points() -> [Vec2; 8] {
+        [
+            point(0.0, 0.0),
+            point(1.0, 0.0),
+            point(1.0, 2.0),
+            point(3.0, 2.0),
+            point(3.0, 0.0),
+            point(4.0, 0.0),
+            point(4.0, 4.0),
+            point(0.0, 4.0),
+        ]
+    }
+
+    #[test]
+    fn edge_notch_constructor_requires_exact_boundary_in_every_orientation() {
+        for axis in 0..4 {
+            let points = notch_points().map(|p| match axis {
+                0 => p,
+                1 => point(p.x, -p.y),
+                2 => point(p.y, p.x),
+                _ => point(-p.y, p.x),
+            });
+            for shift in 0..8 {
+                for reverse in [false, true] {
+                    let cyclic = std::array::from_fn(|i| {
+                        points[(shift + if reverse { 8 - i } else { i }) % 8]
+                    });
+                    assert!(RectangularCutout::from_edge_notch(cyclic).is_some());
+                }
+            }
+        }
+        let mut skewed = notch_points();
+        skewed[1].y = skewed[1].y.next_up();
+        assert!(RectangularCutout::from_edge_notch(skewed).is_none());
+        let mut crossed = notch_points();
+        crossed.swap(2, 6);
+        assert!(RectangularCutout::from_edge_notch(crossed).is_none());
+        let mut duplicate = notch_points();
+        duplicate[2] = duplicate[3];
+        assert!(RectangularCutout::from_edge_notch(duplicate).is_none());
+        let mut nonfinite = notch_points();
+        nonfinite[0].x = f64::NAN;
+        assert!(RectangularCutout::from_edge_notch(nonfinite).is_none());
+    }
+
+    #[test]
+    fn edge_notch_matches_exact_cell_oracle_and_rectangular_crops() -> Result<()> {
+        let notch = RectangularCutout::from_edge_notch(notch_points()).expect("certified notch");
+        let clip = ClipRegion::Unbounded.intersect_rectangular_cutout(notch);
+        assert_eq!(clip.work(), 64);
+        for x0 in -1..5 {
+            for x1 in x0 + 1..=5 {
+                for y0 in -1..5 {
+                    for y1 in y0 + 1..=5 {
+                        let mut count = 0;
+                        for x in x0..x1 {
+                            for y in y0..y1 {
+                                count += i32::from(
+                                    (0..4).contains(&x)
+                                        && (0..4).contains(&y)
+                                        && (y >= 2 || !(1..3).contains(&x)),
+                                );
+                            }
+                        }
+                        let expected = if count == 0 {
+                            GlyphPathClipStatus::Outside
+                        } else if count == (x1 - x0) * (y1 - y0) {
+                            GlyphPathClipStatus::Inside
+                        } else {
+                            GlyphPathClipStatus::PartiallyOutside
+                        };
+                        assert_eq!(
+                            clip.glyph_status(rect(
+                                f64::from(x0),
+                                f64::from(y0),
+                                f64::from(x1),
+                                f64::from(y1)
+                            ))?,
+                            expected
+                        );
+                    }
+                }
+            }
+        }
+        assert!(matches!(
+            clip.intersect_rectangle(rect(1.1, 0.1, 2.9, 1.9)),
+            ClipRegion::Empty
+        ));
+        assert!(matches!(
+            clip.intersect_rectangle(rect(0.0, 2.5, 4.0, 4.0)),
+            ClipRegion::Rectangle(_)
+        ));
+        let strip = clip.intersect_rectangle(rect(1.5, 0.0, 2.5, 3.0));
+        assert_eq!(
+            strip.glyph_status(rect(1.6, 2.1, 2.4, 2.9))?,
+            GlyphPathClipStatus::Inside
+        );
+        assert_eq!(
+            strip.glyph_status(rect(1.6, 0.1, 2.4, 1.9))?,
+            GlyphPathClipStatus::Outside
+        );
+        assert!(clip.glyph_status(rect(1.0, 1.0, 1.0, 2.0)).is_err());
+        assert!(!clip.segment_is_visible(PathSegment {
+            from: point(0.5, 1.0),
+            to: point(3.5, 1.0)
+        }));
+        // Retain the existing conservative cross-strip refusal even where
+        // the complete segment happens to lie in the retained set.
+        assert!(!clip.segment_is_visible(PathSegment {
+            from: point(0.5, 3.0),
+            to: point(3.5, 3.0)
+        }));
+        assert!(clip.segment_is_visible(PathSegment {
+            from: point(1.2, 3.0),
+            to: point(2.8, 3.0)
+        }));
+        assert!(matches!(
+            clip.intersect_rectangular_cutout(notch),
+            ClipRegion::Unsupported(_)
+        ));
+        assert!(matches!(
+            ClipRegion::Unbounded
+                .intersect_quad(diamond(0.0))
+                .intersect_rectangular_cutout(notch),
+            ClipRegion::Unsupported(_)
+        ));
+        Ok(())
+    }
+
     #[test]
     fn separated_cutout_matches_exact_cell_oracle_and_crop_normalization() -> Result<()> {
-        let corner = CornerCutout::from_l_shape(l_points()).expect("exact L");
+        let corner = RectangularCutout::from_l_shape(l_points()).expect("exact L");
         let parts = SeparatedCutout::new(rect(6.0, 0.0, 7.0, 4.0), corner).expect("separated");
         let clip = ClipRegion::Unbounded.intersect_separated_cutout(parts);
         assert_eq!(clip.work(), 192);
@@ -743,7 +1002,7 @@ mod tests {
         ));
         assert!(matches!(
             clip.intersect_rectangle(rect(-1.0, -1.0, 5.0, 5.0)),
-            ClipRegion::CornerCutout(_)
+            ClipRegion::RectangularCutout(_)
         ));
         assert!(matches!(
             clip.intersect_rectangle(rect(-1.0, -1.0, 8.0, 1.0)),
@@ -767,7 +1026,7 @@ mod tests {
 
     #[test]
     fn separated_cutout_retains_prior_constraints_and_rejects_touching_bounds() {
-        let corner = CornerCutout::from_l_shape(l_points()).expect("exact L");
+        let corner = RectangularCutout::from_l_shape(l_points()).expect("exact L");
         for rectangle in [
             rect(4.0, 0.0, 5.0, 1.0),
             rect(3.0, 3.0, 5.0, 5.0),
@@ -778,7 +1037,7 @@ mod tests {
         }
         let parts = SeparatedCutout::new(rect(6.0, 0.0, 7.0, 4.0), corner).expect("separated");
         for prior in [
-            ClipRegion::Unbounded.intersect_corner_cutout(corner),
+            ClipRegion::Unbounded.intersect_rectangular_cutout(corner),
             ClipRegion::Unbounded
                 .intersect_rectangle_pair([rect(0.0, 0.0, 1.0, 1.0), rect(2.0, 0.0, 3.0, 1.0)]),
             ClipRegion::Unbounded.intersect_quad(diamond(0.0)),
@@ -790,7 +1049,7 @@ mod tests {
         }
         let clip = ClipRegion::Unbounded.intersect_separated_cutout(parts);
         assert!(matches!(
-            clip.intersect_corner_cutout(corner),
+            clip.intersect_rectangular_cutout(corner),
             ClipRegion::Unsupported(_)
         ));
         assert!(matches!(
@@ -805,8 +1064,8 @@ mod tests {
 
     #[test]
     fn corner_cutout_matches_an_independent_exact_cell_oracle() -> Result<()> {
-        let shape = CornerCutout::from_l_shape(l_points()).expect("exact L");
-        let clip = ClipRegion::Unbounded.intersect_corner_cutout(shape);
+        let shape = RectangularCutout::from_l_shape(l_points()).expect("exact L");
+        let clip = ClipRegion::Unbounded.intersect_rectangular_cutout(shape);
         assert_eq!(clip.work(), 64);
         for x0 in -1..5 {
             for x1 in x0 + 1..=5 {
@@ -876,7 +1135,7 @@ mod tests {
             ClipRegion::Unsupported(_)
         ));
         assert!(matches!(
-            clip.intersect_corner_cutout(shape),
+            clip.intersect_rectangular_cutout(shape),
             ClipRegion::Unsupported(_)
         ));
         Ok(())
@@ -897,25 +1156,25 @@ mod tests {
                         let ordered = std::array::from_fn(|i| {
                             points[(shift + if reverse { 6 - i } else { i }) % 6]
                         });
-                        assert!(CornerCutout::from_l_shape(ordered).is_some());
+                        assert!(RectangularCutout::from_l_shape(ordered).is_some());
                     }
                 }
             }
         }
         let mut skewed = l_points();
         skewed[2].x = skewed[2].x.next_up();
-        assert!(CornerCutout::from_l_shape(skewed).is_none());
+        assert!(RectangularCutout::from_l_shape(skewed).is_none());
         let mut duplicate = l_points();
         duplicate[4] = duplicate[3];
-        assert!(CornerCutout::from_l_shape(duplicate).is_none());
+        assert!(RectangularCutout::from_l_shape(duplicate).is_none());
         let mut crossed = l_points();
         crossed.swap(1, 4);
-        assert!(CornerCutout::from_l_shape(crossed).is_none());
+        assert!(RectangularCutout::from_l_shape(crossed).is_none());
         let mut nonfinite = l_points();
         nonfinite[0].x = f64::INFINITY;
-        assert!(CornerCutout::from_l_shape(nonfinite).is_none());
+        assert!(RectangularCutout::from_l_shape(nonfinite).is_none());
         assert!(
-            CornerCutout::from_l_shape([
+            RectangularCutout::from_l_shape([
                 point(0.0, 0.0),
                 point(2.0, 0.0),
                 point(4.0, 0.0),

@@ -88,12 +88,15 @@ ambiguous positions. The containing coarse proof still prevents completion.
   order.
 - Supported clips include rectangles, certified convex quadrilaterals, and
   two explicitly closed, strictly separated axis-aligned rectangles, or a
-  certified six-edge axis-aligned L shape under an unbounded or strictly witnessed
+  certified six-edge axis-aligned L shape or eight-edge single-side rectangular
+  notch under an unbounded or strictly witnessed
   rectangular prior clip. A single rectangle and L shape may also form a pair
   when their outer bounds are strictly separated. Approximate prior rectangles
   retain uncertainty for these new proofs.
-  The rectangles retain their excluded gap and the L shape retains its corner
-  cutout under either fill rule. Further L-shape intersections require strict
+  The rectangles retain their excluded gap; edge notches retain their full
+  rectangular cutout and the L shape retains its corner
+  cutout under either fill rule. Further L-shape and edge-notch intersections
+  require strict
   rectangle witnesses. Further rectangle/L-pair intersections also require
   strict rectangle witnesses; general L-shape intersections with convex or
   compound regions

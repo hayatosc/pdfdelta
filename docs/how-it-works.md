@@ -87,18 +87,20 @@ partial table as a proof.
 - Bounded content-stream extraction of text and straight-path operators,
   normalized page boxes, CropBox classification, axis-aligned rectangular
   clipping, certified convex quadrilaterals, strictly separated rectangular
-  pairs, certified six-edge L shapes, a strictly separated rectangle/L-shape
+  pairs, certified six-edge L shapes, eight-edge single-side rectangular notches,
+  a strictly separated rectangle/L-shape
   pair, and isolated Form XObjects. Rectangular pairs keep both components
   and their gap; L shapes retain an exact rectangular
-  corner subtraction. Literal closure, finite axis-aligned edges and cyclic
-  boundary equality are required. The rectangle/L pair retains both the
+  corner subtraction; edge notches retain their entire side cutout. Literal closure, finite axis-aligned edges and cyclic
+  boundary equality are required. Eight-edge proofs try both side placements
+  after exact axis transposition, under a fixed prepaid work bound. The rectangle/L pair retains both the
   inter-component gap and the corner cutout; their outer bounds must be
   strictly separated. Each proof is prepaid and each classification/copy is
   charged to the existing shared clipping work ceiling. Other compound
   compositions remain unsupported.
   Strict clipping provenance survives graphics saves and matrix changes;
   legacy approximate rectangle matches retain their behavior but cannot
-  authorize a new L-shape proof or intersection. All prior constraints must
+  authorize a new concave proof or intersection. All prior constraints must
   carry the strict witness. Existing operation fees are retained; new proofs
   and per-glyph classification use the existing shared clipping work ceiling.
 - Fonts: Type 1 / Type1C / MMType1, TrueType, axis-aligned Type 3, and Type 0

@@ -898,6 +898,115 @@ fn corner_cutout_form_bbox_certificate_survives_ctm_changes() -> Result<()> {
 }
 
 #[test]
+fn edge_notch_clips_retain_notch_glyphs_and_graphics_restoration() -> Result<()> {
+    for path in [
+        "20 20 m 40 20 l 40 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l",
+        "20 20 m 20 100 l 100 100 l 100 20 l 80 20 l 80 60 l 40 60 l 40 20 l 20 20 l",
+    ] {
+        for rule in ["W", "W*"] {
+            let mut pdf = LopdfDocument::with_version("1.7");
+            let font = base_font(&mut pdf);
+            let content=pdf.add_object(Stream::new(dictionary!{},format!("q {path} {rule} n BT /F1 10 Tf 1 0 0 1 30 40 Tm (A) Tj 1 0 0 1 60 40 Tm (N) Tj 1 0 0 1 85 40 Tm (B) Tj 1 0 0 1 60 80 Tm (T) Tj ET Q BT /F1 10 Tf 1 0 0 1 60 40 Tm (C) Tj ET").into_bytes()));
+            install_page(
+                &mut pdf,
+                content.into(),
+                Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+                None,
+                None,
+            );
+            let out = extract_outcome(pdf, ExtractionLimits::default())?;
+            assert!(out.is_complete());
+            let glyphs = out.document().items();
+            assert_eq!(mapped_text(glyphs), "ANBTC");
+            assert_eq!(
+                glyphs
+                    .iter()
+                    .map(|g| g.path_clip_status)
+                    .collect::<Vec<_>>(),
+                [
+                    GlyphPathClipStatus::Inside,
+                    GlyphPathClipStatus::Outside,
+                    GlyphPathClipStatus::Inside,
+                    GlyphPathClipStatus::Inside,
+                    GlyphPathClipStatus::Unclipped
+                ]
+            );
+            assert_eq!(glyphs[1].raw_code, b"N");
+            assert_eq!(glyphs[1].provenance.content_stream.object_number, content.0);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn edge_notch_proof_and_classification_use_existing_shared_work_ceiling() {
+    for cap in [1039, 1080] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content=pdf.add_object(Stream::new(dictionary!{},b"20 20 m 40 20 l 40 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l W n BT /F1 10 Tf 30 40 Td (A) Tj ET".to_vec()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        assert!(
+            matches!(extract(pdf,ExtractionLimits{max_operators:cap,..ExtractionLimits::default()}),Err(Error::LimitExceeded{resource:"convex clipping work",limit}) if limit==cap)
+        );
+    }
+}
+
+#[test]
+fn edge_notch_never_recertifies_approximate_prior_or_post_constraints() -> Result<()> {
+    let shape = "20 20 m 40 20 l 40 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l W n";
+    for (prefix, suffix, cap, complete) in [
+        (
+            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n 1 -0.00000000000000001 0 1 0 0 cm",
+            "",
+            100,
+            false,
+        ),
+        (
+            "",
+            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n",
+            10000,
+            false,
+        ),
+        ("20 20 m 20 100 100 100 100 20 c h W n", "", 100, false),
+        ("0 0 300 300 re W n", "", 10000, true),
+        ("", "0 0 39 150 re W n", 10000, true),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{prefix} {shape} {suffix} BT /F1 10 Tf 30 40 Td (A) Tj ET").into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: cap,
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert_eq!(out.is_complete(), complete);
+        if !complete {
+            assert_eq!(out.issues().len(), 1);
+            assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn separated_cutout_clips_keep_gap_notch_evidence_and_graphics_restore() -> Result<()> {
     let corner = "20 20 m 100 20 l 100 50 l 60 50 l 60 100 l 20 100 l 20 20 l";
     for rectangle in [
