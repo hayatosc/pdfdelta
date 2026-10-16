@@ -968,7 +968,7 @@ fn orthogonal_cells_keep_unaffordable_proofs_and_uncertified_sources_unsupported
         ),
         (
             "",
-            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n",
+            "BT ET 1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n",
             100_000,
         ),
     ] {
@@ -7910,5 +7910,28 @@ fn curve_witness_does_not_certify_paths_with_source_split_between_streams() -> R
             .iter()
             .any(|i| i.kind() == ExtractionIssueKind::Unsupported)
     );
+    Ok(())
+}
+
+#[test]
+fn curve_witness_passive_masks_leave_budget_for_existing_convex_proofs() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let passive = "q 40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n Q ".repeat(1000);
+    let convex = "40 80 m 100 20 l 160 80 l 100 140 l h W n ".repeat(64);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        format!("{passive}{convex} BT /F1 10 Tf 80 80 Td (A) Tj ET").into_bytes(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete(), "{:?}", outcome.issues());
+    assert_eq!(mapped_text(outcome.document().items()), "A");
     Ok(())
 }

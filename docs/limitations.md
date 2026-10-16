@@ -111,7 +111,12 @@ ambiguous positions. The containing coarse proof still prevents completion.
   witness chain. All predecessor paths are retained; subsequent rectangles need
   strict source witnesses. Integer overflow, missing opposite point witnesses,
   source spans crossing streams, intervening context changes, open subpaths,
-  uncertified priors and unaffordable preparation remain unsupported. Equal probe
+  uncertified priors and unaffordable preparation remain unsupported. Preparation
+  additionally requires a text-object or text-show operator within the next 16
+  typed operations, preceded only by path/clip operations; the metered admission
+  hint can conservatively refuse other contexts. Validation and the maximum
+  hint cost must be affordable before inspection; earlier hint work is never
+  refunded. Equal probe
   values never prove an entire box inside or outside. Subdivision and source
   chains are explicitly bounded; all source capacities, potential edges and query
   work share the existing clipping ceiling. Active exhaustion is still an error.

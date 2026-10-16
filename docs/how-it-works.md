@@ -117,7 +117,14 @@ partial table as a proof.
   actual operand/operator capacities, copied headers and every potential output
   edge, including four edges for each rectangle. Finite canonical coordinates,
   literal closure and strict primitive/prior provenance are checked before a
-  source becomes a constraint. Later pure path constraints keep their complete
+  source becomes a constraint. Admission first checks at most 16 following typed
+  operators for a local text-object or text-show operation, with only path/clip
+  operators before it. Every inspected operator costs 16 units of the same shared
+  clipping-work budget, including unsuccessful checks. Source validation plus
+  the maximum admission cost must be affordable before any hint inspection.
+  This bounded demand hint
+  can refuse broader contexts and never certifies geometry or visibility.
+  Later pure path constraints keep their complete
   predecessor chain; strict rectangular crops remain local to the graphics state.
   Only clones of that same source owner share prepared geometry.
   For a query point, a control hull that avoids it permits a chord homotopy that

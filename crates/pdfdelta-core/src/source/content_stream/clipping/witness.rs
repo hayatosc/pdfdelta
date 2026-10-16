@@ -13,6 +13,36 @@ use std::sync::Arc;
 type P = [f64; 2];
 type I = [i128; 2];
 const DEPTH: u32 = 3;
+const DEMAND_OPERATORS: usize = 16;
+const DEMAND_OPERATOR_WORK: usize = 16;
+pub(in crate::source::content_stream) const MAX_DEMAND_WORK: usize =
+    DEMAND_OPERATORS * DEMAND_OPERATOR_WORK;
+
+/// Admits optional preparation only near a local text operation. This is a
+/// bounded, metered demand hint, never a geometry or text-visibility proof.
+/// Every inspected typed operator is paid before examination; an unaffordable
+/// next inspection preserves refusal without refunding earlier inspections.
+pub(in crate::source::content_stream) fn near_text_demand(
+    operations: &[Operation],
+    used: &mut usize,
+    limit: usize,
+) -> bool {
+    for operation in operations.iter().take(DEMAND_OPERATORS) {
+        let Some(total) = used
+            .checked_add(DEMAND_OPERATOR_WORK)
+            .filter(|&total| total <= limit)
+        else {
+            return false;
+        };
+        *used = total;
+        match operation.operator.as_slice() {
+            b"BT" | b"Tj" | b"TJ" | b"'" | b"\"" => return true,
+            b"m" | b"l" | b"c" | b"v" | b"y" | b"h" | b"re" | b"W" | b"W*" | b"n" => {}
+            _ => return false,
+        }
+    }
+    false
+}
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Edge {
     Line(P, P),
@@ -737,6 +767,44 @@ impl PathWitness {
 mod tests {
     use super::*;
     use crate::pdf::content::{ContentBudget, ContentLimits, ContentParser};
+
+    #[test]
+    fn curve_witness_demand_hint_is_bounded_metered_and_context_local() {
+        let ops = |names: &[&[u8]]| {
+            names
+                .iter()
+                .map(|name| Operation {
+                    operator: name.to_vec(),
+                    operands: Vec::new(),
+                    index: 0,
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut used = 123;
+        let prefix = ops(&[b"m", b"BT"]);
+        assert!(!near_text_demand(&prefix, &mut used, 154));
+        assert_eq!(used, 139);
+        used = 123;
+        assert!(near_text_demand(&prefix, &mut used, 155));
+        assert_eq!(used, 155);
+        for barrier in [b"Q".as_slice(), b"q", b"cm", b"Do", b"scn"] {
+            used = 0;
+            assert!(!near_text_demand(&ops(&[barrier, b"BT"]), &mut used, 5000));
+            assert_eq!(used, 16);
+        }
+        let mut distant = ops(&[b"m".as_slice(); 16]);
+        distant.extend(ops(&[b"BT"]));
+        used = 0;
+        assert!(!near_text_demand(&distant, &mut used, 5000));
+        assert_eq!(used, 256);
+        used = 0;
+        assert!(near_text_demand(
+            &ops(&[b"m", b"l", b"h", b"W*", b"n", b"BT"]),
+            &mut used,
+            5000
+        ));
+        assert_eq!(used, 96);
+    }
     fn source(bytes: &[u8]) -> Option<FrozenPath> {
         let mut parser = ContentParser::with_budgets(
             ContentLimits::default(),

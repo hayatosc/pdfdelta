@@ -6,7 +6,9 @@ use std::{cmp::Ordering, sync::Arc};
 mod orthogonal;
 mod witness;
 pub(super) use orthogonal::{OrthogonalGrid, PendingOrthogonal};
-pub(super) use witness::{FrozenPath, PathWitness, SourceOrigin};
+pub(super) use witness::{
+    FrozenPath, MAX_DEMAND_WORK, PathWitness, SourceOrigin, near_text_demand,
+};
 
 use super::{Error, GlyphPathClipStatus, PathSegment, Rect, Result, Vec2, bounding_rect};
 

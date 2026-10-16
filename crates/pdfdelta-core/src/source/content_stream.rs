@@ -31,8 +31,8 @@ use super::{
 
 mod clipping;
 use clipping::{
-    ClipRegion, FrozenPath, OrthogonalGrid, PathWitness, PendingOrthogonal, Quad,
-    RectangularCutout, SeparatedCutout, SourceOrigin,
+    ClipRegion, FrozenPath, MAX_DEMAND_WORK, OrthogonalGrid, PathWitness, PendingOrthogonal, Quad,
+    RectangularCutout, SeparatedCutout, SourceOrigin, near_text_demand,
 };
 
 mod paint_bounds;
@@ -789,6 +789,18 @@ impl<'a> Extraction<'a> {
                     _ => false,
                 }
                 && let Some((first, ctm)) = run
+                // Do not spend on a demand hint when even source validation
+                // cannot start. Preserve the ordinary low-budget refusal.
+                && FrozenPath::validation_work(index - first)
+                    .and_then(|work| work.checked_add(MAX_DEMAND_WORK))
+                    .is_some_and(|work| {
+                        work <= self.limits.max_operators.saturating_sub(self.convex_clip_work)
+                    })
+                && near_text_demand(
+                    &operations[index + 1..],
+                    &mut self.convex_clip_work,
+                    self.limits.max_operators,
+                )
             {
                 let origin = SourceOrigin {
                     stream,
