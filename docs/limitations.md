@@ -87,10 +87,15 @@ ambiguous positions. The containing coarse proof still prevents completion.
   preserve every glyph but report the affected window as unresolved reading
   order.
 - Supported clips include rectangles, certified convex quadrilaterals, and
-  two explicitly closed, strictly separated axis-aligned rectangles under a
-  rectangular prior clip. The two rectangles retain their excluded gap under
-  either fill rule. Other compound paths and their general compositions, curved
-  clipping paths, transparency, colors, and occlusion by later paint remain
+  two explicitly closed, strictly separated axis-aligned rectangles, or a
+  certified six-edge axis-aligned L shape under an unbounded or strictly witnessed
+  rectangular prior clip. Approximate prior rectangles retain uncertainty for
+  this new proof.
+  The rectangles retain their excluded gap and the L shape retains its corner
+  cutout under either fill rule. Further L-shape intersections require strict
+  rectangle witnesses. L-shape intersections with convex or compound regions
+  remain unsupported. Other compound or curved clipping paths, transparency,
+  colors, and occlusion by later paint remain
   unsupported. Glyphs fully outside the CropBox or a supported clip are excluded
   from comparison; uncertain clipping preserves an extraction issue.
 

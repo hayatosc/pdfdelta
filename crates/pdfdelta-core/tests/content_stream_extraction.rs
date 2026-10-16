@@ -812,6 +812,176 @@ fn recognizes_single_line_built_rectangular_clips() -> Result<()> {
 }
 
 #[test]
+fn corner_cutout_cannot_borrow_an_approximate_prior_after_ctm_reset() -> Result<()> {
+    let uncertain =
+        "1 0 0.00000000000000001 1 0 0 cm 0 0 200 200 re W n 1 0 -0.00000000000000001 1 0 0 cm";
+    let l = "20 20 m 100 20 l 100 50 l 60 50 l 60 100 l 20 100 l 20 20 l W n";
+    let post_uncertain = format!("{l} {uncertain}");
+    let post_exact = format!("{l} 0 0 200 200 re W n");
+    let post_line = format!("{l} 0 0 m 200 0 l 200 200 l 0 200 l 0 0 l W n");
+    for (prefix, shape, complete, cap) in [
+        (uncertain, "", true, 100),
+        (uncertain, l, false, 100),
+        ("0 0 200 200 re W n", l, true, 10000),
+        (post_uncertain.as_str(), "", false, 10000),
+        (post_exact.as_str(), "", true, 10000),
+        (post_line.as_str(), "", true, 10000),
+        (
+            "q 1 0 0.00000000000000001 1 0 0 cm 0 0 200 200 re W n Q",
+            l,
+            true,
+            10000,
+        ),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{prefix} {shape} BT /F1 10 Tf 30 70 Td (A) Tj ET").into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: cap,
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert_eq!(out.is_complete(), complete);
+        if complete {
+            assert_eq!(mapped_text(out.document().items()), "A");
+        } else {
+            assert_eq!(out.issues().len(), 1);
+            assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn corner_cutout_form_bbox_certificate_survives_ctm_changes() -> Result<()> {
+    for shear in [0.0, 1e-17] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let data = format!(
+            "1 0 {} 1 0 0 cm 20 20 m 100 20 l 100 50 l 60 50 l 60 100 l 20 100 l 20 20 l W n BT /F1 10 Tf 30 70 Td (A) Tj ET",
+            -shear
+        );
+        let form=pdf.add_object(Stream::new(dictionary!{"Type"=>"XObject","Subtype"=>"Form","BBox"=>vec![0.into(),0.into(),200.into(),200.into()],"Matrix"=>vec![1.into(),0.into(),Object::Real(shear),1.into(),0.into(),0.into()],"Resources"=>dictionary!{"Font"=>dictionary!{"F1"=>font}}},data.into_bytes()));
+        let content = pdf.add_object(Stream::new(dictionary! {}, b"/Fm Do".to_vec()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"XObject"=>dictionary!{"Fm"=>form}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: if shear == 0.0 { 10000 } else { 100 },
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert_eq!(out.is_complete(), shear == 0.0);
+        if shear != 0.0 {
+            assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn corner_cutout_clips_keep_the_notch_and_restore_graphics_state() -> Result<()> {
+    for rule in ["W", "W*"] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content=pdf.add_object(Stream::new(dictionary!{},format!("q 20 20 m 100 20 l 100 50 l 60 50 l 60 100 l 20 100 l 20 20 l {rule} n BT /F1 10 Tf 1 0 0 1 30 70 Tm (A) Tj 1 0 0 1 75 70 Tm (N) Tj 1 0 0 1 75 30 Tm (B) Tj ET Q BT /F1 10 Tf 1 0 0 1 75 70 Tm (C) Tj ET").into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(out.is_complete());
+        let glyphs = out.document().items();
+        assert_eq!(mapped_text(glyphs), "ANBC");
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>(),
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Unclipped
+            ]
+        );
+        assert_eq!(glyphs[1].raw_code, b"N");
+        assert_eq!(glyphs[1].provenance.content_stream.object_number, content.0);
+    }
+    Ok(())
+}
+
+#[test]
+fn corner_cutout_proof_and_classification_use_the_shared_work_ceiling() {
+    for cap in [511, 550] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content=pdf.add_object(Stream::new(dictionary!{},b"20 20 m 100 20 l 100 50 l 60 50 l 60 100 l 20 100 l 20 20 l W n BT /F1 10 Tf 30 70 Td (A) Tj ET".to_vec()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        assert!(
+            matches!(extract(pdf,ExtractionLimits{max_operators:cap,..ExtractionLimits::default()}),Err(Error::LimitExceeded{resource:"convex clipping work",limit}) if limit==cap)
+        );
+    }
+}
+
+#[test]
+fn corner_cutout_candidates_keep_prior_uncertainty_and_skip_unusable_proofs() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content=pdf.add_object(Stream::new(dictionary!{},b"20 20 m 20 100 100 100 100 20 c h W n 20 20 m 100 20 l 100 50 l 60 50 l 60 100 l 20 100 l 20 20 l W n BT /F1 10 Tf 30 70 Td (A) Tj ET".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    let out = extract_outcome(
+        pdf,
+        ExtractionLimits {
+            max_operators: 100,
+            ..ExtractionLimits::default()
+        },
+    )?;
+    assert!(!out.is_complete());
+    assert_eq!(out.issues().len(), 1);
+    assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    assert!(
+        out.issues()[0]
+            .description()
+            .contains("curved clipping path")
+    );
+    Ok(())
+}
+
+#[test]
 fn separated_rectangle_clips_preserve_gap_glyphs_and_graphics_restore() -> Result<()> {
     for rule in ["W", "W*"] {
         let mut pdf = LopdfDocument::with_version("1.7");

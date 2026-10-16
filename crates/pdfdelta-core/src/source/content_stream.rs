@@ -30,7 +30,7 @@ use super::{
 };
 
 mod clipping;
-use clipping::{ClipRegion, Quad};
+use clipping::{ClipRegion, CornerCutout, Quad};
 
 mod paint_bounds;
 use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
@@ -270,9 +270,19 @@ struct CurrentPath {
     drawn_subpaths: usize,
     current_subpath_has_segment: bool,
     clip_rectangle: Option<Rect>,
+    primitive_certainty: ClipCertainty,
     has_unsupported_segments: bool,
     clip_pending: bool,
     paint_bounds: paint_bounds::Bounds,
+}
+
+/// Strict native-geometry provenance for all retained clip constraints.
+/// Legacy approximate rectangle recognition does not create this witness.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ClipCertainty {
+    #[default]
+    Exact,
+    Unproven,
 }
 
 impl CurrentPath {
@@ -331,7 +341,12 @@ impl CurrentPath {
         Ok(())
     }
 
-    fn append_rectangle(&mut self, corners: [Vec2; 4], clip_rectangle: Option<Rect>) {
+    fn append_rectangle(
+        &mut self,
+        corners: [Vec2; 4],
+        clip_rectangle: Option<Rect>,
+        certainty: ClipCertainty,
+    ) {
         let was_empty = self.drawn_subpaths == 0 && !self.has_unsupported_segments;
         self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
         self.current_subpath_has_segment = true;
@@ -356,14 +371,29 @@ impl CurrentPath {
         self.current_point = Some(corners[0]);
         self.subpath_start = Some(corners[0]);
         self.clip_rectangle = was_empty.then_some(clip_rectangle).flatten();
+        if certainty != ClipCertainty::Exact {
+            self.primitive_certainty = ClipCertainty::Unproven;
+        }
     }
 
-    fn clipping_rectangle(&self) -> Option<Rect> {
-        self.clip_rectangle
-            .or_else(|| self.line_built_clipping_rectangle())
+    fn clipping_rectangle(&self) -> Option<(Rect, ClipCertainty)> {
+        if let Some(rectangle) = self.clip_rectangle {
+            return Some((rectangle, self.primitive_certainty));
+        }
+        self.line_built_clipping_rectangle()
+            .map(|(rectangle, certainty)| {
+                (
+                    rectangle,
+                    if self.primitive_certainty == ClipCertainty::Exact {
+                        certainty
+                    } else {
+                        ClipCertainty::Unproven
+                    },
+                )
+            })
     }
 
-    fn line_built_clipping_rectangle(&self) -> Option<Rect> {
+    fn line_built_clipping_rectangle(&self) -> Option<(Rect, ClipCertainty)> {
         if self.has_unsupported_segments || self.drawn_subpaths != 1 {
             return None;
         }
@@ -437,6 +467,21 @@ impl CurrentPath {
             || parts[0].max.y < parts[1].min.y
             || parts[1].max.y < parts[0].min.y)
             .then_some(parts)
+    }
+
+    fn clipping_corner_cutout(&self) -> Option<CornerCutout> {
+        if self.has_unsupported_segments
+            || self.drawn_subpaths != 1
+            || self.segments.len() != 6
+            || !self
+                .segments
+                .windows(2)
+                .all(|pair| pair[0].to == pair[1].from)
+            || self.segments[5].to != self.segments[0].from
+        {
+            return None;
+        }
+        CornerCutout::from_l_shape(std::array::from_fn(|i| self.segments[i].from))
     }
 
     fn mark_current_subpath_drawn(&mut self) {
@@ -882,7 +927,7 @@ impl<'a> Extraction<'a> {
                         width,
                         height,
                     ));
-                let (corners, rectangle) = transformed_rectangle_path(
+                let (corners, rectangle, certainty) = transformed_rectangle_path(
                     page_geometry,
                     state.graphics.ctm,
                     x,
@@ -891,7 +936,9 @@ impl<'a> Extraction<'a> {
                     height,
                 )?;
                 self.ensure_path_segment_capacity(state, 4)?;
-                state.current_path.append_rectangle(corners, rectangle);
+                state
+                    .current_path
+                    .append_rectangle(corners, rectangle, certainty);
             }
             b"W" | b"W*" => {
                 no_operands(operation)?;
@@ -1197,6 +1244,7 @@ impl Extraction<'_> {
             );
         }
 
+        let mut incoming_certainty = ClipCertainty::Unproven;
         let clip_update = if state.current_path.clip_pending {
             if state.current_path.has_unsupported_segments {
                 Some(state.graphics.clip_region.intersect_unsupported(format!(
@@ -1205,14 +1253,46 @@ impl Extraction<'_> {
                 )))
             } else {
                 self.charge_convex_clip_work(state.graphics.clip_region.work())?;
-                if let Some(rectangle) = state.current_path.clipping_rectangle() {
-                    Some(state.graphics.clip_region.intersect_rectangle(rectangle))
+                if let Some((rectangle, certainty)) = state.current_path.clipping_rectangle() {
+                    // Only strict rectangle witnesses authorize a new concave
+                    // intersection. Approximate legacy matches retain their
+                    // old behavior elsewhere without gaining that witness.
+                    incoming_certainty = certainty;
+                    Some(
+                        state
+                            .graphics
+                            .rectangle_clip_update(rectangle, incoming_certainty),
+                    )
                 } else if state.current_path.drawn_subpaths == 2 {
                     // Two fixed-size proofs and their classification/copy cost
                     // share the same document-wide clipping work ceiling.
                     self.charge_convex_clip_work(32)?;
                     Some(match state.current_path.clipping_rectangle_pair() {
-                        Some(parts) => state.graphics.clip_region.intersect_rectangle_pair(parts),
+                        Some(parts) => {
+                            incoming_certainty = state.current_path.primitive_certainty;
+                            state.graphics.clip_region.intersect_rectangle_pair(parts)
+                        },
+                        None => state.graphics.clip_region.intersect_unsupported(format!(
+                            "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}", operation.index
+                        )),
+                    })
+                } else if state.current_path.drawn_subpaths == 1
+                    && state.current_path.segments.len() == 6
+                    && state.graphics.clip_certainty == ClipCertainty::Exact
+                    && state.current_path.primitive_certainty == ClipCertainty::Exact
+                    && matches!(
+                        &state.graphics.clip_region,
+                        ClipRegion::Unbounded | ClipRegion::Rectangle(_)
+                    )
+                {
+                    // Only these prior regions can use the completed proof.
+                    // Other compositions keep the ordinary refusal and fee.
+                    self.charge_convex_clip_work(CornerCutout::PROOF_WORK)?;
+                    Some(match state.current_path.clipping_corner_cutout() {
+                        Some(clip) => {
+                            incoming_certainty = ClipCertainty::Exact;
+                            state.graphics.clip_region.intersect_corner_cutout(clip)
+                        },
                         None => state.graphics.clip_region.intersect_unsupported(format!(
                             "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}", operation.index
                         )),
@@ -1220,7 +1300,10 @@ impl Extraction<'_> {
                 } else {
                     self.charge_convex_clip_work(16)?;
                     Some(match state.current_path.clipping_quad() {
-                        Some(quad) => state.graphics.clip_region.intersect_quad(quad),
+                        Some(quad) => {
+                            incoming_certainty = state.current_path.primitive_certainty;
+                            state.graphics.clip_region.intersect_quad(quad)
+                        },
                         None => state.graphics.clip_region.intersect_unsupported(format!(
                             "non-rectangular clipping path is not a certified convex quadrilateral at content operator index {}",
                             operation.index
@@ -1247,6 +1330,9 @@ impl Extraction<'_> {
         }
 
         if let Some(clip_region) = clip_update {
+            state.graphics.clip_certainty = state
+                .graphics
+                .combined_clip_certainty(incoming_certainty, &clip_region);
             state.graphics.clip_region = clip_region;
         }
         state.current_path.reset();
@@ -2058,7 +2144,7 @@ impl Extraction<'_> {
                 bbox.ok_or_else(|| Error::Unresolved("Form XObject has no clipping BBox".into()))?;
             let (min_x, max_x) = (x0.min(x1), x0.max(x1));
             let (min_y, max_y) = (y0.min(y1), y0.max(y1));
-            let (corners, rectangle) = transformed_rectangle_path(
+            let (corners, rectangle, rectangle_certainty) = transformed_rectangle_path(
                 page_geometry,
                 form_state.graphics.ctm,
                 min_x,
@@ -2069,18 +2155,24 @@ impl Extraction<'_> {
             self.charge_convex_clip_work(form_state.graphics.clip_region.work())?;
             // The Form's implicit clip is established before its operators and
             // remains local to this invocation, including nested graphics saves.
-            form_state.graphics.clip_region = if let Some(rectangle) = rectangle {
+            let incoming_certainty;
+            let region = if let Some(rectangle) = rectangle {
+                incoming_certainty = rectangle_certainty;
                 form_state
                     .graphics
-                    .clip_region
-                    .intersect_rectangle(rectangle)
+                    .rectangle_clip_update(rectangle, incoming_certainty)
             } else {
                 self.charge_convex_clip_work(16)?;
                 let quad = Quad::new(corners).ok_or_else(|| {
                     Error::Unsupported("uncertain convex Form XObject clipping BBox".into())
                 })?;
+                incoming_certainty = ClipCertainty::Exact;
                 form_state.graphics.clip_region.intersect_quad(quad)
             };
+            form_state.graphics.clip_certainty = form_state
+                .graphics
+                .combined_clip_certainty(incoming_certainty, &region);
+            form_state.graphics.clip_region = region;
             form_state.graphics_stack.clear();
             form_state.current_path.reset();
             form_state.compatibility_depth = 0;
@@ -2826,6 +2918,7 @@ struct GraphicsState {
     miter_limit: f64,
     stroke_adjustment: bool,
     clip_region: ClipRegion,
+    clip_certainty: ClipCertainty,
     // An outward bound of the enclosing Form remains valid for opaque paints.
     form_paint_bounds: Option<Rect>,
     character_spacing: f64,
@@ -2848,6 +2941,7 @@ impl Default for GraphicsState {
             miter_limit: 10.0,
             stroke_adjustment: false,
             clip_region: ClipRegion::Unbounded,
+            clip_certainty: ClipCertainty::Exact,
             form_paint_bounds: None,
             character_spacing: 0.0,
             word_spacing: 0.0,
@@ -2858,6 +2952,36 @@ impl Default for GraphicsState {
             font_size: 0.0,
             rise: 0.0,
             render_mode: TextRenderMode::Fill,
+        }
+    }
+}
+
+impl GraphicsState {
+    fn rectangle_clip_update(&self, rectangle: Rect, incoming: ClipCertainty) -> ClipRegion {
+        if matches!(&self.clip_region, ClipRegion::CornerCutout(_))
+            && incoming != ClipCertainty::Exact
+        {
+            self.clip_region.intersect_unsupported(
+                "rectangular intersection with concave clipping has no strict source certificate"
+                    .into(),
+            )
+        } else {
+            self.clip_region.intersect_rectangle(rectangle)
+        }
+    }
+
+    fn combined_clip_certainty(
+        &self,
+        incoming: ClipCertainty,
+        region: &ClipRegion,
+    ) -> ClipCertainty {
+        if self.clip_certainty == ClipCertainty::Exact
+            && incoming == ClipCertainty::Exact
+            && !matches!(region, ClipRegion::Unsupported(_))
+        {
+            ClipCertainty::Exact
+        } else {
+            ClipCertainty::Unproven
         }
     }
 }
@@ -3157,7 +3281,7 @@ fn transformed_rectangle_path(
     y: f64,
     width: f64,
     height: f64,
-) -> Result<([Vec2; 4], Option<Rect>)> {
+) -> Result<([Vec2; 4], Option<Rect>, ClipCertainty)> {
     let max_x = x + width;
     let max_y = y + height;
     if !max_x.is_finite() || !max_y.is_finite() {
@@ -3165,11 +3289,19 @@ fn transformed_rectangle_path(
             "path rectangle coordinates are not finite".to_owned(),
         ));
     }
+    // Retain strict affine-axis provenance while constructing the existing
+    // rectangle primitive. Share its transform instead of concatenating the
+    // same matrices for each corner; no existing operation fee is refunded.
+    let transform = page_geometry.transform.concatenate(ctm)?;
+    let point = |x, y| -> Result<Vec2> {
+        let (x, y) = transform.transform_point(x, y)?;
+        Ok(Vec2 { x, y })
+    };
     let corners = [
-        path_point(page_geometry, ctm, x, y)?,
-        path_point(page_geometry, ctm, max_x, y)?,
-        path_point(page_geometry, ctm, max_x, max_y)?,
-        path_point(page_geometry, ctm, x, max_y)?,
+        point(x, y)?,
+        point(max_x, y)?,
+        point(max_x, max_y)?,
+        point(x, max_y)?,
     ];
     let rectangle = bounding_rect(corners);
     let axis_aligned = corners.iter().all(|point| {
@@ -3178,7 +3310,17 @@ fn transformed_rectangle_path(
             && (approximately_equal(point.y, rectangle.min.y)
                 || approximately_equal(point.y, rectangle.max.y))
     });
-    Ok((corners, axis_aligned.then_some(rectangle)))
+    let exact_axes = (transform.b == 0.0
+        && transform.c == 0.0
+        && transform.a != 0.0
+        && transform.d != 0.0)
+        || (transform.a == 0.0 && transform.d == 0.0 && transform.b != 0.0 && transform.c != 0.0);
+    let certainty = if exact_axes && axis_aligned {
+        ClipCertainty::Exact
+    } else {
+        ClipCertainty::Unproven
+    };
+    Ok((corners, axis_aligned.then_some(rectangle), certainty))
 }
 
 fn bounding_rect(points: [Vec2; 4]) -> Rect {
@@ -3198,51 +3340,77 @@ fn bounding_rect(points: [Vec2; 4]) -> Rect {
     }
 }
 
-fn rectangle_from_segments(segments: [PathSegment; 4]) -> Option<Rect> {
-    if !segments
-        .windows(2)
-        .all(|pair| points_approximately_equal(pair[0].to, pair[1].from))
-        || !points_approximately_equal(segments[3].to, segments[0].from)
-    {
-        return None;
+/// Reuses the existing four-edge recognition pass and retains whether every
+/// accepted match was exact. Equality fast paths avoid repeating tolerance
+/// arithmetic; legacy acceptance and existing operation charges stay intact.
+fn rectangle_from_segments(segments: [PathSegment; 4]) -> Option<(Rect, ClipCertainty)> {
+    let mut exact = true;
+    for i in 0..4 {
+        let (near_x, exact_x) = coordinate_match(segments[i].to.x, segments[(i + 1) % 4].from.x);
+        let (near_y, exact_y) = coordinate_match(segments[i].to.y, segments[(i + 1) % 4].from.y);
+        if !near_x || !near_y {
+            return None;
+        }
+        exact &= exact_x && exact_y;
     }
-
-    let corners = segments.map(|segment| segment.from);
-    let rectangle = bounding_rect(corners);
+    let rectangle = bounding_rect(segments.map(|segment| segment.from));
     if approximately_equal(rectangle.min.x, rectangle.max.x)
         || approximately_equal(rectangle.min.y, rectangle.max.y)
     {
         return None;
     }
-
     let mut corner_mask = 0_u8;
     for segment in segments {
-        let same_x = approximately_equal(segment.from.x, segment.to.x);
-        let same_y = approximately_equal(segment.from.y, segment.to.y);
+        let (same_x, exact_x) = coordinate_match(segment.from.x, segment.to.x);
+        let (same_y, exact_y) = coordinate_match(segment.from.y, segment.to.y);
         if same_x == same_y {
             return None;
         }
-        corner_mask |= rectangle_corner_bit(segment.from, rectangle)?;
+        exact &= if same_x { exact_x } else { exact_y };
+        let (bit, exact_corner) = rectangle_corner_bit(segment.from, rectangle)?;
+        exact &= exact_corner;
+        corner_mask |= bit;
     }
-    (corner_mask == 0b1111).then_some(rectangle)
+    (corner_mask == 0b1111).then_some((
+        rectangle,
+        if exact {
+            ClipCertainty::Exact
+        } else {
+            ClipCertainty::Unproven
+        },
+    ))
 }
 
-fn rectangle_corner_bit(point: Vec2, rectangle: Rect) -> Option<u8> {
-    let x = if approximately_equal(point.x, rectangle.min.x) {
-        0
-    } else if approximately_equal(point.x, rectangle.max.x) {
-        1
+fn coordinate_match(left: f64, right: f64) -> (bool, bool) {
+    if left == right && left.is_finite() {
+        (true, true)
     } else {
-        return None;
-    };
-    let y = if approximately_equal(point.y, rectangle.min.y) {
-        0
-    } else if approximately_equal(point.y, rectangle.max.y) {
-        1
+        (approximately_equal(left, right), false)
+    }
+}
+
+fn rectangle_corner_bit(point: Vec2, rectangle: Rect) -> Option<(u8, bool)> {
+    let (near_x, exact_x) = coordinate_match(point.x, rectangle.min.x);
+    let (x, exact_x) = if near_x {
+        (0, exact_x)
     } else {
-        return None;
+        let (near, exact) = coordinate_match(point.x, rectangle.max.x);
+        if !near {
+            return None;
+        }
+        (1, exact)
     };
-    Some(1 << (x + 2 * y))
+    let (near_y, exact_y) = coordinate_match(point.y, rectangle.min.y);
+    let (y, exact_y) = if near_y {
+        (0, exact_y)
+    } else {
+        let (near, exact) = coordinate_match(point.y, rectangle.max.y);
+        if !near {
+            return None;
+        }
+        (1, exact)
+    };
+    Some((1 << (x + 2 * y), exact_x && exact_y))
 }
 
 fn points_approximately_equal(left: Vec2, right: Vec2) -> bool {
@@ -3330,6 +3498,109 @@ mod tests {
     use crate::pdf::{DecodedStream, PdfVersion, RawStream};
 
     #[test]
+    fn corner_cutout_rectangle_certificates_keep_legacy_matches_and_float_coordinates() -> Result<()>
+    {
+        let geometry = PageGeometry {
+            transform: Matrix::IDENTITY,
+            crop_bounds: Rect {
+                min: Vec2 { x: 0.0, y: 0.0 },
+                max: Vec2 { x: 500.0, y: 500.0 },
+            },
+            rotation: 0,
+        };
+        for (matrix, expected) in [
+            (Matrix::IDENTITY, ClipCertainty::Exact),
+            (
+                Matrix::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0)?,
+                ClipCertainty::Exact,
+            ),
+            (
+                Matrix::new(-1.0, 0.0, 0.0, 2.0, 10.0, -5.0)?,
+                ClipCertainty::Exact,
+            ),
+            (
+                Matrix::new(1.0, 0.0, 1e-17, 1.0, 0.0, 0.0)?,
+                ClipCertainty::Unproven,
+            ),
+        ] {
+            let (points, rectangle, certainty) =
+                transformed_rectangle_path(geometry, matrix, 0.0, 0.0, 200.0, 200.0)?;
+            assert!(
+                rectangle.is_some(),
+                "legacy rectangle recognition is retained"
+            );
+            assert_eq!(certainty, expected);
+            for (i, (x, y)) in [(0.0, 0.0), (200.0, 0.0), (200.0, 200.0), (0.0, 200.0)]
+                .into_iter()
+                .enumerate()
+            {
+                let old = path_point(geometry, matrix, x, y)?;
+                assert_eq!(points[i].x.to_bits(), old.x.to_bits());
+                assert_eq!(points[i].y.to_bits(), old.y.to_bits());
+            }
+        }
+        // Even when rounding hides a non-axis transform in its four points,
+        // changing the current point cannot launder the literal's provenance.
+        let matrix = Matrix::new(1.0, 0.0, 1e-20, 1.0, 10.0, 0.0)?;
+        let (points, rectangle, certainty) =
+            transformed_rectangle_path(geometry, matrix, 0.0, 0.0, 200.0, 200.0)?;
+        assert_eq!(certainty, ClipCertainty::Unproven);
+        let mut path = CurrentPath::default();
+        path.append_rectangle(points, rectangle, certainty);
+        path.move_to(Vec2 { x: 1.0, y: 1.0 });
+        assert_eq!(
+            path.clipping_rectangle().expect("same rectangle").1,
+            ClipCertainty::Unproven
+        );
+        // An ordinary exact line-built rectangle has its own strict witness.
+        let mut path = CurrentPath::default();
+        path.move_to(Vec2 { x: 0.0, y: 0.0 });
+        for (x, y) in [(4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (0.0, 0.0)] {
+            path.line_to(Vec2 { x, y })?;
+        }
+        assert_eq!(
+            path.clipping_rectangle().expect("exact perimeter").1,
+            ClipCertainty::Exact
+        );
+        path.segments[3].to.x = 1e-16;
+        assert_eq!(
+            path.clipping_rectangle()
+                .expect("legacy approximate closure retained")
+                .1,
+            ClipCertainty::Unproven
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn corner_cutout_path_requires_literal_closure_and_one_subpath() -> Result<()> {
+        let points = [
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 4.0, y: 0.0 },
+            Vec2 { x: 4.0, y: 2.0 },
+            Vec2 { x: 2.0, y: 2.0 },
+            Vec2 { x: 2.0, y: 4.0 },
+            Vec2 { x: 0.0, y: 4.0 },
+        ];
+        let mut path = CurrentPath::default();
+        path.move_to(points[0]);
+        for p in &points[1..] {
+            path.line_to(*p)?;
+        }
+        path.close()?;
+        assert!(path.clipping_corner_cutout().is_some());
+        let mut open = path.clone();
+        open.segments[5].to.x = open.segments[5].to.x.next_up();
+        assert!(open.clipping_corner_cutout().is_none());
+        let mut split = path.clone();
+        split.drawn_subpaths = 2;
+        assert!(split.clipping_corner_cutout().is_none());
+        path.has_unsupported_segments = true;
+        assert!(path.clipping_corner_cutout().is_none());
+        Ok(())
+    }
+
+    #[test]
     fn rectangle_pair_proof_rejects_touching_skewed_open_and_extra_paths() {
         let corners = |y: f64| {
             [
@@ -3344,8 +3615,8 @@ mod tests {
         };
         let pair = |second: [Vec2; 4]| {
             let mut path = CurrentPath::default();
-            path.append_rectangle(corners(0.0), None);
-            path.append_rectangle(second, None);
+            path.append_rectangle(corners(0.0), None, ClipCertainty::Unproven);
+            path.append_rectangle(second, None, ClipCertainty::Unproven);
             path
         };
         let valid = pair(corners(4.0));
@@ -3359,7 +3630,7 @@ mod tests {
         open.segments[7].to.x = open.segments[7].to.x.next_up();
         assert!(open.clipping_rectangle_pair().is_none());
         let mut extra = valid.clone();
-        extra.append_rectangle(corners(8.0), None);
+        extra.append_rectangle(corners(8.0), None, ClipCertainty::Unproven);
         assert!(extra.clipping_rectangle_pair().is_none());
         let mut curved = valid;
         curved.has_unsupported_segments = true;
