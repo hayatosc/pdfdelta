@@ -11446,11 +11446,17 @@ mod assessor_issue_cache_tests {
             .collect::<Vec<_>>();
         assert_eq!(older_ranges, vec![(6, 8), (3, 4), (4, 5)]);
         let used = 1_000_000 - full.remaining_work;
+        let mut saw_starvation = false;
         for budget in (0..=used).step_by(53).chain([used.saturating_sub(1), used]) {
             let partial = run(budget)?;
             let count = partial.records.len().saturating_sub(2).min(3);
             assert_eq!(&partial.records[2..2 + count], &older[..count]);
+            saw_starvation |= count == 3 && partial.records.len() == 5 && budget < used;
         }
+        assert!(
+            saw_starvation,
+            "the unchanged source fixture must isolate later shared-work starvation"
+        );
         Ok(())
     }
 

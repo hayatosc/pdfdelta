@@ -403,10 +403,23 @@ fn equal_partition(
     block: BlockId,
     range: Range<usize>,
 ) -> Option<Vec<ResolutionRange>> {
+    partition_split::<false>(source, block, range).map(|(items, _)| items)
+}
+
+/// Counts only the replacement of the unique unresolved containing interval.
+/// The other entries retain their states, including zero-width scalar ranges.
+/// A split leaves zero, one or two unresolved children, so the increase is
+/// exactly `children.saturating_sub(1)`; no population scan is needed.
+fn partition_split<const COUNT: bool>(
+    source: &[ResolutionRange],
+    block: BlockId,
+    range: Range<usize>,
+) -> Option<(Vec<ResolutionRange>, usize)> {
     let capacity = source.len().checked_add(2)?;
     let mut output = Vec::new();
     output.try_reserve_exact(capacity).ok()?;
     let mut found = false;
+    let mut unresolved_children = 0usize;
     for part in source {
         if part.block == block
             && part.comparable_range.start <= range.start
@@ -430,6 +443,9 @@ fn equal_partition(
                 ),
             ] {
                 if start < end {
+                    if COUNT && state == ResolutionState::Unresolved {
+                        unresolved_children += 1;
+                    }
                     output.push(ResolutionRange {
                         block,
                         comparable_range: TokenRange { start, end },
@@ -442,7 +458,7 @@ fn equal_partition(
             output.push(part.clone());
         }
     }
-    found.then_some(output)
+    found.then_some((output, unresolved_children.saturating_sub(1)))
 }
 
 /// Conservative requested-capacity allowance for the shared literal-source
@@ -2154,6 +2170,9 @@ impl Assessor<'_, '_> {
         .and_then(|bytes| bytes.checked_add(ids.checked_mul(std::mem::size_of::<BlockId>())?)) else {
             return Ok(false);
         };
+        let Some(new_bytes) = new_bytes.checked_add(4 * std::mem::size_of::<usize>()) else {
+            return Ok(false);
+        };
         if new_bytes > COARSE_MEMORY_BYTES {
             return Ok(false);
         }
@@ -2175,10 +2194,20 @@ impl Assessor<'_, '_> {
             return Ok(false);
         };
         let mut growth = plan;
-        let commit_work = partitions[0]
-            .len()
-            .saturating_add(partitions[1].len())
-            .saturating_mul(shallow_words::<ResolutionRange>().saturating_add(2))
+        let partition_count = partitions[0].len().saturating_add(partitions[1].len());
+        // Sixteen units cover the two local three-piece counters. The original
+        // two population scans remain the route for smaller partitions.
+        let counted_split = partition_count.saturating_mul(2) >= 16;
+        let count_work = if counted_split {
+            16
+        } else {
+            partition_count.saturating_mul(2)
+        };
+        let commit_work = partition_count
+            .saturating_mul(shallow_words::<ResolutionRange>())
+            .saturating_add(count_work)
+            // Both checked route selectors are additional paid metadata.
+            .saturating_add(4)
             .saturating_add(growth.copy_work)
             .saturating_add(regions.len().saturating_mul(usize::BITS as usize + 8))
             .saturating_add(assumptions)
@@ -2192,18 +2221,21 @@ impl Assessor<'_, '_> {
         if !charge_work(&mut self.remaining_work, commit_work) {
             return Ok(false);
         }
-        let Some(next_old) = equal_partition(
-            partitions[0],
-            old.blocks[0],
-            intervals[0].start..intervals[0].end,
-        ) else {
-            return Ok(false);
+        let prepare = |side: usize| {
+            let (block, interval) = if side == 0 {
+                (old.blocks[0], intervals[0])
+            } else {
+                (new.blocks[0], intervals[1])
+            };
+            let range = interval.start..interval.end;
+            if counted_split {
+                partition_split::<true>(partitions[side], block, range)
+            } else {
+                equal_partition(partitions[side], block, range).map(|items| (items, 0))
+            }
         };
-        let Some(next_new) = equal_partition(
-            partitions[1],
-            new.blocks[0],
-            intervals[1].start..intervals[1].end,
-        ) else {
+        let (Some((next_old, old_extra)), Some((next_new, new_extra))) = (prepare(0), prepare(1))
+        else {
             return Ok(false);
         };
         // Splitting one unresolved range creates at most one additional
@@ -2212,15 +2244,19 @@ impl Assessor<'_, '_> {
         let mut extra = 0usize;
         let mut regeneration_work = 0usize;
         for (side, next) in [&next_old, &next_new].into_iter().enumerate() {
-            let before = partitions[side]
-                .iter()
-                .filter(|p| p.state == ResolutionState::Unresolved)
-                .count();
-            let after = next
-                .iter()
-                .filter(|p| p.state == ResolutionState::Unresolved)
-                .count();
-            let additional = after.saturating_sub(before);
+            let additional = if counted_split {
+                [old_extra, new_extra][side]
+            } else {
+                let before = partitions[side]
+                    .iter()
+                    .filter(|p| p.state == ResolutionState::Unresolved)
+                    .count();
+                let after = next
+                    .iter()
+                    .filter(|p| p.state == ResolutionState::Unresolved)
+                    .count();
+                after.saturating_sub(before)
+            };
             extra = extra.saturating_add(additional);
             regeneration_work =
                 regeneration_work.saturating_add(additional.saturating_mul(groups[side].copy_work));
@@ -2927,5 +2963,64 @@ mod coarse_pair_presence_tests {
                 std::slice::from_ref(&region)
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod partition_tests {
+    use super::*;
+
+    fn row(block: u64, start: usize, end: usize, state: ResolutionState) -> ResolutionRange {
+        ResolutionRange {
+            block: BlockId(block),
+            comparable_range: TokenRange { start, end },
+            canonical_range: ScalarRange { start, end },
+            state,
+        }
+    }
+
+    #[test]
+    fn counted_partition_preserves_unrelated_projections_and_all_nonempty_cuts() {
+        let mut unmapped = row(9, 3, 7, ResolutionState::Unresolved);
+        unmapped.canonical_range = ScalarRange { start: 3, end: 3 };
+        let source = vec![
+            row(8, 0, 2, ResolutionState::Changed),
+            row(1, 0, 10, ResolutionState::Unresolved),
+            unmapped,
+            row(7, 20, 30, ResolutionState::Equal),
+        ];
+        for start in 0..10 {
+            for end in start + 1..=10 {
+                let (actual, extra) = partition_split::<true>(&source, BlockId(1), start..end)
+                    .expect("a nonempty cut inside one unresolved interval must split");
+                let mut expected = vec![source[0].clone()];
+                if start > 0 {
+                    expected.push(row(1, 0, start, ResolutionState::Unresolved));
+                }
+                expected.push(row(1, start, end, ResolutionState::Equal));
+                if end < 10 {
+                    expected.push(row(1, end, 10, ResolutionState::Unresolved));
+                }
+                expected.extend_from_slice(&source[2..]);
+                assert_eq!(actual, expected);
+                let before = source
+                    .iter()
+                    .filter(|r| r.state == ResolutionState::Unresolved)
+                    .count();
+                let after = actual
+                    .iter()
+                    .filter(|r| r.state == ResolutionState::Unresolved)
+                    .count();
+                assert_eq!(extra, after.saturating_sub(before));
+                assert_eq!(
+                    equal_partition(&source, BlockId(1), start..end),
+                    Some(actual)
+                );
+            }
+        }
+        assert!(partition_split::<true>(&source, BlockId(8), 0..1).is_none());
+        assert!(partition_split::<true>(&source, BlockId(1), 0..11).is_none());
+        let duplicate = vec![source[1].clone(), source[1].clone()];
+        assert!(partition_split::<true>(&duplicate, BlockId(1), 2..8).is_none());
     }
 }

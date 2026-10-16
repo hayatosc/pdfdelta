@@ -320,6 +320,15 @@ fresh-analysis path, and failed or exhausted analyses are never cached. Source
 proofs, parent guards, candidates, partitions and ownership are checked again
 for every run. Cached matching pairs alone never establish equality.
 
+Equality publication prepares both complete partition snapshots before adopting
+either side. For sufficiently large partitions, the replacement interval also
+counts its unresolved children, avoiding two full population scans on each
+side. Only one unique unresolved interval may be replaced; every other state
+and projection is copied exactly. The local counters, route selection and
+additional live metadata are paid explicitly. Small partitions retain the
+population scans. Future diagnostic copies, source validation, ownership and
+both-sided publication remain fully reserved and checked.
+
 Final unresolved fragments reuse only the most recently emitted block's
 alignment reasons on the current side. They keep first-occurrence order and
 deduplication; a different block clears the buffer, and a later revisit may
