@@ -562,7 +562,7 @@ impl<'a> EqualFragmentCache<'a> {
         if !charge(remaining, old.positions.len().saturating_mul(2)) {
             return Err(Stop::Exhausted);
         }
-        for (old_position, new_position) in old.positions.iter().zip(&new.positions) {
+        for (old_position, new_position) in old.positions.iter().zip(new.positions) {
             if old_position != new_position {
                 return Err(Stop::Held(FragmentHold::PositionMismatch));
             }
@@ -773,7 +773,7 @@ impl<'a> EqualFragmentCache<'a> {
         let block_tokens = &side.canonical[interval.block_index];
         let tokens = &block_tokens[interval.start..interval.end];
         let literals = borrowed_fragment_literals(tokens, remaining)?;
-        let mut positions = Vec::new();
+        let mut positions: &[_] = &[];
         if require_positions {
             let Some(signatures) = block.position_signatures.as_deref() else {
                 return Err(Stop::Held(FragmentHold::MissingPositions));
@@ -790,10 +790,10 @@ impl<'a> EqualFragmentCache<'a> {
                     return Err(Stop::Held(FragmentHold::PositionMismatch));
                 }
             }
-            positions
-                .try_reserve(selected_positions.len())
-                .map_err(|_| allocation_error("equal fragment positions"))?;
-            positions.extend_from_slice(selected_positions);
+            // This immutable side outlives the fragment. Borrow the exact
+            // selected evidence after the original validation; keep the full
+            // reservation above so later proof order and budget cuts stay fixed.
+            positions = selected_positions;
         }
         let [page] = block.pages.as_slice() else {
             return Err(Stop::Held(FragmentHold::MultiplePages));
@@ -1287,8 +1287,8 @@ struct SideFragment<'a> {
     glyphs: Vec<GlyphId>,
     /// Borrowed scalar-only canonical tokens, parallel to `glyphs`.
     literals: &'a [ComparableToken],
-    /// Selected position signatures, parallel to `glyphs`.
-    positions: Vec<PositionSignature>,
+    /// Borrowed selected position evidence, parallel to `glyphs`.
+    positions: &'a [PositionSignature],
     /// Single page of the selected block.
     page: u32,
     /// Selected-index positions of certified internal deleted soft line breaks,
@@ -5131,5 +5131,22 @@ mod tests {
             cache.blocks[0][0].events.as_ref().expect("complete table")[0],
             Some(true)
         );
+    }
+    #[test]
+    fn selected_positions_borrow_only_the_immutable_source_side() {
+        let blocks = [positioned_block(1, "A雪BC", 0.0, 0.0, 0)];
+        let materialized = side(&blocks);
+        let mut cache = EqualFragmentCache::new([&materialized, &materialized]);
+        let span = fragment(1, 1, 3);
+        let selected = cache
+            .analyze_side(0, &span, false, true, &mut 100_000)
+            .unwrap_or_else(|_| panic!("complete selected source"));
+        let original = &blocks[0].position_signatures.as_ref().expect("positions")[1..3];
+        assert!(std::ptr::eq(selected.positions, original));
+        assert_eq!(selected.positions.len(), selected.glyphs.len());
+        let without = cache
+            .analyze_side(1, &span, false, false, &mut 100_000)
+            .unwrap_or_else(|_| panic!("source-only selection"));
+        assert!(without.positions.is_empty());
     }
 }
