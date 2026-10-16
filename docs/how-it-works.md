@@ -96,7 +96,19 @@ partial table as a proof.
   after exact axis transposition, under a fixed prepaid work bound. The rectangle/L pair retains both the
   inter-component gap and the corner cutout; their outer bounds must be
   strictly separated. Each proof is prepaid and each classification/copy is
-  charged to the existing shared clipping work ceiling. Other compound
+  charged to the existing shared clipping work ceiling. A demand-driven fallback can certify literally closed orthogonal subpaths,
+  including multiple components, overlaps and holes, under a strictly witnessed
+  rectangular prior clip. It partitions by exact endpoint coordinates and
+  evaluates integer winding or parity on each open coordinate cell, without
+  midpoint rounding, area sums or pixel sampling. Source retention is prepaid when a candidate is frozen; geometry is proved
+  only when a glyph needs its visibility. Validation and coordinate storage are prepaid first. Their exact cell/edge
+  population is then known and prepaid before any winding loop or cell
+  allocation. Both phases share the existing clipping work ceiling; no
+  candidates are discarded and spent validation work is not refunded.
+  Unaffordable proofs keep the original unsupported outcome. Each later
+  classification/intersection pays for all retained cells. Proofs are shared only
+  by clones of the same frozen source owner; cropping remains state-local.
+  Passive drawing uncertainty is retained until a glyph activates the proof. Nonrectangular
   compositions remain unsupported.
   Strict clipping provenance survives graphics saves and matrix changes;
   legacy approximate rectangle matches retain their behavior but cannot

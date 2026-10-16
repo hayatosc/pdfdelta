@@ -30,7 +30,9 @@ use super::{
 };
 
 mod clipping;
-use clipping::{ClipRegion, Quad, RectangularCutout, SeparatedCutout};
+use clipping::{
+    ClipRegion, OrthogonalGrid, PendingOrthogonal, Quad, RectangularCutout, SeparatedCutout,
+};
 
 mod paint_bounds;
 use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
@@ -273,6 +275,8 @@ struct CurrentPath {
     primitive_certainty: ClipCertainty,
     has_unsupported_segments: bool,
     clip_pending: bool,
+    clip_even_odd: bool,
+    has_unclosed_prior_subpath: bool,
     paint_bounds: paint_bounds::Bounds,
 }
 
@@ -290,7 +294,20 @@ impl CurrentPath {
         *self = Self::default();
     }
 
+    fn finish_subpath_certificate(&mut self) {
+        self.has_unclosed_prior_subpath |=
+            self.current_subpath_has_segment && self.current_point != self.subpath_start;
+    }
+
+    fn orthogonal_subpaths_closed(&self) -> bool {
+        !self.has_unsupported_segments
+            && !self.has_unclosed_prior_subpath
+            && (!self.current_subpath_has_segment || self.current_point == self.subpath_start)
+            && self.drawn_subpaths != 0
+    }
+
     fn move_to(&mut self, point: Vec2) {
+        self.finish_subpath_certificate();
         if self.current_point.is_some() || !self.segments.is_empty() {
             self.clip_rectangle = None;
         }
@@ -347,6 +364,7 @@ impl CurrentPath {
         clip_rectangle: Option<Rect>,
         certainty: ClipCertainty,
     ) {
+        self.finish_subpath_certificate();
         let was_empty = self.drawn_subpaths == 0 && !self.has_unsupported_segments;
         self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
         self.current_subpath_has_segment = true;
@@ -981,6 +999,7 @@ impl<'a> Extraction<'a> {
             b"W" | b"W*" => {
                 no_operands(operation)?;
                 state.current_path.clip_pending = true;
+                state.current_path.clip_even_odd = operation.operator == b"W*";
             }
             b"S" => {
                 no_operands(operation)?;
@@ -1283,7 +1302,7 @@ impl Extraction<'_> {
         }
 
         let mut incoming_certainty = ClipCertainty::Unproven;
-        let clip_update = if state.current_path.clip_pending {
+        let mut clip_update = if state.current_path.clip_pending {
             if state.current_path.has_unsupported_segments {
                 Some(state.graphics.clip_region.intersect_unsupported(format!(
                     "curved clipping path at content operator index {}",
@@ -1395,6 +1414,43 @@ impl Extraction<'_> {
             None
         };
 
+        // Existing specialized proofs and their fees remain authoritative.
+        // Optional generalization cannot consume an unaffordable proof: no
+        // source scan/allocation is performed when the complete bound does
+        // not fit, and the original unsupported outcome is retained.
+        if let Some(ClipRegion::Unsupported(reason)) = &clip_update
+            && state.graphics.clip_certainty == ClipCertainty::Exact
+            && state.current_path.primitive_certainty == ClipCertainty::Exact
+            && state.current_path.orthogonal_subpaths_closed()
+            && matches!(
+                &state.graphics.clip_region,
+                ClipRegion::Unbounded | ClipRegion::Rectangle(_)
+            )
+            && let Some(work) = PendingOrthogonal::retention_work(state.current_path.segments.len())
+                .filter(|&w| {
+                    w <= self
+                        .limits
+                        .max_operators
+                        .saturating_sub(self.convex_clip_work)
+                })
+        {
+            self.charge_convex_clip_work(work)?;
+            let pending = PendingOrthogonal::new(
+                &state.current_path.segments,
+                state.current_path.clip_even_odd,
+                Arc::clone(reason),
+            );
+            let crop = match state.graphics.clip_region {
+                ClipRegion::Rectangle(rect) => Some(rect),
+                _ => None,
+            };
+            clip_update = Some(ClipRegion::PendingOrthogonal {
+                pending: Arc::new(pending),
+                crop,
+            });
+            incoming_certainty = ClipCertainty::Exact;
+        }
+
         if stroke && !state.current_path.has_unsupported_segments {
             let width = transformed_line_width(
                 page_geometry,
@@ -1470,6 +1526,58 @@ impl Extraction<'_> {
                 limit: u32::MAX as usize,
             })?;
         Ok(render_order)
+    }
+
+    fn activate_orthogonal_clip(&mut self, graphics: &mut GraphicsState) -> Result<()> {
+        let ClipRegion::PendingOrthogonal { pending, crop } = &graphics.clip_region else {
+            return Ok(());
+        };
+        let pending = Arc::clone(pending);
+        let crop = *crop;
+        let mut result = None;
+        if let Some(cached) = pending.cached() {
+            self.charge_convex_clip_work(128)?;
+            result.clone_from(cached);
+        } else if let Some(work) = OrthogonalGrid::preparation_work(pending.segments().len())
+            .filter(|&w| {
+                w <= self
+                    .limits
+                    .max_operators
+                    .saturating_sub(self.convex_clip_work)
+            })
+        {
+            self.charge_convex_clip_work(work)?;
+            if let Some(prepared) = OrthogonalGrid::prepare(pending.segments()) {
+                if let Some(work) = prepared.finish_work().filter(|&w| {
+                    w <= self
+                        .limits
+                        .max_operators
+                        .saturating_sub(self.convex_clip_work)
+                }) {
+                    self.charge_convex_clip_work(work)?;
+                    result = prepared.finish(pending.even_odd()).map(Arc::new);
+                    pending.cache(result.clone());
+                }
+            } else {
+                pending.cache(None);
+            }
+        }
+        graphics.clip_region = if let Some(grid) = result {
+            if grid.is_empty() {
+                ClipRegion::Empty
+            } else {
+                let bounds = grid.bounds();
+                let crop = crop.map_or(bounds, |rect| clipping::intersection(bounds, rect));
+                if clipping::empty(crop) {
+                    ClipRegion::Empty
+                } else {
+                    ClipRegion::Orthogonal { grid, crop }
+                }
+            }
+        } else {
+            ClipRegion::Unsupported(pending.reason())
+        };
+        Ok(())
     }
 
     fn charge_convex_clip_work(&mut self, work: usize) -> Result<()> {
@@ -1691,6 +1799,7 @@ impl Extraction<'_> {
                     resource: "glyph identifier address space",
                     limit: usize::MAX,
                 })?;
+        self.activate_orthogonal_clip(&mut state.graphics)?;
         self.charge_convex_clip_work(state.graphics.clip_region.work())?;
         let path_clip_status = state.graphics.clip_region.glyph_status(bbox)?;
         let render_order = self.allocate_render_order()?;
@@ -3040,7 +3149,10 @@ impl GraphicsState {
     fn rectangle_clip_update(&self, rectangle: Rect, incoming: ClipCertainty) -> ClipRegion {
         if matches!(
             &self.clip_region,
-            ClipRegion::RectangularCutout(_) | ClipRegion::SeparatedCutout(_)
+            ClipRegion::RectangularCutout(_)
+                | ClipRegion::SeparatedCutout(_)
+                | ClipRegion::Orthogonal { .. }
+                | ClipRegion::PendingOrthogonal { .. }
         ) && incoming != ClipCertainty::Exact
         {
             self.clip_region.intersect_unsupported(
@@ -3679,6 +3791,35 @@ mod tests {
         assert!(split.clipping_corner_cutout().is_none());
         path.has_unsupported_segments = true;
         assert!(path.clipping_corner_cutout().is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn orthogonal_cells_require_each_source_subpath_to_close() -> Result<()> {
+        let a = Vec2 { x: 0.0, y: 0.0 };
+        let b = Vec2 { x: 1.0, y: 0.0 };
+        let mut path = CurrentPath::default();
+        path.move_to(a);
+        path.line_to(b)?;
+        path.move_to(b);
+        path.line_to(a)?;
+        assert!(!path.orthogonal_subpaths_closed());
+        path.close()?;
+        assert!(!path.orthogonal_subpaths_closed());
+        path.reset();
+        path.move_to(a);
+        path.line_to(b)?;
+        path.close()?;
+        assert!(path.orthogonal_subpaths_closed());
+        path.move_to(Vec2 { x: 8.0, y: 8.0 });
+        assert!(path.orthogonal_subpaths_closed());
+        path.line_to(Vec2 { x: 9.0, y: 8.0 })?;
+        path.append_rectangle(
+            [a, b, Vec2 { x: 1.0, y: 1.0 }, Vec2 { x: 0.0, y: 1.0 }],
+            None,
+            ClipCertainty::Exact,
+        );
+        assert!(!path.orthogonal_subpaths_closed());
         Ok(())
     }
 

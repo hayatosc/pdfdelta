@@ -3,6 +3,9 @@
 
 use std::{cmp::Ordering, sync::Arc};
 
+mod orthogonal;
+pub(super) use orthogonal::{OrthogonalGrid, PendingOrthogonal};
+
 use super::{Error, GlyphPathClipStatus, PathSegment, Rect, Result, Vec2, bounding_rect};
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -16,6 +19,14 @@ pub(super) enum ClipRegion {
     RectangularCutout(RectangularCutout),
     /// Two strictly separated components, retaining the corner and the gap.
     SeparatedCutout(Arc<SeparatedCutout>),
+    PendingOrthogonal {
+        pending: Arc<PendingOrthogonal>,
+        crop: Option<Rect>,
+    },
+    Orthogonal {
+        grid: Arc<OrthogonalGrid>,
+        crop: Rect,
+    },
     Convex(Arc<ConvexClip>),
     Empty,
     Unsupported(Arc<str>),
@@ -460,6 +471,8 @@ impl ClipRegion {
             // Bounds classification, fixed copying and the conservative
             // four-strip segment proof under the same shared ceiling.
             Self::RectangularCutout(_) => 64,
+            Self::Orthogonal { grid, .. } => grid.work(),
+            Self::PendingOrthogonal { .. } => 0,
             // Two classifications, retained constraints and bounded allocation
             // on rectangular intersection share the existing work ceiling.
             Self::SeparatedCutout(_) => 192,
@@ -489,6 +502,28 @@ impl ClipRegion {
             }
             Self::RectangularCutout(clip) => clip.intersect_rectangle(rectangle),
             Self::SeparatedCutout(clip) => clip.intersect_rectangle(rectangle),
+            Self::PendingOrthogonal { pending, crop } => {
+                let crop = crop.map_or(rectangle, |old| intersection(old, rectangle));
+                if empty(crop) {
+                    Self::Empty
+                } else {
+                    Self::PendingOrthogonal {
+                        pending: Arc::clone(pending),
+                        crop: Some(crop),
+                    }
+                }
+            }
+            Self::Orthogonal { grid, crop } => {
+                let crop = intersection(*crop, rectangle);
+                if empty(crop) {
+                    Self::Empty
+                } else {
+                    Self::Orthogonal {
+                        grid: Arc::clone(grid),
+                        crop,
+                    }
+                }
+            }
         }
     }
 
@@ -509,7 +544,9 @@ impl ClipRegion {
             Self::Convex(_)
             | Self::RectanglePair(_)
             | Self::RectangularCutout(_)
-            | Self::SeparatedCutout(_) => {
+            | Self::SeparatedCutout(_)
+            | Self::Orthogonal { .. }
+            | Self::PendingOrthogonal { .. } => {
                 self.intersect_unsupported("compound clipping composition is not certified".into())
             }
         }
@@ -525,7 +562,9 @@ impl ClipRegion {
             Self::Convex(_)
             | Self::RectanglePair(_)
             | Self::RectangularCutout(_)
-            | Self::SeparatedCutout(_) => {
+            | Self::SeparatedCutout(_)
+            | Self::Orthogonal { .. }
+            | Self::PendingOrthogonal { .. } => {
                 self.intersect_unsupported("concave clipping composition is not certified".into())
             }
         }
@@ -547,7 +586,10 @@ impl ClipRegion {
         let (bounds, mut quads) = match self {
             Self::Empty => return Self::Empty,
             Self::Unsupported(_) => return self.clone(),
-            Self::RectanglePair(_) | Self::SeparatedCutout(_) => {
+            Self::RectanglePair(_)
+            | Self::SeparatedCutout(_)
+            | Self::Orthogonal { .. }
+            | Self::PendingOrthogonal { .. } => {
                 return self.intersect_unsupported(
                     "convex intersection with compound clipping is not certified".into(),
                 );
@@ -587,6 +629,8 @@ impl ClipRegion {
                 .any(|rect| inside(segment.from, *rect) && inside(segment.to, *rect)),
             Self::RectangularCutout(clip) => clip.segment_is_visible(segment),
             Self::SeparatedCutout(clip) => clip.segment_is_visible(segment),
+            Self::Orthogonal { grid, crop } => grid.segment_is_visible(segment, *crop),
+            Self::PendingOrthogonal { .. } => false,
             Self::Convex(clip) => [segment.from, segment.to].into_iter().all(|point| {
                 clip.quads
                     .iter()
@@ -621,6 +665,10 @@ impl ClipRegion {
             Self::Convex(clip) => clip.glyph_status(glyph),
             Self::RectangularCutout(clip) => clip.glyph_status(glyph),
             Self::SeparatedCutout(clip) => clip.glyph_status(glyph),
+            Self::Orthogonal { grid, crop } => grid.glyph_status(glyph, *crop),
+            Self::PendingOrthogonal { pending, .. } => {
+                Err(Error::Unsupported(pending.reason().to_string()))
+            }
             Self::Unsupported(reason) => Err(Error::Unsupported(reason.to_string())),
         }
     }
@@ -702,11 +750,11 @@ fn corners(rect: Rect) -> [Vec2; 4] {
     ]
 }
 
-fn empty(rect: Rect) -> bool {
+pub(super) fn empty(rect: Rect) -> bool {
     rect.max.x <= rect.min.x || rect.max.y <= rect.min.y
 }
 
-fn intersection(a: Rect, b: Rect) -> Rect {
+pub(super) fn intersection(a: Rect, b: Rect) -> Rect {
     Rect {
         min: Vec2 {
             x: a.min.x.max(b.min.x),

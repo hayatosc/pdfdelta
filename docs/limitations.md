@@ -100,7 +100,13 @@ ambiguous positions. The containing coarse proof still prevents completion.
   rectangle witnesses. Further rectangle/L-pair intersections also require
   strict rectangle witnesses; general L-shape intersections with convex or
   compound regions
-  remain unsupported. Other compound or curved clipping paths, transparency,
+  remain unsupported. An additional demand-driven budgeted fallback supports literally closed, finite orthogonal
+  subpaths with exact source provenance, including overlapping bounds and holes
+  under the specified fill rule. Before a glyph activates the proof, passive
+  drawing evidence retains its original uncertainty. Diagonal/curved or open subpaths, uncertified
+  prior constraints and unaffordable proofs remain unsupported. Later straight
+  segments must fit within one certified cell; crossing several cells is
+  conservatively held. General nonrectangular compositions, transparency,
   colors, and occlusion by later paint remain
   unsupported. Glyphs fully outside the CropBox or a supported clip are excluded
   from comparison; uncertain clipping preserves an extraction issue.

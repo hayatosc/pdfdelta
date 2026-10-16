@@ -898,6 +898,167 @@ fn corner_cutout_form_bbox_certificate_survives_ctm_changes() -> Result<()> {
 }
 
 #[test]
+fn orthogonal_cells_support_general_steps_and_three_components_under_both_rules() -> Result<()> {
+    let stepped = "20 20 m 40 20 l 40 80 l 60 80 l 60 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l";
+    for rule in ["W", "W*"] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content=pdf.add_object(Stream::new(dictionary!{},format!("q {stepped} 45 20 10 20 re 150 20 20 20 re {rule} n BT /F1 10 Tf 1 0 0 1 25 40 Tm (A) Tj 1 0 0 1 45 25 Tm (I) Tj 1 0 0 1 45 50 Tm (N) Tj 1 0 0 1 155 25 Tm (B) Tj ET Q BT /F1 10 Tf 1 0 0 1 45 50 Tm (C) Tj ET").into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(out.is_complete());
+        let glyphs = out.document().items();
+        assert_eq!(mapped_text(glyphs), "AINBC");
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>(),
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Outside,
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::Unclipped
+            ]
+        );
+        assert_eq!(glyphs[2].raw_code, b"N");
+        assert_eq!(glyphs[2].provenance.content_stream.object_number, content.0);
+    }
+    for (rule, status) in [
+        ("W", GlyphPathClipStatus::Inside),
+        ("W*", GlyphPathClipStatus::Outside),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("20 20 100 100 re 40 40 30 30 re {rule} n BT /F1 10 Tf 45 45 Td (H) Tj ET")
+                .into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(out.is_complete());
+        assert_eq!(out.document().items()[0].path_clip_status, status);
+    }
+    Ok(())
+}
+
+#[test]
+fn orthogonal_cells_keep_unaffordable_proofs_and_uncertified_sources_unsupported() -> Result<()> {
+    let shape = "20 20 m 40 20 l 40 80 l 60 80 l 60 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l W n";
+    for (prefix, suffix, cap) in [
+        ("", "", 100),
+        (
+            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n 1 -0.00000000000000001 0 1 0 0 cm",
+            "",
+            100_000,
+        ),
+        (
+            "",
+            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n",
+            100_000,
+        ),
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{prefix} {shape} {suffix} BT /F1 10 Tf 25 40 Td (A) Tj ET").into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
+        );
+        let out = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: cap,
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert!(!out.is_complete());
+        assert_eq!(out.issues().len(), 1);
+        assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    }
+    Ok(())
+}
+
+#[test]
+fn orthogonal_cells_share_only_the_same_frozen_owner_across_graphics_restore() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content=pdf.add_object(Stream::new(dictionary!{},b"20 20 m 40 20 l 40 80 l 60 80 l 60 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l W n q BT /F1 10 Tf 25 40 Td (A) Tj ET Q BT /F1 10 Tf 25 50 Td (B) Tj ET".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    let out = extract_outcome(
+        pdf,
+        ExtractionLimits {
+            max_operators: 20000,
+            ..ExtractionLimits::default()
+        },
+    )?;
+    assert!(out.is_complete());
+    assert_eq!(mapped_text(out.document().items()), "AB");
+    assert!(
+        out.document()
+            .items()
+            .iter()
+            .all(|g| g.path_clip_status == GlyphPathClipStatus::Inside)
+    );
+    Ok(())
+}
+
+#[test]
+fn orthogonal_cells_cannot_classify_glyphs_after_spending_the_remaining_work() {
+    // 10-edge two-phase proof16768 plus the retained ordinary fee16; per-use cell
+    // classification cannot run for free after the proof exactly fits.
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content=pdf.add_object(Stream::new(dictionary!{},b"20 20 m 40 20 l 40 80 l 60 80 l 60 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l W n BT /F1 10 Tf 25 40 Td (A) Tj ET".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    assert!(matches!(
+        extract(
+            pdf,
+            ExtractionLimits {
+                max_operators: 17936,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded {
+            resource: "convex clipping work",
+            limit: 17936
+        })
+    ));
+}
+
+#[test]
 fn edge_notch_clips_retain_notch_glyphs_and_graphics_restoration() -> Result<()> {
     for path in [
         "20 20 m 40 20 l 40 60 l 80 60 l 80 20 l 100 20 l 100 100 l 20 100 l 20 20 l",
@@ -1748,10 +1909,17 @@ fn graphics_only_form_clips_do_not_hide_outer_text_or_admit_uncertain_lines() ->
 }
 
 #[test]
-fn rejects_text_with_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
-    for path in [
-        "40 40 m 140 40 l 90 120 l h",
-        "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
+fn diagonal_and_open_clips_stay_unknown_while_closed_orthogonal_rings_are_proved() -> Result<()> {
+    for (path, complete) in [
+        ("40 40 m 140 40 l 90 120 l h", false),
+        (
+            "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
+            true,
+        ),
+        (
+            "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l",
+            false,
+        ),
     ] {
         let mut pdf = LopdfDocument::with_version("1.7");
         let font = base_font(&mut pdf);
@@ -1768,7 +1936,17 @@ fn rejects_text_with_non_rectangular_and_multiple_line_built_clips() -> Result<(
         );
 
         let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-        assert!(!outcome.is_complete(), "path: {path}");
+        assert_eq!(outcome.is_complete(), complete, "path: {path}");
+        if complete {
+            assert!(
+                outcome
+                    .document()
+                    .items()
+                    .iter()
+                    .all(|g| g.path_clip_status == GlyphPathClipStatus::Inside)
+            );
+            continue;
+        }
         assert_eq!(outcome.issues().len(), 1);
         assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
         assert!(
