@@ -14,11 +14,11 @@ use sha2::{Digest, Sha256};
 use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
-/// key, the extraction contract, or the cached payload shape. Version 34
-/// invalidates outcomes predating strict whole-box boundary exclusion and exact
-/// winding for owned curve witnesses with every original prior constraint.
+/// key, the extraction contract, or the cached payload shape. Version 36
+/// separates outcomes using prepaid incremental strict convex-vertex
+/// certificates from earlier extraction contracts.
 /// The separate font-decoding experiment has a different extraction contract.
-const CACHE_FORMAT_VERSION: u32 = 34;
+const CACHE_FORMAT_VERSION: u32 = 36;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during

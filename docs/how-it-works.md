@@ -96,7 +96,15 @@ partial table as a proof.
   after exact axis transposition, under a fixed prepaid work bound. The rectangle/L pair retains both the
   inter-component gap and the corner cutout; their outer bounds must be
   strictly separated. Each proof is prepaid and each classification/copy is
-  charged to the existing shared clipping work ceiling. A demand-driven fallback can certify literally closed orthogonal subpaths,
+  charged to the existing shared clipping work ceiling. An unresolved convex
+  glyph query may additionally prove strict partial overlap from an original
+  clip vertex strictly inside the glyph and every other original half-plane,
+  together with a strictly excluded glyph corner. Boundary contact, degenerate
+  glyph bounds and uncertain arithmetic cannot certify overlap. Fixed setup,
+  every visited exclusion/strict-quad stage and every foreign-quad test are paid
+  before execution. The total never exceeds the prior quadratic bound, while
+  an early certificate avoids only visits that were not performed; no work is
+  refunded and the shared ceiling is unchanged. A demand-driven fallback can certify literally closed orthogonal subpaths,
   including multiple components, overlaps and holes, under a strictly witnessed
   rectangular prior clip. It partitions by exact endpoint coordinates and
   evaluates integer winding or parity on each open coordinate cell, without

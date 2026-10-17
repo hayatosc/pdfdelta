@@ -1978,8 +1978,19 @@ impl Extraction<'_> {
                 page,
                 &mut self.convex_clip_work,
                 self.limits.max_operators,
-            )?,
-            other => other.glyph_status(bbox)?,
+            ),
+            other => other.glyph_status(bbox),
+        };
+        let path_clip_status = match path_clip_status {
+            Err(error @ Error::Unresolved(_)) => {
+                let Some(query) = state.graphics.clip_region.glyph_overlap_completion(bbox) else {
+                    return Err(error);
+                };
+                query
+                    .complete_incremental(|work| self.charge_convex_clip_work(work))?
+                    .ok_or(error)?
+            }
+            result => result?,
         };
         let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
