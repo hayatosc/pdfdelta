@@ -1652,6 +1652,9 @@ impl Assessor<'_, '_> {
             resources.source_bytes = resources.source_bytes.saturating_add(index.bytes);
             resources.veto_index = Some(index);
         }
+        // Freeze all live non-matching storage. Later matching-cache growth
+        // must retain both the pair filter and the literal veto table.
+        let source_bytes = resources.source_bytes;
         let mut tail_analyses = None;
         // Preserve every existing maximal-run attempt across all parents
         // before spending optional work on a smaller source-complete cut.
