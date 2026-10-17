@@ -320,6 +320,16 @@ fresh-analysis path, and failed or exhausted analyses are never cached. Source
 proofs, parent guards, candidates, partitions and ownership are checked again
 for every run. Cached matching pairs alone never establish equality.
 
+The same tail may prepare a paid table of immutable candidate and coarse-region
+singleton span headers. It binds both side objects and the exact candidate and
+region slices, validates scalar bounds before retaining a header, and retains
+complex or invalid spans for the original projection predicate. Each query
+excludes only its own coarse region and pays every entry visit. This table
+never retains source proofs or mutable ownership decisions. Setup is limited
+to one sixty-fourth of the remaining work; actual capacities count toward both
+a 64 KiB table cap and the existing live-memory ledger. Refused preparation
+keeps the original path without refunding work already spent.
+
 Equality publication prepares both complete partition snapshots before adopting
 either side. For sufficiently large partitions, the replacement interval also
 counts its unresolved children, avoiding two full population scans on each

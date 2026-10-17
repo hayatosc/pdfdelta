@@ -13588,6 +13588,187 @@ mod assessor_issue_cache_tests {
         }
     }
 
+    #[test]
+    fn literal_veto_index_preserves_projection_veto_and_pays_setup() -> Result<()> {
+        use super::mandatory_equal::{
+            EqualConstraints, LiteralVetoIndex, ownership_projection_clear,
+        };
+        let old_blocks = [anchor_block(1, "abcdefgh"), anchor_block(2, "abcdefgh")];
+        let new_blocks = [anchor_block(101, "abcdefgh"), anchor_block(102, "abcdefgh")];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let sides = [&old, &new];
+        let mut regions = (0..32)
+            .map(|i| ProvenChangedRegion {
+                old_span: Some(local_span(if i == 0 { 1 } else { 2 }, 0, 8)),
+                new_span: Some(local_span(if i == 0 { 101 } else { 102 }, 0, 8)),
+                confidence: super::super::Confidence::High,
+                proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+            })
+            .collect::<Vec<_>>();
+        for variant in 0..7 {
+            if variant == 1 {
+                regions[2]
+                    .old_span
+                    .as_mut()
+                    .expect("fixture span")
+                    .canonical_range
+                    .end = 7;
+            }
+            if variant == 2 {
+                regions[2].old_span = Some(local_span(999, 0, 8));
+            }
+            if variant == 3 {
+                regions[2].old_span = Some(local_span(2, 8, 8));
+            }
+            if variant == 4 {
+                regions[2].old_span = Some(local_span(2, 7, 2));
+            }
+            if variant == 5 {
+                regions[2].old_span = Some(local_span(2, 0, 8));
+                regions[2]
+                    .old_span
+                    .as_mut()
+                    .expect("fixture span")
+                    .separator = Some(BlockSeparator::Concatenate);
+            }
+            if variant == 6 {
+                let mut span = local_span(1, 0, 16);
+                span.blocks.push(BlockId(2));
+                span.separator = Some(BlockSeparator::Concatenate);
+                regions[2].old_span = Some(span);
+            }
+            let constraints = EqualConstraints {
+                candidates: &[],
+                regions: &regions,
+                original: &[],
+            };
+            let mut indexed = 1_000_000;
+            let index = LiteralVetoIndex::build(constraints, sides, 65536, &mut indexed)
+                .expect("funded bounded table");
+            let mut plain = 1_000_000;
+            for repeat in 0..32 {
+                let selected = [SourceInterval {
+                    block_index: repeat % 2,
+                    start: 1,
+                    end: 3,
+                }; 2];
+                let mut expected = true;
+                for side in 0..2 {
+                    for (_, region) in regions.iter().enumerate().filter(|(i, _)| *i != 0) {
+                        let span = if side == 0 {
+                            region.old_span.as_ref()
+                        } else {
+                            region.new_span.as_ref()
+                        };
+                        if let Some(span) = span
+                            && ownership_projection_clear(
+                                sides[side],
+                                span,
+                                &selected[side],
+                                &mut plain,
+                            ) != Some(true)
+                        {
+                            expected = false;
+                            break;
+                        }
+                    }
+                    if !expected {
+                        break;
+                    }
+                }
+                assert_eq!(
+                    index.clear(sides, constraints, 0, &selected, &mut indexed) == Some(true),
+                    expected
+                );
+            }
+            if variant == 0 {
+                assert!(indexed > plain, "all setup and query work included");
+            }
+            let selected = [SourceInterval {
+                block_index: 0,
+                start: 1,
+                end: 3,
+            }; 2];
+            assert_eq!(index.clear(sides, constraints, 0, &selected, &mut 0), None);
+            assert_eq!(
+                index.clear([&new, &old], constraints, 0, &selected, &mut 10000),
+                None
+            );
+            let cloned = regions.clone();
+            let other = EqualConstraints {
+                regions: &cloned,
+                ..constraints
+            };
+            assert_eq!(index.clear(sides, other, 0, &selected, &mut 10000), None);
+            assert!(LiteralVetoIndex::build(constraints, sides, 0, &mut 1_000_000).is_none());
+            assert!(LiteralVetoIndex::build(constraints, sides, 65536, &mut 0).is_none());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn literal_veto_index_candidate_and_exact_self_exclusion() -> Result<()> {
+        use super::mandatory_equal::{EqualConstraints, LiteralVetoIndex};
+        let old_blocks = [anchor_block(1, "abcdefgh")];
+        let new_blocks = [anchor_block(101, "abcdefgh")];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let sides = [&old, &new];
+        let mut regions = (0..32)
+            .map(|_| ProvenChangedRegion {
+                old_span: None,
+                new_span: None,
+                confidence: super::super::Confidence::High,
+                proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+            })
+            .collect::<Vec<_>>();
+        regions[2].old_span = Some(local_span(1, 0, 8));
+        let selected = [SourceInterval {
+            block_index: 0,
+            start: 1,
+            end: 3,
+        }; 2];
+        let constraints = EqualConstraints {
+            candidates: &[],
+            regions: &regions,
+            original: &[],
+        };
+        let index = LiteralVetoIndex::build(constraints, sides, 65536, &mut 1_000_000)
+            .expect("funded bounded table");
+        assert_eq!(
+            index.clear(sides, constraints, 2, &selected, &mut 10000),
+            Some(true)
+        );
+        assert_eq!(
+            index.clear(sides, constraints, 0, &selected, &mut 10000),
+            Some(false)
+        );
+        let candidates = [ChangeCandidate {
+            change: super::super::Change::single_occurrence(
+                ChangeKind::Replacement,
+                Some(local_span(1, 0, 8)),
+                Some(local_span(101, 0, 8)),
+                super::super::Confidence::Low,
+                Vec::new(),
+            ),
+            relation: 0,
+            alternative_group: 0,
+        }];
+        let constraints = EqualConstraints {
+            candidates: &candidates,
+            ..constraints
+        };
+        let index = LiteralVetoIndex::build(constraints, sides, 65536, &mut 1_000_000)
+            .expect("funded bounded table");
+        assert_eq!(
+            index.clear(sides, constraints, 2, &selected, &mut 10000),
+            Some(false)
+        );
+        assert!(LiteralVetoIndex::build(constraints, sides, 65536, &mut 1000).is_none());
+        Ok(())
+    }
+
     fn local_key(old: TextSpan, new: TextSpan) -> DomainKey {
         DomainKey {
             local: Some((old, new)),

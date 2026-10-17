@@ -15,6 +15,9 @@ use super::{
     semantic,
 };
 
+mod veto_index;
+pub(super) use veto_index::LiteralVetoIndex;
+
 /// Completed mandatory analyses for the four passes of one equality tail.
 ///
 /// The immutable domain slice and both sides bind every slot. Only complete
@@ -714,7 +717,8 @@ impl DiagnosticAllowance {
     }
 }
 
-struct TailResources {
+struct TailResources<'c, 's, 'b> {
+    veto_index: Option<LiteralVetoIndex<'c, 's, 'b>>,
     source_bytes: usize,
     retained_children: usize,
     // Earlier accepted parents remain in the final diagnostic pass. Retain
@@ -1616,6 +1620,7 @@ impl Assessor<'_, '_> {
             return Ok(());
         };
         let mut resources = TailResources {
+            veto_index: None,
             source_bytes,
             retained_children: 0,
             group_peak_bytes: 0,
@@ -1637,6 +1642,15 @@ impl Assessor<'_, '_> {
                 return Ok(());
             };
             resources.source_bytes = source_bytes;
+        }
+        let available = available_diagnostics
+            .checked_sub(resources.diagnostics.bytes().unwrap_or(usize::MAX))
+            .and_then(|bytes| bytes.checked_sub(resources.source_bytes - source_bytes));
+        if let Some(index) = available.and_then(|bytes| {
+            LiteralVetoIndex::build(constraints, self.sides, bytes, &mut self.remaining_work)
+        }) {
+            resources.source_bytes = resources.source_bytes.saturating_add(index.bytes);
+            resources.veto_index = Some(index);
         }
         let mut tail_analyses = None;
         // Preserve every existing maximal-run attempt across all parents
@@ -2042,7 +2056,7 @@ impl Assessor<'_, '_> {
         ownership: &mut [Ownership; 2],
         partitions: &mut [&mut Vec<ResolutionRange>; 2],
         constraints: EqualConstraints<'_>,
-        resources: &mut TailResources,
+        resources: &mut TailResources<'_, '_, '_>,
         source_held: Option<&mut bool>,
     ) -> Result<bool> {
         let EqualRun {
@@ -2099,39 +2113,52 @@ impl Assessor<'_, '_> {
         }
         // Candidate ownership and every other coarse obligation retain their
         // original veto. Only this exact whole parent's coarse proof composes.
-        for (side, selected) in intervals.iter().enumerate() {
-            for span in candidates
-                .iter()
-                .flat_map(|candidate| &candidate.change.occurrences)
-                .filter_map(|occurrence| {
-                    if side == 0 {
-                        occurrence.old_span.as_ref()
-                    } else {
-                        occurrence.new_span.as_ref()
-                    }
-                })
-                .chain(
-                    regions
-                        .iter()
-                        .enumerate()
-                        .filter(|(index, _)| *index != region_index)
-                        .filter_map(|(_, region)| {
-                            if side == 0 {
-                                region.old_span.as_ref()
-                            } else {
-                                region.new_span.as_ref()
-                            }
-                        }),
-                )
+        if let Some(index) = &resources.veto_index {
+            if index.clear(
+                self.sides,
+                constraints,
+                region_index,
+                &intervals,
+                &mut self.remaining_work,
+            ) != Some(true)
             {
-                if ownership_projection_clear(
-                    self.sides[side],
-                    span,
-                    selected,
-                    &mut self.remaining_work,
-                ) != Some(true)
+                return Ok(false);
+            }
+        } else {
+            for (side, selected) in intervals.iter().enumerate() {
+                for span in candidates
+                    .iter()
+                    .flat_map(|candidate| &candidate.change.occurrences)
+                    .filter_map(|occurrence| {
+                        if side == 0 {
+                            occurrence.old_span.as_ref()
+                        } else {
+                            occurrence.new_span.as_ref()
+                        }
+                    })
+                    .chain(
+                        regions
+                            .iter()
+                            .enumerate()
+                            .filter(|(index, _)| *index != region_index)
+                            .filter_map(|(_, region)| {
+                                if side == 0 {
+                                    region.old_span.as_ref()
+                                } else {
+                                    region.new_span.as_ref()
+                                }
+                            }),
+                    )
                 {
-                    return Ok(false);
+                    if ownership_projection_clear(
+                        self.sides[side],
+                        span,
+                        selected,
+                        &mut self.remaining_work,
+                    ) != Some(true)
+                    {
+                        return Ok(false);
+                    }
                 }
             }
         }
