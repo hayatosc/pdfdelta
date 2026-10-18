@@ -330,6 +330,13 @@ to one sixty-fourth of the remaining work; actual capacities count toward both
 a 64 KiB table cap and the existing live-memory ledger. Refused preparation
 keeps the original path without refunding work already spent.
 
+When additional setup and capacity fit those same limits, validated singleton
+headers may be linked by source block. Queries visit the selected block and a
+global list containing every deferred or invalid header; unrelated valid
+headers need no repeated visit. Both link arrays and block-head capacities
+remain in the live ledger. Setup and each visited link are paid, and refusal
+keeps the linear header table. Source and ownership guards still run freshly.
+
 Equality publication prepares both complete partition snapshots before adopting
 either side. For sufficiently large partitions, the replacement interval also
 counts its unresolved children, avoiding two full population scans on each

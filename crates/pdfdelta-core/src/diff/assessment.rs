@@ -13646,6 +13646,10 @@ mod assessor_issue_cache_tests {
             let mut indexed = 1_000_000;
             let index = LiteralVetoIndex::build(constraints, sides, 65536, &mut indexed)
                 .expect("funded bounded table");
+            let mut linear_work = 1_000_000;
+            let linear =
+                LiteralVetoIndex::build_linear(constraints, sides, 65536, &mut linear_work)
+                    .expect("funded linear control");
             let mut plain = 1_000_000;
             for repeat in 0..32 {
                 let selected = [SourceInterval {
@@ -13681,9 +13685,18 @@ mod assessor_issue_cache_tests {
                     index.clear(sides, constraints, 0, &selected, &mut indexed) == Some(true),
                     expected
                 );
+                assert_eq!(
+                    linear.clear(sides, constraints, 0, &selected, &mut linear_work) == Some(true),
+                    expected
+                );
             }
             if variant == 0 {
                 assert!(indexed > plain, "all setup and query work included");
+                assert!(
+                    indexed > linear_work,
+                    "bucket and linear setup both included"
+                );
+                assert!(index.bytes <= 65536);
             }
             let selected = [SourceInterval {
                 block_index: 0,

@@ -7,10 +7,78 @@ struct Entry<'a> {
     literal: Option<(usize, usize, usize)>,
 }
 
+/// Literal headers are grouped by source block; every deferred header remains
+/// global, including an invalid header on an otherwise unrelated block.
+struct Buckets {
+    heads: [Vec<Option<usize>>; 2],
+    next: [Vec<Option<usize>>; 2],
+    deferred: [Option<usize>; 2],
+    heap_bytes: usize,
+}
+
+impl Buckets {
+    fn build(
+        entries: &[Vec<Entry<'_>>; 2],
+        block_counts: [usize; 2],
+        available: usize,
+        work_allowance: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        let n = entries[0].len().checked_add(entries[1].len())?;
+        let blocks = block_counts[0].checked_add(block_counts[1])?;
+        let work = n
+            .checked_mul(16)?
+            .checked_add(blocks.checked_mul(4)?)?
+            .checked_add(64)?;
+        let bytes = n
+            .checked_add(blocks)?
+            .checked_mul(std::mem::size_of::<Option<usize>>())?;
+        if bytes > available || work > work_allowance || !charge_work(remaining, work) {
+            return None;
+        }
+        let mut heads = [Vec::new(), Vec::new()];
+        let mut next = [Vec::new(), Vec::new()];
+        for side in 0..2 {
+            heads[side].try_reserve_exact(block_counts[side]).ok()?;
+            next[side].try_reserve_exact(entries[side].len()).ok()?;
+        }
+        let heap_bytes = heads.iter().chain(&next).try_fold(0usize, |n, v| {
+            n.checked_add(
+                v.capacity()
+                    .checked_mul(std::mem::size_of::<Option<usize>>())?,
+            )
+        })?;
+        if heap_bytes > available {
+            return None;
+        }
+        let mut deferred = [None; 2];
+        for side in 0..2 {
+            heads[side].resize(block_counts[side], None);
+            next[side].resize(entries[side].len(), None);
+            for (i, entry) in entries[side].iter().enumerate() {
+                let head = if let Some((block, _, _)) = entry.literal {
+                    heads[side].get_mut(block)?
+                } else {
+                    &mut deferred[side]
+                };
+                next[side][i] = *head;
+                *head = Some(i);
+            }
+        }
+        Some(Self {
+            heads,
+            next,
+            deferred,
+            heap_bytes,
+        })
+    }
+}
+
 pub(in crate::diff::assessment) struct LiteralVetoIndex<'c, 's, 'b> {
     constraints: EqualConstraints<'c>,
     sides: [&'s Side<'b>; 2],
     entries: [Vec<Entry<'c>>; 2],
+    buckets: Option<Buckets>,
     pub(in crate::diff::assessment) bytes: usize,
 }
 
@@ -20,6 +88,26 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
         sides: [&'s Side<'b>; 2],
         available: usize,
         remaining: &mut usize,
+    ) -> Option<Self> {
+        Self::build_mode(constraints, sides, available, remaining, true)
+    }
+
+    #[cfg(test)]
+    pub(in crate::diff::assessment) fn build_linear(
+        constraints: EqualConstraints<'c>,
+        sides: [&'s Side<'b>; 2],
+        available: usize,
+        remaining: &mut usize,
+    ) -> Option<Self> {
+        Self::build_mode(constraints, sides, available, remaining, false)
+    }
+
+    fn build_mode(
+        constraints: EqualConstraints<'c>,
+        sides: [&'s Side<'b>; 2],
+        available: usize,
+        remaining: &mut usize,
+        prepare_buckets: bool,
     ) -> Option<Self> {
         if constraints
             .candidates
@@ -67,6 +155,7 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
         if bytes > limit {
             return None;
         }
+        let mut literals = 0usize;
         for (side, list) in entries.iter_mut().enumerate() {
             let spans = constraints
                 .candidates
@@ -108,6 +197,7 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
                 } else {
                     None
                 };
+                literals += usize::from(literal.is_some());
                 list.push(Entry {
                     span,
                     region,
@@ -115,12 +205,34 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
                 });
             }
         }
-        Some(Self {
+        let mut result = Self {
             constraints,
             sides,
             entries,
+            buckets: None,
             bytes,
-        })
+        };
+        if prepare_buckets {
+            // Refuse the optional layout when most headers need fresh projection.
+            // The count came from the already paid header validation pass.
+            let total = result.entries[0]
+                .len()
+                .checked_add(result.entries[1].len())?;
+            let allowance = (initial / 64).saturating_sub(initial - *remaining);
+            if literals >= total.saturating_sub(literals)
+                && let Some(buckets) = Buckets::build(
+                    &result.entries,
+                    sides.map(|side| side.blocks.len()),
+                    limit.checked_sub(result.bytes)?,
+                    allowance,
+                    remaining,
+                )
+            {
+                result.bytes = result.bytes.checked_add(buckets.heap_bytes)?;
+                result.buckets = Some(buckets);
+            }
+        }
+        Some(result)
     }
 
     pub(in crate::diff::assessment) fn clear(
@@ -138,6 +250,44 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
             || !std::ptr::eq(self.sides[1], sides[1])
         {
             return None;
+        }
+        if let Some(buckets) = &self.buckets {
+            for (side, interval) in selected.iter().enumerate() {
+                if !charge_work(remaining, 16) {
+                    return None;
+                }
+                let local = buckets.heads[side]
+                    .get(interval.block_index)
+                    .copied()
+                    .flatten();
+                for first in [buckets.deferred[side], local] {
+                    let mut cursor = first;
+                    while let Some(i) = cursor {
+                        if !charge_work(remaining, 16) {
+                            return None;
+                        }
+                        let entry = self.entries[side].get(i)?;
+                        cursor = *buckets.next[side].get(i)?;
+                        if entry.region == Some(excluded) {
+                            continue;
+                        }
+                        let clear = if let Some((_, start, end)) = entry.literal {
+                            start == end || interval.end <= start || end <= interval.start
+                        } else {
+                            ownership_projection_clear(
+                                sides[side],
+                                entry.span,
+                                interval,
+                                remaining,
+                            )?
+                        };
+                        if !clear {
+                            return Some(false);
+                        }
+                    }
+                }
+            }
+            return Some(true);
         }
         for (side, interval) in selected.iter().enumerate() {
             for entry in &self.entries[side] {
