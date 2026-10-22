@@ -551,6 +551,16 @@ Every source-map, normalization, sharing, page, position and ownership guard
 still runs in the original order. A non-scalar or unpaid selection returns no
 partial evidence.
 
+The optional coarse equality tail can retain validated source intervals for
+joined literal veto spans of two to sixty-four blocks. It pays the complete
+coordinate and duplicate-source validation once, then pays each overlap scan
+of those immutable intervals. The table remains bound to the exact source
+sides and candidate/changed-region slices; only the exact current region is
+excluded. Invalid, unmapped, larger or unfunded spans keep the original
+predicate. Cache construction shares the existing work allowance and memory
+limit, including retained vector capacity and bounded projection scratch.
+No ownership verdict, source-equality proof or candidate exclusion is cached.
+
 Suffix continuation keeps the original full-matrix semantic admission and
 search allowance. A separate `suffix_reuse_work` receipt reports actual
 recomputed interior cells, binding work and accounting work, plus unused

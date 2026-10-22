@@ -1,10 +1,11 @@
-//! Paid immutable singleton projections; mutable ownership is never cached.
+//! Paid immutable source projections; mutable ownership is never cached.
 use super::{EqualConstraints, Side, SourceInterval, charge_work, ownership_projection_clear};
 
 struct Entry<'a> {
     span: &'a super::super::TextSpan,
     region: Option<usize>,
     literal: Option<(usize, usize, usize)>,
+    projected: Option<Vec<SourceInterval>>,
 }
 
 /// Literal headers are grouped by source block; every deferred header remains
@@ -202,6 +203,7 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
                     span,
                     region,
                     literal,
+                    projected: None,
                 });
             }
         }
@@ -232,7 +234,130 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
                 result.buckets = Some(buckets);
             }
         }
+        if prepare_buckets {
+            result.prepare_projections(limit, initial / 64, initial - *remaining, remaining);
+        }
         Some(result)
+    }
+
+    /// Retains only completely validated literal joined spans. Invalid,
+    /// unmapped or unfunded headers keep the original query predicate. Both
+    /// the retained intervals and the bounded projector scratch fit alongside
+    /// the existing table; no mutable ownership verdict is stored.
+    fn prepare_projections(
+        &mut self,
+        limit: usize,
+        work_allowance: usize,
+        mut spent: usize,
+        remaining: &mut usize,
+    ) {
+        let Some(metadata) = self.entries[0]
+            .len()
+            .checked_add(self.entries[1].len())
+            .and_then(|n| n.checked_mul(8))
+            .and_then(|n| n.checked_add(16))
+        else {
+            return;
+        };
+        if spent
+            .checked_add(metadata)
+            .is_none_or(|n| n > work_allowance)
+            || !charge_work(remaining, metadata)
+        {
+            return;
+        }
+        spent += metadata;
+        for side in 0..2 {
+            for entry in &mut self.entries[side] {
+                if entry.literal.is_some() || !(2..=64).contains(&entry.span.blocks.len()) {
+                    continue;
+                }
+                let blocks = entry.span.blocks.len();
+                // General projection validates every coordinate and duplicate
+                // source id. Pay its full walk plus this literal preflight and
+                // the retained-vector bookkeeping, including refused headers.
+                let Some(work) = blocks
+                    .checked_mul(usize::BITS as usize + 16)
+                    .and_then(|n| n.checked_add(64))
+                else {
+                    continue;
+                };
+                // Covers projector intervals, its bounded duplicate-id table
+                // and overlapping allocation growth. Actual retained capacity
+                // is checked before the cache becomes visible.
+                let Some(scratch) = blocks.checked_mul(128).and_then(|n| n.checked_add(256)) else {
+                    continue;
+                };
+                if spent.checked_add(work).is_none_or(|n| n > work_allowance)
+                    || self.bytes.checked_add(scratch).is_none_or(|n| n > limit)
+                {
+                    continue;
+                }
+                if !charge_work(remaining, work) {
+                    return;
+                }
+                spent += work;
+                if !entry.span.blocks.iter().all(|id| {
+                    self.sides[side].index.get(id).is_some_and(|&index| {
+                        self.sides[side].blocks[index].canonical.unmapped.is_empty()
+                    })
+                }) {
+                    continue;
+                }
+                let Some(projected) = super::coarse_project(self.sides[side], entry.span) else {
+                    continue;
+                };
+                let Some(bytes) = projected
+                    .capacity()
+                    .checked_mul(std::mem::size_of::<SourceInterval>())
+                    .and_then(|n| self.bytes.checked_add(n))
+                else {
+                    continue;
+                };
+                if bytes <= limit {
+                    self.bytes = bytes;
+                    entry.projected = Some(projected);
+                }
+            }
+        }
+    }
+
+    fn entry_clear(
+        entry: &Entry<'_>,
+        side: &Side<'_>,
+        interval: &SourceInterval,
+        remaining: &mut usize,
+    ) -> Option<bool> {
+        if let Some((block, start, end)) = entry.literal {
+            return Some(
+                start == end
+                    || block != interval.block_index
+                    || interval.end <= start
+                    || end <= interval.start,
+            );
+        }
+        if let Some(projected) = &entry.projected {
+            // Scan all retained interval headers; the immutable coordinate
+            // validation was completed and paid at construction.
+            if !charge_work(remaining, projected.len().checked_mul(6)?.checked_add(2)?) {
+                return None;
+            }
+            return Some(!projected.iter().any(|other| {
+                interval.block_index == other.block_index
+                    && interval.start < other.end
+                    && other.start < interval.end
+            }));
+        }
+        ownership_projection_clear(side, entry.span, interval, remaining)
+    }
+
+    #[cfg(test)]
+    pub(in crate::diff::assessment) fn cached_projection_count(&self) -> usize {
+        self.entries
+            .iter()
+            .flatten()
+            .filter(|entry| entry.projected.is_some())
+            .count()
     }
 
     pub(in crate::diff::assessment) fn clear(
@@ -271,16 +396,7 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
                         if entry.region == Some(excluded) {
                             continue;
                         }
-                        let clear = if let Some((_, start, end)) = entry.literal {
-                            start == end || interval.end <= start || end <= interval.start
-                        } else {
-                            ownership_projection_clear(
-                                sides[side],
-                                entry.span,
-                                interval,
-                                remaining,
-                            )?
-                        };
+                        let clear = Self::entry_clear(entry, sides[side], interval, remaining)?;
                         if !clear {
                             return Some(false);
                         }
@@ -297,14 +413,7 @@ impl<'c, 's, 'b> LiteralVetoIndex<'c, 's, 'b> {
                 if entry.region == Some(excluded) {
                     continue;
                 }
-                let clear = if let Some((block, start, end)) = entry.literal {
-                    start == end
-                        || block != interval.block_index
-                        || interval.end <= start
-                        || end <= interval.start
-                } else {
-                    ownership_projection_clear(sides[side], entry.span, interval, remaining)?
-                };
+                let clear = Self::entry_clear(entry, sides[side], interval, remaining)?;
                 if !clear {
                     return Some(false);
                 }

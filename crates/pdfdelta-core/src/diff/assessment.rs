@@ -13773,6 +13773,130 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn joined_veto_cache_keeps_invalid_headers_and_exact_region_exclusion() -> Result<()> {
+        use super::mandatory_equal::{
+            EqualConstraints, LiteralVetoIndex, ownership_projection_clear,
+        };
+        for variant in 0..10 {
+            let first = if variant == 9 { "abc\t" } else { "abc" };
+            let old_blocks = [
+                anchor_block(1, first),
+                anchor_block(2, "def"),
+                anchor_block(3, "filler"),
+            ];
+            let new_blocks = [
+                anchor_block(101, first),
+                anchor_block(102, "def"),
+                anchor_block(103, "filler"),
+            ];
+            let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+            let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+            let sides = [&old, &new];
+            let mut regions = (0..32)
+                .map(|_| ProvenChangedRegion {
+                    old_span: Some(local_span(3, 0, 6)),
+                    new_span: Some(local_span(103, 0, 6)),
+                    confidence: super::super::Confidence::High,
+                    proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+                })
+                .collect::<Vec<_>>();
+            for (side, base) in [1, 101].into_iter().enumerate() {
+                let mut span = local_span(base, 0, 6);
+                span.blocks.push(BlockId(base + 1));
+                span.separator = Some(BlockSeparator::Concatenate);
+                match variant {
+                    1 => {
+                        span.comparable_range = TokenRange { start: 1, end: 5 };
+                        span.canonical_range = ScalarRange { start: 1, end: 5 };
+                    }
+                    2 => {
+                        span.comparable_range = TokenRange { start: 3, end: 3 };
+                        span.canonical_range = ScalarRange { start: 3, end: 3 };
+                    }
+                    3 => span.blocks[1] = span.blocks[0],
+                    4 => span.blocks[1] = BlockId(999),
+                    5 => span.canonical_range.end = 5,
+                    6 => span.separator = None,
+                    7 => span.blocks.reverse(),
+                    8 | 9 => {
+                        span.separator = Some(BlockSeparator::Space);
+                        span.comparable_range.end = 7;
+                        span.canonical_range.end = 7;
+                    }
+                    _ => {}
+                }
+                if side == 0 {
+                    regions[1].old_span = Some(span);
+                } else {
+                    regions[1].new_span = Some(span);
+                }
+            }
+            let constraints = EqualConstraints {
+                candidates: &[],
+                regions: &regions,
+                original: &[],
+            };
+            let mut paid = 1_000_000;
+            let index = LiteralVetoIndex::build(constraints, sides, 65536, &mut paid)
+                .expect("funded table");
+            assert_eq!(
+                index.cached_projection_count(),
+                if matches!(variant, 0..=2 | 7..=8) {
+                    2
+                } else {
+                    0
+                }
+            );
+            for excluded in [0, 1] {
+                for block_index in 0..3 {
+                    for start in 0..6 {
+                        let selected = [SourceInterval {
+                            block_index,
+                            start,
+                            end: start + 1,
+                        }; 2];
+                        let mut expected = true;
+                        for side in 0..2 {
+                            for (i, region) in regions.iter().enumerate() {
+                                if i == excluded {
+                                    continue;
+                                }
+                                let span = if side == 0 {
+                                    region.old_span.as_ref()
+                                } else {
+                                    region.new_span.as_ref()
+                                };
+                                if let Some(span) = span
+                                    && ownership_projection_clear(
+                                        sides[side],
+                                        span,
+                                        &selected[side],
+                                        &mut 1_000_000,
+                                    ) != Some(true)
+                                {
+                                    expected = false;
+                                    break;
+                                }
+                            }
+                            if !expected {
+                                break;
+                            }
+                        }
+                        assert_eq!(
+                            index.clear(sides, constraints, excluded, &selected, &mut paid)
+                                == Some(true),
+                            expected,
+                            "variant={variant} excluded={excluded} block={block_index} start={start}"
+                        );
+                    }
+                }
+            }
+            assert!(index.bytes <= 65536);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn literal_veto_index_candidate_and_exact_self_exclusion() -> Result<()> {
         use super::mandatory_equal::{EqualConstraints, LiteralVetoIndex};
         let old_blocks = [anchor_block(1, "abcdefgh")];
