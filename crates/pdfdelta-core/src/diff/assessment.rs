@@ -11531,6 +11531,58 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn mandatory_source_refusal_keeps_publication_capacity_and_prior_partitions() -> Result<()> {
+        let mut old_blocks = [anchor_block(1, "XfiY")];
+        let mut new_blocks = [anchor_block(101, "ZfiW")];
+        for block in [&mut old_blocks[0], &mut new_blocks[0]] {
+            block.canonical.source_map[1].output_range = ScalarRange { start: 1, end: 3 };
+            block.canonical.source_map.remove(2);
+            block.raw = block.canonical.clone();
+        }
+        let old = super::super::SidePlan::inspect("held old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("held new", &new_blocks)?.materialize()?;
+        let alignment = Alignment {
+            spans: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let mut assessor = h8_closed_parent([&old, &new], &alignment)?;
+        let domains = std::mem::take(&mut assessor.domains)
+            .into_iter()
+            .collect::<Vec<_>>();
+        let parent = assessor.records[0].clone();
+        let regions = [ProvenChangedRegion {
+            old_span: parent.old_span.clone(),
+            new_span: parent.new_span.clone(),
+            confidence: super::super::Confidence::High,
+            proof: super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+        let mut parts = [
+            h8_partition(BlockId(1), &[(0, 4, ResolutionState::Unresolved)]),
+            h8_partition(BlockId(101), &[(0, 4, ResolutionState::Unresolved)]),
+        ];
+        let before = parts.clone();
+        let mut owners = [Ownership::new(), Ownership::new()];
+        let [a, b] = &mut parts;
+        assessor.recover_mandatory_coarse_equalities(
+            &domains,
+            domains.capacity(),
+            &mut owners,
+            [a, b],
+            mandatory_equal::EqualConstraints {
+                candidates: &[],
+                regions: &regions,
+                original: &[],
+            },
+        )?;
+        assert_eq!(assessor.records, vec![parent]);
+        assert_eq!(parts, before);
+        assert!(owners.iter().all(|owner| owner.accepted.is_empty()));
+        assert!(owners.iter().all(|owner| owner.accepted.capacity() == 0));
+        Ok(())
+    }
+
+    #[test]
     fn h19_page_shift_singletons_keep_ligature_and_candidate_refusals() -> Result<()> {
         // One decoded ligature owns both f/i scalars. CD and KL have distinct
         // literal singleton glyphs; only the fiCD maximal run lacks a source cut.

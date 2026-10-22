@@ -337,7 +337,10 @@ headers need no repeated visit. Both link arrays and block-head capacities
 remain in the live ledger. Setup and each visited link are paid, and refusal
 keeps the linear header table. Source and ownership guards still run freshly.
 
-Equality publication prepares both complete partition snapshots before adopting
+After validating the containing scope and memory envelope, equality publication
+checks the raw-source proof before constructing partition snapshots or reserving
+record and ownership arrays. A held source proof leaves those arrays untouched.
+Successful proofs still prepare both complete partition snapshots before adopting
 either side. For sufficiently large partitions, the replacement interval also
 counts its unresolved children, avoiding two full population scans on each
 side. Only one unique unresolved interval may be replaced; every other state
@@ -504,9 +507,10 @@ checked geometric capacity requests. The memory allowance includes transient
 old and requested new backing arrays; a larger request falls back to the minimum
 when it would exceed that allowance. Old-array movement is charged when growth
 is required. New record and ownership headers and the bounded capacity metadata
-checks are paid for every publication. Actual capacities are checked before the
-source guard, and spare capacity retained by a refused source attempt remains in
-later memory plans. Same-page capacity requests and work accounting are unchanged.
+checks are paid for every publication. Actual capacities are checked after
+reservation and before publishing. Both same-page and page-shift attempts check
+the source proof first; a source refusal reserves no publication arrays. Any
+capacity retained by a later preparation failure remains in subsequent plans.
 
 
 Anchored translation and each bracketed discovery round reuse the comparison's

@@ -2224,6 +2224,29 @@ impl Assessor<'_, '_> {
             return Ok(false);
         };
         let mut growth = plan;
+        // The approved memory envelope includes the source cache. A held
+        // source proof needs no partition snapshots or publication capacity;
+        // successful proofs still pay and reserve every copy before publishing.
+        let cache = self
+            .equal_fragment_cache
+            .get_or_insert_with(|| equal_fragment::EqualFragmentCache::new(self.sides));
+        let source_verdict = if page_shifted {
+            cache.prove_sources_for_page_shifted_mandatory_pairs(spans, &mut self.remaining_work)
+        } else {
+            cache.prove_sources_for_mandatory_pairs(spans, &mut self.remaining_work)
+        };
+        match source_verdict {
+            Ok(equal_fragment::FragmentVerdict::Proven) => {}
+            Ok(equal_fragment::FragmentVerdict::Held(_)) => {
+                if let Some(source_held) = source_held {
+                    *source_held = true;
+                }
+                return Ok(false);
+            }
+            Ok(equal_fragment::FragmentVerdict::Exhausted)
+            | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => return Ok(false),
+            Err(error) => return Err(error),
+        }
         let partition_count = partitions[0].len().saturating_add(partitions[1].len());
         // Sixteen units cover the two local three-piece counters. The original
         // two population scans remain the route for smaller partitions.
@@ -2393,29 +2416,9 @@ impl Assessor<'_, '_> {
         {
             child_assumptions.push(ComparisonAssumption::PageShiftedMandatoryMatchingEquality);
         }
-        let cache = self
-            .equal_fragment_cache
-            .get_or_insert_with(|| equal_fragment::EqualFragmentCache::new(self.sides));
-        let source_verdict = if page_shifted {
-            cache.prove_sources_for_page_shifted_mandatory_pairs(spans, &mut self.remaining_work)
-        } else {
-            cache.prove_sources_for_mandatory_pairs(spans, &mut self.remaining_work)
-        };
-        match source_verdict {
-            Ok(equal_fragment::FragmentVerdict::Proven) => {}
-            Ok(equal_fragment::FragmentVerdict::Held(_)) => {
-                if let Some(source_held) = source_held {
-                    *source_held = true;
-                }
-                return Ok(false);
-            }
-            Ok(equal_fragment::FragmentVerdict::Exhausted)
-            | Err(Error::LimitExceeded { .. } | Error::Unresolved(_)) => return Ok(false),
-            Err(error) => return Err(error),
-        }
         // Every retained copy, capacity growth and partition scan is prepaid.
-        // Both sides and the certificate publish together, even if the last
-        // completed source check used the remaining work exactly.
+        // Both sides and the certificate publish together after all source
+        // checks and fallible preparation have completed.
         ownership[0].accepted.push(intervals[0]);
         ownership[1].accepted.push(intervals[1]);
         *partitions[0] = next_old;
