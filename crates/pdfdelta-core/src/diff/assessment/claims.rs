@@ -16,9 +16,142 @@ use std::cell::Cell;
 
 use crate::{Error, Result};
 
+use super::envelope::{AlignmentDagRow, EnvelopeUnavailable, OptimalAlignmentDag};
+
 const MAX_CLAIM_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 const CLAIM_CELLS_RESOURCE: &str = "claim DP cells";
 const CLAIM_MEMORY_RESOURCE: &str = "claim DP memory";
+
+/// Opt-in capture; ordinary claim callers allocate no graph and retain their
+/// original work accounting. The extra budget covers construction, edge tests,
+/// and both scans used to summarize alternatives without enumerating paths.
+pub(super) struct DagCapture {
+    max_cells: usize,
+    pub(super) dag: Option<OptimalAlignmentDag>,
+    pub(super) refusal: EnvelopeUnavailable,
+}
+
+impl DagCapture {
+    pub(super) fn new(max_cells: usize) -> Self {
+        Self {
+            max_cells,
+            dag: None,
+            refusal: EnvelopeUnavailable::WorkLimit,
+        }
+    }
+
+    fn prepare(
+        &mut self,
+        layout: &BandLayout,
+        lcs_length: usize,
+        remaining_work: &mut usize,
+    ) -> Result<bool> {
+        if layout.cell_count > self.max_cells {
+            self.refusal = EnvelopeUnavailable::CellLimit;
+            return Ok(false);
+        }
+        let total = layout.old_len.saturating_add(layout.new_len);
+        // Conservative aggregate bound: includes grid, graph, nested Vec
+        // headers, summary masks, counterpart indices and temporary counts.
+        let memory = layout
+            .cell_count
+            .checked_mul(24)
+            .and_then(|bytes| bytes.checked_add(total.checked_mul(160)?))
+            .and_then(|bytes| bytes.checked_add(layout.memory_bytes().ok()?))
+            .ok_or(limit_error(CLAIM_MEMORY_RESOURCE))?;
+        ensure_memory(memory)?;
+        let work = layout
+            .cell_count
+            .checked_mul(4)
+            .and_then(|work| work.checked_add(total.checked_mul(4)?))
+            .ok_or(limit_error(CLAIM_CELLS_RESOURCE))?;
+        if work > *remaining_work {
+            return Ok(false);
+        }
+        *remaining_work -= work;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(layout.old_len + 1)
+            .map_err(|_| allocation_error("alignment DAG rows"))?;
+        for i in 0..=layout.old_len {
+            let (start, end) = layout.row_bounds(i);
+            let mut edges = Vec::new();
+            edges
+                .try_reserve_exact(end - start)
+                .map_err(|_| allocation_error("alignment DAG edges"))?;
+            edges.resize(end - start, 0);
+            rows.push(AlignmentDagRow {
+                new_start: start,
+                edges,
+            });
+        }
+        self.dag = Some(OptimalAlignmentDag {
+            old_length: layout.old_len,
+            new_length: layout.new_len,
+            lcs_length,
+            rows,
+        });
+        Ok(true)
+    }
+
+    fn direct(
+        &mut self,
+        old_len: usize,
+        new_len: usize,
+        equal: bool,
+        remaining_work: &mut usize,
+    ) -> Result<bool> {
+        let distance = if equal {
+            0
+        } else {
+            old_len.saturating_add(new_len)
+        };
+        let layout = BandLayout::band(old_len, new_len, distance)?;
+        if !self.prepare(&layout, if equal { old_len } else { 0 }, remaining_work)? {
+            return Ok(false);
+        }
+        let dag = self
+            .dag
+            .as_mut()
+            .ok_or_else(|| invalid("missing prepared DAG"))?;
+        for (i, row) in dag.rows.iter_mut().enumerate() {
+            for (offset, edge) in row.edges.iter_mut().enumerate() {
+                let j = row.new_start + offset;
+                *edge = if equal && i < old_len {
+                    1
+                } else if !equal && i < old_len {
+                    2
+                } else if !equal && j < new_len {
+                    4
+                } else {
+                    0
+                };
+            }
+        }
+        Ok(true)
+    }
+}
+
+pub(super) fn literal_claims_with_dag<T: Eq + Hash>(
+    old: &[T],
+    new: &[T],
+    old_source: &[bool],
+    new_source: &[bool],
+    remaining_work: &mut usize,
+    capture: &mut DagCapture,
+) -> Result<Option<LiteralClaims>> {
+    literal_claims_with_preference(
+        old,
+        new,
+        old_source,
+        new_source,
+        old_source,
+        new_source,
+        remaining_work,
+        None,
+        true,
+        Some(capture),
+    )
+}
 
 #[cfg(test)]
 thread_local! {
@@ -80,6 +213,7 @@ pub(super) fn literal_claims<T: Eq + Hash>(
         remaining_work,
         None,
         false,
+        None,
     )
 }
 
@@ -104,6 +238,7 @@ pub(super) fn literal_claims_retaining_unspent_grid_work<T: Eq + Hash>(
         remaining_work,
         None,
         true,
+        None,
     )
 }
 
@@ -160,6 +295,7 @@ pub(super) fn literal_claims_for_benchmark_with_limit<T: Eq + Hash>(
         remaining_work,
         Some(force_band),
         false,
+        None,
     );
     CLAIM_MEMORY_LIMIT.with(|limit| limit.set(previous_limit));
     result
@@ -176,6 +312,7 @@ fn literal_claims_with_preference<T: Eq + Hash>(
     remaining_work: &mut usize,
     forced_band: Option<bool>,
     retain_unspent_grid_work: bool,
+    mut capture: Option<&mut DagCapture>,
 ) -> Result<Option<LiteralClaims>> {
     validate_masks(old, new, old_source, new_source)?;
     validate_masks(old, new, old_residual, new_residual)?;
@@ -196,9 +333,19 @@ fn literal_claims_with_preference<T: Eq + Hash>(
     }
 
     if old.is_empty() || new.is_empty() {
+        if let Some(capture) = capture.as_deref_mut()
+            && !capture.direct(old.len(), new.len(), false, remaining_work)?
+        {
+            return Ok(None);
+        }
         return direct_claims(old, new, selected_source, selected_residual, false).map(Some);
     }
     if old == new {
+        if let Some(capture) = capture.as_deref_mut()
+            && !capture.direct(old.len(), new.len(), true, remaining_work)?
+        {
+            return Ok(None);
+        }
         return direct_claims(old, new, selected_source, selected_residual, true).map(Some);
     }
 
@@ -256,6 +403,11 @@ fn literal_claims_with_preference<T: Eq + Hash>(
     if retain_unspent_grid_work && grid_work > *remaining_work {
         return Ok(None);
     }
+    if let Some(capture) = capture.as_deref_mut()
+        && !capture.prepare(&layout, lcs_length, remaining_work)?
+    {
+        return Ok(None);
+    }
     let mut grid = ClaimGrid::new(layout)?;
     if !charge(remaining_work, grid_work) {
         return Ok(None);
@@ -274,7 +426,13 @@ fn literal_claims_with_preference<T: Eq + Hash>(
             "fused claim grid disagrees with exact LCS distance",
         ));
     }
-    let mandatory = mandatory_claims(&grid, old, new, lcs_length)?;
+    let mandatory = mandatory_claims(
+        &grid,
+        old,
+        new,
+        lcs_length,
+        capture.and_then(|capture| capture.dag.as_mut()),
+    )?;
     Ok(Some(LiteralClaims {
         source: CountBounds {
             lower: selected_source
@@ -994,6 +1152,7 @@ fn mandatory_claims<T: Eq>(
     old: &[T],
     new: &[T],
     lcs_length: usize,
+    mut dag: Option<&mut OptimalAlignmentDag>,
 ) -> Result<MandatoryChanges> {
     let mut old_changed = bools(old.len(), true)?;
     let mut new_changed = bools(new.len(), true)?;
@@ -1041,6 +1200,37 @@ fn mandatory_claims<T: Eq>(
                 reachable.then_some(best)
             };
             suffix_current[new_index] = best.unwrap_or(usize::MAX);
+
+            if let Some(dag) = dag.as_deref_mut()
+                && let Some(prefix) = grid.get(old_index, new_index)
+                && prefix.reachable()
+            {
+                let through = |suffix: usize, weight: usize| {
+                    suffix != usize::MAX && prefix.lcs as usize + weight + suffix == lcs_length
+                };
+                let mut edges = 0;
+                if old_index < old.len()
+                    && grid.layout.index(old_index + 1, new_index).is_some()
+                    && through(suffix_next[new_index], 0)
+                {
+                    edges |= 2;
+                }
+                if new_index < new.len()
+                    && grid.layout.index(old_index, new_index + 1).is_some()
+                    && through(suffix_current[new_index + 1], 0)
+                {
+                    edges |= 4;
+                }
+                if old_index < old.len()
+                    && new_index < new.len()
+                    && old[old_index] == new[new_index]
+                    && grid.layout.index(old_index + 1, new_index + 1).is_some()
+                    && through(suffix_next[new_index + 1], 1)
+                {
+                    edges |= 1;
+                }
+                dag.rows[old_index].edges[new_index - start] = edges;
+            }
 
             if old_index < old.len()
                 && new_index < new.len()

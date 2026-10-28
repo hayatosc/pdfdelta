@@ -160,6 +160,18 @@ impl From<ComparisonChannel> for pdfdelta_core::document::Channel {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Explain all optimal alignments of supplied local token pairs as conditional evidence.
+    TextEnvelope {
+        /// JSON request containing pairs of strings or token/source-mask objects; '-' reads stdin.
+        #[arg(value_name = "INPUT")]
+        input: PathBuf,
+        #[arg(long, default_value_t = 1_000_000)]
+        max_work: usize,
+        #[arg(long, default_value_t = 262_144)]
+        max_cells: usize,
+        #[arg(long, default_value_t = 1_048_576)]
+        max_output_bytes: usize,
+    },
     /// Internal bounded image-hashing process; consumes PDF bytes on standard input.
     #[command(hide = true)]
     HashImages,

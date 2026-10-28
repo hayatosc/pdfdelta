@@ -11,6 +11,7 @@ This page documents the `pdfdelta` command in detail. Run `pdfdelta --help` or
 - [Resource limits and caching](#resource-limits-and-caching)
 - [Encrypted PDFs and font identities](#encrypted-pdfs-and-font-identities)
 - [Inspecting a single PDF](#inspecting-a-single-pdf)
+- [Explaining local text alternatives](#explaining-local-text-alternatives)
 - [Shell completions](#shell-completions)
 
 ## Comparing two PDFs
@@ -20,6 +21,7 @@ pdfdelta [OPTIONS] <OLD_PDF> <NEW_PDF>
 ```
 
 Either input may be `-` to read that PDF from standard input.
+
 
 ```bash
 pdfdelta old.pdf new.pdf                       # human-readable report on stdout
@@ -307,6 +309,52 @@ pdfdelta inspect document.pdf --svg overlay.svg
 replace an existing file or the inspected PDF. Inspection output escapes control
 and bidi characters that originate from PDF names, strings, glyph text, or
 parser issues. `inspect` also accepts `--password-file` and `--font-identity`.
+
+## Explaining local text alternatives
+
+`pdfdelta text-envelope INPUT` accepts a JSON request with `pairs`. Each pair
+has an `id`, `old`, and `new`; each side is a string or an object containing
+`tokens` (serialized comparable tokens) and an optional boolean `source` mask.
+Strings retain every Unicode scalar, including trailing whitespace. No
+whitespace trimming or normalization is performed.
+
+```bash
+pdfdelta text-envelope - <<'JSON'
+{"pairs":[{"id":"field14","old":"14 Excess golden parachute payments","new":"14 "}]}
+JSON
+```
+
+The response is explicitly conditional on the supplied reading order and
+correspondence. It returns mandatory source-change masks, minimum/maximum
+changed counts, the exact positions whose operation or counterpart varies,
+per-position counterpart alternatives, and the complete optimal-alignment DAG.
+For this example, the count is 32, 29 old letters must be deleted, and exactly
+one of old spaces `[2,9,16,26]` matches new position `2`. The other three spaces
+are deleted, without selecting an arbitrary location for the retained space.
+
+`old` and `new` token alternatives are marginals. They cannot be combined
+independently: follow a complete DAG path to obtain a jointly valid alignment.
+In DAG row `i`, byte offset `k` represents state `(i, new_start+k)`. Outgoing
+bits are `1` for equal `(i+1,j+1)`, `2` for delete `(i+1,j)`, and `4` for insert
+`(i,j+1)`. Start at `(0,0)` and end at the two input lengths. Zero means no
+outgoing edge. The DAG is retained without enumerating its paths.
+
+Default limits are 1,000,000 shared logical work units, 262,144 retained cells
+per pair, and 1,048,576 output bytes including the newline. The corresponding
+options are `--max-work`, `--max-cells`, and `--max-output-bytes`. Hard ceilings
+are 32,000,000 work units, 262,144 cells, and 8,388,608 output bytes. Input is
+limited to 1 MiB, 1,024 pairs, and 32,768 tokens per side. A work/cell refusal
+returns `unavailable`, never an empty proof. If the entire response does not
+fit the output cap, the command exits `2` without emitting partial JSON.
+
+This is a query over caller-supplied tokens and source flags. It does not
+extract PDF regions, verify glyph provenance, infer copy identity, establish
+frame closure, or resolve candidates in an existing report. Exit `0` means the
+query was answered, including explicit local refusals; it does not mean a PDF
+comparison completed. Use `local_text_envelope` for comparable-token slices or
+`document::explain_local_text_views` for existing `TextView` pairs in library
+integrations. The latter retains the conditional interpretation and original
+token indices for projection through `view.origins`.
 
 ## Shell completions
 

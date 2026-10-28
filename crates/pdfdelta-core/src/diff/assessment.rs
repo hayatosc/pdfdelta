@@ -9,6 +9,9 @@ mod closed_child;
 mod context_projection;
 mod deferred;
 mod document_claims;
+mod envelope;
+#[cfg(test)]
+mod envelope_tests;
 mod equal_fragment;
 mod evidence_index;
 mod exact;
@@ -24,7 +27,11 @@ mod suffix;
 mod validation;
 mod views;
 
-pub use document_claims::{LocalTextClaims, LocalTextSide, local_text_claims};
+pub use document_claims::{LocalTextClaims, LocalTextSide, local_text_claims, local_text_envelope};
+pub use envelope::{
+    AlignmentDagRow, EnvelopeUnavailable, LocalTextEnvelope, LocalTextEnvelopeLimits,
+    LocalTextEnvelopeResult, MAX_ENVELOPE_CELLS, OptimalAlignmentDag, TokenAlternatives,
+};
 
 use std::{
     collections::{HashMap, HashSet},

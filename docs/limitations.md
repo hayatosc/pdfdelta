@@ -62,6 +62,15 @@ ambiguous positions. The containing coarse proof still prevents completion.
 
 ## Text extraction
 
+Local optimal-alignment envelopes are optional explanations of supplied token
+pairs. They do not establish document correspondence, reading order, scope
+closure, extraction completeness, or source ownership. Mandatory masks use the
+same proof kernel as existing local claims; retaining more alternative
+information does not increase strict comparison completion. The envelope API
+currently refuses optional-normalization families instead of selecting one
+interpretation. Its graph and counterpart lists consume additional time and
+output space, bounded independently of existing comparisons.
+
 - Extraction mainly targets single-column text in the supported font subset:
   Type 1 / Type1C / MMType1 and TrueType simple fonts, axis-aligned Type 3 with
   declared metrics, and Type 0 fonts with one CIDFontType0/CIDFontType2

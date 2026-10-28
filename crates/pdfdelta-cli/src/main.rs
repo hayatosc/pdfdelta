@@ -17,6 +17,7 @@ mod inspect;
 mod native_worker;
 mod render;
 mod review;
+mod text_envelope;
 mod trace;
 mod widgets;
 
@@ -88,6 +89,24 @@ fn main() -> ExitCode {
     let mut stderr = stderr.lock();
     let cli = Cli::parse();
     match cli.command {
+        Some(Command::TextEnvelope {
+            input,
+            max_work,
+            max_cells,
+            max_output_bytes,
+        }) => match text_envelope::query(&input, max_work, max_cells, max_output_bytes) {
+            Ok(payload) => match agent_review::emit(&payload) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    report_fatal_error(&mut stderr, &error);
+                    ExitCode::from(ExitStatus::ExecutionError.code())
+                }
+            },
+            Err(error) => {
+                report_fatal_error(&mut stderr, &error);
+                ExitCode::from(ExitStatus::ExecutionError.code())
+            }
+        },
         Some(Command::HashImages) => match image_hashes::worker() {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),

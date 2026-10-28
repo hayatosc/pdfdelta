@@ -6,11 +6,14 @@ mod sentence;
 
 pub(crate) use assessment::ExactDisplacementInput;
 pub use assessment::{
-    ASSESSMENT_POLICY_VERSION, AlignmentPolicy, AnchorWork, AssessmentReason, AssessmentWork,
-    ChangeCandidate, ComparisonAssessment, ComparisonAssumption, EditCountBounds, EvidenceLinkWork,
-    LocalTextClaims, LocalTextSide, LocalViewWork, LocalizedEditScript, RelationAssessment,
+    ASSESSMENT_POLICY_VERSION, AlignmentDagRow, AlignmentPolicy, AnchorWork, AssessmentReason,
+    AssessmentWork, ChangeCandidate, ComparisonAssessment, ComparisonAssumption, EditCountBounds,
+    EnvelopeUnavailable, EvidenceLinkWork, LocalTextClaims, LocalTextEnvelope,
+    LocalTextEnvelopeLimits, LocalTextEnvelopeResult, LocalTextSide, LocalViewWork,
+    LocalizedEditScript, MAX_ENVELOPE_CELLS, OptimalAlignmentDag, RelationAssessment,
     RelationOutcome, ResolutionRange, ResolutionState, ReviewUnit, ScopedChangeEvidence,
-    SearchCompleteness, SuffixReuseWork, WitnessSourceAnchor, local_text_claims,
+    SearchCompleteness, SuffixReuseWork, TokenAlternatives, WitnessSourceAnchor, local_text_claims,
+    local_text_envelope,
 };
 
 pub use recovery::container::{

@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Result,
-    diff::{LocalTextClaims, LocalTextSide, local_text_claims},
+    diff::{
+        EnvelopeUnavailable, LocalTextClaims, LocalTextEnvelopeLimits, LocalTextEnvelopeResult,
+        LocalTextSide, local_text_claims, local_text_envelope,
+    },
     normalize::ComparableToken,
 };
 
@@ -19,6 +22,80 @@ use super::{
 pub enum InterpretationStatus {
     ConditionalOnCorrespondence,
     Inferred,
+}
+
+/// Additional evidence requested for an existing pair of text views. It has
+/// no ownership or completion authority, even when all local paths agree.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConditionalTextEnvelope {
+    pub interpretation: InterpretationStatus,
+    pub result: LocalTextEnvelopeResult,
+}
+
+/// Explains the joint alternatives of a proposed pair without changing its
+/// [`LocalViewComparison`]. Positions index the original views, so callers can
+/// project both mandatory and ambiguous positions through `view.origins`.
+///
+/// Source validation, frame closure, and cross-document correspondence remain
+/// independent caller obligations. This function does not construct or certify
+/// a new view by concatenating separated PDF regions. Optional normalization
+/// requires a union of interpretation DAGs and is explicitly unavailable here.
+pub fn explain_local_text_views(
+    old: &TextView,
+    new: &TextView,
+    remaining_work: &mut usize,
+    limits: LocalTextEnvelopeLimits,
+) -> Result<ConditionalTextEnvelope> {
+    if old.origins.len() != old.tokens.len()
+        || new.origins.len() != new.tokens.len()
+        || old.source_backed.len() != old.tokens.len()
+        || new.source_backed.len() != new.tokens.len()
+    {
+        return Err(super::evidence::invalid(
+            "local envelope view dimensions differ",
+        ));
+    }
+    if limits.max_cells > crate::diff::MAX_ENVELOPE_CELLS {
+        return Err(super::evidence::invalid(
+            "local envelope cell cap exceeds the internal maximum",
+        ));
+    }
+    // Every complete monotone path contains at least max(n,m)+1 states.
+    // Refuse before allocating normalization masks for an oversized view.
+    if old.tokens.len().max(new.tokens.len()).saturating_add(1) > limits.max_cells {
+        return Ok(ConditionalTextEnvelope {
+            interpretation: InterpretationStatus::ConditionalOnCorrespondence,
+            result: LocalTextEnvelopeResult::Unavailable {
+                reason: EnvelopeUnavailable::CellLimit,
+            },
+        });
+    }
+    let result = if let (Some(old_optional), Some(new_optional)) =
+        (old.optional_tokens(), new.optional_tokens())
+    {
+        local_text_envelope(
+            LocalTextSide {
+                tokens: &old.tokens,
+                source: &old.source_backed,
+                optional: &old_optional,
+            },
+            LocalTextSide {
+                tokens: &new.tokens,
+                source: &new.source_backed,
+                optional: &new_optional,
+            },
+            remaining_work,
+            limits,
+        )?
+    } else {
+        LocalTextEnvelopeResult::Unavailable {
+            reason: EnvelopeUnavailable::NormalizationAlternatives,
+        }
+    };
+    Ok(ConditionalTextEnvelope {
+        interpretation: InterpretationStatus::ConditionalOnCorrespondence,
+        result,
+    })
 }
 
 /// A display unit is not a claim that every character in that unit changed.
