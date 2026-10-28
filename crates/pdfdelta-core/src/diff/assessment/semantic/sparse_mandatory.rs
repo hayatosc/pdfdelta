@@ -17,6 +17,9 @@ use super::{
 };
 use crate::{Error, Result, normalize::ComparableToken};
 
+mod preference;
+pub(in crate::diff::assessment) use preference::mandatory_literal_analysis_with_sparse_preference;
+
 const NONE: usize = usize::MAX;
 const BUCKETS: usize = 256;
 

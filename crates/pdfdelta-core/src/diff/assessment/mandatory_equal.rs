@@ -17,6 +17,8 @@ use super::{
 
 mod veto_index;
 pub(super) use veto_index::LiteralVetoIndex;
+mod closed_component;
+pub(super) use closed_component::ClosedComponentProof;
 
 /// Completed mandatory analyses for the four passes of one equality tail.
 ///
@@ -354,6 +356,12 @@ pub(super) fn compatible_child(
             whole_coarse_page_shift_parent(sides, parent, region)
         } else {
             whole_coarse_parent(sides, parent, region)
+                || parent
+                    .parent
+                    .filter(|index| *index < parent_index)
+                    .is_some_and(|index| {
+                        closed_component::matches_ancestor(sides, parent, &relations[index], region)
+                    })
         })
     {
         return false;

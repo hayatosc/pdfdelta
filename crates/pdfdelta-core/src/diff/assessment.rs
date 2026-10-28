@@ -7267,7 +7267,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
                 }
                 Some(None) => continue,
                 None => {
-                    fresh = match semantic::mandatory_match_analysis_with_memory_limit(
+                    fresh = match semantic::mandatory_literal_analysis_with_sparse_preference(
                         old,
                         new,
                         &mut self.remaining_work,

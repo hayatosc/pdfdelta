@@ -452,12 +452,56 @@ impl Assessor<'_, '_> {
             let len = old_selected.comparable_range.end - old_selected.comparable_range.start;
             if !self.charge(len.saturating_add(2).saturating_mul(usize::BITS as usize))
                 || analysis.mandatory_diagonal_count(cuts[0], cuts[1], 2) != 2
-                || analysis.mandatory_diagonal_count(
-                    old_selected.comparable_range.start,
-                    new_selected.comparable_range.start,
-                    len,
-                ) != len
             {
+                continue;
+            }
+            if analysis.mandatory_diagonal_count(
+                old_selected.comparable_range.start,
+                new_selected.comparable_range.start,
+                len,
+            ) != len
+            {
+                // A changed first component can still have a forced boundary.
+                // Keep the original whole-parent analysis and coarse fact;
+                // only its mandatory literal subruns may acquire ownership.
+                if old_selected != old_component || new_selected != new_component {
+                    continue;
+                }
+                let Some(retained_bytes) = analysis
+                    .retained_heap_bytes()
+                    .and_then(|n| n.checked_add(domain_bytes))
+                    .and_then(|n| n.checked_add(views[0].retained_bytes))
+                    .and_then(|n| n.checked_add(views[1].retained_bytes))
+                    .and_then(|n| n.checked_add(4096))
+                else {
+                    continue;
+                };
+                if self.recover_closed_component_equalities(
+                    super::mandatory_equal::ClosedComponentProof {
+                        parent: proof.relation,
+                        spans: [&old_component, &new_component],
+                        analysis: &analysis,
+                        retained_bytes,
+                    },
+                    ownership,
+                    [old_partition, new_partition],
+                    super::mandatory_equal::EqualConstraints {
+                        candidates,
+                        regions: proven,
+                        original: regions,
+                    },
+                )? {
+                    *regions = super::unresolved_output_with_evidence(
+                        self.sides,
+                        self.alignment,
+                        [old_partition, new_partition],
+                        std::mem::take(regions),
+                        limit,
+                        self.diagnostic_evidence.as_ref(),
+                    )?;
+                    self.diagnostic_evidence = None;
+                    adopted = true;
+                }
                 continue;
             }
             let Some(accepted) =
@@ -660,6 +704,7 @@ impl Assessor<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    mod composition;
     use super::super::UnresolvedRegion;
     use super::*;
     use crate::{

@@ -550,7 +550,7 @@ fn coarse_equality_certificates(
     let count = regions.len();
     let bytes = count
         .checked_mul(
-            std::mem::size_of::<Vec<[SourceInterval; 2]>>() + 3 * std::mem::size_of::<usize>(),
+            std::mem::size_of::<Vec<[SourceInterval; 2]>>() + 4 * std::mem::size_of::<usize>(),
         )
         .and_then(|bytes| {
             bytes.checked_add(assessment.relations.len().checked_mul(
@@ -595,10 +595,16 @@ fn coarse_equality_certificates(
         let (Some(old), Some(new)) = (&region.old_span, &region.new_span) else {
             continue;
         };
-        let ([a], [b]) = (old.blocks.as_slice(), new.blocks.as_slice()) else {
+        // A certified initial component uses its exact multi-block ancestor's
+        // first pair. The compatibility predicate still verifies the complete
+        // two-level proof chain; this key alone grants no exception.
+        let (Some(a), Some(b)) = (old.blocks.first(), new.blocks.first()) else {
             continue;
         };
-        keys.push(((*a, *b), index));
+        keys.push((
+            (*a, *b, old.blocks.len() != 1 || new.blocks.len() != 1),
+            index,
+        ));
     }
     keys.sort_unstable();
     for index in 0..assessment.relations.len() {
@@ -615,23 +621,28 @@ fn coarse_equality_certificates(
         let ([a], [b]) = (old.blocks.as_slice(), new.blocks.as_slice()) else {
             continue;
         };
-        let key = (*a, *b);
-        let start = keys.partition_point(|(candidate, _)| *candidate < key);
-        let end = keys.partition_point(|(candidate, _)| *candidate <= key);
-        // Duplicate coarse scopes are not a basis for the new exception.
-        if end != start + 1 {
+        // Preserve the original single-block lookup independently. A joined
+        // obligation with the same first block cannot hide an older receipt.
+        let region_index = [false, true].into_iter().find_map(|joined| {
+            let key = (*a, *b, joined);
+            let start = keys.partition_point(|(candidate, _)| *candidate < key);
+            let end = keys.partition_point(|(candidate, _)| *candidate <= key);
+            if end != start + 1 {
+                return None;
+            }
+            let region = keys[start].1;
+            mandatory_equal::compatible_child(
+                sides,
+                &assessment.relations,
+                &regions[region],
+                index,
+                &clean_ancestors,
+            )
+            .then_some(region)
+        });
+        let Some(region_index) = region_index else {
             continue;
-        }
-        let region_index = keys[start].1;
-        if !mandatory_equal::compatible_child(
-            sides,
-            &assessment.relations,
-            &regions[region_index],
-            index,
-            &clean_ancestors,
-        ) {
-            continue;
-        }
+        };
         if [old, new].into_iter().enumerate().any(|(side, span)| {
             validate_span(
                 sides[side],
@@ -996,6 +1007,74 @@ mod tests {
         let whitespace_old = side(&old_blocks);
         let whitespace_new = side(&new_blocks);
         assert!(validate([&whitespace_old, &whitespace_new], &proof, &output).is_err());
+    }
+
+    #[test]
+    fn c31_joined_partial_obligation_does_not_hide_existing_single_block_certificate() {
+        use super::super::{
+            ComparisonAssumption, RelationAssessment, RelationOutcome, SearchCompleteness,
+        };
+        let mut old_blocks = [block(1, "A22B"), block(3, "Z")];
+        let mut new_blocks = [block(2, "A2B"), block(4, "Z")];
+        for source in old_blocks.iter_mut().chain(&mut new_blocks) {
+            source.pages = vec![0];
+        }
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let mut proof = assessment(
+            vec![
+                range(1, 0, 1, ResolutionState::Equal),
+                range(1, 1, 3, ResolutionState::Unresolved),
+                range(1, 3, 4, ResolutionState::Equal),
+                range(3, 0, 1, ResolutionState::Unresolved),
+            ],
+            vec![
+                range(2, 0, 1, ResolutionState::Equal),
+                range(2, 1, 2, ResolutionState::Unresolved),
+                range(2, 2, 3, ResolutionState::Equal),
+                range(4, 0, 1, ResolutionState::Unresolved),
+            ],
+        );
+        let parent = RelationAssessment {
+            old_span: Some(span(1, 0, 4)),
+            new_span: Some(span(2, 0, 3)),
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: Vec::new(),
+            reasons: Vec::new(),
+        };
+        proof.relations.push(parent.clone());
+        for (a, b) in [(0, 0), (3, 2)] {
+            proof.relations.push(RelationAssessment {
+                old_span: Some(span(1, a, a + 1)),
+                new_span: Some(span(2, b, b + 1)),
+                parent: Some(0),
+                assumptions: vec![ComparisonAssumption::MandatoryMatchingEquality],
+                ..parent.clone()
+            });
+        }
+        let mut output = comparison(5, 2);
+        output.new_coverage.total_tokens = 4;
+        output.proven_changed_regions.push(ProvenChangedRegion {
+            old_span: parent.old_span,
+            new_span: parent.new_span,
+            confidence: Confidence::High,
+            proof: super::super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+        });
+        let joined = |ids: [u64; 2], end| TextSpan {
+            blocks: ids.into_iter().map(BlockId).collect(),
+            separator: Some(crate::alignment::BlockSeparator::Concatenate),
+            canonical_range: ScalarRange { start: 1, end },
+            comparable_range: TokenRange { start: 1, end },
+        };
+        output.proven_changed_regions.push(ProvenChangedRegion {
+            old_span: Some(joined([1, 3], 3)),
+            new_span: Some(joined([2, 4], 2)),
+            confidence: Confidence::High,
+            proof: super::super::super::ChangedRegionProof::ExactTokenMultisetMismatch,
+        });
+        assert!(validate([&old, &new], &proof, &output).is_ok());
     }
 
     #[test]
