@@ -1972,6 +1972,11 @@ impl Extraction<'_> {
         self.activate_orthogonal_clip(&mut state.graphics)?;
         self.charge_convex_clip_work(state.graphics.clip_region.work())?;
         let path_clip_status = match &state.graphics.clip_region {
+            ClipRegion::Convex(clip) => clip.glyph_status_with_witness(
+                bbox,
+                &mut self.convex_clip_work,
+                self.limits.max_operators,
+            )?,
             ClipRegion::Witness { node, crop } => node.glyph_status(
                 bbox,
                 *crop,

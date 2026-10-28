@@ -1473,6 +1473,55 @@ fn convex_quadrilateral_clips_classify_glyphs_without_box_substitution() -> Resu
 }
 
 #[test]
+fn convex_interior_witness_preserves_partial_glyphs_and_resumes_extraction() -> Result<()> {
+    let make_pdf = || {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        // The diamond has positive area inside the first glyph rectangle,
+        // while none of that rectangle's four corners lies inside the clip.
+        let content = pdf.add_object(Stream::new(dictionary! {},
+            b"q 97.5 79 m 99 82 l 97.5 85 l 96 82 l h W n BT /F1 10 Tf 1 0 0 1 95 80 Tm (A) Tj ET Q BT /F1 10 Tf 1 0 0 1 95 80 Tm (B) Tj ET".to_vec()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            None,
+            None,
+        );
+        (pdf, content)
+    };
+    let (pdf, content) = make_pdf();
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.is_complete());
+    let glyphs = outcome.document().items();
+    assert_eq!(mapped_text(glyphs), "AB");
+    assert_eq!(
+        glyphs[0].path_clip_status,
+        GlyphPathClipStatus::PartiallyOutside
+    );
+    assert_eq!(glyphs[1].path_clip_status, GlyphPathClipStatus::Unclipped);
+    assert_eq!(glyphs[0].raw_code, b"A");
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_close(glyphs[0].baseline.x, 95.0);
+    assert_close(glyphs[0].baseline.y, 80.0);
+    let (pdf, _) = make_pdf();
+    assert!(matches!(
+        extract(
+            pdf,
+            ExtractionLimits {
+                max_operators: 1000,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded {
+            resource: "convex clipping work",
+            limit: 1000
+        })
+    ));
+    Ok(())
+}
+
+#[test]
 fn convex_clip_classification_has_a_shared_extraction_work_limit() {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);

@@ -3,6 +3,7 @@
 
 use std::{cmp::Ordering, sync::Arc};
 
+mod convex_witness;
 mod orthogonal;
 mod witness;
 pub(super) use orthogonal::{OrthogonalGrid, PendingOrthogonal};
