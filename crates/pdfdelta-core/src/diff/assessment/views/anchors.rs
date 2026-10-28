@@ -395,6 +395,21 @@ pub(super) fn search_explicit_anchors_with_limit(
     remaining: &mut usize,
     retained_limit: usize,
 ) -> Result<Option<Vec<(usize, OccurrenceSummary, OccurrenceSummary)>>> {
+    search_explicit_anchors_with_batch_minimum(views, needles, width, remaining, retained_limit, 1)
+}
+
+/// Keeps the original occurrence semantics while allowing a caller to require
+/// enough long queries to share the rolling scan. Scalar caches and short
+/// prefix dispatch keep their original width and selection rules. A smaller
+/// long-query population uses exact KMP in the original query order.
+pub(super) fn search_explicit_anchors_with_batch_minimum(
+    views: [&[View]; 2],
+    needles: &[(usize, &[ComparableToken])],
+    width: usize,
+    remaining: &mut usize,
+    retained_limit: usize,
+    minimum_long_queries: usize,
+) -> Result<Option<Vec<(usize, OccurrenceSummary, OccurrenceSummary)>>> {
     if needles.is_empty() {
         return Ok(Some(Vec::new()));
     }
@@ -405,12 +420,16 @@ pub(super) fn search_explicit_anchors_with_limit(
     let mut summed_retained_bytes = 0usize;
     let mut scalar_queries = 0usize;
     let mut wide_short_queries = 0usize;
+    let mut long_count = 0usize;
     for (_, needle) in needles {
         if needle.len() > 1 && needle.len() < width && needle[0].is_scalar() {
             wide_short_queries += 1;
         }
         if width > 1 && matches!(needle, [ComparableToken::Scalar(_)]) {
             scalar_queries += 1;
+        }
+        if width > 0 && needle.len() >= width {
+            long_count += 1;
         }
         if !charge(remaining, needle.len()) {
             return Ok(None);
@@ -428,6 +447,7 @@ pub(super) fn search_explicit_anchors_with_limit(
     results
         .try_reserve_exact(needles.len())
         .map_err(|_| super::super::allocation_error("explicit anchor results"))?;
+    let batch_long = width > 0 && long_count >= minimum_long_queries.max(1);
     // A scalar cache stores only fixed-size keys and completed capped counts.
     // At least two queries amortize the minimum hash-table allocation within
     // the existing 512-byte/query metadata bound; no payload limit is reset.
@@ -477,7 +497,7 @@ pub(super) fn search_explicit_anchors_with_limit(
             && needle[0].is_scalar()
         {
             // Filled by one source-ordered scan after the scalar queries.
-        } else if width == 0 || needle.is_empty() || needle.len() < width {
+        } else if width == 0 || needle.is_empty() || needle.len() < width || !batch_long {
             let old = super::search_views(views[0], needle, remaining)?;
             let new = super::search_views(views[1], needle, remaining)?;
             let (Some(old), Some(new)) = (complete(old), complete(new)) else {
@@ -500,14 +520,7 @@ pub(super) fn search_explicit_anchors_with_limit(
     {
         return Ok(None);
     }
-    if width == 0 {
-        return Ok(Some(results));
-    }
-    let long_count = needles
-        .iter()
-        .filter(|(_, needle)| needle.len() >= width)
-        .count();
-    if long_count == 0 {
+    if !batch_long {
         return Ok(Some(results));
     }
     let setup = long_count.saturating_add(1);
@@ -536,7 +549,11 @@ pub(super) fn search_explicit_anchors_with_limit(
         bucket.push(index);
     }
     for (side, side_views) in views.into_iter().enumerate() {
-        if !windows(side_views, width, remaining, |hash, occurrence, work| {
+        if !charge(remaining, 2) {
+            return Ok(None);
+        }
+        let mut active = long_count;
+        let scanned_all = windows(side_views, width, remaining, |hash, occurrence, work| {
             let Some(indices) = buckets.get(&hash) else {
                 return Ok(true);
             };
@@ -590,9 +607,22 @@ pub(super) fn search_explicit_anchors_with_limit(
                     start: occurrence.start,
                     end,
                 });
+                if summary.count == 2 {
+                    if !charge(work, 1) {
+                        return Ok(false);
+                    }
+                    active -= 1;
+                    if active == 0 {
+                        return Ok(false);
+                    }
+                }
             }
             Ok(true)
-        })? {
+        })?;
+        // Two exact occurrences refute uniqueness even in unread views.
+        // A callback stop is complete only when every long query reached
+        // that cap; a budget stop with any unfinished query stays unknown.
+        if !scanned_all && active != 0 {
             return Ok(None);
         }
     }

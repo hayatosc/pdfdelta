@@ -528,7 +528,12 @@ fn discover_mode<'a, 'document>(
         }
     }
 
-    if !add_source_end_anchors([&old_views, &new_views], &mut pair_anchors, remaining_work)? {
+    if !add_source_end_anchors(
+        [&old_views, &new_views],
+        &mut pair_anchors,
+        remaining_work,
+        recovery.min_tokens,
+    )? {
         return Ok(Discovery::default());
     }
 
@@ -5789,6 +5794,180 @@ fn add_source_end_anchors(
     views: [&[View]; 2],
     pairs: &mut BTreeMap<(usize, usize), Vec<AnchorHit>>,
     remaining: &mut usize,
+    width: usize,
+) -> Result<bool> {
+    // A small batch retains the original streaming path. The larger path
+    // shares global occurrence scans; it never narrows the searched views.
+    const MEMORY_LIMIT: usize = EXPLICIT_ANCHOR_RETAINED_LIMIT;
+    type Ending = (usize, usize, usize, usize);
+    type Needle<'a> = (usize, &'a [ComparableToken]);
+    let item_bytes = std::mem::size_of::<Ending>() + std::mem::size_of::<Needle<'_>>();
+    let requested = pairs.len().checked_mul(item_bytes);
+    if pairs.len() < 4 || requested.is_none_or(|bytes| bytes > MEMORY_LIMIT / 4) {
+        return add_source_end_anchors_scanning(views, pairs, remaining);
+    }
+    // Full old-view lengths bound every selected suffix without traversing
+    // its tokens. An oversized plan stays on the original streaming route;
+    // paying for rejected suffix payloads first could consume a viable budget.
+    // The scan is optional: insufficient planning headroom skips it entirely.
+    let planning_work = pairs.len().saturating_mul(4).saturating_add(16);
+    if planning_work <= *remaining / 64 {
+        if !charge(remaining, planning_work) {
+            return Ok(false);
+        }
+        let mut estimated = requested.unwrap_or(MEMORY_LIMIT);
+        for &(old_view, new_view) in pairs.keys() {
+            let old = &views[0][old_view];
+            if !old.source_bounded || !views[1][new_view].source_bounded {
+                continue;
+            }
+            let next = old
+                .group
+                .tokens
+                .len()
+                .checked_mul(std::mem::size_of::<ComparableToken>())
+                .and_then(|bytes| bytes.checked_add(512))
+                .and_then(|bytes| estimated.checked_add(bytes));
+            let Some(next) = next.filter(|bytes| *bytes <= MEMORY_LIMIT) else {
+                return add_source_end_anchors_scanning(views, pairs, remaining);
+            };
+            estimated = next;
+        }
+    }
+    // This cheap admission counts scalar payloads and query headers. Opaque
+    // font payloads and actual capacities still undergo the existing exact
+    // batch admission below; neither estimate can establish an anchor.
+    // Account for the extra header scan, bounded vectors and query references.
+    if !charge(remaining, pairs.len().saturating_mul(8).saturating_add(16)) {
+        return Ok(false);
+    }
+    let mut endings: Vec<Ending> = Vec::new();
+    let mut needles: Vec<Needle<'_>> = Vec::new();
+    endings
+        .try_reserve_exact(pairs.len())
+        .map_err(|_| super::allocation_error("source ending plans"))?;
+    needles
+        .try_reserve_exact(pairs.len())
+        .map_err(|_| super::allocation_error("source ending needles"))?;
+    let Some(retained) = endings
+        .capacity()
+        .checked_mul(std::mem::size_of::<Ending>())
+        .and_then(|bytes| {
+            bytes.checked_add(
+                needles
+                    .capacity()
+                    .checked_mul(std::mem::size_of::<Needle<'_>>())?,
+            )
+        })
+    else {
+        return Ok(false);
+    };
+    let Some(search_limit) = MEMORY_LIMIT.checked_sub(retained) else {
+        return Ok(false);
+    };
+    for (&(old_view, new_view), hits) in pairs.iter() {
+        let old = &views[0][old_view];
+        let new = &views[1][new_view];
+        if !old.source_bounded || !new.source_bounded {
+            continue;
+        }
+        let mut length = 0;
+        for (old_token, new_token) in old
+            .group
+            .tokens
+            .iter()
+            .rev()
+            .zip(new.group.tokens.iter().rev())
+        {
+            if !charge(remaining, 1) {
+                return Ok(false);
+            }
+            if old_token != new_token {
+                break;
+            }
+            length += 1;
+        }
+        if length == 0 {
+            continue;
+        }
+        let old_start = old.group.tokens.len() - length;
+        let new_start = new.group.tokens.len() - length;
+        if !(old_start == 0 && new_start == 0
+            || hits
+                .iter()
+                .any(|hit| hit.old_end <= old_start && hit.new_end <= new_start))
+        {
+            continue;
+        }
+        needles.push((endings.len(), &old.group.tokens[old_start..]));
+        endings.push((old_view, new_view, old_start, new_start));
+    }
+    // Only long queries can amortize the rolling scan's three operations per
+    // text window. Short queries keep their independent dispatch and do not
+    // force a sparse long-query population into a shared full-text scan.
+    let Some(matches) = anchors::search_explicit_anchors_with_batch_minimum(
+        views,
+        &needles,
+        width,
+        remaining,
+        search_limit,
+        4,
+    )?
+    else {
+        // A memory-only refusal may leave enough paid work for the old
+        // streaming search. Release plan storage first and refund nothing.
+        drop(needles);
+        drop(endings);
+        return if *remaining == 0 {
+            Ok(false)
+        } else {
+            add_source_end_anchors_scanning(views, pairs, remaining)
+        };
+    };
+    // All global counts complete before any ending is published. The charge
+    // covers result headers, exact location guards and ordered-map lookups.
+    if !charge(
+        remaining,
+        matches.len().saturating_mul(usize::BITS as usize + 8),
+    ) {
+        return Ok(false);
+    }
+    for (index, old_count, new_count) in matches {
+        let (Some(old_end), Some(new_end)) =
+            (unique_occurrence(old_count), unique_occurrence(new_count))
+        else {
+            continue;
+        };
+        let (old_view, new_view, old_start, new_start) = endings[index];
+        if old_end.view_index != old_view
+            || old_end.start != old_start
+            || new_end.view_index != new_view
+            || new_end.start != new_start
+        {
+            continue;
+        }
+        let hits = pairs
+            .get_mut(&(old_view, new_view))
+            .ok_or_else(|| super::invalid("source ending plan lost its pair"))?;
+        hits.try_reserve(1)
+            .map_err(|_| super::allocation_error("source ending anchors"))?;
+        hits.push(AnchorHit {
+            input_index: anchors::AnchorOrigin::source_end(),
+            old_view,
+            new_view,
+            old_start,
+            old_end: views[0][old_view].group.tokens.len(),
+            new_start,
+            new_end: views[1][new_view].group.tokens.len(),
+        });
+    }
+    Ok(true)
+}
+
+fn add_source_end_anchors_scanning(
+    views: [&[View]; 2],
+    pairs: &mut BTreeMap<(usize, usize), Vec<AnchorHit>>,
+    remaining: &mut usize,
 ) -> Result<bool> {
     for (&(old_view, new_view), hits) in pairs.iter_mut() {
         let old = &views[0][old_view];
@@ -8062,21 +8241,24 @@ mod tests {
             assert_eq!(entry.2.count, 2, "duplicate query new count");
         }
         // Independently accounted boundary: setup 113
-        // + 2 sides * (windows 25 + query visits 112 + exact tokens 64) = 515.
-        let mut fits = 515usize;
+        // + 2 sides * (active setup 2 + windows 10 + query visits 32
+        // + exact tokens 64 + saturated-counter updates 16) = 361.
+        // After two starts all sixteen queries have two exact occurrences;
+        // the remaining five starts cannot change their capped counts.
+        let mut fits = 361usize;
         let boundary =
             super::anchors::search_explicit_anchors([&views, &new_views], &queries, 2, &mut fits)
                 .expect("stays bounded")
-                .expect("515 must fit the accounted work");
+                .expect("361 must fit the accounted work");
         println!(
-            "H20C budget515_ok remaining={fits} results={}",
+            "H20C budget361_ok remaining={fits} results={}",
             boundary.len()
         );
         for entry in &boundary {
             assert_eq!(entry.1.count, 2, "boundary duplicate old count");
             assert_eq!(entry.2.count, 2, "boundary duplicate new count");
         }
-        let mut refuses = 514usize;
+        let mut refuses = 360usize;
         assert!(
             super::anchors::search_explicit_anchors(
                 [&views, &new_views],
@@ -8086,7 +8268,7 @@ mod tests {
             )
             .expect("stays bounded")
             .is_none(),
-            "514 must refuse"
+            "360 must refuse"
         );
         assert_eq!(refuses, 0, "refusal must consume the remaining budget");
     }
@@ -16634,3 +16816,6 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod source_end_tests;
