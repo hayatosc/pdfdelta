@@ -19,6 +19,7 @@ mod anchors;
 mod bracket_geometry;
 use bracket_geometry::SideGeometry;
 mod global_prefix;
+mod positioned_search;
 mod translated_search;
 pub(super) use global_prefix::{GlobalExtension, GlobalGeneration, GlobalPrefixSet};
 
@@ -3566,6 +3567,10 @@ fn discover_translations_mode_with_cache(
         translated_search::Search::new(&old_views),
         translated_search::Search::new(&new_views),
     ];
+    let mut positioned_search = [
+        positioned_search::Search::new(&old_views),
+        positioned_search::Search::new(&new_views),
+    ];
     let mut domains = Vec::new();
     'views: for (old_view_index, old_view) in old_views.iter().enumerate() {
         if mode == TranslationMode::NonzeroSingleton
@@ -3772,8 +3777,7 @@ fn discover_translations_mode_with_cache(
                     remaining_work,
                 )?,
                 TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
-                    positioned_occurrences(
-                        &old_views,
+                    positioned_search[0].find(
                         old_view,
                         &old_range,
                         old_view_index,
@@ -3803,13 +3807,7 @@ fn discover_translations_mode_with_cache(
                     remaining_work,
                 )?,
                 TranslationMode::StationaryMember | TranslationMode::RawSourceEquality => {
-                    positioned_occurrences(
-                        &new_views,
-                        old_view,
-                        &old_range,
-                        usize::MAX,
-                        remaining_work,
-                    )?
+                    positioned_search[1].find(old_view, &old_range, usize::MAX, remaining_work)?
                 }
             };
             let Some(new_occurrences) = new_occurrences else {
