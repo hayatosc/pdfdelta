@@ -16,7 +16,10 @@ use super::super::{GroupText, SentenceRecoveryInput, Side, TextSpan};
 use super::{SourceInterval, charge};
 
 mod anchors;
+mod bracket_geometry;
+use bracket_geometry::SideGeometry;
 mod global_prefix;
+mod translated_search;
 pub(super) use global_prefix::{GlobalExtension, GlobalGeneration, GlobalPrefixSet};
 
 /// A source-backed correspondence domain with independently established local order.
@@ -3559,6 +3562,10 @@ fn discover_translations_mode_with_cache(
         BandBoundsCache::new(sides[0]),
         BandBoundsCache::new(sides[1]),
     ];
+    let mut translated_search = [
+        translated_search::Search::new(&old_views),
+        translated_search::Search::new(&new_views),
+    ];
     let mut domains = Vec::new();
     'views: for (old_view_index, old_view) in old_views.iter().enumerate() {
         if mode == TranslationMode::NonzeroSingleton
@@ -3750,8 +3757,7 @@ fn discover_translations_mode_with_cache(
                 continue;
             }
             let old_occurrences = match mode {
-                TranslationMode::NonzeroSingleton => translated_occurrences(
-                    &old_views,
+                TranslationMode::NonzeroSingleton => translated_search[0].find(
                     old_view,
                     &old_range,
                     old_view_index,
@@ -3782,8 +3788,7 @@ fn discover_translations_mode_with_cache(
                 continue;
             }
             let new_occurrences = match mode {
-                TranslationMode::NonzeroSingleton => translated_occurrences(
-                    &new_views,
+                TranslationMode::NonzeroSingleton => translated_search[1].find(
                     old_view,
                     &old_range,
                     usize::MAX,
@@ -4180,23 +4185,8 @@ fn discover_translations_mode_with_cache(
 struct BracketAnchor {
     old_index: usize,
     new_index: usize,
-    old_view: usize,
-    new_view: usize,
-    old_range: std::ops::Range<usize>,
-    new_range: std::ops::Range<usize>,
     old_pages: Vec<u32>,
     new_pages: Vec<u32>,
-}
-
-/// One side's block geometry: the source side, its views and the block-to-view
-/// and block-to-range maps built once per pass.
-#[derive(Clone, Copy)]
-struct SideGeometry<'a> {
-    side: &'a Side<'a>,
-    views: &'a [View],
-    view_of_block: &'a [usize],
-    range_of_block: &'a [Option<std::ops::Range<usize>>],
-    page: u32,
 }
 
 /// Whether exactly one source block lies strictly inside one bracket region.
@@ -4213,17 +4203,16 @@ struct SideGeometry<'a> {
 /// `Some(None)` reports that the region is not unique or cannot be proven;
 /// `None` reports an exhausted shared work budget.
 fn region_unique(
-    geometry: SideGeometry<'_>,
+    geometry: &mut SideGeometry<'_>,
+    candidate_page: u32,
     boundaries: [usize; 2],
     band: (f64, f64),
     region: (f64, f64),
     remaining: &mut usize,
 ) -> Option<Option<usize>> {
-    let side = geometry.side;
-    let views = geometry.views;
-    let view_of_block = geometry.view_of_block;
-    let range_of_block = geometry.range_of_block;
-    let candidate_page = geometry.page;
+    let side = geometry.side();
+    let view_of_block = geometry.view_map();
+    let range_of_block = geometry.ranges();
     if !charge(remaining, side.blocks.len()) {
         return None;
     }
@@ -4241,7 +4230,7 @@ fn region_unique(
             continue;
         }
         let view_index = view_of_block[index];
-        let Some(range) = range_of_block[index].as_ref() else {
+        let Some(_) = range_of_block[index].as_ref() else {
             // No view carries this same-page block; the region cannot be
             // proven.
             return Some(None);
@@ -4249,8 +4238,7 @@ fn region_unique(
         if view_index == usize::MAX {
             return Some(None);
         }
-        let view = &views[view_index];
-        let Some(bounds) = reference_bounds(side, view, range, index, remaining)? else {
+        let Some(bounds) = geometry.get(index, remaining)? else {
             // No geometry at all for this same-page block; the region cannot
             // be proven.
             return Some(None);
@@ -4387,18 +4375,16 @@ fn update_nearest(slot: &mut Option<NearestBoundary>, index: usize, y: f64, abov
 /// budget; `Some(None)` reports that the nearest boundaries cannot be
 /// established; `Some(Some((above, below)))` returns the anchor indices.
 fn nearest_boundaries(
-    geometry: SideGeometry<'_>,
+    geometry: &mut SideGeometry<'_>,
+    candidate_page: u32,
     side_index: usize,
     anchors: &[BracketAnchor],
     candidate_index: usize,
     candidate_bounds: (f64, f64, f64, f64),
     remaining: &mut usize,
 ) -> Option<Option<(usize, usize)>> {
-    let side = geometry.side;
-    let views = geometry.views;
-    let view_of_block = geometry.view_of_block;
-    let range_of_block = geometry.range_of_block;
-    let candidate_page = geometry.page;
+    let view_of_block = geometry.view_map();
+    let range_of_block = geometry.ranges();
     let mut above: Option<NearestBoundary> = None;
     let mut below: Option<NearestBoundary> = None;
     if !charge(remaining, anchors.len()) {
@@ -4419,15 +4405,13 @@ fn nearest_boundaries(
             ReferencePage::Unknown => return Some(None),
         }
         let view_index = view_of_block[anchor_index];
-        let Some(range) = range_of_block[anchor_index].as_ref() else {
+        let Some(_) = range_of_block[anchor_index].as_ref() else {
             return Some(None);
         };
         if view_index == usize::MAX {
             return Some(None);
         }
-        let Some(anchor_bounds) =
-            reference_bounds(side, &views[view_index], range, anchor_index, remaining)?
-        else {
+        let Some(anchor_bounds) = geometry.get(anchor_index, remaining)? else {
             // No geometry at all for this established reference; the nearest
             // boundary cannot be chosen from an incomplete inspection set.
             return Some(None);
@@ -4612,9 +4596,9 @@ pub(super) fn discover_bracketed_domains_with_cache(
         ) {
             return Ok(Vec::new());
         }
-        let (Some(old_range), Some(new_range)) = (
-            range_of_block[0][old_index].clone(),
-            range_of_block[1][new_index].clone(),
+        let (Some(_), Some(_)) = (
+            range_of_block[0][old_index].as_ref(),
+            range_of_block[1][new_index].as_ref(),
         ) else {
             reference_unresolved = true;
             continue;
@@ -4622,10 +4606,6 @@ pub(super) fn discover_bracketed_domains_with_cache(
         anchors.push(BracketAnchor {
             old_index,
             new_index,
-            old_view: old_view_index,
-            new_view: new_view_index,
-            old_range,
-            new_range,
             old_pages: sides[0].blocks[old_index].pages.clone(),
             new_pages: sides[1].blocks[new_index].pages.clone(),
         });
@@ -4633,6 +4613,10 @@ pub(super) fn discover_bracketed_domains_with_cache(
     if reference_unresolved || anchors.is_empty() {
         return Ok(Vec::new());
     }
+    let mut geometry = [
+        SideGeometry::new(sides[0], &old_views, &view_of_block[0], &range_of_block[0]),
+        SideGeometry::new(sides[1], &new_views, &view_of_block[1], &range_of_block[1]),
+    ];
     let mut domains = Vec::new();
     'views: for old_view in &old_views {
         if !matches!(old_view.kind, ViewKind::Untrusted(_)) || !old_view.source_bounded {
@@ -4676,13 +4660,8 @@ pub(super) fn discover_bracketed_domains_with_cache(
             // candidate on this side, chosen by the same function, the same
             // x-overlap criterion and the same tie condition as the new side.
             let Some(old_nearest) = nearest_boundaries(
-                SideGeometry {
-                    side: sides[0],
-                    views: &old_views,
-                    view_of_block: &view_of_block[0],
-                    range_of_block: &range_of_block[0],
-                    page: candidate_page,
-                },
+                &mut geometry[0],
+                candidate_page,
                 0,
                 &anchors,
                 candidate_index,
@@ -4698,40 +4677,16 @@ pub(super) fn discover_bracketed_domains_with_cache(
             let below_anchor = &anchors[below_index];
             // Both boundaries need complete geometry on both sides and must
             // keep their relative order on the new side.
-            let Some(above_old) = reference_bounds(
-                sides[0],
-                &old_views[above_anchor.old_view],
-                &above_anchor.old_range,
-                above_anchor.old_index,
-                remaining_work,
-            ) else {
+            let Some(above_old) = geometry[0].get(above_anchor.old_index, remaining_work) else {
                 return Ok(Vec::new());
             };
-            let Some(below_old) = reference_bounds(
-                sides[0],
-                &old_views[below_anchor.old_view],
-                &below_anchor.old_range,
-                below_anchor.old_index,
-                remaining_work,
-            ) else {
+            let Some(below_old) = geometry[0].get(below_anchor.old_index, remaining_work) else {
                 return Ok(Vec::new());
             };
-            let Some(above_new) = reference_bounds(
-                sides[1],
-                &new_views[above_anchor.new_view],
-                &above_anchor.new_range,
-                above_anchor.new_index,
-                remaining_work,
-            ) else {
+            let Some(above_new) = geometry[1].get(above_anchor.new_index, remaining_work) else {
                 return Ok(Vec::new());
             };
-            let Some(below_new) = reference_bounds(
-                sides[1],
-                &new_views[below_anchor.new_view],
-                &below_anchor.new_range,
-                below_anchor.new_index,
-                remaining_work,
-            ) else {
+            let Some(below_new) = geometry[1].get(below_anchor.new_index, remaining_work) else {
                 return Ok(Vec::new());
             };
             let (Some(above_old), Some(below_old), Some(above_new), Some(below_new)) =
@@ -4757,13 +4712,8 @@ pub(super) fn discover_bracketed_domains_with_cache(
                 continue;
             }
             let Some(old_unique) = region_unique(
-                SideGeometry {
-                    side: sides[0],
-                    views: &old_views,
-                    view_of_block: &view_of_block[0],
-                    range_of_block: &range_of_block[0],
-                    page: candidate_page,
-                },
+                &mut geometry[0],
+                candidate_page,
                 [above_anchor.old_index, below_anchor.old_index],
                 old_band,
                 old_region,
@@ -4775,13 +4725,8 @@ pub(super) fn discover_bracketed_domains_with_cache(
                 continue;
             }
             let Some(new_unique) = region_unique(
-                SideGeometry {
-                    side: sides[1],
-                    views: &new_views,
-                    view_of_block: &view_of_block[1],
-                    range_of_block: &range_of_block[1],
-                    page: candidate_page,
-                },
+                &mut geometry[1],
+                candidate_page,
                 [above_anchor.new_index, below_anchor.new_index],
                 new_band,
                 new_region,
@@ -4844,13 +4789,8 @@ pub(super) fn discover_bracketed_domains_with_cache(
             // boundary correspondence on the new side; a different or
             // ambiguous nearest boundary withholds the proof.
             let Some(new_nearest) = nearest_boundaries(
-                SideGeometry {
-                    side: sides[1],
-                    views: &new_views,
-                    view_of_block: &view_of_block[1],
-                    range_of_block: &range_of_block[1],
-                    page: candidate_page,
-                },
+                &mut geometry[1],
+                candidate_page,
                 1,
                 &anchors,
                 new_index,
@@ -4879,22 +4819,12 @@ pub(super) fn discover_bracketed_domains_with_cache(
                         break;
                     }
                 }
-                let Some(reference_old) = reference_bounds(
-                    sides[0],
-                    &old_views[reference.old_view],
-                    &reference.old_range,
-                    reference.old_index,
-                    remaining_work,
-                ) else {
+                let Some(reference_old) = geometry[0].get(reference.old_index, remaining_work)
+                else {
                     return Ok(Vec::new());
                 };
-                let Some(reference_new) = reference_bounds(
-                    sides[1],
-                    &new_views[reference.new_view],
-                    &reference.new_range,
-                    reference.new_index,
-                    remaining_work,
-                ) else {
+                let Some(reference_new) = geometry[1].get(reference.new_index, remaining_work)
+                else {
                     return Ok(Vec::new());
                 };
                 let (Some(reference_old), Some(reference_new)) = (reference_old, reference_new)
@@ -16814,6 +16744,10 @@ mod tests {
             }
         }
         Ok(())
+    }
+    mod bracket_geometry_cache {
+        use super::*;
+        include!("views/bracket_geometry/tests.rs");
     }
 }
 
