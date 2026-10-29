@@ -10,6 +10,7 @@ use crate::{Error, Result};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LocalOutcome {
     UniqueChanged,
+    Ambiguous,
     Unavailable,
     BudgetExceeded,
 }
@@ -62,7 +63,7 @@ pub(super) fn unique_changed<T: Eq>(
     }
     Ok(match exact::check_retaining(old, new, remaining)?.outcome {
         exact::ExactUniqueness::Unique => LocalOutcome::UniqueChanged,
-        exact::ExactUniqueness::Ambiguous => LocalOutcome::Unavailable,
+        exact::ExactUniqueness::Ambiguous => LocalOutcome::Ambiguous,
         exact::ExactUniqueness::BudgetExceeded => LocalOutcome::BudgetExceeded,
     })
 }

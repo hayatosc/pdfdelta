@@ -4469,6 +4469,14 @@ enum ExactDisplacementStep {
     Budget,
 }
 
+/// Necessary input conditions, with no claim about correspondence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DisplacementSupport {
+    Possible,
+    Impossible,
+    Budget,
+}
+
 /// Child local key plus its localized group ranges.
 type ForcedEqualChild = (DomainKey, Range<usize>, Range<usize>);
 
@@ -6282,7 +6290,52 @@ impl<'a, 'document> Assessor<'a, 'document> {
         Ok(Some(mapped))
     }
 
-    /// Proves a changed whole-line proposal by local uniqueness and global cuts.
+    /// Checks the same raw input conditions used by the displacement resolver.
+    ///
+    /// The caller has already checked whole-block scalar token ranges. A
+    /// missing sidecar or unsupported projection cannot support that resolver;
+    /// an exhausted projection budget is not such a negative conclusion.
+    fn local_displacement_support(&mut self, indices: [usize; 2]) -> Result<DisplacementSupport> {
+        let Some(input) = self.exact_displacement else {
+            return Ok(DisplacementSupport::Impossible);
+        };
+        let sides = self.sides;
+        let tokens = [
+            &sides[0].canonical[indices[0]],
+            &sides[1].canonical[indices[1]],
+        ];
+        let Some(old_evidence) = self.line_evidence(0, indices[0], input.old, tokens[0].len())?
+        else {
+            return Ok(if self.remaining_work == 0 {
+                DisplacementSupport::Budget
+            } else {
+                DisplacementSupport::Impossible
+            });
+        };
+        let Some(new_evidence) = self.line_evidence(1, indices[1], input.new, tokens[1].len())?
+        else {
+            return Ok(if self.remaining_work == 0 {
+                DisplacementSupport::Budget
+            } else {
+                DisplacementSupport::Impossible
+            });
+        };
+        Ok(
+            match exact_displacement::preflight(
+                tokens[0],
+                tokens[1],
+                &old_evidence,
+                &new_evidence,
+                &mut self.remaining_work,
+            ) {
+                Ok(()) => DisplacementSupport::Possible,
+                Err(exact_displacement::HoldReason::Budget) => DisplacementSupport::Budget,
+                Err(_) => DisplacementSupport::Impossible,
+            },
+        )
+    }
+
+    /// Proves or refutes a changed whole-line proposal using local matchings.
     ///
     /// The closed parent's complete search and source premises are required
     /// before this optional route runs. Local uniqueness alone cannot close
@@ -6290,7 +6343,12 @@ impl<'a, 'document> Assessor<'a, 'document> {
     /// every global restriction is locally optimal, and every local optimum
     /// extends with a parent's optimal prefix and suffix. A unique local
     /// matching therefore fixes exactly the existing strict hunk signature.
-    /// The raw displacement route remains available when this proof is absent.
+    /// Conversely, local ambiguity refutes the strict hunk proof: if every
+    /// parent matching crosses the fixed cuts, either local optimum can be
+    /// spliced in without changing the global score. Their hunk signatures
+    /// differ or a cut disappears inside a merged hunk. This negative answer
+    /// skips the raw displacement route only when its necessary input checks
+    /// independently fail, never when their budget is insufficient.
     fn literal_proposal_proof(
         &mut self,
         proposal: &ProposedRelation,
@@ -6358,8 +6416,19 @@ impl<'a, 'document> Assessor<'a, 'document> {
         {
             return Ok(None);
         }
-        match literal_scope::unique_changed(local[0], local[1], &mut self.remaining_work)? {
+        let local_outcome =
+            literal_scope::unique_changed(local[0], local[1], &mut self.remaining_work)?;
+        match local_outcome {
             literal_scope::LocalOutcome::Unavailable => return Ok(None),
+            literal_scope::LocalOutcome::Ambiguous => {
+                match self.local_displacement_support([old_index, new_index])? {
+                    DisplacementSupport::Possible => return Ok(None),
+                    DisplacementSupport::Budget => {
+                        return Ok((self.remaining_work == 0).then_some(ProposalProof::Exhausted));
+                    }
+                    DisplacementSupport::Impossible => {}
+                }
+            }
             literal_scope::LocalOutcome::BudgetExceeded => {
                 return Ok((self.remaining_work == 0).then_some(ProposalProof::Exhausted));
             }
@@ -6402,6 +6471,9 @@ impl<'a, 'document> Assessor<'a, 'document> {
             || groups[1].tokens.get(new_range.clone()) != Some(local[1].as_slice())
         {
             return Ok(None);
+        }
+        if local_outcome == literal_scope::LocalOutcome::Ambiguous {
+            return Ok(Some(ProposalProof::NotInvariant));
         }
         Ok(Some(
             match boundary_cuts::certify(
@@ -14360,10 +14432,129 @@ mod assessor_issue_cache_tests {
     }
 
     #[test]
+    fn literal_ambiguity_preserves_supported_displacement_and_budget_stops() -> Result<()> {
+        use crate::model::{GlyphDisplacement, PageId};
+
+        let old_blocks = [anchor_block(1, "axb"), anchor_block(2, "Z")];
+        let new_blocks = [anchor_block(101, "axxb"), anchor_block(102, "Z")];
+        let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+        let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+        let alignment = issue_alignment();
+        let records = |base: u64, text: &str, widths: &[f64]| {
+            text.chars()
+                .zip(widths)
+                .enumerate()
+                .map(|(i, (c, &width))| GlyphDisplacement {
+                    glyph: GlyphId(base + i as u64),
+                    page: PageId(0),
+                    raw_code: vec![c as u8],
+                    width_1000_em: width,
+                    font_size: 1.0,
+                    character_spacing: 0.0,
+                    word_spacing_applied: 0.0,
+                    horizontal_scale_percent: 100.0,
+                    horizontal_scale: 1.0,
+                    rise: 0.0,
+                    horizontal: true,
+                    run: 0,
+                    text_matrix: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                    page_transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                })
+                .collect::<Vec<_>>()
+        };
+        let old_records = records(100, "axb", &[600.0, 600.0, 600.0]);
+        let new_records = records(10_100, "axxb", &[600.0, 600.0, 0.0, 600.0]);
+        let mut assessor = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            Some(ExactDisplacementInput {
+                old: &old_records,
+                new: &new_records,
+            }),
+        )?;
+        let key = DomainKey {
+            local: None,
+            old: 0..2,
+            new: 0..2,
+            old_separator: BlockSeparator::Concatenate,
+            new_separator: BlockSeparator::Concatenate,
+        };
+        // This fixture supplies closure as a premise, not from text equality.
+        let parent = assessor.record(RelationAssessment {
+            old_span: None,
+            new_span: None,
+            parent: None,
+            outcome: RelationOutcome::Established,
+            search: SearchCompleteness::Complete,
+            assumptions: Vec::new(),
+            reasons: Vec::new(),
+        })?;
+        assessor.domains.insert(
+            key.clone(),
+            DomainProof {
+                scope: ProofScope::ExactKey,
+                relation: parent,
+                unique: false,
+                strict_unique: false,
+                stable_events: None,
+                search: SearchCompleteness::Complete,
+                edits: Vec::new(),
+                lengths: [4, 5],
+            },
+        );
+        let proposal = ProposedRelation {
+            old: Some(local_span(1, 0, 3)),
+            new: Some(local_span(101, 0, 4)),
+            span_indices: [None, None],
+            exact_recovery: false,
+        };
+        assert_eq!(
+            assessor.local_displacement_support([0, 0])?,
+            DisplacementSupport::Possible
+        );
+        assert_eq!(assessor.literal_proposal_proof(&proposal, &key)?, None);
+        assert!(matches!(
+            assessor.boundary_displacement_proof(&proposal, &key)?,
+            BoundaryDisplacement::Proven(_)
+        ));
+        // Every interrupted preflight remains a budget stop. None is allowed
+        // to turn a supported geometric resolution into a negative proof.
+        for budget in 0..600 {
+            assessor.remaining_work = budget;
+            assert_ne!(
+                assessor.literal_proposal_proof(&proposal, &key)?,
+                Some(ProposalProof::NotInvariant)
+            );
+        }
+        // A present sidecar with no source records is a definite refusal too.
+        let mut missing = Assessor::new_with_evidence(
+            [&old, &new],
+            &alignment,
+            None,
+            DiffOptions::default(),
+            Some(ExactDisplacementInput { old: &[], new: &[] }),
+        )?;
+        assert_eq!(
+            missing.local_displacement_support([0, 0])?,
+            DisplacementSupport::Impossible
+        );
+        missing.remaining_work = 0;
+        assert_eq!(
+            missing.local_displacement_support([0, 0])?,
+            DisplacementSupport::Budget
+        );
+        Ok(())
+    }
+
+    #[test]
     fn literal_proposal_requires_closed_parent_and_universal_cuts() -> Result<()> {
         for (old_texts, new_texts, expected) in [
             (["X ", "aaaa"], ["XY ", "aaa"], ProposalProof::Invariant),
             (["a", "b"], ["b", "b"], ProposalProof::NotInvariant),
+            (["aa", "b"], ["a", "b"], ProposalProof::NotInvariant),
         ] {
             let old_blocks = [anchor_block(1, old_texts[0]), anchor_block(2, old_texts[1])];
             let new_blocks = [
@@ -14418,6 +14609,11 @@ mod assessor_issue_cache_tests {
             assert_eq!(
                 assessor.literal_proposal_proof(&proposal, &key)?,
                 Some(expected)
+            );
+            assert_eq!(
+                assessor.proposal_edits_are_invariant(&proposal, &key)?,
+                expected,
+                "the independent enumerating parent route must agree"
             );
             let groups = proof_groups(assessor.sides, &key)?;
             let mut analysis_work = 1_000_000;

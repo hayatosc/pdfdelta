@@ -41,11 +41,15 @@ fn factorization_matches_all_global_matching_signatures() {
                     let local = unique_changed(&old[a.clone()], &new[b.clone()], &mut remaining)
                         .expect("local proof");
                     assert_ne!(local, LocalOutcome::BudgetExceeded);
+                    let strict = expected.next().expect("range") == b'1';
+                    if local == LocalOutcome::Ambiguous {
+                        assert!(!strict, "local ambiguity cannot fix all parent hunks");
+                    }
                     let accepted = local == LocalOutcome::UniqueChanged
                         && boundary_cuts::certify(&old, &new, &[a.clone(), b], &mut remaining)
                             .expect("cuts")
                             == boundary_cuts::Outcome::Proven;
-                    assert_eq!(accepted, expected.next().expect("range") == b'1');
+                    assert_eq!(accepted, strict);
                     count += 1;
                     positive += usize::from(accepted);
                 }
@@ -114,11 +118,11 @@ fn empty_equal_repeated_and_every_budget_cut_preserve_refusals() {
     );
     assert_eq!(
         unique_changed(b"aa", b"a", &mut 1000).expect("repeat"),
-        LocalOutcome::Unavailable
+        LocalOutcome::Ambiguous
     );
     assert_eq!(
         unique_changed(b"a a", b"a  a", &mut 1000).expect("spaces"),
-        LocalOutcome::Unavailable
+        LocalOutcome::Ambiguous
     );
     let mut ample = 1000;
     assert_eq!(

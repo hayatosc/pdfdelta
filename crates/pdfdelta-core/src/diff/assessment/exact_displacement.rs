@@ -1,8 +1,8 @@
 //! Exact relative-displacement resolution for one closed line whose edit
 //! location is ambiguous.
 //!
-//! The pure functions here are ready for the assessment to call; no production
-//! path calls them yet. They pre-check every token of one line, enumerate the
+//! The assessment calls these pure functions after proving the line's domain.
+//! They pre-check every token of one line, enumerate the
 //! maximum equal-token matchings (unit insert/delete), take the pairs common to
 //! every matching as the anchor, and keep only the matchings whose matched
 //! tokens have exactly equal cumulative displacement from that anchor. A single
@@ -462,6 +462,50 @@ fn displacement(
     }
 }
 
+/// Shares the exact same input validation between preflight and resolution.
+fn prepare_columns(
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    old_evidence: &[Option<&GlyphDisplacement>],
+    new_evidence: &[Option<&GlyphDisplacement>],
+    remaining_work: &mut usize,
+) -> Result<[Vec<Column>; 2], HoldReason> {
+    let old_columns = validate_columns(old_tokens, old_evidence, remaining_work)?;
+    let new_columns = validate_columns(new_tokens, new_evidence, remaining_work)?;
+    let (Some(old_first), Some(new_first)) = (old_evidence.first(), new_evidence.first()) else {
+        return Err(HoldReason::NoEvidence);
+    };
+    let (Some(old_first), Some(new_first)) = (old_first, new_first) else {
+        return Err(HoldReason::NoEvidence);
+    };
+    if !same_coordinate_system(old_first, new_first) {
+        return Err(HoldReason::Unsupported);
+    }
+    Ok([old_columns, new_columns])
+}
+
+/// Checks only the necessary input conditions, without finding a matching.
+///
+/// Success is not correspondence evidence. A non-budget failure is also a
+/// failure of [`resolve`] for these same inputs; budget exhaustion says
+/// nothing about whether their displacement evidence would be supported.
+pub(super) fn preflight(
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    old_evidence: &[Option<&GlyphDisplacement>],
+    new_evidence: &[Option<&GlyphDisplacement>],
+    remaining_work: &mut usize,
+) -> Result<(), HoldReason> {
+    prepare_columns(
+        old_tokens,
+        new_tokens,
+        old_evidence,
+        new_evidence,
+        remaining_work,
+    )
+    .map(|_| ())
+}
+
 /// Applies the exact-displacement rule to one closed line.
 ///
 /// The anchor is the first pair common to every maximum matching, so it is
@@ -475,23 +519,16 @@ pub(super) fn resolve(
     new_evidence: &[Option<&GlyphDisplacement>],
     remaining_work: &mut usize,
 ) -> Resolution {
-    let old_columns = match validate_columns(old_tokens, old_evidence, remaining_work) {
+    let [old_columns, new_columns] = match prepare_columns(
+        old_tokens,
+        new_tokens,
+        old_evidence,
+        new_evidence,
+        remaining_work,
+    ) {
         Ok(columns) => columns,
         Err(reason) => return Resolution::Hold(reason),
     };
-    let new_columns = match validate_columns(new_tokens, new_evidence, remaining_work) {
-        Ok(columns) => columns,
-        Err(reason) => return Resolution::Hold(reason),
-    };
-    let (Some(old_first), Some(new_first)) = (old_evidence.first(), new_evidence.first()) else {
-        return Resolution::Hold(HoldReason::NoEvidence);
-    };
-    let (Some(old_first), Some(new_first)) = (old_first, new_first) else {
-        return Resolution::Hold(HoldReason::NoEvidence);
-    };
-    if !same_coordinate_system(old_first, new_first) {
-        return Resolution::Hold(HoldReason::Unsupported);
-    }
     let Some(matchings) = maximum_matchings(old_tokens, new_tokens, remaining_work) else {
         return Resolution::Hold(HoldReason::Budget);
     };
@@ -626,7 +663,7 @@ pub(super) fn edits_from_matching(
 
 #[cfg(test)]
 mod tests {
-    use super::{HoldReason, Resolution, edits_from_matching, resolve};
+    use super::{HoldReason, Resolution, edits_from_matching, preflight, resolve};
     use crate::model::{GlyphDisplacement, GlyphId, PageId};
     use crate::normalize::ComparableToken;
 
@@ -683,6 +720,80 @@ mod tests {
 
     fn borrowed(records: &[GlyphDisplacement]) -> Vec<Option<&GlyphDisplacement>> {
         records.iter().map(Some).collect()
+    }
+
+    #[test]
+    fn preflight_support_is_neither_a_matching_nor_a_budget_refusal() {
+        let old = tokens("axb");
+        let new = tokens("axxb");
+        let old_records = fixture(&[600.0, 0.0, 600.0], "axb");
+        let new_records = fixture(&[600.0, 0.0, 0.0, 600.0], "axxb");
+        let old_evidence = borrowed(&old_records);
+        let new_evidence = borrowed(&new_records);
+        let validation_work = 64 * (old.len() + new.len());
+        for initial in 0..=validation_work {
+            let mut work = initial;
+            let actual = preflight(&old, &new, &old_evidence, &new_evidence, &mut work);
+            assert_eq!(actual.is_ok(), initial == validation_work);
+            if initial < validation_work {
+                assert_eq!(actual, Err(HoldReason::Budget));
+            }
+        }
+        assert!(matches!(
+            resolve(&old, &new, &old_evidence, &new_evidence, &mut 1_000_000),
+            Resolution::Hold(HoldReason::Multiple)
+        ));
+    }
+
+    #[test]
+    fn preflight_definite_refusals_are_identical_to_resolver_refusals() {
+        let old = tokens("aa");
+        let new = tokens("a");
+        let base_old = fixture(&[600.0, 600.0], "aa");
+        let base_new = fixture(&[600.0], "a");
+        for case in 0..7 {
+            let mut old_records = base_old.clone();
+            let mut new_records = base_new.clone();
+            match case {
+                0 => old_records[1].run = 1,
+                1 => old_records[0].font_size = f64::NAN,
+                2 => old_records[1].glyph.0 += 1,
+                3 => new_records[0].font_size = 2.0,
+                4..=6 => {}
+                _ => unreachable!(),
+            }
+            let mut old_evidence = borrowed(&old_records);
+            if case == 4 {
+                old_evidence[1] = None;
+            } else if case == 5 {
+                old_evidence.pop();
+            }
+            let (old, new) = if case == 6 {
+                (Vec::new(), Vec::new())
+            } else {
+                (old.clone(), new.clone())
+            };
+            let new_evidence = borrowed(&new_records);
+            let mut preflight_work = 1_000_000;
+            let reason = preflight(
+                &old,
+                &new,
+                &old_evidence,
+                &new_evidence,
+                &mut preflight_work,
+            )
+            .expect_err("definite input refusal");
+            assert_ne!(reason, HoldReason::Budget);
+            let mut resolve_work = 1_000_000;
+            let result = resolve(&old, &new, &old_evidence, &new_evidence, &mut resolve_work);
+            assert!(matches!(result, Resolution::Hold(other) if other == reason));
+            assert_eq!(preflight_work, resolve_work);
+        }
+        let oversized = vec![ComparableToken::Scalar('a'); 513];
+        assert_eq!(
+            preflight(&oversized, &[], &vec![None; 513], &[], &mut 0),
+            Err(HoldReason::TokenCap)
+        );
     }
 
     #[test]
