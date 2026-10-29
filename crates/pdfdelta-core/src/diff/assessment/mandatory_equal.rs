@@ -18,7 +18,9 @@ use super::{
 mod veto_index;
 pub(super) use veto_index::LiteralVetoIndex;
 mod closed_component;
+mod refined_parent;
 pub(super) use closed_component::ClosedComponentProof;
+pub(super) use refined_parent::compatible_refined_child;
 
 /// Completed mandatory analyses for the four passes of one equality tail.
 ///
@@ -817,6 +819,7 @@ impl<'a> CoarsePairFilter<'a> {
 }
 
 struct EqualRun<'a, 'source> {
+    refined_parent: Option<&'a equal_fragment::RefinedParentCertificate<'source>>,
     page_shifted: bool,
     parent: usize,
     region: usize,
@@ -1970,6 +1973,7 @@ impl Assessor<'_, '_> {
                     let mut source_held = false;
                     self.commit_mandatory_coarse_equal_run(
                         EqualRun {
+                            refined_parent: None,
                             page_shifted,
                             parent: parent_index,
                             region: region_index,
@@ -1996,6 +2000,7 @@ impl Assessor<'_, '_> {
                             }
                             self.commit_mandatory_coarse_equal_run(
                                 EqualRun {
+                                    refined_parent: None,
                                     page_shifted,
                                     parent: parent_index,
                                     region: region_index,
@@ -2071,6 +2076,7 @@ impl Assessor<'_, '_> {
         source_held: Option<&mut bool>,
     ) -> Result<bool> {
         let EqualRun {
+            refined_parent,
             page_shifted,
             parent: parent_index,
             region: region_index,
@@ -2084,6 +2090,9 @@ impl Assessor<'_, '_> {
             regions,
             original: _,
         } = constraints;
+        if refined_parent.is_some() && (page_shifted || region_index != usize::MAX) {
+            return Ok(false);
+        }
         let source_bytes = resources.source_bytes;
         let retained_children = &mut resources.retained_children;
         let ids = views[0].blocks.len().saturating_add(views[1].blocks.len());
@@ -2173,10 +2182,13 @@ impl Assessor<'_, '_> {
                 }
             }
         }
-        let assumptions = self.records[parent_index]
-            .assumptions
-            .len()
-            .saturating_add(if page_shifted { 2 } else { 1 });
+        let assumptions = self.records[parent_index].assumptions.len().saturating_add(
+            if page_shifted || refined_parent.is_some() {
+                2
+            } else {
+                1
+            },
+        );
         // Fixed logical metadata allowance: three capacity/limit/target rows
         // and checked transient-byte/copy sums. Every planned route pays it.
         if !charge_work(&mut self.remaining_work, 128) {
@@ -2238,7 +2250,12 @@ impl Assessor<'_, '_> {
         let cache = self
             .equal_fragment_cache
             .get_or_insert_with(|| equal_fragment::EqualFragmentCache::new(self.sides));
-        let source_verdict = if page_shifted {
+        let source_verdict = if let Some(certificate) = refined_parent {
+            if !certificate.accepts(self.sides, parent_index, spans, &mut self.remaining_work) {
+                return Ok(false);
+            }
+            Ok(equal_fragment::FragmentVerdict::Proven)
+        } else if page_shifted {
             cache.prove_sources_for_page_shifted_mandatory_pairs(spans, &mut self.remaining_work)
         } else {
             cache.prove_sources_for_mandatory_pairs(spans, &mut self.remaining_work)
@@ -2423,6 +2440,11 @@ impl Assessor<'_, '_> {
                 .contains(&ComparisonAssumption::PageShiftedMandatoryMatchingEquality)
         {
             child_assumptions.push(ComparisonAssumption::PageShiftedMandatoryMatchingEquality);
+        }
+        if refined_parent.is_some()
+            && !child_assumptions.contains(&ComparisonAssumption::RefinedExactParentEquality)
+        {
+            child_assumptions.push(ComparisonAssumption::RefinedExactParentEquality);
         }
         // Every retained copy, capacity growth and partition scan is prepaid.
         // Both sides and the certificate publish together after all source

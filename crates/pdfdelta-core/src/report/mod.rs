@@ -747,6 +747,7 @@ pub fn assumption(value: ComparisonAssumption) -> &'static str {
         ComparisonAssumption::PageShiftedMandatoryMatchingEquality => {
             "page_shifted_mandatory_matching_equality"
         }
+        ComparisonAssumption::RefinedExactParentEquality => "refined_exact_parent_equality",
         ComparisonAssumption::MandatoryMatchingBoundaries => "mandatory_matching_boundaries",
         ComparisonAssumption::StationaryNeighbour => "stationary_neighbour",
         ComparisonAssumption::PositionedReplacement => "positioned_replacement",

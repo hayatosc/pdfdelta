@@ -50,7 +50,16 @@ pub(super) fn validate(
         )?,
     ];
 
-    for relation in &assessment.relations {
+    for (index, relation) in assessment.relations.iter().enumerate() {
+        if relation
+            .assumptions
+            .contains(&super::ComparisonAssumption::RefinedExactParentEquality)
+            && !mandatory_equal::compatible_refined_child(sides, &assessment.relations, index)
+        {
+            return Err(invalid(
+                "refined equality lacks its exact whole-parent diagonal",
+            ));
+        }
         if relation.old_span.is_none()
             && relation.new_span.is_none()
             && !is_output_limit_sentinel(relation)

@@ -310,6 +310,31 @@ whole coarse proof only under the isolated-parent premise. Earlier proofs keep
 their priority, and all passes share the same remaining budget, source cache and
 publication capacity ledger.
 
+After earlier proof consumers, an optional common refinement can also handle
+different block splits of an already established exact equal multi-block root.
+Both complete literal sequences must be identical, nonempty and at most 512
+tokens. Their full-length increasing matching is necessarily the diagonal;
+no independent block matching or choice between edit paths is made. All
+nonwhitespace tokens first pass the existing singleton canonical/raw glyph,
+contiguous raw cut, normalization and document-wide sharing checks. A private
+certificate binds that completed result to the original parent and both
+immutable sides. Failure on any run prevents a partial parent certificate.
+
+The diagonal is then split at either side's original block boundaries, gaps
+and whitespace. Each side of the parent must remain on one page; different
+page ordinals use the parent's correspondence and are explicitly reported as
+`refined_exact_parent_equality`. Every published run must still be unresolved
+on both sides and clear of every candidate, coarse region and existing owner.
+This rule grants no coarse exception. The ordinary paid, atomic publication
+path retains output and live-memory checks; the validator checks the recorded
+child's identical diagonal offsets in the complete parent. Neither the marker
+nor validation independently establishes the parent correspondence or extracts
+the PDF. Whitespace and unselected runs retain their previous status.
+If the preceding initial-component pass appended relations, this refinement is
+skipped: reviewed domains are released before the original late evidence
+capture. Retaining new proof inputs therefore cannot consume that older pass's
+memory allowance or displace its receipts.
+
 Those four equality passes may reuse a completed mandatory matching analysis
 for the same immutable domain and sides. The optional table is funded only
 after a parent's original attempts, and its setup must be small relative to

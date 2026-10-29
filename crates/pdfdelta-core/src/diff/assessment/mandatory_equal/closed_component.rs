@@ -387,6 +387,7 @@ impl Assessor<'_, '_> {
                 let mut source_held = false;
                 self.commit_mandatory_coarse_equal_run(
                     EqualRun {
+                        refined_parent: None,
                         page_shifted: false,
                         parent: child,
                         region,
@@ -411,6 +412,7 @@ impl Assessor<'_, '_> {
                         }
                         self.commit_mandatory_coarse_equal_run(
                             EqualRun {
+                                refined_parent: None,
                                 page_shifted: false,
                                 parent: child,
                                 region,

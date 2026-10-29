@@ -60,6 +60,17 @@ left after earlier proofs. Such subruns establish literal equality under those
 premises; they do not identify a unique edit history or resolve the remaining
 ambiguous positions. The containing coarse proof still prevents completion.
 
+An additional optional rule handles differing block splits only when the
+complete exact multi-block parent is already established and both literal
+sequences are identical, nonempty and no longer than 512 tokens. It requires
+strict source evidence for all nonwhitespace parent tokens before publishing
+any child. Each side stays on one page, whose ordinal may differ under that
+parent correspondence. Whitespace, candidates, coarse overlaps and previously
+owned ranges are excluded. It cannot discover a missing parent correspondence,
+resolve unequal parent sequences, repair extraction or relax strict completion.
+It is skipped when the preceding initial-component pass added relations, so
+the original late evidence capture keeps its existing resource priority.
+
 ## Text extraction
 
 Local optimal-alignment envelopes are optional explanations of supplied token

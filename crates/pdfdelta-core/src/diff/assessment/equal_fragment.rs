@@ -96,6 +96,9 @@
 //! ownership veto stays unchanged. The fallback reuses the same cache and
 //! immutable sides and spends only the caller's remaining budget.
 
+mod refinement;
+pub(super) use refinement::{RefinedParentCertificate, eligible_refinement};
+
 use std::collections::HashSet;
 
 use crate::{

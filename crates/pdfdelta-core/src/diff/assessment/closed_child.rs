@@ -16,6 +16,12 @@ use super::{
 /// Optional initial-component proof; larger domains keep every existing result.
 const MAX_PARENT_TOKENS: usize = 512;
 
+/// Reuses the paid capacity bound when reviewed domains outlive this pass.
+pub(super) struct RetainedDomainLedger<'a> {
+    pub capacity: usize,
+    pub bytes: &'a mut Option<usize>,
+}
+
 fn eligible_header(key: &DomainKey, proof: &DomainProof, record: &RelationAssessment) -> bool {
     key.local.is_none()
         && key.old.len() > 1
@@ -247,7 +253,7 @@ impl Assessor<'_, '_> {
         candidates: &[ChangeCandidate],
         proven: &[ProvenChangedRegion],
         publication: local::CoupledPublication<'_>,
-        domain_capacity: usize,
+        ledger: RetainedDomainLedger<'_>,
         limit: usize,
     ) -> Result<bool> {
         if self.remaining_work == 0
@@ -258,11 +264,12 @@ impl Assessor<'_, '_> {
         }
         let Some(domain_bytes) = coarse_reviewed_domain_bytes(
             publication.domains,
-            domain_capacity,
+            ledger.capacity,
             &mut self.remaining_work,
         ) else {
             return Ok(false);
         };
+        *ledger.bytes = Some(domain_bytes);
         let Some(cache_bytes) = self.cached_literal_source_capacity_bound() else {
             return Ok(false);
         };
@@ -1111,7 +1118,10 @@ mod tests {
                 partitions: [p0, p1],
                 unresolved: &mut regions,
             },
-            domains.capacity(),
+            RetainedDomainLedger {
+                capacity: domains.capacity(),
+                bytes: &mut None,
+            },
             limit,
         )?;
         assert!(a.remaining_work <= budget, "no work refund for {case:?}");

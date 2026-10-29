@@ -154,6 +154,13 @@ pub enum ComparisonAssumption {
     /// both documents still apply. This neither resolves the remaining edit
     /// ambiguity nor grants ownership outside the selected paired child.
     PageShiftedMandatoryMatchingEquality,
+    /// A complete exact equal multi-block root supplies its unique N/N
+    /// correspondence. All nonspace parent tokens pass singleton raw/canonical
+    /// and no-sharing checks before its diagonal is split at either side's
+    /// original source-block boundaries. Each side stays on one page; page
+    /// ordinals may differ under the parent proof. Whitespace, synthetic gaps,
+    /// competing claims and ownership outside each child remain unclaimed.
+    RefinedExactParentEquality,
     /// Two consecutive equal-token pairs occur on every maximum matching of
     /// the complete, source-closed parent domain. The child is their interior
     /// containing range, excluding both endpoints. This establishes boundary
@@ -4340,6 +4347,7 @@ pub(super) fn finish(
         comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
     }
     let closed_child_start = assessor.records.len();
+    let mut retained_reviewed_bytes = None;
     if assessor.recover_source_closed_initial_children(
         &mut ownership,
         &comparison.change_candidates,
@@ -4349,7 +4357,10 @@ pub(super) fn finish(
             partitions: [&mut old_resolution, &mut new_resolution],
             unresolved: &mut comparison.unresolved_regions,
         },
-        reviewed.domains.capacity(),
+        closed_child::RetainedDomainLedger {
+            capacity: reviewed.domains.capacity(),
+            bytes: &mut retained_reviewed_bytes,
+        },
         options.max_assessment_ranges,
     )? {
         comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
@@ -4359,10 +4370,40 @@ pub(super) fn finish(
     let before_deferred = assessor.remaining_work;
     assessor.discover_deferred_domains()?;
     let after_deferred = assessor.remaining_work;
-    drop(reviewed.domains);
-    // These append-only facts run after every existing proof consumer. They
-    // neither own source tokens nor displace an earlier diagnostic or receipt.
-    assessor.capture_late_closed_child_evidence(closed_child_start..closed_child_end)?;
+    // Retaining domains must not crowd out an older late-evidence receipt.
+    // Refine only when that phase has no new component to inspect; otherwise
+    // release the domains and keep its original memory lifetime and work.
+    if let Some(domain_bytes) =
+        retained_reviewed_bytes.filter(|_| closed_child_start == closed_child_end)
+    {
+        if assessor.recover_refined_equal_parents(
+            &reviewed.domains,
+            domain_bytes,
+            &mut ownership,
+            [&mut old_resolution, &mut new_resolution],
+            mandatory_equal::EqualConstraints {
+                candidates: &comparison.change_candidates,
+                regions: &comparison.proven_changed_regions,
+                original: &comparison.unresolved_regions,
+            },
+        )? {
+            comparison.old_coverage = coverage(&old_resolution, sides[0].total_tokens);
+            comparison.new_coverage = coverage(&new_resolution, sides[1].total_tokens);
+            comparison.unresolved_regions = unresolved_output_with_evidence(
+                sides,
+                alignment,
+                [&old_resolution, &new_resolution],
+                std::mem::take(&mut comparison.unresolved_regions),
+                options.max_assessment_ranges,
+                assessor.diagnostic_evidence.as_ref(),
+            )?;
+            assessor.diagnostic_evidence = None;
+        }
+        drop(reviewed.domains);
+    } else {
+        drop(reviewed.domains);
+        assessor.capture_late_closed_child_evidence(closed_child_start..closed_child_end)?;
+    }
     let assessment = ComparisonAssessment {
         policy_version: ASSESSMENT_POLICY_VERSION,
         relations: assessor.records,

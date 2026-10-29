@@ -225,7 +225,10 @@ fn exercise(
             partitions: [p0, p1],
             unresolved: &mut unresolved,
         },
-        domains.capacity(),
+        RetainedDomainLedger {
+            capacity: domains.capacity(),
+            bytes: &mut None,
+        },
         assessor.options.max_assessment_ranges,
     )?;
     assert_eq!(assessor.records[0], parent_before);
