@@ -12,6 +12,10 @@ use crate::{Error, Result};
 
 const MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 
+mod word_parallel;
+
+pub(super) use word_parallel::certify as certify_ordered;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Outcome {
     Proven,

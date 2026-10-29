@@ -6476,7 +6476,7 @@ impl<'a, 'document> Assessor<'a, 'document> {
             return Ok(Some(ProposalProof::NotInvariant));
         }
         Ok(Some(
-            match boundary_cuts::certify(
+            match boundary_cuts::certify_ordered(
                 &groups[0].tokens,
                 &groups[1].tokens,
                 &[old_range, new_range],
