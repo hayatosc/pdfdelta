@@ -36,6 +36,9 @@ use clipping::{
 };
 
 mod paint_bounds;
+
+#[cfg(test)]
+mod split_start_rectangle;
 use paint_bounds::{MatrixBounds, image_paint_bounds, path_paint_bounds};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -291,6 +294,9 @@ enum ClipCertainty {
     Unproven,
 }
 
+/// Fixed upper charge for the optional split-edge rectangle certificate.
+const SPLIT_START_RECTANGLE_WORK: usize = 256;
+
 impl CurrentPath {
     fn reset(&mut self) {
         *self = Self::default();
@@ -451,6 +457,73 @@ impl CurrentPath {
             segments[1].to,
             segments[2].to,
         ])
+    }
+
+    /// Certifies an implicitly closed rectangle starting inside one edge.
+    ///
+    /// The implicit closing edge and first explicit edge must be collinear,
+    /// nonempty and directed the same way. Merging those two edges preserves
+    /// the complete boundary under either fill rule; the existing strict
+    /// rectangle check then certifies the four remaining corners. No path
+    /// segment or stroke is changed, and no geometric tolerance is used.
+    fn split_start_clipping_rectangle(&self) -> Option<Rect> {
+        if self.has_unsupported_segments
+            || self.drawn_subpaths != 1
+            || self.has_unclosed_prior_subpath
+            || self.primitive_certainty != ClipCertainty::Exact
+        {
+            return None;
+        }
+        let [first, second, third, last] = self.segments.as_slice() else {
+            return None;
+        };
+        if self.current_point != Some(last.to)
+            || self.subpath_start != Some(first.from)
+            || !self
+                .segments
+                .windows(2)
+                .all(|pair| pair[0].to == pair[1].from)
+        {
+            return None;
+        }
+        let between =
+            |point: f64, a: f64, b: f64| (a < point && point < b) || (b < point && point < a);
+        let vertical = first.from.x == first.to.x
+            && first.from.x == last.to.x
+            && between(first.from.y, first.to.y, last.to.y);
+        let horizontal = first.from.y == first.to.y
+            && first.from.y == last.to.y
+            && between(first.from.x, first.to.x, last.to.x);
+        if !vertical && !horizontal {
+            return None;
+        }
+        Self::strict_rectangle(&[
+            PathSegment {
+                from: last.to,
+                to: first.to,
+            },
+            *second,
+            *third,
+            *last,
+        ])
+    }
+
+    /// Pays for a complete optional certificate or preserves the old refusal.
+    /// Failed attempted geometry keeps its charge; unaffordable work is not
+    /// started. Existing rectangle proofs are selected before this method.
+    fn prepaid_split_start_rectangle(&self, used: &mut usize, limit: usize) -> Option<Rect> {
+        if self.segments.len() != 4
+            || self.drawn_subpaths != 1
+            || self.has_unsupported_segments
+            || self.primitive_certainty != ClipCertainty::Exact
+        {
+            return None;
+        }
+        let total = used
+            .checked_add(SPLIT_START_RECTANGLE_WORK)
+            .filter(|&n| n <= limit)?;
+        *used = total;
+        self.split_start_clipping_rectangle()
     }
 
     /// Two explicitly closed, strictly axis-aligned rectangular subpaths.
@@ -1453,7 +1526,16 @@ impl Extraction<'_> {
                 )))
             } else {
                 self.charge_convex_clip_work(state.graphics.clip_region.work())?;
-                if let Some((rectangle, certainty)) = state.current_path.clipping_rectangle() {
+                let rectangle = state.current_path.clipping_rectangle().or_else(|| {
+                    state
+                        .current_path
+                        .prepaid_split_start_rectangle(
+                            &mut self.convex_clip_work,
+                            self.limits.max_operators,
+                        )
+                        .map(|rectangle| (rectangle, ClipCertainty::Exact))
+                });
+                if let Some((rectangle, certainty)) = rectangle {
                     // Only strict rectangle witnesses authorize a new concave
                     // intersection. Approximate legacy matches retain their
                     // old behavior elsewhere without gaining that witness.
