@@ -1,0 +1,345 @@
+[
+  {
+    "case": "arxiv-gpt3-v1-to-v4",
+    "id": 0,
+    "old": "The Winograd Schemas Challenge [LDM12] is a classical task in NLP that involves determining which word a pronoun refers to, when the pronoun is grammatically ambiguous but semantically unambiguous to a human. Recently fine-tuned language models have achieved near-human performance on the original Winograd dataset, but more difficult versions such as the adversarially-mined Winogrande dataset [SBBC19] still significantly lag human performance. We test GPT-3’s performance on both Winograd and Winogrande, as usual in the zero-, one-, and few-shot setting.",
+    "new": "The Winograd Schemas Challenge [LDM12] is a classical task in NLP that involves determining which word a pronoun refers to, when the pronoun is grammatically ambiguous but semantically unambiguous to a human. Recently fine-tuned language models have achieved near-human performance on the original Winograd dataset, but more difficult versions",
+    "cut_verified_c39": false,
+    "local_unique": false,
+    "local_lcs": 343,
+    "candidate_matching_edges": 427,
+    "factorized_strict": false,
+    "local_witnesses": [
+      [
+        [
+          343,
+          558,
+          343,
+          343
+        ]
+      ],
+      [
+        [
+          342,
+          344,
+          342,
+          342
+        ],
+        [
+          345,
+          558,
+          343,
+          343
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "arxiv-gpt3-v1-to-v4",
+    "id": 1,
+    "old": "16",
+    "new": "16",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 2,
+    "candidate_matching_edges": 2,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 0,
+    "old": "amount (EUR millions) ",
+    "new": "(EUR millions) ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 15,
+    "candidate_matching_edges": 15,
+    "factorized_strict": false,
+    "local_witnesses": [
+      [
+        [
+          0,
+          7,
+          0,
+          0
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 1,
+    "old": "Unlimited ",
+    "new": "Unlimited ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 10,
+    "candidate_matching_edges": 10,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 2,
+    "old": "4,000 ",
+    "new": "4,000 ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 6,
+    "candidate_matching_edges": 6,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 3,
+    "old": "End date ",
+    "new": "End date1 ",
+    "cut_verified_c39": true,
+    "local_unique": true,
+    "local_lcs": 9,
+    "candidate_matching_edges": 9,
+    "factorized_strict": true,
+    "local_witnesses": [
+      [
+        [
+          8,
+          8,
+          8,
+          9
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "nist-risk-management-37-r1-to-r2",
+    "id": 0,
+    "old": "National Institute of Standards and Technology Special Publication 800-37 Revision 1 ",
+    "new": "National Institute of Standards and Technology Special Publication 800-37, Revision 2 ",
+    "cut_verified_c39": true,
+    "local_unique": true,
+    "local_lcs": 84,
+    "candidate_matching_edges": 84,
+    "factorized_strict": true,
+    "local_witnesses": [
+      [
+        [
+          73,
+          73,
+          73,
+          74
+        ],
+        [
+          83,
+          84,
+          84,
+          85
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 0,
+    "old": "Ron Ross ",
+    "new": "Ron Ross ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 9,
+    "candidate_matching_edges": 9,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 1,
+    "old": " ",
+    "new": " ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 1,
+    "candidate_matching_edges": 1,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 2,
+    "old": " ",
+    "new": " ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 1,
+    "candidate_matching_edges": 1,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 3,
+    "old": " ",
+    "new": " ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 1,
+    "candidate_matching_edges": 1,
+    "factorized_strict": false,
+    "local_witnesses": [
+      []
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 0,
+    "old": "Schedule SE (Form 1040) 2024 ",
+    "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 ",
+    "cut_verified_c39": true,
+    "local_unique": false,
+    "local_lcs": 28,
+    "candidate_matching_edges": 31,
+    "factorized_strict": false,
+    "local_witnesses": [
+      [
+        [
+          27,
+          28,
+          27,
+          28
+        ],
+        [
+          29,
+          29,
+          29,
+          44
+        ]
+      ],
+      [
+        [
+          27,
+          28,
+          27,
+          36
+        ],
+        [
+          29,
+          29,
+          37,
+          44
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 1,
+    "old": "Schedule SE (Form 1040) 2024",
+    "new": "Schedule SE (Form 1040) 2025",
+    "cut_verified_c39": true,
+    "local_unique": true,
+    "local_lcs": 27,
+    "candidate_matching_edges": 27,
+    "factorized_strict": true,
+    "local_witnesses": [
+      [
+        [
+          27,
+          28,
+          27,
+          28
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 2,
+    "old": "4",
+    "new": "5",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 0,
+    "candidate_matching_edges": 0,
+    "factorized_strict": false,
+    "local_witnesses": [
+      [
+        [
+          0,
+          1,
+          0,
+          1
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 3,
+    "old": "",
+    "new": "Created 5/7/25 ",
+    "cut_verified_c39": false,
+    "local_unique": true,
+    "local_lcs": 0,
+    "candidate_matching_edges": 0,
+    "factorized_strict": false,
+    "local_witnesses": [
+      [
+        [
+          0,
+          0,
+          0,
+          15
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 4,
+    "old": "4",
+    "new": "5",
+    "cut_verified_c39": true,
+    "local_unique": true,
+    "local_lcs": 0,
+    "candidate_matching_edges": 0,
+    "factorized_strict": true,
+    "local_witnesses": [
+      [
+        [
+          0,
+          1,
+          0,
+          1
+        ]
+      ]
+    ],
+    "full_parent_matchings_enumerated": false
+  }
+]

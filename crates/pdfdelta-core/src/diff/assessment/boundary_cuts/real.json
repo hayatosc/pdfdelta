@@ -1,0 +1,290 @@
+[
+  {
+    "case": "arxiv-gpt3-v1-to-v4",
+    "id": 0,
+    "old": "3.4 Winograd-Style Tasks The Winograd Schemas Challenge [LDM12] is a classical task in NLP that involves determining which word a pronoun refers to, when the pronoun is grammatically ambiguous but semantically unambiguous to a human. Recently fine-tuned language models have achieved near-human performance on the original Winograd dataset, but more difficult versions such as the adversarially-mined Winogrande dataset [SBBC19] still significantly lag human performance. We test GPT-3’s performance on both Winograd and Winogrande, as usual in the zero-, one-, and few-shot setting. 16 Setting",
+    "new": "3.4 Winograd-Style Tasks The Winograd Schemas Challenge [LDM12] is a classical task in NLP that involves determining which word a pronoun refers to, when the pronoun is grammatically ambiguous but semantically unambiguous to a human. Recently fine-tuned language models have achieved near-human performance on the original Winograd dataset, but more difficult versions 16 Setting",
+    "ranges": [
+      [
+        25,
+        583
+      ],
+      [
+        25,
+        368
+      ]
+    ],
+    "expected": false,
+    "lcs": 379
+  },
+  {
+    "case": "arxiv-gpt3-v1-to-v4",
+    "id": 1,
+    "old": "3.4 Winograd-Style Tasks The Winograd Schemas Challenge [LDM12] is a classical task in NLP that involves determining which word a pronoun refers to, when the pronoun is grammatically ambiguous but semantically unambiguous to a human. Recently fine-tuned language models have achieved near-human performance on the original Winograd dataset, but more difficult versions such as the adversarially-mined Winogrande dataset [SBBC19] still significantly lag human performance. We test GPT-3’s performance on both Winograd and Winogrande, as usual in the zero-, one-, and few-shot setting. 16 Setting",
+    "new": "3.4 Winograd-Style Tasks The Winograd Schemas Challenge [LDM12] is a classical task in NLP that involves determining which word a pronoun refers to, when the pronoun is grammatically ambiguous but semantically unambiguous to a human. Recently fine-tuned language models have achieved near-human performance on the original Winograd dataset, but more difficult versions 16 Setting",
+    "ranges": [
+      [
+        584,
+        586
+      ],
+      [
+        369,
+        371
+      ]
+    ],
+    "expected": false,
+    "lcs": 379
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 0,
+    "old": "Type of arrangement Reciprocal amount (EUR millions) Danmarks Nationalbank Swap line No ",
+    "new": "Type of arrangement Reciprocal (EUR millions) Danmarks Nationalbank Swap line No ",
+    "ranges": [
+      [
+        31,
+        53
+      ],
+      [
+        31,
+        46
+      ]
+    ],
+    "expected": false,
+    "lcs": 81
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 1,
+    "old": "Bank of Japan Swap line Yes Unlimited Swiss National Bank Swap line Yes Unlimited Bank of England Swap line Yes Unlimited Federal Reserve System Swap line Yes Unlimited Narodowy Bank Polski Swap line No 10,000 Magyar Nemzeti Bank Repo line No 4,000 Banca Naţională a României Repo line No 4,500 ",
+    "new": "Bank of Japan Swap line Yes Unlimited Swiss National Bank Swap line Yes Unlimited Bank of England Swap line Yes Unlimited Federal Reserve System Swap line Yes Unlimited Banca Naţională a României Repo line No 4,500 Magyar Nemzeti Bank Repo line No 4,000 ",
+    "ranges": [
+      [
+        159,
+        169
+      ],
+      [
+        159,
+        169
+      ]
+    ],
+    "expected": false,
+    "lcs": 231
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 2,
+    "old": "Bank of Japan Swap line Yes Unlimited Swiss National Bank Swap line Yes Unlimited Bank of England Swap line Yes Unlimited Federal Reserve System Swap line Yes Unlimited Narodowy Bank Polski Swap line No 10,000 Magyar Nemzeti Bank Repo line No 4,000 Banca Naţională a României Repo line No 4,500 ",
+    "new": "Bank of Japan Swap line Yes Unlimited Swiss National Bank Swap line Yes Unlimited Bank of England Swap line Yes Unlimited Federal Reserve System Swap line Yes Unlimited Banca Naţională a României Repo line No 4,500 Magyar Nemzeti Bank Repo line No 4,000 ",
+    "ranges": [
+      [
+        243,
+        249
+      ],
+      [
+        248,
+        254
+      ]
+    ],
+    "expected": false,
+    "lcs": 231
+  },
+  {
+    "case": "ecb-annual-2023-to-2024",
+    "id": 3,
+    "old": "End date Decision Universe of eligible securities1 Completed/Terminated programmes CBPP12 July 2009 June 2010 ECB/2009/16 Covered bonds of euro area residents CBPP22 November 2011 October 2012 ECB/2011/17 Covered bonds of euro area residents SMP May 2010 ",
+    "new": "End date1 Decision Universe of eligible securities2 Securities Markets Programme (SMP) SMP May 2010 ",
+    "ranges": [
+      [
+        0,
+        9
+      ],
+      [
+        0,
+        10
+      ]
+    ],
+    "expected": true,
+    "lcs": 84
+  },
+  {
+    "case": "nist-risk-management-37-r1-to-r2",
+    "id": 0,
+    "old": "This publication has been developed by NIST to further its statutory responsibilities under the Federal Information Security Management Act (FISMA), Public Law (P.L.) 107-347. NIST is responsible for developing information security standards and guidelines, including minimum requirements for federal information systems, but such standards and guidelines shall not apply to national security systems without the express approval of appropriate federal officials exercising policy authority over such systems. This guideline is consistent with the requirements of the Office of Management and Budget (OMB) Circular A-130, Section 8b(3), Securing Agency Information Systems, as analyzed in Circular A-130, Appendix IV: Analysis of Key Sections. Supplemental information is provided in Circular A-130, Appendix III, Security of Federal Automated Information Resources. Nothing in this publication should be taken to contradict the standards and guidelines made mandatory and binding on federal agencies by the Secretary of Commerce under statutory authority. Nor should these guidelines be interpreted as altering or superseding the existing authorities of the Secretary of Commerce, Director of the OMB, or any other federal official. This publication may be used by nongovernmental organizations on a voluntary basis and is not subject to copyright in the United States. Attribution would, however, be appreciated by NIST. National Institute of Standards and Technology Special Publication 800-37 Revision 1 Natl. Inst. Stand. Technol. Spec. Publ. 800-37 Revision 1, 102 pages (February 2010) ",
+    "new": "This publication has been developed by NIST to further its statutory responsibilities under the Federal Information Security Modernization Act (FISMA), 44 U.S.C. § 3551 et seq., Public Law (P.L.) 113-283. NIST is responsible for developing information security standards and guidelines, including minimum requirements for federal information systems, but such standards and guidelines shall not apply to national security systems without the express approval of the appropriate federal officials exercising policy authority over such systems. This guideline is consistent with requirements of the Office of Management and Budget (OMB) Circular A-130. Nothing in this publication should be taken to contradict the standards and guidelines made mandatory and binding on federal agencies by the Secretary of Commerce under statutory authority. Nor should these guidelines be interpreted as altering or superseding the existing authorities of the Secretary of Commerce, OMB Director, or any other federal official. This publication may be used by nongovernmental organizations on a voluntary basis and is not subject to copyright in the United States. Attribution would, however, be appreciated by NIST. National Institute of Standards and Technology Special Publication 800-37, Revision 2 Natl. Inst. Stand. Technol. Spec. Publ. 800-37, Rev. 2, 183 pages (December 2018) ",
+    "ranges": [
+      [
+        1423,
+        1508
+      ],
+      [
+        1200,
+        1286
+      ]
+    ],
+    "expected": true,
+    "lcs": 1308
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 0,
+    "old": "   CNSS Subcommittee Tri-Chair Ron Ross      Jeffrey Wilk ",
+    "new": "   Tri-Chair—Defense Community Kevin Stine      Chris Johnson Chief, Applied Cybersecurity Division   Tri-Chair—Intelligence Community Ron Ross      Vicki Michetti ",
+    "ranges": [
+      [
+        31,
+        40
+      ],
+      [
+        135,
+        144
+      ]
+    ],
+    "expected": false,
+    "lcs": 41
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 1,
+    "old": "   CNSS Subcommittee Tri-Chair Ron Ross      Jeffrey Wilk ",
+    "new": "   Tri-Chair—Defense Community Kevin Stine      Chris Johnson Chief, Applied Cybersecurity Division   Tri-Chair—Intelligence Community Ron Ross      Vicki Michetti ",
+    "ranges": [
+      [
+        40,
+        41
+      ],
+      [
+        144,
+        145
+      ]
+    ],
+    "expected": false,
+    "lcs": 41
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 2,
+    "old": "   CNSS Subcommittee Tri-Chair Ron Ross      Jeffrey Wilk ",
+    "new": "   Tri-Chair—Defense Community Kevin Stine      Chris Johnson Chief, Applied Cybersecurity Division   Tri-Chair—Intelligence Community Ron Ross      Vicki Michetti ",
+    "ranges": [
+      [
+        41,
+        42
+      ],
+      [
+        145,
+        146
+      ]
+    ],
+    "expected": false,
+    "lcs": 41
+  },
+  {
+    "case": "nist-controls-53-r4-to-r5",
+    "id": 3,
+    "old": "   CNSS Subcommittee Tri-Chair Ron Ross      Jeffrey Wilk ",
+    "new": "   Tri-Chair—Defense Community Kevin Stine      Chris Johnson Chief, Applied Cybersecurity Division   Tri-Chair—Intelligence Community Ron Ross      Vicki Michetti ",
+    "ranges": [
+      [
+        42,
+        43
+      ],
+      [
+        146,
+        147
+      ]
+    ],
+    "expected": false,
+    "lcs": 41
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 0,
+    "old": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+    "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025",
+    "ranges": [
+      [
+        0,
+        29
+      ],
+      [
+        0,
+        44
+      ]
+    ],
+    "expected": true,
+    "lcs": 55
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 1,
+    "old": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+    "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025",
+    "ranges": [
+      [
+        29,
+        57
+      ],
+      [
+        44,
+        72
+      ]
+    ],
+    "expected": true,
+    "lcs": 55
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 2,
+    "old": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+    "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025",
+    "ranges": [
+      [
+        27,
+        28
+      ],
+      [
+        27,
+        28
+      ]
+    ],
+    "expected": false,
+    "lcs": 55
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 3,
+    "old": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+    "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025",
+    "ranges": [
+      [
+        29,
+        29
+      ],
+      [
+        29,
+        44
+      ]
+    ],
+    "expected": false,
+    "lcs": 55
+  },
+  {
+    "case": "irs-schedule-se-2024-to-2025",
+    "id": 4,
+    "old": "Schedule SE (Form 1040) 2024 Schedule SE (Form 1040) 2024",
+    "new": "Schedule SE (Form 1040) 2025 Created 5/7/25 Schedule SE (Form 1040) 2025",
+    "ranges": [
+      [
+        56,
+        57
+      ],
+      [
+        71,
+        72
+      ]
+    ],
+    "expected": true,
+    "lcs": 55
+  }
+]

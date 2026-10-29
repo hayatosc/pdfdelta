@@ -505,7 +505,6 @@ impl<T: Eq> RetainedSuffix<'_, T> {
 /// # Errors
 /// Returns the original dimensional and configured memory refusals, and prefix
 /// allocation failure. The two rolling-row allocations are no longer needed.
-#[cfg(test)]
 pub(super) fn check_retaining<'a, T: Eq>(
     old: &'a [T],
     new: &'a [T],

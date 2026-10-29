@@ -4,6 +4,7 @@
 //! exact edit script describes a proposed pair; it does not establish that
 //! the pair belongs to the same source-backed comparison domain.
 
+mod boundary_cuts;
 mod claims;
 mod closed_child;
 mod context_projection;
@@ -17,6 +18,7 @@ mod evidence_index;
 mod exact;
 mod footers;
 mod hypotheses;
+mod literal_scope;
 mod local;
 mod mandatory_equal;
 mod normalization;
@@ -6280,6 +6282,141 @@ impl<'a, 'document> Assessor<'a, 'document> {
         Ok(Some(mapped))
     }
 
+    /// Proves a changed whole-line proposal by local uniqueness and global cuts.
+    ///
+    /// The closed parent's complete search and source premises are required
+    /// before this optional route runs. Local uniqueness alone cannot close
+    /// the line: both cuts must occur on every optimal parent matching. Then
+    /// every global restriction is locally optimal, and every local optimum
+    /// extends with a parent's optimal prefix and suffix. A unique local
+    /// matching therefore fixes exactly the existing strict hunk signature.
+    /// The raw displacement route remains available when this proof is absent.
+    fn literal_proposal_proof(
+        &mut self,
+        proposal: &ProposedRelation,
+        key: &DomainKey,
+    ) -> Result<Option<ProposalProof>> {
+        let Some(parent) = self.domains.get(key) else {
+            return Ok(None);
+        };
+        if key.local.is_some()
+            || key.old.len() <= 1
+            || key.new.len() <= 1
+            || parent.scope != ProofScope::ExactKey
+            || parent.search != SearchCompleteness::Complete
+            || !self.records[parent.relation].reasons.is_empty()
+        {
+            return Ok(None);
+        }
+        let (Some(old_span), Some(new_span)) = (&proposal.old, &proposal.new) else {
+            return Ok(None);
+        };
+        if old_span.blocks.len() != 1 || new_span.blocks.len() != 1 {
+            return Ok(None);
+        }
+        if !self.charge(8) {
+            return Ok(Some(ProposalProof::Exhausted));
+        }
+        let sides = self.sides;
+        let Some(&old_index) = sides[0].index.get(&old_span.blocks[0]) else {
+            return Err(invalid("unknown literal proposal source block"));
+        };
+        let Some(&new_index) = sides[1].index.get(&new_span.blocks[0]) else {
+            return Err(invalid("unknown literal proposal source block"));
+        };
+        let local = [
+            &sides[0].canonical[old_index],
+            &sides[1].canonical[new_index],
+        ];
+        for (tokens, span) in local.into_iter().zip([old_span, new_span]) {
+            if tokens.is_empty()
+                || tokens.len() > 512
+                || span.comparable_range.start != 0
+                || span.comparable_range.end != tokens.len()
+                || span.canonical_range.start != 0
+                || span.canonical_range.end != tokens.len()
+            {
+                return Ok(None);
+            }
+        }
+        // A completed parent analysis is already available to the ordinary
+        // proof paths. Prefer those consumers over another parent-sized DP;
+        // cache presence selects a route and is not itself a proof verdict.
+        if !self.charge(8) {
+            return Ok(Some(ProposalProof::Exhausted));
+        }
+        if matches!(self.mandatory_analyses.get(key), Some(Some(_))) {
+            return Ok(None);
+        }
+        let local_work = local[0].len().saturating_add(local[1].len());
+        if !self.charge(local_work) {
+            return Ok(Some(ProposalProof::Exhausted));
+        }
+        if local
+            .iter()
+            .any(|tokens| tokens.iter().any(|token| !token.is_scalar()))
+        {
+            return Ok(None);
+        }
+        match literal_scope::unique_changed(local[0], local[1], &mut self.remaining_work)? {
+            literal_scope::LocalOutcome::Unavailable => return Ok(None),
+            literal_scope::LocalOutcome::BudgetExceeded => {
+                return Ok((self.remaining_work == 0).then_some(ProposalProof::Exhausted));
+            }
+            literal_scope::LocalOutcome::UniqueChanged => {}
+        }
+        let groups =
+            match paid_global_groups(sides, key, &mut self.remaining_work, 64 * 1024 * 1024) {
+                Ok(groups) => groups,
+                Err(MaterializationRefusal::Work) => return Ok(Some(ProposalProof::Exhausted)),
+                Err(_) => return Ok(Some(ProposalProof::Resource)),
+            };
+        // Pay for both complete scalar scans, source projection, and the
+        // prefix/local copies used by the ordinary source localization helper.
+        // Only scalar parents enter this route, so there is no unmapped payload
+        // cloning hidden behind this token bound.
+        let work = groups
+            .iter()
+            .map(|group| group.tokens.len().saturating_add(group.blocks.len()))
+            .fold(local_work, usize::saturating_add)
+            .saturating_mul(4);
+        if !self.charge(work) {
+            return Ok(Some(ProposalProof::Exhausted));
+        }
+        if groups
+            .iter()
+            .any(|group| group.tokens.iter().any(|token| !token.is_scalar()))
+        {
+            return Ok(None);
+        }
+        let [Some(old_range), Some(new_range)] = localize_proposal(
+            sides,
+            [Some(old_span), Some(new_span)],
+            [&groups[0], &groups[1]],
+            &[],
+        )?
+        else {
+            return Ok(None);
+        };
+        if groups[0].tokens.get(old_range.clone()) != Some(local[0].as_slice())
+            || groups[1].tokens.get(new_range.clone()) != Some(local[1].as_slice())
+        {
+            return Ok(None);
+        }
+        Ok(Some(
+            match boundary_cuts::certify(
+                &groups[0].tokens,
+                &groups[1].tokens,
+                &[old_range, new_range],
+                &mut self.remaining_work,
+            )? {
+                boundary_cuts::Outcome::Proven => ProposalProof::Invariant,
+                boundary_cuts::Outcome::Rejected => ProposalProof::NotInvariant,
+                boundary_cuts::Outcome::BudgetExceeded => ProposalProof::Exhausted,
+            },
+        ))
+    }
+
     /// Checks whether the strict changed hunks inside one proposal are the
     /// same on every optimal edit path of its closed domain.
     ///
@@ -6523,14 +6660,22 @@ impl<'a, 'document> Assessor<'a, 'document> {
             && proof_search == SearchCompleteness::Complete
             && !forced_equal_applies
         {
-            match self.boundary_displacement_proof(proposal, &key)? {
-                BoundaryDisplacement::Proven(proof) => {
-                    targeted_invariant = true;
-                    exact_local_proof = Some((proof.key, proof.edits, proof.events));
+            match self.literal_proposal_proof(proposal, &key)? {
+                Some(ProposalProof::Invariant) => targeted_invariant = true,
+                Some(ProposalProof::NotInvariant) => {
+                    reasons.push(AssessmentReason::AmbiguousEditLocation);
                 }
-                BoundaryDisplacement::Budget => boundary_budget = true,
-                BoundaryDisplacement::Resource => boundary_resource = true,
-                BoundaryDisplacement::NotProven | BoundaryDisplacement::Unavailable => {}
+                Some(ProposalProof::Exhausted) => boundary_budget = true,
+                Some(ProposalProof::Resource) => boundary_resource = true,
+                None => match self.boundary_displacement_proof(proposal, &key)? {
+                    BoundaryDisplacement::Proven(proof) => {
+                        targeted_invariant = true;
+                        exact_local_proof = Some((proof.key, proof.edits, proof.events));
+                    }
+                    BoundaryDisplacement::Budget => boundary_budget = true,
+                    BoundaryDisplacement::Resource => boundary_resource = true,
+                    BoundaryDisplacement::NotProven | BoundaryDisplacement::Unavailable => {}
+                },
             }
         }
         if boundary_budget {
@@ -14211,6 +14356,115 @@ mod assessor_issue_cache_tests {
         assert!(assessor.discover_local_domains(&[]).is_err());
         assert_eq!(assessor.remaining_work, 11);
         assert_eq!(assessor.local_view_work.total(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn literal_proposal_requires_closed_parent_and_universal_cuts() -> Result<()> {
+        for (old_texts, new_texts, expected) in [
+            (["X ", "aaaa"], ["XY ", "aaa"], ProposalProof::Invariant),
+            (["a", "b"], ["b", "b"], ProposalProof::NotInvariant),
+        ] {
+            let old_blocks = [anchor_block(1, old_texts[0]), anchor_block(2, old_texts[1])];
+            let new_blocks = [
+                anchor_block(101, new_texts[0]),
+                anchor_block(102, new_texts[1]),
+            ];
+            let old = super::super::SidePlan::inspect("old", &old_blocks)?.materialize()?;
+            let new = super::super::SidePlan::inspect("new", &new_blocks)?.materialize()?;
+            let alignment = issue_alignment();
+            let mut assessor =
+                Assessor::new([&old, &new], &alignment, None, DiffOptions::default())?;
+            let key = DomainKey {
+                local: None,
+                old: 0..2,
+                new: 0..2,
+                old_separator: BlockSeparator::Concatenate,
+                new_separator: BlockSeparator::Concatenate,
+            };
+            let proposal = ProposedRelation {
+                old: Some(local_span(1, 0, old_texts[0].len())),
+                new: Some(local_span(101, 0, new_texts[0].len())),
+                span_indices: [None, None],
+                exact_recovery: false,
+            };
+            let before = assessor.remaining_work;
+            assert_eq!(assessor.literal_proposal_proof(&proposal, &key)?, None);
+            assert_eq!(assessor.remaining_work, before);
+            // Install the caller's premise explicitly; this unit test checks
+            // its consumption, not whether arbitrary documents prove closure.
+            let parent = assessor.record(RelationAssessment {
+                old_span: None,
+                new_span: None,
+                parent: None,
+                outcome: RelationOutcome::Established,
+                search: SearchCompleteness::Complete,
+                assumptions: Vec::new(),
+                reasons: Vec::new(),
+            })?;
+            assessor.domains.insert(
+                key.clone(),
+                DomainProof {
+                    scope: ProofScope::ExactKey,
+                    relation: parent,
+                    unique: false,
+                    strict_unique: false,
+                    stable_events: None,
+                    search: SearchCompleteness::Complete,
+                    edits: Vec::new(),
+                    lengths: [old_texts.concat().len(), new_texts.concat().len()],
+                },
+            );
+            assert_eq!(
+                assessor.literal_proposal_proof(&proposal, &key)?,
+                Some(expected)
+            );
+            let groups = proof_groups(assessor.sides, &key)?;
+            let mut analysis_work = 1_000_000;
+            let analysis = semantic::mandatory_match_analysis(
+                &groups[0].tokens,
+                &groups[1].tokens,
+                &mut analysis_work,
+            )?
+            .expect("small complete parent analysis");
+            assessor
+                .mandatory_analyses
+                .insert(key.clone(), Some(std::sync::Arc::new(analysis)));
+            let before = assessor.remaining_work;
+            assessor.remaining_work = 24;
+            assert_eq!(assessor.literal_proposal_proof(&proposal, &key)?, None);
+            assert_eq!(assessor.remaining_work, 8);
+            assert_eq!(
+                assessor.records[parent].outcome,
+                RelationOutcome::Established
+            );
+            assessor.remaining_work = before;
+            assessor.mandatory_analyses.insert(key.clone(), None);
+            assert_eq!(
+                assessor.literal_proposal_proof(&proposal, &key)?,
+                Some(expected)
+            );
+            assessor.mandatory_analyses.remove(&key);
+            assessor.records[parent]
+                .reasons
+                .push(AssessmentReason::UnknownReadingOrder);
+            let before = assessor.remaining_work;
+            assert_eq!(assessor.literal_proposal_proof(&proposal, &key)?, None);
+            assert_eq!(assessor.remaining_work, before);
+            assessor.records[parent].reasons.clear();
+            assessor.domains.get_mut(&key).expect("parent").search = SearchCompleteness::Incomplete;
+            assert_eq!(assessor.literal_proposal_proof(&proposal, &key)?, None);
+            assessor.domains.get_mut(&key).expect("parent").search = SearchCompleteness::Complete;
+            assessor.remaining_work = 0;
+            assert_eq!(
+                assessor.literal_proposal_proof(&proposal, &key)?,
+                Some(ProposalProof::Exhausted)
+            );
+            assert_eq!(
+                assessor.records[parent].outcome,
+                RelationOutcome::Established
+            );
+        }
         Ok(())
     }
 
