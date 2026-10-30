@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod buffered_digest_tests;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::{self, Write},
@@ -1147,8 +1150,7 @@ impl JsonSourceSummary {
             hash: Sha256::new(),
             bytes: 0,
         };
-        serde_json::to_writer(&mut digest, &JsonSourceArray(sources))
-            .map_err(|error| Error::Report(error.to_string()))?;
+        buffered_source_array(&mut digest, sources)?;
         Ok(Self {
             canonical_array_sha256: lowercase_hex(&digest.hash.finalize()),
             canonical_array_bytes: digest.bytes,
@@ -1164,6 +1166,17 @@ impl JsonSourceSummary {
                 }),
         })
     }
+}
+
+/// Batches small serializer writes without retaining the complete source array.
+/// The explicit flush must succeed before the caller finalizes its digest.
+fn buffered_source_array<W: Write>(writer: &mut W, sources: &[SpanSourceEvidence]) -> Result<()> {
+    let mut buffered = std::io::BufWriter::with_capacity(8192, writer);
+    serde_json::to_writer(&mut buffered, &JsonSourceArray(sources))
+        .map_err(|error| Error::Report(error.to_string()))?;
+    buffered
+        .flush()
+        .map_err(|error| Error::Report(error.to_string()))
 }
 
 /// Serialize into the digest one source at a time without allocating its JSON.
