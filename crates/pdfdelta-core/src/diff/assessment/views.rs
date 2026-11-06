@@ -2956,50 +2956,66 @@ fn band_nearest(
     if bound_side {
         cache.prepare(remaining);
     }
-    for index in population {
-        let block = &candidate.side.blocks[index];
-        if index == candidate.block || index == neighbour.block {
-            continue;
+    let mut unvisited = population.len();
+    let outcome = (|| {
+        for index in population {
+            unvisited -= 1;
+            let block = &candidate.side.blocks[index];
+            if index == candidate.block || index == neighbour.block {
+                continue;
+            }
+            // Only a block provably on the candidate's page is compared by raw
+            // coordinates; a block provably on another page is not order
+            // evidence, and an empty or page-ambiguous block holds the proof.
+            if block.pages.is_empty()
+                || (block.pages.len() > 1 && block.pages.contains(&candidate.page))
+            {
+                return Some(false);
+            }
+            if !block.pages.contains(&candidate.page) {
+                continue;
+            }
+            // A block is empty only when it has no comparable tokens, no source
+            // map entries and no raw or canonical text. An opaque or unmapped
+            // token, or a retained source origin, keeps it an obstacle even when
+            // its display text is empty.
+            let no_tokens = candidate.side.canonical[index].is_empty();
+            let no_source =
+                block.raw.source_map.is_empty() && block.canonical.source_map.is_empty();
+            if no_tokens
+                && no_source
+                && block.raw.text.is_empty()
+                && block.canonical.text.is_empty()
+            {
+                continue;
+            }
+            let bounds = if bound_side {
+                cache.get(index, remaining)?
+            } else {
+                band_obstacle_bounds(candidate.side, index, remaining)?
+            };
+            let Some(obstacle) = bounds else {
+                // A non-empty source block without geometry cannot be cleared.
+                return Some(false);
+            };
+            // Closed-interval semantics: a zero-width (point) obstacle inside the
+            // band still blocks the gap.
+            if obstacle.0.max(band_min) > obstacle.2.min(band_max) {
+                continue;
+            }
+            if obstacle.1.max(gap.0) <= obstacle.3.min(gap.1) {
+                return Some(false);
+            }
         }
-        // Only a block provably on the candidate's page is compared by raw
-        // coordinates; a block provably on another page is not order
-        // evidence, and an empty or page-ambiguous block holds the proof.
-        if block.pages.is_empty()
-            || (block.pages.len() > 1 && block.pages.contains(&candidate.page))
-        {
-            return Some(false);
-        }
-        if !block.pages.contains(&candidate.page) {
-            continue;
-        }
-        // A block is empty only when it has no comparable tokens, no source
-        // map entries and no raw or canonical text. An opaque or unmapped
-        // token, or a retained source origin, keeps it an obstacle even when
-        // its display text is empty.
-        let no_tokens = candidate.side.canonical[index].is_empty();
-        let no_source = block.raw.source_map.is_empty() && block.canonical.source_map.is_empty();
-        if no_tokens && no_source && block.raw.text.is_empty() && block.canonical.text.is_empty() {
-            continue;
-        }
-        let bounds = if bound_side {
-            cache.get(index, remaining)?
-        } else {
-            band_obstacle_bounds(candidate.side, index, remaining)?
-        };
-        let Some(obstacle) = bounds else {
-            // A non-empty source block without geometry cannot be cleared.
-            return Some(false);
-        };
-        // Closed-interval semantics: a zero-width (point) obstacle inside the
-        // band still blocks the gap.
-        if obstacle.0.max(band_min) > obstacle.2.min(band_max) {
-            continue;
-        }
-        if obstacle.1.max(gap.0) <= obstacle.3.min(gap.1) {
-            return Some(false);
-        }
+        Some(true)
+    })();
+    // Only a completed veto refunds untouched obstacle lookups. A positive
+    // result still requires the entire population, and exhaustion keeps the
+    // original spent reservation rather than reviving an incomplete proof.
+    if outcome == Some(false) {
+        *remaining += unvisited;
     }
-    Some(true)
+    outcome
 }
 
 /// Which raw displacement key one whole-block equality is proven from.
@@ -11989,6 +12005,103 @@ mod tests {
                     Some(expected)
                 );
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_completed_band_veto_returns_unvisited_work_but_a_clear_band_does_not() -> Result<()> {
+        let mut costs = Vec::new();
+        for blocked in [false, true] {
+            for tail in [0, 100] {
+                let mut blocks = vec![
+                    spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+                    spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+                    spread_block(3, "XX", 10.0, if blocked { 690.0 } else { 600.0 }, 0, 0.0),
+                ];
+                blocks.extend((4..4 + tail).map(|id| spread_block(id, "XX", 10.0, 690.0, 1, 0.0)));
+                let source = side(&blocks);
+                let views = build_views(
+                    &source,
+                    &vec![None; blocks.len()],
+                    None,
+                    &[],
+                    &mut 1_000_000,
+                )?
+                .expect("source views");
+                let candidate = direction_input(&source, &views, 0, 0);
+                let neighbour = direction_input(&source, &views, 1, 0);
+                let mut bounds = BandBoundsCache::new(&source);
+                bounds.prepare(&mut 1_000_000);
+                let mut remaining = 10_000;
+                assert_eq!(
+                    band_nearest(
+                        candidate,
+                        (10.0, 700.0, 11.5, 700.0),
+                        neighbour,
+                        (10.0, 680.0, 11.5, 680.0),
+                        &mut remaining,
+                        &mut bounds,
+                        (None, None),
+                    ),
+                    Some(!blocked)
+                );
+                costs.push(10_000 - remaining);
+            }
+        }
+        assert_eq!(costs[1] - costs[0], 100, "a clear band inspects the tail");
+        assert_eq!(costs[2], costs[3], "a witnessed obstacle ends the proof");
+        Ok(())
+    }
+
+    #[test]
+    fn a_band_budget_failure_never_refunds_or_certifies_an_unvisited_tail() -> Result<()> {
+        let mut blocks = vec![
+            spread_block(1, "AB", 10.0, 700.0, 0, 1.5),
+            spread_block(2, "CD", 10.0, 680.0, 0, 1.5),
+        ];
+        blocks.extend((3..103).map(|id| spread_block(id, "XX", 10.0, 690.0, 1, 0.0)));
+        blocks.push(spread_block(103, "XX", 10.0, 690.0, 0, 0.0));
+        for obstacle_first in [false, true] {
+            let mut ordered = blocks.clone();
+            if obstacle_first {
+                let obstacle = ordered.pop().expect("last obstacle");
+                ordered.insert(2, obstacle);
+            }
+            let source = side(&ordered);
+            let views = build_views(
+                &source,
+                &vec![None; blocks.len()],
+                None,
+                &[],
+                &mut 1_000_000,
+            )?
+            .expect("source views");
+            let candidate = direction_input(&source, &views, 0, 0);
+            let neighbour = direction_input(&source, &views, 1, 0);
+            let mut complete = false;
+            for allowance in 0..200 {
+                let mut bounds = BandBoundsCache::new(&source);
+                bounds.prepare(&mut 1_000_000);
+                let mut remaining = allowance;
+                let outcome = band_nearest(
+                    candidate,
+                    (10.0, 700.0, 11.5, 700.0),
+                    neighbour,
+                    (10.0, 680.0, 11.5, 680.0),
+                    &mut remaining,
+                    &mut bounds,
+                    (None, None),
+                );
+                assert_ne!(outcome, Some(true), "the last block is an obstacle");
+                if outcome.is_none() {
+                    assert_eq!(remaining, 0, "exhaustion cannot regain a reservation");
+                } else {
+                    complete = true;
+                    assert!(remaining <= allowance);
+                }
+            }
+            assert!(complete);
         }
         Ok(())
     }
