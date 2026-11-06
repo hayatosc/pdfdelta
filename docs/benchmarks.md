@@ -472,6 +472,36 @@ Output directories must be new, preventing a duplicate capture from silently
 overwriting evidence. `--pair ID` selects a diagnostic subset while keeping
 the denominator at 36 and marking every unselected pair `not_run`.
 
+Capture holds one repository-wide advisory lock. Engine children inherit the
+lock, so a surviving child blocks a second capture even if its supervisor dies.
+Before each pair the running user must create, flush, read and remove a probe
+in the output directory. At least 3 GB must be free: 2 GB retained as headroom
+plus the 1 GB report allowance. During a pair, falling below the 2 GB reserve
+terminates that process group and records the storage failure. Retained failed
+attempts count toward the total output allowance; they are never silently deleted.
+These checks cannot reserve filesystem space against unrelated writers.
+
+After an interruption, repeat the identical command with `--resume`. Before
+reusing completed rows it verifies input and report hashes, streams the report
+and compressed log, and checks the report contract and exit code. Binary,
+source tree, production patch, scripts, panel, selection and timeout must match.
+Each pair's summary is atomically replaced and flushed to disk. Interrupted
+outputs and earlier summaries are retained in `attempts/`; completed results
+are not rerun. Explicit failures are preserved unless `--retry-failed` is also
+given, after the underlying problem has been resolved. A changed binary or
+experiment configuration requires a new output directory.
+
+```bash
+python3 benchmark/realworld/native_panel.py capture --binary target/release/pdfdelta \
+  --output benchmark/realworld/results/native-replay --resume
+python3 -m unittest discover -s benchmark/realworld -p 'test_*panel.py'
+python3 -m unittest discover -s benchmark/realworld -p test_capture_guard.py
+```
+
+The resume command requires the same shared memory limit as the original capture.
+This runner resumes verified experiments; it does not change proof criteria,
+substitute inputs, upload files, or create a persistent scheduling service.
+
 The reader streams gzip and JSON to the end, validates the native completion
 predicate against extraction, coverage, unresolved regions, candidates and
 truncation, and checks that the exit code agrees. A meaningful completion also

@@ -7,6 +7,7 @@ dated capture records stay in the ignored cache/results directories.
 """
 
 import argparse
+from contextlib import nullcontext
 from collections import Counter
 from datetime import datetime, timezone
 import gzip
@@ -16,10 +17,13 @@ import math
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import time
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
+
+import capture_guard
 
 
 DEFAULT_PANEL = Path(__file__).with_name("native-panel.json")
@@ -35,8 +39,16 @@ def sha256(path):
 
 def write_record(path, payload):
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n")
+    with temporary.open("w") as stream:
+        stream.write(json.dumps(payload, indent=2, allow_nan=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
     temporary.replace(path)
+    descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def load_panel(path, root):
@@ -244,24 +256,36 @@ def read_native_summary(path):
     return summary
 
 
-def capture_pair(binary, root, pair, destination, timeout):
+def capture_pair(binary, root, pair, destination, timeout, lock_fd=None, reserve=capture_guard.DEFAULT_RESERVE):
     sources = {side: check_source(root, pair[side]) for side in ("old", "new")}
     record = {"pair": pair["id"], "inputs": sources}
     if any(source["status"] != "verified" for source in sources.values()):
         return dict(record, status="input_unavailable")
+    try:
+        record["storage"] = capture_guard.preflight(destination, reserve, REPORT_BUDGET)
+    except (OSError, ValueError) as error:
+        return dict(record, status="storage_unavailable", error=str(error))
+    prior_bytes = capture_guard.retained_bytes(destination)
     report = destination / (pair["id"] + ".json.gz")
     command = [str(binary), *(str(root / pair[side]["path"]) for side in ("old", "new")),
                "--native-text-only", "--limit-scale", "1", "--quiet", "--json", str(report)]
     log = destination / (pair["id"] + ".log")
     started = time.monotonic()
     with log.open("xb") as output:
-        process = subprocess.Popen(command, stdout=output, stderr=output, start_new_session=True)
+        try:
+            process = subprocess.Popen(command, stdout=output, stderr=output, start_new_session=True,
+                                       pass_fds=() if lock_fd is None else (lock_fd,))
+        except OSError as error:
+            return dict(record, status="execution_failed", error=str(error), exit_code=None)
         try:
             while process.poll() is None:
-                if time.monotonic() - started > timeout or log.stat().st_size > LOG_LIMIT or (report.exists() and report.stat().st_size > REPORT_BUDGET):
+                current_bytes = log.stat().st_size + (report.stat().st_size if report.exists() else 0)
+                low_storage = shutil.disk_usage(destination).free < reserve
+                if (time.monotonic() - started > timeout or log.stat().st_size > LOG_LIMIT
+                        or prior_bytes + current_bytes > REPORT_BUDGET or low_storage):
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
-                    record["status"] = "timeout_or_output_limit"
+                    record["status"] = "storage_reserve_reached" if low_storage else "timeout_or_output_limit"
                     break
                 time.sleep(0.1)
         finally:
@@ -269,6 +293,8 @@ def capture_pair(binary, root, pair, destination, timeout):
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
     record.update(command=command, exit_code=process.returncode, wall_seconds=round(time.monotonic() - started, 3))
+    if (log.stat().st_size > LOG_LIMIT or capture_guard.retained_bytes(destination) > REPORT_BUDGET):
+        record["status"] = "timeout_or_output_limit"
     with log.open("rb") as source, gzip.open(str(log) + ".gz", "xb") as sink:
         while chunk := source.read(65536):
             sink.write(chunk)
@@ -307,6 +333,8 @@ def main():
     parser.add_argument("--pair", action="append")
     parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--retry-downloads", action="store_true", help="retain incomplete download bytes separately before retrying")
+    parser.add_argument("--resume", action="store_true", help="verify and resume the same capture directory")
+    parser.add_argument("--retry-failed", action="store_true", help="with --resume, retain failed outputs and retry those pairs")
     args = parser.parse_args()
     root = args.root.resolve()
     pairs = load_panel(args.panel, root)
@@ -315,44 +343,100 @@ def main():
         parser.error("pair selections must be unique frozen panel members")
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("timeout must be a positive finite number")
+    if (args.resume or args.retry_failed) and args.action != "capture":
+        parser.error("resume and retry-failed apply only to capture")
+    if args.retry_failed and not args.resume:
+        parser.error("retry-failed requires resume")
+    if args.action == "capture":
+        if shutil.which("git") is None:
+            parser.error("capture requires git for source provenance")
+        if args.binary is None or not args.binary.is_file() or not os.access(args.binary, os.X_OK):
+            parser.error("capture requires an existing executable --binary")
+        try:
+            __import__("ijson")
+        except ImportError:
+            parser.error("capture requires the streaming reader in native-panel-requirements.txt")
+    with capture_guard.capture_lock(root) if args.action == "capture" else nullcontext(None) as lock_fd:
+        run(args, root, pairs, selected, lock_fd)
+
+
+def run(args, root, pairs, selected, lock_fd):
     guard = require_memory_guard() if args.action == "capture" else None
-    args.output.mkdir(parents=True, exist_ok=False)
+    args.output = args.output.resolve()
+    if args.resume:
+        previous = json.loads((args.output / "summary.json").read_text())
+    else:
+        args.output.mkdir(parents=True, exist_ok=False)
+        previous = None
     record = {"started_utc": datetime.now(timezone.utc).isoformat(), "action": args.action,
               "panel_sha256": sha256(args.panel), "tool_sha256": sha256(__file__),
               "timeout_seconds": args.timeout, "selected_pairs": sorted(selected), "rows": []}
-    (args.output / "capture-script.py").write_bytes(Path(__file__).read_bytes())
-    (args.output / "panel.json").write_bytes(args.panel.read_bytes())
     if args.action == "capture":
         record["memory"] = guard
         if args.binary is None:
-            parser.error("capture requires --binary")
+            raise ValueError("capture requires --binary")
         binary = args.binary.resolve()
         record.update(binary_sha256=sha256(binary), limit_scale=1, timeout_seconds=args.timeout,
                       output_budget_bytes=REPORT_BUDGET, capture_script_sha256=sha256(__file__))
         record["head"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
         record["tree"] = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True).strip()
         patch = subprocess.check_output(["git", "diff", "HEAD", "--", "crates", "Cargo.toml", "Cargo.lock"], cwd=root)
-        (args.output / "production.patch").write_bytes(patch)
         record["production_patch_sha256"] = hashlib.sha256(patch).hexdigest()
-        with binary.open("rb") as source, gzip.open(args.output / "pdfdelta.gz", "xb") as sink:
-            while chunk := source.read(65536):
-                sink.write(chunk)
-    budget_exhausted = False
+        record["guard_sha256"] = sha256(capture_guard.__file__)
+        record["storage"] = capture_guard.preflight(args.output, report_budget=REPORT_BUDGET)
+        if previous is not None:
+            identity = ("action", "panel_sha256", "tool_sha256", "guard_sha256", "binary_sha256", "head", "tree",
+                        "production_patch_sha256", "limit_scale", "timeout_seconds", "selected_pairs", "output_budget_bytes")
+            for key in identity:
+                if record[key] != previous.get(key):
+                    raise ValueError("resume identity differs: " + key)
+            # Preserve the complete prior state before any new attempt modifies files.
+            history = args.output / "attempts"
+            history.mkdir(exist_ok=True)
+            history_path = history / ("summary-" + sha256(args.output / "summary.json") + ".json")
+            if not history_path.exists():
+                history_path.write_bytes((args.output / "summary.json").read_bytes())
+            record["resumed_from_sha256"] = sha256(args.output / "summary.json")
+        else:
+            (args.output / "production.patch").write_bytes(patch)
+            with binary.open("rb") as source, gzip.open(args.output / "pdfdelta.gz", "xb") as sink:
+                while chunk := source.read(65536):
+                    sink.write(chunk)
+    if previous is None:
+        (args.output / "capture-script.py").write_bytes(Path(__file__).read_bytes())
+        (args.output / "capture_guard.py").write_bytes(Path(capture_guard.__file__).read_bytes())
+        (args.output / "panel.json").write_bytes(args.panel.read_bytes())
+    saved = {row["pair"]: row for row in previous["rows"]} if previous is not None else {}
+    # Verify every reusable row before writing new records or moving stale output.
+    for pair in pairs:
+        if pair["id"] in saved:
+            capture_guard.verify_saved_row(saved[pair["id"]], pair, root, args.output, check_source, read_native_summary)
+    record["rows"] = list(saved.values())
+    record["totals"] = totals(record["rows"])
+    write_record(args.output / "summary.json", record)
+    budget_exhausted = capture_guard.retained_bytes(args.output) >= REPORT_BUDGET
     for pair in sorted(pairs, key=lambda item: sum(item[side]["bytes"] for side in ("old", "new"))):
         if pair["id"] not in selected:
             row = {"pair": pair["id"], "status": "not_run"}
         elif args.action == "capture":
-            if budget_exhausted:
+            old = saved.get(pair["id"])
+            if old is not None and (old["status"] == "captured" or not args.retry_failed):
+                row = old
+            elif budget_exhausted:
                 row = {"pair": pair["id"], "status": "output_budget_exhausted"}
             else:
-                row = capture_pair(binary, root, pair, args.output, args.timeout)
-                budget_exhausted = sum(path.stat().st_size for path in args.output.iterdir() if path.is_file()) >= REPORT_BUDGET
+                capture_guard.retain_attempt(args.output, pair["id"])
+                try:
+                    row = capture_pair(binary, root, pair, args.output, args.timeout, lock_fd=lock_fd)
+                except OSError as error:
+                    row = {"pair": pair["id"], "status": "execution_failed", "error": str(error)}
+                budget_exhausted = capture_guard.retained_bytes(args.output) >= REPORT_BUDGET
         else:
             inputs = {side: fetch_source(root, pair[side], args.timeout, args.retry_downloads)
                       if args.action == "fetch" else check_source(root, pair[side]) for side in ("old", "new")}
             row = {"pair": pair["id"], "inputs": inputs,
                    "status": "verified" if all(value["status"] == "verified" for value in inputs.values()) else "input_unavailable"}
-        record["rows"].append(row)
+        record["rows"] = [item for item in record["rows"] if item["pair"] != row["pair"]] + [row]
         record["totals"] = totals(record["rows"])
         write_record(args.output / "summary.json", record)
         print(pair["id"], row["status"], row.get("summary", {}).get("meaningful_complete", ""), flush=True)
