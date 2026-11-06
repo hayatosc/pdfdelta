@@ -1217,6 +1217,45 @@ impl Assessor<'_, '_> {
         Ok(())
     }
 
+    /// Repeats the neighbouring whole-block proofs while they extend ownership.
+    ///
+    /// Each discovery reads only already established, completely owned blocks.
+    /// A newly proven block can therefore support the next pass without an
+    /// unproven candidate ever becoming its own premise. The ordinary source,
+    /// geometry, competition and partial-ownership vetoes remain unchanged.
+    /// All passes share the existing work and output limits. Ownership only
+    /// grows through these passes, so an iteration with no new intervals ends
+    /// the closure; a resource stop retains only completed proofs.
+    ///
+    /// Returns whether a pass reported truncated recovery. This does not claim
+    /// that every unresolved block was proved or that the budget sufficed.
+    pub(super) fn recover_neighbour_closure(
+        &mut self,
+        ownership: &mut [Ownership; 2],
+        changes: &mut Vec<ChangeEvent>,
+        candidates: &mut Vec<ChangeCandidate>,
+    ) -> Result<bool> {
+        let mut truncated = false;
+        while self.output_stop.is_none() && self.remaining_work > 0 {
+            let before = ownership[0]
+                .accepted
+                .len()
+                .saturating_add(ownership[1].accepted.len());
+            truncated |= self.recover_stationary_members(ownership, changes, candidates)?;
+            truncated |= self.recover_raw_source_equalities(ownership, changes, candidates)?;
+            truncated |= self.recover_positioned_replacements(ownership, changes, candidates)?;
+            if ownership[0]
+                .accepted
+                .len()
+                .saturating_add(ownership[1].accepted.len())
+                <= before
+            {
+                break;
+            }
+        }
+        Ok(truncated)
+    }
+
     /// Proves only the stationary members queued by this pass through the
     /// ordinary local recovery, leaving the already processed queue and the
     /// translation discovery untouched. Returns whether the recovery was
@@ -5984,6 +6023,243 @@ mod tests {
         ];
         (old_blocks, new_blocks)
     }
+    struct ChainRecovery {
+        owned: [Vec<super::SourceInterval>; 2],
+        used: usize,
+        established: usize,
+    }
+
+    #[derive(Default)]
+    struct ChainControls {
+        anchor: bool,
+        closure: bool,
+        partial: bool,
+        stopped: bool,
+    }
+
+    fn run_neighbour_chain(controls: ChainControls, budget: usize) -> Result<ChainRecovery> {
+        let ChainControls {
+            anchor,
+            closure,
+            partial,
+            stopped,
+        } = controls;
+        let make = |offset: u64| {
+            (0..9_u64)
+                .map(|index| {
+                    spread_block(
+                        offset + index + 1,
+                        &format!("Distinct line number {index}"),
+                        300.0,
+                        700.0 - index as f64 * 20.0,
+                        5.0,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let old_blocks = make(0);
+        let new_blocks = make(100);
+        let old = side(&old_blocks);
+        let new = side(&new_blocks);
+        let old_ids = old_blocks.iter().map(|b| b.block).collect::<Vec<_>>();
+        let new_ids = new_blocks.iter().map(|b| b.block).collect::<Vec<_>>();
+        let alignment = unresolved_alignment(&old_ids, &new_ids);
+        let intervals = vec![None; old_blocks.len()];
+        let recovery = crate::diff::SentenceRecoveryInput {
+            old_native_order_blocks: &[],
+            new_native_order_blocks: &[],
+            old_trusted_run_intervals: &intervals,
+            new_trusted_run_intervals: &intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+        };
+        let mut assessor = super::super::Assessor::new(
+            [&old, &new],
+            &alignment,
+            Some(recovery),
+            DiffOptions::default(),
+        )?;
+        let mut ownership = [
+            super::super::Ownership::new(),
+            super::super::Ownership::new(),
+        ];
+        let length = old_blocks[0].canonical.comparable_tokens()?.len();
+        if anchor {
+            assessor.local_anchors.push(LocalDomain {
+                old_span: span(1, length),
+                new_span: span(101, length),
+                source_bounded: true,
+            });
+            let proposal = super::super::ProposedRelation {
+                old: Some(span(1, length)),
+                new: Some(span(101, length)),
+                span_indices: [None, None],
+                exact_recovery: true,
+            };
+            let key = assessor.domain_key(&proposal)?;
+            assessor.prove_domain(&key)?;
+            ownership[0].accept(&old, &span(1, length), 64)?;
+            ownership[1].accept(&new, &span(101, length), 64)?;
+        }
+        if partial {
+            ownership[0].accept(&old, &span(2, 1), 64)?;
+        }
+        assessor.remaining_work = budget;
+        if stopped {
+            assessor.output_stop = Some(0);
+        }
+        let mut changes = Vec::new();
+        let mut candidates = Vec::new();
+        if closure {
+            assessor.recover_neighbour_closure(&mut ownership, &mut changes, &mut candidates)?;
+        } else {
+            assessor.recover_stationary_members(&mut ownership, &mut changes, &mut candidates)?;
+            assessor.recover_raw_source_equalities(
+                &mut ownership,
+                &mut changes,
+                &mut candidates,
+            )?;
+            assessor.recover_positioned_replacements(
+                &mut ownership,
+                &mut changes,
+                &mut candidates,
+            )?;
+        }
+        assert!(changes.is_empty());
+        assert!(candidates.is_empty());
+        for (side_index, owned) in ownership.iter().enumerate() {
+            let blocks = if side_index == 0 {
+                &old_blocks
+            } else {
+                &new_blocks
+            };
+            for interval in &owned.accepted {
+                if partial && side_index == 0 && interval.block_index == 1 {
+                    assert_eq!((interval.start, interval.end), (0, 1));
+                    continue;
+                }
+                assert_eq!(interval.start, 0, "never publish a partial chain proof");
+                assert_eq!(interval.end, length);
+                assert!(
+                    assessor.records.iter().any(|r| {
+                        let span = if side_index == 0 {
+                            &r.old_span
+                        } else {
+                            &r.new_span
+                        };
+                        r.outcome == super::RelationOutcome::Established
+                            && r.search == super::SearchCompleteness::Complete
+                            && r.reasons.is_empty()
+                            && span
+                                .as_ref()
+                                .is_some_and(|s| s.blocks == [blocks[interval.block_index].block])
+                    }),
+                    "owned block must have a completed independent proof"
+                );
+            }
+        }
+        let established = assessor
+            .records
+            .iter()
+            .filter(|r| r.outcome == super::RelationOutcome::Established)
+            .count();
+        if closure && ownership.iter().all(|o| o.accepted.len() == 9) {
+            assessor.recover_neighbour_closure(&mut ownership, &mut changes, &mut candidates)?;
+            assert!(ownership.iter().all(|o| o.accepted.len() == 9));
+            assert_eq!(
+                established,
+                assessor
+                    .records
+                    .iter()
+                    .filter(|r| r.outcome == super::RelationOutcome::Established)
+                    .count()
+            );
+        }
+        let [old_owned, new_owned] = ownership;
+        Ok(ChainRecovery {
+            owned: [old_owned.accepted, new_owned.accepted],
+            used: budget - assessor.remaining_work,
+            established,
+        })
+    }
+
+    #[test]
+    fn neighbour_closure_propagates_independent_proofs_beyond_one_round() -> Result<()> {
+        let once = run_neighbour_chain(
+            ChainControls {
+                anchor: true,
+                ..ChainControls::default()
+            },
+            10_000_000,
+        )?;
+        let closed = run_neighbour_chain(
+            ChainControls {
+                anchor: true,
+                closure: true,
+                ..ChainControls::default()
+            },
+            10_000_000,
+        )?;
+        assert!(once.owned[0].len() > 1 && once.owned[0].len() < 9);
+        assert_eq!(closed.owned.each_ref().map(Vec::len), [9, 9]);
+        assert!(closed.established > once.established);
+        Ok(())
+    }
+
+    #[test]
+    fn neighbour_closure_cannot_bootstrap_or_cross_partial_ownership() -> Result<()> {
+        let unrooted = run_neighbour_chain(
+            ChainControls {
+                closure: true,
+                ..ChainControls::default()
+            },
+            10_000_000,
+        )?;
+        assert_eq!(unrooted.owned.each_ref().map(Vec::len), [0, 0]);
+        let partial = run_neighbour_chain(
+            ChainControls {
+                anchor: true,
+                closure: true,
+                partial: true,
+                ..ChainControls::default()
+            },
+            10_000_000,
+        )?;
+        assert_eq!(partial.owned.each_ref().map(Vec::len), [2, 1]);
+        Ok(())
+    }
+
+    #[test]
+    fn neighbour_closure_budget_and_output_stops_keep_completed_proofs_only() -> Result<()> {
+        for budget in [0, 1, 64, 256, 1024, 4096, 16_384, 65_536, 262_144] {
+            let cut = run_neighbour_chain(
+                ChainControls {
+                    anchor: true,
+                    closure: true,
+                    ..ChainControls::default()
+                },
+                budget,
+            )?;
+            assert!(cut.used <= budget);
+            assert_eq!(cut.owned[0].len(), cut.owned[1].len());
+        }
+        let stopped = run_neighbour_chain(
+            ChainControls {
+                anchor: true,
+                closure: true,
+                stopped: true,
+                ..ChainControls::default()
+            },
+            10_000_000,
+        )?;
+        assert_eq!(stopped.owned.each_ref().map(Vec::len), [1, 1]);
+        assert_eq!(stopped.used, 0);
+        Ok(())
+    }
+
     #[derive(Default, Clone, Copy)]
     struct StationaryControls {
         partial_accept: Option<(usize, usize)>,

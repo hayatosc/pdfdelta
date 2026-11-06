@@ -4077,20 +4077,8 @@ pub(super) fn finish(
     candidates_truncated |=
         assessor.recover_local(&mut ownership, &mut changes, &mut candidates)?;
     assessor.recover_closed_domains(&mut ownership, &mut changes, &candidates)?;
-    if assessor.output_stop.is_none() {
-        candidates_truncated |=
-            assessor.recover_stationary_members(&mut ownership, &mut changes, &mut candidates)?;
-        candidates_truncated |= assessor.recover_raw_source_equalities(
-            &mut ownership,
-            &mut changes,
-            &mut candidates,
-        )?;
-        candidates_truncated |= assessor.recover_positioned_replacements(
-            &mut ownership,
-            &mut changes,
-            &mut candidates,
-        )?;
-    }
+    candidates_truncated |=
+        assessor.recover_neighbour_closure(&mut ownership, &mut changes, &mut candidates)?;
     for formatting in proposed.formatting_changes {
         for &index in &accepted {
             let relation = &assessor.records[index];
