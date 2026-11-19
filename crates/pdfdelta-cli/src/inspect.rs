@@ -307,7 +307,8 @@ pub fn format_glyph(glyph: &Glyph) -> String {
             font_hash,
             glyph_id,
         } => format!(
-            "unmapped-font-hash={} unmapped-glyph-id={glyph_id}",
+            "unmapped-identity={} unmapped-font-hash={} unmapped-glyph-id={glyph_id}",
+            font_hash.identity_source().name(),
             lowercase_hex(&font_hash.0)
         ),
     };

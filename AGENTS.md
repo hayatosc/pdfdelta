@@ -33,6 +33,7 @@
 ## Workspace Boundaries
 
 - `pdfdelta-core` is a pure library and must not depend on CLI concerns.
+- `pdfdelta-flow` owns the token-stream diff engine and depends on `pdfdelta-core` only.
 - `pdfdelta-cli` owns filesystem I/O, argument parsing, report destinations, and process exit codes.
 - `pdfdelta-bench` owns generated fixtures, mutations, renderers, manifests, and evaluation tooling.
 - Do not commit dated benchmark captures, experiment logs, or investigation notes. Write them outside the repository or to the gitignored `benchmark/realworld/results/`; commit only inputs that code, tests, or documented tooling read.

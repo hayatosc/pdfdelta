@@ -96,6 +96,35 @@ pdfdelta -q old.pdf new.pdf; echo $?            # exit status only, for CI
 pdfdelta inspect document.pdf --glyphs          # show extracted glyph evidence
 ```
 
+For documents that are mostly continuous prose, `pdfdelta flow` reports a
+single token-level script that ignores line wrapping and page breaks:
+
+```console
+$ pdfdelta flow old.pdf new.pdf
+flow summary
+  old: 32 tokens
+  new: 32 tokens
+  equal: 31 tokens
+  ...
+  content changes: 1
+  changes: 1
+  old extraction: complete
+  new extraction: complete
+  old order: 1 pages, 0 stream, 0 baseline, 0 uncertain
+  new order: 1 pages, 0 stream, 0 baseline, 0 uncertain
+  old glyph conservation: 222/222
+  new glyph conservation: 222/222
+  furniture: 0 old, 0 new masked lines
+
+1. replace old 1 -> new 1
+   old: schedule details for the upcoming cycle . Release [10] remains available during the transition period . All
+   new: schedule details for the upcoming cycle . Release [20] remains available during the transition period . All
+```
+
+Flow output is intended for review and evaluation; the default channel
+comparison remains the primary report. See
+[Flow diff](docs/usage.md#flow-diff) for options, exit codes, and limits.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -162,5 +191,6 @@ architecture rules.
 ## License
 
 pdfdelta is licensed under the [MIT License](LICENSE). The Adobe Glyph List
-2.0 data embedded in `pdfdelta-core` is distributed under its original terms;
-see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+2.0 data and the Apache-2.0 pdf.js glyph-name supplement embedded in
+`pdfdelta-core` are distributed under their original terms; see
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

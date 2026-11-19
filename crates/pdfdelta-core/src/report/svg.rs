@@ -273,7 +273,11 @@ fn render_glyph_svg<W: Write>(
         DecodedText::Unmapped {
             font_hash,
             glyph_id,
-        } => format!("[U+{glyph_id:04X}:{}]", hex_preview(&font_hash.0)),
+        } => format!(
+            "[U+{glyph_id:04X}:{}:{}]",
+            font_hash.identity_source().name(),
+            hex_preview(&font_hash.0)
+        ),
     };
 
     let title_text = format!(

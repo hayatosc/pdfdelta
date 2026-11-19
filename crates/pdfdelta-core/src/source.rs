@@ -60,6 +60,42 @@ impl Default for ExtractionLimits {
     }
 }
 
+impl ExtractionLimits {
+    /// Returns these limits with every document-total count limit scaled.
+    ///
+    /// Glyph, operator, invocation, decoded-byte, operand, font, `CMap`, CID
+    /// width, string, and vector-line budgets scale uniformly. Structural
+    /// bounds (form nesting, operand stack, and array elements) are unchanged
+    /// because they bound recursion depth and one operand's shape, not the
+    /// size of a document.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidConfiguration`] when `scale` is not finite or
+    /// is less than one, so configured defaults are never weakened.
+    pub fn scaled(self, scale: f64) -> Result<Self> {
+        if !scale.is_finite() || scale < 1.0 {
+            return Err(Error::InvalidConfiguration(format!(
+                "extraction limit scale must be a finite value >= 1.0 so configured defaults are never weakened, found {scale}"
+            )));
+        }
+        let scale_limit = |value: usize| (value as f64 * scale).min(usize::MAX as f64) as usize;
+        Ok(Self {
+            max_glyphs: scale_limit(self.max_glyphs),
+            max_operators: scale_limit(self.max_operators),
+            max_stream_invocations: scale_limit(self.max_stream_invocations),
+            max_total_decoded_bytes: scale_limit(self.max_total_decoded_bytes),
+            max_operand_nodes: scale_limit(self.max_operand_nodes),
+            max_fonts: scale_limit(self.max_fonts),
+            max_cmap_entries: scale_limit(self.max_cmap_entries),
+            max_cid_width_entries: scale_limit(self.max_cid_width_entries),
+            max_string_bytes: scale_limit(self.max_string_bytes),
+            max_vector_lines: scale_limit(self.max_vector_lines),
+            ..self
+        })
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExternalFontIdentities {
     identities: BTreeMap<Vec<u8>, FontProgramHash>,
@@ -101,7 +137,7 @@ impl ExternalFontIdentities {
         digest.update(identity);
         self.identities.insert(
             base_font.to_vec(),
-            FontProgramHash(digest.finalize().to_vec()),
+            FontProgramHash::tagged(FontProgramHash::PROGRAM_TAG, digest.finalize().to_vec()),
         );
         Ok(())
     }
@@ -290,6 +326,7 @@ fn nonblank_description(description: String, fallback: &str) -> String {
 pub struct ExtractionOutcome {
     document: Document<Glyph>,
     issues: Vec<ExtractionIssue>,
+    glyph_name_identity_pages: std::collections::BTreeSet<PageId>,
 }
 
 impl ExtractionOutcome {
@@ -342,7 +379,28 @@ impl ExtractionOutcome {
                 glyph.page.0
             )));
         }
-        Ok(Self { document, issues })
+        Ok(Self {
+            document,
+            issues,
+            glyph_name_identity_pages: std::collections::BTreeSet::new(),
+        })
+    }
+
+    /// Adds the pages whose unmapped glyphs were compared by
+    /// subset-stripped `BaseFont` plus glyph name.
+    #[must_use]
+    pub fn with_glyph_name_identity_pages(
+        mut self,
+        pages: std::collections::BTreeSet<PageId>,
+    ) -> Self {
+        self.glyph_name_identity_pages = pages;
+        self
+    }
+
+    /// Pages whose unmapped glyphs use the glyph-name identity assumption.
+    #[must_use]
+    pub fn glyph_name_identity_pages(&self) -> &std::collections::BTreeSet<PageId> {
+        &self.glyph_name_identity_pages
     }
 
     #[must_use]
@@ -350,6 +408,7 @@ impl ExtractionOutcome {
         Self {
             document,
             issues: Vec::new(),
+            glyph_name_identity_pages: std::collections::BTreeSet::new(),
         }
     }
 
@@ -460,6 +519,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extraction_limits_scale_only_document_totals() {
+        let defaults = ExtractionLimits::default();
+        assert_eq!(defaults.scaled(1.0).expect("scale 1.0 is valid"), defaults);
+        let doubled = defaults.scaled(2.0).expect("scale 2.0 is valid");
+        assert_eq!(doubled.max_glyphs, defaults.max_glyphs * 2);
+        assert_eq!(
+            doubled.max_total_decoded_bytes,
+            defaults.max_total_decoded_bytes * 2
+        );
+        assert_eq!(doubled.max_array_elements, defaults.max_array_elements);
+        assert_eq!(doubled.max_operand_stack, defaults.max_operand_stack);
+        assert!(defaults.scaled(0.5).is_err());
+        assert!(defaults.scaled(f64::NAN).is_err());
+    }
 
     #[test]
     fn external_font_identities_accept_their_documented_bounds() {

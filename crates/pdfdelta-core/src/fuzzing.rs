@@ -114,6 +114,38 @@ pub fn fuzz_cmap_parsers(input: &[u8]) {
     }
 }
 
+/// Exercises the bounded CFF built-in encoding reader with arbitrary bytes.
+///
+/// Inputs larger than 64 KiB are ignored. A program that cannot be parsed is an
+/// accepted outcome.
+///
+/// # Panics
+///
+/// Panics if a successful parse returns duplicate or out-of-range codes, an
+/// empty or `.notdef` name, or more than one entry per code.
+pub fn fuzz_cff_builtin_encoding(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES {
+        return;
+    }
+    let Some(encoding) = crate::pdf::font::cff::built_in_encoding(input) else {
+        return;
+    };
+    assert!(encoding.differences.len() <= 256);
+    assert!(!encoding.standard || encoding.differences.is_empty());
+    let mut previous: Option<u8> = None;
+    for (code, name) in &encoding.differences {
+        assert!(!name.is_empty(), "a returned glyph name must not be empty");
+        assert_ne!(name.as_slice(), b".notdef");
+        if let Some(previous) = previous {
+            assert!(
+                *code > previous,
+                "returned codes must be strictly increasing"
+            );
+        }
+        previous = Some(*code);
+    }
+}
+
 /// Exercises the production content stream parser with finite resource limits.
 ///
 /// Inputs larger than 64 KiB are ignored. The input is parsed once as a single content stream
@@ -1796,6 +1828,151 @@ mod tests {
             .expect("curated identity CID seed should parse");
         assert_eq!(identity.source_width, 1);
         fuzz_cmap_parsers(IDENTITY_SEED);
+    }
+
+    const CFF_VALID_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/cff_builtin_encoding/valid-minimal.cff"
+    ));
+    const CFF_TRUNCATED_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/cff_builtin_encoding/truncated-index.cff"
+    ));
+    const CFF_OFFSET_SIZE_ZERO_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/cff_builtin_encoding/offset-size-zero.cff"
+    ));
+    const CFF_OVERLAPPING_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/cff_builtin_encoding/overlapping-offsets.cff"
+    ));
+    const CFF_FORMAT2_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/cff_builtin_encoding/charset-format2.cff"
+    ));
+    const CFF_SUPPLEMENT_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/cff_builtin_encoding/encoding-supplements.cff"
+    ));
+
+    fn cff_index(items: &[&[u8]]) -> Vec<u8> {
+        let mut data = Vec::new();
+        let mut offsets = vec![1u8];
+        for item in items {
+            data.extend_from_slice(item);
+            offsets.push(u8::try_from(data.len() + 1).expect("curated offsets fit one byte"));
+        }
+        let mut index = Vec::new();
+        index.extend_from_slice(
+            &u16::try_from(items.len())
+                .expect("curated count fits u16")
+                .to_be_bytes(),
+        );
+        index.push(1);
+        index.extend_from_slice(&offsets);
+        index.extend_from_slice(&data);
+        index
+    }
+
+    fn cff_dict_int32(value: u32) -> [u8; 5] {
+        let mut bytes = [29u8, 0, 0, 0, 0];
+        bytes[1..].copy_from_slice(&value.to_be_bytes());
+        bytes
+    }
+
+    /// A valid 65,535-glyph `Type1C` program (about 320 KiB).
+    ///
+    /// The `CharStrings` `INDEX` needs a four-byte offset array, so this seed is
+    /// larger than the fuzz input cap; it exercises the glyph-count boundary
+    /// and the charset range bound directly.
+    fn cff_glyph_count_max_program() -> Vec<u8> {
+        let header = [1u8, 0, 4, 4];
+        let name = cff_index(&[b"TestFont".as_slice()]);
+        let strings = cff_index(&[b"quotesingle".as_slice()]);
+        let dict_len = 18;
+        let top_len = 2 + 1 + 2 + dict_len;
+        let charset_offset = u32::try_from(header.len() + name.len() + top_len + strings.len())
+            .expect("curated offset fits u32");
+        let charset = [2u8, 0x01, 0x87, 0xff, 0xfd]; // first SID 391, 65,534 glyphs
+        let encoding = [0u8, 1, 0x27];
+        let encoding_offset = charset_offset + u32::try_from(charset.len()).expect("fits");
+        let charstrings_offset = encoding_offset + u32::try_from(encoding.len()).expect("fits");
+        let mut dict = Vec::new();
+        for (value, operator) in [
+            (charset_offset, 15u8),
+            (encoding_offset, 16),
+            (charstrings_offset, 17),
+        ] {
+            dict.extend_from_slice(&cff_dict_int32(value));
+            dict.push(operator);
+        }
+        let top = cff_index(&[dict.as_slice()]);
+        let mut charstrings = Vec::new();
+        charstrings.extend_from_slice(&u16::MAX.to_be_bytes());
+        charstrings.push(4);
+        for offset in 1..=65_536u32 {
+            charstrings.extend_from_slice(&offset.to_be_bytes());
+        }
+        charstrings.extend(std::iter::repeat_n(0x0eu8, 65_535));
+        let mut program = Vec::new();
+        program.extend_from_slice(&header);
+        program.extend_from_slice(&name);
+        program.extend_from_slice(&top);
+        program.extend_from_slice(&strings);
+        program.extend_from_slice(&charset);
+        program.extend_from_slice(&encoding);
+        program.extend_from_slice(&charstrings);
+        program
+    }
+
+    #[test]
+    fn curated_cff_seeds_are_bounded_and_consistent() {
+        let encoding = crate::pdf::font::cff::built_in_encoding(CFF_VALID_SEED)
+            .expect("curated CFF seed should parse");
+        assert!(!encoding.standard);
+        assert_eq!(
+            encoding.differences,
+            [
+                (0x27, b"quotesingle".to_vec()),
+                (0x2c, b"comma".to_vec()),
+                (0x60, b"asciigrave".to_vec()),
+                (0x61, b"arrowhookleft".to_vec()),
+            ]
+        );
+        fuzz_cff_builtin_encoding(CFF_VALID_SEED);
+
+        let format2 = crate::pdf::font::cff::built_in_encoding(CFF_FORMAT2_SEED)
+            .expect("charset format 2 seed should parse");
+        assert_eq!(format2.differences, [(0x27, b"quotesingle".to_vec())]);
+        fuzz_cff_builtin_encoding(CFF_FORMAT2_SEED);
+
+        let supplements = crate::pdf::font::cff::built_in_encoding(CFF_SUPPLEMENT_SEED)
+            .expect("encoding supplement seed should parse");
+        assert_eq!(supplements.differences, [(0x2c, b"comma".to_vec())]);
+        fuzz_cff_builtin_encoding(CFF_SUPPLEMENT_SEED);
+
+        for (name, seed) in [
+            ("truncated INDEX", CFF_TRUNCATED_SEED),
+            ("offset size zero", CFF_OFFSET_SIZE_ZERO_SEED),
+            ("overlapping offsets", CFF_OVERLAPPING_SEED),
+        ] {
+            assert!(
+                crate::pdf::font::cff::built_in_encoding(seed).is_none(),
+                "{name} must not produce a mapping"
+            );
+            fuzz_cff_builtin_encoding(seed);
+        }
+    }
+
+    #[test]
+    fn curated_cff_glyph_count_boundary_is_bounded() {
+        let program = cff_glyph_count_max_program();
+        assert!(program.len() > 64 * 1024);
+        let encoding = crate::pdf::font::cff::built_in_encoding(&program)
+            .expect("65,535-glyph program should parse");
+        assert_eq!(encoding.differences, [(0x27, b"quotesingle".to_vec())]);
+        // The entry point ignores inputs above its cap without panicking.
+        fuzz_cff_builtin_encoding(&program);
     }
 
     #[test]

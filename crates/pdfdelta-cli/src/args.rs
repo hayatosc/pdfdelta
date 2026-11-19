@@ -175,6 +175,20 @@ pub enum Command {
     /// Internal bounded image-hashing process; consumes PDF bytes on standard input.
     #[command(hide = true)]
     HashImages,
+    /// Internal bounded single-page image-hashing process.
+    #[command(hide = true)]
+    HashImagePage {
+        /// Zero-based page index to interpret.
+        #[arg(long)]
+        page: usize,
+    },
+    /// Internal bounded encoded-only single-page image identity process.
+    #[command(hide = true)]
+    HashImagePageEncoded {
+        /// Zero-based page index to interpret.
+        #[arg(long)]
+        page: usize,
+    },
     /// Internal bounded native acquisition process; consumes framed PDF bytes.
     #[command(hide = true)]
     AcquireNative,
@@ -217,6 +231,44 @@ pub enum Command {
         /// Write glyph overlay debug visualization to an SVG file.
         #[arg(long, value_name = "PATH")]
         svg: Option<PathBuf>,
+    },
+
+    /// Diff two PDFs as reconstructed text streams.
+    ///
+    /// Wrapped lines and page breaks are layout changes, not content changes.
+    Flow {
+        /// Path to the old PDF document.
+        #[arg(value_name = "OLD")]
+        old: PathBuf,
+
+        /// Path to the new PDF document.
+        #[arg(value_name = "NEW")]
+        new: PathBuf,
+
+        /// Write the JSON report to this path (gzip when it ends with `.gz`).
+        #[arg(long, value_name = "PATH")]
+        json: Option<PathBuf>,
+
+        /// Include every token text in the JSON report.
+        #[arg(long)]
+        tokens: bool,
+
+        /// Include token geometry in the JSON report.
+        #[arg(long)]
+        geometry: bool,
+
+        /// Scale extraction resource limits by a factor of at least 1.
+        ///
+        /// Large documents can exceed the default glyph, operator, and decoded
+        /// byte budgets. This scales extraction count limits uniformly; parser
+        /// limits and layout thresholds are unchanged.
+        #[arg(
+            long,
+            value_name = "FACTOR",
+            default_value_t = 1.0,
+            value_parser = parse_limit_scale
+        )]
+        limit_scale: f64,
     },
 
     /// Read an existing agent review bundle within an explicit byte budget.

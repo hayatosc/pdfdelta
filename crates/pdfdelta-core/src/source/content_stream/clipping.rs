@@ -35,10 +35,22 @@ pub(super) enum ClipRegion {
     Witness {
         node: Arc<PathWitness>,
         crop: Option<Rect>,
+        /// Intersection of all prior bounds and this path's control-point
+        /// bound. It stays valid even when the witness proof is refused.
+        bounds: Option<Rect>,
     },
+    /// Straight-edged polygon with a certified fill rule. Classification is
+    /// conservative at every uncertain orientation or boundary contact.
+    Polygon(Arc<PolygonClip>),
+    /// Curved path flattened conservatively per glyph before polygon
+    /// classification.
+    CurvedPolygon(Arc<CurvedPolygonClip>),
     Convex(Arc<ConvexClip>),
     Empty,
     Unsupported(Arc<str>),
+    /// Unsupported shape whose control-point bounding box is a certified
+    /// superset of the clip region.
+    UnsupportedBounded(Arc<str>, Rect),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,6 +66,421 @@ pub(super) struct ConvexClip {
 pub(super) struct RectangularCutout {
     bounds: Rect,
     removed: Rect,
+}
+
+/// One boundary primitive retained for conservative curved flattening.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum BoundaryEdge {
+    Line(PathSegment),
+    Cubic([Vec2; 4]),
+}
+
+/// Curved-clip polygon before per-glyph flattening. The boundary retains the
+/// original cubic controls so the tolerance can be relative to each glyph.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct CurvedPolygonClip {
+    edges: Vec<BoundaryEdge>,
+    even_odd: bool,
+    bounds: Rect,
+    reason: Arc<str>,
+}
+
+/// Chord tolerance is one sixty-fourth of the glyph box's smaller side. This
+/// stays well below glyph size while keeping subdivision bounded.
+const CURVE_TOLERANCE_FRACTION: f64 = 1.0 / 64.0;
+const MAX_CURVE_DEPTH: u32 = 12;
+const MAX_FLATTENED_SEGMENTS: usize = 4_096;
+
+impl CurvedPolygonClip {
+    pub(super) fn new(
+        edges: Vec<BoundaryEdge>,
+        even_odd: bool,
+        bounds: Rect,
+        reason: Arc<str>,
+    ) -> Option<Self> {
+        if edges.is_empty()
+            || !edges.iter().all(|edge| match edge {
+                BoundaryEdge::Line(segment) => {
+                    [segment.from.x, segment.from.y, segment.to.x, segment.to.y]
+                        .into_iter()
+                        .all(f64::is_finite)
+                }
+                BoundaryEdge::Cubic(controls) => controls
+                    .iter()
+                    .all(|point| point.x.is_finite() && point.y.is_finite()),
+            })
+            || !bounds.min.x.is_finite()
+            || !bounds.min.y.is_finite()
+            || !bounds.max.x.is_finite()
+            || !bounds.max.y.is_finite()
+            || empty(bounds)
+        {
+            return None;
+        }
+        if !edges
+            .iter()
+            .any(|edge| matches!(edge, BoundaryEdge::Cubic(_)))
+        {
+            return None;
+        }
+        Some(Self {
+            edges,
+            even_odd,
+            bounds,
+            reason,
+        })
+    }
+
+    pub(super) fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    pub(super) fn reason(&self) -> String {
+        self.reason.to_string()
+    }
+
+    pub(super) fn work(&self) -> usize {
+        self.edges.len().saturating_mul(256).saturating_add(512)
+    }
+
+    pub(super) fn classify(&self, glyph: Rect) -> Result<GlyphPathClipStatus> {
+        if disjoint(glyph, self.bounds) {
+            return Ok(GlyphPathClipStatus::Outside);
+        }
+        let side = glyph.max.x - glyph.min.x;
+        let height = glyph.max.y - glyph.min.y;
+        let smaller = side.min(height);
+        let epsilon = CURVE_TOLERANCE_FRACTION * smaller;
+        if !epsilon.is_finite() || epsilon <= 0.0 {
+            return Err(Error::Unsupported(self.reason.to_string()));
+        }
+        let mut flattened = Vec::new();
+        for edge in &self.edges {
+            match edge {
+                BoundaryEdge::Line(segment) => flattened.push(*segment),
+                BoundaryEdge::Cubic(controls) => {
+                    if !flatten_cubic(*controls, epsilon, 0, &mut flattened)? {
+                        return Err(Error::Unsupported(self.reason.to_string()));
+                    }
+                }
+            }
+        }
+        let polygon = PolygonClip::new(
+            &flattened,
+            self.even_odd,
+            Some(self.bounds),
+            Arc::clone(&self.reason),
+        )
+        .ok_or_else(|| Error::Unsupported(self.reason.to_string()))?;
+        Ok(polygon.classify_with_margin(glyph, epsilon))
+    }
+}
+
+fn flatten_cubic(
+    controls: [Vec2; 4],
+    epsilon: f64,
+    depth: u32,
+    output: &mut Vec<PathSegment>,
+) -> Result<bool> {
+    if output.len() >= MAX_FLATTENED_SEGMENTS || depth > MAX_CURVE_DEPTH {
+        return Ok(false);
+    }
+    let [from, control1, control2, to] = controls;
+    let deviation = [
+        point_chord_distance(control1, from, to),
+        point_chord_distance(control2, from, to),
+    ];
+    if deviation.iter().any(Option::is_none) {
+        return Ok(false);
+    }
+    if deviation.into_iter().flatten().fold(0.0_f64, f64::max) <= epsilon {
+        output.push(PathSegment { from, to });
+        return Ok(true);
+    }
+    let a = midpoint(from, control1);
+    let b = midpoint(control1, control2);
+    let c = midpoint(control2, to);
+    let d = midpoint(a, b);
+    let e = midpoint(b, c);
+    let f = midpoint(d, e);
+    if ![a, b, c, d, e, f]
+        .into_iter()
+        .all(|point| point.x.is_finite() && point.y.is_finite())
+    {
+        return Ok(false);
+    }
+    flatten_cubic([from, a, d, f], epsilon, depth + 1, output)?;
+    flatten_cubic([f, e, c, to], epsilon, depth + 1, output)
+}
+
+fn midpoint(a: Vec2, b: Vec2) -> Vec2 {
+    Vec2 {
+        x: f64::midpoint(a.x, b.x),
+        y: f64::midpoint(a.y, b.y),
+    }
+}
+
+fn point_chord_distance(point: Vec2, from: Vec2, to: Vec2) -> Option<f64> {
+    let dx = to.x - from.x;
+    let dy = to.y - from.y;
+    let length = dx.hypot(dy);
+    if !length.is_finite() || length <= f64::EPSILON {
+        return (point.x - from.x)
+            .hypot(point.y - from.y)
+            .is_finite()
+            .then_some((point.x - from.x).hypot(point.y - from.y));
+    }
+    let distance = ((point.x - from.x) * dy - (point.y - from.y) * dx).abs() / length;
+    distance.is_finite().then_some(distance)
+}
+
+/// Straight-edged polygon clip with the source fill rule. Vertex/edge
+/// classification is conservative: any boundary contact, uncertain
+/// orientation or arithmetic near the boundary yields `PartiallyOutside`.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct PolygonClip {
+    edges: Vec<PathSegment>,
+    even_odd: bool,
+    bounds: Rect,
+    reason: Arc<str>,
+}
+
+/// Conservative distance to a polygon boundary. Values within this margin are
+/// treated as partial rather than inside or outside.
+const POLYGON_ERROR_MARGIN: f64 = 1e-9;
+
+impl PolygonClip {
+    /// Builds a polygon from straight line/rectangle segments, implicitly
+    /// closing each subpath. Returns `None` for non-finite, degenerate, or
+    /// fewer-than-three-edge input.
+    pub(super) fn new(
+        segments: &[PathSegment],
+        even_odd: bool,
+        bounds: Option<Rect>,
+        reason: Arc<str>,
+    ) -> Option<Self> {
+        if segments.is_empty() {
+            return None;
+        }
+        let mut edges = Vec::with_capacity(segments.len().saturating_add(1));
+        let mut subpath_start = segments[0].from;
+        let mut current = subpath_start;
+        for segment in segments {
+            if ![segment.from.x, segment.from.y, segment.to.x, segment.to.y]
+                .into_iter()
+                .all(f64::is_finite)
+            {
+                return None;
+            }
+            if segment.from != current {
+                if current != subpath_start {
+                    edges.push(PathSegment {
+                        from: current,
+                        to: subpath_start,
+                    });
+                }
+                subpath_start = segment.from;
+                current = subpath_start;
+            }
+            if segment.from == segment.to {
+                continue;
+            }
+            edges.push(*segment);
+            current = segment.to;
+        }
+        if current != subpath_start {
+            edges.push(PathSegment {
+                from: current,
+                to: subpath_start,
+            });
+        }
+        if edges.len() < 3 {
+            return None;
+        }
+        let bounds = bounds.or_else(|| {
+            let mut min = Vec2 {
+                x: f64::INFINITY,
+                y: f64::INFINITY,
+            };
+            let mut max = Vec2 {
+                x: f64::NEG_INFINITY,
+                y: f64::NEG_INFINITY,
+            };
+            for edge in &edges {
+                for point in [edge.from, edge.to] {
+                    min.x = min.x.min(point.x);
+                    min.y = min.y.min(point.y);
+                    max.x = max.x.max(point.x);
+                    max.y = max.y.max(point.y);
+                }
+            }
+            (min.x.is_finite() && min.y.is_finite() && max.x.is_finite() && max.y.is_finite())
+                .then_some(Rect { min, max })
+        })?;
+        if empty(bounds) {
+            return None;
+        }
+        Some(Self {
+            edges,
+            even_odd,
+            bounds,
+            reason,
+        })
+    }
+
+    pub(super) fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    pub(super) fn reason(&self) -> String {
+        self.reason.to_string()
+    }
+
+    pub(super) fn work(&self) -> usize {
+        self.edges.len().saturating_mul(16).saturating_add(64)
+    }
+
+    fn classify(&self, glyph: Rect) -> GlyphPathClipStatus {
+        self.classify_with_margin(glyph, 0.0)
+    }
+
+    fn classify_with_margin(&self, glyph: Rect, extra_margin: f64) -> GlyphPathClipStatus {
+        if disjoint(glyph, self.bounds) {
+            return GlyphPathClipStatus::Outside;
+        }
+        let margin = POLYGON_ERROR_MARGIN + extra_margin;
+        // A polygon vertex inside or on the box proves overlap with the
+        // boundary; the box cannot be wholly inside or outside.
+        for edge in &self.edges {
+            for point in [edge.from, edge.to] {
+                if point.x >= glyph.min.x - margin
+                    && point.x <= glyph.max.x + margin
+                    && point.y >= glyph.min.y - margin
+                    && point.y <= glyph.max.y + margin
+                {
+                    return GlyphPathClipStatus::PartiallyOutside;
+                }
+            }
+        }
+        let box_edges = [
+            PathSegment {
+                from: corners(glyph)[0],
+                to: corners(glyph)[1],
+            },
+            PathSegment {
+                from: corners(glyph)[1],
+                to: corners(glyph)[2],
+            },
+            PathSegment {
+                from: corners(glyph)[2],
+                to: corners(glyph)[3],
+            },
+            PathSegment {
+                from: corners(glyph)[3],
+                to: corners(glyph)[0],
+            },
+        ];
+        for edge in &self.edges {
+            for box_edge in box_edges {
+                if segments_may_intersect(*edge, box_edge, margin) {
+                    return GlyphPathClipStatus::PartiallyOutside;
+                }
+            }
+        }
+        let corners = corners(glyph);
+        let mut inside_count = 0usize;
+        for point in corners {
+            match self.point_status(point, margin) {
+                Some(true) => inside_count += 1,
+                Some(false) => {}
+                None => return GlyphPathClipStatus::PartiallyOutside,
+            }
+        }
+        if inside_count == corners.len() {
+            GlyphPathClipStatus::Inside
+        } else if inside_count == 0 {
+            GlyphPathClipStatus::Outside
+        } else {
+            GlyphPathClipStatus::PartiallyOutside
+        }
+    }
+
+    /// Conservative point membership. `None` means boundary contact,
+    /// uncertain orientation, or a point within the error margin.
+    fn point_status(&self, point: Vec2, margin: f64) -> Option<bool> {
+        let mut winding = 0_i64;
+        for edge in &self.edges {
+            if point_on_segment(edge.from, edge.to, point, margin) {
+                return None;
+            }
+            if edge.from.y <= point.y {
+                if edge.to.y > point.y {
+                    match side(edge.from, edge.to, point)? {
+                        Ordering::Greater => winding = winding.saturating_add(1),
+                        Ordering::Less => {}
+                        Ordering::Equal => return None,
+                    }
+                }
+            } else if edge.to.y <= point.y {
+                match side(edge.from, edge.to, point)? {
+                    Ordering::Less => winding = winding.saturating_sub(1),
+                    Ordering::Greater => {}
+                    Ordering::Equal => return None,
+                }
+            }
+        }
+        Some(if self.even_odd {
+            winding % 2 != 0
+        } else {
+            winding != 0
+        })
+    }
+}
+
+fn point_on_segment(a: Vec2, b: Vec2, point: Vec2, margin: f64) -> bool {
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    let length = dx.hypot(dy);
+    if !length.is_finite() || length <= f64::EPSILON {
+        return (point.x - a.x).hypot(point.y - a.y) <= margin;
+    }
+    let distance = ((point.x - a.x) * dy - (point.y - a.y) * dx).abs() / length;
+    if !distance.is_finite() || distance > margin {
+        return false;
+    }
+    let min_x = a.x.min(b.x) - margin;
+    let max_x = a.x.max(b.x) + margin;
+    let min_y = a.y.min(b.y) - margin;
+    let max_y = a.y.max(b.y) + margin;
+    point.x >= min_x && point.x <= max_x && point.y >= min_y && point.y <= max_y
+}
+
+fn segments_may_intersect(a: PathSegment, b: PathSegment, margin: f64) -> bool {
+    // Segment-box intersection uses the same conservative orientation test as
+    // point membership; any collinearity or uncertainty counts as contact.
+    if point_on_segment(a.from, a.to, b.from, margin)
+        || point_on_segment(a.from, a.to, b.to, margin)
+        || point_on_segment(b.from, b.to, a.from, margin)
+        || point_on_segment(b.from, b.to, a.to, margin)
+    {
+        return true;
+    }
+    let signs = [
+        side(a.from, a.to, b.from),
+        side(a.from, a.to, b.to),
+        side(b.from, b.to, a.from),
+        side(b.from, b.to, a.to),
+    ];
+    if signs
+        .iter()
+        .any(|sign| sign.is_none() || *sign == Some(Ordering::Equal))
+    {
+        return true;
+    }
+    let [Some(first), Some(second), Some(third), Some(fourth)] = signs else {
+        return true;
+    };
+    first != second && third != fourth
 }
 
 /// A rectangle and a certified L boundary whose outer bounds are strictly
@@ -462,30 +889,92 @@ impl Quad {
 }
 
 impl ClipRegion {
-    /// Keep graphics-state uncertainty until a glyph needs its visibility.
-    /// An already empty intersection remains provably empty.
-    pub(super) fn intersect_unsupported(&self, reason: String) -> Self {
+    /// Sound bounding box of the retained region, when one is available.
+    /// Every returned rectangle contains all points that can remain visible
+    /// under this clip; none is a sampled or approximated shape.
+    pub(super) fn bounds(&self) -> Option<Rect> {
         match self {
-            Self::Empty | Self::Unsupported(_) => self.clone(),
-            Self::Witness { node, .. } => Self::Unsupported(node.reason()),
-            _ => Self::Unsupported(reason.into()),
+            Self::Empty | Self::Unbounded | Self::Unsupported(_) => None,
+            Self::Rectangle(rect) | Self::UnsupportedBounded(_, rect) => Some(*rect),
+            Self::RectanglePair(parts) => Some(hull(parts[0], parts[1])),
+            Self::RectangularCutout(clip) => Some(clip.bounds),
+            Self::SeparatedCutout(clip) => Some(hull(clip.rectangle, clip.corner.bounds)),
+            Self::PendingOrthogonal { pending, crop } => crop.map_or_else(
+                || pending.bounds(),
+                |crop| pending.bounds().map(|bounds| intersection(bounds, crop)),
+            ),
+            Self::Orthogonal { crop, .. } => Some(*crop),
+            Self::Witness { crop, bounds, .. } => {
+                let mut result = *bounds;
+                if let Some(crop) = crop {
+                    result = Some(result.map_or(*crop, |bounds| intersection(bounds, *crop)));
+                }
+                result
+            }
+            Self::Polygon(clip) => Some(clip.bounds()),
+            Self::CurvedPolygon(clip) => Some(clip.bounds()),
+            Self::Convex(clip) => Some(clip.bounds),
+        }
+    }
+
+    /// Keep graphics-state uncertainty until a glyph needs its visibility.
+    /// An already empty intersection remains provably empty. Path bounds are
+    /// attached only after exact witness and orthogonal upgrades have refused,
+    /// so an omitted bound here does not discard the caller's later fallback.
+    pub(super) fn intersect_unsupported(&self, reason: String) -> Self {
+        if matches!(self, Self::Empty) {
+            Self::Empty
+        } else {
+            Self::Unsupported(reason.into())
+        }
+    }
+
+    /// Retains the intersection of every known bound. Passing `None` for the
+    /// incoming path keeps only previous bounds, which is still a sound
+    /// superset of the new region.
+    pub(super) fn intersect_unsupported_with_bounds(
+        &self,
+        reason: String,
+        bounds: Option<Rect>,
+    ) -> Self {
+        if matches!(self, Self::Empty) {
+            return Self::Empty;
+        }
+        let previous = self.bounds();
+        let bounds = match (previous, bounds) {
+            (Some(previous), Some(next)) => {
+                let bounds = intersection(previous, next);
+                if empty(bounds) {
+                    return Self::Empty;
+                }
+                Some(bounds)
+            }
+            (Some(previous), None) => Some(previous),
+            (None, Some(next)) => Some(next),
+            (None, None) => None,
+        };
+        match bounds {
+            Some(rect) => Self::UnsupportedBounded(reason.into(), rect),
+            None => Self::Unsupported(reason.into()),
         }
     }
 
     /// Bounds both retained-constraint copying and four-corner classification.
-    /// The caller charges this against a document-wide extraction work ceiling.
+    /// The caller charges this against the page's extraction work ceiling.
     pub(super) fn work(&self) -> usize {
         match self {
             Self::Convex(clip) => clip.quads.len().saturating_mul(16),
             Self::RectanglePair(_) => 32,
             // Bounds classification, fixed copying and the conservative
-            // four-strip segment proof under the same shared ceiling.
+            // four-strip segment proof under the same per-page ceiling.
             Self::RectangularCutout(_) => 64,
             Self::Orthogonal { grid, .. } => grid.work(),
             Self::PendingOrthogonal { .. } => 0,
             Self::Witness { .. } => 0,
+            Self::Polygon(clip) => clip.work(),
+            Self::CurvedPolygon(clip) => clip.work(),
             // Two classifications, retained constraints and bounded allocation
-            // on rectangular intersection share the existing work ceiling.
+            // on rectangular intersection share the per-page work ceiling.
             Self::SeparatedCutout(_) => 192,
             _ => 0,
         }
@@ -499,6 +988,14 @@ impl ClipRegion {
             Self::Unbounded => Self::Rectangle(rectangle),
             Self::Empty => Self::Empty,
             Self::Unsupported(_) => self.clone(),
+            Self::UnsupportedBounded(reason, bounds) => {
+                let bounds = intersection(*bounds, rectangle);
+                if empty(bounds) {
+                    Self::Empty
+                } else {
+                    Self::UnsupportedBounded(Arc::clone(reason), bounds)
+                }
+            }
             Self::Rectangle(current) => {
                 let bounds = intersection(*current, rectangle);
                 if empty(bounds) {
@@ -507,13 +1004,19 @@ impl ClipRegion {
                     Self::Rectangle(bounds)
                 }
             }
+            Self::Polygon(clip) => {
+                self.intersect_unsupported_with_bounds(clip.reason(), Some(rectangle))
+            }
+            Self::CurvedPolygon(clip) => {
+                self.intersect_unsupported_with_bounds(clip.reason(), Some(rectangle))
+            }
             Self::Convex(_) => self.intersect_quad(Quad::rectangle(rectangle)),
             Self::RectanglePair(parts) => {
                 rectangle_pair(parts.map(|part| intersection(part, rectangle)))
             }
             Self::RectangularCutout(clip) => clip.intersect_rectangle(rectangle),
             Self::SeparatedCutout(clip) => clip.intersect_rectangle(rectangle),
-            Self::Witness { node, crop } => {
+            Self::Witness { node, crop, bounds } => {
                 let crop = crop.map_or(rectangle, |old| intersection(old, rectangle));
                 if empty(crop) {
                     Self::Empty
@@ -521,6 +1024,9 @@ impl ClipRegion {
                     Self::Witness {
                         node: Arc::clone(node),
                         crop: Some(crop),
+                        bounds: bounds
+                            .map(|bounds| intersection(bounds, rectangle))
+                            .or(Some(crop)),
                     }
                 }
             }
@@ -562,8 +1068,10 @@ impl ClipRegion {
             Self::Rectangle(rectangle) => {
                 rectangle_pair(parts.map(|part| intersection(part, *rectangle)))
             }
-            Self::Empty | Self::Unsupported(_) => self.clone(),
+            Self::Empty | Self::Unsupported(_) | Self::UnsupportedBounded(..) => self.clone(),
             Self::Convex(_)
+            | Self::Polygon(_)
+            | Self::CurvedPolygon(_)
             | Self::RectanglePair(_)
             | Self::RectangularCutout(_)
             | Self::SeparatedCutout(_)
@@ -581,8 +1089,10 @@ impl ClipRegion {
         match self {
             Self::Unbounded => Self::RectangularCutout(clip),
             Self::Rectangle(rectangle) => clip.intersect_rectangle(*rectangle),
-            Self::Empty | Self::Unsupported(_) => self.clone(),
+            Self::Empty | Self::Unsupported(_) | Self::UnsupportedBounded(..) => self.clone(),
             Self::Convex(_)
+            | Self::Polygon(_)
+            | Self::CurvedPolygon(_)
             | Self::RectanglePair(_)
             | Self::RectangularCutout(_)
             | Self::SeparatedCutout(_)
@@ -609,9 +1119,11 @@ impl ClipRegion {
         let bounds = bounding_rect(quad.0);
         let (bounds, mut quads) = match self {
             Self::Empty => return Self::Empty,
-            Self::Unsupported(_) => return self.clone(),
+            Self::Unsupported(_) | Self::UnsupportedBounded(..) => return self.clone(),
             Self::RectanglePair(_)
             | Self::SeparatedCutout(_)
+            | Self::Polygon(_)
+            | Self::CurvedPolygon(_)
             | Self::Orthogonal { .. }
             | Self::PendingOrthogonal { .. }
             | Self::Witness { .. } => {
@@ -647,7 +1159,12 @@ impl ClipRegion {
     pub(super) fn segment_is_visible(&self, segment: PathSegment) -> bool {
         match self {
             Self::Unbounded => true,
-            Self::Empty | Self::Unsupported(_) | Self::Witness { .. } => false,
+            Self::Empty
+            | Self::Unsupported(_)
+            | Self::UnsupportedBounded(..)
+            | Self::Witness { .. }
+            | Self::Polygon(_)
+            | Self::CurvedPolygon(_) => false,
             Self::Rectangle(rect) => inside(segment.from, *rect) && inside(segment.to, *rect),
             Self::RectanglePair(parts) => parts
                 .iter()
@@ -664,6 +1181,35 @@ impl ClipRegion {
                         matches!(side(a, b, point), Some(Ordering::Equal | Ordering::Greater))
                     })
             }),
+        }
+    }
+
+    /// Replaces a metered polygon with its sound bounding box when the shared
+    /// clipping budget cannot fund its next classification.
+    pub(super) fn downgrade_unaffordable_polygon(&mut self, remaining: usize) {
+        let (reason, bounds, work) = match self {
+            Self::Polygon(clip) => (clip.reason(), clip.bounds(), clip.work()),
+            Self::CurvedPolygon(clip) => (clip.reason(), clip.bounds(), clip.work()),
+            _ => return,
+        };
+        if work > remaining {
+            *self = Self::UnsupportedBounded(reason.into(), bounds);
+        }
+    }
+
+    /// Returns a cheap, sound exclusion when the retained bound is strictly
+    /// disjoint from the glyph. Other variants still require their own proof.
+    pub(super) fn bounded_outside(&self, glyph: Rect) -> bool {
+        match self {
+            Self::UnsupportedBounded(_, bounds)
+            | Self::Witness {
+                bounds: Some(bounds),
+                ..
+            } => disjoint(glyph, *bounds),
+            Self::Polygon(clip) => disjoint(glyph, clip.bounds),
+            Self::CurvedPolygon(clip) => disjoint(glyph, clip.bounds()),
+            Self::Empty => true,
+            _ => false,
         }
     }
 
@@ -688,6 +1234,8 @@ impl ClipRegion {
                     GlyphPathClipStatus::PartiallyOutside
                 })
             }
+            Self::Polygon(clip) => Ok(clip.classify(glyph)),
+            Self::CurvedPolygon(clip) => clip.classify(glyph),
             Self::Convex(clip) => clip.glyph_status(glyph),
             Self::RectangularCutout(clip) => clip.glyph_status(glyph),
             Self::SeparatedCutout(clip) => clip.glyph_status(glyph),
@@ -696,7 +1244,27 @@ impl ClipRegion {
                 Err(Error::Unsupported(pending.reason().to_string()))
             }
             Self::Unsupported(reason) => Err(Error::Unsupported(reason.to_string())),
+            Self::UnsupportedBounded(reason, bounds) => {
+                if disjoint(glyph, *bounds) {
+                    Ok(GlyphPathClipStatus::Outside)
+                } else {
+                    Err(Error::Unsupported(reason.to_string()))
+                }
+            }
         }
+    }
+}
+
+fn hull(a: Rect, b: Rect) -> Rect {
+    Rect {
+        min: Vec2 {
+            x: a.min.x.min(b.min.x),
+            y: a.min.y.min(b.min.y),
+        },
+        max: Vec2 {
+            x: a.max.x.max(b.max.x),
+            y: a.max.y.max(b.max.y),
+        },
     }
 }
 
@@ -1020,13 +1588,13 @@ mod tests {
         }));
         assert!(matches!(
             clip.intersect_rectangular_cutout(notch),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         assert!(matches!(
             ClipRegion::Unbounded
                 .intersect_quad(diamond(0.0))
                 .intersect_rectangular_cutout(notch),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         Ok(())
     }
@@ -1118,21 +1686,21 @@ mod tests {
         ] {
             assert!(matches!(
                 prior.intersect_separated_cutout(parts),
-                ClipRegion::Unsupported(_)
+                ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
             ));
         }
         let clip = ClipRegion::Unbounded.intersect_separated_cutout(parts);
         assert!(matches!(
             clip.intersect_rectangular_cutout(corner),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         assert!(matches!(
             clip.intersect_quad(diamond(0.0)),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         assert!(matches!(
             clip.intersect_separated_cutout(parts),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
     }
 
@@ -1206,11 +1774,11 @@ mod tests {
         );
         assert!(matches!(
             clip.intersect_quad(diamond(0.0)),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         assert!(matches!(
             clip.intersect_rectangular_cutout(shape),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         Ok(())
     }
@@ -1297,17 +1865,17 @@ mod tests {
         );
         assert!(matches!(
             pair.intersect_quad(diamond(0.0)),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         assert!(matches!(
             ClipRegion::Unbounded
                 .intersect_rectangle_pair([rect(0.0, 0.0, 5.0, 5.0), rect(4.0, 4.0, 6.0, 6.0)]),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         assert!(matches!(
             ClipRegion::Unbounded
                 .intersect_rectangle_pair([rect(0.0, 0.0, 5.0, 5.0), rect(5.0, 0.0, 6.0, 5.0)]),
-            ClipRegion::Unsupported(_)
+            ClipRegion::Unsupported(_) | ClipRegion::UnsupportedBounded(..)
         ));
         Ok(())
     }
@@ -1392,6 +1960,156 @@ mod tests {
         }
     }
 
+    fn polygon(points: &[(f64, f64)], even_odd: bool) -> PolygonClip {
+        let segments = (0..points.len())
+            .map(|index| PathSegment {
+                from: point(points[index].0, points[index].1),
+                to: point(
+                    points[(index + 1) % points.len()].0,
+                    points[(index + 1) % points.len()].1,
+                ),
+            })
+            .collect::<Vec<_>>();
+        PolygonClip::new(&segments, even_odd, None, Arc::from("test polygon"))
+            .expect("simple polygon")
+    }
+
+    fn ring(even_odd: bool) -> PolygonClip {
+        let mut segments = Vec::new();
+        for points in [
+            &[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)][..],
+            &[(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0)][..],
+        ] {
+            for index in 0..points.len() {
+                segments.push(PathSegment {
+                    from: point(points[index].0, points[index].1),
+                    to: point(
+                        points[(index + 1) % points.len()].0,
+                        points[(index + 1) % points.len()].1,
+                    ),
+                });
+            }
+        }
+        PolygonClip::new(&segments, even_odd, None, Arc::from("test ring")).expect("ring polygon")
+    }
+
+    #[test]
+    fn polygon_classifies_inside_outside_partial_and_even_odd_holes() {
+        let square = polygon(&[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)], false);
+        assert_eq!(
+            square.classify(rect(2.0, 2.0, 3.0, 3.0)),
+            GlyphPathClipStatus::Inside
+        );
+        assert_eq!(
+            square.classify(rect(20.0, 20.0, 21.0, 21.0)),
+            GlyphPathClipStatus::Outside
+        );
+        assert_eq!(
+            square.classify(rect(9.0, 9.0, 11.0, 11.0)),
+            GlyphPathClipStatus::PartiallyOutside
+        );
+        let even_odd = ring(true);
+        assert_eq!(
+            even_odd.classify(rect(4.0, 4.0, 5.0, 5.0)),
+            GlyphPathClipStatus::Outside
+        );
+        assert_eq!(
+            even_odd.classify(rect(1.0, 1.0, 2.0, 2.0)),
+            GlyphPathClipStatus::Inside
+        );
+        assert_eq!(
+            even_odd.classify(rect(6.0, 6.0, 8.0, 8.0)),
+            GlyphPathClipStatus::PartiallyOutside
+        );
+        let nonzero = ring(false);
+        assert_eq!(
+            nonzero.classify(rect(4.0, 4.0, 5.0, 5.0)),
+            GlyphPathClipStatus::Inside
+        );
+        assert!(square.work() >= 64);
+    }
+
+    #[test]
+    fn polygon_boundary_contact_and_margin_are_partial() {
+        let square = polygon(&[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)], false);
+        assert_eq!(
+            square.classify(rect(0.0, 2.0, 2.0, 3.0)),
+            GlyphPathClipStatus::PartiallyOutside
+        );
+        assert_eq!(
+            square.classify(rect(5.0, 5.0, 5.0, 6.0)),
+            GlyphPathClipStatus::PartiallyOutside
+        );
+    }
+
+    fn circle_edges(radius: f64) -> Vec<BoundaryEdge> {
+        let k = radius * 0.552_284_749_830_793_4;
+        [
+            [(radius, 0.0), (radius, k), (k, radius), (0.0, radius)],
+            [(0.0, radius), (-k, radius), (-radius, k), (-radius, 0.0)],
+            [(-radius, 0.0), (-radius, -k), (-k, -radius), (0.0, -radius)],
+            [(0.0, -radius), (k, -radius), (radius, -k), (radius, 0.0)],
+        ]
+        .into_iter()
+        .map(|points| BoundaryEdge::Cubic(points.map(|(x, y)| point(x, y))))
+        .collect()
+    }
+
+    fn curved_circle(radius: f64, even_odd: bool) -> CurvedPolygonClip {
+        CurvedPolygonClip::new(
+            circle_edges(radius),
+            even_odd,
+            rect(-radius, -radius, radius, radius),
+            Arc::from("test curved polygon"),
+        )
+        .expect("curved circle")
+    }
+
+    #[test]
+    fn curved_flattening_classifies_inside_outside_partial_and_annulus() -> Result<()> {
+        let circle = curved_circle(10.0, false);
+        assert_eq!(
+            circle.classify(rect(-1.0, -1.0, 1.0, 1.0))?,
+            GlyphPathClipStatus::Inside
+        );
+        assert_eq!(
+            circle.classify(rect(12.0, 12.0, 13.0, 13.0))?,
+            GlyphPathClipStatus::Outside
+        );
+        assert_eq!(
+            circle.classify(rect(8.0, 8.0, 9.0, 9.0))?,
+            GlyphPathClipStatus::Outside
+        );
+        assert_eq!(
+            circle.classify(rect(9.5, -0.5, 10.5, 0.5))?,
+            GlyphPathClipStatus::PartiallyOutside
+        );
+        let mut annulus_edges = circle_edges(10.0);
+        annulus_edges.extend(circle_edges(5.0));
+        let annulus = CurvedPolygonClip::new(
+            annulus_edges,
+            true,
+            rect(-10.0, -10.0, 10.0, 10.0),
+            Arc::from("test annulus"),
+        )
+        .expect("annulus");
+        assert_eq!(
+            annulus.classify(rect(-1.0, -1.0, 1.0, 1.0))?,
+            GlyphPathClipStatus::Outside
+        );
+        assert_eq!(
+            annulus.classify(rect(6.0, -1.0, 8.0, 1.0))?,
+            GlyphPathClipStatus::Inside
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn curved_flattening_budget_exhaustion_stays_unsupported() {
+        let circle = curved_circle(10.0, false);
+        assert!(circle.classify(rect(0.0, 0.0, 1e-6, 1e-6)).is_err());
+    }
+
     #[test]
     fn rectangle_clips_preserve_zero_width_glyph_classification() -> Result<()> {
         let clip = ClipRegion::Rectangle(rect(0.0, 0.0, 10.0, 10.0));
@@ -1399,6 +2117,39 @@ mod tests {
             clip.glyph_status(rect(5.0, 2.0, 5.0, 3.0))?,
             GlyphPathClipStatus::Inside
         );
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_bounds_keep_the_intersection_and_exclude_only_disjoint_glyphs() -> Result<()> {
+        let clip = ClipRegion::Rectangle(rect(0.0, 0.0, 10.0, 10.0))
+            .intersect_unsupported_with_bounds(
+                "uncertified shape".into(),
+                Some(rect(5.0, 5.0, 20.0, 20.0)),
+            );
+        assert!(matches!(
+            &clip,
+            ClipRegion::UnsupportedBounded(_, bounds) if *bounds == rect(5.0, 5.0, 10.0, 10.0)
+        ));
+        assert_eq!(
+            clip.glyph_status(rect(0.0, 0.0, 4.0, 4.0))?,
+            GlyphPathClipStatus::Outside
+        );
+        // Any overlap, including a glyph wholly inside the bound, keeps the
+        // original uncertainty rather than claiming visibility.
+        assert!(clip.glyph_status(rect(9.0, 9.0, 11.0, 11.0)).is_err());
+        assert!(clip.glyph_status(rect(6.0, 6.0, 7.0, 7.0)).is_err());
+
+        let narrowed = clip.intersect_rectangle(rect(0.0, 0.0, 6.0, 6.0));
+        assert!(matches!(
+            &narrowed,
+            ClipRegion::UnsupportedBounded(_, bounds) if *bounds == rect(5.0, 5.0, 6.0, 6.0)
+        ));
+        let empty = narrowed.intersect_unsupported_with_bounds(
+            "later shape".into(),
+            Some(rect(20.0, 20.0, 30.0, 30.0)),
+        );
+        assert_eq!(empty, ClipRegion::Empty);
         Ok(())
     }
 }

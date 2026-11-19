@@ -12,6 +12,10 @@ pub(in crate::source::content_stream) struct PendingOrthogonal {
     segments: Vec<PathSegment>,
     even_odd: bool,
     reason: Arc<str>,
+    /// Outward-rounded control-point bound in page coordinates. It remains a
+    /// sound superset even when the orthogonal proof is unaffordable or the
+    /// path is not orthogonal.
+    bounds: Option<Rect>,
     proof: OnceLock<Option<Arc<OrthogonalGrid>>>,
 }
 impl PendingOrthogonal {
@@ -22,13 +26,18 @@ impl PendingOrthogonal {
         segments: &[PathSegment],
         even_odd: bool,
         reason: Arc<str>,
+        bounds: Option<Rect>,
     ) -> Self {
         Self {
             segments: segments.to_vec(),
             even_odd,
             reason,
+            bounds,
             proof: OnceLock::new(),
         }
+    }
+    pub(in crate::source::content_stream) fn bounds(&self) -> Option<Rect> {
+        self.bounds
     }
     pub(in crate::source::content_stream) fn segments(&self) -> &[PathSegment] {
         &self.segments

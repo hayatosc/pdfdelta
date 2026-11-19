@@ -1074,6 +1074,7 @@ impl JsonTextSpan {
                 .iter()
                 .map(|token| JsonUnmappedToken {
                     scalar_offset: token.scalar_offset,
+                    identity: token.font_hash.identity_source().name(),
                     font_hash: lowercase_hex(&token.font_hash.0),
                     glyph_id: token.glyph_id,
                 })
@@ -1310,6 +1311,9 @@ struct JsonUnmappedToken {
     /// Scalar offset within `text` where this glyph sits (0 = before all
     /// scalars; equal to `text` char count = after all scalars).
     scalar_offset: usize,
+    /// Evidence the placeholder identity is based on: `name`, `outline`, or
+    /// `program`.
+    identity: &'static str,
     font_hash: String,
     glyph_id: u16,
 }

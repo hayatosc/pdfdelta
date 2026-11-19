@@ -41,6 +41,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "cff_builtin_encoding"
+path = "fuzz_targets/cff_builtin_encoding.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "canonical_yaml"
 path = "fuzz_targets/canonical_yaml.rs"
 test = false

@@ -75,6 +75,70 @@ impl Encoding {
     }
 }
 
+#[cfg(feature = "predefined-cid-unicode")]
+pub(super) const COLLECTION_TABLE_BYTES: usize = 1_000_000;
+
+/// Loads the predefined UCS2 CID-to-Unicode table for a Type0 font's Adobe
+/// character collection. Tables are parsed once per family and shared.
+#[cfg(feature = "predefined-cid-unicode")]
+pub(super) fn load_collection_unicode(
+    pdf: &dyn ParsedPdf,
+    descendant: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<std::sync::Arc<hayro_cmap::CMap>>> {
+    let Some(info) = descendant.get(b"CIDSystemInfo".as_slice()) else {
+        return Ok(None);
+    };
+    let PdfObject::Dictionary(info) = resolve_object(pdf, info.clone(), max_indirections)? else {
+        return Ok(None);
+    };
+    let (Some(registry), Some(ordering)) = (
+        info.get(b"Registry".as_slice()),
+        info.get(b"Ordering".as_slice()),
+    ) else {
+        return Ok(None);
+    };
+    let PdfObject::String(registry) = resolve_object(pdf, registry.clone(), max_indirections)?
+    else {
+        return Ok(None);
+    };
+    let PdfObject::String(ordering) = resolve_object(pdf, ordering.clone(), max_indirections)?
+    else {
+        return Ok(None);
+    };
+    if registry.as_slice() != b"Adobe" {
+        return Ok(None);
+    }
+    let family = hayro_cmap::CidFamily::from_registry_ordering(&registry, &ordering);
+    let Some(name) = family.ucs2_cmap() else {
+        return Ok(None);
+    };
+    Ok(collection_table(name))
+}
+
+#[cfg(feature = "predefined-cid-unicode")]
+fn collection_table(
+    name: hayro_cmap::CMapName<'static>,
+) -> Option<std::sync::Arc<hayro_cmap::CMap>> {
+    use std::sync::OnceLock;
+    static JAPAN1: OnceLock<Option<std::sync::Arc<hayro_cmap::CMap>>> = OnceLock::new();
+    static GB1: OnceLock<Option<std::sync::Arc<hayro_cmap::CMap>>> = OnceLock::new();
+    static CNS1: OnceLock<Option<std::sync::Arc<hayro_cmap::CMap>>> = OnceLock::new();
+    static KOREA1: OnceLock<Option<std::sync::Arc<hayro_cmap::CMap>>> = OnceLock::new();
+    let cell = match name {
+        hayro_cmap::CMapName::AdobeJapan1Ucs2 => &JAPAN1,
+        hayro_cmap::CMapName::AdobeGb1Ucs2 => &GB1,
+        hayro_cmap::CMapName::AdobeCns1Ucs2 => &CNS1,
+        hayro_cmap::CMapName::AdobeKorea1Ucs2 => &KOREA1,
+        _ => return None,
+    };
+    cell.get_or_init(|| {
+        let bytes = hayro_cmap::load_embedded(name)?;
+        hayro_cmap::CMap::parse(bytes, hayro_cmap::load_embedded).map(std::sync::Arc::new)
+    })
+    .clone()
+}
+
 pub(super) fn load(limits: FontDecoderLimits) -> Result<Encoding> {
     if limits.cmap.max_code_bytes < 4 {
         return Err(Error::LimitExceeded {

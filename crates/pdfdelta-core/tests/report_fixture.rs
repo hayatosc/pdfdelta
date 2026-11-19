@@ -2967,6 +2967,7 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
         "{json:#}"
     );
     assert_eq!(unmapped[0]["scalar_offset"], 0);
+    assert_eq!(unmapped[0]["identity"], "program");
     assert_eq!(unmapped[0]["font_hash"], "0102030405");
     assert_eq!(unmapped[0]["glyph_id"], 7);
     assert_eq!(unmapped[1]["scalar_offset"], 2);
@@ -3017,7 +3018,7 @@ fn text_report_marks_unmapped_glyph_positions_in_order() -> Result<()> {
     // positions inside the -/+ lines instead of implying that 'a' and 'b'
     // are contiguous.
     assert!(
-        report.contains("- <unmapped:7:01020304>ab<unmapped:11:09>\n"),
+        report.contains("- <unmapped:program:7:01020304>ab<unmapped:program:11:09>\n"),
         "{report}"
     );
     assert!(report.contains("+ Release 20\n"), "{report}");
@@ -3069,8 +3070,8 @@ fn text_report_renders_pure_unmapped_replacement_in_the_changed_segment() -> Res
          +++ new.pdf\n\
          \n\
          @@ pages 1,5 · old block 9 -> new block 109 · confidence: low @@\n\
-         - <unmapped:7:01020304>\n\
-         + <unmapped:12:09>\n"
+         - <unmapped:program:7:01020304>\n\
+         + <unmapped:program:12:09>\n"
     );
     Ok(())
 }
@@ -3586,7 +3587,7 @@ fn svg_render_creates_valid_overlay_with_provenance_and_geometry() -> Result<()>
     assert!(svg.contains("glyph-path-clip-partial"));
     assert!(svg.contains("data-crop-status=\"PartiallyOutside\""));
     assert!(svg.contains("data-path-clip-status=\"PartiallyOutside\""));
-    assert!(svg.contains("U+002A:abcdef01"));
+    assert!(svg.contains("U+002A:program:abcdef01"));
     Ok(())
 }
 

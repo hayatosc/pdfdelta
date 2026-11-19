@@ -96,14 +96,14 @@ partial table as a proof.
   after exact axis transposition, under a fixed prepaid work bound. The rectangle/L pair retains both the
   inter-component gap and the corner cutout; their outer bounds must be
   strictly separated. Each proof is prepaid and each classification/copy is
-  charged to the existing shared clipping work ceiling. A demand-driven fallback can certify literally closed orthogonal subpaths,
+  charged to the page's clipping work budget. A demand-driven fallback can certify literally closed orthogonal subpaths,
   including multiple components, overlaps and holes, under a strictly witnessed
   rectangular prior clip. It partitions by exact endpoint coordinates and
   evaluates integer winding or parity on each open coordinate cell, without
   midpoint rounding, area sums or pixel sampling. Source retention is prepaid when a candidate is frozen; geometry is proved
   only when a glyph needs its visibility. Validation and coordinate storage are prepaid first. Their exact cell/edge
   population is then known and prepaid before any winding loop or cell
-  allocation. Both phases share the existing clipping work ceiling; no
+  allocation. Both phases share the page's clipping work budget; no
   candidates are discarded and spent validation work is not refunded.
   Unaffordable proofs keep the original unsupported outcome. Each later
   classification/intersection pays for all retained cells. Proofs are shared only
@@ -150,17 +150,43 @@ partial table as a proof.
   exhaustion remains a resource-limit error. Passive drawing queries keep their
   previous uncertainty. This does not rasterize or replace the clipping set with
   a polygon, and does not resolve opacity or overpainting.
+  Straight-edged clips (`m`, `l`, `h`, `re`) with any vertex count and either
+  fill rule additionally use a conservative polygon classifier. A glyph is
+  Outside only when every boundary test proves separation, Inside only when all
+  four corners are strictly inside with no edge contact, and otherwise
+  PartiallyOutside. Boundary contact, orientation uncertainty and an explicit
+  tolerance margin all fall back to PartiallyOutside. Vertex/edge work is
+  charged per glyph; an unaffordable polygon proof downgrades to the sound
+  bounding box instead of excluding text. Curved boundaries are flattened
+  conservatively per glyph with a chord tolerance of 1/64 of the glyph box's
+  smaller side, using the control-point chord-distance bound and bounded
+  de Casteljau subdivision; the same polygon test then runs with the error
+  margin widened by the tolerance. Depth/segment exhaustion or non-finite
+  arithmetic keeps the bounding-box fallback.
+  Every remaining unsupported path retains the outward control-point bound of
+  all its line and Bezier control points in page coordinates, intersected with
+  the previous clip bound. Path bounds are reset with each completed path and
+  restored with the graphics state, so nested saves and Form matrices keep the
+  correct bound. A glyph strictly outside that bound can only be hidden and is
+  classified `Outside`; overlapping glyphs keep the unsupported outcome.
   Strict clipping provenance survives graphics saves and matrix changes;
   legacy approximate rectangle matches retain their behavior but cannot
   authorize a new concave proof or intersection. All prior constraints must
   carry the strict witness. Existing operation fees are retained; new proofs
-  and per-glyph classification use the existing shared clipping work ceiling.
+  and per-glyph classification use the page's clipping work budget. Each page
+  starts with the full budget, so its classification does not depend on how much
+  work earlier pages consumed; the document total is bounded by the page count
+  times the per-page limit.
 - Fonts: Type 1 / Type1C / MMType1, TrueType, axis-aligned Type 3, and Type 0
   with Identity-H, bounded Identity-V, and UniJIS-UTF16-H (Adobe-Japan1).
 - Text mapping: ToUnicode, Standard / WinAnsi / MacRoman encodings with
-  `Differences`, canonical Standard 14 identities, and full-domain identity
-  CMaps. Glyphs without a Unicode mapping stay comparable through stable
-  embedded-font, Type 3 CharProc, or caller-asserted font identities.
+  `Differences`, canonical Standard 14 identities, full-domain identity CMaps,
+  and embedded Type1 programs' cleartext built-in encodings resolved through
+  the Adobe Glyph List. With `predefined-cid-unicode`, Adobe Japan1/GB1/CNS1/Korea1 UCS2
+  collection tables map known CIDs to Unicode; ToUnicode keeps priority and
+  unknown CIDs stay placeholders. Glyphs without a Unicode mapping stay
+  comparable through stable embedded-font, Type 3 CharProc, or caller-asserted
+  font identities.
 - Existing OCR text layers are retained as glyph evidence. Invisible text
   remains outside visible-content comparison.
 
@@ -431,6 +457,195 @@ glyphs do not describe. The marker records the render-order boundary of the
 last non-text paint so earlier glyphs cannot prove visible-text coverage.
 Unused image resources, unpainted paths, and clipping alone do not create
 markers.
+
+## Flow engine
+
+`pdfdelta flow` is a separate, token-level view built from the same extracted
+glyph evidence. It keeps only comparison-visible glyphs, flattens them into
+words, single punctuation tokens, and one token per CJK scalar, and drops
+whitespace. Line and block boundaries become token metadata rather than
+constraints on the diff.
+
+Layout reconstruction can merge adjacent form rows into one oversized line.
+The engine therefore builds three reading-order hypotheses per page from the
+same glyphs: reconstructed layout order, content-stream paint order, and
+baseline-row order. Baseline rows use only each glyph's baseline coordinate
+along the text direction's normal; row gaps are relative to font size, so tall
+overlapping bounding boxes on tight CJK rows do not merge. Rows run
+top-to-bottom (right-to-left for vertical text) and glyphs follow their
+baseline advance direction. A page is kept on layout order when layout and
+paint order have at least 0.9 order-preserving overlap. Otherwise the page is
+matched to its counterpart pages in the other document by an order-free,
+information-weighted bag overlap of page tokens: the best match and every match
+within half of its overlap are kept, plus the pages adjacent to the best match.
+The three hypotheses are scored by the weighted bigrams and trigrams they share
+with those counterparts' three hypotheses, using a weight table built from the
+counterpart tokens alone. A page whose best overlap is below 30% of the
+document pair's median per-page best overlap has no counterpart and is ordered
+by intrinsic spatial coherence only, so an inserted or deleted page cannot
+borrow evidence from a structurally similar neighbour, and editing an unrelated
+page cannot change an untouched page's evidence. Layout order is kept only when
+it has at least as much evidence and at least as much spatial coherence as
+paint order; baseline-row order replaces paint order only when it has more
+evidence and at least as much coherence. Otherwise paint order wins; exact ties
+keep layout, then paint order. Pages where layout and paint order disagree are
+marked order-uncertain, and an intrinsic per-page
+coherence score records how often consecutive chosen tokens are spatially
+adjacent. Neither marker changes the exit code. The engine never consults an
+external reader for this choice.
+
+Alignment matches tokens by information weight, prefers long equal runs, and
+promotes same-gap runs into the equal spine. After the weighted spine is final,
+a bounded plain LCS fills equal tokens left inside two-sided gaps without
+removing any weighted match. The script builder classifies the
+remaining gaps as delete, insert, replace, or move, and treats a replacement
+whose concatenated text is unchanged as layout-only. A delete run and an insert
+run with identical text at opposite ends of one accepted move are the remainder
+of a rotation, so they are reported as one additional move even when shorter
+than the five-token minimum; unrelated short equal runs stay delete/insert.
+The move detector requires a moved run to carry information weight: a run of
+minimum-weight punctuation or separators contributes nothing and cannot be a
+move. A same-page move that sits on a dot-leader contents page and spans only
+low-weight or numeric changes is promoted back into the spine, so a changed
+table-of-contents page number becomes one small replacement instead of moves of
+the heading and the dot leaders. The engine evaluates the permissive rule, the
+information-weight rule, and the contents rule for both alignment strategies and
+keeps the script with the fewest non-move changed tokens. The rules differ only
+in how they rewrite the gaps of one alignment, so all three rules of a strategy
+share one memoized alignment for the same promoted pair set. A rule is skipped
+when it provably cannot change the script (no move candidate exists, or neither
+document has a dot-leader page), the same promoted pair set reuses its
+alignment and its residual-gap refinement, and a promotion round reuses the
+alignment of every segment that the new forced pairs do not split. The selection
+keeps the highest rule rank among identical scripts, so the chosen script and
+the tie-breaking are the same as a full six-variant evaluation. A
+post-pass reconciles equal tokens that sit on opposite sides of a move or of a
+shifted spine run:
+they become implicit equal tokens, and the shifted run becomes one move, which
+removes needless delete/insert pairs from rotations and page swaps. Every
+rewritten script is replayed before it is accepted. Repeated headers, footers,
+and page numbers are removed as furniture and diffed separately by
+digit-masked text. Furniture membership is decided jointly for the two
+documents of a comparison. A line that qualifies on either side is furniture on
+both: alphabetic running headers and titles are removed at every line-level
+occurrence (this keeps a page merge or break invariant when the line is no
+longer at the new page edge), while numeric-only lines use the joined
+relative-position cluster. Within one furniture family, digit runs that change
+between occurrences (page numbers, counters) are masked to `0`; a run that is
+constant in every occurrence (a year, form number, or version) stays literal,
+so editing it is reported as a furniture change instead of disappearing behind
+the mask. Families are separated by their digit-run lengths so a page number
+and a form code that share one full mask are not conflated.
+
+Each side selects one relative-position cluster per masked line. The joint
+comparison removes the union of both sides' selected clusters from both
+documents, and an alphabetic running line is removed at every line-level
+occurrence. Taking the union rather than re-clustering each side independently
+matters when a page insertion or deletion changes which cluster meets the page
+threshold: the side that no longer qualifies still removes the same lines as
+the side that does, so an untouched page cannot become content on one side
+only.
+
+A page split by a vertical gap much larger than its line pitch can contain two
+independent page-like regions. This is what a page merge produces, and it also
+happens on real pages with a wide band of whitespace. Such a page is
+partitioned into stacked bands when each band holds at least a fifth of the
+page's tokens and at least two rows. Each band's information-weighted token bag
+is compared with the whole pages of the other document; a band that reproduces
+one page at 0.9 overlap or more adopts that page's chosen order, and the page is
+assembled band by band. The two bands of a merged page can therefore keep two
+different hypotheses, which is exactly what the two separate pages chose.
+Furniture positions are measured within each band, so a header or footer that
+the merge moved into the middle of the taller page keeps the relative position
+it had at the old page edge. Pages formed from one band, and bands whose
+counterpart is itself stacked, keep the evidence-based whole-page choice.
+
+A comparison whose extraction limits were raised does not build both sides'
+reading-order hypotheses in one process. Each side is extracted and
+reconstructed in a child process, which writes its three candidate streams to a
+private per-run directory and exits; the parent then loads both compact streams
+and performs order selection and alignment. This keeps the second extraction
+from overlapping the first side's normalization buffers. The cache is binary and
+versioned, carries token counts and per-token text lengths, and ends with an
+FNV-1a checksum over the payload. The parent validates the magic, version,
+lengths, and checksum; a missing, truncated, or corrupt cache, or a child that
+exits non-zero or is killed, aborts the comparison with exit `2` instead of
+reporting a partial result. Send text, page ids, bounding boxes, block indices,
+and glyph conservation are written exactly, so the cached and in-process paths
+produce byte-identical reports.
+
+Image-only pages first compare an encoded identity: the same ordered image
+XObjects, byte-identical encoded streams, pixel-affecting dictionaries and
+CTMs. Equal encoded identities resolve the page without decoding and become one
+synthetic `⟦image-encoded:<hash>⟧` token. Different encoded bytes prove nothing,
+so the page falls back to a complete decoded pixel inventory and a
+`⟦image:<hash>⟧` token; the report names the resolving rule. A one-sided
+image-only page is a deletion or insertion once its identity is available.
+Pages with too many or too large images remain incomplete without OCR or a
+partial inventory.
+Unsupported clipping paths no longer discard their glyphs: the glyph is retained
+with a conservative partial-clip status, its tokens are marked uncertain, and a
+page-scoped extraction gap keeps the page incomplete. When a simple font has no
+`/Encoding` and no `ToUnicode` entry for a code, the extractor reads the font
+program's own encoding: a cleartext Type1 program's `/Encoding ... def`
+section, or a Type1C program's CFF Encoding and charset (the code selects a
+glyph id, the charset names it). For a non-embedded standard-14 Symbol or
+ZapfDingbats font (recognized by `BaseFont` after stripping a subset tag) with
+no embedded program, the ISO 32000-1 Annex D.5/D.6 built-in encoding supplies
+the code-to-name mapping; Symbol names resolve through the Adobe Glyph List and
+ZapfDingbats `aNN` names through the Adobe ZapfDingbats glyph list. The same
+`aNN` list also resolves a Dingbats subset's own `/Encoding` names. Glyph names
+go through the Adobe Glyph List, then the `uni`/`u` algorithmic forms, then a
+bundled Apache-2.0 pdf.js supplement for TeX/AMS names that the first two rules
+do not resolve (for example `parenleftbig`, `summationtext`, `arrowhookleft`,
+and `prime`). The supplement omits private-use and control values, so it never
+turns a placeholder into non-text code points. A project-authored MIT table
+then resolves the remaining unambiguous TeX names (`lessmuch`, `greatermuch`,
+`floorleft`/`floorright`, `ceilingleft`/`ceilingright`, `asciigrave`).
+Combining overlays and enclosures (`negationslash`, `arrowrightabove`,
+`circleencl`, `circleslashencl`, `diamondencl`), script names, and generic
+`gNN`/`glyphNNN` names deliberately stay placeholders because their meaning is
+not one standalone character. A name outside all of these rules, an unparsable
+program, or a CFF2/OpenType program keeps the glyph an uncertain placeholder.
+
+An unmapped glyph still needs a stable identity, because two revisions often
+re-subset the same font and change its program hash. Identity is chosen in this
+order:
+
+1. **Name.** The subset-stripped `BaseFont` and the exact glyph name from the
+   PDF `/Encoding` (including `/Differences`), the cleartext Type1 program's
+   `/Encoding`, or the Type1C charset. Names that none of the name rules above
+   resolve stay placeholders, but equal names in the same family compare equal
+   across subsets. The name is hashed together with the family and never becomes
+   Unicode text.
+2. **Outline.** A CID-keyed CFF program's `CharStrings` entry, keyed by the
+   CID that the Identity encoding selects. This fallback is implemented only
+   for CID-keyed CFF programs; simple Type1, Type1C, and TrueType outlines are
+   not read. For an Identity-encoded composite font, CID 0 is the
+   specification's `.notdef` glyph, so it uses the name identity rather than an
+   empty outline. An empty outline is never used as evidence.
+3. **Program.** The embedded program hash plus the glyph id remains the final
+   fallback when no name or non-empty outline is available.
+
+The identity hash's first byte tags the evidence (`program`, `name`, or
+`outline`) so the source is visible without resolving a font again. Text
+placeholders print the tag (`<unmapped:name:…>`), native JSON `unmapped_tokens`
+carry an `identity` field, and flow tokens use the form
+`\uFFFC<kind>:<hash>:<glyph_id>`. `glyph_name_identity_pages` lists pages whose
+unmapped glyphs use name identity.
+
+A resubset metamorphic case appends harmless trailing bytes to every embedded
+font program and requires an empty diff. Name and outline identities ignore
+those bytes; a document that still has program-identified placeholders is
+skipped because the program bytes are then real identity evidence.
+
+Every returned script is replayed against both token sequences before it is
+used: every token must be covered exactly once, unmoved text must be equal,
+move endpoints must be equal, and layout-only changes must preserve text.
+Per-page glyph conservation is reported alongside extraction issues, so a
+missing glyph is never silently treated as an empty token. Flow output is
+intended for review and evaluation; the channel comparison remains the primary
+completeness report.
 
 ## Visual channel
 

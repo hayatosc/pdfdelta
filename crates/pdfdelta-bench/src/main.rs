@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, ExitCode},
     sync::Arc,
+    time::Duration,
 };
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -48,6 +49,42 @@ struct Cli {
 enum Command {
     /// Run all built-in acceptance cases across both PDF renderers.
     Verify,
+    /// Verify the token-stream flow engine against fixtures with known edits.
+    FlowVerify,
+    /// Build exact ground truth on real PDFs by page-tree surgery.
+    ///
+    /// Compares each document with structurally edited copies (page deletion,
+    /// insertion, swap, and duplication) and reports token-multiset precision
+    /// and recall against the constructed truth as a TSV.
+    FlowMetamorphic {
+        /// Cache directory scanned for `*-old.pdf` and `*-new.pdf`.
+        #[arg(long, default_value = "benchmark/realworld/cache", value_name = "DIR")]
+        cache: PathBuf,
+        /// Explicit PDF files to test instead of scanning the cache directory.
+        #[arg(value_name = "PDF")]
+        files: Vec<PathBuf>,
+        /// Mark a case taking longer than this as a timeout failure.
+        #[arg(
+            long,
+            default_value_t = pdfdelta_bench::flow_metamorphic::DEFAULT_CASE_TIMEOUT_SECONDS
+        )]
+        case_timeout_seconds: u64,
+        /// Print the deterministic plan without running any case.
+        #[arg(long)]
+        plan: bool,
+        /// Add up to this many single-token text-edit cases per document.
+        #[arg(long, default_value_t = 0)]
+        text_edits: usize,
+        /// Add up to this many page-merge cases per document.
+        #[arg(long, default_value_t = 0)]
+        merges: usize,
+        /// Uniform extraction-limit scale; large documents may need > 1.
+        #[arg(long, default_value_t = 1.0)]
+        limit_scale: f64,
+        /// Write every constructed old/new PDF pair here for reproduction.
+        #[arg(long, value_name = "DIR")]
+        dump_edited: Option<PathBuf>,
+    },
     /// Audit an exported agent review bundle and measure what it costs to read.
     ///
     /// Runs no model and calls no external service; the figures are bytes.
@@ -544,6 +581,90 @@ fn main() -> ExitCode {
     let mut stdout = stdout.lock();
     let result = match cli.command {
         None | Some(Command::Verify) => verify(&mut stdout),
+        Some(Command::FlowVerify) => (|| {
+            let summary = pdfdelta_bench::flow_verify::verify_flow_fixtures()
+                .map_err(|error| error.to_string())?;
+            for record in &summary.records {
+                writeln!(
+                    stdout,
+                    "{}",
+                    pdfdelta_bench::flow_verify::format_record(record)
+                )
+                .map_err(|error| format!("cannot write flow verification: {error}"))?;
+            }
+            writeln!(
+                stdout,
+                "flow verification: {}/{} passed",
+                summary.passed,
+                summary.total()
+            )
+            .map_err(|error| format!("cannot write flow verification summary: {error}"))?;
+            Ok(u8::from(!summary.all_passed()))
+        })(),
+        Some(Command::FlowMetamorphic {
+            cache,
+            files,
+            case_timeout_seconds,
+            plan,
+            text_edits,
+            merges,
+            limit_scale,
+            dump_edited,
+        }) => (|| {
+            let options = pdfdelta_bench::flow_metamorphic::MetamorphicOptions {
+                case_timeout: Duration::from_secs(case_timeout_seconds),
+                dump_dir: dump_edited,
+                text_edits,
+                merges,
+                limit_scale,
+            };
+            if plan {
+                let planned =
+                    pdfdelta_bench::flow_metamorphic::plan_documents(&cache, &files, &options)
+                        .map_err(|error| error.to_string())?;
+                writeln!(stdout, "file\tpages\tplan\tcases")
+                    .map_err(|error| format!("cannot write plan: {error}"))?;
+                for document in &planned {
+                    writeln!(
+                        stdout,
+                        "{}\t{}\t{}\t{}",
+                        document.file,
+                        document.pages,
+                        if document.full_plan {
+                            "full"
+                        } else {
+                            "reduced"
+                        },
+                        document.cases
+                    )
+                    .map_err(|error| format!("cannot write plan: {error}"))?;
+                }
+                writeln!(
+                    stdout,
+                    "TOTAL\t-\t-\t{}",
+                    planned.iter().map(|document| document.cases).sum::<usize>()
+                )
+                .map_err(|error| format!("cannot write plan: {error}"))?;
+                return Ok(0);
+            }
+            let summary = pdfdelta_bench::flow_metamorphic::run(&cache, &files, &options)
+                .map_err(|error| error.to_string())?;
+            pdfdelta_bench::flow_metamorphic::write_tsv(&summary, &mut stdout)
+                .map_err(|error| format!("cannot write flow metamorphic TSV: {error}"))?;
+            eprintln!(
+                "flow-metamorphic: {}/{} exact, micro precision {:.4}, recall {:.4}, {} skipped, {:.1}s",
+                summary.exact(),
+                summary.total(),
+                summary.micro_precision(),
+                summary.micro_recall(),
+                summary.skipped,
+                summary.elapsed.as_secs_f64(),
+            );
+            for (reason, count) in &summary.skips {
+                eprintln!("flow-metamorphic skip: {reason}: {count}");
+            }
+            Ok(0)
+        })(),
         Some(Command::AuditAgentReview {
             bundle,
             report,

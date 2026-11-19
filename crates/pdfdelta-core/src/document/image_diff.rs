@@ -9,7 +9,9 @@ use sha2::{Digest, Sha256};
 use crate::{Error, Result, model::PageId, pdf::ObjectRef};
 
 pub const MAX_IMAGES: usize = 10_000;
-pub const MAX_IMAGE_PIXELS: usize = 8_000_000;
+/// A single 2480 x 3507 RGB page render (8.7 M pixels) is a concrete real-world
+/// image that must remain hashable; the aggregate page budget still bounds work.
+pub const MAX_IMAGE_PIXELS: usize = 16_000_000;
 pub const HASH_PROFILE: &str = "decoded-rgba8-sha256-v1";
 
 /// One drawing invocation. Object numbers are side-local provenance, never match keys.

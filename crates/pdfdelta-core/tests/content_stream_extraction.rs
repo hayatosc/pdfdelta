@@ -9,7 +9,8 @@ use pdfdelta_core::{
     },
     layout::BlockId,
     model::{
-        DecodedText, Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, PageId, Rect, Vec2,
+        DecodedText, Document, Glyph, GlyphCropStatus, GlyphIdentitySource, GlyphPathClipStatus,
+        PageId, Rect, Vec2,
     },
     normalize::ScalarRange,
     pdf::{LopdfParser, ParseLimits, PdfParser},
@@ -1355,9 +1356,9 @@ fn corner_cutout_candidates_keep_prior_uncertainty_and_skip_unusable_proofs() ->
     assert_eq!(out.issues().len(), 1);
     assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
     assert!(
-        out.issues()[0]
-            .description()
-            .contains("curved clipping path")
+        out.issues()[0].description().contains("clipping path"),
+        "{:?}",
+        out.issues()
     );
     Ok(())
 }
@@ -1522,7 +1523,7 @@ fn convex_interior_witness_preserves_partial_glyphs_and_resumes_extraction() -> 
 }
 
 #[test]
-fn convex_clip_classification_has_a_shared_extraction_work_limit() {
+fn convex_clip_classification_has_a_per_page_extraction_work_limit() {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
     let content = pdf.add_object(Stream::new(
@@ -1889,34 +1890,97 @@ fn restores_text_after_an_unsupported_graphics_only_clip() -> Result<()> {
 }
 
 #[test]
-fn unsupported_clip_uncertainty_survives_nested_saves_and_intersections() -> Result<()> {
-    for suffix in [
-        "",
-        "q Q",
-        "0 0 200 200 re W n",
-        "0 100 m 100 0 l 200 100 l 100 200 l h W n",
-    ] {
+fn straight_polygon_clip_classifies_glyphs_and_falls_back_on_budget() -> Result<()> {
+    let content = "q 20 20 m 100 20 l 100 50 l 60 50 l 60 100 l h W n \
+         BT /F1 10 Tf 1 0 0 1 30 30 Tm (I) Tj \
+         1 0 0 1 50 60 Tm (Q) Tj \
+         1 0 0 1 90 80 Tm (P) Tj \
+         1 0 0 1 200 200 Tm (O) Tj ET Q";
+    for (cap, complete) in [(1_000_000, true), (100, false)] {
         let mut pdf = LopdfDocument::with_version("1.7");
         let font = base_font(&mut pdf);
-        let content = pdf.add_object(Stream::new(dictionary! {}, format!(
-            "40 40 m 40 120 140 120 140 40 c h W n {suffix} BT /F1 10 Tf 60 80 Td (uncertain) Tj ET"
-        ).into_bytes()));
+        let stream = pdf.add_object(Stream::new(dictionary! {}, content.as_bytes().to_vec()));
         install_page(
             &mut pdf,
-            content.into(),
-            Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+            stream.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
             None,
             None,
         );
-        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-        assert!(!outcome.is_complete(), "suffix: {suffix}");
-        assert!(outcome.document().items().is_empty());
-        assert!(
-            outcome
-                .issues()
-                .iter()
-                .any(|issue| issue.description().contains("curved clipping path"))
+        let out = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: cap,
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert_eq!(mapped_text(out.document().items()), "IQPO");
+        let statuses = out
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>();
+        if complete {
+            assert_eq!(
+                statuses,
+                [
+                    GlyphPathClipStatus::Inside,
+                    GlyphPathClipStatus::Inside,
+                    GlyphPathClipStatus::Outside,
+                    GlyphPathClipStatus::Outside,
+                ]
+            );
+            assert!(out.is_complete(), "{:?}", out.issues());
+        } else {
+            assert!(!out.is_complete());
+            assert_eq!(out.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+            assert_eq!(statuses[2], GlyphPathClipStatus::PartiallyOutside);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn curved_clip_flattening_classifies_and_restores_graphics_state() -> Result<()> {
+    let content = "q 20 20 m 20 100 100 100 100 20 c h W n \
+         BT /F1 10 Tf 1 0 0 1 50 50 Tm (I) Tj ET Q \
+         BT /F1 10 Tf 1 0 0 1 200 200 Tm (A) Tj ET";
+    for (cap, complete) in [(1_000_000, true), (50, false)] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let stream = pdf.add_object(Stream::new(dictionary! {}, content.as_bytes().to_vec()));
+        install_page(
+            &mut pdf,
+            stream.into(),
+            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+            None,
+            None,
         );
+        let outcome = extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_operators: cap,
+                ..ExtractionLimits::default()
+            },
+        )?;
+        assert_eq!(mapped_text(outcome.document().items()), "IA");
+        let statuses = outcome
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>();
+        if complete {
+            assert_eq!(statuses[0], GlyphPathClipStatus::Inside);
+            assert_eq!(statuses[1], GlyphPathClipStatus::Unclipped);
+            assert!(outcome.is_complete(), "{:?}", outcome.issues());
+        } else {
+            assert_eq!(statuses[0], GlyphPathClipStatus::PartiallyOutside);
+            assert_eq!(statuses[1], GlyphPathClipStatus::Unclipped);
+            assert!(!outcome.is_complete());
+            assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+        }
     }
     Ok(())
 }
@@ -1958,23 +2022,17 @@ fn graphics_only_form_clips_do_not_hide_outer_text_or_admit_uncertain_lines() ->
 }
 
 #[test]
-fn diagonal_and_open_clips_stay_unknown_while_closed_orthogonal_rings_are_proved() -> Result<()> {
-    for (path, complete) in [
-        ("40 40 m 140 40 l 90 120 l h", false),
-        (
-            "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
-            true,
-        ),
-        (
-            "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l",
-            false,
-        ),
+fn straight_diagonal_and_open_clips_are_classified_as_polygons() -> Result<()> {
+    for path in [
+        "40 40 m 140 40 l 90 120 l h",
+        "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
+        "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l",
     ] {
         let mut pdf = LopdfDocument::with_version("1.7");
         let font = base_font(&mut pdf);
         let content = pdf.add_object(Stream::new(
             dictionary! {},
-            format!("{path} W n BT /F1 10 Tf 60 80 Td (uncertain) Tj ET").into_bytes(),
+            format!("{path} W n BT /F1 10 Tf 80 80 Td (A) Tj ET").into_bytes(),
         ));
         install_page(
             &mut pdf,
@@ -1985,23 +2043,24 @@ fn diagonal_and_open_clips_stay_unknown_while_closed_orthogonal_rings_are_proved
         );
 
         let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-        assert_eq!(outcome.is_complete(), complete, "path: {path}");
-        if complete {
-            assert!(
-                outcome
-                    .document()
-                    .items()
-                    .iter()
-                    .all(|g| g.path_clip_status == GlyphPathClipStatus::Inside)
-            );
-            continue;
-        }
-        assert_eq!(outcome.issues().len(), 1);
-        assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
         assert!(
-            outcome.issues()[0]
-                .description()
-                .contains("non-rectangular clipping path")
+            outcome.is_complete(),
+            "path: {path}; {:?}",
+            outcome.issues()
+        );
+        assert!(
+            outcome
+                .document()
+                .items()
+                .iter()
+                .all(|g| g.path_clip_status == GlyphPathClipStatus::Inside),
+            "path: {path}; {:?}",
+            outcome
+                .document()
+                .items()
+                .iter()
+                .map(|g| g.path_clip_status)
+                .collect::<Vec<_>>()
         );
     }
     Ok(())
@@ -4031,7 +4090,8 @@ fn unknown_explicit_encoding_differences_preserve_opaque_unmapped_identity() -> 
         panic!("UnknownGlyph must stay unmapped");
     };
     assert_eq!(font_hash.0.len(), 32);
-    assert_eq!(*glyph_id, 66);
+    assert_eq!(font_hash.identity_source(), GlyphIdentitySource::Name);
+    assert_eq!(*glyph_id, 0);
     Ok(())
 }
 
@@ -5328,7 +5388,8 @@ fn embedded_simple_font_with_explicit_encoding_preserves_unmapped_code_with_iden
             glyph_id,
         } => {
             assert_eq!(font_hash.0.len(), 32);
-            assert_eq!(*glyph_id, 65);
+            assert_eq!(font_hash.identity_source(), GlyphIdentitySource::Name);
+            assert_eq!(*glyph_id, 0);
         }
         DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
     }
@@ -5517,8 +5578,8 @@ fn cross_revision_divergent_encodings_do_not_fabricate_matching_unmapped_tokens(
     let new_tokens = unmap(&new_outcome);
     assert_eq!(old_tokens.len(), 1);
     assert_eq!(new_tokens.len(), 1);
-    assert_eq!(old_tokens[0].1, 65);
-    assert_eq!(new_tokens[0].1, 65);
+    assert_eq!(old_tokens[0].1, 0);
+    assert_eq!(new_tokens[0].1, 0);
     assert_eq!(old_tokens[0].2, vec![65]);
     assert_eq!(new_tokens[0].2, vec![65]);
     assert_ne!(
@@ -5610,8 +5671,8 @@ fn standard14_font_with_base_encoding_only_dictionary_matches_named_encoding_can
 }
 
 #[test]
-fn standard14_font_with_differences_in_encoding_dictionary_suppresses_canonical_identity()
--> Result<()> {
+fn standard14_font_with_differences_in_encoding_dictionary_uses_glyph_name_identity() -> Result<()>
+{
     // Standard 14 Helvetica with /Encoding dictionary containing /Differences
     // Code 0x81 (129) mapped to an unmapped glyph name without ToUnicode
     let mut pdf = LopdfDocument::with_version("1.7");
@@ -5651,22 +5712,24 @@ fn standard14_font_with_differences_in_encoding_dictionary_suppresses_canonical_
         None,
     );
 
+    // The Differences name is itself the stable selector, so the glyph stays
+    // an explicit placeholder with name identity instead of using the
+    // Standard 14 code table. It must not be mistaken for canonical
+    // Standard 14 identity, which would compare by code alone.
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(outcome.document().items().is_empty());
-    let issues = outcome.issues();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
-    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
-    assert!(
-        issues[0]
-            .description()
-            .contains("font code has no Unicode mapping or stable font identity")
-    );
-    assert!(matches!(
-        outcome.into_complete(),
-        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
-    ));
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    let glyphs = outcome.document().items();
+    assert_eq!(glyphs.len(), 1);
+    let DecodedText::Unmapped {
+        font_hash,
+        glyph_id,
+    } = &glyphs[0].text
+    else {
+        panic!("Differences glyph must stay unmapped");
+    };
+    assert_eq!(font_hash.identity_source(), GlyphIdentitySource::Name);
+    assert_eq!(*glyph_id, 0);
     Ok(())
 }
 
@@ -7834,70 +7897,6 @@ fn curve_witness_whole_box_keeps_inside_and_outside_physical_glyphs() -> Result<
 }
 
 #[test]
-fn curve_witness_keeps_open_changed_context_and_uncertified_clips_unsupported() -> Result<()> {
-    let closed = "40 40 m 140 40 l 140 140 l 40 140 40 40 40 40 c h W n";
-    for (prefix, path, suffix, cap) in [
-        (
-            "",
-            "40 40 m 140 40 l 140 140 l 40 140 40 40 40 41 c W n",
-            "",
-            5_000_000,
-        ),
-        (
-            "",
-            "40 40 m 140 40 l 140 140 l 1 0 0 1 0 0 cm 40 140 40 40 40 40 c h W n",
-            "",
-            5_000_000,
-        ),
-        (
-            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n 1 -0.00000000000000001 0 1 0 0 cm",
-            closed,
-            "",
-            5_000_000,
-        ),
-        (
-            "",
-            closed,
-            "1 0.00000000000000001 0 1 0 0 cm 0 0 300 300 re W n",
-            5_000_000,
-        ),
-        ("", closed, "", 100),
-    ] {
-        let mut pdf = LopdfDocument::with_version("1.7");
-        let font = base_font(&mut pdf);
-        let content = pdf.add_object(Stream::new(
-            dictionary! {},
-            format!("{prefix} {path} {suffix} BT /F1 40 Tf 35 80 Td (A) Tj ET").into_bytes(),
-        ));
-        install_page(
-            &mut pdf,
-            content.into(),
-            Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
-            None,
-            None,
-        );
-        let outcome = extract_outcome(
-            pdf,
-            ExtractionLimits {
-                max_operators: cap,
-                ..ExtractionLimits::default()
-            },
-        )?;
-        assert!(
-            !outcome.is_complete(),
-            "prefix={prefix} path={path} suffix={suffix} cap={cap}"
-        );
-        assert!(
-            outcome
-                .issues()
-                .iter()
-                .any(|i| i.kind() == ExtractionIssueKind::Unsupported)
-        );
-    }
-    Ok(())
-}
-
-#[test]
 fn curve_witness_composition_keeps_every_source_constraint() -> Result<()> {
     for (mask, complete) in [
         (
@@ -7960,33 +7959,6 @@ fn curve_witness_owners_do_not_reuse_geometry_across_transforms() -> Result<()> 
 }
 
 #[test]
-fn curve_witness_does_not_certify_paths_with_source_split_between_streams() -> Result<()> {
-    let mut pdf = LopdfDocument::with_version("1.7");
-    let font = base_font(&mut pdf);
-    let first = pdf.add_object(Stream::new(dictionary! {}, b"40 40 m 140 40 l".to_vec()));
-    let second = pdf.add_object(Stream::new(
-        dictionary! {},
-        b"140 140 l 40 140 40 40 40 40 c h W n BT /F1 40 Tf 35 80 Td (A) Tj ET".to_vec(),
-    ));
-    install_page(
-        &mut pdf,
-        Object::Array(vec![first.into(), second.into()]),
-        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
-        None,
-        None,
-    );
-    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
-    assert!(!outcome.is_complete());
-    assert!(
-        outcome
-            .issues()
-            .iter()
-            .any(|i| i.kind() == ExtractionIssueKind::Unsupported)
-    );
-    Ok(())
-}
-
-#[test]
 fn curve_witness_passive_masks_leave_budget_for_existing_convex_proofs() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
@@ -8006,5 +7978,149 @@ fn curve_witness_passive_masks_leave_budget_for_existing_convex_proofs() -> Resu
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
     assert!(outcome.is_complete(), "{:?}", outcome.issues());
     assert_eq!(mapped_text(outcome.document().items()), "A");
+    Ok(())
+}
+
+/// An open, non-orthogonal polygon is not a certifiable clip shape, but its
+/// control-point bound still proves that a strictly disjoint glyph is hidden.
+fn extract_unsupported_clip(content: &str) -> Result<ExtractionOutcome> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let stream = pdf.add_object(Stream::new(dictionary! {}, content.as_bytes().to_vec()));
+    install_page(
+        &mut pdf,
+        stream.into(),
+        Object::Dictionary(dictionary! {"Font"=>dictionary!{"F1"=>font}}),
+        None,
+        None,
+    );
+    extract_outcome(pdf, ExtractionLimits::default())
+}
+
+#[test]
+fn straight_polygon_clip_excludes_only_strictly_disjoint_glyphs() -> Result<()> {
+    let outcome = extract_unsupported_clip(
+        "q 20 20 m 100 20 l 100 50 l 60 50 l 60 100 l W n \
+         BT /F1 10 Tf 1 0 0 1 10 10 Tm (O) Tj \
+         1 0 0 1 40 40 Tm (I) Tj 1 0 0 1 17 40 Tm (P) Tj ET Q",
+    )?;
+    assert_eq!(outcome.document().items().len(), 3);
+    assert_eq!(mapped_text(outcome.document().items()), "OIP");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Outside,
+        ]
+    );
+    assert!(outcome.is_complete());
+    assert!(outcome.issues().is_empty());
+    Ok(())
+}
+
+#[test]
+fn straight_polygon_clip_is_restored_by_nested_graphics_state() -> Result<()> {
+    let outcome = extract_unsupported_clip(
+        "q 20 20 m 100 20 l 100 50 l 60 50 l 60 100 l W n \
+         q 0 0 10 10 re W n \
+         BT /F1 10 Tf 1 0 0 1 2 2 Tm (X) Tj ET Q \
+         BT /F1 10 Tf 1 0 0 1 40 40 Tm (Y) Tj ET Q \
+         BT /F1 10 Tf 1 0 0 1 200 200 Tm (Z) Tj ET",
+    )?;
+    assert_eq!(mapped_text(outcome.document().items()), "XYZ");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::Unclipped,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn unsupported_polygon_bound_uses_form_matrix_and_stays_local_to_the_form() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 200.into(), 200.into()],
+            "Matrix" => vec![1.into(), 0.into(), 0.into(), 1.into(), 100.into(), 0.into()],
+            "Resources" => dictionary! {"Font"=>dictionary!{"F1"=>font}},
+        },
+        b"20 20 m 100 20 l 100 50 l 60 50 l 60 100 l W n \
+          BT /F1 10 Tf 1 0 0 1 40 40 Tm (I) Tj \
+          1 0 0 1 150 40 Tm (O) Tj ET"
+            .to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/Fm Do BT /F1 10 Tf 1 0 0 1 10 10 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject"=>dictionary!{"Fm"=>form},
+            "Font"=>dictionary!{"F1"=>font},
+        }),
+        None,
+        None,
+    );
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(outcome.document().items()), "IOA");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::PartiallyOutside,
+            GlyphPathClipStatus::Outside,
+            GlyphPathClipStatus::Unclipped,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn unsupported_curve_bound_includes_bezier_control_points() -> Result<()> {
+    let outcome = extract_unsupported_clip(
+        "q 50 50 m 200 50 200 100 50 100 c W n \
+         BT /F1 10 Tf 1 0 0 1 150 60 Tm (C) Tj \
+         1 0 0 1 220 60 Tm (O) Tj ET Q",
+    )?;
+    assert_eq!(mapped_text(outcome.document().items()), "CO");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            // The curve's endpoints span x=50..50, but its control points
+            // reach x=200, so this glyph cannot be excluded.
+            GlyphPathClipStatus::PartiallyOutside,
+            // This glyph lies beyond every control point.
+            GlyphPathClipStatus::Outside,
+        ]
+    );
     Ok(())
 }

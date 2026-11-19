@@ -5,15 +5,19 @@ use std::{
 
 use crate::{
     Error, Result,
+    model::FontProgramHash,
     pdf::{ObjectRef, ParsedPdf, PdfDict, PdfObject},
 };
 
+use super::cff;
 use super::{
     cmap::{ToUnicodeCMap, UnicodeMapping, parse_identity_cid_encoding},
     common::{
-        FontIdentityDomain, FontIdentitySource, apply_bbox_vertical_fallback, finite_number,
-        load_descriptor_bbox, load_to_unicode_with_width, non_negative_number,
-        resolve_font_identity_source, resolve_object, resolve_stream_reference, unresolved,
+        FontIdentityDomain, FontIdentitySource, apply_bbox_vertical_fallback,
+        decoded_embedded_program, finite_number, load_descriptor_bbox, load_to_unicode_with_width,
+        named_glyph_identity, non_negative_number, outline_glyph_identity,
+        resolve_font_identity_source, resolve_object, resolve_stream_reference, stripped_base_font,
+        unresolved,
     },
     decoder::{DecodedGlyph, FontDecoderLimits, VerticalGlyphMetrics, WritingMode},
 };
@@ -34,6 +38,8 @@ struct VerticalMetrics {
 pub(crate) struct CompositeFontDecoder {
     to_unicode: Option<ToUnicodeCMap>,
     predefined_unicode: Option<ToUnicodeCMap>,
+    #[cfg(feature = "predefined-cid-unicode")]
+    collection_unicode: Option<Arc<hayro_cmap::CMap>>,
     collection_max_cid: Option<u16>,
     widths: Arc<BTreeMap<u16, f64>>,
     default_width: f64,
@@ -42,6 +48,25 @@ pub(crate) struct CompositeFontDecoder {
     encoding: Encoding,
     writing_mode: WritingMode,
     vertical: Option<VerticalMetrics>,
+    /// Per-CID identities for an Identity-encoded composite font. CID 0 is
+    /// `.notdef` by specification; CID-keyed CFF outlines add stronger
+    /// per-glyph evidence. `None` keeps the program identity fallback.
+    cid_identities: Option<CidIdentities>,
+}
+
+#[derive(Clone, Debug)]
+struct CidIdentities {
+    notdef: FontProgramHash,
+    outlines: BTreeMap<u16, FontProgramHash>,
+}
+
+impl CidIdentities {
+    fn identity(&self, cid: u16) -> Option<FontProgramHash> {
+        if cid == 0 {
+            return Some(self.notdef.clone());
+        }
+        self.outlines.get(&cid).cloned()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -149,6 +174,18 @@ impl CompositeFontDecoder {
         {
             return unresolved("UniJIS-UTF16-H ToUnicode codespaces must use two or four bytes");
         }
+        let identity_source = if identity_source.is_none() && to_unicode.is_none() {
+            predefined_cid_identity(pdf, &descendant, limits.max_indirections)?
+        } else {
+            identity_source
+        };
+        let (cid_identities, decoded_outline_bytes) = load_cid_identities(
+            pdf,
+            &descendant,
+            &encoding.encoding,
+            identity_source.as_ref(),
+            remaining_font_bytes.saturating_sub(decoded_to_unicode_bytes),
+        )?;
         let predefined_unicode = if collection_max_cid.is_some() && to_unicode.is_none() {
             if predefined::UNICODE_BYTES.len() > remaining_font_bytes {
                 return Err(Error::LimitExceeded {
@@ -164,14 +201,35 @@ impl CompositeFontDecoder {
         } else {
             None
         };
+        #[cfg(feature = "predefined-cid-unicode")]
+        let (collection_unicode, collection_bytes) = if to_unicode.is_none()
+            && !matches!(encoding.encoding, Encoding::UniJisUtf16(_))
+            && predefined::COLLECTION_TABLE_BYTES <= remaining_font_bytes
+        {
+            match predefined::load_collection_unicode(pdf, &descendant, limits.max_indirections)? {
+                Some(cmap) => (Some(cmap), predefined::COLLECTION_TABLE_BYTES),
+                None => (None, 0),
+            }
+        } else {
+            (None, 0)
+        };
+        #[cfg(not(feature = "predefined-cid-unicode"))]
+        let collection_bytes = 0;
         let decoded_to_unicode_bytes = if predefined_unicode.is_some() {
             predefined::UNICODE_BYTES.len()
         } else {
             decoded_to_unicode_bytes
         };
+        let decoded_to_unicode_bytes = decoded_to_unicode_bytes
+            .checked_add(collection_bytes)
+            .ok_or(Error::LimitExceeded {
+                resource: "decoded font bytes",
+                limit: limits.max_decoded_font_bytes,
+            })?;
         let decoded_font_bytes = encoding
             .decoded_bytes
             .checked_add(decoded_to_unicode_bytes)
+            .and_then(|total| total.checked_add(decoded_outline_bytes))
             .ok_or(Error::LimitExceeded {
                 resource: "decoded font bytes",
                 limit: limits.max_decoded_font_bytes,
@@ -188,6 +246,8 @@ impl CompositeFontDecoder {
             decoder: Self {
                 to_unicode,
                 predefined_unicode,
+                #[cfg(feature = "predefined-cid-unicode")]
+                collection_unicode,
                 collection_max_cid,
                 widths,
                 default_width,
@@ -196,6 +256,7 @@ impl CompositeFontDecoder {
                 encoding: encoding.encoding,
                 writing_mode,
                 vertical,
+                cid_identities,
             },
             identity_source,
             external_identity_allowed,
@@ -248,11 +309,18 @@ impl CompositeFontDecoder {
                 return unresolved("Type0 CID exceeds the declared Adobe-Japan1 supplement");
             }
             let mapping = if let Some(cmap) = &self.to_unicode {
-                cmap.exact_mapping_entry(source)
+                cmap.exact_mapping_entry(source).or_else(|| {
+                    if notdef {
+                        None
+                    } else {
+                        self.collection_mapping(glyph_id)
+                    }
+                })
             } else if !notdef {
                 self.predefined_unicode
                     .as_ref()
                     .and_then(|cmap| cmap.exact_mapping_entry(&glyph_id.to_be_bytes()))
+                    .or_else(|| self.collection_mapping(glyph_id))
             } else {
                 None
             }
@@ -277,10 +345,21 @@ impl CompositeFontDecoder {
                 .get(&glyph_id)
                 .copied()
                 .unwrap_or(self.default_width);
+            let identity = matches!(mapping, UnicodeMapping::Unmapped)
+                .then(|| {
+                    self.cid_identities
+                        .as_ref()
+                        .and_then(|identities| identities.identity(glyph_id))
+                })
+                .flatten();
+            // The outline hash already distinguishes CIDs, so the placeholder
+            // keeps no code-dependent selector and compares across subsets.
+            let placeholder_id = if identity.is_some() { 0 } else { glyph_id };
             glyphs.push(DecodedGlyph {
                 raw_code: source.to_vec(),
                 mapping,
-                glyph_id,
+                glyph_id: placeholder_id,
+                identity,
                 width_1000_em,
                 vertical: self.vertical.as_ref().map(|vertical| {
                     vertical
@@ -320,6 +399,81 @@ impl CompositeFontDecoder {
     pub(super) fn descent_1000_em(&self) -> f64 {
         self.descent
     }
+
+    #[cfg(feature = "predefined-cid-unicode")]
+    fn collection_mapping(&self, cid: u16) -> Option<UnicodeMapping> {
+        let text = match self
+            .collection_unicode
+            .as_ref()?
+            .lookup_bf_string(u32::from(cid))?
+        {
+            hayro_cmap::BfString::Char(character) => character.to_string(),
+            hayro_cmap::BfString::String(text) => text,
+        };
+        Some(UnicodeMapping::Mapped(text))
+    }
+
+    #[cfg(not(feature = "predefined-cid-unicode"))]
+    fn collection_mapping(&self, _cid: u16) -> Option<UnicodeMapping> {
+        None
+    }
+}
+
+/// Builds per-CID identities for an Identity-encoded composite font.
+///
+/// CID 0 is the `.notdef` glyph by specification, so its identity is the
+/// subset-stripped `BaseFont` plus that name. A CID-keyed CFF program adds
+/// outline identities for the remaining CIDs. The map is optional evidence: a
+/// missing, oversized, non-CID, or malformed program keeps program-level
+/// identity. Binding this to `Identity` encodings avoids retaining large
+/// predefined-collection programs that already carry a complete Unicode map
+/// and produce no placeholders.
+fn load_cid_identities(
+    pdf: &dyn ParsedPdf,
+    descendant: &PdfDict,
+    encoding: &Encoding,
+    identity_source: Option<&FontIdentitySource>,
+    max_bytes: usize,
+) -> Result<(Option<CidIdentities>, usize)> {
+    if !matches!(encoding, Encoding::Identity(_)) {
+        return Ok((None, 0));
+    }
+    let Some(base_font) = stripped_base_font(descendant) else {
+        return Ok((None, 0));
+    };
+    let notdef = named_glyph_identity(&base_font, b".notdef");
+    let mut outlines = BTreeMap::new();
+    let mut decoded = 0;
+    let is_cid_type0 = matches!(
+        descendant.get(b"Subtype".as_slice()),
+        Some(PdfObject::Name(name)) if name.as_slice() == b"CIDFontType0"
+    );
+    if is_cid_type0 && let Some(source) = identity_source {
+        match decoded_embedded_program(pdf, source, max_bytes) {
+            Ok(Some(bytes)) => {
+                // Charge the decoded program even when it is not a CID-keyed
+                // CFF program. The bytes are transient here, but a document
+                // with many malformed programs must still consume its
+                // explicit decoded-font budget instead of bypassing it.
+                decoded = bytes.len();
+                if let Some(charstrings) = cff::cid_charstrings(&bytes) {
+                    // Hash now and keep only the compact identity map;
+                    // retaining the whole program for every CID font would
+                    // multiply long-lived memory by the number of fonts.
+                    // Empty CharStrings carry no outline evidence and keep
+                    // the program fallback.
+                    outlines = charstrings
+                        .iter_outlines()
+                        .filter(|(_, outline)| !outline.is_empty())
+                        .map(|(cid, outline)| (cid, outline_glyph_identity(&base_font, outline)))
+                        .collect();
+                }
+            }
+            Ok(None) | Err(Error::LimitExceeded { .. }) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok((Some(CidIdentities { notdef, outlines }), decoded))
 }
 
 fn load_encoding(
@@ -442,6 +596,51 @@ fn identity_domain(
         }
         _ => unresolved("Type0 descendant font has no valid Subtype"),
     }
+}
+
+/// Returns a stable identity for a predefined CID collection when the font
+/// program is absent and no `ToUnicode` map supplies text.
+///
+/// The CID itself is the glyph number in the public collection, so
+/// `(Registry, Ordering, CID)` identifies a glyph across documents. `BaseFont`
+/// names, subset tags, and the collection supplement describe style or a
+/// vendor revision, not the glyph identity, and are excluded.
+fn predefined_cid_identity(
+    pdf: &dyn ParsedPdf,
+    descendant: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<FontIdentitySource>> {
+    let Some(info) = descendant.get(b"CIDSystemInfo".as_slice()) else {
+        return Ok(None);
+    };
+    let info = resolve_object(pdf, info.clone(), max_indirections)?;
+    let PdfObject::Dictionary(info) = info else {
+        return Ok(None);
+    };
+    let Some(registry) = info.get(b"Registry".as_slice()) else {
+        return Ok(None);
+    };
+    let registry = resolve_object(pdf, registry.clone(), max_indirections)?;
+    let PdfObject::String(registry) = registry else {
+        return Ok(None);
+    };
+    if registry.as_slice() != b"Adobe" {
+        return Ok(None);
+    }
+    let Some(ordering) = info.get(b"Ordering".as_slice()) else {
+        return Ok(None);
+    };
+    let ordering = resolve_object(pdf, ordering.clone(), max_indirections)?;
+    let PdfObject::String(ordering) = ordering else {
+        return Ok(None);
+    };
+    if !matches!(
+        ordering.as_slice(),
+        b"Japan1" | b"GB1" | b"CNS1" | b"Korea1" | b"KR"
+    ) {
+        return Ok(None);
+    }
+    Ok(Some(FontIdentitySource::predefined_cid(registry, ordering)))
 }
 
 fn load_default_width(
@@ -720,6 +919,47 @@ mod tests {
             ..LIMITS
         };
         (pdf, font, limits)
+    }
+
+    #[cfg(feature = "predefined-cid-unicode")]
+    #[test]
+    fn identity_h_adobe_japan1_uses_predefined_collection_unicode() -> Result<()> {
+        let (pdf, mut font, limits) = unijis_fixture();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-H".to_vec()),
+        );
+        font.remove(b"ToUnicode".as_slice());
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0, 34, 0x0d, 0xcb, 0xff, 0xff], 3, 100)?;
+        assert_eq!(glyphs[0].glyph_id, 34);
+        assert_eq!(glyphs[0].mapping, mapped("A"));
+        assert_eq!(glyphs[1].glyph_id, 3531);
+        assert_eq!(glyphs[1].mapping, mapped("富"));
+        assert_eq!(glyphs[2].glyph_id, 65535);
+        assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        Ok(())
+    }
+
+    #[cfg(not(feature = "predefined-cid-unicode"))]
+    #[test]
+    fn identity_h_adobe_japan1_keeps_placeholders_without_the_feature() -> Result<()> {
+        let (pdf, mut font, limits) = unijis_fixture();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-H".to_vec()),
+        );
+        font.remove(b"ToUnicode".as_slice());
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let glyphs = loaded.decoder.decode(&[0, 34, 0x0d, 0xcb], 2, 100)?;
+        assert!(
+            glyphs
+                .iter()
+                .all(|glyph| glyph.mapping == UnicodeMapping::Unmapped)
+        );
+        Ok(())
     }
 
     #[test]
@@ -1740,6 +1980,91 @@ mod tests {
                 limit: 4,
             })
         ));
+    }
+
+    fn predefined_fixture(ordering: &[u8], with_to_unicode: bool) -> (MockPdf, PdfDict) {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(descendant_dict) = &mut descendant else {
+            unreachable!()
+        };
+        descendant_dict.insert(
+            b"CIDSystemInfo".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Registry".to_vec(), PdfObject::String(b"Adobe".to_vec())),
+                (b"Ordering".to_vec(), PdfObject::String(ordering.to_vec())),
+                (b"Supplement".to_vec(), PdfObject::Integer(2)),
+            ])),
+        );
+        let pdf = MockPdf::with_descendant(descendant);
+        let mut font = font_dictionary();
+        if !with_to_unicode {
+            font.remove(b"ToUnicode".as_slice());
+        }
+        (pdf, font)
+    }
+
+    #[test]
+    fn predefined_cid_identity_is_stable_across_font_names() -> Result<()> {
+        let (pdf, font) = predefined_fixture(b"Japan1", false);
+        let first = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        let source = first
+            .identity_source
+            .as_ref()
+            .expect("predefined collection has a stable identity");
+        let first_hash =
+            super::super::common::load_font_identity(&pdf, source, LIMITS.max_decoded_font_bytes)?;
+        let second = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        let second_source = second
+            .identity_source
+            .as_ref()
+            .expect("predefined collection has a stable identity");
+        let second_hash = super::super::common::load_font_identity(
+            &pdf,
+            second_source,
+            LIMITS.max_decoded_font_bytes,
+        )?;
+        assert_eq!(first_hash.hash, second_hash.hash);
+        Ok(())
+    }
+
+    #[test]
+    fn predefined_cid_identity_separates_character_collections() -> Result<()> {
+        let (japan_pdf, japan_font) = predefined_fixture(b"Japan1", false);
+        let japan = CompositeFontDecoder::load(&japan_pdf, &japan_font, LIMITS)?;
+        let (korea_pdf, korea_font) = predefined_fixture(b"KR", false);
+        let korea = CompositeFontDecoder::load(&korea_pdf, &korea_font, LIMITS)?;
+        let japan_source = japan.identity_source.as_ref().expect("Japan1 identity");
+        let korea_source = korea.identity_source.as_ref().expect("KR identity");
+        let japan_hash = super::super::common::load_font_identity(
+            &japan_pdf,
+            japan_source,
+            LIMITS.max_decoded_font_bytes,
+        )?;
+        let korea_hash = super::super::common::load_font_identity(
+            &korea_pdf,
+            korea_source,
+            LIMITS.max_decoded_font_bytes,
+        )?;
+        assert_ne!(japan_hash.hash, korea_hash.hash);
+        Ok(())
+    }
+
+    #[test]
+    fn to_unicode_takes_priority_over_predefined_identity() -> Result<()> {
+        let (pdf, font) = predefined_fixture(b"Japan1", true);
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert!(loaded.identity_source.is_none());
+        let glyphs = loaded.decoder.decode(&[0, 1], 1, 100)?;
+        assert_eq!(glyphs[0].mapping, mapped("A"));
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_ordering_has_no_predefined_identity() -> Result<()> {
+        let (pdf, font) = predefined_fixture(b"Other", false);
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert!(loaded.identity_source.is_none());
+        Ok(())
     }
 
     fn mapped(text: &str) -> UnicodeMapping {

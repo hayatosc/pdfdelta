@@ -3,6 +3,7 @@ members = [
     "crates/pdfdelta-bench",
     "crates/pdfdelta-cli",
     "crates/pdfdelta-core",
+    "crates/pdfdelta-flow",
 ]
 resolver = "3"
 

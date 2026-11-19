@@ -336,6 +336,447 @@ Public smoke corpora for self-comparison are listed in
 [`benchmark/manifests/`](../benchmark/manifests/); downloading and running them
 is not automated.
 
+### Flow diff evaluation
+
+`benchmark/realworld/flow_eval.py` measures the paragraph-flow diff engine
+(`pdfdelta flow`) against the independent PyMuPDF oracle and the reviewed
+changes in `benchmark/realworld/expected/`. It reruns the release binary over
+the cached pairs and writes `summary.tsv` plus one compact JSON report per
+pair. The report itself must stay small; `--tokens` writes token text to
+gzipped JSON Lines sidecars (`REPORT.old-tokens.jsonl.gz` and
+`REPORT.new-tokens.jsonl.gz`), which the evaluator streams line by line. It
+rejects a compressed report above 32 MiB instead of loading it.
+
+```bash
+systemd-run --user --scope -p MemoryMax=6000000000 -p MemorySwapMax=0 -- \
+  uv run --no-project --with pymupdf python -I benchmark/realworld/flow_eval.py \
+  --cache benchmark/realworld/cache --results OUT \
+  --bag oracle/bag.tsv --expected benchmark/realworld/expected \
+  --binary target/release/pdfdelta --only arxiv-attention-v6-to-v7
+```
+
+Recorded columns include exit code, wall time, peak RSS, flow and oracle token
+counts, changed tokens per kind, the oracle bag lower bounds, `noise =
+(delete + insert + replace_old + replace_new) / (bag_deleted + bag_inserted)`,
+`min_deleted`/`min_inserted` from GNU `diff --minimal` on the exact token
+sidecars, `flow_non_move_changed` (delete + insert + replace tokens),
+`align_ratio = flow_non_move_changed / (min_deleted + min_inserted)`,
+`minimal_status`, `cancellable` tokens (multiset intersection of old removal
+sides and new insertion sides), `in_place_moves` (moves whose old and new
+ranges fall in the same spine gap, reported as `old_gap`/`new_gap` by the
+engine), `oracle_old_tokens`/`oracle_new_tokens`,
+`oracle_furniture_removed_{old,new}`, and
+`oracle_order_agreement_{old,new}` (order-preserving overlap with a PyMuPDF
+reading-order extraction, computed by GNU `diff --minimal` on token-per-line
+files), `stream_pages_{old,new}`, `baseline_pages_{old,new}`,
+`order_uncertain_{old,new}`, and `low_coherence_{old,new}` from the flow report's
+per-page order evidence (which also records the layout, stream, and baseline
+scores), and
+the fraction of each reviewed quote covered by non-layout-only changes. The
+oracle metric normalises NFKC, quote/hyphen/soft-hyphen and combining-mark
+conventions, drops control characters, and removes flow furniture from the
+oracle by digit-masked token sequence, so it measures reading order rather
+than tokenisation or furniture retention. Unmapped flow placeholders and
+genuinely different token segmentation remain visible in the metric. `align_ratio` is an edit-cardinality diagnostic, not a correctness
+score: matching interchangeable repeated tokens (dot leaders, page numbers,
+common CJK scalars) across semantically unrelated places can make a minimal
+script smaller than an information-weighted script. `--minimal-diagnose PAIR`
+prints the largest runs where flow changed tokens that the minimal script
+keeps, with surrounding text. The
+`neighbour_equal_moves` column counts moves whose nearest non-numeric
+neighbours match, which is only a heuristic and also matches genuine
+relocations inside dot-leader tables of contents. `old_conservation` and
+`new_conservation` show `used/visible` glyphs, and `conservation_complete` is
+true only when every visible glyph on both sides reached the token stream.
+
+The quote HIT columns (`quote_hits`/`quote_located`/`quote_total`) count
+reviewed quotes whose text occurs in the token stream. Every contiguous
+occurrence is a candidate, so repeated text does not hide a changed
+occurrence behind an unchanged one. Both the quote and the stream are
+normalised at digit/letter transitions (`10th` and `10`/`th`, or `w3` and
+`w`/`3`), because the engine's token boundaries follow source runs; this makes
+location independent of that layout decision in either direction. A located
+quote is a hit when any of its tokens lies in a Delete, Insert, or Replace
+range, when it lies in a Move range, or when the quote is reported in the
+furniture-change section (digit-masked). `missing_quote_ids` lists quotes with
+no occurrence, `unhit_quote_ids` lists located quotes with no changed token,
+and `quote_misses` gives each miss a reason (`unlocated`,
+`unchanged_occurrence`, or `non_contiguous_occurrence`). Coverage only counts
+changed tokens, so a precise minimal diff of a long quoted line can report a
+low fraction by design. Quotes that cannot be located are reported as missing,
+never as zero coverage.
+
+`--legacy` additionally runs the existing native-text comparison
+(`pdfdelta --native-text-only -q OLD NEW`) for every pair
+inside the same 6 GB scope with a 180 s timeout and records
+`legacy_exit`/`legacy_seconds`/`legacy_rss_kb`. It is off by default because it
+roughly doubles corpus runtime.
+
+`--repeat N` reruns each selected pair N times and fails when the compressed
+report or either token sidecar differs by SHA-256 between runs. Use it as a
+determinism check on the flow engine, not as a timing measurement.
+
+`python3 -m unittest discover -s benchmark/realworld -p test_flow_eval.py`
+pins the oracle tokenizer and `metric_token` normalisation. Those helpers are
+shared by the PyMuPDF order oracle; quote matching is separate and uses
+`split_token_edges`, so a quote-matching change cannot silently alter the
+oracle columns.
+
+`pdfbench flow-verify` runs the flow engine, including per-page reading-order
+selection, against fixtures whose true edit is known: every generated
+acceptance case under both local renderers, plus the vendored
+Typst/Tectonic pairs in `fixtures/external/`. Invariance cases must report
+zero content changes; replacements, insertions, and deletions must cover
+exactly the mutated text (allowing a changed character inside one token, such
+as `10` -> `20`); paragraph moves must be reported as one `Move` with the
+moved text. The command prints one PASS/FAIL row per case and exits non-zero
+when any case fails.
+
+`pdfbench flow-metamorphic` constructs exact ground truth on real PDFs by
+page-tree surgery. It edits a cached document with `lopdf` only: page objects
+and `/Kids` entries are removed, repeated, or exchanged; no content stream or
+resource dictionary is rewritten. Each edited copy is compared with the
+untouched document, so the true changed-token multiset is known by
+construction:
+
+- `identity`: the document against itself must produce no change at all.
+- `delete`: removing page *i* must only delete that page's flow tokens.
+- `insert`: the mirror comparison must only insert them.
+- `swap`: exchanging adjacent pages must produce no content change, only
+  moves.
+- `duplicate`: repeating a page must only insert its flow tokens.
+
+The plan is deterministic by document size and has **no skipped cases**. Pages
+are chosen as first, last, middle, and two file-name-seeded LCG picks for
+documents of at most 64 pages; larger documents get a fixed five-case plan
+(identity, delete, insert, swap, duplicate at the middle page). `--plan` prints
+the per-file plan and total case count without running anything. Every planned
+case runs; `--case-timeout-seconds` marks a case that exceeds the limit as a
+timeout failure. A SWAP pair is planned only inside one page-tree node, since
+moving pages across nodes would change inherited attributes. Clip-classification
+work is budgeted per page, so duplicating a clip-heavy page does not depend on
+how much work its siblings consumed.
+
+Image-only pages are resolved by an encoded page identity (content streams,
+page box, and image `XObject` streams hashed without decoding) and matched by
+hash across the two documents, so A and its edited copy resolve their shared
+image pages like the CLI does; unresolved pages stay incomplete instead of
+being guessed.
+
+The TSV columns are file, case, page, true/reported/correct changed tokens,
+precision, recall, exact, move changes, seconds, and a detail column with the
+change counts, furniture coverage, per-page order flips (identity and edited
+side), and missing/extra token samples. Precision and recall are multiset
+ratios of reported content tokens against the constructed truth. The truth for
+the edited page is taken from the untouched comparison side when its chosen
+order matches the identity run, so the joint furniture decision applies to the
+truth too; an order-flip page keeps the identity truth so the flip stays
+visible. Tokens reported in the furniture section are removed from both sides
+before scoring. A case is exact only when precision and recall are 1.0, only
+the expected change kinds appear (furniture-covered changes excluded),
+extraction is complete, and no unexpected move or layout-only change remains.
+`--text-edits N` adds up to N single-token text-edit cases per document: one
+ASCII digit in a mapped single-byte text-show operand is replaced by another
+digit code used by the same font, and the edited document is re-extracted to
+prove exactly that glyph changed. The truth is one `Replace` with the before
+and after token; no other page may change. `--merges N` adds up to N page-merge
+cases (two adjacent pages stacked into one taller page with merged resources);
+the truth is zero Delete/Insert/Replace changes and an equal all-glyph multiset,
+with furniture-only line changes reported separately. `--limit-scale` raises
+the extraction count limits uniformly for large documents. `--dump-edited DIR`
+writes every constructed old/new PDF pair so a finding can be reproduced with
+`pdfdelta flow`; outputs stay outside the repository. A document whose
+unmapped placeholders all use name or outline identity also gets one `resubset`
+case: harmless trailing bytes are appended to every embedded font program, so
+today's program hash changes while names and outlines do not. The truth is zero
+changes. A document that still has program-identified placeholders is skipped,
+because for those the program bytes are real identity evidence.
+
+The structural plan remains the default. On 2026-11-19 the final engine was
+rerun on all seven batches: the 56-file structural plan, `--text-edits 3
+--merges 2` text edits, merges, and the resubset case produced **807/807 exact**
+cases, including **4 resubset** cases (232 + 138 + 163 + 146 + 64 + 16 + 48;
+micro precision and recall 1.0000). The 803 structural/text-edit/merge cases all
+remain exact. Skips were 42: 41 harness skips (28 merge pairs with no eligible
+adjacent pages, 10 documents with no eligible text-edit page, 3 text edits whose
+digit run is a page-number-like furniture run and is masked by design) and one
+resubset case on the NASA handbook whose remaining program-identified
+placeholders would make the zero-change truth false. The resubset count fell
+from 14 to 4: the pdf.js supplement removed every placeholder from arxiv, gcc,
+qgis-pyqgis-en, and qgis-doc-guidelines-es, and the project-authored table then
+removed the last qgis-pyqgis-ja placeholders, so those documents no longer have
+name/outline identity to exercise.
+
+The final merge failures had two causes. Furniture clusters were selected
+independently on each side, so a page deletion could change which cluster met
+the page threshold and turn the other side's edge lines into content; the joint
+rule now removes the union of both sides' selected relative-position ranges
+from both documents. A merged page could also choose one reading order for two
+stacked regions whose source pages had chosen different orders; a page split by
+a gap much larger than its line pitch is now assembled band by band, each band
+following the chosen order of the whole page it reproduces, with furniture
+positions measured inside the band. Together these made the two khronos merges,
+the oasis-mqtt pages 26-27 merge, and a bis-core page-41 delete/insert pair
+exact.
+
+The 3,100-page `postgresql-16-to-17-new.pdf` needs slightly more than the
+default 5,000,000-glyph extraction budget, so the default limits stop with the
+decoded simple-font glyph limit. At `--limit-scale 2`, A-vs-A identity completes
+in **131 s** with an aggregate cgroup peak of **4.46 GB** (one child candidate
+build: 40.7 s, 4.06 GB; the sparse page search and the Runs alignment dominate
+the remainder). The move-rule variants reuse one memoized alignment per
+strategy and skip the rules that cannot change the script, so they add no
+second whole-document alignment on this A-vs-A run. The comparison extracts
+both sides completely and reports zero changes. It has no old revision, so this measures identity and
+resource use, not revision exactness. Its manifest records unsupported
+non-rectangular clipping on pages 1-3,099; the flow A-vs-A run reports complete
+extraction on both sides and no incomplete page.
+
+```bash
+systemd-run --user --scope -p MemoryMax=6000000000 -p MemorySwapMax=0 -- \
+  target/release/pdfbench flow-metamorphic \
+  --cache benchmark/realworld/cache --case-timeout-seconds 600 \
+  > OUT/flow-metamorphic.tsv
+```
+
+Positional PDF paths replace the cache scan when investigating one file, and
+`--dump-edited` accepts a directory under `/tmp`.
+
+The page-counterpart search is exact but sparse. An inverted index from each
+information-weighted token to the pages that contain it scores only page pairs
+that share a token; a pair with no shared token has zero overlap by definition,
+so the best match, retained matches, and adjacent pages are identical to the
+all-pairs scan. On the 28-pair corpus the search change was byte-identical on
+every JSON report and both token sidecars; the PostgreSQL A-vs-A comparison
+dropped from 159 s to 133 s and the 28-pair wall from 209.9 s to 201.9 s. A unit
+test compares the sparse candidates with a brute-force `bag_similarity` scan
+over synthetic bags.
+
+On the final build the 56-file structural plan is **624/624 exact** in the
+per-batch runs, and the one-token rotation remainder is reported as part of its
+move. The furniture rule removes the joined alphabetic running line at every
+occurrence, which is what keeps a page merge invariant.
+
+The differential audit (`benchmark/realworld/flow_audit.py`) compares flow with
+an independent PyMuPDF reading-order token stream and GNU `diff --minimal`. It
+reports per-pair agreement on the changed-token multisets and samples regions
+where only one tool changed tokens; each sampled region is decided from the PDF
+text inside its bounding box and the glyphs from `pdfdelta inspect --glyphs`.
+Sampled runs are split at page boundaries, because a single-page clip cannot
+compare a footer and the next page's heading. Before a region is called "oracle
+correct" the classifier looks the changed tokens up in the whole other document
+and in flow's change ranges: a token that both documents contain is a
+re-pairing, not new or missing content. On the final corpus the mean agreement
+is **0.751 old / 0.823 new** (Jaccard 0.747); a deterministic 200-region sample
+gave 39 "flow correct", 34 "flow correct (reading order)", 2 "flow correct
+(image identity change)", 136 "both acceptable" (equivalent minimal scripts,
+moves/layout changes, tokenisation, numeric page-number alignment, text that
+exists in the other document, unmapped placeholders, watermarks, or text absent
+from flow's content), **0 "oracle correct"**, and 4 undecidable tokenisation
+fragments with no text inside the region box. Those four regions were then
+decided from the exact glyph boxes, PyMuPDF character boxes, and the content
+stream operators: two are both acceptable (an equivalent minimal script around
+a contents-page dash, and form-field tokenisation), and two are flow correct
+(the Khronos `alpha` -> `α` revision and the OASIS URL version change are
+reported; the changed fragments are tokenisation of separate font runs and
+repeated URL text). The most asymmetric pairs are
+dominated by numeric page numbers and line numbers (oasis-mqtt, nist-csf),
+oracle-changed tokens on the same page (minimal-script alignment), or
+unmapped-glyph placeholders (qgis-pyqgis-ja used to report 978; 881 were
+`quotesingle` glyphs whose Type1C built-in encoding now recovers `'`, the
+standard-14 Symbol/ZapfDingbats tables recover the w3c and Khronos values, and
+the remaining names are outside the Adobe Glyph List). A targeted pass over all
+flow-only tokens of the three most asymmetric pairs per side is recorded with
+counts by change kind and cause.
+
+The move detector now requires moved runs to carry information weight, not just
+token count: a run whose tokens are all minimum-weight punctuation or
+separators contributes zero and cannot be a move. A same-page move that spans
+only low-weight or numeric changes and sits on a dot-leader contents page is
+promoted back into the spine, so a table-of-contents entry whose page number
+changed becomes one small replacement instead of moves of the dot-leader run
+and the heading. The engine evaluates the old rule, the information-weight
+rule, and the promotion rule for both alignment strategies, and keeps the
+script with the fewest non-move changed tokens; the old rule is always a
+fallback. The three rules share one memoized alignment per strategy, the
+consecutive forced pairs of a promotion round reuse their previous segment
+alignments, and a rule is skipped when it provably produces the same script:
+no move candidate exists, or neither document has a dot-leader page so the
+contents promotion cannot fire. On qgis-pyqgis-en this removes all nine dot-leader/heading moves and
+reports `14 -> 16` as a single replacement (moves 555 -> 220 tokens, non-move
+1,178 -> 900). Across the 28 pairs, non-move changed tokens fall from 906,908 to
+**905,554** with no pair higher; total move tokens rise by 378 and the per-pair
+move/replace deltas are recorded in the audit report. Order agreement is
+unchanged because the rule only rewrites the edit script.
+
+On the final build, the 28-pair corpus's independent PyMuPDF order agreement
+averages **0.984368 old / 0.984722 new**, changed tokens are **900,815** across
+all 28 pairs, and no pair's non-move changed-token count is higher than the
+previous run. The final run totals **204.9 s** of pair wall time with a
+**2.07 GB** peak RSS. The standard-14 Symbol/ZapfDingbats tables, the Type1C
+built-in encoding, the pdf.js supplement, and the project-authored
+unambiguous table removed placeholders without changing any other pair's token
+text; reusing one alignment per strategy and unchanged alignment segments keeps
+every report deterministic. One pair side (NIST SP 800-171 r3 new) remains near
+the pre-change agreement, from two near-tie pages that choose layout while the
+oracle order follows paint order; the layout order keeps the body prose
+continuous and the footnote lines together, so it is the preferred reading and
+both pages are reported as order-uncertain.
+
+### Unmapped-glyph identity across font subsets
+
+A revision pair often re-subsets the same font, so its embedded program hash
+changes even though its glyphs do not. Comparing unmapped glyphs by
+`(program hash, glyph id)` then reported about 1,200 false replacements on the
+Khronos data-format pair. Identity now uses the strongest available evidence:
+
+- **name:** subset-stripped `BaseFont` plus the exact glyph name from the PDF
+  encoding, the cleartext Type1 `/Encoding`, or the Type1C charset;
+- **outline:** a CID-keyed CFF `CharStrings` entry selected by CID; CID 0 is
+  named `.notdef` by specification;
+- **program:** the previous program hash and glyph id, only when no name or
+  non-empty outline exists.
+
+The first byte of the 32-byte identity hash tags the kind, text placeholders
+print it, flow token text uses `\uFFFC<kind>:<hash>:<glyph_id>`, and native JSON
+adds an `identity` field to `unmapped_tokens`.
+
+Measured on the final corpus:
+
+| metric | before | after |
+|---|---:|---:|
+| Khronos placeholders inside non-move changes, old | 1,282 | **4** |
+| Khronos placeholders inside non-move changes, new | 1,607 | **329** |
+| Khronos identity-only replace pairs | 1,217 | **0** |
+| qgis-pyqgis-en placeholders inside changes | 98 / 98 | **0 / 0** |
+| qgis-pyqgis-ja placeholders inside changes | 97 / 97 | **0 / 0** |
+| corpus placeholders by identity kind | 4,651 legacy (program or narrow name hash) | **4,616 name / 22 outline / 13 program** |
+| corpus non-move changed tokens | 903,772 | **900,816** |
+| Khronos non-move changed tokens | 50,351 | **47,789** |
+| qgis-pyqgis-en non-move changed tokens | 900 | **704** |
+| qgis-pyqgis-ja non-move changed tokens | 973 | **779** |
+
+The remaining 13 program-identity placeholders are one simple TrueType code in
+the NASA handbook whose `post` table is format 3.0 and whose best `cmap` has no
+entry for the code; no name exists and no outline can be selected. The 22
+outline identities are CID-keyed CFF glyphs in unicode-standard-15-to-16-old.
+No pair increased its changed-token count, and every pair's oracle agreement is
+bit-identical to the previous run because the identity change only removes
+false equal/unequal judgements inside placeholders.
+
+The new **resubset** metamorphic case appends harmless trailing bytes to every
+embedded font program, changing today's program hash while preserving names and
+outlines, and requires zero changes. Before the supplement it ran on all 14 eligible
+placeholder documents and was exact; the NASA handbook was skipped because its remaining
+program-identified code would make the program bytes real identity evidence.
+
+### TeX/AMS names from the pdf.js supplement
+
+The Adobe Glyph List does not contain many TeX/AMS names. A bundled 121-entry
+supplement from Mozilla pdf.js (Apache-2.0, commit
+`fc0822a07ea0b2fde125dec4754ce4da4c52e956`, `src/core/glyphlist.js`, sha256
+`48636549cbad67889b0fd5f59bc3e0bb732c0af545868f5db004749dcdf3012c`)
+resolves names that AGL and the `uni`/`u` forms do not, after ToUnicode and
+explicit Differences. Private-use and control values are omitted. The table is
+in `crates/pdfdelta-core/src/pdf/font/pdfjs_tex.rs`; its header and
+`THIRD-PARTY-NOTICES.md` record the provenance and Apache-2.0 text.
+
+| metric | before supplement | after |
+|---|---:|---:|
+| corpus placeholder tokens | 4,651 | **484** |
+| corpus placeholders by identity | 4,616 name / 22 outline / 13 program | **449 / 22 / 13** |
+| Khronos placeholders (old / new) | 1,829 / 2,154 | **93 / 105** |
+| Khronos placeholders inside non-move changes (old / new) | 4 / 329 | **0 / 12** |
+| qgis-pyqgis-en placeholders | 98 / 98 | **0 / 0** |
+| qgis-pyqgis-ja placeholders | 97 / 97 | **11 / 11** |
+| qgis-doc-guidelines-es placeholders | 2 / 2 | **0 / 0** |
+| gcc placeholders | 4 / 4 | **0 / 0** |
+| arxiv placeholders | 1 / 1 | **0 / 0** |
+| unicode-standard placeholders | 223 / 0 | 223 / 0 (no supplement entries) |
+| NASA placeholders | 0 / 40 | 0 / 40 (27 name + 13 program) |
+| corpus non-move changed tokens | 900,816 | **900,815** |
+| Khronos non-move changed tokens | 47,789 | **47,788** |
+| Khronos order agreement old/new | 0.952444 / 0.953658 | **0.960037 / 0.961101** |
+| corpus mean order agreement old/new | 0.984075 / 0.984436 | **0.984346 / 0.984702** |
+| pair wall / peak RSS | 197-205 s / 2.07 GB | **202.9 s / 2.07 GB** |
+
+After the supplement, the plan was **809/809 exact**: the 803
+structural/text-edit/merge cases plus 6 resubset cases. The supplement removed
+the placeholders that made eight earlier resubset candidates applicable, so
+those cases no longer exist; the NASA resubset remains skipped for its 13
+program-identified tokens.
+
+The supplement resolves 4,167 corpus tokens. The 198 Khronos TeX/AMS names
+still unresolved (`lessmuch`, `greatermuch`, `negationslash`, `floorleft`,
+`floorright`, `ceilingleft`, `ceilingright`) are absent from pdf.js; the
+qgis-ja `asciigrave` (22 tokens) is also absent. The only local candidates for
+those names (`glyphtounicode.tex` and `texglyphlist.txt`) are GPL-2.0-only and
+are not bundled. Size variants such as `parenleftBig` and `parenleftbig` both
+map to `(`, so the readable text no longer distinguishes the size variant.
+
+### Project-authored unambiguous TeX mappings
+
+The pdf.js supplement still left 198 tokens in seven names that are absent
+from pdf.js. A project-authored MIT table
+(`crates/pdfdelta-core/src/pdf/font/self_mappings.rs`) now maps the names whose
+meaning is exactly one standalone Unicode character:
+
+| name | code point | Unicode name |
+|---|---|---|
+| `lessmuch` | U+226A | MUCH LESS-THAN |
+| `greatermuch` | U+226B | MUCH GREATER-THAN |
+| `floorleft` | U+230A | LEFT FLOOR |
+| `floorright` | U+230B | RIGHT FLOOR |
+| `ceilingleft` | U+2308 | LEFT CEILING |
+| `ceilingright` | U+2309 | RIGHT CEILING |
+| `asciigrave` | U+0060 | GRAVE ACCENT |
+
+It is consulted after AGL, the `uni`/`u` forms, and the pdf.js supplement.
+
+| metric | before AA | after |
+|---|---:|---:|
+| corpus placeholder tokens | 484 | **286** |
+| corpus placeholders by identity | 449 name / 22 outline / 13 program | **251 / 22 / 13** |
+| Khronos placeholders | 93 / 105 | **10 / 12** |
+| qgis-pyqgis-ja placeholders | 11 / 11 | **0 / 0** |
+| corpus non-move changed tokens | 900,815 | 900,815 |
+| Khronos order agreement old/new | 0.960037 / 0.961101 | **0.960538 / 0.961551** |
+| qgis-pyqgis-ja order agreement old/new | 0.997454 / 0.997454 | **0.997562 / 0.997562** |
+| corpus mean order agreement old/new | 0.984346 / 0.984702 | **0.984368 / 0.984722** |
+| pair wall / peak RSS | 202.9 s / 2.07 GB | **204.9 s / 2.07 GB** |
+
+The full metamorphic plan is **807/807 exact**: 803 structural/text-edit/merge
+plus 4 resubset cases (khronos 2, oasis 1, unicode-standard 1). qgis-ja's two
+resubset cases disappeared with its last placeholders.
+
+Excluded names and reasons: `negationslash` (U+0338 COMBINING LONG SOLIDUS
+OVERLAY; attachment order is not encoded by the glyph sequence),
+`arrowrightabove` (U+20D7), `circleencl` (U+20DD), `circleslashencl` (U+20E0),
+`diamondencl` (U+20DF) (combining/enclosing marks with the same context
+problem), `U0C95_U0CCB.blwf` (script base+combining sequence with a below-base
+form), the generic names `g109`, `g1093`, `g111`, `g131`, `g132`, `g133`,
+`g1397`, `g14`, `g210`, `g218`, `g3`, `glyph296`, and the script names
+`modi_letter_ha`, `modi_letter_ka`, `modi_letter_ra`, `modi_letter_sa`,
+`modi_vowel_sign_aa`, `modi_vowel_sign_e`, `tibetangha`, `tibetangnyisshad`,
+`tibetanintertsheg`, `tibetanka`, `tibetankha`, `tibetanshad`. Those 201
+unicode-standard tokens and the 22 `negationslash` tokens stay placeholders;
+the 28 CID 0 `.notdef` and 13 program placeholders are unchanged.
+
+The two newly recovered manifest pairs are reported separately as held-out
+numbers. `bis-core-principles-2012-to-2024` reports agreement
+**0.99281 old / 0.99457 new**, 30,299 changed tokens, align ratio 0.818, and
+5,431 moved old tokens; `bis-operational-risk-2011-to-2021` reports
+**0.99715 / 0.99404**, 10,984 changed tokens, align ratio 0.933, 689 moved old
+tokens, and 2/2 located quotes hit. Both extract completely and both
+comparisons verify. The bis-core page-41 metamorphic failure motivated the
+general furniture fix; no corpus threshold was tuned on these pairs.
+
+Keep result directories outside the repository or under the gitignored
+`benchmark/realworld/results/`. `--ngrams` dumps frequent cancellable token
+n-grams for one durable report that also contains token and geometry data;
+running without `--only` across the full corpus is a long operation and should
+start with one small pair.
+
 ### Native-text completion coverage
 
 On 2026-09-27, a fresh release build of HEAD `cf5feb9` completed

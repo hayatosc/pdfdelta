@@ -123,6 +123,7 @@ run = [
   "cargo +nightly fuzz run cmap_parser -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run content_stream_parser -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run cff_builtin_encoding -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run layout_pipeline -- -max_total_time=30 -max_len=65536",

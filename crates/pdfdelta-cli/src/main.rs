@@ -11,6 +11,7 @@ mod compare;
 mod evidence_compare;
 mod evidence_text;
 mod extraction_cache;
+mod flow_cmd;
 mod fs;
 mod image_hashes;
 mod inspect;
@@ -84,7 +85,46 @@ fn review_query<W: Write>(action: args::ReviewCommand, diagnostics: &mut W) -> E
     }
 }
 
+/// Restarts the `flow` command with a single glibc malloc arena.
+///
+/// A multi-million-glyph flow comparison keeps both sides' reading-order
+/// candidates alive while the second side is extracted. glibc retains the
+/// first side's freed extraction buffers in per-thread arenas, so with several
+/// arenas the second extraction can exceed a bounded process memory budget
+/// even though the buffers are no longer in use. A single arena lets the
+/// allocator reuse those pages.
+///
+/// The restart happens before parsing, keeps the same arguments and standard
+/// streams, and only sets an environment variable for this command. An
+/// explicit `MALLOC_ARENA_MAX` is never overridden, and platforms without the
+/// glibc arena setting run unchanged.
+#[cfg(unix)]
+fn restart_flow_with_bounded_allocator_arenas() {
+    use std::os::unix::process::CommandExt;
+
+    if std::env::var_os("MALLOC_ARENA_MAX").is_some()
+        || !std::env::args_os()
+            .skip(1)
+            .any(|argument| argument == "flow")
+    {
+        return;
+    }
+    let Ok(executable) = std::env::current_exe() else {
+        return;
+    };
+    let error = std::process::Command::new(executable)
+        .args(std::env::args_os().skip(1))
+        .env("MALLOC_ARENA_MAX", "1")
+        .exec();
+    eprintln!("pdfdelta: could not restart flow with bounded allocator arenas: {error}");
+}
+
+/// Leaves the allocator configuration unchanged on non-Unix platforms.
+#[cfg(not(unix))]
+fn restart_flow_with_bounded_allocator_arenas() {}
+
 fn main() -> ExitCode {
+    restart_flow_with_bounded_allocator_arenas();
     let stderr = io::stderr();
     let mut stderr = stderr.lock();
     let cli = Cli::parse();
@@ -111,6 +151,16 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),
         },
+        Some(Command::HashImagePage { page }) => match image_hashes::worker_page(page) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(code) => ExitCode::from(code),
+        },
+        Some(Command::HashImagePageEncoded { page }) => {
+            match image_hashes::worker_encoded_page(page) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(code) => ExitCode::from(code),
+            }
+        }
         Some(Command::AcquireNative) => match native_worker::worker() {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),
@@ -149,6 +199,32 @@ fn main() -> ExitCode {
                 ExitCode::from(ExitStatus::ExecutionError.code())
             }
         },
+        Some(Command::Flow {
+            old,
+            new,
+            json,
+            tokens,
+            geometry,
+            limit_scale,
+        }) => {
+            let stdout = io::stdout();
+            let mut stdout = stdout.lock();
+            match flow_cmd::run(
+                &old,
+                &new,
+                json.as_deref(),
+                tokens,
+                geometry,
+                limit_scale,
+                &mut stdout,
+            ) {
+                Ok(code) => ExitCode::from(code),
+                Err(error) => {
+                    report_fatal_error(&mut stderr, &error);
+                    ExitCode::from(ExitStatus::ExecutionError.code())
+                }
+            }
+        }
         Some(Command::Review { action }) => review_query(action, &mut stderr),
         Some(Command::Completions { shell }) => {
             let mut cmd = Cli::command();

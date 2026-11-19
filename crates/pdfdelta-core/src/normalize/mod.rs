@@ -491,10 +491,65 @@ impl MappedText {
         glyph_ids
     }
 
+    /// Visits every glyph id referenced by the source atoms of this whole text.
+    ///
+    /// The visited ids are exactly the ids returned by
+    /// [`Self::project_glyph_ids`] over `0..scalar_count`, but without
+    /// building the intermediate projected atom list, so consumers that
+    /// accumulate the ids into their own set avoid per-call allocations. Ids
+    /// may repeat; the visitor decides how to deduplicate.
+    ///
+    /// A trailing unmapped token sits at `scalar_index == scalar_count` and is
+    /// therefore outside the whole-text range; such a glyph is deliberately
+    /// not visited, matching the projected-range contract. For an empty text
+    /// the range is empty, where the projection includes unmapped tokens at
+    /// offset zero.
+    pub fn for_each_referenced_glyph(&self, mut visit: impl FnMut(GlyphId)) {
+        let scalar_count = self.text.chars().count();
+        for entry in &self.source_map {
+            // Source entries are non-empty and end at or before the scalar
+            // count, so the empty whole-text range contains none and a
+            // non-empty one contains all of them.
+            if entry.output_range.start < scalar_count {
+                visit_source_glyphs(&entry.source, &mut visit);
+            }
+        }
+        for token in &self.unmapped {
+            let in_range = if scalar_count == 0 {
+                token.scalar_index == 0
+            } else {
+                token.scalar_index < scalar_count
+            };
+            if in_range {
+                visit_source_glyphs(&token.source, &mut visit);
+            }
+        }
+    }
+
     /// Returns the ordered list of `TextSourceAtom`s covering the given output `ScalarRange`.
     #[must_use]
     pub fn project_source_atoms(&self, range: ScalarRange) -> Vec<TextSourceAtom> {
         self.project_source(range).atoms.into_vec()
+    }
+}
+
+/// Calls `visit` with the glyph ids named by one token source.
+fn visit_source_glyphs(source: &TextSource, visit: &mut impl FnMut(GlyphId)) {
+    for atom in &source.atoms {
+        match atom {
+            TextSourceAtom::Glyph(glyph_id) => visit(*glyph_id),
+            TextSourceAtom::SyntheticSpace {
+                preceding,
+                following,
+            }
+            | TextSourceAtom::LineBreak {
+                preceding,
+                following,
+            } => {
+                visit(*preceding);
+                visit(*following);
+            }
+        }
     }
 }
 
@@ -1079,11 +1134,43 @@ pub fn normalize_blocks(
     lines: &[Line],
     blocks: &[Block],
 ) -> Result<Vec<BlockText>> {
+    normalize_blocks_impl(document, lines, blocks, true)
+}
+
+/// Normalizes blocks for token-stream consumers that read only canonical text,
+/// line breaks, pages, role and block identity.
+///
+/// The returned [`BlockText`] keeps those fields exactly as
+/// [`normalize_blocks`] would, but omits raw text, numeric matching, font and
+/// position signatures, and page-break evidence. Those fields are not inputs
+/// to flow tokenization, so this is output-preserving for that consumer and
+/// avoids retaining evidence it would never read.
+///
+/// # Errors
+/// Matches [`normalize_blocks`].
+#[must_use = "the normalized blocks must be consumed"]
+pub fn normalize_blocks_for_flow(
+    document: &Document<Glyph>,
+    lines: &[Line],
+    blocks: &[Block],
+) -> Result<Vec<BlockText>> {
+    normalize_blocks_impl(document, lines, blocks, false)
+}
+
+fn normalize_blocks_impl(
+    document: &Document<Glyph>,
+    lines: &[Line],
+    blocks: &[Block],
+    retain_comparison_evidence: bool,
+) -> Result<Vec<BlockText>> {
     let glyphs = index_glyphs(document)?;
     let lines = index_lines(lines)?;
     let mut block_ids = HashSet::with_capacity(blocks.len());
     let mut assigned_lines = HashSet::new();
-    let mut assigned_glyphs = HashSet::new();
+    let mut assigned_glyphs = glyphs.dense_len().map_or_else(
+        || GlyphSeen::Hashed(HashSet::new()),
+        |len| GlyphSeen::Dense(vec![false; len]),
+    );
 
     // Raw-block building mutates shared duplicate-detection sets, so it stays
     // sequential in block order and stops at the first build error, exactly
@@ -1129,7 +1216,9 @@ pub fn normalize_blocks(
 
     let normalized = raws
         .into_par_iter()
-        .map(|(block, role, raw, pages)| normalize_block(block, role, raw, pages, &glyphs))
+        .map(|(block, role, raw, pages)| {
+            normalize_block(block, role, raw, pages, &glyphs, retain_comparison_evidence)
+        })
         .collect::<Vec<Result<_>>>();
     let mut normalized_blocks = Vec::with_capacity(normalized.len());
     for result in normalized {
@@ -1153,7 +1242,6 @@ pub fn normalize_blocks(
             glyphs.len()
         )));
     }
-
     Ok(normalized_blocks)
 }
 
@@ -1409,12 +1497,45 @@ fn index_lines(lines: &[Line]) -> Result<HashMap<LineId, &Line>> {
     Ok(indexed)
 }
 
+/// Duplicate-detection set for glyph ids.
+///
+/// Dense sequential ids use one byte per slot so the check costs no hashing;
+/// sparse or out-of-range ids fall back to a hash set.
+enum GlyphSeen {
+    Dense(Vec<bool>),
+    Hashed(HashSet<GlyphId>),
+}
+
+impl GlyphSeen {
+    /// Returns whether `id` was not present before this call.
+    fn insert(&mut self, id: GlyphId) -> bool {
+        match self {
+            Self::Dense(seen) => {
+                let index = usize::try_from(id.0).expect("dense glyph ids fit usize");
+                // An out-of-range id cannot come from a validated glyph index;
+                // treat it as new so the caller's glyph lookup reports the
+                // unknown id instead of this set panicking on it.
+                seen.get_mut(index)
+                    .is_none_or(|seen| !std::mem::replace(seen, true))
+            }
+            Self::Hashed(seen) => seen.insert(id),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Dense(seen) => seen.iter().filter(|seen| **seen).count(),
+            Self::Hashed(seen) => seen.len(),
+        }
+    }
+}
+
 fn build_raw_block(
     block: &Block,
     lines: &HashMap<LineId, &Line>,
     glyphs: &GlyphIndex<'_>,
     assigned_lines: &mut HashSet<LineId>,
-    assigned_glyphs: &mut HashSet<GlyphId>,
+    assigned_glyphs: &mut GlyphSeen,
 ) -> Result<RawBlock> {
     let mut builder = RawBuilder::default();
     let mut preceding_line = None;
@@ -1497,15 +1618,21 @@ fn validate_line(line: &Line, glyphs: &GlyphIndex<'_>) -> Result<(GlyphId, Glyph
     };
     let last_glyph = line.glyphs.last().copied().unwrap_or(first_glyph);
 
-    let adjacent = line
-        .glyphs
-        .windows(2)
-        .map(|pair| (pair[0], pair[1]))
-        .collect::<HashSet<_>>();
+    // Most lines have no synthetic spaces; only build the adjacency set that
+    // validates them when there is something to validate.
+    let adjacent = (!line.synthetic_spaces.is_empty()).then(|| {
+        line.glyphs
+            .windows(2)
+            .map(|pair| (pair[0], pair[1]))
+            .collect::<HashSet<_>>()
+    });
     let mut spaces = HashSet::with_capacity(line.synthetic_spaces.len());
     for space in &line.synthetic_spaces {
         let pair = (space.preceding, space.following);
-        if !adjacent.contains(&pair) {
+        if !adjacent
+            .as_ref()
+            .is_some_and(|adjacent| adjacent.contains(&pair))
+        {
             return Err(Error::Unresolved(format!(
                 "line {} has a synthetic space outside an adjacent glyph pair",
                 line.id.0
@@ -1682,30 +1809,73 @@ fn normalize_block(
     raw: RawBlock,
     pages: Vec<u32>,
     glyphs: &GlyphIndex<'_>,
+    retain_comparison_evidence: bool,
 ) -> Result<BlockText> {
-    let mut issues = Vec::new();
-    let line_break_following_glyphs = raw.line_break_following_glyphs;
-    let page_break_following_glyphs = raw.page_break_following_glyphs;
+    let RawBlock {
+        mapped: raw_mapped,
+        atoms,
+        line_break_following_glyphs,
+        page_break_following_glyphs,
+    } = raw;
+    // Flow callers never read raw text; dropping it before canonicalization
+    // lowers peak memory while another hypothesis is normalized concurrently.
+    let raw_mapped = retain_comparison_evidence.then_some(raw_mapped);
     // Only ligature expansion can grow the atom vector, so it owns the one
     // allocation of the pipeline; the line-break and whitespace passes
     // rewrite the buffer in place (their output never exceeds the input),
     // and NFC consumes it.
-    let mut atoms = expand_ligatures(raw.atoms);
+    // Expanding reallocates the atom vector, so only do it when some scalar
+    // actually expands; otherwise the ligature-free path keeps the buffer.
+    let mut atoms = if atoms.iter().any(|atom| {
+        atom.scalar()
+            .is_some_and(|scalar| ligature_expansion(scalar).is_some())
+    }) {
+        expand_ligatures(atoms)
+    } else {
+        atoms
+    };
+    let mut issues = Vec::new();
     resolve_line_breaks(&mut atoms, &mut issues);
     collapse_whitespace(&mut atoms);
     let pieces = normalize_nfc(atoms);
-    let (canonical, events) = assemble_canonical(pieces);
-    let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
+    let (canonical, events) = assemble_canonical(pieces, retain_comparison_evidence);
     let canonical_tokens = canonical.comparable_tokens_with_sources()?;
+    let line_breaks = canonical_breaks(&canonical_tokens, &line_break_following_glyphs);
+    if !retain_comparison_evidence {
+        return Ok(BlockText {
+            block,
+            role,
+            raw: MappedText {
+                text: String::new(),
+                source_map: Vec::new(),
+                unmapped: Vec::new(),
+            },
+            canonical,
+            matching: String::new(),
+            matching_tokens: Vec::new(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages,
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks,
+            page_breaks: None,
+        });
+    }
+    let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
     let font_size_signatures = canonical_font_size_signatures(&canonical_tokens, glyphs)?;
     let position_signatures = canonical_position_signatures(&canonical_tokens, glyphs)?;
-    let line_breaks = canonical_breaks(&canonical_tokens, &line_break_following_glyphs);
     let page_breaks = canonical_breaks(&canonical_tokens, &page_break_following_glyphs);
 
     Ok(BlockText {
         block,
         role,
-        raw: raw.mapped,
+        raw: raw_mapped.unwrap_or(MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        }),
         canonical,
         matching: matching.text,
         matching_tokens: matching.tokens,
@@ -1806,6 +1976,9 @@ fn canonical_breaks(
     tokens: &[(ComparableToken, TextSource)],
     following_glyphs: &[GlyphId],
 ) -> Option<Vec<usize>> {
+    if following_glyphs.is_empty() {
+        return Some(Vec::new());
+    }
     let mut glyph_offsets = HashMap::new();
     for (offset, (_, source)) in tokens.iter().enumerate() {
         for atom in &source.atoms {
@@ -2254,6 +2427,44 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
         return;
     }
 
+    // ASCII has no canonical composition, so NFC is the identity on it. Each
+    // ASCII scalar is its own grapheme except CR LF, which is one grapheme
+    // whose atoms share one piece. Handling that pair explicitly reproduces
+    // the general path's pieces without building a run string or running the
+    // segmentation and normalization iterators.
+    if run
+        .iter()
+        .all(|atom| atom.scalar().is_some_and(|scalar| scalar.is_ascii()))
+    {
+        let mut index = 0;
+        while index < run.len() {
+            let atom = &run[index];
+            let scalar = atom.scalar().expect("every run atom is a scalar");
+            let carriage_return =
+                scalar == '\r' && run.get(index + 1).and_then(Atom::scalar) == Some('\n');
+            if carriage_return {
+                let next = &run[index + 1];
+                pieces.push(FinalPiece {
+                    value: FinalValue::Text(TextPiece::Str("\r\n".to_owned())),
+                    raw_range: union_range([atom.raw_range, next.raw_range]),
+                    source: TextSource::combine([&atom.source, &next.source]),
+                    kinds: atom.kinds.union(next.kinds),
+                });
+                index += 2;
+            } else {
+                pieces.push(FinalPiece {
+                    value: FinalValue::Text(TextPiece::Char(scalar)),
+                    raw_range: atom.raw_range,
+                    source: atom.source.clone(),
+                    kinds: atom.kinds,
+                });
+                index += 1;
+            }
+        }
+        run.clear();
+        return;
+    }
+
     let text = run.iter().filter_map(Atom::scalar).collect::<String>();
     let mut scalar_offset = 0;
     for grapheme in text.graphemes(true) {
@@ -2296,7 +2507,10 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
     run.clear();
 }
 
-fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<NormalizationEvent>) {
+fn assemble_canonical(
+    pieces: Vec<FinalPiece>,
+    collect_events: bool,
+) -> (MappedText, Vec<NormalizationEvent>) {
     let mut text = String::new();
     let mut source_map = Vec::new();
     let mut unmapped = Vec::new();
@@ -2306,15 +2520,16 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
     for piece in pieces {
         let start = scalar_index;
         // The piece owns its source, so the consumer can move it instead of
-        // cloning; only the rare event-per-piece path needs a copy.
+        // cloning; only the event path needs a copy, and token-stream
+        // consumers skip event collection entirely.
         let mut source = piece.source;
         match piece.value {
             FinalValue::Text(value) => {
                 scalar_index += value.push_into(&mut text);
-                let entry_source = if piece.kinds.is_empty() {
-                    std::mem::take(&mut source)
-                } else {
+                let entry_source = if collect_events && !piece.kinds.is_empty() {
                     source.clone()
+                } else {
+                    std::mem::take(&mut source)
                 };
                 source_map.push(SourceMapEntry {
                     output_range: ScalarRange {
@@ -2323,23 +2538,25 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
                     },
                     source: entry_source,
                 });
-                emit_piece_events(
-                    &mut events,
-                    piece.kinds,
-                    piece.raw_range,
-                    start,
-                    scalar_index,
-                    &mut source,
-                );
+                if collect_events {
+                    emit_piece_events(
+                        &mut events,
+                        piece.kinds,
+                        piece.raw_range,
+                        start,
+                        scalar_index,
+                        &mut source,
+                    );
+                }
             }
             FinalValue::Unmapped {
                 font_hash,
                 glyph_id,
             } => {
-                let token_source = if piece.kinds.is_empty() {
-                    std::mem::take(&mut source)
-                } else {
+                let token_source = if collect_events && !piece.kinds.is_empty() {
                     source.clone()
+                } else {
+                    std::mem::take(&mut source)
                 };
                 unmapped.push(UnmappedToken {
                     scalar_index,
@@ -2347,24 +2564,28 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
                     glyph_id,
                     source: token_source,
                 });
-                emit_piece_events(
-                    &mut events,
-                    piece.kinds,
-                    piece.raw_range,
-                    start,
-                    scalar_index,
-                    &mut source,
-                );
+                if collect_events {
+                    emit_piece_events(
+                        &mut events,
+                        piece.kinds,
+                        piece.raw_range,
+                        start,
+                        scalar_index,
+                        &mut source,
+                    );
+                }
             }
             FinalValue::Deleted => {
-                emit_piece_events(
-                    &mut events,
-                    piece.kinds,
-                    piece.raw_range,
-                    start,
-                    scalar_index,
-                    &mut source,
-                );
+                if collect_events {
+                    emit_piece_events(
+                        &mut events,
+                        piece.kinds,
+                        piece.raw_range,
+                        start,
+                        scalar_index,
+                        &mut source,
+                    );
+                }
             }
         }
     }

@@ -125,6 +125,10 @@ pub(super) struct Bounds {
 }
 
 impl Bounds {
+    pub(super) fn rectangle(&self) -> Option<Rect> {
+        if self.unknown { None } else { self.rectangle }
+    }
+
     pub(super) fn include(&mut self, rectangle: Option<Rect>) {
         let Some(rectangle) = rectangle else {
             self.unknown = true;

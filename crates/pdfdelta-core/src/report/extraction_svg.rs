@@ -628,7 +628,8 @@ fn text_display(text: &DecodedText) -> String {
             font_hash,
             glyph_id,
         } => format!(
-            "[unmapped glyph {glyph_id}, font {}]",
+            "[unmapped {} glyph {glyph_id}, font {}]",
+            font_hash.identity_source().name(),
             hex_preview(&font_hash.0)
         ),
     }

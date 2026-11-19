@@ -1049,11 +1049,15 @@ fn is_bidi_control(scalar: char) -> bool {
     )
 }
 
-// Abbreviates the font hash to its first four bytes for human-readable display.
+// Abbreviates the identity hash to its first four bytes for human-readable
+// display and names the evidence the placeholder identity came from.
 fn unmapped_placeholder(font_hash: &FontProgramHash, glyph_id: u16) -> String {
     let prefix = &font_hash.0[..font_hash.0.len().min(4)];
     let hash = lowercase_hex(prefix);
-    format!("<unmapped:{glyph_id}:{hash}>")
+    format!(
+        "<unmapped:{}:{glyph_id}:{hash}>",
+        font_hash.identity_source().name()
+    )
 }
 
 fn completeness(value: bool) -> &'static str {

@@ -1,0 +1,14 @@
+[package]
+name = "pdfdelta-flow"
+version.workspace = true
+edition.workspace = true
+publish = false
+license = "MIT"
+repository.workspace = true
+description = "Verifiable token-stream diff engine for PDF documents"
+
+[dependencies]
+pdfdelta-core = { path = "../pdfdelta-core" }
+
+[lints]
+workspace = true

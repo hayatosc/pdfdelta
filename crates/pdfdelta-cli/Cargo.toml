@@ -17,7 +17,8 @@ clap.workspace = true
 clap_complete.workspace = true
 flate2 = "1.1.9"
 hayro = "=0.7.1"
-pdfdelta-core = { path = "../pdfdelta-core" }
+pdfdelta-core = { path = "../pdfdelta-core", features = ["predefined-cid-unicode"] }
+pdfdelta-flow = { path = "../pdfdelta-flow" }
 png = "0.18.1"
 rayon.workspace = true
 serde.workspace = true

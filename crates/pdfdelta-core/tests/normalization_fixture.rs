@@ -939,6 +939,71 @@ fn unmapped_glyph_evidence_is_not_empty_text_and_has_exact_source_mapping() {
 }
 
 #[test]
+fn whole_text_glyph_visits_match_the_projected_range() {
+    fn visited(text: &MappedText) -> Vec<GlyphId> {
+        let mut ids = Vec::new();
+        text.for_each_referenced_glyph(|id| ids.push(id));
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    fn projected(text: &MappedText) -> Vec<GlyphId> {
+        let mut ids = text.project_glyph_ids(ScalarRange {
+            start: 0,
+            end: text.text.chars().count(),
+        });
+        ids.sort_unstable();
+        ids
+    }
+
+    let hash = FontProgramHash(vec![1, 2]);
+    let trailing_unmapped = Document::new(vec![
+        glyph(1, mapped("ab"), 0),
+        glyph(
+            2,
+            DecodedText::Unmapped {
+                font_hash: hash.clone(),
+                glyph_id: 7,
+            },
+            0,
+        ),
+    ]);
+    let lines = vec![line(1, 0, vec![GlyphId(1), GlyphId(2)], vec![])];
+    let text = normalize(
+        &trailing_unmapped,
+        &lines,
+        &[body_block(1, vec![LineId(1)])],
+    );
+    assert_eq!(text.canonical.text, "ab");
+    // The trailing unmapped token sits at scalar_index == scalar_count, which
+    // the projected whole-text range excludes.
+    assert_eq!(projected(&text.canonical), [GlyphId(1)]);
+    assert_eq!(visited(&text.canonical), projected(&text.canonical));
+
+    let only_unmapped = Document::new(vec![glyph(
+        1,
+        DecodedText::Unmapped {
+            font_hash: hash.clone(),
+            glyph_id: 8,
+        },
+        0,
+    )]);
+    let lines = vec![line(1, 0, vec![GlyphId(1)], vec![])];
+    let text = normalize(&only_unmapped, &lines, &[body_block(1, vec![LineId(1)])]);
+    assert_eq!(text.canonical.text, "");
+    assert_eq!(projected(&text.canonical), [GlyphId(1)]);
+    assert_eq!(visited(&text.canonical), projected(&text.canonical));
+
+    for text in [
+        normalize_mapped_lines(&["adminis\u{ad}", "tration"]),
+        normalize_mapped_lines(&["hello", "world"]),
+    ] {
+        assert_eq!(visited(&text.canonical), projected(&text.canonical));
+    }
+}
+
+#[test]
 fn lexical_hyphen_with_alphanumeric_compounds() {
     let covid = normalize_mapped_lines(&["COVID-", "19"]);
     let date_range = normalize_mapped_lines(&["1990-", "2000"]);
