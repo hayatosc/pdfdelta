@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Project serde-pretty native reports into bounded benchmark diagnostics.
 
-Only ``sources`` arrays are summarized. All other JSON values are preserved.
-This consumes trusted schema-11 serializer output, not arbitrary JSON layouts.
+Current flow artifacts are already compact and are preserved with source
+metadata. Both the schema-12 (artifact version 3) and the older schema-11
+(artifact version 2) flow artifacts are accepted and preserved. Historical
+schema-11 reports that still carry per-glyph ``sources`` arrays are projected
+to the version-1 artifact: only those arrays are summarized, and all other JSON
+values are preserved. The proof engine that wrote that layout was removed, so
+the version-1 path exists only to migrate existing captures. This consumes
+trusted serializer output, not arbitrary JSON layouts.
 """
 
 import argparse
@@ -159,10 +165,79 @@ def reject_sources(value):
             reject_sources(child)
 
 
-def compact_report(source, output):
+def is_flow_compact(source):
+    """Cheap header probe for an already-compact flow artifact."""
+    opener = gzip.open if source.suffix == '.gz' else open
+    try:
+        with opener(source, 'rb') as stream:
+            head = stream.read(4096)
+    except OSError:
+        return False
+    return b'"artifact_format": "pdfdelta-native-compact"' in head or b'"artifact_format":"pdfdelta-native-compact"' in head
+
+
+def compact_flow_artifact(source, output):
+    """Preserve an already-compact flow artifact and attach source metadata."""
     source, output = Path(source), Path(output)
     if source.is_symlink() or not source.is_file():
         raise CompactError('source must be a regular file')
+    if output.exists() or output.is_symlink():
+        raise CompactError('refusing to overwrite output')
+    original_file_hash = file_hash(source)
+    opener = gzip.open if source.suffix == '.gz' else open
+    with opener(source, 'rb') as stream:
+        raw = stream.read(MAX_RETAINED_BYTES + 1)
+    if len(raw) > MAX_RETAINED_BYTES:
+        raise CompactError('retained report exceeds 256 MiB bound')
+    try:
+        artifact = json.loads(raw, object_pairs_hook=unique_object)
+    except (ValueError, UnicodeDecodeError) as error:
+        raise CompactError('invalid compact flow artifact') from error
+    report = artifact.get('report')
+    if not isinstance(report, dict):
+        raise CompactError('flow artifact has no report object')
+    envelope = (artifact.get('artifact_version'), artifact.get('source_schema_version'),
+                report.get('schema_version'))
+    if (artifact.get('artifact_format') != ARTIFACT_FORMAT
+            or artifact.get('engine') != 'flow'
+            or report.get('engine') != 'flow'
+            or envelope not in ((2, 11, 11), (3, 12, 12))):
+        raise CompactError('unsupported flow artifact envelope')
+    reject_sources(report)
+    metadata = {
+        'source_file_sha256': original_file_hash,
+        'source_file_bytes': source.stat().st_size,
+        'source_logical_sha256': hashlib.sha256(raw).hexdigest(),
+        'source_logical_bytes': len(raw),
+        'source_array_count': 0,
+        'omitted_sources_bytes': 0,
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    handle, temporary_name = tempfile.mkstemp(prefix='.compact-', dir=output.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(handle, 'wb') as raw_output:
+            with gzip.GzipFile(filename='', mode='wb', fileobj=raw_output, mtime=0, compresslevel=9) as packed:
+                packed.write(json.JSONEncoder(ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+                             .encode(artifact).encode())
+        metadata.update(output_bytes=temporary.stat().st_size, output_sha256=file_hash(temporary))
+        os.link(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return metadata
+
+def compact_report(source, output):
+    """Write the compact artifact for a flow artifact or a historical full report."""
+    source, output = Path(source), Path(output)
+    if source.is_symlink() or not source.is_file():
+        raise CompactError('source must be a regular file')
+    if is_flow_compact(source):
+        return compact_flow_artifact(source, output)
+    return compact_historical_schema11(source, output)
+
+
+def compact_historical_schema11(source, output):
+    """Migrate a historical proof-era report with per-glyph ``sources`` arrays."""
     if output.exists() or output.is_symlink():
         raise CompactError('refusing to overwrite output')
     original_file_hash = file_hash(source)

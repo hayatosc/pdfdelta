@@ -5,8 +5,9 @@
 # Usage:
 #   benchmark/realworld/fetch.sh [CACHE_DIR]
 #
-# CACHE_DIR defaults to benchmark/realworld/cache. After fetching, run:
-#   cargo run -p pdfdelta-bench -- revisions --cache-dir <CACHE_DIR> --checksums-only
+# CACHE_DIR defaults to benchmark/realworld/cache. The downloader verifies every
+# side against the manifest; use benchmark/realworld/native_panel.py or
+# flow_eval.py for comparisons.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

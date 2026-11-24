@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Compact a native benchmark capture, preserving provenance before pruning."""
+"""Migrate an existing proof-era native capture, preserving provenance.
+
+This tool reads the full reports and summary rows written by the removed
+``pdfbench revisions`` runner. Current flow captures are compact at the source
+(``--native-text-only --json``) and do not need this conversion. The tool is
+kept only so archived full reports can be compacted and pruned with their
+hashes intact.
+"""
 
 import argparse
 import gzip
@@ -89,7 +96,7 @@ def compact_capture(summary_path, destination, resume=False):
             if key in row and row[key] != value:
                 raise ValueError(f'summary field changed: {source}: {key}')
         if report.get('schema_version') != 11:
-            raise ValueError('compact projection has wrong native schema')
+            raise ValueError('compact_capture.py only migrates schema-11 reports; use compact_native.py for schema-12 artifacts')
         for side in ('old', 'new'):
             key = f'{side}_extraction_complete'
             if key in row and row[key] != report['extraction'][f'{side}_complete']:

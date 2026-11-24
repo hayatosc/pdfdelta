@@ -155,7 +155,12 @@ def require_memory_guard(cgroup=None):
 
 
 def read_native_summary(path):
-    """Consume the complete gzip/JSON stream while retaining only contract fields."""
+    """Consume the complete gzip/JSON stream while retaining only contract fields.
+
+    Native flow schema 12 is current. Historical schema-11 flow captures remain
+    readable; proof-era reports are still rejected because their fields do not
+    satisfy either flow contract.
+    """
     import ijson
 
     def events(stream):
@@ -166,17 +171,23 @@ def read_native_summary(path):
 
     values = {}
     issues = Counter()
+    paint_descriptions = 0
     fields = {"artifact_format", "artifact_version", "source_schema_version",
               "report.schema_version", "report.difference_status",
-              "report.assessment", "report.assessment.candidates_truncated"}
-    scopes = {"supported_text", "images_compared"}
-    counts = {"established_changes", "content_changes", "proven_changed_regions",
-              "formatting_only_changes", "uncertain_changes", "unresolved_regions",
-              "tentative_candidates", "unsupported_extraction_issues", "unresolved_extraction_issues"}
-    fields |= {"report.comparison_scope." + key for key in scopes}
-    fields |= {"report.summary.comparison_scope." + key for key in scopes}
-    fields |= {"report.summary." + key for key in counts | {"comparison_complete", "difference_status"}}
-    fields |= {"report.extraction." + side + "_complete" for side in ("old", "new")}
+              "report.assessment", "report.assessment.candidates_truncated",
+              "report.engine", "engine",
+              "report.summary.comparison_complete", "report.summary.difference_status",
+              "report.summary.unexamined_paint_issues",
+              "report.summary.content_changes", "report.summary.formatting_only_changes",
+              "report.summary.uncertain_changes",
+              "report.summary.unsupported_extraction_issues",
+              "report.summary.unresolved_extraction_issues",
+              "report.summary.old_tokens", "report.summary.new_tokens",
+              "report.summary.established_changes", "report.summary.proven_changed_regions",
+              "report.summary.unresolved_regions", "report.summary.tentative_candidates",
+              "report.extraction.old_complete", "report.extraction.new_complete"}
+    for prefix in ("report.comparison_scope.", "report.summary.comparison_scope."):
+        fields |= {prefix + key for key in ("supported_text", "images_compared")}
     fields |= {f"report.summary.{side}_alignment_coverage.{key}"
                for side in ("old", "new") for key in ("total_tokens", "resolved_tokens", "ratio")}
     with gzip.open(path, "rb") as stream:
@@ -187,73 +198,154 @@ def read_native_summary(path):
                 values[prefix] = "object" if event == "start_map" else value
             if prefix == "report.extraction.issues.item.kind" and event == "string":
                 issues[value] += 1
+            if prefix in ("report.extraction.issues.item.description",
+                          "report.extraction.issues.item.message") and event == "string":
+                # The paint gate reports unexamined evidence, not failed
+                # extraction; its dedicated counter excludes it from the
+                # extraction counters.
+                paint_descriptions += value.startswith("non-text paint differs")
+
     def required(key):
         if key not in values:
             raise ValueError("missing contract field: " + key)
         return values[key]
+
     def boolean(key):
         value = required(key)
         if type(value) is not bool:
             raise ValueError("expected boolean: " + key)
         return value
+
     def count(key):
         value = required(key)
         if type(value) is not int or value < 0:
             raise ValueError("expected nonnegative integer: " + key)
         return value
-    if (required("artifact_format"), required("artifact_version"), required("source_schema_version"),
-            required("report.schema_version")) != ("pdfdelta-native-compact", 2, 11, 11):
+
+    engine = values.get("report.engine") or values.get("engine")
+    if engine != "flow":
+        # Captures are produced by the flow text engine. Historical proof
+        # captures are readable only with their archived tools.
+        raise ValueError("unsupported text engine: " + str(engine))
+    schema = (required("artifact_format"), required("artifact_version"),
+              required("source_schema_version"), required("report.schema_version"))
+    if schema not in (("pdfdelta-native-compact", 2, 11, 11),
+                      ("pdfdelta-native-compact", 3, 12, 12)):
         raise ValueError("unsupported native compact schema")
-    for prefix in ("report.comparison_scope.", "report.summary.comparison_scope."):
+
+    for prefix in ("report.comparison_scope.",):
         if not boolean(prefix + "supported_text") or boolean(prefix + "images_compared"):
             raise ValueError("capture requires the native text-only scope")
-    summary = {key: count("report.summary." + key) for key in counts}
     status = required("report.difference_status")
-    if status not in ("detected", "indeterminate", "no_content_change") or status != required("report.summary.difference_status"):
+    if status not in ("detected", "indeterminate", "no_content_change"):
+        raise ValueError("unknown difference status")
+    if status != required("report.summary.difference_status"):
         raise ValueError("inconsistent difference status")
-    summary["difference_status"] = status
-    if summary["established_changes"] != summary["content_changes"]:
-        raise ValueError("inconsistent established change count")
     if set(issues) - {"unsupported", "unresolved"}:
         raise ValueError("unknown extraction issue kind")
-    for kind in ("unsupported", "unresolved"):
-        if issues[kind] != summary[kind + "_extraction_issues"]:
+
+    if schema == ("pdfdelta-native-compact", 2, 11, 11):
+        # Historical flow captures retained the proof-era compatibility
+        # positions. Validate them exactly as the previous reader did.
+        if not boolean("report.summary.comparison_scope.supported_text") \
+                or boolean("report.summary.comparison_scope.images_compared"):
+            raise ValueError("capture requires the native text-only scope")
+        counts = {"established_changes", "content_changes", "proven_changed_regions",
+                  "formatting_only_changes", "uncertain_changes", "unresolved_regions",
+                  "tentative_candidates", "unsupported_extraction_issues",
+                  "unresolved_extraction_issues"}
+        summary = {key: count("report.summary." + key) for key in counts}
+        summary["difference_status"] = status
+        if summary["established_changes"] != summary["content_changes"]:
+            raise ValueError("inconsistent established change count")
+        if issues["unsupported"] != summary["unsupported_extraction_issues"]:
             raise ValueError("inconsistent extraction issue count")
-    resolved = True
-    empty = False
-    extraction_complete = True
-    for side in ("old", "new"):
-        complete = boolean("report.extraction." + side + "_complete")
-        extraction_complete &= complete
-        prefix = "report.summary." + side + "_alignment_coverage."
-        total, done, ratio = count(prefix + "total_tokens"), count(prefix + "resolved_tokens"), required(prefix + "ratio")
-        if done > total or (not complete and ratio is not None):
-            raise ValueError("inconsistent extraction coverage")
-        if complete and (isinstance(ratio, bool) or ratio is None or not math.isfinite(float(ratio))
-                         or abs(float(ratio) - (done / total if total else 1)) > 1e-12):
-            raise ValueError("inconsistent coverage ratio")
-        resolved &= total == done
-        empty |= total == 0
-        summary[side + "_extraction_complete"] = complete
-        summary[side + "_alignment_coverage"] = {"total_tokens": total, "resolved_tokens": done,
-                                                    "ratio": None if ratio is None else float(ratio)}
-    assessment = required("report.assessment")
-    if assessment is None:
+        declared_paint = values.get("report.summary.unexamined_paint_issues")
+        if declared_paint is not None:
+            if type(declared_paint) is not int or declared_paint < 0:
+                raise ValueError("expected nonnegative integer: report.summary.unexamined_paint_issues")
+            if declared_paint != paint_descriptions:
+                raise ValueError("inconsistent paint issue count")
+            if issues["unresolved"] != summary["unresolved_extraction_issues"] + declared_paint:
+                raise ValueError("inconsistent extraction issue count")
+        else:
+            # Reports that predate the dedicated paint counter include paint
+            # issues in the unresolved extraction count.
+            if issues["unresolved"] != summary["unresolved_extraction_issues"]:
+                raise ValueError("inconsistent extraction issue count")
+        summary["unexamined_paint_issues"] = paint_descriptions
+        resolved = True
+        empty = False
+        extraction_complete = True
+        for side in ("old", "new"):
+            complete = boolean("report.extraction." + side + "_complete")
+            extraction_complete &= complete
+            prefix = "report.summary." + side + "_alignment_coverage."
+            total, done, ratio = count(prefix + "total_tokens"), count(prefix + "resolved_tokens"), required(prefix + "ratio")
+            if done > total or (not complete and ratio is not None):
+                raise ValueError("inconsistent extraction coverage")
+            if complete and (isinstance(ratio, bool) or ratio is None or not math.isfinite(float(ratio))
+                             or abs(float(ratio) - (done / total if total else 1)) > 1e-12):
+                raise ValueError("inconsistent coverage ratio")
+            resolved &= total == done
+            empty |= total == 0
+            summary[side + "_extraction_complete"] = complete
+            summary[side + "_alignment_coverage"] = {"total_tokens": total, "resolved_tokens": done,
+                                                        "ratio": None if ratio is None else float(ratio)}
+        assessment = required("report.assessment")
+        if assessment is not None:
+            raise ValueError("flow reports carry a null assessment")
         if "report.assessment.candidates_truncated" in values:
             raise ValueError("null assessment has truncation metadata")
         truncated = False
-    elif assessment == "object":
-        truncated = boolean("report.assessment.candidates_truncated")
-    else:
-        raise ValueError("invalid assessment")
+        complete = boolean("report.summary.comparison_complete")
+        recomputed = (resolved and extraction_complete and not truncated
+                      and all(summary[key] == 0 for key in ("tentative_candidates", "proven_changed_regions", "unresolved_regions")))
+        if complete != recomputed or (complete and status == "indeterminate") or (not complete and status == "no_content_change"):
+            raise ValueError("comparison completeness disagrees with contract fields")
+        summary.update(comparison_complete=complete, empty_native_text=empty,
+                       meaningful_complete=complete and not empty, candidates_truncated=truncated,
+                       engine=engine)
+        return summary
+
+    # Current flow-native schema 12.
+    if "report.assessment" in values:
+        raise ValueError("schema 12 must not carry an assessment")
+    counts = {"content_changes", "formatting_only_changes", "uncertain_changes",
+              "unsupported_extraction_issues", "unresolved_extraction_issues"}
+    summary = {key: count("report.summary." + key) for key in counts}
+    summary["difference_status"] = status
+    declared_paint = count("report.summary.unexamined_paint_issues")
+    if declared_paint != paint_descriptions:
+        raise ValueError("inconsistent paint issue count")
+    if issues["unsupported"] != summary["unsupported_extraction_issues"]:
+        raise ValueError("inconsistent extraction issue count")
+    if issues["unresolved"] != summary["unresolved_extraction_issues"] + declared_paint:
+        raise ValueError("inconsistent extraction issue count")
+    summary["unexamined_paint_issues"] = declared_paint
+    extraction_complete = True
+    empty = False
+    for side in ("old", "new"):
+        complete = boolean("report.extraction." + side + "_complete")
+        extraction_complete &= complete
+        total = count("report.summary." + side + "_tokens")
+        summary[side + "_extraction_complete"] = complete
+        summary[side + "_tokens"] = total
+        empty |= total == 0
     complete = boolean("report.summary.comparison_complete")
-    recomputed = (resolved and extraction_complete and not truncated
-                  and all(summary[key] == 0 for key in ("tentative_candidates", "proven_changed_regions", "unresolved_regions")))
-    if complete != recomputed or (complete and status == "indeterminate") or (not complete and status == "no_content_change"):
-        raise ValueError("comparison completeness disagrees with contract fields")
+    if complete != extraction_complete:
+        raise ValueError("comparison completeness disagrees with extraction completeness")
+    if (complete and status == "indeterminate") or (not complete and status == "no_content_change"):
+        raise ValueError("comparison completeness disagrees with difference status")
     summary.update(comparison_complete=complete, empty_native_text=empty,
-                   meaningful_complete=complete and not empty, candidates_truncated=truncated)
+                   meaningful_complete=complete and not empty, candidates_truncated=False,
+                   engine=engine)
     return summary
+
+def capture_command(binary, root, pair, report):
+    """Build the explicit-flow command so a default change cannot alter captures."""
+    return [str(binary), *(str(root / pair[side]["path"]) for side in ("old", "new")),
+            "--native-text-only", "--engine", "flow", "--limit-scale", "1", "--quiet", "--json", str(report)]
 
 
 def capture_pair(binary, root, pair, destination, timeout, lock_fd=None, reserve=capture_guard.DEFAULT_RESERVE):
@@ -267,8 +359,7 @@ def capture_pair(binary, root, pair, destination, timeout, lock_fd=None, reserve
         return dict(record, status="storage_unavailable", error=str(error))
     prior_bytes = capture_guard.retained_bytes(destination)
     report = destination / (pair["id"] + ".json.gz")
-    command = [str(binary), *(str(root / pair[side]["path"]) for side in ("old", "new")),
-               "--native-text-only", "--limit-scale", "1", "--quiet", "--json", str(report)]
+    command = capture_command(binary, root, pair, report)
     log = destination / (pair["id"] + ".log")
     started = time.monotonic()
     with log.open("xb") as output:
@@ -427,7 +518,8 @@ def run(args, root, pairs, selected, lock_fd):
             else:
                 capture_guard.retain_attempt(args.output, pair["id"])
                 try:
-                    row = capture_pair(binary, root, pair, args.output, args.timeout, lock_fd=lock_fd)
+                    row = capture_pair(binary, root, pair, args.output, args.timeout,
+                                       lock_fd=lock_fd)
                 except OSError as error:
                     row = {"pair": pair["id"], "status": "execution_failed", "error": str(error)}
                 budget_exhausted = capture_guard.retained_bytes(args.output) >= REPORT_BUDGET

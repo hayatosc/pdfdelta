@@ -274,7 +274,7 @@ def run_pair(
             stale.name == report.name
             or ".old-tokens." in stale.name
             or ".new-tokens." in stale.name
-            or stale.suffix in {".time", ".legacy.time"}
+            or stale.suffix == ".time"
         ):
             stale.unlink()
     time_file = out / f"{pair}.time"
@@ -472,64 +472,6 @@ def scan_side(
         "prev": prev,
         "next": next_,
         "quotes": found,
-    }
-
-
-def run_legacy(
-    binary: pathlib.Path,
-    cache: pathlib.Path,
-    pair: str,
-    out: pathlib.Path,
-    timeout: int = 180,
-) -> dict:
-    old = cache / f"{pair}-old.pdf"
-    new = cache / f"{pair}-new.pdf"
-    time_file = out / f"{pair}.legacy.time"
-    command = [
-        "/usr/bin/time",
-        "-v",
-        "-o",
-        str(time_file),
-        "timeout",
-        "180",
-        str(binary),
-        "--native-text-only",
-        "-q",
-        str(old),
-        str(new),
-    ]
-    if shutil.which("systemd-run"):
-        command = [
-            "systemd-run",
-            "--user",
-            "--scope",
-            "-p",
-            "MemoryMax=6000000000",
-            "-p",
-            "MemorySwapMax=0",
-            "--",
-            *command,
-        ]
-    start = time.monotonic()
-    try:
-        completed = subprocess.run(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=timeout,
-        )
-        exit_code = completed.returncode
-    except subprocess.TimeoutExpired:
-        exit_code = -1
-    rss = 0
-    if time_file.exists():
-        for line in time_file.read_text(encoding="utf-8", errors="replace").splitlines():
-            if "Maximum resident set size" in line:
-                rss = int(line.split(":", 1)[1].strip())
-    return {
-        "legacy_exit": exit_code,
-        "legacy_seconds": round(time.monotonic() - start, 3),
-        "legacy_rss_kb": rss,
     }
 
 
@@ -1065,9 +1007,6 @@ COLUMNS = [
     "quote_located",
     "quote_total",
     "quotes",
-    "legacy_exit",
-    "legacy_seconds",
-    "legacy_rss_kb",
 ]
 
 
@@ -1159,11 +1098,6 @@ def main() -> int:
         help="dump the largest flow-vs-minimal excess regions for one existing pair",
     )
     parser.add_argument("--top", type=int, default=20)
-    parser.add_argument(
-        "--legacy",
-        action="store_true",
-        help="also run the existing native-text comparison for every pair",
-    )
     args = parser.parse_args()
 
     args.results.mkdir(parents=True, exist_ok=True)
@@ -1213,8 +1147,6 @@ def main() -> int:
             )
         row = {**run}
         row["wall_seconds"] = run["seconds"]
-        if args.legacy:
-            row.update(run_legacy(args.binary, args.cache, pair, args.results))
         try:
             row.update(evaluate(pair, run["report"], bag, expected.get(pair, []), args.cache))
         except (OSError, ValueError, json.JSONDecodeError) as error:
