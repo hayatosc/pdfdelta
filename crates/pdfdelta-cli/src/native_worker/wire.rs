@@ -19,8 +19,8 @@ use pdfdelta_core::{
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
-        GlyphProvenance, MarkedContent, NonTextPaint, PageId, Rect, TextRenderMode, Vec2,
-        VectorLine,
+        GlyphProvenance, MarkedContent, NonTextPaint, NonTextPaintKind, PageId, Rect,
+        TextRenderMode, Vec2, VectorLine,
     },
     pdf::ObjectRef,
 };
@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 
 // A version change is required when reordering positional fields. This format
 // is internal to one executable; public reports retain their named fields.
-const VERSION: u8 = 8;
+const VERSION: u8 = 10;
 const MAX_ATOMS: usize = 4096;
 
 type GlyphAtom = (DecodedText, Vec<u8>);
@@ -211,8 +211,38 @@ impl<'de> Visitor<'de> for BoundedGlyphs {
     }
 }
 
+fn paint_kind_tag(kind: NonTextPaintKind) -> u8 {
+    match kind {
+        NonTextPaintKind::Path => 0,
+        NonTextPaintKind::Image => 1,
+        NonTextPaintKind::InlineImage => 2,
+        NonTextPaintKind::Shading => 3,
+        NonTextPaintKind::Opaque => 4,
+    }
+}
+
+fn paint_kind(tag: u8) -> Option<NonTextPaintKind> {
+    match tag {
+        0 => Some(NonTextPaintKind::Path),
+        1 => Some(NonTextPaintKind::Image),
+        2 => Some(NonTextPaintKind::InlineImage),
+        3 => Some(NonTextPaintKind::Shading),
+        4 => Some(NonTextPaintKind::Opaque),
+        _ => None,
+    }
+}
+
 #[derive(Serialize, Deserialize)]
-struct Paint(PageId, u32, Option<[f64; 4]>, (u32, u16), u32);
+struct Paint(
+    PageId,
+    u32,
+    Option<[f64; 4]>,
+    (u32, u16),
+    u32,
+    u8,
+    Option<String>,
+    Option<String>,
+);
 
 impl NativeDocument {
     fn encode(value: Document<CompactGlyph>) -> Result<Self, Failure> {
@@ -233,6 +263,9 @@ impl NativeDocument {
                             paint.content_stream.generation,
                         ),
                         paint.operator_index,
+                        paint_kind_tag(paint.kind),
+                        paint.identity.clone(),
+                        paint.shape.clone(),
                     )
                 })
                 .collect()
@@ -275,8 +308,11 @@ impl NativeDocument {
                             bounds,
                             (object_number, generation),
                             operator_index,
+                            kind,
+                            identity,
+                            shape,
                         ) = paint;
-                        NonTextPaint {
+                        Ok(NonTextPaint {
                             page,
                             render_order,
                             bounds: bounds.map(|[x0, y0, x1, y1]| Rect {
@@ -288,9 +324,13 @@ impl NativeDocument {
                                 generation,
                             },
                             operator_index,
-                        }
+                            kind: paint_kind(kind)
+                                .ok_or_else(|| Failure::backend("native paint kind is invalid"))?,
+                            identity,
+                            shape,
+                        })
                     })
-                    .collect(),
+                    .collect::<Result<Vec<_>, Failure>>()?,
             );
         }
         // Preserve the supplied map even when the optional paint census is absent.
@@ -833,6 +873,9 @@ mod tests {
                 generation: 3,
             },
             operator_index: 8,
+            kind: NonTextPaintKind::Path,
+            identity: Some("unknown".to_owned()),
+            shape: Some("unknown".to_owned()),
         };
         let bounded = NonTextPaint {
             bounds: Some(Rect {

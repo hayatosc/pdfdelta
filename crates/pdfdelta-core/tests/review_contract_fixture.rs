@@ -16,7 +16,7 @@ use pdfdelta_core::{
         unresolved_classification,
     },
     model::Document,
-    pipeline::PipelineOptions,
+    options::PipelineOptions,
     review::{
         BundleIdentity, CaseId, POLICY_VERSION, PipelineContract, REVIEW_SCHEMA, SourceAlias,
     },

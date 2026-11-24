@@ -1,4 +1,4 @@
-use pdfdelta_core::diff::ChangeKind;
+use pdfdelta_core::span::ChangeKind;
 
 use crate::{
     BenchError, Result,
@@ -623,12 +623,6 @@ impl ExpectedManifest {
 
     #[must_use]
     pub fn label(&self) -> String {
-        if self.evidence == ExpectedEvidence::ProvenChangedRegions {
-            return "proven-changed-region".to_owned();
-        }
-        if self.is_candidate_policy() {
-            return "candidate+proven-changed-region".to_owned();
-        }
         match self.changes.as_slice() {
             [] => "none".to_owned(),
             [change] => change_kind_name(change.kind).to_owned(),

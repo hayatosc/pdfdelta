@@ -6,6 +6,7 @@ publish = false
 license.workspace = true
 repository.workspace = true
 description = "Benchmark fixtures and evaluation tooling for pdfdelta"
+default-run = "pdfbench"
 
 [[bin]]
 name = "pdfbench"

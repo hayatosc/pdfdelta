@@ -191,7 +191,8 @@ impl std::error::Error for DecisionRejection {}
 ///
 /// This validates identity, reference integrity, and internal consistency. It
 /// cannot validate that the conclusion is correct: schema conformance is not
-/// semantic correctness, and no check here promotes a decision to a proof.
+/// semantic correctness, and no check here promotes a decision to a comparison
+/// result.
 ///
 /// # Errors
 /// Returns every failed check rather than the first, so a host can repair a
@@ -428,6 +429,7 @@ mod tests {
             conflicts_with: Vec::new(),
             available_actions: Vec::new(),
             covered: Vec::new(),
+            flow_evidence: Vec::new(),
             regions: Vec::new(),
             evidence: vec![EvidenceRef::new(
                 Side::Old,

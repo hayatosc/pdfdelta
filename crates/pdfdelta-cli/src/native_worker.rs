@@ -23,6 +23,7 @@ use pdfdelta_core::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits, ExtractionOutcome,
     },
 };
+use pdfdelta_flow::FlowError;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -96,6 +97,20 @@ impl Failure {
             kind,
             reason: error.to_string(),
             fatal: false,
+        }
+    }
+
+    /// Converts a fatal acquisition failure into the typed CLI error.
+    ///
+    /// The class comes from the failure's evidence kind, never from the
+    /// message. A resource-limit failure whose producer did not retain the
+    /// configured bound stays a limit failure; it does not become backend.
+    fn into_flow_error(self) -> FlowError {
+        match self.kind {
+            EvidenceFailure::Unsupported => FlowError::unsupported(self.reason),
+            EvidenceFailure::Unresolved => FlowError::unresolved(self.reason),
+            EvidenceFailure::ResourceLimit => FlowError::limit_exceeded_without_bound(self.reason),
+            EvidenceFailure::BackendFailure => FlowError::backend(self.reason),
         }
     }
 }
@@ -172,9 +187,9 @@ pub fn collect(
     font_identities: &[String],
     cache_dir: Option<&Path>,
     channels: &BTreeSet<Channel>,
-) -> Result<(EvidenceStore, Vec<PageRef>), String> {
+) -> Result<(EvidenceStore, Vec<PageRef>), FlowError> {
     // Validate user configuration before converting a child failure to evidence.
-    let fonts = parse_external_font_identities(font_identities)?;
+    let fonts = parse_external_font_identities(font_identities).map_err(FlowError::backend)?;
     let identities = fonts
         .iter()
         .map(|(base_font, hash)| {
@@ -224,7 +239,7 @@ fn combine(
     metadata: Option<Result<Acquisition, Failure>>,
     content: Result<Acquisition, Failure>,
     forms: bool,
-) -> Result<(EvidenceStore, Vec<PageRef>), String> {
+) -> Result<(EvidenceStore, Vec<PageRef>), FlowError> {
     let acquisition = match (metadata, content) {
         (Some(Ok(mut base)), Ok(content)) => {
             if base.store.pages != content.store.pages || base.page_refs != content.page_refs {
@@ -286,7 +301,7 @@ fn combine(
         (None, Ok(content)) => content,
         (metadata, Err(failure)) => {
             if failure.fatal {
-                return Err(failure.reason);
+                return Err(failure.into_flow_error());
             }
             let mut store = EvidenceStore::from_native(
                 hash,
@@ -295,7 +310,7 @@ fn combine(
                 ExtractionOutcome::complete(Document::new(Vec::new())),
                 EvidenceLimits::default(),
             )
-            .map_err(|error| error.to_string())?;
+            .map_err(FlowError::from)?;
             issue(&mut store, &failure, &[Channel::Text, Channel::Relations]);
             if let Some(Err(metadata)) = metadata {
                 issue(&mut store, &metadata, &[Channel::Forms, Channel::Visual]);
@@ -309,7 +324,7 @@ fn combine(
     acquisition
         .store
         .validate(EvidenceLimits::default())
-        .map_err(|error| error.to_string())?;
+        .map_err(FlowError::from)?;
     Ok((
         acquisition.store,
         acquisition.page_refs.into_iter().map(PageRef).collect(),

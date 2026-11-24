@@ -625,6 +625,7 @@ mod tests {
             relations: vec![relation],
             relation_unresolved: Vec::new(),
             relation_obligations: Vec::new(),
+            flow_owned_text: Default::default(),
         };
         let report = evaluate_fixture(&annotation, &comparison).expect("score alternatives");
         assert_eq!(report.dimensions[0].alternatives[0].false_positive, 1);
@@ -648,6 +649,7 @@ mod tests {
             relations: Vec::new(),
             relation_unresolved: vec!["missing inventory".into()],
             relation_obligations: Vec::new(),
+            flow_owned_text: Default::default(),
         };
         let mut annotation = GeneralizationAnnotation {
             schema_version: GENERALIZATION_SCHEMA_VERSION,
@@ -691,6 +693,7 @@ mod tests {
             relations: Vec::new(),
             relation_unresolved: Vec::new(),
             relation_obligations: Vec::new(),
+            flow_owned_text: Default::default(),
         };
         assert!(
             matches!(evaluate_fixture(&annotation, &comparison), Err(BenchError::InvalidInput(message)) if message.contains("work limit"))

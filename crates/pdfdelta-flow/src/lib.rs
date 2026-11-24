@@ -24,6 +24,11 @@
 //! is marked [`FlowToken::uncertain`].
 
 pub mod align;
+mod assess;
+mod error;
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzzing;
 pub mod order;
 pub mod script;
 pub mod verify;
@@ -41,12 +46,20 @@ use pdfdelta_core::{
     Result,
     layout::{Block, BlockOptions, Line, LineOptions, reconstruct_blocks, reconstruct_lines},
     model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, PageId, Rect, Vec2},
-    normalize::{BlockText, ComparableToken, TextSource, normalize_blocks_for_flow},
+    normalize::{
+        ComparableToken, FlowBlock, PositionSignature, TextSource, normalize_blocks_for_flow,
+    },
 };
 
+pub use assess::{
+    AmbiguityReason, ChangeAssessment, Confidence, FONT_SIZE_RELATIVE_TOLERANCE, FormattingChange,
+    FormattingReason, assess_changes, font_size_differs, formatting_changes, selects_difference,
+};
+pub use error::{FlowError, FlowErrorClass, FlowLimit};
 pub use order::{
     FlowCandidates, FlowOrderPair, ORDER_AGREEMENT_MIN, ORDER_COHERENCE_MIN, OrderKind,
-    PageOrderEvidence, flow_candidates, flow_candidates_owned, flow_order_from_candidates,
+    PageOrderEvidence, PaintIdentity, flow_candidates, flow_candidates_owned,
+    flow_candidates_owned_with_sources, flow_candidates_with_sources, flow_order_from_candidates,
     flow_tokens_pair,
 };
 pub use script::{FlowChange, build_script};
@@ -72,6 +85,33 @@ pub struct FlowToken {
     pub uncertain: bool,
     /// A source line break immediately follows this token.
     pub line_break_after: bool,
+    /// Effective font size of every source glyph of this token, when all of
+    /// them agree and the geometric evidence is complete.
+    ///
+    /// A token merged from glyphs with different effective sizes, or a token
+    /// without complete source evidence, keeps `None`. The value is used only
+    /// as presentation evidence on matched tokens; it never affects token
+    /// identity, alignment, or the edit script.
+    pub font_size: Option<f64>,
+    /// Raw text projected from the source glyphs, including the raw gap up to
+    /// the next token. `None` means the raw text could not be established
+    /// exactly, so normalization evidence is not claimed.
+    ///
+    /// The value is presentation evidence only: token identity remains
+    /// [`Self::text`], and the raw value never affects alignment or the script.
+    pub raw: Option<Box<str>>,
+    /// First-source-glyph baseline and direction of this token.
+    ///
+    /// `None` means the source geometry is incomplete. The signature is used
+    /// only for formatting-only position evidence on matched tokens.
+    pub position: Option<PositionSignature>,
+    /// A source page break immediately follows this token.
+    pub page_break_after: bool,
+    /// Normalization kinds observed for the token's canonical source.
+    ///
+    /// Bits follow the `pdfdelta_core::normalize::NormalizationKind` declaration order. This
+    /// is formatting evidence only; it never changes token identity.
+    pub normalization: u8,
 }
 
 /// Flattened token sequence of one document.
@@ -79,6 +119,12 @@ pub struct FlowToken {
 pub struct FlowStream {
     /// Tokens in reconstructed reading order, without page furniture.
     pub tokens: Vec<FlowToken>,
+    /// Source glyph ids for each token, aligned with [`Self::tokens`].
+    ///
+    /// Empty when source retention was not requested. A full report asks for
+    /// it; the default compact path leaves it empty so token memory does not
+    /// carry a vector per token.
+    pub source_glyphs: Vec<Vec<GlyphId>>,
     /// Repeated headers, footers, and page numbers, tracked separately.
     pub furniture: Vec<FurnitureLine>,
     /// Glyph accounting between extraction and the token stream.
@@ -248,6 +294,7 @@ pub fn flow_tokens_with_options(
         &lines,
         &blocks_layout,
         true,
+        false,
     )
 }
 
@@ -357,45 +404,63 @@ pub(crate) fn stream_from_layout(
     lines: &[Line],
     blocks_layout: &[Block],
     strip_furniture: bool,
+    retain_sources: bool,
 ) -> Result<FlowStream> {
     let blocks = normalize_blocks_for_flow(visible, lines, blocks_layout)?;
     let block_count = blocks.len();
-    let mut tokens = Vec::new();
+    let mut tokens: Vec<FlowToken> = Vec::new();
+    let mut source_glyphs: Vec<Vec<GlyphId>> = Vec::new();
     let mut referenced = ReferencedGlyphs::new(glyphs, visible.items().len());
     for (index, block) in blocks.into_iter().enumerate() {
-        let mut block_tokens = block_tokens(index, &block, glyphs)?;
+        let (mut block_tokens, block_sources) =
+            block_tokens(index, &block, glyphs, retain_sources)?;
         if let Some(last) = block_tokens.last_mut() {
             // A block boundary is always at least a line boundary, so the last
             // token keeps the line-break evidence without a within-block offset.
             last.line_break_after = true;
         }
+        if let (Some(previous), Some(next)) = (tokens.last(), block_tokens.first())
+            && previous.page != next.page
+        {
+            // Record a page break at an adjacent-block page boundary on the
+            // last token of the previous block, so formatting compares the
+            // same internal break offsets that the contract describes.
+            if let Some(previous) = tokens.last_mut() {
+                previous.page_break_after = true;
+            }
+        }
         // Canonical text is what tokenisation sees; white-space scalars are
         // included so their source glyphs are accounted for even though they
         // never become tokens themselves.
         block
+            .text
             .canonical
             .for_each_referenced_glyph(|glyph| referenced.insert(glyph));
         tokens.extend(block_tokens);
+        if retain_sources {
+            source_glyphs.extend(block_sources);
+        }
     }
 
     // Every visible glyph is either referenced by a block source or emitted by
     // the fallback below, so the fallback must visit exactly the unreferenced
     // glyphs; conservation already accounts for all of them.
-    let mut fallback = HashMap::<PageId, Vec<FlowToken>>::new();
+    let mut fallback = HashMap::<PageId, Vec<(FlowToken, GlyphId)>>::new();
     for glyph in visible.items() {
         if referenced.contains(glyph.id) {
             continue;
         }
         emit_fallback_tokens(glyph, block_count, fallback.entry(glyph.page).or_default());
     }
-    let tokens = insert_fallback_tokens(tokens, fallback);
-    let (tokens, furniture) = if strip_furniture {
-        furniture::split(tokens)
+    let (tokens, source_glyphs) = insert_fallback_tokens(tokens, source_glyphs, fallback);
+    let (tokens, source_glyphs, furniture) = if strip_furniture {
+        furniture::split(tokens, source_glyphs)
     } else {
-        (tokens, Vec::new())
+        (tokens, source_glyphs, Vec::new())
     };
     Ok(FlowStream {
         tokens,
+        source_glyphs,
         furniture,
         conservation: conservation.clone(),
     })
@@ -404,34 +469,57 @@ pub(crate) fn stream_from_layout(
 /// Appends fallback tokens to the end of their page's token run.
 fn insert_fallback_tokens(
     tokens: Vec<FlowToken>,
-    mut fallback: HashMap<PageId, Vec<FlowToken>>,
-) -> Vec<FlowToken> {
-    if fallback.is_empty() {
-        return tokens;
-    }
+    source_glyphs: Vec<Vec<GlyphId>>,
+    mut fallback: HashMap<PageId, Vec<(FlowToken, GlyphId)>>,
+) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>) {
+    let retained = !source_glyphs.is_empty();
     let mut out = Vec::with_capacity(tokens.len());
+    let mut out_sources = if retained {
+        Vec::with_capacity(tokens.len())
+    } else {
+        Vec::new()
+    };
+    let mut block_sources = source_glyphs.into_iter();
     let mut current_page = None;
     for token in tokens {
         if current_page.is_some_and(|page| page != token.page)
             && let Some(page) = current_page
-            && let Some(mut extra) = fallback.remove(&page)
+            && let Some(extra) = fallback.remove(&page)
         {
-            out.append(&mut extra);
+            for (token, glyph) in extra {
+                out.push(token);
+                if retained {
+                    out_sources.push(vec![glyph]);
+                }
+            }
         }
         current_page = Some(token.page);
         out.push(token);
+        if retained {
+            out_sources.push(block_sources.next().unwrap_or_default());
+        }
     }
     if let Some(page) = current_page
-        && let Some(mut extra) = fallback.remove(&page)
+        && let Some(extra) = fallback.remove(&page)
     {
-        out.append(&mut extra);
+        for (token, glyph) in extra {
+            out.push(token);
+            if retained {
+                out_sources.push(vec![glyph]);
+            }
+        }
     }
     let mut remaining = fallback.into_iter().collect::<Vec<_>>();
     remaining.sort_unstable_by_key(|(page, _)| *page);
-    for (_, mut extra) in remaining {
-        out.append(&mut extra);
+    for (_, extra) in remaining {
+        for (token, glyph) in extra {
+            out.push(token);
+            if retained {
+                out_sources.push(vec![glyph]);
+            }
+        }
     }
-    out
+    (out, out_sources)
 }
 
 /// Tokenises one visible glyph that no block referenced.
@@ -439,16 +527,24 @@ fn insert_fallback_tokens(
 /// This is the conservation fallback: the glyph was extracted but the layout or
 /// normalization dropped it, so it is appended in content-stream order and
 /// marked uncertain instead of disappearing.
-fn emit_fallback_tokens(glyph: &Glyph, block: usize, out: &mut Vec<FlowToken>) {
+fn emit_fallback_tokens(glyph: &Glyph, block: usize, out: &mut Vec<(FlowToken, GlyphId)>) {
     let mut push = |text: String, uncertain: bool| {
-        out.push(FlowToken {
-            text,
-            page: glyph.page,
-            bounds: Some(glyph.bbox),
-            block,
-            uncertain,
-            line_break_after: false,
-        });
+        out.push((
+            FlowToken {
+                text,
+                page: glyph.page,
+                bounds: Some(glyph.bbox),
+                block,
+                uncertain,
+                line_break_after: false,
+                font_size: Some(glyph.font_size),
+                raw: None,
+                position: PositionSignature::new(glyph.baseline, glyph.direction),
+                page_break_after: false,
+                normalization: 0,
+            },
+            glyph.id,
+        ));
     };
     match &glyph.text {
         DecodedText::Unmapped {
@@ -672,8 +768,7 @@ impl Selection {
     /// recorded earlier carries a higher rank and dominates this one.
     fn record(
         &mut self,
-        old: &[FlowToken],
-        new: &[FlowToken],
+        streams: &DiffStreams<'_>,
         strategy: AlignmentStrategy,
         rule_rank: u8,
         spine: Spine,
@@ -686,20 +781,19 @@ impl Selection {
             return;
         }
         self.considered = Some((Rc::clone(&spine), changes.clone()));
-        self.consider(old, new, strategy, rule_rank, spine, changes);
+        self.consider(streams, strategy, rule_rank, spine, changes);
     }
 
     /// Applies the boundary bridge and keeps the best variant seen so far.
     fn consider(
         &mut self,
-        old: &[FlowToken],
-        new: &[FlowToken],
+        streams: &DiffStreams<'_>,
         strategy: AlignmentStrategy,
         rule_rank: u8,
         spine: Spine,
         changes: Vec<FlowChange>,
     ) {
-        let (spine, changes) = bridge_equal_boundaries(old, new, &spine, changes);
+        let (spine, changes) = bridge_equal_boundaries(streams, &spine, changes);
         let count = changed_token_count(&changes);
         let better = match &self.best {
             None => true,
@@ -776,7 +870,7 @@ pub fn flow_diff(
             &dot_leaders,
         );
         if !baseline_candidates {
-            selection.record(old, new, strategy, 2, baseline_spine, baseline_changes);
+            selection.record(&streams, strategy, 2, baseline_spine, baseline_changes);
             cache.release(strategy);
             continue;
         }
@@ -806,16 +900,15 @@ pub fn flow_diff(
         // Record every rule with its own rank. When two rules produce the same
         // script the higher rank already dominates the lower one, so the extra
         // entry changes neither the selected script nor the tie-breaking.
-        selection.record(old, new, strategy, 2, richer_spine, richer_changes);
+        selection.record(&streams, strategy, 2, richer_spine, richer_changes);
         selection.record(
-            old,
-            new,
+            &streams,
             strategy,
             1,
             information_spine,
             information_changes,
         );
-        selection.record(old, new, strategy, 0, baseline_spine, baseline_changes);
+        selection.record(&streams, strategy, 0, baseline_spine, baseline_changes);
         cache.release(strategy);
     }
     let best = selection
@@ -988,6 +1081,9 @@ const MAX_ROTATION_REWRITES: usize = 32;
 /// Maximum equal-text insert candidates checked for one delete.
 const MAX_ROTATION_CANDIDATES: usize = 16;
 
+/// Maximum number of accepted transposition rewrites in one bridge pass.
+const MAX_TRANSPOSITION_REWRITES: usize = 64;
+
 /// A rewritten equal-pair spine and edit script.
 type BridgedScript = (Vec<(usize, usize)>, Vec<FlowChange>);
 
@@ -1005,15 +1101,26 @@ type BridgedScript = (Vec<(usize, usize)>, Vec<FlowChange>);
 ///   runs as implicit equal tokens replaces two content changes with one move,
 ///   which is the correct representation of a rotation.
 ///
-/// Both rewrites rebuild the spine so the reported equal pairs stay complete.
-/// A candidate that does not verify, or whose spine stops being increasing on
-/// both sides, is discarded and the original script is returned unchanged.
+/// A transposition between two equal runs has two valid explanations: move the
+/// first run past the second, or move the second past the first. Alignment
+/// keeps the longer token run in place, which minimizes the reported moved
+/// tokens but can attribute a paragraph move to a heading and its paragraph
+/// instead. [`try_prefer_smaller_structural_move`] swaps that explanation when
+/// the other run is the smaller structural relocation and is no less
+/// informative. Equal structural spans keep the alignment result, so the
+/// rewrite never changes an unambiguous move or a swap between structurally
+/// equal runs.
+///
+/// All three rewrites rebuild the spine so the reported equal pairs stay
+/// complete. A candidate that does not verify, or whose spine stops being
+/// increasing on both sides, is discarded and the original script is returned
+/// unchanged.
 fn bridge_equal_boundaries(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    streams: &DiffStreams<'_>,
     spine: &[(usize, usize)],
     mut changes: Vec<FlowChange>,
 ) -> BridgedScript {
+    let DiffStreams { old, new, .. } = *streams;
     let mut rewritten: Option<Vec<(usize, usize)>> = None;
     let mut rotations = 0usize;
     for _ in 0..MAX_BRIDGE_REWRITES {
@@ -1037,7 +1144,197 @@ fn bridge_equal_boundaries(
             break;
         }
     }
-    (rewritten.unwrap_or_else(|| spine.to_vec()), changes)
+    let mut current = rewritten.unwrap_or_else(|| spine.to_vec());
+    for _ in 0..MAX_TRANSPOSITION_REWRITES {
+        let Some((next_spine, next_changes)) =
+            try_prefer_smaller_structural_move(streams, &current, &changes)
+        else {
+            break;
+        };
+        current = next_spine;
+        changes = next_changes;
+    }
+    (current, changes)
+}
+
+/// Rewrites one transposition to the explanation that relocates the smaller
+/// structural unit.
+///
+/// A move of `R` beside an equal spine run `E` makes the old and new sequences
+/// `E R` and `R E` (or `R E` and `E R`). Both "move `R`" and "move `E`" replay
+/// correctly. The alignment keeps the longer token run in place, which can
+/// report a heading block and its paragraph block as moved while one paragraph
+/// is the structural unit that left its place. This pass swaps the explanation
+/// when
+///
+/// * the alternative run intersects fewer reconstructed blocks of the old
+///   document (the document whose reading order defines the relocated unit),
+/// * the alternative is at least as informative as the reported run, so a
+///   short heading, form label, or separator run is never preferred over a
+///   substantive run, and
+/// * the alternative satisfies the move minimum length and information weight.
+///
+/// A tie keeps the alignment result, so a swap between structural equals and
+/// every move without a mirrored equal run are unchanged. Rewrites are accepted
+/// only when the candidate script replays and the rebuilt spine stays strictly
+/// increasing.
+fn try_prefer_smaller_structural_move(
+    streams: &DiffStreams<'_>,
+    spine: &[(usize, usize)],
+    changes: &[FlowChange],
+) -> Option<BridgedScript> {
+    let DiffStreams {
+        old,
+        new,
+        old_ids,
+        weights,
+        ..
+    } = *streams;
+    for (change_index, change) in changes.iter().enumerate() {
+        let FlowChange::Move {
+            old: move_old,
+            new: move_new,
+        } = change
+        else {
+            continue;
+        };
+        let current_blocks = block_span(old, move_old);
+        let current_information = relocation_information(old_ids, weights, move_old);
+        for (run_old, run_new, run_position) in
+            mirrored_equal_runs(old, new, spine, move_old, move_new)
+        {
+            let alt_blocks = block_span(old, &run_old);
+            if alt_blocks >= current_blocks {
+                continue;
+            }
+            let information = relocation_information(old_ids, weights, &run_old);
+            if run_old.len() < script::MOVE_MIN_TOKENS
+                || information < script::MOVE_MIN_INFORMATION_WEIGHT
+                || information < current_information
+            {
+                continue;
+            }
+            let mut candidate_spine = spine.to_vec();
+            candidate_spine.drain(run_position..run_position + run_old.len());
+            candidate_spine.extend(
+                (0..move_old.len())
+                    .map(|offset| (move_old.start + offset, move_new.start + offset)),
+            );
+            candidate_spine.sort_unstable();
+            if !strictly_increasing(&candidate_spine) {
+                continue;
+            }
+            let mut candidate = changes.to_vec();
+            candidate[change_index] = FlowChange::Move {
+                old: run_old.clone(),
+                new: run_new.clone(),
+            };
+            if verify(old, new, &candidate).is_ok() {
+                return Some((candidate_spine, candidate));
+            }
+        }
+    }
+    None
+}
+
+/// Returns the equal spine runs that mirror a move.
+///
+/// The returned range pair is the alternative moved run. `run_position` is the
+/// index of its first pair in `spine`, so the caller can remove exactly those
+/// pairs when rebuilding the spine.
+fn mirrored_equal_runs(
+    old: &[FlowToken],
+    new: &[FlowToken],
+    spine: &[(usize, usize)],
+    move_old: &std::ops::Range<usize>,
+    move_new: &std::ops::Range<usize>,
+) -> Vec<(std::ops::Range<usize>, std::ops::Range<usize>, usize)> {
+    let mut runs = Vec::with_capacity(2);
+    // The run is before the move on the old side and after it on the new side.
+    if move_old.start > 0
+        && move_new.end < new.len()
+        && let Ok(last) = spine.binary_search_by_key(&(move_old.start - 1), |pair| pair.0)
+    {
+        let (_, new_end) = spine[last];
+        if new_end >= move_new.end {
+            let length = new_end - move_new.end + 1;
+            if length <= move_old.start
+                && length <= new.len() - move_new.end
+                && let Some(first) = (last + 1).checked_sub(length)
+                && spine_run_matches(spine, first, move_old.start - length, move_new.end, length)
+            {
+                runs.push((
+                    move_old.start - length..move_old.start,
+                    move_new.end..move_new.end + length,
+                    first,
+                ));
+            }
+        }
+    }
+    // The run is after the move on the old side and before it on the new side.
+    if move_old.end < old.len()
+        && move_new.start > 0
+        && let Ok(first) = spine.binary_search_by_key(&move_old.end, |pair| pair.0)
+    {
+        let (_, new_start) = spine[first];
+        let length = move_new.start.saturating_sub(new_start);
+        if length > 0
+            && move_old.end + length <= old.len()
+            && new_start + length == move_new.start
+            && spine_run_matches(spine, first, move_old.end, new_start, length)
+        {
+            runs.push((
+                move_old.end..move_old.end + length,
+                new_start..move_new.start,
+                first,
+            ));
+        }
+    }
+    runs
+}
+
+/// Whether `spine[position..position + length]` is the consecutive run
+/// starting at the given old and new indices.
+fn spine_run_matches(
+    spine: &[(usize, usize)],
+    position: usize,
+    old_start: usize,
+    new_start: usize,
+    length: usize,
+) -> bool {
+    spine.get(position..position + length).is_some_and(|pairs| {
+        pairs
+            .iter()
+            .enumerate()
+            .all(|(offset, &(old, new))| old == old_start + offset && new == new_start + offset)
+    })
+}
+
+/// Number of reconstructed blocks a token range intersects.
+fn block_span(tokens: &[FlowToken], range: &std::ops::Range<usize>) -> usize {
+    let mut count = 0usize;
+    let mut previous = None;
+    for token in &tokens[range.clone()] {
+        if previous != Some(token.block) {
+            count += 1;
+            previous = Some(token.block);
+        }
+    }
+    count
+}
+
+/// Information weight of a run, matching the move detector's measure.
+fn relocation_information(old_ids: &[u32], weights: &[u64], range: &std::ops::Range<usize>) -> u64 {
+    old_ids[range.clone()]
+        .iter()
+        .map(|&id| {
+            usize::try_from(id)
+                .ok()
+                .and_then(|index| weights.get(index).copied())
+                .unwrap_or(1)
+                .saturating_sub(1)
+        })
+        .sum()
 }
 
 /// Drops an equal delete/insert pair that sits on opposite sides of a move.
@@ -1395,17 +1692,45 @@ impl ReferencedGlyphs {
     }
 }
 
-/// Builds the flow tokens of one normalized block.
+/// Returns the single effective font size shared by every glyph of one token.
+///
+/// `signatures` is aligned with the block's canonical comparable tokens. A
+/// merged token whose constituent glyphs disagree, or a token with incomplete
+/// signature evidence, returns `None` instead of guessing.
+fn token_font_size(
+    signatures: Option<&[pdfdelta_core::normalize::FontSizeSignature]>,
+    range: std::ops::Range<usize>,
+) -> Option<f64> {
+    let signatures = signatures?;
+    let selected = signatures.get(range)?;
+    let mut size = None;
+    for signature in selected {
+        for value in signature.values() {
+            match size {
+                None => size = Some(value),
+                Some(existing) if existing.to_bits() != value.to_bits() => return None,
+                Some(_) => {}
+            }
+        }
+    }
+    size
+}
+
+/// Builds the flow tokens of one flow-normalized block.
 pub(crate) fn block_tokens(
     block_index: usize,
-    block: &BlockText,
+    block: &FlowBlock,
     glyphs: &GlyphLookup<'_>,
-) -> Result<Vec<FlowToken>> {
-    let tokens = block.canonical.comparable_tokens_with_sources()?;
-    let break_after = line_break_flags(&tokens, block.line_breaks.as_deref());
-    let fallback_page = block.pages.first().copied().map_or(PageId(0), PageId);
+    retain_sources: bool,
+) -> Result<(Vec<FlowToken>, Vec<Vec<GlyphId>>)> {
+    let text = &block.text;
+    let tokens = text.canonical.comparable_tokens_with_sources()?;
+    let break_after = break_flags(&tokens, text.line_breaks.as_deref());
+    let page_break_after = break_flags(&tokens, text.page_breaks.as_deref());
+    let fallback_page = text.pages.first().copied().map_or(PageId(0), PageId);
     // Tokens never outnumber comparable tokens; whitespace scalars are dropped.
     let mut out = Vec::with_capacity(tokens.len());
+    let mut out_sources = retain_sources.then(|| Vec::with_capacity(tokens.len()));
     let mut index = 0;
     while index < tokens.len() {
         match &tokens[index].0 {
@@ -1414,6 +1739,10 @@ pub(crate) fn block_tokens(
                 glyph_id,
             } => {
                 let source = &tokens[index].1;
+                let mut glyph_sources = Vec::new();
+                if retain_sources {
+                    collect_source_glyphs(source, &mut glyph_sources);
+                }
                 out.push(FlowToken {
                     text: unmapped_token_text(font_hash, *glyph_id),
                     page: source_page(source, glyphs).unwrap_or(fallback_page),
@@ -1421,7 +1750,18 @@ pub(crate) fn block_tokens(
                     block: block_index,
                     uncertain: true,
                     line_break_after: break_after[index],
+                    font_size: token_font_size(
+                        text.font_size_signatures.as_deref(),
+                        index..index + 1,
+                    ),
+                    raw: None,
+                    position: source_position(source, glyphs),
+                    page_break_after: page_break_after[index],
+                    normalization: block.normalization.get(index).copied().unwrap_or(0),
                 });
+                if let Some(out_sources) = out_sources.as_mut() {
+                    out_sources.push(glyph_sources);
+                }
                 index += 1;
             }
             ComparableToken::Scalar(scalar) if scalar.is_whitespace() => {
@@ -1429,45 +1769,107 @@ pub(crate) fn block_tokens(
             }
             ComparableToken::Scalar(scalar) => {
                 let is_word = scalar.is_alphanumeric() && !is_cjk_scalar(*scalar);
-                let mut text = String::new();
-                text.push(*scalar);
+                let mut token_text = String::new();
+                token_text.push(*scalar);
                 let mut page = source_page(&tokens[index].1, glyphs);
                 let mut bounds = source_bounds(&tokens[index].1, glyphs);
                 let mut line_break = break_after[index];
+                let mut page_break = page_break_after[index];
+                let mut normalization = block.normalization.get(index).copied().unwrap_or(0);
+                let token_start = index;
                 index += 1;
                 if is_word {
                     while let Some((ComparableToken::Scalar(next), source)) = tokens.get(index) {
                         if !next.is_alphanumeric() || is_cjk_scalar(*next) {
                             break;
                         }
-                        text.push(*next);
+                        token_text.push(*next);
                         if let Some(found) = source_page(source, glyphs) {
                             page.get_or_insert(found);
                         }
                         merge_bounds(&mut bounds, source_bounds(source, glyphs));
                         line_break |= break_after[index];
+                        page_break |= page_break_after[index];
+                        normalization |= block.normalization.get(index).copied().unwrap_or(0);
                         index += 1;
                     }
                 }
+                let mut glyph_sources = Vec::new();
+                if retain_sources {
+                    for (_, source) in &tokens[token_start..index] {
+                        collect_source_glyphs(source, &mut glyph_sources);
+                    }
+                }
                 out.push(FlowToken {
-                    text,
+                    text: token_text,
                     page: page.unwrap_or(fallback_page),
                     bounds,
                     block: block_index,
                     uncertain: false,
                     line_break_after: line_break,
+                    font_size: token_font_size(
+                        text.font_size_signatures.as_deref(),
+                        token_start..index,
+                    ),
+                    raw: token_raw_text(&block.raw_tokens, token_start..index),
+                    position: text
+                        .position_signatures
+                        .as_deref()
+                        .and_then(|positions| positions.get(token_start).copied()),
+                    page_break_after: page_break,
+                    normalization,
                 });
+                if let Some(out_sources) = out_sources.as_mut() {
+                    out_sources.push(glyph_sources);
+                }
             }
         }
     }
-    Ok(out)
+    Ok((out, out_sources.unwrap_or_default()))
 }
 
-/// Marks the last non-whitespace canonical token before every line break.
-fn line_break_flags(
-    tokens: &[(ComparableToken, TextSource)],
-    offsets: Option<&[usize]>,
-) -> Vec<bool> {
+/// Collects the exact source glyph ids of one canonical token, preserving atom
+/// order and removing duplicates.
+fn collect_source_glyphs(source: &TextSource, out: &mut Vec<GlyphId>) {
+    for atom in &source.atoms {
+        if let pdfdelta_core::normalize::TextSourceAtom::Glyph(glyph) = atom
+            && !out.contains(glyph)
+        {
+            out.push(*glyph);
+        }
+    }
+}
+
+/// Concatenates the raw text of every canonical token in one flow token.
+///
+/// A single token without exact raw projection makes the whole token `None`,
+/// because a partial string would claim normalization evidence the source did
+/// not establish.
+fn token_raw_text(
+    raw_tokens: &[Option<String>],
+    range: std::ops::Range<usize>,
+) -> Option<Box<str>> {
+    let selected = raw_tokens.get(range)?;
+    let mut raw = String::new();
+    for token in selected {
+        raw.push_str(token.as_deref()?);
+    }
+    Some(raw.into_boxed_str())
+}
+
+/// Returns the first source glyph's position signature when it is complete.
+fn source_position(source: &TextSource, glyphs: &GlyphLookup<'_>) -> Option<PositionSignature> {
+    let glyph_id = source.atoms.first().map(|atom| match atom {
+        pdfdelta_core::normalize::TextSourceAtom::Glyph(glyph) => *glyph,
+        pdfdelta_core::normalize::TextSourceAtom::SyntheticSpace { preceding, .. }
+        | pdfdelta_core::normalize::TextSourceAtom::LineBreak { preceding, .. } => *preceding,
+    })?;
+    let glyph = glyphs.get(glyph_id)?;
+    PositionSignature::new(glyph.baseline, glyph.direction)
+}
+
+/// Marks the last non-whitespace canonical token before every break offset.
+fn break_flags(tokens: &[(ComparableToken, TextSource)], offsets: Option<&[usize]>) -> Vec<bool> {
     let mut flags = vec![false; tokens.len()];
     let Some(offsets) = offsets else {
         return flags;
@@ -1590,7 +1992,7 @@ fn merge_bounds(target: &mut Option<Rect>, addition: Option<Rect>) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::time::Instant;
 
     use super::*;
@@ -1646,7 +2048,7 @@ mod tests {
     ///
     /// Each non-space character becomes one glyph with a 6pt advance and a 5pt
     /// bounding box; spaces are gaps wide enough for synthetic-space recovery.
-    fn document(lines: &[(&str, u32, f64)]) -> Document<Glyph> {
+    pub(crate) fn document(lines: &[(&str, u32, f64)]) -> Document<Glyph> {
         let mut glyphs = Vec::new();
         let mut id = 1u64;
         for &(text, page, y) in lines {
@@ -1984,6 +2386,11 @@ mod tests {
             block: 0,
             uncertain: false,
             line_break_after: true,
+            font_size: None,
+            raw: None,
+            position: None,
+            page_break_after: false,
+            normalization: 0,
         }
     }
 
@@ -1996,7 +2403,7 @@ mod tests {
             tokens.push(line_token(body, page, 300.0));
             tokens.push(line_token(&format!("page {} of 9", page + 1), page, 20.0));
         }
-        let (kept, furniture) = furniture::split(tokens);
+        let (kept, _sources, furniture) = furniture::split(tokens, Vec::new());
         assert_eq!(token_texts(&kept), bodies);
         assert_eq!(furniture.len(), 1);
         // The page number varies across pages and is masked; the constant
@@ -2021,7 +2428,7 @@ mod tests {
                 tokens.push(line_token("running header", page, 250.0));
             }
         }
-        let (kept, furniture) = furniture::split(tokens);
+        let (kept, _sources, furniture) = furniture::split(tokens, Vec::new());
         assert_eq!(furniture.len(), 1);
         assert_eq!(furniture[0].text, "running header");
         assert_eq!(furniture[0].pages.len(), 4);
@@ -2050,17 +2457,19 @@ mod tests {
                     20.0,
                 ));
             }
-            furniture::split(tokens)
+            furniture::split(tokens, Vec::new())
         };
-        let (old_tokens, old_furniture) = build(0);
-        let (new_tokens, new_furniture) = build(1);
+        let (old_tokens, _old_sources, old_furniture) = build(0);
+        let (new_tokens, _new_sources, new_furniture) = build(1);
         let old = FlowStream {
             tokens: old_tokens,
+            source_glyphs: Vec::new(),
             furniture: old_furniture,
             conservation: Conservation::default(),
         };
         let new = FlowStream {
             tokens: new_tokens,
+            source_glyphs: Vec::new(),
             furniture: new_furniture,
             conservation: Conservation::default(),
         };
@@ -2081,19 +2490,21 @@ mod tests {
                     20.0,
                 ));
             }
-            furniture::split(tokens)
+            furniture::split(tokens, Vec::new())
         };
-        let (old_tokens, old_furniture) = build(2023);
-        let (new_tokens, new_furniture) = build(2024);
+        let (old_tokens, _old_sources, old_furniture) = build(2023);
+        let (new_tokens, _new_sources, new_furniture) = build(2024);
         assert_eq!(old_furniture[0].text, "form 2023 page 0");
         assert_eq!(new_furniture[0].text, "form 2024 page 0");
         let old = FlowStream {
             tokens: old_tokens,
+            source_glyphs: Vec::new(),
             furniture: old_furniture,
             conservation: Conservation::default(),
         };
         let new = FlowStream {
             tokens: new_tokens,
+            source_glyphs: Vec::new(),
             furniture: new_furniture,
             conservation: Conservation::default(),
         };
@@ -2165,6 +2576,11 @@ mod tests {
                 block: index / 8,
                 uncertain: false,
                 line_break_after: false,
+                font_size: None,
+                raw: None,
+                position: None,
+                page_break_after: false,
+                normalization: 0,
             })
             .collect()
     }
@@ -2278,6 +2694,209 @@ mod tests {
         assert!(matches!(&diff.changes[0], FlowChange::Move { .. }));
     }
 
+    /// Builds a verified flow diff from two laid-out documents.
+    fn flow_pair(
+        old_lines: &[(&str, u32, f64)],
+        new_lines: &[(&str, u32, f64)],
+    ) -> (Vec<FlowToken>, FlowDiff) {
+        let old = flow_tokens(&document(old_lines)).expect("old tokens");
+        let new = flow_tokens(&document(new_lines)).expect("new tokens");
+        let diff = flow_diff(&old.tokens, &new.tokens).expect("verified diff");
+        (old.tokens, diff)
+    }
+
+    /// Lays out one line per string from the top of the page downward.
+    fn lines<'a>(texts: &[&'a str]) -> Vec<(&'a str, u32, f64)> {
+        texts
+            .iter()
+            .enumerate()
+            .map(|(index, text)| {
+                (
+                    *text,
+                    0,
+                    300.0 - 30.0 * f64::from(u32::try_from(index).expect("test line fits u32")),
+                )
+            })
+            .collect()
+    }
+
+    /// Old-side text of every move, in script order.
+    fn move_texts(tokens: &[FlowToken], diff: &FlowDiff) -> Vec<String> {
+        diff.changes
+            .iter()
+            .filter_map(|change| match change {
+                FlowChange::Move { old, .. } => Some(old.clone()),
+                _ => None,
+            })
+            .map(|range| {
+                tokens[range]
+                    .iter()
+                    .map(|token| token.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect()
+    }
+
+    fn assert_move_only(diff: &FlowDiff) {
+        assert_eq!(diff.stats().delete.changes, 0, "{:?}", diff.changes);
+        assert_eq!(diff.stats().insert.changes, 0, "{:?}", diff.changes);
+        assert_eq!(diff.stats().replace.changes, 0, "{:?}", diff.changes);
+        assert_eq!(diff.stats().moves.changes, 1, "{:?}", diff.changes);
+    }
+
+    #[test]
+    fn a_transposition_across_a_heading_reports_the_paragraph_move() {
+        // A one-block paragraph moves past a heading and the heading's
+        // paragraph. The alignment keeps the paragraph in place because it has
+        // more tokens, which would report the two-block heading group as moved.
+        // The structural rule chooses the one-block relocation instead.
+        let (tokens, diff) = flow_pair(
+            &lines(&[
+                "report title words",
+                "alpha beta gamma delta epsilon zeta eta theta",
+                "target heading",
+                "body words remain here",
+            ]),
+            &lines(&[
+                "report title words",
+                "target heading",
+                "body words remain here",
+                "alpha beta gamma delta epsilon zeta eta theta",
+            ]),
+        );
+        assert_move_only(&diff);
+        assert_eq!(
+            move_texts(&tokens, &diff),
+            ["alpha beta gamma delta epsilon zeta eta theta"]
+        );
+    }
+
+    #[test]
+    fn the_reverse_direction_of_a_heading_transposition_reports_the_same_paragraph() {
+        let (tokens, diff) = flow_pair(
+            &lines(&[
+                "report title words",
+                "target heading",
+                "body words remain here",
+                "alpha beta gamma delta epsilon zeta eta theta",
+            ]),
+            &lines(&[
+                "report title words",
+                "alpha beta gamma delta epsilon zeta eta theta",
+                "target heading",
+                "body words remain here",
+            ]),
+        );
+        assert_move_only(&diff);
+        assert_eq!(
+            move_texts(&tokens, &diff),
+            ["alpha beta gamma delta epsilon zeta eta theta"]
+        );
+    }
+
+    #[test]
+    fn a_transposition_of_equal_sized_blocks_stays_deterministic() {
+        let forward = lines(&[
+            "report title words",
+            "alpha beta gamma delta epsilon",
+            "one two three four five",
+        ]);
+        let reverse = lines(&[
+            "report title words",
+            "one two three four five",
+            "alpha beta gamma delta epsilon",
+        ]);
+        let (tokens, diff) = flow_pair(&forward, &reverse);
+        assert_move_only(&diff);
+        let moves = move_texts(&tokens, &diff);
+        assert_eq!(moves.len(), 1);
+        // Equal block spans cannot prefer one explanation; the alignment
+        // choice is stable for the same input.
+        let (again_tokens, again) = flow_pair(&forward, &reverse);
+        assert_eq!(move_texts(&again_tokens, &again), moves);
+    }
+
+    #[test]
+    fn a_transposition_between_equal_block_spans_keeps_the_rotation_choice() {
+        // Both runs are one reconstructed block, so no structural explanation
+        // is smaller. The bridge reports the shifted long run as the move; the
+        // point of this test is that the structural rule did not rewrite the
+        // structurally equal swap and the result stays deterministic.
+        let forward = lines(&[
+            "report title words",
+            "alpha beta gamma delta epsilon zeta eta theta",
+            "one two three four",
+        ]);
+        let reverse = lines(&[
+            "report title words",
+            "one two three four",
+            "alpha beta gamma delta epsilon zeta eta theta",
+        ]);
+        let (tokens, diff) = flow_pair(&forward, &reverse);
+        assert_move_only(&diff);
+        assert_eq!(
+            move_texts(&tokens, &diff),
+            ["alpha beta gamma delta epsilon zeta eta theta"]
+        );
+        let (again_tokens, again) = flow_pair(&forward, &reverse);
+        assert_eq!(
+            move_texts(&again_tokens, &again),
+            move_texts(&tokens, &diff)
+        );
+    }
+
+    #[test]
+    fn a_transposition_that_already_moves_the_single_block_is_unchanged() {
+        // The alignment keeps the two-block heading group in place because it
+        // has more tokens, so the one-block paragraph is already the reported
+        // move and the structural rule must not rewrite it.
+        let (tokens, diff) = flow_pair(
+            &lines(&[
+                "report title words",
+                "target heading",
+                "body words remain here",
+                "alpha beta gamma delta epsilon",
+            ]),
+            &lines(&[
+                "report title words",
+                "alpha beta gamma delta epsilon",
+                "target heading",
+                "body words remain here",
+            ]),
+        );
+        assert_move_only(&diff);
+        assert_eq!(
+            move_texts(&tokens, &diff),
+            ["alpha beta gamma delta epsilon"]
+        );
+    }
+
+    #[test]
+    fn a_transposition_beside_a_repeated_paragraph_keeps_one_verified_move() {
+        let (tokens, diff) = flow_pair(
+            &lines(&[
+                "report title words",
+                "alpha beta gamma delta epsilon zeta eta theta",
+                "target heading",
+                "body words remain here",
+                "body words remain here",
+            ]),
+            &lines(&[
+                "report title words",
+                "target heading",
+                "body words remain here",
+                "alpha beta gamma delta epsilon zeta eta theta",
+                "body words remain here",
+            ]),
+        );
+        assert_move_only(&diff);
+        assert_eq!(
+            move_texts(&tokens, &diff),
+            ["alpha beta gamma delta epsilon zeta eta theta"]
+        );
+    }
+
     #[test]
     fn flow_tokens_account_for_every_visible_glyph() {
         let document = document(&[("alpha beta", 0, 300.0), ("gamma", 1, 300.0)]);
@@ -2297,12 +2916,17 @@ mod tests {
             block: 0,
             uncertain: false,
             line_break_after: false,
+            font_size: None,
+            raw: None,
+            position: None,
+            page_break_after: false,
+            normalization: 0,
         };
         let tokens = vec![token("a", 0), token("b", 1)];
         let mut fallback = HashMap::new();
-        fallback.insert(PageId(0), vec![token("x", 0)]);
-        fallback.insert(PageId(1), vec![token("y", 1)]);
-        let merged = insert_fallback_tokens(tokens, fallback);
+        fallback.insert(PageId(0), vec![(token("x", 0), GlyphId(1))]);
+        fallback.insert(PageId(1), vec![(token("y", 1), GlyphId(2))]);
+        let (merged, _sources) = insert_fallback_tokens(tokens, Vec::new(), fallback);
         let texts = merged
             .iter()
             .map(|token| token.text.as_str())

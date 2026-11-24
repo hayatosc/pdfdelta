@@ -12,7 +12,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use pdfdelta_core::model::PageId;
+use pdfdelta_core::model::{GlyphId, PageId};
 
 use crate::{FlowStream, FlowToken};
 
@@ -37,6 +37,11 @@ pub struct FurnitureLine {
     pub pages: Vec<PageId>,
     /// Number of line occurrences, including several on one page.
     pub occurrences: usize,
+    /// Source glyph ids of every removed occurrence, in token order.
+    ///
+    /// Empty when source retention was not requested. A full report uses this
+    /// to list furniture glyphs with an explicit exclusion reason.
+    pub glyphs: Vec<GlyphId>,
 }
 
 /// Direction of one furniture change.
@@ -62,9 +67,12 @@ pub struct FurnitureChange {
 }
 
 /// Splits repeated furniture lines out of `tokens`.
-pub(crate) fn split(tokens: Vec<FlowToken>) -> (Vec<FlowToken>, Vec<FurnitureLine>) {
+pub(crate) fn split(
+    tokens: Vec<FlowToken>,
+    source_glyphs: Vec<Vec<GlyphId>>,
+) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
     let (records, selection) = select_furniture(&tokens, &BTreeMap::new(), &BTreeSet::new());
-    apply_selection(tokens, &records, &selection)
+    apply_selection(tokens, source_glyphs, &records, &selection)
 }
 
 /// Splits furniture jointly over both documents of one comparison.
@@ -104,16 +112,20 @@ pub(crate) fn split_pair(
     merge_selection(&mut old_selection, old_extra);
     merge_selection(&mut new_selection, new_extra);
     let joint = join_selections(old_selection, new_selection);
-    let (old_tokens, old_furniture) = apply_selection(old.tokens, &old_records, &joint);
-    let (new_tokens, new_furniture) = apply_selection(new.tokens, &new_records, &joint);
+    let (old_tokens, old_sources, old_furniture) =
+        apply_selection(old.tokens, old.source_glyphs, &old_records, &joint);
+    let (new_tokens, new_sources, new_furniture) =
+        apply_selection(new.tokens, new.source_glyphs, &new_records, &joint);
     (
         FlowStream {
             tokens: old_tokens,
+            source_glyphs: old_sources,
             furniture: old_furniture,
             conservation: old.conservation,
         },
         FlowStream {
             tokens: new_tokens,
+            source_glyphs: new_sources,
             furniture: new_furniture,
             conservation: new.conservation,
         },
@@ -325,9 +337,10 @@ fn line_records(tokens: &[FlowToken], bands: &BTreeMap<u32, Vec<(f64, f64)>>) ->
 /// Removes the selected records and reports the removed furniture families.
 fn apply_selection(
     tokens: Vec<FlowToken>,
+    source_glyphs: Vec<Vec<GlyphId>>,
     records: &[LineRecord],
     selection: &BTreeMap<String, SelectedText>,
-) -> (Vec<FlowToken>, Vec<FurnitureLine>) {
+) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
     let mut removed = vec![false; tokens.len()];
     let mut removed_indices = Vec::new();
     for (index, record) in records.iter().enumerate() {
@@ -343,7 +356,7 @@ fn apply_selection(
         }
     }
     if removed_indices.is_empty() {
-        return (tokens, Vec::new());
+        return (tokens, source_glyphs, Vec::new());
     }
     let mut by_text: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for index in removed_indices {
@@ -359,14 +372,28 @@ fn apply_selection(
                 .iter()
                 .map(|&index| records[index].page)
                 .collect::<BTreeSet<_>>();
+            let mut glyphs = Vec::new();
+            if !source_glyphs.is_empty() {
+                for &index in &group {
+                    let record = &records[index];
+                    for token_sources in &source_glyphs[record.start..=record.end] {
+                        for glyph in token_sources {
+                            if !glyphs.contains(glyph) {
+                                glyphs.push(*glyph);
+                            }
+                        }
+                    }
+                }
+            }
             furniture.push(FurnitureLine {
                 text,
                 pages: pages.into_iter().collect(),
                 occurrences: group.len(),
+                glyphs,
             });
         }
     }
-    apply_plan(tokens, removed, furniture)
+    apply_plan(tokens, source_glyphs, removed, furniture)
 }
 
 /// Groups furniture occurrences by digit-run lengths and builds each text.
@@ -471,26 +498,31 @@ fn split_digit_runs(text: &str) -> Vec<(bool, String)> {
 /// Removes planned furniture tokens and keeps the trailing break evidence.
 fn apply_plan(
     tokens: Vec<FlowToken>,
+    source_glyphs: Vec<Vec<GlyphId>>,
     removed: Vec<bool>,
     mut furniture: Vec<FurnitureLine>,
-) -> (Vec<FlowToken>, Vec<FurnitureLine>) {
+) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
     if furniture.is_empty() {
-        return (tokens, Vec::new());
+        return (tokens, source_glyphs, Vec::new());
     }
     furniture.sort_unstable_by(|left, right| left.text.cmp(&right.text));
     let mut kept = Vec::with_capacity(tokens.len());
+    let mut kept_sources = Vec::with_capacity(source_glyphs.len());
     let mut kept_last = None;
     for (index, token) in tokens.iter().enumerate() {
         if removed[index] {
             continue;
         }
         kept.push(token.clone());
+        if !source_glyphs.is_empty() {
+            kept_sources.push(source_glyphs[index].clone());
+        }
         kept_last = Some(kept.len() - 1);
     }
     if let Some(last) = kept_last {
         kept[last].line_break_after |= removed[tokens.len() - 1];
     }
-    (kept, furniture)
+    (kept, kept_sources, furniture)
 }
 
 struct LineSpan {
@@ -666,6 +698,11 @@ mod tests {
             block: 0,
             uncertain: false,
             line_break_after: line_break,
+            font_size: None,
+            raw: None,
+            position: None,
+            page_break_after: false,
+            normalization: 0,
         }
     }
 
@@ -693,6 +730,7 @@ mod tests {
         }
         FlowStream {
             tokens,
+            source_glyphs: Vec::new(),
             furniture: Vec::new(),
             conservation: crate::Conservation::default(),
         }
@@ -705,8 +743,8 @@ mod tests {
         // qualify it; jointly both sides must remove it.
         let old = stream(5, &[0, 1, 2]);
         let new = stream(5, &[0, 1]);
-        assert_eq!(split(old.tokens.clone()).1.len(), 1);
-        assert_eq!(split(new.tokens.clone()).1.len(), 0);
+        assert_eq!(split(old.tokens.clone(), Vec::new()).2.len(), 1);
+        assert_eq!(split(new.tokens.clone(), Vec::new()).2.len(), 0);
         let (old, new) = split_pair(old, new, &BTreeMap::new(), &BTreeMap::new());
         assert_eq!(old.furniture.len(), 1);
         assert_eq!(new.furniture.len(), 1);
@@ -736,6 +774,7 @@ mod tests {
         }
         FlowStream {
             tokens,
+            source_glyphs: Vec::new(),
             furniture: Vec::new(),
             conservation: crate::Conservation::default(),
         }
@@ -780,6 +819,7 @@ mod tests {
             }
             FlowStream {
                 tokens,
+                source_glyphs: Vec::new(),
                 furniture: Vec::new(),
                 conservation: crate::Conservation::default(),
             }

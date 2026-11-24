@@ -11,7 +11,7 @@ use crate::{
     layout::{Block, BlockId, BlockRole, reconstruct_lines},
     model::{DecodedText, Document, Glyph, PageId, VectorLine},
     normalize::normalize_blocks,
-    pipeline::PipelineOptions,
+    options::PipelineOptions,
 };
 
 use super::{

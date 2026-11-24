@@ -26,12 +26,13 @@ mod context;
 mod contract;
 mod decision;
 mod evidence_plan;
-mod native_plan;
+mod flow_plan;
 mod planner;
 
 pub use case::{
-    Cardinality, CaseFinding, CaseRegion, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence,
-    ReviewCase, ReviewText, SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
+    Cardinality, CaseFinding, CaseRegion, FlowEvidence, FlowEvidenceKind, Hypothesis,
+    OmissionReason, OmittedRun, RequiredEvidence, ReviewCase, ReviewText, SideLocation,
+    StructureLabel, TextCoverage, TextOrder, UnmappedMark,
 };
 pub use context::{CaseContext, ContextItem, ContextKind};
 pub use contract::{
@@ -46,14 +47,19 @@ pub use decision::{
     RetrievalRequest, validate_decision, validate_decisions,
 };
 pub use evidence_plan::{SharedEvidenceReview, plan_shared_evidence};
+pub use flow_plan::{
+    FlowAmbiguity, FlowChangeKind, FlowChangeView, FlowConfidence, FlowFormattingView,
+    FlowIssueKind, FlowIssueView, FlowNativeReview, FlowPageOrderView, FlowSideView,
+    FlowTextReview, FlowTokenView, plan_flow_native,
+};
 pub use manifest::{
     AgentReviewManifest, CaseCensus, EngineOutcome, EngineStatus, ExportOmission, ExportStatus,
     GapScope, InventoryGap, OmissionKind, OmissionScope, QuestionCount, RetrievalCapability,
     UnlocalizedGap,
 };
-pub use native_plan::{NativeTextReview, cases_covering, covered_blocks, plan_native_text};
 pub use planner::{
-    PlannerLimits, ReviewPlan, evidence_ref, retain_text, source_alias, withhold_text,
+    DEFAULT_AGENT_CASE_BUDGET, PlannerLimits, ReviewPlan, evidence_ref, retain_text, source_alias,
+    withhold_text,
 };
 
 mod manifest;
@@ -61,7 +67,7 @@ mod manifest;
 /// Lowercase hexadecimal rendering of a digest.
 ///
 /// Digests identify artifacts and detect drift; they never stand in for a
-/// source-equality proof.
+/// source-equality witness.
 #[must_use]
 pub fn lowercase_hex(bytes: &[u8]) -> String {
     let mut text = String::with_capacity(bytes.len() * 2);

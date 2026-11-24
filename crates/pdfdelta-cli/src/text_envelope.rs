@@ -8,8 +8,10 @@ use std::{
 };
 
 use pdfdelta_core::{
-    diff::{LocalTextEnvelopeLimits, LocalTextSide, MAX_ENVELOPE_CELLS, local_text_envelope},
     normalize::ComparableToken,
+    text_envelope::{
+        LocalTextEnvelopeLimits, LocalTextSide, MAX_ENVELOPE_CELLS, local_text_envelope,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -75,7 +77,7 @@ impl InputSide {
 struct PairAnswer {
     id: String,
     work_used: usize,
-    result: pdfdelta_core::diff::LocalTextEnvelopeResult,
+    result: pdfdelta_core::text_envelope::LocalTextEnvelopeResult,
 }
 
 #[derive(Serialize)]

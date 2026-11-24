@@ -26,10 +26,11 @@ serde_json.workspace = true
 sha2.workspace = true
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-rustix = { version = "1", features = ["process"] }
+rustix = { version = "1", features = ["process", "time"] }
 
 [dev-dependencies]
 lopdf.workspace = true
+pdfdelta-bench = { path = "../pdfdelta-bench" }
 
 [lints]
 workspace = true

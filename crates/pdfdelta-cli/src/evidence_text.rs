@@ -518,6 +518,7 @@ mod tests {
             relations: Vec::new(),
             relation_unresolved: vec!["unmatched endpoint".into(); MAX_ENTRIES + 5],
             relation_obligations: Vec::new(),
+            flow_owned_text: Default::default(),
         };
         let mut text = String::new();
         append_details(

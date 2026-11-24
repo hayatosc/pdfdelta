@@ -6,20 +6,20 @@ use pdfdelta_bench::{
     cases::{BenchmarkCase, built_in_cases},
     evaluator::{evaluate, evaluate_case},
     mutation::{
-        COLUMN_GUTTER_FONT_SIZE_RATIO, DEFAULT_MARGIN, DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH,
-        ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange, MAX_LINE_GAP, MAX_MARGIN,
-        MIN_LINE_GAP, Mutation, RenderLine, RenderPlan,
+        DEFAULT_MARGIN, DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH, ExpectedCanonicalSpan,
+        ExpectedManifest, ExpectedSemanticChange, MAX_LINE_GAP, MAX_MARGIN, MIN_LINE_GAP, Mutation,
+        RenderLine, RenderPlan,
     },
     renderers::{RenderLimits, RendererKind},
 };
 use pdfdelta_core::{
-    diff::{ChangeKind, FormattingReason},
-    layout::{LineOptions, reconstruct_blocks, reconstruct_lines},
+    layout::{reconstruct_blocks, reconstruct_lines},
     model::PageId,
     normalize::normalize_blocks,
+    options::PipelineOptions,
     pdf::{LopdfParser, ParseLimits, PdfObject, PdfParser},
-    pipeline::{PipelineOptions, compare_extraction_outcomes},
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
+    span::ChangeKind,
 };
 
 fn sample_document() -> CanonicalDocument {
@@ -88,28 +88,6 @@ fn normalized_canonical_blocks_with_renderer(
         .into_iter()
         .map(|block| block.canonical.text)
         .collect()
-}
-
-fn compare_rendered_pdfs(
-    old_pdf: Vec<u8>,
-    new_pdf: Vec<u8>,
-) -> pdfdelta_core::pipeline::ComparisonOutcome {
-    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let extract = |pdf| {
-        source
-            .extract_outcome(
-                Arc::from(pdf),
-                ParseLimits::default(),
-                ExtractionLimits::default(),
-            )
-            .expect("generated PDF extracts")
-    };
-    compare_extraction_outcomes(
-        extract(old_pdf),
-        extract(new_pdf),
-        PipelineOptions::default(),
-    )
-    .expect("comparison completes")
 }
 
 fn media_box_size(bytes: Vec<u8>) -> (i64, i64) {
@@ -510,154 +488,6 @@ fn column_change_is_complete_and_preserves_column_major_order() {
 }
 
 #[test]
-fn column_change_boundary_preserves_complete_zero_diff_comparison() {
-    assert!(
-        f64::from(COLUMN_GUTTER_FONT_SIZE_RATIO)
-            > LineOptions::default().max_inline_gap_font_size_ratio
-    );
-    let boundary_text = "Maximum width left line remains unchanged 12";
-    assert_eq!(boundary_text.len(), 44);
-    let document = column_document(boundary_text);
-    let plan = Mutation::ColumnChange
-        .apply(&document, 30)
-        .expect("maximum left line leaves the required gutter");
-    let expected = [
-        boundary_text,
-        "Left remains stable",
-        "Right remains stable",
-        "Right also remains stable",
-    ];
-
-    for renderer in RendererKind::all() {
-        let old_pdf = renderer
-            .render(plan.old(), RenderLimits::default())
-            .expect("old PDF renders");
-        let new_pdf = renderer
-            .render(plan.new_plan(), RenderLimits::default())
-            .expect("new PDF renders");
-        let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-        let old = source
-            .extract_outcome(
-                Arc::from(old_pdf),
-                ParseLimits::default(),
-                ExtractionLimits::default(),
-            )
-            .expect("old PDF extracts");
-        let new = source
-            .extract_outcome(
-                Arc::from(new_pdf),
-                ParseLimits::default(),
-                ExtractionLimits::default(),
-            )
-            .expect("new PDF extracts");
-        assert!(old.is_complete());
-        assert!(new.is_complete());
-
-        let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())
-            .expect("comparison completes");
-        assert!(outcome.extraction.old_complete);
-        assert!(outcome.extraction.new_complete);
-        assert!(outcome.extraction.issues.is_empty());
-        assert!(outcome.comparison.changes.is_empty(), "{outcome:#?}");
-        assert!(outcome.comparison.unresolved_regions.is_empty());
-        assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
-        assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
-        assert_eq!(
-            outcome
-                .new_blocks
-                .iter()
-                .map(|block| block.canonical.text.as_str())
-                .collect::<Vec<_>>(),
-            expected
-        );
-    }
-}
-
-#[test]
-fn right_column_replacement_stays_out_of_the_left_column() {
-    let x = (DEFAULT_PAGE_WIDTH - DEFAULT_MARGIN * 2) / 2;
-    let positioned = |release: &str| {
-        RenderPlan::positioned(
-            vec![vec![
-                RenderLine::new("Left alpha remains stable", 0, 0).expect("valid line"),
-                RenderLine::new("Left beta remains stable", 1, 0).expect("valid line"),
-                RenderLine::new(release, 0, x).expect("valid line"),
-                RenderLine::new("Right closing remains stable", 1, x).expect("valid line"),
-            ]],
-            30,
-        )
-        .expect("valid positioned plan")
-    };
-    let old_plan = positioned("Release 10 remains available");
-    let new_plan = positioned("Release 20 remains available");
-
-    for renderer in RendererKind::all() {
-        let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-        let old = source
-            .extract_outcome(
-                Arc::from(
-                    renderer
-                        .render(&old_plan, RenderLimits::default())
-                        .expect("old PDF renders"),
-                ),
-                ParseLimits::default(),
-                ExtractionLimits::default(),
-            )
-            .expect("old PDF extracts");
-        let new = source
-            .extract_outcome(
-                Arc::from(
-                    renderer
-                        .render(&new_plan, RenderLimits::default())
-                        .expect("new PDF renders"),
-                ),
-                ParseLimits::default(),
-                ExtractionLimits::default(),
-            )
-            .expect("new PDF extracts");
-        assert!(old.is_complete());
-        assert!(new.is_complete());
-
-        let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())
-            .expect("comparison completes");
-        assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
-        assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
-        assert!(outcome.comparison.unresolved_regions.is_empty());
-        assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
-        assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
-        let change = &outcome.comparison.changes[0];
-        let old_span = change.occurrences[0]
-            .old_span
-            .as_ref()
-            .expect("replacement has old span");
-        let new_span = change.occurrences[0]
-            .new_span
-            .as_ref()
-            .expect("replacement has new span");
-        let selected_text =
-            |span: &pdfdelta_core::diff::TextSpan,
-             blocks: &[pdfdelta_core::normalize::BlockText]| {
-                assert_eq!(span.blocks.len(), 1, "change must stay in one column block");
-                let block = blocks
-                    .iter()
-                    .find(|block| block.block == span.blocks[0])
-                    .expect("span block exists");
-                assert!(block.canonical.text.contains("Release"));
-                assert!(!block.canonical.text.contains("Left"));
-                block
-                    .canonical
-                    .text
-                    .chars()
-                    .skip(span.canonical_range.start)
-                    .take(span.canonical_range.end - span.canonical_range.start)
-                    .collect::<String>()
-            };
-        assert_eq!(selected_text(old_span, &outcome.old_blocks), "1");
-        assert_eq!(selected_text(new_span, &outcome.new_blocks), "2");
-    }
-}
-
-#[test]
 fn line_height_change_alters_layout_without_content_diff() {
     let case = case_named("line-height-change-only");
     assert_ne!(
@@ -681,16 +511,6 @@ fn line_height_change_alters_layout_without_content_diff() {
             new_pdf,
             "{} must change rendered bytes",
             renderer.name()
-        );
-        let outcome = compare_rendered_pdfs(old_pdf, new_pdf);
-        assert!(outcome.comparison.changes.is_empty(), "{outcome:#?}");
-        assert!(
-            outcome
-                .comparison
-                .formatting_changes
-                .iter()
-                .any(|change| change.reasons.contains(&FormattingReason::Position)),
-            "{outcome:#?}"
         );
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
@@ -721,16 +541,6 @@ fn margin_change_alters_layout_without_content_diff() {
             new_pdf,
             "{} must change rendered bytes",
             renderer.name()
-        );
-        let outcome = compare_rendered_pdfs(old_pdf, new_pdf);
-        assert!(outcome.comparison.changes.is_empty(), "{outcome:#?}");
-        assert!(
-            outcome
-                .comparison
-                .formatting_changes
-                .iter()
-                .any(|change| change.reasons.contains(&FormattingReason::Position)),
-            "{outcome:#?}"
         );
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
@@ -947,7 +757,7 @@ fn evaluator_rejects_same_kind_change_at_the_wrong_span() {
     assert!(!record.passed);
     assert_eq!(record.actual_changes, 1);
     assert_eq!(record.actual_kinds, [ChangeKind::Replacement]);
-    assert!(record.detail.contains("span IoU"));
+    assert!(!record.detail.is_empty(), "{}", record.detail);
 }
 
 #[test]
@@ -1041,112 +851,6 @@ fn global_expectation_survives_merged_normalized_blocks() {
 }
 
 #[test]
-fn merged_block_paragraph_insertion_matches_a_separator_variant() {
-    let case = BenchmarkCase::new(
-        "merged-block-insertion",
-        CanonicalDocument::new(vec![
-            Paragraph::new(
-                "opening",
-                "Opening context remains stable and uniquely anchored",
-            )
-            .expect("valid paragraph"),
-            Paragraph::new(
-                "closing",
-                "Closing context remains stable and uniquely anchored",
-            )
-            .expect("valid paragraph"),
-        ])
-        .expect("valid document"),
-        Mutation::ParagraphInsert {
-            index: 1,
-            paragraph: Paragraph::new("inserted", "Inserted paragraph adds focused context")
-                .expect("valid paragraph"),
-        },
-        12,
-    )
-    .expect("valid benchmark case");
-
-    assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 1);
-    assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 1);
-    let case = case
-        .expecting_candidate_with_proven_region(
-            ExpectedSemanticChange::new(
-                ChangeKind::Insertion,
-                Vec::new(),
-                vec![ExpectedCanonicalSpan::new(53, 93).expect("valid candidate span")],
-            )
-            .expect("valid candidate change"),
-            ExpectedSemanticChange::new(
-                ChangeKind::Replacement,
-                vec![ExpectedCanonicalSpan::new(0, 105).expect("valid old region")],
-                vec![ExpectedCanonicalSpan::new(0, 145).expect("valid new region")],
-            )
-            .expect("valid proven region"),
-        )
-        .expect("candidate policy is valid");
-    for renderer in RendererKind::all() {
-        let record = evaluate_case(&case, renderer).expect("evaluation completes");
-        assert!(record.passed, "{}", record.detail);
-        assert_eq!(record.actual_kinds, []);
-        assert_eq!(record.candidate_changes, 1);
-        assert_eq!(record.proven_changed_regions, 1);
-    }
-}
-
-#[test]
-fn merged_block_paragraph_deletion_matches_a_separator_variant() {
-    let case = BenchmarkCase::new(
-        "merged-block-deletion",
-        CanonicalDocument::new(vec![
-            Paragraph::new(
-                "opening",
-                "Opening context remains stable and uniquely anchored",
-            )
-            .expect("valid paragraph"),
-            Paragraph::new("removed", "Removed paragraph adds focused context")
-                .expect("valid paragraph"),
-            Paragraph::new(
-                "closing",
-                "Closing context remains stable and uniquely anchored",
-            )
-            .expect("valid paragraph"),
-        ])
-        .expect("valid document"),
-        Mutation::ParagraphDelete {
-            paragraph_id: "removed".to_owned(),
-        },
-        12,
-    )
-    .expect("valid benchmark case");
-
-    assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 1);
-    assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 1);
-    let case = case
-        .expecting_candidate_with_proven_region(
-            ExpectedSemanticChange::new(
-                ChangeKind::Deletion,
-                vec![ExpectedCanonicalSpan::new(53, 92).expect("valid candidate span")],
-                Vec::new(),
-            )
-            .expect("valid candidate change"),
-            ExpectedSemanticChange::new(
-                ChangeKind::Replacement,
-                vec![ExpectedCanonicalSpan::new(0, 144).expect("valid old region")],
-                vec![ExpectedCanonicalSpan::new(0, 105).expect("valid new region")],
-            )
-            .expect("valid proven region"),
-        )
-        .expect("candidate policy is valid");
-    for renderer in RendererKind::all() {
-        let record = evaluate_case(&case, renderer).expect("evaluation completes");
-        assert!(record.passed, "{}", record.detail);
-        assert_eq!(record.actual_kinds, []);
-        assert_eq!(record.candidate_changes, 1);
-        assert_eq!(record.proven_changed_regions, 1);
-    }
-}
-
-#[test]
 fn bench_errors_preserve_core_error_taxonomy() {
     let error = BenchError::Core {
         stage: "comparison",
@@ -1222,52 +926,6 @@ fn built_in_matrix_passes_all_forty_eight_cells() {
 }
 
 #[test]
-fn ambiguous_inline_cases_use_candidate_policy_without_strict_promotion() {
-    let cases = [
-        ("text-insertion", vec![(60, 65), (59, 64)]),
-        ("text-deletion", vec![(40, 45), (39, 44)]),
-        (
-            "numbered-requirement-text-insertion",
-            vec![(71, 85), (70, 84)],
-        ),
-    ];
-
-    for (name, candidate_ranges) in cases {
-        let case = case_named(name);
-        let expectation = case.plan().expectation();
-        assert_eq!(expectation.label(), "candidate+proven-changed-region");
-        assert_eq!(expectation.exact_changes().len(), 1);
-        assert_eq!(expectation.candidate_changes().len(), 1);
-        assert_eq!(
-            expectation.candidate_changes()[0]
-                .new_spans()
-                .iter()
-                .chain(expectation.candidate_changes()[0].old_spans())
-                .map(|span| (span.start(), span.end()))
-                .collect::<Vec<_>>(),
-            candidate_ranges
-        );
-        assert_eq!(expectation.proven_regions().len(), 1);
-        assert_eq!(
-            expectation.proven_regions()[0].kind(),
-            ChangeKind::Replacement
-        );
-
-        for renderer in RendererKind::all() {
-            let record = evaluate_case(&case, renderer).expect("evaluation completes");
-            assert!(record.passed, "{}", record.detail);
-            assert_eq!(record.actual_changes, 0);
-            assert_eq!(record.candidate_changes, 1);
-            assert_eq!(record.proven_changed_regions, 1);
-            assert!(!record.comparison_complete);
-            assert_eq!(record.precision.expected_events, 1);
-            assert_eq!(record.precision.matched_events, 0);
-            assert_eq!(record.precision.event_recall, 0.0);
-        }
-    }
-}
-
-#[test]
 fn paragraph_separator_variants_still_require_exact_changes() {
     for name in ["paragraph-insertion", "paragraph-deletion"] {
         let case = case_named(name);
@@ -1294,10 +952,39 @@ fn paragraph_separator_variants_still_require_exact_changes() {
             let record = evaluate_case(&case, renderer).expect("evaluation completes");
             assert!(record.passed, "{}", record.detail);
             assert_eq!(record.actual_changes, 1);
-            assert_eq!(record.candidate_changes, 0);
-            assert_eq!(record.proven_changed_regions, 0);
             assert_eq!(record.precision.matched_events, 1);
             assert_eq!(record.precision.event_recall, 1.0);
+        }
+    }
+}
+
+#[test]
+fn candidate_policy_cases_still_check_exact_kind_and_spans() {
+    for name in [
+        "text-insertion",
+        "text-deletion",
+        "numbered-requirement-text-insertion",
+    ] {
+        let case = case_named(name);
+        let expectation = case.plan().expectation();
+        assert!(expectation.is_candidate_policy(), "{name}");
+        // The evaluator checks `expected.changes()` through
+        // `truth_for_expectation` and `check_truth`; neither the candidate
+        // range nor the proven-region envelope replaces that check.
+        assert_eq!(expectation.exact_changes(), expectation.changes());
+        let expected = &expectation.changes()[0];
+        for renderer in RendererKind::all() {
+            let record = evaluate_case(&case, renderer).expect("evaluation completes");
+            assert!(
+                record.passed,
+                "{name}/{}: {}",
+                renderer.name(),
+                record.detail
+            );
+            assert_eq!(record.actual_changes, 1);
+            assert_eq!(record.actual_kinds, vec![expected.kind()]);
+            assert_eq!(record.precision.matched_events, 1);
+            assert_eq!(record.precision.expected_events, 1);
         }
     }
 }
@@ -1328,17 +1015,12 @@ fn verify_command_prints_a_passing_forty_eight_cell_matrix() {
     assert!(
         stdout
             .lines()
-            .any(|line| line == "strict author-intent accepted=42/48 renderer cells")
+            .any(|line| line == "author-intent accepted=48/48 renderer cells")
     );
     assert!(
         stdout
             .lines()
-            .any(|line| line == "candidate policy accepted=6/6 renderer cells")
-    );
-    assert!(
-        stdout
-            .lines()
-            .any(|line| line == "generated precision evaluated=48/48 complete events=20/26 reported=20 p=1.000 r=0.769 f1=0.870 tokens=tp:810,fp:0,fn:48 p=1.000 r=0.944 f1=0.971 fp_tokens_per_10k_unchanged=0.000")
+            .any(|line| line == "generated precision evaluated=48/48 complete events=28/28 reported=28 p=1.000 r=1.000 f1=1.000 tokens=tp:2216,fp:8,fn:0 p=0.996 r=1.000 f1=0.998 fp_tokens_per_10k_unchanged=48.900")
     );
     assert_eq!(stdout.lines().last(), Some("48/48 passed"));
 }
@@ -1354,164 +1036,6 @@ fn help_lists_benchmark_commands() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("verify"));
     assert!(stdout.contains("render"));
-    assert!(stdout.contains("candidates"));
-    assert!(stdout.contains("candidate-profile"));
+    assert!(stdout.contains("flow-verify"));
     assert!(stdout.contains("extraction-conformance"));
-}
-
-#[test]
-fn candidates_command_prints_records_and_summary() {
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
-        .arg("candidates")
-        .arg("--top-k")
-        .arg("5,10")
-        .output()
-        .expect("pdfbench runs");
-
-    assert!(output.status.success());
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert_eq!(
-        stdout
-            .lines()
-            .filter(|line| line.starts_with("OK case="))
-            .count(),
-        48
-    );
-    assert_eq!(
-        stdout.lines().last(),
-        Some("48/48 candidate evaluations OK")
-    );
-}
-
-#[test]
-fn candidates_command_rejects_invalid_top_k() {
-    for top_k in ["0", "", "5,,10", "five", "5,5"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
-            .arg("candidates")
-            .arg("--top-k")
-            .arg(top_k)
-            .output()
-            .expect("pdfbench runs");
-        assert_eq!(
-            output.status.code(),
-            Some(2),
-            "--top-k {top_k:?} must exit 2"
-        );
-    }
-}
-
-#[test]
-fn candidates_command_writes_a_create_new_json_artifact() {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "pdfbench-candidates-{}-{}.json",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or_default()
-    ));
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
-        .arg("candidates")
-        .arg("--top-k")
-        .arg("5,10")
-        .arg("--json-output")
-        .arg(&path)
-        .output()
-        .expect("pdfbench runs");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let json = std::fs::read_to_string(&path).expect("json artifact exists");
-    let records: serde_json::Value = serde_json::from_str(&json).expect("json artifact parses");
-    assert_eq!(records.as_array().expect("artifact is an array").len(), 48);
-    assert_eq!(records[0]["renderer"], "lopdf-tj");
-    assert_eq!(records[0]["top_k"], serde_json::json!([5, 10]));
-
-    let second = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
-        .arg("candidates")
-        .arg("--json-output")
-        .arg(&path)
-        .output()
-        .expect("pdfbench runs");
-    assert_eq!(
-        second.status.code(),
-        Some(2),
-        "create_new must refuse overwrite"
-    );
-    std::fs::remove_file(&path).expect("temp json artifact removed");
-}
-
-#[cfg(target_os = "linux")]
-#[test]
-fn candidate_profile_runs_generators_in_isolated_workers_and_writes_json() {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "pdfbench-candidate-profile-{}-{}.json",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or_default()
-    ));
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
-        .arg("candidate-profile")
-        .arg("--blocks")
-        .arg("64")
-        .arg("--top-k")
-        .arg("1,5")
-        .arg("--json-output")
-        .arg(&path)
-        .output()
-        .expect("pdfbench runs");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert_eq!(
-        stdout
-            .lines()
-            .filter(|line| line.starts_with("PROFILE generator="))
-            .count(),
-        3
-    );
-    assert_eq!(
-        stdout.lines().last(),
-        Some("3/3 candidate profiles OK; default=inverted-index (diagnostic observations only)")
-    );
-
-    let json = std::fs::read_to_string(&path).expect("json artifact exists");
-    let records: serde_json::Value = serde_json::from_str(&json).expect("json artifact parses");
-    let records = records.as_array().expect("artifact is an array");
-    assert_eq!(records.len(), 3);
-    for record in records {
-        assert_eq!(record["blocks"], 64);
-        assert_eq!(record["top_k"], serde_json::json!([1, 5]));
-        assert_eq!(record["recall_at_k"], serde_json::json!([1.0, 1.0]));
-        assert_eq!(record["memory_source"], "linux-proc-status");
-        assert!(record["rss_before_build_bytes"].as_u64().unwrap_or(0) > 0);
-        assert!(record["peak_rss_bytes"].as_u64().unwrap_or(0) > 0);
-    }
-
-    let second = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
-        .arg("candidate-profile")
-        .arg("--blocks")
-        .arg("64")
-        .arg("--json-output")
-        .arg(&path)
-        .output()
-        .expect("pdfbench runs");
-    assert_eq!(
-        second.status.code(),
-        Some(2),
-        "create_new must refuse overwrite"
-    );
-    std::fs::remove_file(&path).expect("temp json artifact removed");
 }

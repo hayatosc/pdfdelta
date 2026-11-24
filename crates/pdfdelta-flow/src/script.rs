@@ -1018,6 +1018,11 @@ mod tests {
                 block: 0,
                 uncertain: false,
                 line_break_after: false,
+                font_size: None,
+                raw: None,
+                position: None,
+                page_break_after: false,
+                normalization: 0,
             })
             .collect()
     }
@@ -1063,6 +1068,30 @@ mod tests {
         let base = build_script_base(&old, &new, &spine);
         let split = script_from_base(&context, &base, rule);
         assert_eq!(direct, split);
+    }
+
+    #[test]
+    fn a_token_order_change_is_never_layout_only() {
+        let old = tokens(&["alpha", "beta", "gamma", "delta"]);
+        let new = tokens(&["gamma", "delta", "alpha", "beta"]);
+        assert!(!layout_only_equal(&old, &new));
+        let diff = crate::flow_diff(&old, &new).expect("test script verifies");
+        assert!(
+            !diff
+                .changes
+                .iter()
+                .any(|change| matches!(change, FlowChange::LayoutOnly { .. })),
+            "{:?}",
+            diff.changes
+        );
+        assert!(crate::selects_difference(&diff.stats()));
+    }
+
+    #[test]
+    fn reflowed_tokens_remain_layout_only() {
+        let old = tokens(&["alpha", "beta", "gamma"]);
+        let new = tokens(&["alphabeta", "gamma"]);
+        assert!(layout_only_equal(&old, &new));
     }
 
     #[test]

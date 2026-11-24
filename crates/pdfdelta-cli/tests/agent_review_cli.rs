@@ -129,8 +129,101 @@ fn fixture(directory: &TestDirectory) -> (PathBuf, PathBuf) {
     (old, new)
 }
 
+/// A bundle written by the removed proof engine stays listable and readable.
 #[test]
-fn exporting_a_bundle_changes_neither_the_report_nor_the_exit_status() {
+fn a_stored_proof_bundle_remains_listable_and_readable() {
+    let directory = TestDirectory::new();
+    let bundle =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/proof-bundle-line-wrap");
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    assert_eq!(listed.status.code(), Some(0), "{}", stderr(&listed));
+    let response = json(&listed);
+    assert_eq!(response["schema"], "agent-review/v1");
+    let cases = response["cases"].as_array().expect("cases");
+    assert!(!cases.is_empty(), "the stored bundle carries cases");
+    let case = cases[0]["case"].as_str().expect("a case");
+
+    let shown = run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        case,
+        "--detail",
+        "text",
+        "--max-output-bytes",
+        "16384",
+    ]);
+    assert_eq!(shown.status.code(), Some(0), "{}", stderr(&shown));
+    let shown = json(&shown);
+    assert_eq!(shown["schema"], "agent-review/v1");
+    assert_eq!(shown["case_id"], case);
+
+    let images = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/proof-render");
+    let rendered = run(&[
+        "review",
+        "render",
+        bundle.to_str().expect("path"),
+        "--case",
+        case,
+        "--output",
+        images.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    assert_eq!(rendered.status.code(), Some(0), "{}", stderr(&rendered));
+    let response = json(&rendered);
+    assert!(
+        response["images"]
+            .as_array()
+            .is_some_and(|images| !images.is_empty()),
+        "the stored bundle renders its retained page: {response}"
+    );
+    fs::remove_dir_all(images).expect("cleanup rendered images");
+
+    let decisions = decisions_file(
+        &directory,
+        "decisions.json",
+        &bundle,
+        &[serde_json::json!({
+            "case_id": case,
+            "status": "undetermined",
+            "rationale": "the stored case cannot be settled from the fixture",
+        })],
+    );
+    let imported_path = directory.join("imported.json");
+    let imported = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        imported_path.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    assert_eq!(imported.status.code(), Some(0), "{}", stderr(&imported));
+    assert!(
+        imported_path.is_file(),
+        "the stored bundle accepts decisions"
+    );
+
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("fixture manifest"))
+            .expect("manifest JSON");
+    assert_eq!(manifest["schema"], "agent-review/v1");
+    assert_eq!(manifest["pipeline"], "shared_evidence");
+}
+
+#[test]
+fn exporting_a_flow_bundle_changes_neither_the_report_nor_the_exit_status() {
     let directory = TestDirectory::new();
     let (old, new) = fixture(&directory);
     let plain = directory.join("plain.json");
@@ -141,7 +234,7 @@ fn exporting_a_bundle_changes_neither_the_report_nor_the_exit_status() {
         old.to_str().expect("path"),
         new.to_str().expect("path"),
         "--channels",
-        "text",
+        "text,visual,forms,relations",
         "--json",
         plain.to_str().expect("path"),
         "--quiet",
@@ -150,14 +243,13 @@ fn exporting_a_bundle_changes_neither_the_report_nor_the_exit_status() {
         old.to_str().expect("path"),
         new.to_str().expect("path"),
         "--channels",
-        "text",
+        "text,visual,forms,relations",
         "--json",
         exported.to_str().expect("path"),
         "--agent-review",
         bundle.to_str().expect("path"),
         "--quiet",
     ]);
-
     assert_eq!(
         without.status.code(),
         with.status.code(),
@@ -168,11 +260,133 @@ fn exporting_a_bundle_changes_neither_the_report_nor_the_exit_status() {
         serde_json::from_slice(&fs::read(&plain).expect("report")).expect("JSON");
     let mut exported: Value =
         serde_json::from_slice(&fs::read(&exported).expect("report")).expect("JSON");
-    // Wall time is an observation of this run, not a comparison result.
     plain["comparison_wall_time_ms"] = Value::Null;
     exported["comparison_wall_time_ms"] = Value::Null;
-    assert_eq!(plain, exported, "the export must not alter the report");
+    assert_eq!(plain, exported, "the flow export must not alter the report");
     assert!(bundle.join("manifest.json").is_file());
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("manifest"))
+            .expect("JSON");
+    assert_eq!(manifest["pipeline"], "shared_evidence");
+}
+
+#[test]
+fn a_flow_bundle_accounts_for_every_change_and_channel_reason() {
+    let directory = TestDirectory::new();
+    let old = directory.join("coverage-old.pdf");
+    let new = directory.join("coverage-new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Alpha is 10 units.",
+            "Beta is 20 units.",
+            "Gamma stays stable.",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Alpha is 11 units.",
+            "Beta is 21 units.",
+            "Gamma stays stable.",
+        ],
+    );
+    let bundle = directory.join("bundle");
+    let report_path = directory.join("report.json");
+    let comparison = run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--json",
+        report_path.to_str().expect("path"),
+        "--quiet",
+    ]);
+    assert!(
+        matches!(comparison.status.code(), Some(0 | 1 | 3)),
+        "{}",
+        stderr(&comparison)
+    );
+    let report: Value =
+        serde_json::from_slice(&fs::read(&report_path).expect("report")).expect("JSON");
+    let flow = &report["flow_text"];
+    let changes = flow["changes"].as_array().expect("changes").len();
+    let formatting = flow["formatting_only_changes"]
+        .as_array()
+        .expect("formatting")
+        .len();
+    let mut content = Vec::new();
+    let mut formatted = Vec::new();
+    for entry in fs::read_dir(bundle.join("cases")).expect("cases") {
+        let path = entry.expect("entry").path();
+        if path.to_string_lossy().ends_with(".context.json") {
+            continue;
+        }
+        let case: Value =
+            serde_json::from_slice(&fs::read(&path).expect("case")).expect("case JSON");
+        for evidence in case["flow_evidence"].as_array().into_iter().flatten() {
+            match evidence["kind"].as_str() {
+                Some("content") => content.push(evidence["index"].as_u64().expect("index")),
+                Some("formatting") => formatted.push(evidence["index"].as_u64().expect("index")),
+                other => panic!("unknown flow evidence kind {other:?}"),
+            }
+        }
+    }
+    content.sort_unstable();
+    formatted.sort_unstable();
+    assert_eq!(
+        content,
+        (0..changes as u64).collect::<Vec<_>>(),
+        "every flow change appears in exactly one case"
+    );
+    assert_eq!(
+        formatted,
+        (0..formatting as u64).collect::<Vec<_>>(),
+        "every formatting entry appears in exactly one case"
+    );
+    // Every broken or unexamined per-channel verdict is explained by a case
+    // reason or an explicit channel gap, never only by a top-level flag.
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("manifest"))
+            .expect("JSON");
+    let gaps = manifest["unlocalized_gaps"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for verdict in report["channel_verdicts"].as_array().into_iter().flatten() {
+        if verdict["broken"] != true && verdict["unexamined"] != true {
+            continue;
+        }
+        let channel = verdict["channel"].as_str().expect("channel");
+        if channel == "cross_channel" {
+            continue;
+        }
+        let in_case = fs::read_dir(bundle.join("cases"))
+            .expect("cases")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".context.json")
+            })
+            .any(|entry| {
+                let case: Value = serde_json::from_slice(&fs::read(entry.path()).expect("case"))
+                    .expect("case JSON");
+                case["reasons"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|reason| reason["channel"].as_str() == Some(channel))
+            });
+        let in_gap = gaps
+            .iter()
+            .any(|gap| gap["channel"].as_str() == Some(channel));
+        assert!(
+            in_case || in_gap,
+            "channel {channel} is {verdict} but no case or gap explains it"
+        );
+    }
 }
 
 #[test]
@@ -182,8 +396,9 @@ fn an_incomplete_comparison_still_publishes_a_readable_bundle() {
     let bundle = directory.join("bundle");
 
     // The default contract selects channels whose interpretation is incomplete
-    // for this fixture, so the comparison exits 3 and the bundle is still
-    // usable.
+    // for this fixture. Flow detects the text difference, so it exits 1 while
+    // recording that other selected evidence remains unexamined; the bundle is
+    // still usable and carries the same verdict.
     let comparison = run(&[
         old.to_str().expect("path"),
         new.to_str().expect("path"),
@@ -191,7 +406,7 @@ fn an_incomplete_comparison_still_publishes_a_readable_bundle() {
         bundle.to_str().expect("path"),
         "--quiet",
     ]);
-    assert_eq!(comparison.status.code(), Some(3), "{}", stderr(&comparison));
+    assert_eq!(comparison.status.code(), Some(1), "{}", stderr(&comparison));
 
     let listed = run(&[
         "review",
@@ -388,18 +603,36 @@ fn the_native_text_contract_publishes_its_own_bundle() {
     let directory = TestDirectory::new();
     let (old, new) = fixture(&directory);
     let bundle = directory.join("native-bundle");
+    let plain = directory.join("native-plain.json");
+    let exported = directory.join("native-exported.json");
+    let without = run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--native-text-only",
+        "--json",
+        plain.to_str().expect("path"),
+        "--quiet",
+    ]);
     let comparison = run(&[
         old.to_str().expect("path"),
         new.to_str().expect("path"),
         "--native-text-only",
         "--agent-review",
         bundle.to_str().expect("path"),
+        "--json",
+        exported.to_str().expect("path"),
         "--quiet",
     ]);
+    assert_eq!(without.status.code(), comparison.status.code());
     assert!(
         matches!(comparison.status.code(), Some(0 | 1 | 3)),
         "{}",
         stderr(&comparison)
+    );
+    assert_eq!(
+        fs::read(&plain).expect("plain native report"),
+        fs::read(&exported).expect("exported native report"),
+        "the native export must not alter the compact report"
     );
 
     let listed = run(&[
@@ -870,7 +1103,7 @@ fn an_external_assessment_is_stored_beside_the_engine_result_not_merged_into_it(
     assert_eq!(answer.status.code(), Some(0), "{}", stderr(&answer));
 
     let stored: Value = serde_json::from_slice(&fs::read(&output).expect("result")).expect("JSON");
-    assert_eq!(stored["schema"], "agent-review-result/v1");
+    assert_eq!(stored["schema"], "agent-review-result/v2");
     assert_eq!(stored["external"]["origin"], "external_agent");
     assert_eq!(stored["external"]["agent"]["name"], "fixture-host");
     // The engine's own verdict is copied, not recomputed and not adjusted.
@@ -1108,128 +1341,6 @@ fn a_text_answer_spends_its_budget_on_text_rather_than_identifiers() {
     assert!(
         identifiers <= quoted.max(512),
         "references took {identifiers} bytes against {quoted} bytes of text"
-    );
-}
-
-/// A bundle whose material is long enough that locating it costs less than
-/// quoting it, which is the case the text level withholds.
-fn long_text_bundle(directory: &TestDirectory, name: &str) -> PathBuf {
-    let filler = "The reporting deadline is stated in the schedule below and repeats. ".repeat(12);
-    let old = directory.join("long-old.pdf");
-    let new = directory.join("long-new.pdf");
-    write_pdf(&old, &[&format!("{filler}The deadline is 10 days.")]);
-    write_pdf(&new, &[&format!("{filler}The deadline is 20 days.")]);
-    let bundle = directory.join(name);
-    run(&[
-        old.to_str().expect("path"),
-        new.to_str().expect("path"),
-        "--channels",
-        "text",
-        "--agent-review",
-        bundle.to_str().expect("path"),
-        "--quiet",
-    ]);
-    bundle
-}
-
-#[test]
-fn material_no_comparison_examined_is_located_rather_than_quoted() {
-    let directory = TestDirectory::new();
-    let bundle = long_text_bundle(&directory, "long-bundle");
-    let case = first_case(&bundle);
-    let located = json(&run(&[
-        "review",
-        "show",
-        bundle.to_str().expect("path"),
-        "--case",
-        &case,
-        "--detail",
-        "text",
-        "--max-output-bytes",
-        "16384",
-    ]));
-    assert_eq!(
-        located["finding"], "not_examined",
-        "the fixture's first case is material nothing compared: {located}"
-    );
-
-    let side = ["old_text", "new_text"]
-        .into_iter()
-        .find(|side| located[*side].is_object())
-        .expect("a located side");
-    assert_eq!(
-        located[side]["text"], "",
-        "unexamined material is not quoted at the text level"
-    );
-    let withheld = located[side]["omitted"]
-        .as_array()
-        .and_then(|runs| runs.first())
-        .expect("a withheld run");
-    assert_eq!(withheld["reason"], "detail_level");
-    assert!(
-        withheld["scalars"].as_u64().expect("a length") > 0,
-        "the withheld run declares how much it withheld: {withheld}"
-    );
-    assert_eq!(
-        withheld["expand_with"]["action"], "show",
-        "the withheld run names the retrieval that returns it: {withheld}"
-    );
-    assert_eq!(withheld["expand_with"]["detail"], "quote");
-    assert_eq!(
-        located["evidence"].as_array().map(Vec::len),
-        Some(0),
-        "references for unexamined material are counted, not sampled"
-    );
-    assert_eq!(
-        located["evidence_total"], located["omitted"],
-        "every reference the case holds is declared as left out: {located}"
-    );
-
-    // The same case quotes its material when a reviewer asks for it.
-    let quoted = json(&run(&[
-        "review",
-        "show",
-        bundle.to_str().expect("path"),
-        "--case",
-        &case,
-        "--detail",
-        "quote",
-        "--max-output-bytes",
-        "16384",
-    ]));
-    assert!(
-        quoted[side]["text"]
-            .as_str()
-            .is_some_and(|text| !text.is_empty()),
-        "the quote level returns what the text level withheld: {quoted}"
-    );
-}
-
-#[test]
-fn short_unexamined_material_is_quoted_because_locating_it_would_cost_more() {
-    let directory = TestDirectory::new();
-    let bundle = text_bundle(&directory, "bundle");
-    let case = first_case(&bundle);
-    let shown = json(&run(&[
-        "review",
-        "show",
-        bundle.to_str().expect("path"),
-        "--case",
-        &case,
-        "--detail",
-        "text",
-        "--max-output-bytes",
-        "16384",
-    ]));
-    assert_eq!(shown["finding"], "not_examined");
-    let quoted: usize = ["old_text", "new_text"]
-        .into_iter()
-        .filter_map(|side| shown[side]["text"].as_str())
-        .map(str::len)
-        .sum();
-    assert!(
-        quoted > 0,
-        "a locator for a single short line would cost more than the line: {shown}"
     );
 }
 

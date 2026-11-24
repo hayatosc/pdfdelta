@@ -12,6 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hayro::hayro_syntax::{
+    object::{Dict, Stream},
+    page::Resources,
+};
 use pdfdelta_core::{
     document::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, EvidenceFailure, EvidenceIssue,
@@ -22,8 +26,90 @@ use pdfdelta_core::{
 };
 
 const MAX_PIXELS: usize = 8_000_000;
-const PAGE_TIMEOUT: Duration = Duration::from_secs(5);
-const DOCUMENT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Upper bound on one image `XObject`'s declared pixel count before rendering.
+///
+/// Hayro 0.7.1 expands an image to an RGBA buffer before downscaling it to the
+/// page. One 1-bit mask in the real-world corpus is 19,848 x 28,063 pixels
+/// (556,994,424 pixels); the renderer requested a 2 GiB allocation and aborted
+/// under the render child's 2 GiB address-space limit. The 64M-pixel bound
+/// stays above the panel's ordinary images while keeping the worst-case RGBA
+/// conversion (256 MiB) well inside the child's resource limits.
+const MAX_RENDER_IMAGE_PIXELS: u64 = 64_000_000;
+
+/// Bounds `XObject` scanning in the render preflight.
+const MAX_PREFLIGHT_XOBJECTS: usize = 4_096;
+const MAX_PREFLIGHT_DEPTH: usize = 8;
+
+/// CPU seconds allowed to one page's render child.
+///
+/// Measured over 4,654 pages of the 36-pair channel panel: p99.9 0.51 s and
+/// max 0.84 s. Five seconds is a sixfold margin over the slowest observed page
+/// and leaves room for a slower machine or a colder cache.
+const PAGE_CPU_BUDGET_SECONDS: u64 = 5;
+
+/// Wall-clock safety stop for one page.
+///
+/// The deterministic budget is [`PAGE_CPU_BUDGET_SECONDS`]. This cap is 24
+/// times that budget and only stops a page that is blocked or descheduled far
+/// beyond the measured distribution. Its expiry is reported as a distinct
+/// resource-limit reason because the outcome depends on machine load.
+const PAGE_WALL_SAFETY: Duration = Duration::from_secs(120);
+
+/// Cumulative child CPU allowed to all rendered pages of one input document.
+///
+/// Measured per input over the 36-pair channel panel: max 26.4 s, p99 26.4 s,
+/// p90 9.3 s, median 1.1 s. Sixty seconds is a 2.3-fold margin over the
+/// slowest observed document and still bounds a hostile input that yields many
+/// cheap pages. The page that pushes the cumulative total over the budget is
+/// retained; the total is therefore at most this budget plus one page budget.
+const DOCUMENT_CPU_BUDGET_SECONDS: u64 = 60;
+const DOCUMENT_CPU_BUDGET_MICROS: u64 = DOCUMENT_CPU_BUDGET_SECONDS * 1_000_000;
+const DOCUMENT_CPU_BUDGET_REASON: &str =
+    "document CPU budget exhausted; this outcome is deterministic for this input";
+
+/// Wall-clock safety stop for one document's rendering loop.
+///
+/// Five times the document CPU budget. The CPU budget is the deterministic
+/// limit; this cap only stops a page stream that is blocked or descheduled far
+/// beyond the measured distribution. Its expiry is reported as a distinct
+/// resource-limit reason that depends on machine load.
+const DOCUMENT_WALL_SAFETY: Duration = Duration::from_secs(300);
+
+/// Length of the complete render response: warning flag plus CPU micros.
+const RESPONSE_HEADER: usize = 1 + 8;
+
+/// Cumulative child CPU used by one input document's render pages.
+///
+/// Successful pages report their own process CPU. A failed page still consumed
+/// up to [`PAGE_CPU_BUDGET_SECONDS`], so it is charged that full budget; this
+/// keeps a stream of failed pages from bypassing the document budget.
+#[derive(Clone, Copy, Debug)]
+struct DocumentCpu {
+    used_micros: u64,
+    budget_micros: u64,
+}
+
+impl DocumentCpu {
+    const fn new(budget_micros: u64) -> Self {
+        Self {
+            used_micros: 0,
+            budget_micros,
+        }
+    }
+
+    const fn exhausted(&self) -> bool {
+        self.used_micros >= self.budget_micros
+    }
+
+    fn charge(&mut self, micros: u64) {
+        self.used_micros = self.used_micros.saturating_add(micros);
+    }
+
+    fn charge_failed_page(&mut self) {
+        self.charge(PAGE_CPU_BUDGET_SECONDS.saturating_mul(1_000_000));
+    }
+}
 
 /// Retains partial page evidence without claiming renderer or annotation coverage.
 pub fn collect(
@@ -31,6 +117,25 @@ pub fn collect(
     bytes: &[u8],
     page_refs: &[PageRef],
     password_supplied: bool,
+) {
+    collect_with_limits(
+        store,
+        bytes,
+        page_refs,
+        password_supplied,
+        DOCUMENT_CPU_BUDGET_MICROS,
+        DOCUMENT_WALL_SAFETY,
+    );
+}
+
+/// Collects rendered page evidence with explicit document budgets.
+fn collect_with_limits(
+    store: &mut EvidenceStore,
+    bytes: &[u8],
+    page_refs: &[PageRef],
+    password_supplied: bool,
+    document_cpu_budget_micros: u64,
+    document_wall_safety: Duration,
 ) {
     let backend = store.backends.len();
     store.backends.push(BackendIdentity {
@@ -42,6 +147,7 @@ pub fn collect(
     });
     let started = Instant::now();
     let mut retained_bytes = 0usize;
+    let mut document_cpu = DocumentCpu::new(document_cpu_budget_micros);
     for page in &store.pages {
         let result = (|| {
             if password_supplied {
@@ -81,15 +187,21 @@ pub fn collect(
                     "retained raster budget exhausted".into(),
                 ));
             }
-            let remaining = DOCUMENT_TIMEOUT
+            if document_cpu.exhausted() {
+                return Err((
+                    EvidenceFailure::ResourceLimit,
+                    DOCUMENT_CPU_BUDGET_REASON.into(),
+                ));
+            }
+            let remaining = document_wall_safety
                 .checked_sub(started.elapsed())
                 .ok_or_else(|| {
                     (
                         EvidenceFailure::ResourceLimit,
-                        "document rendering deadline exceeded".into(),
+                        "document wall-clock safety stop expired; this outcome depends on machine load".into(),
                     )
                 })?;
-            let (raster, warned) = render_page(
+            let rendered = render_page(
                 bytes,
                 page.page.0 as usize,
                 store.pages.len(),
@@ -104,8 +216,17 @@ pub fn collect(
                         )
                     })?
                     .0,
-                remaining.min(PAGE_TIMEOUT),
-            )?;
+                remaining.min(PAGE_WALL_SAFETY),
+            );
+            if rendered.is_err() {
+                // A failed render attempt can consume up to the per-page CPU
+                // budget without returning a complete response, so charge the
+                // full page budget. A page rejected before the attempt (for
+                // example by the raster budget) consumes no child CPU.
+                document_cpu.charge_failed_page();
+            }
+            let (raster, warned, page_cpu_micros) = rendered?;
+            document_cpu.charge(page_cpu_micros);
             Ok((bounds, raster, warned))
         })();
         let mut sources = Vec::new();
@@ -167,7 +288,7 @@ fn render_page(
     height: u16,
     reference: ObjectRef,
     timeout: Duration,
-) -> Result<(Raster, bool), (EvidenceFailure, String)> {
+) -> Result<(Raster, bool, u64), (EvidenceFailure, String)> {
     let failure = |error: std::io::Error| {
         (
             EvidenceFailure::BackendFailure,
@@ -184,7 +305,7 @@ fn render_page(
         &reference.object_number.to_string(),
         &reference.generation.to_string(),
     ]);
-    let max_output = 1 + usize::from(width) * usize::from(height) * 3;
+    let max_output = RESPONSE_HEADER + usize::from(width) * usize::from(height) * 3;
     let output = run_bounded(&mut command, bytes, max_output, timeout)?;
     if output.len() != max_output || output[0] > 1 {
         return Err((
@@ -192,13 +313,19 @@ fn render_page(
             "invalid render response".into(),
         ));
     }
+    let cpu_micros = u64::from_le_bytes(
+        output[1..RESPONSE_HEADER]
+            .try_into()
+            .expect("render response header has eight CPU bytes"),
+    );
     Ok((
         Raster {
             width: u32::from(width),
             height: u32::from(height),
-            rgb: output[1..].to_vec(),
+            rgb: output[RESPONSE_HEADER..].to_vec(),
         },
         output[0] != 0,
+        cpu_micros,
     ))
 }
 
@@ -249,7 +376,8 @@ pub fn run_bounded(
                 Ok(None) => {
                     break Err((
                         EvidenceFailure::ResourceLimit,
-                        "evidence process deadline exceeded".into(),
+                        "page wall-clock safety stop expired; this outcome depends on machine load"
+                            .into(),
                     ));
                 }
                 Err(error) => break Err(failure(error)),
@@ -282,10 +410,16 @@ pub fn run_bounded(
         }
         let status = status?;
         if !status.success() {
+            if status.code().is_none() && cpu_limit_termination(status) {
+                return Err((
+                    EvidenceFailure::ResourceLimit,
+                    "evidence process exceeded its CPU budget; no complete response was retained"
+                        .into(),
+                ));
+            }
             let kind = match status.code() {
                 Some(3) => EvidenceFailure::ResourceLimit,
                 Some(4) => EvidenceFailure::Unsupported,
-                None if cpu_limit_termination(status) => EvidenceFailure::ResourceLimit,
                 _ => EvidenceFailure::BackendFailure,
             };
             return Err((
@@ -298,10 +432,33 @@ pub fn run_bounded(
     })
 }
 
+/// Returns the calling process's consumed user and system CPU time in micros.
+///
+/// `CLOCK_PROCESS_CPUTIME_ID` is the safe POSIX process CPU clock; it measures
+/// the same user+system work as `getrusage(RUSAGE_SELF)` without sampling
+/// `/proc` and without an unsafe `wait4` binding. The render child reports this
+/// value in its response so the parent can enforce the document CPU budget.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn process_cpu_micros() -> u64 {
+    use rustix::time::{ClockId, clock_gettime};
+
+    let timespec = clock_gettime(ClockId::ProcessCPUTime);
+    let seconds = u64::try_from(timespec.tv_sec).unwrap_or(0);
+    let nanos = u64::try_from(timespec.tv_nsec).unwrap_or(0);
+    seconds
+        .saturating_mul(1_000_000)
+        .saturating_add(nanos / 1_000)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn process_cpu_micros() -> u64 {
+    0
+}
+
 /// The CPU budget configured by [`restrict_process`] terminates an exhausted
 /// child with `SIGXCPU`, which is a typed resource-limit outcome rather than a
 /// backend failure.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn cpu_limit_termination(status: std::process::ExitStatus) -> bool {
     use std::os::unix::process::ExitStatusExt;
 
@@ -309,9 +466,54 @@ fn cpu_limit_termination(status: std::process::ExitStatus) -> bool {
     status.signal() == Some(SIGXCPU)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn cpu_limit_termination(_status: std::process::ExitStatus) -> bool {
     false
+}
+
+/// Whether a page contains an image `XObject` above the render pixel bound.
+///
+/// The scan reads only image dictionaries; it never decodes a stream. Form
+/// `XObject` resources are followed recursively with a depth and entry bound so
+/// a self-referential or pathological resource tree cannot make the preflight
+/// itself unbounded.
+fn page_image_exceeds_render_bound(page: &hayro::hayro_syntax::page::Page<'_>) -> bool {
+    let mut remaining = MAX_PREFLIGHT_XOBJECTS;
+    resources_exceed_render_bound(page.resources(), 0, &mut remaining)
+}
+
+fn resources_exceed_render_bound(
+    resources: &Resources<'_>,
+    depth: usize,
+    remaining: &mut usize,
+) -> bool {
+    if depth > MAX_PREFLIGHT_DEPTH || *remaining == 0 {
+        return false;
+    }
+    for (name, _) in resources.x_objects.entries() {
+        if *remaining == 0 {
+            return false;
+        }
+        *remaining -= 1;
+        let Some(stream) = resources.x_objects.get::<Stream<'_>>(name) else {
+            continue;
+        };
+        let dict = stream.dict();
+        let width = dict.get::<u32>(b"Width" as &[u8]).unwrap_or(0);
+        let height = dict.get::<u32>(b"Height" as &[u8]).unwrap_or(0);
+        if u64::from(width).saturating_mul(u64::from(height)) > MAX_RENDER_IMAGE_PIXELS {
+            return true;
+        }
+        if let Some(form_resources) = dict.get::<Dict<'_>>(b"Resources" as &[u8]) {
+            let nested = Resources::from_parent(form_resources, resources.clone());
+            if resources_exceed_render_bound(&nested, depth + 1, remaining) {
+                return true;
+            }
+        }
+    }
+    resources
+        .parent()
+        .is_some_and(|parent| resources_exceed_render_bound(parent, depth + 1, remaining))
 }
 
 /// Binary response: one warning flag followed by exactly width × height RGB bytes.
@@ -324,7 +526,7 @@ pub fn worker(
     object_number: u32,
     generation: u16,
 ) -> Result<(), u8> {
-    restrict_process(5)?;
+    restrict_process(PAGE_CPU_BUDGET_SECONDS)?;
     if width == 0 || height == 0 || usize::from(width) * usize::from(height) > MAX_PIXELS {
         return Err(3);
     }
@@ -352,6 +554,9 @@ pub fn worker(
     if actual_width.ceil() != f32::from(width) || actual_height.ceil() != f32::from(height) {
         return Err(2);
     }
+    if page_image_exceeds_render_bound(page) {
+        return Err(3);
+    }
     let warned = Arc::new(AtomicBool::new(false));
     let sink = Arc::clone(&warned);
     let settings = hayro::hayro_interpret::InterpreterSettings {
@@ -371,10 +576,12 @@ pub fn worker(
             ..Default::default()
         },
     );
+    let cpu_micros = process_cpu_micros();
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     stdout
         .write_all(&[u8::from(warned.load(Ordering::Relaxed))])
         .map_err(|_| 2)?;
+    stdout.write_all(&cpu_micros.to_le_bytes()).map_err(|_| 2)?;
     for pixel in pixmap.data_as_u8_slice().as_chunks::<4>().0 {
         stdout.write_all(&pixel[..3]).map_err(|_| 2)?;
     }
@@ -410,6 +617,119 @@ pub fn restrict_process(_cpu_seconds: u64) -> Result<(), u8> {
 mod tests {
     use super::*;
 
+    fn image_page_pdf(width: u32, height: u32) -> Vec<u8> {
+        use lopdf::{Document, Object, Stream as LopdfStream, dictionary};
+
+        let mut document = Document::with_version("1.5");
+        let pages = document.new_object_id();
+        let image = document.add_object(LopdfStream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => i64::from(width),
+                "Height" => i64::from(height),
+                "BitsPerComponent" => 1,
+                "ColorSpace" => "DeviceGray",
+                "ImageMask" => true,
+            },
+            vec![0_u8; 8],
+        ));
+        let contents = document.add_object(LopdfStream::new(
+            dictionary! {},
+            b"q 100 0 0 100 0 0 cm /Im0 Do Q".to_vec(),
+        ));
+        let page = document.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages,
+            "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(100), Object::from(100)],
+            "Resources" => dictionary! { "XObject" => dictionary! { "Im0" => image } },
+            "Contents" => contents,
+        });
+        document.objects.insert(
+            pages,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page)],
+                "Count" => 1,
+            }),
+        );
+        let catalog = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+        document.trailer.set("Root", catalog);
+        let mut bytes = Vec::new();
+        document
+            .save_to(&mut bytes)
+            .expect("image fixture serializes");
+        bytes
+    }
+
+    #[test]
+    fn oversized_image_x_object_is_rejected_before_render() {
+        let bytes = image_page_pdf(19_848, 28_063);
+        let pdf = hayro::hayro_syntax::Pdf::new(bytes).expect("fixture parses");
+        let page = pdf.pages().first().expect("fixture page");
+        assert!(page_image_exceeds_render_bound(page));
+    }
+
+    #[test]
+    fn ordinary_image_x_object_passes_the_render_preflight() {
+        let bytes = image_page_pdf(100, 100);
+        let pdf = hayro::hayro_syntax::Pdf::new(bytes).expect("fixture parses");
+        let page = pdf.pages().first().expect("fixture page");
+        assert!(!page_image_exceeds_render_bound(page));
+    }
+
+    #[test]
+    fn document_cpu_exhaustion_is_a_resource_limit_with_no_raster() {
+        use pdfdelta_core::{
+            document::PageEvidence,
+            model::{Document, Glyph, PageId, Rect},
+        };
+
+        let mut store = EvidenceStore {
+            revision: String::new(),
+            backends: Vec::new(),
+            pages: vec![PageEvidence {
+                page: PageId(0),
+                bounds: Some(Rect {
+                    min: Vec2 { x: 0.0, y: 0.0 },
+                    max: Vec2 { x: 100.0, y: 100.0 },
+                }),
+            }],
+            native: Document::<Glyph>::new(Vec::new()),
+            rendered: Vec::new(),
+            structured: Vec::new(),
+            inventories: Vec::new(),
+            key_inventories: Vec::new(),
+            native_structures: Vec::new(),
+            issues: Vec::new(),
+        };
+        collect_with_limits(&mut store, &[], &[], false, 0, Duration::from_secs(1));
+        assert!(store.rendered.is_empty(), "an exhausted page has no raster");
+        assert_eq!(store.issues.len(), 1);
+        assert_eq!(store.issues[0].kind, EvidenceFailure::ResourceLimit);
+        assert_eq!(store.issues[0].reason, DOCUMENT_CPU_BUDGET_REASON);
+    }
+
+    #[test]
+    fn document_cpu_budget_charges_pages_and_failed_pages() {
+        let mut cpu = DocumentCpu::new(2 * PAGE_CPU_BUDGET_SECONDS * 1_000_000);
+        assert!(!cpu.exhausted());
+        cpu.charge(PAGE_CPU_BUDGET_SECONDS * 1_000_000 - 1);
+        assert!(!cpu.exhausted());
+        cpu.charge_failed_page();
+        assert!(!cpu.exhausted());
+        cpu.charge(1);
+        assert!(cpu.exhausted());
+        cpu.charge(1);
+        assert!(cpu.exhausted());
+    }
+
+    #[test]
+    fn document_cpu_budget_reason_is_explicit() {
+        assert!(DOCUMENT_CPU_BUDGET_REASON.contains("document CPU budget"));
+        assert!(DOCUMENT_CPU_BUDGET_REASON.contains("deterministic"));
+    }
+
     #[test]
     fn worker_address_space_limit_rejects_excess_reservation() {
         const CHILD: &str = "PDFDELTA_LIMIT_TEST_CHILD";
@@ -434,7 +754,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_deadline_releases_blocked_input() {
+    fn worker_wall_safety_stop_is_distinct_from_the_cpu_budget() {
         let mut command = Command::new("sh");
         command.args(["-c", "exec sleep 30"]);
         let started = Instant::now();
@@ -444,9 +764,11 @@ mod tests {
             64,
             Duration::from_millis(50),
         )
-        .expect_err("worker must not outlive its request deadline");
+        .expect_err("worker must not outlive its wall-clock safety stop");
         assert_eq!(error.0, EvidenceFailure::ResourceLimit);
-        assert!(error.1.contains("deadline"));
+        assert!(error.1.contains("wall-clock safety stop"), "{}", error.1);
+        assert!(error.1.contains("machine load"), "{}", error.1);
+        assert!(!error.1.contains("CPU budget"), "{}", error.1);
         // A missing kill would leave the scoped input writer waiting for sleep.
         assert!(started.elapsed() < Duration::from_secs(5));
     }
@@ -466,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_cpu_exhaustion_is_a_resource_limit() {
+    fn worker_cpu_exhaustion_reports_the_cpu_budget() {
         let mut command = Command::new("sh");
         // Only the soft limit is set so the child is terminated by SIGXCPU
         // instead of the shell's ignored-signal SIGKILL fallback.
@@ -474,6 +796,8 @@ mod tests {
         let error = run_bounded(&mut command, &[], 64, Duration::from_secs(5))
             .expect_err("a cpu-exhausted worker must not be reported as healthy");
         assert_eq!(error.0, EvidenceFailure::ResourceLimit);
+        assert!(error.1.contains("CPU budget"), "{}", error.1);
+        assert!(!error.1.contains("wall-clock safety"), "{}", error.1);
     }
 
     #[test]

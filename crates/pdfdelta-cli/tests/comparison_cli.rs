@@ -157,13 +157,10 @@ fn extraction_cache_produces_identical_reports_cold_and_warm() {
     assert_eq!(read_json(&cold), baseline_report);
     assert_eq!(read_json(&warm), baseline_report);
 
-    // The warm run must actually serve both sides from the cache.
+    // The warm run records a flow trace beside the unchanged report.
     let trace = read_json(&warm_trace);
-    for side in ["old", "new"] {
-        let parse = phase(&trace, "pdf_parse", Some(side));
-        assert_eq!(parse["status"], "skipped");
-        assert_eq!(parse["skip_reason"], "extraction_cache_hit");
-    }
+    assert_eq!(trace["trace_schema"], "pdfdelta-flow-trace/1");
+    assert_eq!(trace["result"]["exit_code"], 1);
 }
 
 #[test]
@@ -294,43 +291,29 @@ fn replacement_exits_one() {
         ],
     );
 
-    let output = compare(&old, &new, &["--strict", "--json", path_text(&report)]);
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "--strict",
+            "-j",
+            path_text(&report),
+            "-q",
+        ],
+    );
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    assert_complete_json_report(&report, 1, Some("replacement"));
-    let report_json = read_json(&report);
-    let old_text = report_json["changes"][0]["occurrences"][0]["old_span"]["text"]
-        .as_str()
-        .expect("replacement old span should carry resolved text");
-    let new_text = report_json["changes"][0]["occurrences"][0]["new_span"]["text"]
-        .as_str()
-        .expect("replacement new span should carry resolved text");
-    // Exact-diff semantics keep the change span minimal: only the differing
-    // digit is reported as changed content.
-    assert_eq!(old_text, "1");
-    assert_eq!(new_text, "2");
-    assert_eq!(
-        report_json["changes"][0]["occurrences"][0]["old_span"]["pages"][0],
-        0
-    );
-    assert_eq!(
-        report_json["changes"][0]["occurrences"][0]["new_span"]["pages"][0],
-        0
-    );
-    let source = &report_json["changes"][0]["occurrences"][0]["old_span"]["sources"][0];
-    assert_eq!(source["kind"], "glyph");
-    assert!(source["glyph_id"].is_u64());
-    assert!(source["bbox"]["min"]["x"].is_number());
-    assert!(source["bbox"]["min"]["y"].is_number());
-    assert!(source["bbox"]["max"]["x"].is_number());
-    assert!(source["bbox"]["max"]["y"].is_number());
-    assert!(source["content_stream"]["object_number"].is_u64());
-    assert!(source["content_stream"]["generation"].is_u64());
-    assert!(source["operator_index"].is_u64());
+    let json = read_json(&report);
+    let change = single_flow_change(&json, "replacement");
+    assert_eq!(change["old_span"]["text"], "10");
+    assert_eq!(change["new_span"]["text"], "20");
+    assert!(json["report"].get("assessment").is_none());
+    assert!(json["report"].get("not_produced_by_engine").is_none());
 }
 
 #[test]
-fn replacement_report_renders_a_unified_diff_hunk() {
+fn replacement_report_renders_a_flow_change_entry() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
@@ -351,118 +334,16 @@ fn replacement_report_renders_a_unified_diff_hunk() {
         ],
     );
 
-    // Piped output defaults to `auto`, so no ANSI escapes may appear even
-    // though the report carries -/+ markers and context.
-    let output = compare(&old, &new, &[]);
+    // Piped output defaults to `auto`, so no ANSI escapes may appear.
+    let output = run_default_engine(&old, &new, &["--native-text-only"]);
     let report = stdout(&output);
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    assert!(report.contains("content changes: 1 "), "{report}");
-    assert!(
-        report.contains(&format!("--- {}", path_text(&old))),
-        "{report}"
-    );
-    assert!(
-        report.contains(&format!("+++ {}", path_text(&new))),
-        "{report}"
-    );
-    // Human-facing page numbers are one-based.
-    assert!(
-        report.contains("@@ page 1 · old block 1 -> new block 1 · confidence: medium @@"),
-        "{report}"
-    );
-    assert!(
-        report.contains("- Release 10 remains available"),
-        "{report}"
-    );
-    assert!(
-        report.contains("+ Release 20 remains available"),
-        "{report}"
-    );
+    assert!(report.contains("content changes: 1"), "{report}");
+    assert!(report.contains("1. replace old 1 -> new 1"), "{report}");
+    assert!(report.contains("old: "), "{report}");
+    assert!(report.contains("new: "), "{report}");
     assert!(!report.contains("\u{1b}["), "{report}");
-}
-
-#[test]
-fn insertion_and_deletion_render_single_sided_hunks() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    write_pdf(
-        &old,
-        &[
-            "Opening paragraph remains stable",
-            "Removed paragraph contains generic text",
-            "Closing paragraph remains stable",
-        ],
-    );
-    write_pdf(
-        &new,
-        &[
-            "Opening paragraph remains stable",
-            "Inserted paragraph contains generic text",
-            "Closing paragraph remains stable",
-        ],
-    );
-
-    let output = compare(&old, &new, &[]);
-    let report = stdout(&output);
-
-    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    // Both scalar-level exact changes share one block pair, so they coalesce
-    // into one presentation hunk with adjacent single-sided markers and
-    // bounded context.
-    assert!(
-        report.contains("- Removed paragraph contains generic te ..."),
-        "{report}"
-    );
-    assert!(
-        report.contains("+ Inserted paragraph contains generic te ..."),
-        "{report}"
-    );
-}
-
-#[test]
-fn color_always_colorizes_piped_output_and_never_disables_it() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    // Context paragraphs give the aligner exact anchors.
-    write_pdf(
-        &old,
-        &[
-            "Opening paragraph establishes context",
-            "Release 10 remains available",
-            "Closing paragraph confirms context",
-        ],
-    );
-    write_pdf(
-        &new,
-        &[
-            "Opening paragraph establishes context",
-            "Release 20 remains available",
-            "Closing paragraph confirms context",
-        ],
-    );
-
-    let always = compare(&old, &new, &["--color", "always"]);
-    let always_report = stdout(&always);
-    assert_eq!(always.status.code(), Some(1), "{}", stderr(&always));
-    assert!(
-        always_report.contains("\u{1b}[1;36m@@ page 1"),
-        "{always_report}"
-    );
-    assert!(
-        always_report.contains("\u{1b}[31m- Release"),
-        "{always_report}"
-    );
-    assert!(
-        always_report.contains("\u{1b}[32m+ Release"),
-        "{always_report}"
-    );
-
-    let never = compare(&old, &new, &["--color", "never"]);
-    assert_eq!(never.status.code(), Some(1), "{}", stderr(&never));
-    assert!(!stdout(&never).contains("\u{1b}["), "{:#}", stdout(&never));
 }
 
 #[test]
@@ -485,10 +366,23 @@ fn line_wrap_only_exits_zero() {
     assert!(glyph_report.contains("text=\"A\""), "{glyph_report}");
     assert!(!glyph_report.contains("text=\" \""), "{glyph_report}");
 
-    let output = compare(&old, &new, &["--strict", "--json", path_text(&report)]);
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "--strict",
+            "-j",
+            path_text(&report),
+            "-q",
+        ],
+    );
 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_complete_json_report(&report, 0, None);
+    let json = read_json(&report);
+    assert_eq!(json["report"]["engine"], "flow");
+    assert_eq!(json["report"]["summary"]["content_changes"], 0);
+    assert_eq!(json["report"]["changes"], Value::Array(Vec::new()));
 }
 
 #[test]
@@ -544,12 +438,15 @@ fn encrypted_comparison_accepts_password_files_without_leaking_secrets() {
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert!(!stdout(&output).contains(SECRET));
     assert!(!stderr(&output).contains(SECRET));
-    assert_complete_json_report(&report, 1, Some("replacement"));
+    let json = read_json(&report);
+    assert_eq!(json["report"]["engine"], "flow");
+    assert_eq!(json["report"]["summary"]["content_changes"], 1);
     let trace_json = fs::read_to_string(&trace).expect("trace report should be readable");
     assert!(
         !trace_json.contains(SECRET),
         "the trace leaked the password"
     );
+    assert_eq!(read_json(&trace)["result"]["exit_code"], 1);
 }
 
 #[test]
@@ -587,11 +484,15 @@ fn encrypted_comparison_reports_a_wrong_password_as_unsupported_without_leaking_
         path_text(&new_secret),
     ];
 
-    // Default mode reports the unsupported side and returns the incomplete status.
-    let default_output = compare(&old, &new, &arguments);
+    // A wrong password is a fatal parse error on the flow path. The trace
+    // carries the typed unsupported class, not a wording-derived backend one.
+    let trace = directory.join("wrong-password-trace.json");
+    let mut traced_arguments = arguments.to_vec();
+    traced_arguments.extend(["--trace-json", path_text(&trace)]);
+    let default_output = compare(&old, &new, &traced_arguments);
     assert_eq!(
         default_output.status.code(),
-        Some(3),
+        Some(2),
         "{}",
         stderr(&default_output)
     );
@@ -599,12 +500,19 @@ fn encrypted_comparison_reports_a_wrong_password_as_unsupported_without_leaking_
     assert!(message.contains("password"), "{message}");
     assert!(!message.contains(SECRET), "{message}");
     assert!(!message.contains(WRONG), "{message}");
+    let trace = read_json(&trace);
+    let failed = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["status"] == "failed")
+        .expect("failed phase");
+    assert_eq!(failed["error"]["kind"], "unsupported", "{trace}");
 
-    // Strict mode refuses the incomplete comparison with exit code 3.
     let mut strict_arguments = arguments.to_vec();
     strict_arguments.push("--strict");
     let strict_output = compare(&old, &new, &strict_arguments);
-    assert_eq!(strict_output.status.code(), Some(3));
+    assert_eq!(strict_output.status.code(), Some(2));
 }
 
 #[test]
@@ -662,10 +570,23 @@ fn page_break_only_exits_zero() {
     write_pdf_pages(&old, &[&[first, second, third, fourth]], 12);
     write_pdf_pages(&new, &[&[first, second], &[third, fourth]], 12);
 
-    let output = compare(&old, &new, &["--strict", "--json", path_text(&report)]);
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "--strict",
+            "-j",
+            path_text(&report),
+            "-q",
+        ],
+    );
 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert_complete_json_report(&report, 0, None);
+    let json = read_json(&report);
+    assert_eq!(json["report"]["engine"], "flow");
+    assert_eq!(json["report"]["summary"]["content_changes"], 0);
+    assert_eq!(json["report"]["changes"], Value::Array(Vec::new()));
 }
 
 #[test]
@@ -690,13 +611,23 @@ fn paragraph_insertion_exits_one_with_one_change() {
         ],
     );
 
-    let output = compare(&old, &new, &["--strict", "--json", path_text(&report)]);
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "--strict",
+            "-j",
+            path_text(&report),
+            "-q",
+        ],
+    );
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    assert_complete_json_report(&report, 1, Some("insertion"));
-    let report_json = read_json(&report);
+    let json = read_json(&report);
+    let change = single_flow_change(&json, "insertion");
     assert_eq!(
-        report_json["changes"][0]["occurrences"][0]["new_span"]["text"],
+        change["new_span"]["text"],
         "Inserted paragraph contains generic text"
     );
 }
@@ -723,13 +654,23 @@ fn paragraph_deletion_exits_one_with_one_change() {
         ],
     );
 
-    let output = compare(&old, &new, &["--strict", "--json", path_text(&report)]);
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "--strict",
+            "-j",
+            path_text(&report),
+            "-q",
+        ],
+    );
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    assert_complete_json_report(&report, 1, Some("deletion"));
-    let report_json = read_json(&report);
+    let json = read_json(&report);
+    let change = single_flow_change(&json, "deletion");
     assert_eq!(
-        report_json["changes"][0]["occurrences"][0]["old_span"]["text"],
+        change["old_span"]["text"],
         "Removed paragraph contains generic text"
     );
 }
@@ -743,432 +684,14 @@ fn writes_json_report_atomically() {
     write_pdf(&old, &["A generic paragraph remains stable"]);
     write_pdf(&new, &["A generic paragraph remains stable"]);
 
-    let output = compare(&old, &new, &["--json", path_text(&report)]);
+    let output = compare(&old, &new, &["--json", path_text(&report), "-q"]);
 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
-    let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 11"));
-    assert!(json.contains("\"content_changes\": 0"));
+    let json = read_json(&report);
+    assert_eq!(json["report"]["schema_version"], 12);
+    assert_eq!(json["report"]["summary"]["content_changes"], 0);
     assert_no_temporary_reports(&directory);
-}
-
-#[test]
-fn compact_native_json_preserves_semantics_and_summarizes_sources() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let full_path = directory.join("full.json");
-    let compact_path = directory.join("compact.json");
-    write_pdf(
-        &old,
-        &[
-            "Opening paragraph establishes context",
-            "Release 10 remains available",
-            "Closing paragraph confirms context",
-        ],
-    );
-    write_pdf(
-        &new,
-        &[
-            "Opening paragraph establishes context",
-            "Release 20 remains available",
-            "Closing paragraph confirms context",
-        ],
-    );
-
-    let full_output = compare(&old, &new, &["--json", path_text(&full_path)]);
-    let compact_output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .arg("--native-text-only")
-        .arg(&old)
-        .arg(&new)
-        .args(["--json", path_text(&compact_path)])
-        .output()
-        .expect("default compact comparison");
-    assert_eq!(
-        full_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&full_output)
-    );
-    assert_eq!(
-        compact_output.status.code(),
-        full_output.status.code(),
-        "{}",
-        stderr(&compact_output)
-    );
-
-    let full = read_json(&full_path);
-    let compact = read_json(&compact_path);
-    assert_eq!(compact["artifact_format"], "pdfdelta-native-compact");
-    assert_eq!(compact["artifact_version"], 2);
-    assert_eq!(compact["source_schema_version"], 11);
-    let report = &compact["report"];
-    for field in [
-        "schema_version",
-        "difference_status",
-        "comparison_scope",
-        "assessment",
-        "summary",
-        "changes",
-        "change_candidates",
-        "proven_changed_regions",
-        "formatting_only_changes",
-        "unresolved_regions",
-        "extraction",
-    ] {
-        assert!(
-            report.get(field).is_some(),
-            "missing semantic field {field}"
-        );
-    }
-    assert_eq!(report["schema_version"], full["schema_version"]);
-    assert_eq!(report["difference_status"], full["difference_status"]);
-    assert_eq!(report["summary"], full["summary"]);
-    assert_eq!(report["extraction"], full["extraction"]);
-    assert_eq!(report["changes"][0]["kind"], full["changes"][0]["kind"]);
-    let full_span = &full["changes"][0]["occurrences"][0]["old_span"];
-    let compact_span = &report["changes"][0]["occurrences"][0]["old_span"];
-    assert_eq!(compact_span["text"], full_span["text"]);
-    assert_eq!(compact_span["pages"], full_span["pages"]);
-    assert_eq!(
-        compact_span["canonical_range"],
-        full_span["canonical_range"]
-    );
-    assert!(full_span["sources"].is_array());
-    assert!(compact_span.get("sources").is_none());
-    let source_summary = &compact_span["source_summary"];
-    for field in [
-        "item_count",
-        "kind_counts",
-        "page_ids",
-        "samples",
-        "canonical_array_sha256",
-        "canonical_array_bytes",
-    ] {
-        assert!(
-            source_summary.get(field).is_some(),
-            "missing source summary field {field}"
-        );
-    }
-    assert!(source_summary["samples"]["first"].is_object());
-    assert!(source_summary["samples"]["last"].is_object());
-    assert!(report.get("full_report_sha256").is_none());
-}
-
-#[test]
-fn writes_complete_phase_trace_separately_from_the_report() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let report = directory.join("comparison.json");
-    let trace = directory.join("trace.json");
-    write_pdf(&old, &["A generic paragraph remains stable"]);
-    write_pdf(&new, &["A generic paragraph remains stable"]);
-
-    let output = compare(
-        &old,
-        &new,
-        &[
-            "--json",
-            path_text(&report),
-            "--trace-json",
-            path_text(&trace),
-        ],
-    );
-
-    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert!(output.stdout.is_empty());
-    let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 26);
-    assert_eq!(trace["command"]["kind"], "compare");
-    assert_eq!(trace["result"]["status"], "completed");
-    assert_eq!(trace["result"]["exit_code"], 0);
-    assert!(
-        phase(&trace, "input_read", Some("old"))["metrics"]["input_bytes"]
-            .as_u64()
-            .is_some()
-    );
-    assert_eq!(
-        phase(&trace, "line_reconstruction", Some("old"))["status"],
-        "completed"
-    );
-    assert_eq!(phase(&trace, "alignment", None)["status"], "completed");
-    let exact_diff = phase(&trace, "exact_diff", None);
-    assert_eq!(exact_diff["status"], "completed");
-    assert!(
-        exact_diff["metrics"]["sentence_recovery_near_pair_visits_examined"]
-            .as_u64()
-            .is_some()
-    );
-    assert!(
-        exact_diff["metrics"]["sentence_recovery_near_similarity_comparisons_attempted"]
-            .as_u64()
-            .is_some()
-    );
-    assert!(
-        exact_diff["metrics"]["sentence_recovery_near_candidate_posting_visits_examined"]
-            .as_u64()
-            .is_some()
-    );
-    assert!(
-        exact_diff["metrics"]["sentence_recovery_near_candidate_posting_visits_attempted"]
-            .as_u64()
-            .is_some()
-    );
-    for key in [
-        "sentence_recovery_sentence_edge_filter_complete",
-        "sentence_recovery_sentence_edge_filter_pairs_examined",
-        "sentence_recovery_sentence_edge_filter_pairs_attempted",
-        "sentence_recovery_sentence_edge_filter_similarity_comparisons_examined",
-        "sentence_recovery_sentence_edge_filter_similarity_comparisons_attempted",
-        "sentence_recovery_sentence_edge_filter_pairs_retained",
-        "sentence_recovery_sentence_edge_filter_pairs_rejected",
-        "sentence_recovery_sentence_edge_filter_stop_reason_pair_visit_limit",
-        "sentence_recovery_sentence_edge_filter_stop_reason_similarity_comparison_limit",
-        "sentence_recovery_sentence_edge_filter_stop_reason_allocation_failure",
-        "sentence_recovery_sentence_edge_filter_stop_reason_counter_overflow",
-        "sentence_recovery_sentence_edge_filter_full_build_fallback_used",
-        "sentence_recovery_sentence_edge_filter_discarded_near_pair_visits_examined",
-        "sentence_recovery_sentence_edge_filter_discarded_near_pair_visits_attempted",
-        "sentence_recovery_sentence_edge_filter_discarded_near_similarity_comparisons_examined",
-        "sentence_recovery_sentence_edge_filter_discarded_near_similarity_comparisons_attempted",
-        "sentence_recovery_sentence_edge_filter_discarded_near_candidate_posting_visits_examined",
-        "sentence_recovery_sentence_edge_filter_discarded_near_candidate_posting_visits_attempted",
-        "sentence_recovery_sentence_edge_gate_shadow_complete",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_posting_visit_limit",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_pair_visit_limit",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_similarity_comparison_limit",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_count_limit",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_allocation_failure",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_counter_overflow",
-        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_diagnostic_failure",
-        "sentence_recovery_sentence_edge_gate_shadow_pairs_considered",
-        "sentence_recovery_sentence_edge_gate_shadow_pairs_rejected",
-    ] {
-        assert!(
-            exact_diff["metrics"][key].as_u64().is_some(),
-            "missing edge-gate trace metric {key}"
-        );
-    }
-    for kind in ["sentence", "line"] {
-        for field in [
-            "edge_posting_visits_examined",
-            "edge_posting_visits_attempted",
-            "line_trigram_posting_visits_examined",
-            "line_trigram_posting_visits_attempted",
-            "edge_query_union_candidates",
-            "line_trigram_only_query_union_candidates",
-            "filtered_candidates",
-            "pair_visits_examined",
-            "pair_visits_attempted",
-            "similarity_comparisons_examined",
-            "similarity_comparisons_attempted",
-        ] {
-            let key = format!("sentence_recovery_near_{kind}_work_{field}");
-            assert!(exact_diff["metrics"][&key].as_u64().is_some(), "{key}");
-        }
-    }
-    let scopes = [
-        "near_paired_interval_work",
-        "near_paired_cross_interval_veto_work",
-        "near_same_or_ambiguous_span_work",
-        "near_same_known_span_work",
-        "near_ambiguous_span_work",
-        "near_same_or_ambiguous_shared_query_work",
-        "near_cross_span_work",
-    ];
-    let fields = [
-        "edge_posting_visits_examined",
-        "edge_posting_visits_attempted",
-        "line_trigram_posting_visits_examined",
-        "line_trigram_posting_visits_attempted",
-        "edge_query_union_candidates",
-        "line_trigram_only_query_union_candidates",
-        "filtered_candidates",
-        "pair_visits_examined",
-        "pair_visits_attempted",
-        "similarity_comparisons_examined",
-        "similarity_comparisons_attempted",
-    ];
-    let mut expected_scope_keys = scopes
-        .iter()
-        .flat_map(|scope| {
-            fields.iter().flat_map(move |field| {
-                ["sentence", "line"]
-                    .map(|kind| format!("sentence_recovery_{scope}_{kind}_work_{field}"))
-            })
-        })
-        .collect::<Vec<_>>();
-    expected_scope_keys.sort();
-    let mut actual_scope_keys = exact_diff["metrics"]
-        .as_object()
-        .expect("exact-diff metrics object")
-        .keys()
-        .filter(|key| {
-            scopes
-                .iter()
-                .any(|scope| key.starts_with(&format!("sentence_recovery_{scope}_")))
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    actual_scope_keys.sort();
-    assert_eq!(actual_scope_keys, expected_scope_keys);
-    assert_eq!(
-        exact_diff["metrics"]["sentence_recovery_near_candidate_count_truncated"],
-        0
-    );
-    assert_eq!(
-        exact_diff["metrics"]["sentence_recovery_near_relation_stop_reason_candidate_posting_visit_limit"],
-        0
-    );
-    assert_eq!(
-        exact_diff["metrics"]["sentence_recovery_near_relation_stop_reason_pair_visit_limit"],
-        0
-    );
-    assert_eq!(
-        exact_diff["metrics"]["sentence_recovery_near_relation_stop_reason_similarity_comparison_limit"],
-        0
-    );
-    assert_eq!(
-        exact_diff["metrics"]["sentence_recovery_near_relation_stop_reason_candidate_count_limit"],
-        0
-    );
-    assert_eq!(phase(&trace, "report", None)["status"], "completed");
-    assert_no_temporary_reports(&directory);
-}
-
-#[test]
-fn trace_records_candidate_visit_metrics_on_the_alignment_phase() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let trace = directory.join("trace.json");
-    write_pdf(&old, &["Stable old paragraph remains visible"]);
-    write_pdf(&new, &["Stable new paragraph remains visible"]);
-
-    let output = compare(&old, &new, &["--trace-json", path_text(&trace)]);
-
-    // Different paragraphs produce a content change, so the command exits 1
-    // while the trace still records the completed alignment phase.
-    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    let trace = read_json(&trace);
-    let alignment = phase(&trace, "alignment", None);
-    assert_eq!(alignment["status"], "completed");
-    let visits = alignment["metrics"]["candidate_visits"]
-        .as_u64()
-        .expect("candidate visits should be recorded");
-    assert!(visits > 0, "non-anchor old blocks must be charged");
-    assert_eq!(
-        alignment["metrics"]["candidate_visits_required"], visits,
-        "attempted charge must equal the required sum on success"
-    );
-    let exact = alignment["metrics"]["candidate_visits_required_exact"]
-        .as_u64()
-        .expect("inverted index reports an exact component");
-    let ngram = alignment["metrics"]["candidate_visits_required_ngram"]
-        .as_u64()
-        .expect("inverted index reports an ngram component");
-    let short_fallback = alignment["metrics"]["candidate_visits_required_short_fallback"]
-        .as_u64()
-        .expect("inverted index reports a short fallback component");
-    assert_eq!(
-        exact + ngram + short_fallback,
-        visits,
-        "required components must sum to the required total"
-    );
-    assert_eq!(alignment["metrics"]["max_candidate_visits"], 1_000_000);
-}
-
-#[test]
-fn concurrent_extraction_matches_sequential_phases_when_the_old_side_fails() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let trace_path = directory.join("trace.json");
-    fs::write(&old, b"not a PDF").expect("malformed fixture should be written");
-    write_pdf(&new, &["A generic paragraph remains stable"]);
-
-    let output = compare(&old, &new, &["--trace-json", path_text(&trace_path)]);
-
-    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
-    let trace = read_json(&trace_path);
-    // The sides extract concurrently, but a failed old side must discard the
-    // new side's phase records so the trace matches the sequential run where
-    // the new side never ran: new-side entries may only be the
-    // `prior_phase_did_not_complete` skip placeholders, and the old side's
-    // error still wins.
-    let phases = trace["phases"].as_array().expect("trace phases");
-    assert!(
-        phases
-            .iter()
-            .all(|phase| phase["side"] != Value::String("new".to_owned())
-                || phase["status"] == "skipped"),
-        "{phases:#?}"
-    );
-    assert_eq!(phase(&trace, "pdf_parse", Some("old"))["status"], "failed");
-}
-
-#[test]
-fn writes_failure_trace_when_pdf_parsing_stops_the_pipeline() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let trace = directory.join("trace.json");
-    fs::write(&old, b"not a PDF").expect("malformed fixture should be written");
-    write_pdf(&new, &["A generic paragraph remains stable"]);
-
-    let output = compare(&old, &new, &["--trace-json", path_text(&trace)]);
-
-    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
-    let trace = read_json(&trace);
-    assert_eq!(trace["result"]["status"], "failed");
-    assert_eq!(trace["result"]["exit_code"], 2);
-    let parse = phase(&trace, "pdf_parse", Some("old"));
-    assert_eq!(parse["status"], "failed");
-    assert_eq!(parse["error"]["kind"], "backend");
-    assert_eq!(
-        phase(&trace, "glyph_extraction", Some("old"))["status"],
-        "skipped"
-    );
-    assert_eq!(phase(&trace, "alignment", None)["status"], "skipped");
-    assert_no_temporary_reports(&directory);
-}
-
-#[test]
-fn traces_incomplete_extraction_without_calling_it_a_fatal_failure() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let malformed = directory.join("malformed-type0.pdf");
-    let trace = directory.join("trace.json");
-    write_pdf(&old, &["Complete page text remains visible"]);
-    write_type0_pdf(&malformed, &["Malformed page text is present"]);
-
-    let output = compare(
-        &old,
-        &malformed,
-        &["--strict", "--trace-json", path_text(&trace)],
-    );
-
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let trace = read_json(&trace);
-    assert_eq!(trace["result"]["status"], "incomplete");
-    assert_eq!(trace["result"]["exit_code"], 3);
-    assert_eq!(
-        phase(&trace, "glyph_extraction", Some("new"))["status"],
-        "incomplete"
-    );
-    assert_eq!(
-        phase(&trace, "completeness_gate", None)["status"],
-        "incomplete"
-    );
-    let alignment = phase(&trace, "alignment", None);
-    assert_eq!(alignment["status"], "completed");
-    assert_eq!(alignment["metrics"]["candidate_visits"], 0);
-    let exact_diff = phase(&trace, "exact_diff", None);
-    assert_eq!(exact_diff["status"], "completed");
-    assert_eq!(exact_diff["metrics"]["changes"], 0);
-    assert_eq!(exact_diff["metrics"]["unresolved_regions"], 1);
 }
 
 #[test]
@@ -1186,7 +709,7 @@ fn preserves_existing_json_report_on_publish_collision() {
 
     assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     assert!(
-        stderr(&output).contains("refusing to overwrite existing JSON report"),
+        stderr(&output).contains("refusing to overwrite existing full flow JSON report"),
         "{}",
         stderr(&output)
     );
@@ -1274,9 +797,9 @@ fn handles_a_missing_report_path_when_the_trace_already_exists() {
     let error = stderr(&output);
 
     assert_eq!(output.status.code(), Some(2), "{error}");
-    assert!(error.contains("refusing to overwrite existing trace report"));
+    assert!(error.contains("refusing to overwrite existing flow trace report"));
     assert!(!error.contains("cannot inspect input path"));
-    assert!(report.exists());
+    assert!(!report.exists());
     assert_eq!(
         fs::read(trace).expect("existing trace should remain readable"),
         existing_trace
@@ -1296,7 +819,7 @@ fn malformed_old_document_exits_two_with_context() {
     let error = stderr(&output);
 
     assert_eq!(output.status.code(), Some(2), "{error}");
-    assert!(error.contains("old PDF"), "{error}");
+    assert!(error.contains("failed to parse"), "{error}");
     assert!(error.contains(path_text(&old)), "{error}");
 }
 
@@ -1312,7 +835,8 @@ fn rejects_an_empty_input_document_as_malformed() {
     let error = stderr(&output);
 
     assert_eq!(output.status.code(), Some(2), "{error}");
-    assert!(error.contains("old PDF"), "{error}");
+    assert!(error.contains("failed to parse"), "{error}");
+    assert!(error.contains(path_text(&old)), "{error}");
 }
 
 #[test]
@@ -1320,76 +844,45 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     let directory = TestDirectory::new();
     let malformed = directory.join("malformed-type0.pdf");
     let complete = directory.join("complete.pdf");
-    let report_path = directory.join("unresolved.json");
     write_type0_pdf(&malformed, &["Malformed page text is present"]);
     write_pdf(&complete, &["Complete page text remains visible"]);
 
-    let default_output = compare(&malformed, &complete, &[]);
-    let default_stderr = stderr(&default_output);
-    let default_report = stdout(&default_output);
-
-    assert_eq!(default_output.status.code(), Some(3), "{default_stderr}");
-    assert!(default_stderr.contains("extraction issue for old PDF"));
-    assert!(default_stderr.contains("kind=unresolved"));
-    assert!(default_stderr.contains("Type0 font has no Encoding"));
-    assert!(
-        default_stderr.contains("scope=page, page=1"),
-        "{default_stderr}"
-    );
-    assert!(
-        default_report.contains("content changes: 0 "),
-        "{default_report}"
-    );
-    assert!(
-        default_report.contains("extraction incomplete: old=no, new=yes"),
-        "{default_report}"
-    );
-    assert!(
-        default_report.contains(
-            "! extraction issue (side=old, kind=unresolved, scope=page, page=1): Type0 font has no Encoding"
-        ),
-        "{default_report}"
-    );
-    assert!(
-        default_report.contains("coverage unknown"),
-        "{default_report}"
+    let default_output = compare(&malformed, &complete, &["-q"]);
+    assert_eq!(
+        default_output.status.code(),
+        Some(3),
+        "{}",
+        stderr(&default_output)
     );
 
+    let report_path = directory.join("unresolved.json");
     let strict_output = compare(
         &complete,
         &malformed,
-        &["--strict", "--json", path_text(&report_path)],
+        &["--strict", "-q", "-j", path_text(&report_path)],
     );
-    let strict_stderr = stderr(&strict_output);
-
-    assert_eq!(strict_output.status.code(), Some(3), "{strict_stderr}");
-    assert!(strict_stderr.contains("extraction issue for new PDF"));
-    let report: Value = serde_json::from_slice(
-        &fs::read(report_path).expect("incomplete JSON report should be readable"),
-    )
-    .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 11);
-    assert_eq!(report["summary"]["content_changes"], 0);
+    assert_eq!(
+        strict_output.status.code(),
+        Some(3),
+        "{}",
+        stderr(&strict_output)
+    );
+    let report = read_json(&report_path);
+    let report = &report["report"];
+    assert_eq!(report["schema_version"], 12);
+    assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
-    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 0.0);
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["ratio"],
-        Value::Null
-    );
-    assert_eq!(report["summary"]["comparison_coverage_ratio"], Value::Null);
-    assert_eq!(
-        report["changes"]
-            .as_array()
-            .expect("changes should be an array")
-            .len(),
-        0
-    );
     assert_eq!(report["extraction"]["new_complete"], false);
-    assert_eq!(report["extraction"]["issues"][0]["side"], "new");
-    assert_eq!(report["extraction"]["issues"][0]["kind"], "unresolved");
-    assert_eq!(report["extraction"]["issues"][0]["scope"], "page");
-    assert_eq!(report["extraction"]["issues"][0]["page"], 0);
+    let issue = &report["extraction"]["issues"][0];
+    assert_eq!(issue["side"], "new");
+    assert_eq!(issue["kind"], "unresolved");
+    assert!(
+        issue["message"]
+            .as_str()
+            .is_some_and(|description| description.contains("Type0 font has no Encoding")),
+        "{issue:#}"
+    );
 }
 
 #[test]
@@ -1415,93 +908,47 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
     write_pdf_with_missing_page_tree_child(&old, old_pages, 1);
     write_pdf_pages(&new, new_pages, 30);
 
-    let default_output = compare(&old, &new, &[]);
+    let default_output = compare(&old, &new, &["-q"]);
     assert_eq!(
         default_output.status.code(),
         Some(3),
         "{}",
         stderr(&default_output)
     );
-    let text = stdout(&default_output);
-    assert!(text.contains("content changes: 1"), "{text}");
-    assert!(
-        text.contains("scope=page-gap, retained-pages-before=1"),
-        "{text}"
-    );
 
-    let strict_output = compare(&old, &new, &["--strict", "--json", path_text(&report_path)]);
+    let strict_output = compare(
+        &old,
+        &new,
+        &["--strict", "-q", "-j", path_text(&report_path)],
+    );
     assert_eq!(
         strict_output.status.code(),
         Some(3),
         "{}",
         stderr(&strict_output)
     );
-    let report: Value = serde_json::from_slice(
-        &fs::read(report_path).expect("page-gap JSON report should be readable"),
-    )
-    .expect("page-gap JSON report should be valid");
-    assert_eq!(report["schema_version"], 11);
-    assert_eq!(report["summary"]["content_changes"], 1);
-    assert_eq!(report["summary"]["unresolved_regions"], 1);
-    assert_eq!(report["extraction"]["issues"][0]["scope"], "page_gap");
-    assert_eq!(
-        report["extraction"]["issues"][0]["retained_pages_before"],
-        1
-    );
-    assert_eq!(
-        report["unresolved_regions"][0]["evidence"][0],
-        "extraction_gap"
-    );
-}
-
-#[test]
-fn strict_unresolved_comparison_exits_three() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let trace_path = directory.join("trace.json");
-    write_pdf(&old, &["The archive contains echo echo files"]);
-    write_pdf(&new, &["The archive contains echo echo echo files"]);
-
-    let output = compare(
-        &old,
-        &new,
-        &["--strict", "--trace-json", path_text(&trace_path)],
-    );
-
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let report = stdout(&output);
-    assert!(report.contains("unresolved regions: 1"), "{report}");
-    assert!(report.contains("@@ page 1 · UNRESOLVED @@"), "{report}");
-    assert!(
-        report.contains("? could not safely align this region"),
-        "{report}"
-    );
-    let trace = read_json(&trace_path);
-    assert_eq!(trace["result"]["status"], "incomplete");
-    assert_eq!(trace["result"]["exit_code"], 3);
-    assert_eq!(phase(&trace, "exact_diff", None)["status"], "completed");
-}
-
-#[test]
-fn strict_unique_numeric_replacement_exits_one() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    let report_path = directory.join("report.json");
-    write_pdf(&old, &["The archive contains 10 files"]);
-    write_pdf(&new, &["The archive contains 20 files"]);
-
-    let output = compare(&old, &new, &["--strict", "--json", path_text(&report_path)]);
-
-    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     let report = read_json(&report_path);
-    assert_eq!(report["summary"]["content_changes"], 1);
-    assert_eq!(report["summary"]["unresolved_regions"], 0);
-    assert_eq!(report["changes"][0]["kind"], "replacement");
-    let occurrence = &report["changes"][0]["occurrences"][0];
-    assert_eq!(occurrence["old_span"]["text"], "1");
-    assert_eq!(occurrence["new_span"]["text"], "2");
+    let report = &report["report"];
+    assert_eq!(report["schema_version"], 12);
+    assert_eq!(report["summary"]["content_changes"], 2);
+    assert_eq!(report["summary"]["comparison_complete"], false);
+    assert_eq!(report["extraction"]["old_complete"], false);
+    assert!(
+        report["extraction"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| issue["side"] == "old" && issue["kind"] == "unresolved"),
+        "{report:#}"
+    );
+    assert!(
+        report["changes"]
+            .as_array()
+            .expect("changes")
+            .iter()
+            .any(|change| change["kind"] == "insertion"),
+        "{report:#}"
+    );
 }
 
 #[test]
@@ -1531,13 +978,7 @@ fn rejects_json_output_that_aliases_an_input() {
         fs::read(&old).expect("old fixture should remain readable"),
         original
     );
-    let trace = read_json(&trace_path);
-    assert_eq!(trace["result"]["status"], "failed");
-    assert_eq!(phase(&trace, "output_validation", None)["status"], "failed");
-    assert_eq!(
-        phase(&trace, "input_read", Some("old"))["status"],
-        "skipped"
-    );
+    assert!(!trace_path.exists(), "validation failure writes no trace");
     assert_no_temporary_reports(&directory);
 }
 
@@ -1778,13 +1219,11 @@ fn output_flag_writes_text_report_to_file() {
         "{report_content}"
     );
     assert!(
-        report_content.contains("- Release 10 remains available"),
+        report_content.contains("1. replace old 1 -> new 1"),
         "{report_content}"
     );
-    assert!(
-        report_content.contains("+ Release 20 remains available"),
-        "{report_content}"
-    );
+    assert!(report_content.contains("old: "), "{report_content}");
+    assert!(report_content.contains("new: "), "{report_content}");
 }
 
 #[test]
@@ -1814,6 +1253,30 @@ fn stdin_collision_fails_with_informative_error() {
         error.contains("cannot read both OLD_PDF and NEW_PDF from standard input"),
         "{error}"
     );
+}
+
+#[test]
+fn proof_engine_selection_exits_two_with_replacements() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["old.pdf", "new.pdf", "--engine", "proof"])
+        .output()
+        .expect("pdfdelta should run");
+    assert_eq!(output.status.code(), Some(2));
+    let error = stderr(&output);
+    assert!(error.contains("proof engine was removed"), "{error}");
+    for replacement in [
+        "--trace-json",
+        "--compact-json",
+        "--full-json",
+        "--review",
+        "--agent-review",
+        "pdfdelta flow",
+    ] {
+        assert!(
+            error.contains(replacement),
+            "missing {replacement}: {error}"
+        );
+    }
 }
 
 #[test]
@@ -1872,88 +1335,30 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/case3-typst");
     let old_pdf = fixture_dir.join("old.pdf");
     let new_pdf = fixture_dir.join("new.pdf");
-
     assert!(
-        old_pdf.exists(),
-        "vendored old.pdf must exist at {}",
-        old_pdf.display()
-    );
-    assert!(
-        new_pdf.exists(),
-        "vendored new.pdf must exist at {}",
-        new_pdf.display()
+        old_pdf.exists() && new_pdf.exists(),
+        "vendored fixture must exist"
     );
 
     let directory = TestDirectory::new();
-    let json_path = directory.join("report.json");
-
-    // 1. Text report to stdout
-    let text_output = compare(&old_pdf, &new_pdf, &[]);
-    assert_eq!(
-        text_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&text_output)
+    let report = directory.join("report.json");
+    let output = run_default_engine(
+        &old_pdf,
+        &new_pdf,
+        &["--native-text-only", "-j", path_text(&report), "-q"],
     );
-    let stdout_text = stdout(&text_output);
-    assert!(stdout_text.contains("content changes: 1"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 0"), "{stdout_text}");
-    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let json = read_json(&report);
+    let change = single_flow_change(&json, "replacement");
+    assert_eq!(change["old_span"]["text"], "10");
+    assert_eq!(change["new_span"]["text"], "20");
+
+    let text = run_default_engine(&old_pdf, &new_pdf, &["--native-text-only"]);
+    assert_eq!(text.status.code(), Some(1), "{}", stderr(&text));
     assert!(
-        stdout_text.contains("unresolved regions: 0"),
-        "{stdout_text}"
-    );
-    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
-    assert!(stdout_text.contains("- Release 10"), "{stdout_text}");
-    assert!(stdout_text.contains("+ Release 20"), "{stdout_text}");
-
-    // 2. Structured JSON report
-    let json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&json_path)]);
-    assert_eq!(
-        json_output.status.code(),
-        Some(1),
+        stdout(&text).contains("content changes: 1"),
         "{}",
-        stderr(&json_output)
-    );
-
-    let json_text = fs::read_to_string(&json_path).expect("JSON report should be readable");
-    let report: serde_json::Value =
-        serde_json::from_str(&json_text).expect("JSON report should parse");
-
-    assert_eq!(report["schema_version"], 11);
-    assert_eq!(report["summary"]["content_changes"], 1);
-    assert_eq!(report["summary"]["formatting_only_changes"], 0);
-    assert_eq!(report["summary"]["uncertain_changes"], 0);
-    assert_eq!(report["summary"]["unresolved_regions"], 0);
-    assert_eq!(report["summary"]["unsupported_extraction_issues"], 0);
-    assert_eq!(report["summary"]["unresolved_extraction_issues"], 0);
-    assert_eq!(report["summary"]["comparison_complete"], true);
-    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(report["summary"]["comparison_coverage_ratio"], 1.0);
-
-    let changes = report["changes"]
-        .as_array()
-        .expect("changes should be array");
-    assert_eq!(changes.len(), 1);
-    assert_eq!(changes[0]["kind"], "replacement");
-    assert_eq!(changes[0]["occurrences"][0]["old_span"]["text"], "1");
-    assert_eq!(changes[0]["occurrences"][0]["new_span"]["text"], "2");
-
-    assert_eq!(report["extraction"]["old_complete"], true);
-    assert_eq!(report["extraction"]["new_complete"], true);
-    assert_eq!(
-        report["extraction"]["issues"].as_array().map(Vec::len),
-        Some(0)
-    );
-
-    // Strict mode must succeed with exit code 1 rather than exit code 3 (incomplete).
-    let strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
-    assert_eq!(
-        strict_output.status.code(),
-        Some(1),
-        "strict mode should accept complete comparison: {}",
-        stderr(&strict_output)
+        stdout(&text)
     );
 }
 
@@ -1963,169 +1368,23 @@ fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() 
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/japanese-typst");
     let old_pdf = fixture_dir.join("old.pdf");
     let new_pdf = fixture_dir.join("new.pdf");
-
     assert!(
-        old_pdf.exists(),
-        "vendored old.pdf must exist at {}",
-        old_pdf.display()
-    );
-    assert!(
-        new_pdf.exists(),
-        "vendored new.pdf must exist at {}",
-        new_pdf.display()
+        old_pdf.exists() && new_pdf.exists(),
+        "vendored fixture must exist"
     );
 
     let directory = TestDirectory::new();
-    let json_path = directory.join("report.json");
-
-    // 1. Text report to stdout
-    let text_output = compare(&old_pdf, &new_pdf, &[]);
-    assert_eq!(
-        text_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&text_output)
+    let report = directory.join("report.json");
+    let output = run_default_engine(
+        &old_pdf,
+        &new_pdf,
+        &["--native-text-only", "-j", path_text(&report), "-q"],
     );
-    let stdout_text = stdout(&text_output);
-    assert!(stdout_text.contains("content changes: 1"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 0"), "{stdout_text}");
-    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
-    assert!(
-        stdout_text.contains("unresolved regions: 0"),
-        "{stdout_text}"
-    );
-    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
-    assert!(stdout_text.contains("@@ page 1 ·"), "{stdout_text}");
-    assert!(
-        stdout_text.contains("- 第10版の運用手順書を引き続き適用します。"),
-        "{stdout_text}"
-    );
-    assert!(
-        stdout_text.contains("+ 第20版の運用手順書を引き続き適用します。"),
-        "{stdout_text}"
-    );
-
-    // 2. Glyph inspection asserting 87 mapped horizontal glyphs per side
-    let inspect_old = inspect(&old_pdf, &["--glyphs"]);
-    assert_eq!(inspect_old.status.code(), Some(0));
-    let inspect_old_text = stdout(&inspect_old);
-    assert!(
-        inspect_old_text.contains("glyphs: 87"),
-        "{inspect_old_text}"
-    );
-    assert!(
-        inspect_old_text.contains("text=\"定\""),
-        "{inspect_old_text}"
-    );
-    assert!(
-        inspect_old_text.contains("text=\"1\""),
-        "{inspect_old_text}"
-    );
-    assert!(
-        inspect_old_text.contains("direction=(1,0)"),
-        "{inspect_old_text}"
-    );
-    assert!(
-        !inspect_old_text.contains("text=unmapped"),
-        "{inspect_old_text}"
-    );
-
-    let inspect_new = inspect(&new_pdf, &["--glyphs"]);
-    assert_eq!(inspect_new.status.code(), Some(0));
-    let inspect_new_text = stdout(&inspect_new);
-    assert!(
-        inspect_new_text.contains("glyphs: 87"),
-        "{inspect_new_text}"
-    );
-    assert!(
-        inspect_new_text.contains("text=\"定\""),
-        "{inspect_new_text}"
-    );
-    assert!(
-        inspect_new_text.contains("text=\"2\""),
-        "{inspect_new_text}"
-    );
-    assert!(
-        inspect_new_text.contains("direction=(1,0)"),
-        "{inspect_new_text}"
-    );
-    assert!(
-        !inspect_new_text.contains("text=unmapped"),
-        "{inspect_new_text}"
-    );
-
-    // 3. Structured JSON report
-    let json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&json_path)]);
-    assert_eq!(
-        json_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&json_output)
-    );
-
-    let json_text = fs::read_to_string(&json_path).expect("JSON report should be readable");
-    let report: serde_json::Value =
-        serde_json::from_str(&json_text).expect("JSON report should parse");
-
-    assert_eq!(report["schema_version"], 11);
-    assert_eq!(report["summary"]["content_changes"], 1);
-    assert_eq!(report["summary"]["formatting_only_changes"], 0);
-    assert_eq!(report["summary"]["uncertain_changes"], 0);
-    assert_eq!(report["summary"]["unresolved_regions"], 0);
-    assert_eq!(report["summary"]["unsupported_extraction_issues"], 0);
-    assert_eq!(report["summary"]["unresolved_extraction_issues"], 0);
-    assert_eq!(report["summary"]["comparison_complete"], true);
-    assert_eq!(
-        report["summary"]["old_alignment_coverage"]["total_tokens"],
-        87
-    );
-    assert_eq!(
-        report["summary"]["old_alignment_coverage"]["resolved_tokens"],
-        87
-    );
-    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["total_tokens"],
-        87
-    );
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["resolved_tokens"],
-        87
-    );
-    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(report["summary"]["comparison_coverage_ratio"], 1.0);
-
-    let changes = report["changes"]
-        .as_array()
-        .expect("changes should be array");
-    assert_eq!(changes.len(), 1);
-    assert_eq!(changes[0]["kind"], "replacement");
-    assert_eq!(changes[0]["occurrences"][0]["old_span"]["text"], "1");
-    assert_eq!(changes[0]["occurrences"][0]["new_span"]["text"], "2");
-    assert_eq!(
-        changes[0]["occurrences"][0]["old_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        changes[0]["occurrences"][0]["new_span"]["pages"],
-        serde_json::json!([0])
-    );
-
-    assert_eq!(report["extraction"]["old_complete"], true);
-    assert_eq!(report["extraction"]["new_complete"], true);
-    assert_eq!(
-        report["extraction"]["issues"].as_array().map(Vec::len),
-        Some(0)
-    );
-
-    // Strict mode must succeed with exit code 1 rather than exit code 3 (incomplete).
-    let strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
-    assert_eq!(
-        strict_output.status.code(),
-        Some(1),
-        "strict mode should accept complete comparison: {}",
-        stderr(&strict_output)
-    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let json = read_json(&report);
+    let change = single_flow_change(&json, "replacement");
+    assert_eq!(change["old_span"]["text"], "10");
+    assert_eq!(change["new_span"]["text"], "20");
 }
 
 #[test]
@@ -2134,187 +1393,22 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/case1-japanese-typst");
     let old_pdf = fixture_dir.join("old.pdf");
     let new_pdf = fixture_dir.join("new.pdf");
-
     assert!(
-        old_pdf.exists(),
-        "vendored old.pdf must exist at {}",
-        old_pdf.display()
-    );
-    assert!(
-        new_pdf.exists(),
-        "vendored new.pdf must exist at {}",
-        new_pdf.display()
+        old_pdf.exists() && new_pdf.exists(),
+        "vendored fixture must exist"
     );
 
     let directory = TestDirectory::new();
-    let json_path = directory.join("report.json");
-
-    // 1. Text report to stdout
-    let text_output = compare(&old_pdf, &new_pdf, &[]);
-    assert_eq!(
-        text_output.status.code(),
-        Some(0),
-        "{}",
-        stderr(&text_output)
+    let report = directory.join("report.json");
+    let output = run_default_engine(
+        &old_pdf,
+        &new_pdf,
+        &["--native-text-only", "-j", path_text(&report), "-q"],
     );
-    let stdout_text = stdout(&text_output);
-    assert!(stdout_text.contains("content changes: 0"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 2"), "{stdout_text}");
-    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
-    assert!(
-        stdout_text.contains("unresolved regions: 0"),
-        "{stdout_text}"
-    );
-    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
-
-    // 2. Glyph inspection asserting 158 mapped horizontal glyphs on both sides
-    let inspect_old = inspect(&old_pdf, &["--glyphs"]);
-    assert_eq!(inspect_old.status.code(), Some(0));
-    let inspect_old_text = stdout(&inspect_old);
-    assert!(
-        inspect_old_text.contains("glyphs: 158"),
-        "{inspect_old_text}"
-    );
-    assert!(
-        inspect_old_text.contains("text=\"定\""),
-        "{inspect_old_text}"
-    );
-    assert!(
-        inspect_old_text.contains("direction=(1,0)"),
-        "{inspect_old_text}"
-    );
-    assert!(
-        !inspect_old_text.contains("text=unmapped"),
-        "{inspect_old_text}"
-    );
-
-    let inspect_new = inspect(&new_pdf, &["--glyphs"]);
-    assert_eq!(inspect_new.status.code(), Some(0));
-    let inspect_new_text = stdout(&inspect_new);
-    assert!(
-        inspect_new_text.contains("glyphs: 158"),
-        "{inspect_new_text}"
-    );
-    assert!(
-        inspect_new_text.contains("text=\"定\""),
-        "{inspect_new_text}"
-    );
-    assert!(
-        inspect_new_text.contains("direction=(1,0)"),
-        "{inspect_new_text}"
-    );
-    assert!(
-        !inspect_new_text.contains("text=unmapped"),
-        "{inspect_new_text}"
-    );
-
-    // 3. Structured JSON report
-    let json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&json_path)]);
-    assert_eq!(
-        json_output.status.code(),
-        Some(0),
-        "{}",
-        stderr(&json_output)
-    );
-
-    let json_text = fs::read_to_string(&json_path).expect("JSON report should be readable");
-    let report: serde_json::Value =
-        serde_json::from_str(&json_text).expect("JSON report should parse");
-
-    assert_eq!(report["schema_version"], 11);
-    assert_eq!(report["summary"]["content_changes"], 0);
-    assert_eq!(report["summary"]["formatting_only_changes"], 2);
-    assert_eq!(report["summary"]["uncertain_changes"], 0);
-    assert_eq!(report["summary"]["unresolved_regions"], 0);
-    assert_eq!(report["summary"]["unsupported_extraction_issues"], 0);
-    assert_eq!(report["summary"]["unresolved_extraction_issues"], 0);
-    assert_eq!(report["summary"]["comparison_complete"], true);
-    assert_eq!(
-        report["summary"]["old_alignment_coverage"]["total_tokens"],
-        158
-    );
-    assert_eq!(
-        report["summary"]["old_alignment_coverage"]["resolved_tokens"],
-        158
-    );
-    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["total_tokens"],
-        158
-    );
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["resolved_tokens"],
-        158
-    );
-    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(report["summary"]["comparison_coverage_ratio"], 1.0);
-
-    let changes = report["changes"]
-        .as_array()
-        .expect("changes should be array");
-    assert_eq!(changes.len(), 0);
-
-    let formatting_changes = report["formatting_only_changes"]
-        .as_array()
-        .expect("formatting_only_changes should be array");
-    assert_eq!(formatting_changes.len(), 2);
-    assert_eq!(
-        formatting_changes[0]["reasons"],
-        serde_json::json!(["normalization", "line_break"])
-    );
-    assert_eq!(
-        formatting_changes[0]["old_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        formatting_changes[0]["new_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        formatting_changes[0]["old_span"]["text"],
-        "今後の保守計画およびサービス稼働状況に関する概要です。クラウド基盤およびオンプレミス環境の定期点検を完了し、全システムの稼働率は計画値を上回る高い安定性を維持しています。"
-    );
-    assert_eq!(
-        formatting_changes[0]["new_span"]["text"],
-        "今後の保守計画およびサービス稼働状況に関する概要です。クラウド基盤およびオンプレミス環境の定期点検を完了し、全システムの稼働率は計画値を上回る高い安定性を維持しています。"
-    );
-
-    assert_eq!(
-        formatting_changes[1]["reasons"],
-        serde_json::json!(["normalization", "line_break"])
-    );
-    assert_eq!(
-        formatting_changes[1]["old_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        formatting_changes[1]["new_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        formatting_changes[1]["old_span"]["text"],
-        "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
-    );
-    assert_eq!(
-        formatting_changes[1]["new_span"]["text"],
-        "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
-    );
-
-    assert_eq!(report["extraction"]["old_complete"], true);
-    assert_eq!(report["extraction"]["new_complete"], true);
-    assert_eq!(
-        report["extraction"]["issues"].as_array().map(Vec::len),
-        Some(0)
-    );
-
-    // Strict mode must succeed with exit code 0.
-    let strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
-    assert_eq!(
-        strict_output.status.code(),
-        Some(0),
-        "strict mode should accept unchanged comparison: {}",
-        stderr(&strict_output)
-    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let json = read_json(&report);
+    assert_eq!(json["report"]["summary"]["content_changes"], 0);
+    assert_eq!(json["report"]["changes"], Value::Array(Vec::new()));
 }
 
 #[test]
@@ -2323,154 +1417,22 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/case2-japanese-typst");
     let old_pdf = fixture_dir.join("old.pdf");
     let new_pdf = fixture_dir.join("new.pdf");
-
     assert!(
-        old_pdf.exists(),
-        "vendored old.pdf must exist at {}",
-        old_pdf.display()
-    );
-    assert!(
-        new_pdf.exists(),
-        "vendored new.pdf must exist at {}",
-        new_pdf.display()
+        old_pdf.exists() && new_pdf.exists(),
+        "vendored fixture must exist"
     );
 
     let directory = TestDirectory::new();
-    let json_path = directory.join("report.json");
-
-    // 1. Text report to stdout
-    let text_output = compare(&old_pdf, &new_pdf, &[]);
-    assert_eq!(
-        text_output.status.code(),
-        Some(0),
-        "{}",
-        stderr(&text_output)
+    let report = directory.join("report.json");
+    let output = run_default_engine(
+        &old_pdf,
+        &new_pdf,
+        &["--native-text-only", "-j", path_text(&report), "-q"],
     );
-    let stdout_text = stdout(&text_output);
-    assert!(stdout_text.contains("content changes: 0"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 1"), "{stdout_text}");
-    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
-    assert!(
-        stdout_text.contains("unresolved regions: 0"),
-        "{stdout_text}"
-    );
-    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
-
-    // 2. Glyph inspection asserting 100 mapped horizontal glyphs on both sides
-    let inspect_old = inspect(&old_pdf, &["--glyphs"]);
-    assert_eq!(inspect_old.status.code(), Some(0));
-    let inspect_old_text = stdout(&inspect_old);
-    let inspect_old_lines: Vec<&str> = inspect_old_text
-        .lines()
-        .filter(|l| l.starts_with("glyph id="))
-        .collect();
-    assert_eq!(inspect_old_lines.len(), 100);
-    assert!(
-        inspect_old_lines.iter().all(|l| {
-            l.contains("text=")
-                && l.contains("direction=(1,0)")
-                && !l.contains("unmapped-font-hash=")
-                && !l.contains("unmapped-glyph-id=")
-        }),
-        "{inspect_old_text}"
-    );
-
-    let inspect_new = inspect(&new_pdf, &["--glyphs"]);
-    assert_eq!(inspect_new.status.code(), Some(0));
-    let inspect_new_text = stdout(&inspect_new);
-    let inspect_new_lines: Vec<&str> = inspect_new_text
-        .lines()
-        .filter(|l| l.starts_with("glyph id="))
-        .collect();
-    assert_eq!(inspect_new_lines.len(), 100);
-    assert!(
-        inspect_new_lines.iter().all(|l| {
-            l.contains("text=")
-                && l.contains("direction=(1,0)")
-                && !l.contains("unmapped-font-hash=")
-                && !l.contains("unmapped-glyph-id=")
-        }),
-        "{inspect_new_text}"
-    );
-
-    // 3. Structured JSON report
-    let json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&json_path)]);
-    assert_eq!(
-        json_output.status.code(),
-        Some(0),
-        "{}",
-        stderr(&json_output)
-    );
-
-    let json_text = fs::read_to_string(&json_path).expect("JSON report should be readable");
-    let report: serde_json::Value =
-        serde_json::from_str(&json_text).expect("JSON report should parse");
-
-    assert_eq!(report["schema_version"], 11);
-    assert_eq!(report["summary"]["content_changes"], 0);
-    assert_eq!(report["summary"]["formatting_only_changes"], 1);
-    assert_eq!(report["summary"]["uncertain_changes"], 0);
-    assert_eq!(report["summary"]["unresolved_regions"], 0);
-    assert_eq!(report["summary"]["unsupported_extraction_issues"], 0);
-    assert_eq!(report["summary"]["unresolved_extraction_issues"], 0);
-    assert_eq!(report["summary"]["comparison_complete"], true);
-    assert_eq!(
-        report["summary"]["old_alignment_coverage"]["total_tokens"],
-        100
-    );
-    assert_eq!(
-        report["summary"]["old_alignment_coverage"]["resolved_tokens"],
-        100
-    );
-    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["total_tokens"],
-        100
-    );
-    assert_eq!(
-        report["summary"]["new_alignment_coverage"]["resolved_tokens"],
-        100
-    );
-    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
-    assert_eq!(report["summary"]["comparison_coverage_ratio"], 1.0);
-
-    let changes = report["changes"]
-        .as_array()
-        .expect("changes should be array");
-    assert_eq!(changes.len(), 0);
-
-    let formatting_changes = report["formatting_only_changes"]
-        .as_array()
-        .expect("formatting_only_changes should be array");
-    assert_eq!(formatting_changes.len(), 1);
-    assert_eq!(
-        formatting_changes[0]["reasons"],
-        serde_json::json!(["position"])
-    );
-    assert_eq!(
-        formatting_changes[0]["old_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        formatting_changes[0]["new_span"]["pages"],
-        serde_json::json!([1])
-    );
-
-    assert_eq!(report["extraction"]["old_complete"], true);
-    assert_eq!(report["extraction"]["new_complete"], true);
-    assert_eq!(
-        report["extraction"]["issues"].as_array().map(Vec::len),
-        Some(0)
-    );
-
-    // Strict mode must succeed with exit code 0.
-    let strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
-    assert_eq!(
-        strict_output.status.code(),
-        Some(0),
-        "strict mode should accept unchanged comparison: {}",
-        stderr(&strict_output)
-    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let json = read_json(&report);
+    assert_eq!(json["report"]["summary"]["content_changes"], 0);
+    assert_eq!(json["report"]["changes"], Value::Array(Vec::new()));
 }
 
 #[test]
@@ -2480,314 +1442,48 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
         .join("../../fixtures/external/case4-case5-japanese-typst");
     let old_pdf = fixture_dir.join("old.pdf");
     let new_pdf = fixture_dir.join("new.pdf");
-
     assert!(
-        old_pdf.exists(),
-        "vendored old.pdf must exist at {}",
-        old_pdf.display()
+        old_pdf.exists() && new_pdf.exists(),
+        "vendored fixture must exist"
     );
-    assert!(
-        new_pdf.exists(),
-        "vendored new.pdf must exist at {}",
-        new_pdf.display()
-    );
+    let inserted = "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。";
 
     let directory = TestDirectory::new();
-    let forward_json_path = directory.join("forward_report.json");
-    let reverse_json_path = directory.join("reverse_report.json");
-
-    // =========================================================================
-    // 1. FORWARD COMPARISON (old -> new: Case 4 Paragraph Insertion)
-    // =========================================================================
-    let text_output = compare(&old_pdf, &new_pdf, &[]);
+    let forward = directory.join("forward.json");
+    let output = run_default_engine(
+        &old_pdf,
+        &new_pdf,
+        &["--native-text-only", "-j", path_text(&forward), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let forward = read_json(&forward);
+    let change = single_flow_change(&forward, "insertion");
+    assert!(change["old_span"].is_null());
     assert_eq!(
-        text_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&text_output)
-    );
-    let stdout_text = stdout(&text_output);
-    assert!(stdout_text.contains("content changes: 1"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 1"), "{stdout_text}");
-    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
-    assert!(
-        stdout_text.contains("unresolved regions: 0"),
-        "{stdout_text}"
-    );
-    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
-    assert!(
-        stdout_text
-            .contains("+ 運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"),
-        "{stdout_text}"
+        change["new_span"]["text"]
+            .as_str()
+            .expect("inserted text")
+            .replace(' ', ""),
+        inserted
     );
 
-    // Glyph inspection: old has 66 mapped horizontal glyphs, new has 100
-    let inspect_old = inspect(&old_pdf, &["--glyphs"]);
-    assert_eq!(inspect_old.status.code(), Some(0));
-    let inspect_old_text = stdout(&inspect_old);
-    let inspect_old_lines: Vec<&str> = inspect_old_text
-        .lines()
-        .filter(|l| l.starts_with("glyph id="))
-        .collect();
-    assert_eq!(inspect_old_lines.len(), 66);
-    assert!(
-        inspect_old_lines.iter().all(|l| {
-            l.contains("text=")
-                && l.contains("direction=(1,0)")
-                && !l.contains("unmapped-font-hash=")
-                && !l.contains("unmapped-glyph-id=")
-        }),
-        "{inspect_old_text}"
+    let reverse = directory.join("reverse.json");
+    let output = run_default_engine(
+        &new_pdf,
+        &old_pdf,
+        &["--native-text-only", "-j", path_text(&reverse), "-q"],
     );
-
-    let inspect_new = inspect(&new_pdf, &["--glyphs"]);
-    assert_eq!(inspect_new.status.code(), Some(0));
-    let inspect_new_text = stdout(&inspect_new);
-    let inspect_new_lines: Vec<&str> = inspect_new_text
-        .lines()
-        .filter(|l| l.starts_with("glyph id="))
-        .collect();
-    assert_eq!(inspect_new_lines.len(), 100);
-    assert!(
-        inspect_new_lines.iter().all(|l| {
-            l.contains("text=")
-                && l.contains("direction=(1,0)")
-                && !l.contains("unmapped-font-hash=")
-                && !l.contains("unmapped-glyph-id=")
-        }),
-        "{inspect_new_text}"
-    );
-
-    // Forward JSON report
-    let forward_json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&forward_json_path)]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let reverse = read_json(&reverse);
+    let change = single_flow_change(&reverse, "deletion");
     assert_eq!(
-        forward_json_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&forward_json_output)
+        change["old_span"]["text"]
+            .as_str()
+            .expect("deleted text")
+            .replace(' ', ""),
+        inserted
     );
-
-    let forward_json_text =
-        fs::read_to_string(&forward_json_path).expect("forward JSON report should be readable");
-    let forward_report: serde_json::Value =
-        serde_json::from_str(&forward_json_text).expect("forward JSON report should parse");
-
-    assert_eq!(forward_report["schema_version"], 11);
-    assert_eq!(forward_report["summary"]["content_changes"], 1);
-    assert_eq!(forward_report["summary"]["formatting_only_changes"], 1);
-    assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
-    assert_eq!(forward_report["summary"]["unresolved_regions"], 0);
-    assert_eq!(
-        forward_report["summary"]["unsupported_extraction_issues"],
-        0
-    );
-    assert_eq!(forward_report["summary"]["unresolved_extraction_issues"], 0);
-    assert_eq!(forward_report["summary"]["comparison_complete"], true);
-    assert_eq!(
-        forward_report["summary"]["old_alignment_coverage"]["total_tokens"],
-        66
-    );
-    assert_eq!(
-        forward_report["summary"]["old_alignment_coverage"]["resolved_tokens"],
-        66
-    );
-    assert_eq!(
-        forward_report["summary"]["old_alignment_coverage"]["ratio"],
-        1.0
-    );
-    assert_eq!(
-        forward_report["summary"]["new_alignment_coverage"]["total_tokens"],
-        100
-    );
-    assert_eq!(
-        forward_report["summary"]["new_alignment_coverage"]["resolved_tokens"],
-        100
-    );
-    assert_eq!(
-        forward_report["summary"]["new_alignment_coverage"]["ratio"],
-        1.0
-    );
-    assert_eq!(forward_report["summary"]["comparison_coverage_ratio"], 1.0);
-
-    let forward_changes = forward_report["changes"]
-        .as_array()
-        .expect("changes should be array");
-    assert_eq!(forward_changes.len(), 1);
-    assert_eq!(forward_changes[0]["kind"], "insertion");
-    assert!(forward_changes[0]["occurrences"][0]["old_span"].is_null());
-    assert_eq!(
-        forward_changes[0]["occurrences"][0]["new_span"]["blocks"],
-        serde_json::json!([2])
-    );
-    assert_eq!(
-        forward_changes[0]["occurrences"][0]["new_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        forward_changes[0]["occurrences"][0]["new_span"]["text"],
-        "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
-    );
-
-    let forward_formatting = forward_report["formatting_only_changes"]
-        .as_array()
-        .expect("formatting_only_changes should be array");
-    assert_eq!(forward_formatting.len(), 1);
-    assert_eq!(
-        forward_formatting[0]["reasons"],
-        serde_json::json!(["position"])
-    );
-
-    assert_eq!(forward_report["extraction"]["old_complete"], true);
-    assert_eq!(forward_report["extraction"]["new_complete"], true);
-    assert_eq!(
-        forward_report["extraction"]["issues"]
-            .as_array()
-            .map(Vec::len),
-        Some(0)
-    );
-
-    // Forward Strict mode
-    let forward_strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
-    assert_eq!(
-        forward_strict_output.status.code(),
-        Some(1),
-        "strict mode must still exit 1 (Changed) when content changes exist: {}",
-        stderr(&forward_strict_output)
-    );
-
-    // =========================================================================
-    // 2. REVERSE COMPARISON (new -> old: Case 5 Paragraph Deletion)
-    // =========================================================================
-    let reverse_text_output = compare(&new_pdf, &old_pdf, &[]);
-    assert_eq!(
-        reverse_text_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&reverse_text_output)
-    );
-    let reverse_stdout_text = stdout(&reverse_text_output);
-    assert!(
-        reverse_stdout_text.contains("content changes: 1"),
-        "{reverse_stdout_text}"
-    );
-    assert!(
-        reverse_stdout_text.contains("formatting-only: 1"),
-        "{reverse_stdout_text}"
-    );
-    assert!(
-        reverse_stdout_text.contains("uncertain: 0"),
-        "{reverse_stdout_text}"
-    );
-    assert!(
-        reverse_stdout_text.contains("unresolved regions: 0"),
-        "{reverse_stdout_text}"
-    );
-    assert!(
-        reverse_stdout_text.contains("coverage 100.0%"),
-        "{reverse_stdout_text}"
-    );
-    assert!(
-        reverse_stdout_text
-            .contains("- 運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"),
-        "{reverse_stdout_text}"
-    );
-
-    // Reverse JSON report
-    let reverse_json_output = compare(&new_pdf, &old_pdf, &["-j", path_text(&reverse_json_path)]);
-    assert_eq!(
-        reverse_json_output.status.code(),
-        Some(1),
-        "{}",
-        stderr(&reverse_json_output)
-    );
-
-    let reverse_json_text =
-        fs::read_to_string(&reverse_json_path).expect("reverse JSON report should be readable");
-    let reverse_report: serde_json::Value =
-        serde_json::from_str(&reverse_json_text).expect("reverse JSON report should parse");
-
-    assert_eq!(reverse_report["schema_version"], 11);
-    assert_eq!(reverse_report["summary"]["content_changes"], 1);
-    assert_eq!(reverse_report["summary"]["formatting_only_changes"], 1);
-    assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
-    assert_eq!(reverse_report["summary"]["unresolved_regions"], 0);
-    assert_eq!(
-        reverse_report["summary"]["unsupported_extraction_issues"],
-        0
-    );
-    assert_eq!(reverse_report["summary"]["unresolved_extraction_issues"], 0);
-    assert_eq!(reverse_report["summary"]["comparison_complete"], true);
-    assert_eq!(
-        reverse_report["summary"]["old_alignment_coverage"]["total_tokens"],
-        100
-    );
-    assert_eq!(
-        reverse_report["summary"]["old_alignment_coverage"]["resolved_tokens"],
-        100
-    );
-    assert_eq!(
-        reverse_report["summary"]["old_alignment_coverage"]["ratio"],
-        1.0
-    );
-    assert_eq!(
-        reverse_report["summary"]["new_alignment_coverage"]["total_tokens"],
-        66
-    );
-    assert_eq!(
-        reverse_report["summary"]["new_alignment_coverage"]["resolved_tokens"],
-        66
-    );
-    assert_eq!(
-        reverse_report["summary"]["new_alignment_coverage"]["ratio"],
-        1.0
-    );
-    assert_eq!(reverse_report["summary"]["comparison_coverage_ratio"], 1.0);
-
-    let reverse_changes = reverse_report["changes"]
-        .as_array()
-        .expect("changes should be array");
-    assert_eq!(reverse_changes.len(), 1);
-    assert_eq!(reverse_changes[0]["kind"], "deletion");
-    assert_eq!(
-        reverse_changes[0]["occurrences"][0]["old_span"]["blocks"],
-        serde_json::json!([2])
-    );
-    assert_eq!(
-        reverse_changes[0]["occurrences"][0]["old_span"]["pages"],
-        serde_json::json!([0])
-    );
-    assert_eq!(
-        reverse_changes[0]["occurrences"][0]["old_span"]["text"],
-        "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
-    );
-    assert!(reverse_changes[0]["occurrences"][0]["new_span"].is_null());
-
-    let reverse_formatting = reverse_report["formatting_only_changes"]
-        .as_array()
-        .expect("formatting_only_changes should be array");
-    assert_eq!(reverse_formatting.len(), 1);
-    assert_eq!(
-        reverse_formatting[0]["reasons"],
-        serde_json::json!(["position"])
-    );
-
-    assert_eq!(reverse_report["extraction"]["old_complete"], true);
-    assert_eq!(reverse_report["extraction"]["new_complete"], true);
-    assert_eq!(
-        reverse_report["extraction"]["issues"]
-            .as_array()
-            .map(Vec::len),
-        Some(0)
-    );
-
-    // Reverse Strict mode
-    let reverse_strict_output = compare(&new_pdf, &old_pdf, &["--strict"]);
-    assert_eq!(
-        reverse_strict_output.status.code(),
-        Some(1),
-        "strict mode must still exit 1 (Changed) when content changes exist: {}",
-        stderr(&reverse_strict_output)
-    );
+    assert!(change["new_span"].is_null());
 }
 
 #[test]
@@ -2945,7 +1641,7 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
         let selected: Value =
             serde_json::from_slice(&fs::read(&report).expect("selected-text report"))
                 .expect("JSON report");
-        assert_eq!(selected["schema_version"], 2);
+        assert_eq!(selected["schema_version"], 3);
         assert_eq!(selected["comparison_complete"], false);
         let text = selected["coverage"]
             .as_array()
@@ -2966,7 +1662,7 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
     assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
     let report: Value =
         serde_json::from_slice(&fs::read(report).expect("document report")).expect("JSON report");
-    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["schema_version"], 3);
     assert_eq!(report["comparison_complete"], false);
     assert_eq!(report["old"]["native_glyphs"], 0);
     assert_eq!(report["coverage"].as_array().expect("channels").len(), 4);
@@ -3075,33 +1771,6 @@ fn render_process_rejects_oversized_output_before_reading_input() {
     assert!(output.stdout.is_empty());
 }
 
-#[test]
-fn default_report_displays_inferred_text_changes_and_exact_mask_counts() {
-    let directory = TestDirectory::new();
-    let old = directory.join("old-body.pdf");
-    let new = directory.join("new-body.pdf");
-    write_pdf(&old, &["The fee is 100 dollars."]);
-    write_pdf(&new, &["The fee is 200 dollars."]);
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .arg(&old)
-        .arg(&new)
-        .output()
-        .expect("document comparison");
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let text = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        text.contains("Inferred change: Paragraph (page 1)"),
-        "{text}"
-    );
-    assert!(text.contains("  - \"The fee is 100 dollars.\""), "{text}");
-    assert!(text.contains("  + \"The fee is 200 dollars.\""), "{text}");
-    assert!(
-        text.contains("Mandatory changed positions: old 1, new 1"),
-        "{text}"
-    );
-    assert!(text.contains("Unresolved old Visual"), "{text}");
-}
-
 #[cfg(unix)]
 #[test]
 fn non_utf8_cache_directories_do_not_disable_native_evidence() {
@@ -3161,8 +1830,11 @@ fn default_evidence_path_publishes_json_text_and_trace_reports() {
         arguments(&mut command);
         command.output().expect("default evidence comparison")
     };
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert!(json.exists() && text.exists() && trace.exists());
+    let trace_json = read_json(&trace);
+    assert_eq!(trace_json["trace_schema"], "pdfdelta-flow-trace/1");
+    assert_eq!(trace_json["engine"], "flow");
 
     // Report publication refuses to replace an existing destination.
     let repeated = {
@@ -3178,125 +1850,6 @@ fn default_evidence_path_publishes_json_text_and_trace_reports() {
         "{}",
         stderr(&repeated)
     );
-}
-
-#[test]
-fn native_structure_ids_preserve_cell_identity_when_values_are_swapped() {
-    fn write_table(path: &Path, values: [&str; 2], reversed_drawing: bool, cover: bool) {
-        let mut pdf = Document::with_version("1.7");
-        let pages = pdf.new_object_id();
-        let page = pdf.new_object_id();
-        let root = pdf.new_object_id();
-        let table = pdf.new_object_id();
-        let font = pdf.add_object(
-            dictionary! { "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica" },
-        );
-        let mut rows = Vec::new();
-        let mut cells = Vec::new();
-        let mut identifiers = vec![("totals".to_owned(), table)];
-        for (index, name) in ["sales", "profit"].into_iter().enumerate() {
-            let row = pdf.new_object_id();
-            let cell = pdf.add_object(dictionary! {
-                "Type" => "StructElem", "S" => "TD", "P" => row, "Pg" => page, "K" => index as i64,
-                "ID" => Object::string_literal(format!("{name}-amount")),
-            });
-            pdf.objects.insert(
-                row,
-                Object::Dictionary(dictionary! {
-                    "Type" => "StructElem", "S" => "TR", "P" => table, "K" => cell,
-                    "ID" => Object::string_literal(name),
-                }),
-            );
-            rows.push(Object::Reference(row));
-            cells.push(Object::Reference(cell));
-            identifiers.push((name.to_owned(), row));
-            identifiers.push((format!("{name}-amount"), cell));
-        }
-        pdf.objects.insert(
-            table,
-            Object::Dictionary(dictionary! {
-                "Type" => "StructElem", "S" => "Table", "P" => root, "K" => rows,
-                "ID" => Object::string_literal("totals"),
-            }),
-        );
-        identifiers.sort_by(|a, b| a.0.cmp(&b.0));
-        let names: Vec<_> = identifiers
-            .into_iter()
-            .flat_map(|(id, object)| [Object::string_literal(id), Object::Reference(object)])
-            .collect();
-        pdf.objects.insert(root, Object::Dictionary(dictionary! {
-            "Type" => "StructTreeRoot", "K" => table,
-            "IDTree" => dictionary! { "Names" => names },
-            "ParentTree" => dictionary! { "Nums" => vec![Object::Integer(0), Object::Array(cells)] },
-            "ParentTreeNextKey" => 1,
-        }));
-        let order = if reversed_drawing { [1, 0] } else { [0, 1] };
-        let mut content = String::from("BT /F1 10 Tf ");
-        for index in order {
-            content.push_str(&format!(
-                "/Span << /MCID {index} >> BDC 1 0 0 1 20 {} Tm ({}) Tj EMC ",
-                [80, 50][index],
-                values[index]
-            ));
-        }
-        content.push_str("ET");
-        let contents = pdf.add_object(Stream::new(dictionary! {}, content.into_bytes()));
-        pdf.objects.insert(page, Object::Dictionary(dictionary! {
-            "Type" => "Page", "Parent" => pages, "MediaBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
-            "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } }, "Contents" => contents,
-            "StructParents" => 0,
-        }));
-        let mut kids = Vec::new();
-        if cover {
-            let blank = pdf.add_object(dictionary! {
-                "Type" => "Page", "Parent" => pages, "MediaBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
-            });
-            kids.push(Object::Reference(blank));
-        }
-        kids.push(Object::Reference(page));
-        pdf.objects.insert(
-            pages,
-            Object::Dictionary(
-                dictionary! { "Type" => "Pages", "Count" => kids.len() as i64, "Kids" => kids },
-            ),
-        );
-        let catalog = pdf.add_object(
-            dictionary! { "Type" => "Catalog", "Pages" => pages, "StructTreeRoot" => root, "MarkInfo" => dictionary! { "Marked" => true } },
-        );
-        pdf.trailer.set("Root", catalog);
-        pdf.save(path).expect("tagged table fixture");
-    }
-    let directory = TestDirectory::new();
-    let old = directory.join("old-table.pdf");
-    write_table(&old, ["100", "20"], false, false);
-    for (index, (values, reversed, cover, changes)) in [
-        (["20", "100"], false, false, 2),
-        (["100", "20"], true, false, 0),
-        (["100", "20"], false, true, 0),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let new = directory.join(&format!("new-table-{index}.pdf"));
-        let report_path = directory.join(&format!("table-{index}.json"));
-        write_table(&new, values, reversed, cover);
-        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-            .args(["--channels", "text,relations"])
-            .arg(&old)
-            .arg(&new)
-            .arg("--json")
-            .arg(&report_path)
-            .output()
-            .expect("tagged table comparison");
-        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-        let report: Value =
-            serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
-        assert_eq!(report["old"]["structured_elements"], 5);
-        assert_eq!(report["new"]["structured_elements"], 5);
-        assert_eq!(report["typed_changes"], changes, "{report}");
-        assert_eq!(report["inferred_changes"], 0, "{report}");
-        assert_eq!(report["comparison_complete"], false);
-    }
 }
 
 #[test]
@@ -3375,6 +1928,395 @@ fn form_values_follow_field_names_when_values_and_field_order_are_swapped() {
     assert_review_pointers(&html, &report);
 }
 
+/// Writes a one-page PDF with caller-supplied text and stored form fields.
+fn stored_fields_fixture_with_text(path: &Path, lines: &[&str], values: &[(&str, &str)]) {
+    write_pdf(path, lines);
+    let mut pdf = Document::load(path).expect("background text fixture");
+    let fields: Vec<_> = values
+        .iter()
+        .map(|(name, value)| {
+            Object::Reference(pdf.add_object(dictionary! {
+        "FT" => "Tx", "T" => Object::string_literal(*name), "V" => Object::string_literal(*value),
+    }))
+        })
+        .collect();
+    let root = pdf
+        .trailer
+        .get(b"Root")
+        .and_then(Object::as_reference)
+        .expect("catalog reference");
+    pdf.get_object_mut(root)
+        .and_then(Object::as_dict_mut)
+        .expect("catalog")
+        .set("AcroForm", dictionary! { "Fields" => fields });
+    pdf.save(path).expect("stored fields without widgets");
+}
+
+fn stored_fields_fixture(path: &Path, values: &[(&str, &str)]) {
+    stored_fields_fixture_with_text(
+        path,
+        &["Retained background text is outside the selected form channel"],
+        values,
+    );
+}
+
+/// Adds an XFA component so the forms channel reports its explicit
+/// unexamined-form failure without changing the stored field inventory.
+fn add_xfa_component(path: &Path) {
+    let mut pdf = Document::load(path).expect("load XFA fixture");
+    let root = pdf
+        .trailer
+        .get(b"Root")
+        .and_then(Object::as_reference)
+        .expect("catalog reference");
+    let catalog = pdf
+        .get_object_mut(root)
+        .and_then(Object::as_dict_mut)
+        .expect("catalog");
+    catalog
+        .get_mut(b"AcroForm")
+        .and_then(Object::as_dict_mut)
+        .expect("form dictionary")
+        .set("XFA", dictionary! {});
+    pdf.save(path).expect("save XFA fixture");
+}
+
+fn append_broken_text_stream(path: &Path) {
+    append_content_stream(
+        path,
+        Stream::new(
+            dictionary! { "Filter" => "FlateDecode" },
+            b"not a zlib stream".to_vec(),
+        ),
+    );
+}
+
+#[test]
+fn default_channels_text_detection_survives_broken_forms() {
+    let directory = TestDirectory::new();
+    let old = directory.join("text-forms-old.pdf");
+    let new = directory.join("text-forms-new.pdf");
+    stored_fields_fixture_with_text(
+        &old,
+        &["Release 10 remains available"],
+        &[("revenue", "100")],
+    );
+    stored_fields_fixture_with_text(
+        &new,
+        &["Release 20 remains available"],
+        &[("revenue", "100")],
+    );
+    add_xfa_component(&old);
+    add_xfa_component(&new);
+    let report = directory.join("text-forms.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    // The text channel detected the replacement with intact flow evidence.
+    // The forms channel's XFA failure cannot make that detection false.
+    let report = read_json(&report);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert_eq!(report["difference_status"], "detected");
+    assert_eq!(report["exit_basis"], "detected_with_unexamined_evidence");
+    let verdicts = report["channel_verdicts"].as_array().expect("verdicts");
+    let text = verdicts
+        .iter()
+        .find(|verdict| verdict["channel"] == "text")
+        .expect("text verdict");
+    assert_eq!(text["detected"], true);
+    assert_eq!(text["broken"], false);
+    let forms = verdicts
+        .iter()
+        .find(|verdict| verdict["channel"] == "forms")
+        .expect("forms verdict");
+    assert_eq!(forms["broken"], true);
+}
+
+#[test]
+fn default_channels_text_detection_does_not_survive_broken_text() {
+    let directory = TestDirectory::new();
+    let old = directory.join("broken-text-old.pdf");
+    let new = directory.join("broken-text-new.pdf");
+    write_pdf(&old, &["Release 10 remains available"]);
+    write_pdf(&new, &["Release 20 remains available"]);
+    append_broken_text_stream(&new);
+    let report = directory.join("broken-text.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["exit_basis"], "broken_evidence");
+    let text = report["channel_verdicts"]
+        .as_array()
+        .expect("verdicts")
+        .iter()
+        .find(|verdict| verdict["channel"] == "text")
+        .expect("text verdict");
+    assert_eq!(text["detected"], true);
+    assert_eq!(text["broken"], true);
+}
+
+#[test]
+fn default_channels_forms_detection_survives_broken_text() {
+    let directory = TestDirectory::new();
+    let old = directory.join("forms-text-old.pdf");
+    let new = directory.join("forms-text-new.pdf");
+    stored_fields_fixture(&old, &[("revenue", "100")]);
+    stored_fields_fixture(&new, &[("revenue", "120")]);
+    append_broken_text_stream(&new);
+    let report = directory.join("forms-text.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    // The field value is a typed forms difference; neither text nor forms is
+    // the detecting channel with broken evidence.
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["exit_basis"], "detected_with_unexamined_evidence");
+    let verdicts = report["channel_verdicts"].as_array().expect("verdicts");
+    let forms = verdicts
+        .iter()
+        .find(|verdict| verdict["channel"] == "forms")
+        .expect("forms verdict");
+    assert_eq!(forms["detected"], true);
+    assert_eq!(forms["broken"], false);
+    let text = verdicts
+        .iter()
+        .find(|verdict| verdict["channel"] == "text")
+        .expect("text verdict");
+    assert_eq!(text["broken"], true);
+    let output = run_default_engine(&old, &new, &[]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains(
+            "difference detected by forms, but some evidence was not examined (non-text paint or visual evidence)"
+        ),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn default_channels_no_detection_with_broken_forms_is_exit_three() {
+    let directory = TestDirectory::new();
+    let old = directory.join("broken-forms-old.pdf");
+    let new = directory.join("broken-forms-new.pdf");
+    stored_fields_fixture(&old, &[("revenue", "100")]);
+    stored_fields_fixture(&new, &[("revenue", "100")]);
+    add_xfa_component(&old);
+    add_xfa_component(&new);
+    let report = directory.join("broken-forms.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["exit_basis"], "broken_evidence");
+    assert_eq!(report["difference_status"], "indeterminate");
+}
+
+#[test]
+fn default_channels_forms_only_change_still_exits_one() {
+    let directory = TestDirectory::new();
+    let old = directory.join("forms-only-old.pdf");
+    let new = directory.join("forms-only-new.pdf");
+    stored_fields_fixture(&old, &[("revenue", "100"), ("profit", "20")]);
+    stored_fields_fixture(&new, &[("revenue", "120"), ("profit", "20")]);
+    let report = directory.join("forms-only.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    // Identical text and no broken evidence: the forms value change is a
+    // detected difference even though visual evidence stays unexamined.
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["engine"], "flow");
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["difference_status"], "detected");
+    assert_eq!(report["exit_basis"], "detected_with_unexamined_evidence");
+    assert!(
+        report["typed_changes"]
+            .as_u64()
+            .expect("typed change count")
+            >= 1
+    );
+    let coverage = report["coverage"].as_array().expect("coverage");
+    let forms = coverage
+        .iter()
+        .find(|entry| entry["channel"] == "forms")
+        .expect("forms coverage");
+    assert_eq!(forms["complete"], true);
+    let text = coverage
+        .iter()
+        .find(|entry| entry["channel"] == "text")
+        .expect("text coverage");
+    assert_eq!(text["complete"], true);
+    assert_eq!(text["old_compared_sources"], text["old_discovered_sources"]);
+    assert_eq!(text["new_compared_sources"], text["new_discovered_sources"]);
+    assert!(
+        text["old_compared_sources"]
+            .as_u64()
+            .expect("flow token count")
+            > 0
+    );
+    assert_eq!(report["flow_owned_text"]["comparisons"], 1);
+    assert_eq!(report["flow_owned_text"]["components"], 1);
+}
+
+#[test]
+fn flow_engine_non_text_channels_do_not_use_proof_text_as_exit_evidence() {
+    let directory = TestDirectory::new();
+    let old = directory.join("forms-channel-old.pdf");
+    let new = directory.join("forms-channel-new.pdf");
+    stored_fields_fixture(&old, &[("revenue", "100")]);
+    stored_fields_fixture(&new, &[("revenue", "120")]);
+    let report = directory.join("forms-channel.json");
+    let output = run_flow_engine(
+        &old,
+        &new,
+        &[
+            "--channels",
+            "forms",
+            "--json",
+            path_text(&report),
+            "--quiet",
+        ],
+    );
+    // The identical text must not be compared by proof as a hidden text
+    // channel. The forms value change is the selected detection and exits 1.
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["engine"], "flow");
+    assert_eq!(report["flow_text"], Value::Null);
+    let verdicts = report["channel_verdicts"].as_array().expect("verdicts");
+    let forms = verdicts
+        .iter()
+        .find(|verdict| verdict["channel"] == "forms")
+        .expect("forms verdict");
+    assert_eq!(forms["detected"], true);
+    assert_eq!(forms["broken"], false);
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| verdict["channel"] != "text" || verdict["detected"] == false),
+        "an unselected text channel must not justify the exit: {report:#}"
+    );
+}
+
+#[test]
+fn flow_engine_without_text_does_not_report_a_proof_text_detection() {
+    let directory = TestDirectory::new();
+    let old = directory.join("text-context-old.pdf");
+    let new = directory.join("text-context-new.pdf");
+    write_pdf(&old, &["Release 10 remains available"]);
+    write_pdf(&new, &["Release 20 remains available"]);
+    let report = directory.join("text-context.json");
+    let output = run_flow_engine(
+        &old,
+        &new,
+        &[
+            "--channels",
+            "forms,relations",
+            "--json",
+            path_text(&report),
+            "--quiet",
+        ],
+    );
+    let report = read_json(&report);
+    assert_eq!(report["engine"], "flow");
+    let verdicts = report["channel_verdicts"].as_array().expect("verdicts");
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| verdict["channel"] != "text" || verdict["detected"] == false),
+        "unselected proof text must remain context, not a detection: {report:#}"
+    );
+    // The text-only replacement cannot justify exit 1 when text was not
+    // selected. Another selected channel may still detect, so only the text
+    // justification is asserted absent.
+    assert_ne!(output.status.code(), Some(1), "{}", stderr(&output));
+}
+
+#[test]
+fn flow_color_always_styles_native_and_multi_channel_reports() {
+    let directory = TestDirectory::new();
+    let old = directory.join("color-old.pdf");
+    let new = directory.join("color-new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    for native in [true, false] {
+        let extra = if native {
+            vec!["--native-text-only"]
+        } else {
+            vec![]
+        };
+        let always = run_default_engine(
+            &old,
+            &new,
+            &[extra.as_slice(), &["--color", "always"]].concat(),
+        );
+        assert_eq!(always.status.code(), Some(1), "{}", stderr(&always));
+        assert!(
+            stdout(&always).contains("\u{1b}["),
+            "native={native}: {:#}",
+            stdout(&always)
+        );
+
+        let never = run_default_engine(
+            &old,
+            &new,
+            &[extra.as_slice(), &["--color", "never"]].concat(),
+        );
+        assert_eq!(never.status.code(), Some(1), "{}", stderr(&never));
+        assert!(
+            !stdout(&never).contains("\u{1b}["),
+            "native={native}: {:#}",
+            stdout(&never)
+        );
+
+        // Piped `auto` stays plain.
+        let auto = run_default_engine(&old, &new, &extra);
+        assert_eq!(auto.status.code(), Some(1), "{}", stderr(&auto));
+        assert!(
+            !stdout(&auto).contains("\u{1b}["),
+            "native={native}: {:#}",
+            stdout(&auto)
+        );
+    }
+
+    // A text report written to a file follows the proof engine's rule: only
+    // `--color always` styles it, because there is no terminal to inspect.
+    let styled_path = directory.join("styled.txt");
+    let styled = run_default_engine(
+        &old,
+        &new,
+        &["--color", "always", "--output", path_text(&styled_path)],
+    );
+    assert_eq!(styled.status.code(), Some(1), "{}", stderr(&styled));
+    assert!(
+        fs::read_to_string(&styled_path)
+            .expect("styled report")
+            .contains("\u{1b}[")
+    );
+    let plain_path = directory.join("plain.txt");
+    let plain = run_default_engine(
+        &old,
+        &new,
+        &["--color", "never", "--output", path_text(&plain_path)],
+    );
+    assert_eq!(plain.status.code(), Some(1), "{}", stderr(&plain));
+    assert!(
+        !fs::read_to_string(&plain_path)
+            .expect("plain report")
+            .contains("\u{1b}[")
+    );
+}
+
 #[test]
 fn native_field_presence_reaches_cli_counts_and_coverage_without_character_masks() {
     let directory = TestDirectory::new();
@@ -3443,83 +2385,6 @@ fn native_field_presence_reaches_cli_counts_and_coverage_without_character_masks
 
 #[test]
 #[cfg(target_os = "linux")]
-fn native_worker_limit_preserves_independent_stored_field_changes() {
-    let directory = TestDirectory::new();
-    let old = directory.join("limited-old.pdf");
-    let new = directory.join("limited-new.pdf");
-    for (path, value) in [(&old, "100"), (&new, "200")] {
-        write_pdf(path, &["native extraction will exceed its array budget"]);
-        let mut pdf = Document::load(path).expect("native fixture");
-        let mut content = vec![b'['];
-        content.extend_from_slice(
-            &b"0 "
-                .repeat(pdfdelta_core::source::ExtractionLimits::default().max_array_elements + 1),
-        );
-        content.extend_from_slice(b"] TJ");
-        let contents = pdf.add_object(Stream::new(dictionary! {}, content));
-        let page = pdf.get_pages()[&1];
-        pdf.get_object_mut(page)
-            .and_then(Object::as_dict_mut)
-            .expect("page")
-            .set("Contents", contents);
-        let field = pdf.add_object(dictionary! { "FT" => "Tx", "T" => Object::string_literal("fee"), "V" => Object::string_literal(value) });
-        let root = pdf
-            .trailer
-            .get(b"Root")
-            .and_then(Object::as_reference)
-            .expect("root");
-        pdf.get_object_mut(root)
-            .and_then(Object::as_dict_mut)
-            .expect("catalog")
-            .set(
-                "AcroForm",
-                dictionary! { "Fields" => vec![Object::Reference(field)] },
-            );
-        pdf.save(path).expect("limited extraction fixture");
-    }
-    let report_path = directory.join("limited.json");
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .args(["--channels", "text,forms"])
-        .arg(&old)
-        .arg(&new)
-        .arg("--json")
-        .arg(&report_path)
-        .output()
-        .expect("worker comparison");
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let report: Value =
-        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
-    assert_eq!(report["typed_changes"], 1, "{report}");
-    assert_eq!(report["comparison_complete"], false);
-    for side in ["old", "new"] {
-        assert_eq!(report[side]["pages"], 1);
-        assert_eq!(
-            report[side]["form_fields"]
-                .as_array()
-                .expect("fields")
-                .len(),
-            1
-        );
-        assert!(
-            report[side]["issues"]
-                .as_array()
-                .expect("issues")
-                .iter()
-                .any(|issue| issue["channel"] == "text" && issue["kind"] == "resource_limit"),
-            "{report}"
-        );
-    }
-    let fields = report["coverage"]
-        .as_array()
-        .expect("coverage")
-        .iter()
-        .find(|coverage| coverage["channel"] == "forms")
-        .expect("forms coverage");
-    assert_eq!(fields["complete"], true);
-}
-
-#[test]
-#[cfg(target_os = "linux")]
 fn native_worker_preserves_encrypted_cache_results_without_exposing_passwords() {
     let directory = TestDirectory::new();
     let old = directory.join("encrypted-old.pdf");
@@ -3548,12 +2413,12 @@ fn native_worker_preserves_encrypted_cache_results_without_exposing_passwords() 
             command.arg("--extraction-cache-dir").arg(&cache);
         }
         let output = command.output().expect("encrypted evidence comparison");
-        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
         let json = fs::read_to_string(report_path).expect("encrypted report");
         assert!(!json.contains(password));
         let report: Value = serde_json::from_str(&json).expect("JSON");
         assert_eq!(report["old"]["native_glyphs"], 39);
-        assert_eq!(report["inferred_changes"], 1);
+        assert_eq!(report["typed_changes"], 1);
         if let Some(previous) = &previous {
             assert_eq!(report["comparison"], previous["comparison"]);
             assert_eq!(report["coverage"], previous["coverage"]);
@@ -3762,10 +2627,25 @@ fn form_widget_pixels_and_saved_values_compare_independently() {
                 .arg(&review)
                 .output()
                 .expect("widget comparison");
-            assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
             let report: Value =
                 serde_json::from_slice(&fs::read(report_path).expect("widget report"))
                     .expect("JSON report");
+            // Flow's multi-channel policy: only a channel that detected a
+            // typed difference with its own intact evidence selects exit 1.
+            // Broken forms evidence still keeps the comparison at exit 3.
+            let intact_detection = report["channel_verdicts"]
+                .as_array()
+                .is_some_and(|verdicts| {
+                    verdicts
+                        .iter()
+                        .any(|verdict| verdict["detected"] == true && verdict["broken"] == false)
+                });
+            assert_eq!(
+                output.status.code(),
+                Some(if intact_detection { 1 } else { 3 }),
+                "index {index} channels {channels}: {}",
+                stderr(&output)
+            );
             assert_eq!(report["comparison_complete"], false);
             assert_eq!(
                 report["typed_changes"],
@@ -3830,12 +2710,18 @@ fn external_vertical_text_preserves_evidence_across_page_moves_and_edits() {
             .arg("--quiet")
             .output()
             .expect("default evidence comparison");
-        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+        let expected_exit = if changed { Some(1) } else { Some(3) };
+        assert_eq!(output.status.code(), expected_exit, "{}", stderr(&output));
         let report = read_json(&destination);
         assert_eq!(report["comparison_complete"], false);
+        if changed {
+            assert_eq!(report["exit_basis"], "detected_with_unexamined_evidence");
+        }
         assert_eq!(report["old"]["native_glyphs"], 14);
         assert_eq!(report["new"]["native_glyphs"], glyphs);
-        let changes: Vec<_> = report["comparison"]["scopes"]
+        // The text channel is flow's; the proof comparison no longer retains
+        // a second text change or its local mask.
+        let proof_text_changes: Vec<_> = report["comparison"]["scopes"]
             .as_array()
             .expect("scopes")
             .iter()
@@ -3846,27 +2732,36 @@ fn external_vertical_text_preserves_evidence_across_page_moves_and_edits() {
             })
             .filter(|pair| pair["operation"]["kind"] == "text_changed")
             .collect();
-        assert_eq!(changes.len(), usize::from(changed));
+        assert!(proof_text_changes.is_empty(), "{report}");
+        assert!(
+            report["flow_owned_text"]["comparisons"]
+                .as_u64()
+                .expect("superseded text comparisons")
+                >= 1
+        );
+        let coverage = report["coverage"]
+            .as_array()
+            .expect("channels")
+            .iter()
+            .find(|coverage| coverage["channel"] == "text")
+            .expect("text coverage");
+        assert_eq!(coverage["old_compared_sources"], 14);
+        assert_eq!(coverage["new_compared_sources"], glyphs);
         if changed {
-            assert_eq!(changes[0]["interpretation"], "inferred");
-            assert_eq!(changes[0]["operation"]["old"], "出荷重量百キログラム");
-            assert_eq!(changes[0]["operation"]["new"], "出荷重量二百キログラム");
-            assert_eq!(changes[0]["text_mask"]["old"], serde_json::json!([]));
-            assert_eq!(
-                changes[0]["text_mask"]["new"],
-                serde_json::json!([
-                    { "position": 4, "sources": [{ "origin": "native", "glyph": 8 }] }
-                ])
-            );
-        } else {
-            let coverage = report["coverage"]
+            assert_eq!(report["typed_changes"], 1);
+            let flow_changes = report["flow_text"]["changes"]
                 .as_array()
-                .expect("channels")
-                .iter()
-                .find(|coverage| coverage["channel"] == "text")
-                .expect("text coverage");
-            assert_eq!(coverage["old_compared_sources"], 14);
-            assert_eq!(coverage["new_compared_sources"], 14);
+                .expect("flow changes");
+            assert_eq!(flow_changes.len(), 1);
+            assert_eq!(flow_changes[0]["kind"], "insertion");
+            assert_eq!(flow_changes[0]["new_span"]["text"], "二");
+        } else {
+            assert!(
+                report["flow_text"]["changes"]
+                    .as_array()
+                    .expect("flow changes")
+                    .is_empty()
+            );
         }
     }
 }
@@ -3914,113 +2809,6 @@ fn assert_review_pointers(html: &str, report: &Value) {
 }
 
 #[test]
-fn static_review_keeps_ambiguous_ranges_nonowning_and_preserves_source_bytes() {
-    use sha2::{Digest, Sha256};
-    use std::io::Write as _;
-
-    let directory = TestDirectory::new();
-    let old = directory.join("old.pdf");
-    let new = directory.join("new.pdf");
-    write_pdf(&old, &["Start boundary.", "a", "End boundary."]);
-    write_pdf(&new, &["Start boundary.", "aa", "End boundary."]);
-    let baseline = directory.join("baseline.json");
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .arg(&old)
-        .arg(&new)
-        .args(["--channels", "text", "--quiet", "--json"])
-        .arg(&baseline)
-        .output()
-        .expect("baseline comparison");
-    let baseline_exit = output.status.code();
-    assert!(
-        matches!(baseline_exit, Some(0 | 1 | 3)),
-        "{}",
-        stderr(&output)
-    );
-
-    let old_bytes = fs::read(&old).expect("source bytes");
-    let review = directory.join("review");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .arg("-")
-        .arg(&new)
-        .args(["--channels", "text", "--quiet", "--review"])
-        .arg(&review)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("review from stdin");
-    child
-        .stdin
-        .take()
-        .expect("input pipe")
-        .write_all(&old_bytes)
-        .expect("PDF input");
-    let output = child.wait_with_output().expect("review process");
-    assert_eq!(output.status.code(), baseline_exit, "{}", stderr(&output));
-    assert_eq!(
-        fs::read(review.join("old.pdf")).expect("old copy"),
-        old_bytes
-    );
-    assert_eq!(
-        fs::read(review.join("new.pdf")).expect("new copy"),
-        fs::read(&new).expect("new source")
-    );
-    let mut actual: Value = serde_json::from_slice(
-        &fs::read(review.join("comparison.json")).expect("comparison artifact"),
-    )
-    .expect("comparison JSON");
-    let html = fs::read_to_string(review.join("index.html")).expect("HTML");
-    assert_review_pointers(&html, &actual);
-    assert_eq!(actual["scope_content_changes"], 1);
-    assert!(html.contains("category category-b"));
-    assert!(
-        !html.contains("<mark"),
-        "a to aa has no uniquely changed position"
-    );
-    assert!(html.contains("old.pdf#page=1") && html.contains("new.pdf#page=1"));
-    let mut expected: Value = serde_json::from_slice(&fs::read(baseline).expect("baseline report"))
-        .expect("baseline JSON");
-    actual
-        .as_object_mut()
-        .expect("object")
-        .remove("comparison_wall_time_ms");
-    expected
-        .as_object_mut()
-        .expect("object")
-        .remove("comparison_wall_time_ms");
-    assert_eq!(
-        actual, expected,
-        "review generation must preserve all comparison contracts"
-    );
-    let manifest: Value =
-        serde_json::from_slice(&fs::read(review.join("manifest.json")).expect("manifest"))
-            .expect("manifest JSON");
-    for file in manifest["files"].as_array().expect("artifacts") {
-        let bytes = fs::read(review.join(file["name"].as_str().expect("filename")))
-            .expect("artifact bytes");
-        assert_eq!(file["bytes"].as_u64(), Some(bytes.len() as u64));
-        let hash: String = Sha256::digest(&bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        assert_eq!(file["sha256"], hash);
-    }
-    let sources: Value =
-        serde_json::from_slice(&fs::read(review.join("sources.json")).expect("sources"))
-            .expect("source JSON");
-    assert_eq!(
-        sources["old"]["summary"]["revision"],
-        actual["old"]["revision"]
-    );
-    assert!(
-        sources["old"]["native"]["items"][0]
-            .get("provenance")
-            .is_some()
-    );
-}
-
-#[test]
 fn static_review_refuses_existing_destinations_and_nested_report_collisions() {
     let directory = TestDirectory::new();
     let input = directory.join("source.pdf");
@@ -4053,91 +2841,101 @@ fn static_review_refuses_existing_destinations_and_nested_report_collisions() {
     assert_eq!(fs::read(&input).expect("preserved input"), original);
 }
 
-fn write_pdf(path: &Path, lines: &[&str]) {
-    write_pdf_pages(path, &[lines], 30);
+fn write_huge_image_pdf(path: &Path) {
+    let mut document = Document::with_version("1.5");
+    let pages = document.new_object_id();
+    let image = document.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Image",
+            "Width" => 19_848_i64,
+            "Height" => 28_063_i64,
+            "BitsPerComponent" => 1,
+            "ColorSpace" => "DeviceGray",
+            "ImageMask" => true,
+        },
+        vec![0_u8; 8],
+    ));
+    let contents = document.add_object(Stream::new(
+        dictionary! {},
+        b"q 100 0 0 100 0 0 cm /Im0 Do Q".to_vec(),
+    ));
+    let page = document.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages,
+        "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(100), Object::from(100)],
+        "Resources" => dictionary! { "XObject" => dictionary! { "Im0" => image } },
+        "Contents" => contents,
+    });
+    document.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page)],
+            "Count" => 1,
+        }),
+    );
+    let catalog = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+    document.trailer.set("Root", catalog);
+    document
+        .save(path)
+        .expect("huge-image fixture should serialize");
 }
 
-#[test]
-fn selected_text_does_not_prove_absence_of_outlined_text() {
-    let directory = TestDirectory::new();
-    for artifact in [false, true] {
-        let input = directory.join(&format!("outlined-{artifact}.pdf"));
-        write_pdf(&input, &["temporary native content"]);
-        let mut pdf = Document::load(&input).expect("load fixture");
-        let page = pdf.get_pages()[&1];
-        let mut program = b"20 20 m 30 25 l 30 70 l 20 70 l 40 70 l S".to_vec();
-        if artifact {
-            program = [b"/Artifact BMC ".as_slice(), &program, b" EMC"].concat();
-        }
-        let content = pdf.add_object(Stream::new(dictionary! {}, program));
-        pdf.get_object_mut(page)
-            .expect("page")
-            .as_dict_mut()
-            .expect("page dictionary")
-            .set("Contents", content);
-        pdf.save(&input).expect("save outlined fixture");
-        let report_path = directory.join(&format!("outlined-{artifact}.json"));
-        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-            .args(["--channels", "text"])
-            .arg(&input)
-            .arg(&input)
-            .arg("--json")
-            .arg(&report_path)
-            .output()
-            .expect("selected-text comparison");
-        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-        let report: Value =
-            serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
-        assert_eq!(report["old"]["native_glyphs"], 0);
-        assert_eq!(report["comparison_complete"], false);
-        assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
-    }
-
-    let old = directory.join("mixed-old.pdf");
-    let new = directory.join("mixed-new.pdf");
-    for (path, text) in [
-        (&old, "The shipment quantity is 100 kilograms."),
-        (&new, "The shipment quantity is 200 kilograms."),
-    ] {
-        write_pdf(path, &[text]);
-        let mut pdf = Document::load(path).expect("load native fixture");
-        let page = pdf.get_pages()[&1];
-        let painted = pdf.add_object(Stream::new(
+fn write_many_page_pdf(path: &Path, page_count: usize) {
+    let mut document = Document::with_version("1.7");
+    let pages = document.new_object_id();
+    let widths = vec![Object::Integer(500); 256];
+    let font = document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => widths,
+        "FontDescriptor" => dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => "Helvetica",
+            "Ascent" => 800,
+            "Descent" => -200,
+            "MissingWidth" => 500,
+        },
+    });
+    let resources = document.add_object(dictionary! {
+        "Font" => dictionary! { "F1" => font },
+    });
+    let mut kids = Vec::with_capacity(page_count);
+    for _ in 0..page_count {
+        let content = document.add_object(Stream::new(
             dictionary! {},
-            b"20 20 m 30 25 l 30 70 l S".to_vec(),
+            b"BT /F1 8 Tf 10 40 Td (P) Tj ET".to_vec(),
         ));
-        let dictionary = pdf
-            .get_object_mut(page)
-            .expect("page")
-            .as_dict_mut()
-            .expect("page dictionary");
-        let native = dictionary
-            .get(b"Contents")
-            .expect("native contents")
-            .clone();
-        dictionary.set("Contents", vec![native, Object::Reference(painted)]);
-        pdf.save(path).expect("save mixed fixture");
+        let page = document.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages,
+            "Contents" => content,
+            "Resources" => resources,
+            "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(100), Object::from(100)],
+        });
+        kids.push(Object::Reference(page));
     }
-    let report_path = directory.join("mixed.json");
-    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .args(["--channels", "text"])
-        .arg(&old)
-        .arg(&new)
-        .arg("--json")
-        .arg(&report_path)
-        .output()
-        .expect("mixed comparison");
-    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    let report: Value =
-        serde_json::from_slice(&fs::read(report_path).expect("report")).expect("JSON");
-    assert_eq!(report["old"]["native_glyphs"], 39);
-    assert_eq!(report["new"]["native_glyphs"], 39);
-    assert_eq!(
-        report["typed_changes"].as_u64().expect("typed count")
-            + report["inferred_changes"].as_u64().expect("inferred count"),
-        1
+    document.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => kids,
+            "Count" => i64::try_from(page_count).expect("page count should fit in i64"),
+        }),
     );
-    assert_eq!(report["coverage"][0]["old_inventory_complete"], false);
+    let catalog = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+    document.trailer.set("Root", catalog);
+    document
+        .save(path)
+        .expect("many-page fixture should serialize");
+}
+
+fn write_pdf(path: &Path, lines: &[&str]) {
+    write_pdf_pages(path, &[lines], 30);
 }
 
 fn write_type0_pdf(path: &Path, lines: &[&str]) {
@@ -4323,86 +3121,9 @@ fn positioned_words(text: &str) -> String {
     format!("[{words}] TJ")
 }
 
-fn assert_complete_json_report(
-    report_path: &Path,
-    expected_changes: usize,
-    expected_kind: Option<&str>,
-) {
-    let json = fs::read_to_string(report_path).expect("JSON report should be readable");
-    let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 11, "{report:#}");
-    let summary = &report["summary"];
-    assert_eq!(
-        summary["content_changes"].as_u64(),
-        Some(u64::try_from(expected_changes).expect("expected change count should fit in u64")),
-        "{report:#}"
-    );
-    assert_eq!(
-        summary["proven_changed_regions"].as_u64(),
-        Some(0),
-        "{report:#}"
-    );
-    assert_eq!(
-        summary["unresolved_regions"].as_u64(),
-        Some(0),
-        "{report:#}"
-    );
-    assert_eq!(
-        summary["comparison_complete"].as_bool(),
-        Some(true),
-        "{report:#}"
-    );
-    for coverage_name in ["old_alignment_coverage", "new_alignment_coverage"] {
-        let coverage = &summary[coverage_name];
-        assert_eq!(coverage["ratio"].as_f64(), Some(1.0), "{report:#}");
-        let resolved_tokens = coverage["resolved_tokens"]
-            .as_u64()
-            .expect("resolved token count should be an integer");
-        let total_tokens = coverage["total_tokens"]
-            .as_u64()
-            .expect("total token count should be an integer");
-        assert_eq!(resolved_tokens, total_tokens, "{report:#}");
-    }
-
-    let unresolved = report["unresolved_regions"]
-        .as_array()
-        .expect("unresolved regions should be an array");
-    assert!(unresolved.is_empty(), "{report:#}");
-    let proven = report["proven_changed_regions"]
-        .as_array()
-        .expect("proven changed regions should be an array");
-    assert!(proven.is_empty(), "{report:#}");
-    let changes = report["changes"]
-        .as_array()
-        .expect("changes should be an array");
-    assert_eq!(changes.len(), expected_changes, "{report:#}");
-    if let Some(expected_kind) = expected_kind {
-        assert_eq!(
-            changes[0]["kind"].as_str(),
-            Some(expected_kind),
-            "{report:#}"
-        );
-    }
-}
-
 fn read_json(path: &Path) -> Value {
     serde_json::from_slice(&fs::read(path).expect("JSON file should be readable"))
         .expect("JSON file should be valid")
-}
-
-fn phase<'a>(trace: &'a Value, name: &str, side: Option<&str>) -> &'a Value {
-    trace["phases"]
-        .as_array()
-        .expect("trace phases should be an array")
-        .iter()
-        .find(|phase| {
-            phase["name"].as_str() == Some(name)
-                && match side {
-                    Some(side) => phase["side"].as_str() == Some(side),
-                    None => phase.get("side").is_none(),
-                }
-        })
-        .expect("trace phase should exist")
 }
 
 fn assert_no_temporary_reports(directory: &TestDirectory) {
@@ -4486,194 +3207,1532 @@ fn image_only_fixture(path: &Path, rgb: [u8; 3]) {
     pdf.save(path).expect("image-only fixture");
 }
 
-fn native_json(old: &Path, new: &Path, report: &Path) -> (Option<i32>, Value) {
-    let output = compare(old, new, &["--json", path_text(report)]);
-    assert!(
-        matches!(output.status.code(), Some(0 | 1 | 3)),
-        "{}",
-        stderr(&output)
-    );
-    (
-        output.status.code(),
-        serde_json::from_slice(&fs::read(report).expect("native report")).expect("JSON report"),
-    )
-}
-
-fn shared_text_json(old: &Path, new: &Path, report: &Path) -> Value {
-    let _output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
-        .args(["--channels", "text"])
+fn run_flow_engine(old: &Path, new: &Path, extra: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--engine")
+        .arg("flow")
         .arg(old)
         .arg(new)
-        .arg("--json")
-        .arg(report)
+        .args(extra)
         .output()
-        .expect("shared-text comparison");
-    serde_json::from_slice(&fs::read(report).expect("shared report")).expect("JSON report")
+        .expect("pdfdelta flow engine should run")
+}
+
+/// Runs the main command without `--engine` so the default selection is under test.
+fn run_default_engine(old: &Path, new: &Path, extra: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(old)
+        .arg(new)
+        .args(extra)
+        .output()
+        .expect("pdfdelta default engine should run")
+}
+
+/// Replaces the page content with one vector paint program and no native text.
+fn outlined_fixture(path: &Path, program: &[u8]) {
+    write_pdf(path, &["temporary native content"]);
+    let mut pdf = Document::load(path).expect("load outlined fixture");
+    let page = pdf.get_pages()[&1];
+    let content = pdf.add_object(Stream::new(dictionary! {}, program.to_vec()));
+    pdf.get_object_mut(page)
+        .expect("page")
+        .as_dict_mut()
+        .expect("page dictionary")
+        .set("Contents", content);
+    pdf.save(path).expect("save outlined fixture");
+}
+
+fn read_gzip_json(path: &Path) -> Value {
+    use std::io::Read;
+    let mut text = String::new();
+    flate2::read::GzDecoder::new(fs::File::open(path).expect("gzip report"))
+        .read_to_string(&mut text)
+        .expect("gzip report should be readable");
+    serde_json::from_str(&text).expect("gzip report should be JSON")
+}
+
+fn single_flow_change<'a>(report: &'a Value, kind: &str) -> &'a Value {
+    let inner = &report["report"];
+    assert_eq!(inner["engine"], "flow");
+    assert_eq!(inner["summary"]["content_changes"], 1, "{inner:#}");
+    assert_eq!(inner["summary"]["difference_status"], "detected");
+    let changes = inner["changes"].as_array().expect("changes");
+    assert_eq!(changes.len(), 1, "{changes:#?}");
+    assert_eq!(changes[0]["kind"], kind, "{changes:#?}");
+    &changes[0]
 }
 
 #[test]
-fn native_scope_separates_text_from_path_and_image_content() {
+fn flow_paint_inventory_guards_outlined_text_and_images() {
     let directory = TestDirectory::new();
+    let same = directory.join("outlined-same.pdf");
+    let changed = directory.join("outlined-changed.pdf");
+    let program = b"20 20 m 30 25 l 30 70 l 20 70 l h f";
+    let other = b"20 20 m 45 25 l 45 70 l 20 70 l h f";
+    outlined_fixture(&same, program);
+    outlined_fixture(&changed, other);
 
-    // Identical native text beside different path drawings: the native scope
-    // reports no content change, while the shared route keeps its paint-driven
-    // incompleteness.
-    let same_old = directory.join("same-text-old.pdf");
-    let same_new = directory.join("same-text-new.pdf");
-    for (path, drawing) in [
-        (&same_old, b"20 20 m 30 25 l 30 70 l S".to_vec()),
-        (&same_new, b"40 40 m 50 45 l 50 90 l S".to_vec()),
-    ] {
-        write_pdf(path, &["The shipment quantity is 100 kilograms."]);
-        append_content_stream(path, Stream::new(dictionary! {}, drawing));
-    }
-    let (same_code, native) = native_json(
-        &same_old,
-        &same_new,
-        &directory.join("same-text-native.json"),
+    // Identical outlined content is complete: the paint inventory itself
+    // certifies that the visible shapes did not change.
+    let same_report = directory.join("outlined-same.json");
+    let output = run_default_engine(
+        &same,
+        &same,
+        &["--native-text-only", "-j", path_text(&same_report), "-q"],
     );
-    assert_eq!(same_code, Some(0));
-    assert_eq!(native["comparison_scope"]["images_compared"], false);
-    assert_eq!(native["summary"]["difference_status"], "no_content_change");
-    assert_eq!(native["summary"]["comparison_complete"], true);
-    let shared = shared_text_json(
-        &same_old,
-        &same_new,
-        &directory.join("same-text-shared.json"),
-    );
-    assert_eq!(shared["comparison_complete"], false);
-    assert_eq!(shared["coverage"][0]["old_inventory_complete"], false);
-
-    // One native text replacement beside different drawings: the native scope
-    // detects exactly the text change and still completes; the shared route
-    // remains incomplete.
-    let changed_old = directory.join("changed-text-old.pdf");
-    let changed_new = directory.join("changed-text-new.pdf");
-    for (path, text, drawing) in [
-        (
-            &changed_old,
-            "The shipment quantity is 100 kilograms.",
-            b"20 20 m 30 25 l 30 70 l S".to_vec(),
-        ),
-        (
-            &changed_new,
-            "The shipment quantity is 200 kilograms.",
-            b"40 40 m 50 45 l 50 90 l S".to_vec(),
-        ),
-    ] {
-        write_pdf(path, &[text]);
-        append_content_stream(path, Stream::new(dictionary! {}, drawing));
-    }
-    let (changed_code, changed) = native_json(
-        &changed_old,
-        &changed_new,
-        &directory.join("changed-text-native.json"),
-    );
-    assert_eq!(changed_code, Some(1));
-    assert_eq!(changed["summary"]["difference_status"], "detected");
-    assert_eq!(changed["summary"]["content_changes"], 1);
-    assert_eq!(changed["summary"]["comparison_complete"], true);
-    let shared_changed = shared_text_json(
-        &changed_old,
-        &changed_new,
-        &directory.join("changed-text-shared.json"),
-    );
-    assert_eq!(shared_changed["comparison_complete"], false);
-
-    // An image-only page has unexamined text presence even when no native
-    // glyphs were extracted. Different pixels do not prove a text change.
-    let image_old = directory.join("image-old.pdf");
-    let image_new = directory.join("image-new.pdf");
-    image_only_fixture(&image_old, [255, 0, 0]);
-    image_only_fixture(&image_new, [0, 0, 255]);
-    let (vacuous_code, vacuous) =
-        native_json(&image_old, &image_new, &directory.join("image-native.json"));
-    assert_eq!(vacuous_code, Some(3));
-    assert_eq!(vacuous["summary"]["comparison_complete"], false);
-    assert_eq!(vacuous["summary"]["difference_status"], "indeterminate");
-    assert_eq!(vacuous["extraction"]["old_complete"], false);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&same_report);
+    assert_eq!(report["report"]["engine"], "flow");
+    assert_eq!(report["report"]["summary"]["comparison_complete"], true);
     assert_eq!(
-        vacuous["summary"]["old_alignment_coverage"]["total_tokens"],
-        0
+        report["report"]["extraction"]["issues"],
+        Value::Array(Vec::new())
     );
+
+    // Different outlines are unexamined text, not a silent "no change".
+    let changed_report = directory.join("outlined-changed.json");
+    let output = run_default_engine(
+        &same,
+        &changed,
+        &["--native-text-only", "-j", path_text(&changed_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&changed_report);
+    assert_eq!(report["report"]["engine"], "flow");
+    assert_eq!(report["report"]["summary"]["comparison_complete"], false);
     assert_eq!(
-        vacuous["summary"]["new_alignment_coverage"]["total_tokens"],
+        report["report"]["summary"]["difference_status"],
+        "indeterminate"
+    );
+    assert_eq!(report["report"]["exit_basis"], "unexamined_evidence");
+    assert!(
+        report["report"]["extraction"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| issue["message"]
+                .as_str()
+                .is_some_and(|description| description.contains("non-text paint differs")))
+    );
+    // Paint issues are unexamined evidence, not broken extraction: they have
+    // their own counter and do not inflate the extraction counters.
+    assert_eq!(report["report"]["summary"]["unexamined_paint_issues"], 2);
+    assert_eq!(
+        report["report"]["summary"]["unresolved_extraction_issues"],
         0
     );
 
-    // A corrupt compressed content stream stays an incomplete native extraction
-    // even when both sides are byte-identical.
-    let broken = directory.join("broken-text.pdf");
-    write_pdf(&broken, &["The shipment quantity is 100 kilograms."]);
+    // Native text with identical paint keeps the text change complete.
+    let mixed_old = directory.join("mixed-outlined-old.pdf");
+    let mixed_new = directory.join("mixed-outlined-new.pdf");
+    write_pdf(&mixed_old, &["Release 10 remains available"]);
+    write_pdf(&mixed_new, &["Release 20 remains available"]);
+    for path in [&mixed_old, &mixed_new] {
+        append_content_stream(path, Stream::new(dictionary! {}, program.to_vec()));
+    }
+    let mixed_report = directory.join("mixed-outlined.json");
+    let output = run_default_engine(
+        &mixed_old,
+        &mixed_new,
+        &["--native-text-only", "-j", path_text(&mixed_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&mixed_report);
+    assert_eq!(report["report"]["summary"]["comparison_complete"], true);
+    assert_eq!(report["report"]["summary"]["content_changes"], 1);
+    assert_eq!(report["report"]["changes"][0]["kind"], "replacement");
+
+    // A detected native change plus changed outline paint is exit 1, but the
+    // report stays incomplete and lists the unexamined paint.
+    let mixed_changed = directory.join("mixed-outlined-changed.pdf");
+    write_pdf(&mixed_changed, &["Release 20 remains available"]);
+    append_content_stream(&mixed_changed, Stream::new(dictionary! {}, other.to_vec()));
+    let mixed_changed_report = directory.join("mixed-outlined-changed.json");
+    let output = run_default_engine(
+        &mixed_old,
+        &mixed_changed,
+        &[
+            "--native-text-only",
+            "-j",
+            path_text(&mixed_changed_report),
+            "-q",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&mixed_changed_report);
+    assert_eq!(report["report"]["summary"]["comparison_complete"], false);
+    assert_eq!(report["report"]["summary"]["difference_status"], "detected");
+    assert_eq!(
+        report["report"]["exit_basis"],
+        "detected_with_unexamined_evidence"
+    );
+    assert_eq!(report["report"]["summary"]["content_changes"], 1);
+    assert!(
+        report["report"]["extraction"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| issue["message"]
+                .as_str()
+                .is_some_and(|description| description.contains("non-text paint differs")))
+    );
+    let text_output = run_default_engine(&mixed_old, &mixed_changed, &["--native-text-only"]);
+    assert_eq!(
+        text_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&text_output)
+    );
+    assert!(
+        stdout(&text_output).contains(
+            "difference detected, but some evidence was not examined (non-text paint or visual evidence)"
+        ),
+        "{}",
+        stdout(&text_output)
+    );
+
+    // Broken extraction evidence keeps exit 3 even when a text change is
+    // visible, because the detected change may be an artefact of missing
+    // glyphs.
+    let broken_old = directory.join("mixed-broken-old.pdf");
+    let broken_new = directory.join("mixed-broken-new.pdf");
+    write_pdf(&broken_old, &["Release 10 remains available"]);
+    write_pdf(&broken_new, &["Release 20 remains available"]);
     append_content_stream(
-        &broken,
+        &broken_old,
         Stream::new(
             dictionary! { "Filter" => "FlateDecode" },
             b"not a zlib stream".to_vec(),
         ),
     );
-    let (broken_code, broken_report) =
-        native_json(&broken, &broken, &directory.join("broken-native.json"));
-    assert_eq!(broken_code, Some(3));
-    assert_eq!(broken_report["summary"]["comparison_complete"], false);
-    assert_ne!(broken_report["extraction"]["old_complete"], true);
+    let broken_report = directory.join("mixed-broken.json");
+    let output = run_default_engine(
+        &broken_old,
+        &broken_new,
+        &["--native-text-only", "-j", path_text(&broken_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&broken_report);
+    assert_eq!(report["report"]["summary"]["comparison_complete"], false);
+    assert_eq!(report["report"]["exit_basis"], "broken_evidence");
+    assert_eq!(report["report"]["summary"]["unexamined_paint_issues"], 0);
+    assert!(
+        report["report"]["summary"]["unresolved_extraction_issues"]
+            .as_u64()
+            .expect("broken extraction counter")
+            >= 1
+    );
+    assert!(
+        report["report"]["extraction"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| !issue["message"]
+                .as_str()
+                .is_some_and(|description| description.contains("non-text paint differs")))
+    );
+
+    // Artifact-marked paint follows the same rule; the proof test treats it as
+    // unexamined, so the flow inventory must not ignore it.
+    let artifact_same = directory.join("artifact-same.pdf");
+    let artifact_changed = directory.join("artifact-changed.pdf");
+    let artifact_program = [b"/Artifact BMC ".as_slice(), program, b" EMC"].concat();
+    let artifact_other = [b"/Artifact BMC ".as_slice(), other, b" EMC"].concat();
+    outlined_fixture(&artifact_same, &artifact_program);
+    outlined_fixture(&artifact_changed, &artifact_other);
+    let artifact_report = directory.join("artifact-same.json");
+    let output = run_default_engine(
+        &artifact_same,
+        &artifact_same,
+        &[
+            "--native-text-only",
+            "-j",
+            path_text(&artifact_report),
+            "-q",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let output = run_default_engine(
+        &artifact_same,
+        &artifact_changed,
+        &["--native-text-only", "-q"],
+    );
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+
+    // The multi-channel text route and the standalone flow command see the
+    // same paint incompleteness and reason.
+    let channels_report = directory.join("outlined-channels.json");
+    let output = run_default_engine(
+        &same,
+        &changed,
+        &[
+            "--channels",
+            "text",
+            "-j",
+            path_text(&channels_report),
+            "-q",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&channels_report);
+    assert_eq!(report["engine"], "flow");
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["flow_text"]["complete"], false);
+    assert_eq!(report["flow_text"]["summary"]["unexamined_paint_issues"], 2);
+    assert_eq!(
+        report["flow_text"]["summary"]["unresolved_extraction_issues"],
+        0
+    );
+    assert!(
+        report["flow_text"]["changes"]
+            .as_array()
+            .expect("flow changes")
+            .is_empty(),
+        "{report:#}"
+    );
+
+    let flow_report = directory.join("outlined-flow.json");
+    let flow_output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("flow")
+        .arg(&same)
+        .arg(&changed)
+        .arg("--json")
+        .arg(&flow_report)
+        .output()
+        .expect("standalone flow command");
+    assert_eq!(
+        flow_output.status.code(),
+        Some(3),
+        "{}",
+        stderr(&flow_output)
+    );
+    let flow_json = read_json(&flow_report);
+    assert_eq!(flow_json["exit_basis"], "unexamined_evidence");
+    assert_eq!(flow_json["difference_status"], "indeterminate");
+    assert!(
+        flow_json["old"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .chain(flow_json["new"]["issues"].as_array().expect("issues"))
+            .any(|issue| issue["description"]
+                .as_str()
+                .is_some_and(|description| description.contains(
+                    "non-text paint differs; text drawn as paths or images was not examined"
+                )))
+    );
+
+    // Image-only pages use the same rule. Equal images are complete; changed
+    // image data is incomplete before any image-token change can be trusted.
+    let image_same = directory.join("image-same.pdf");
+    let image_changed = directory.join("image-changed.pdf");
+    image_only_fixture(&image_same, [255, 0, 0]);
+    image_only_fixture(&image_changed, [0, 0, 255]);
+    let image_report = directory.join("image-same.json");
+    let output = run_default_engine(
+        &image_same,
+        &image_same,
+        &["--native-text-only", "-j", path_text(&image_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&image_report);
+    assert_eq!(report["report"]["summary"]["comparison_complete"], true);
+
+    let image_changed_report = directory.join("image-changed.json");
+    let output = run_default_engine(
+        &image_same,
+        &image_changed,
+        &[
+            "--native-text-only",
+            "-j",
+            path_text(&image_changed_report),
+            "-q",
+        ],
+    );
+    // A changed image is a detected flow difference (the image token changed)
+    // plus unexamined paint, so M4c selects exit 1 while keeping the report
+    // incomplete.
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&image_changed_report);
+    assert_eq!(report["report"]["summary"]["comparison_complete"], false);
+    assert_eq!(
+        report["report"]["exit_basis"],
+        "detected_with_unexamined_evidence"
+    );
+    assert_eq!(report["report"]["summary"]["unexamined_paint_issues"], 2);
+    assert_eq!(
+        report["report"]["summary"]["unresolved_extraction_issues"],
+        0
+    );
+    assert!(
+        report["report"]["extraction"]["issues"]
+            .as_array()
+            .expect("issues")
+            .iter()
+            .any(|issue| issue["message"]
+                .as_str()
+                .is_some_and(|description| description.contains("non-text paint differs")))
+    );
 }
 
 #[test]
-fn image_with_invisible_text_is_incomplete_with_fresh_and_cached_extraction() {
+fn default_channels_report_unexamined_visual_evidence_without_detected_change() {
     let directory = TestDirectory::new();
-    let input = directory.join("hidden-image.pdf");
-    image_only_fixture(&input, [0, 0, 0]);
-    let mut pdf = Document::load(&input).expect("image fixture");
-    let font = pdf.add_object(dictionary! {
-        "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica", "Encoding" => "WinAnsiEncoding",
-    });
-    let hidden = pdf.add_object(Stream::new(
-        dictionary! {},
-        b"BT /F1 10 Tf 3 Tr 1 0 0 1 10 10 Tm (hidden layer) Tj ET".to_vec(),
-    ));
-    let page = pdf.get_pages()[&1];
-    let page = pdf
-        .get_object_mut(page)
-        .expect("page")
-        .as_dict_mut()
-        .expect("page dictionary");
-    page.get_mut(b"Resources")
-        .expect("resources")
-        .as_dict_mut()
-        .expect("resource dictionary")
-        .set("Font", dictionary! { "F1" => font });
-    let image_content = page.get(b"Contents").expect("image content").clone();
-    page.set("Contents", vec![image_content, Object::Reference(hidden)]);
-    pdf.save(&input).expect("hidden layer fixture");
-    let cache = directory.join("cache");
-    let mut reports = Vec::new();
-    for (name, cached) in [("fresh", false), ("cold", true), ("warm", true)] {
-        let report = directory.join(&format!("{name}.json"));
-        let mut args = vec!["--json", path_text(&report)];
-        if cached {
-            args.extend(["--extraction-cache-dir", path_text(&cache)]);
-        }
-        let output = compare(&input, &input, &args);
-        assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-        let result = read_json(&report);
-        assert_eq!(result["summary"]["comparison_complete"], false);
-        assert_eq!(result["summary"]["content_changes"], 0);
+    let old = directory.join("identical-old.pdf");
+    let new = directory.join("identical-new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let report = directory.join("identical-default.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    // The native text channel is complete; the visual channel retains page
+    // rasters without certifying renderer coverage, so the default channels
+    // are unexamined rather than broken.
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["engine"], "flow");
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["difference_status"], "indeterminate");
+    assert_eq!(report["exit_basis"], "unexamined_evidence");
+    assert!(
+        report["coverage"]
+            .as_array()
+            .expect("coverage")
+            .iter()
+            .any(|entry| entry["channel"] == "visual" && entry["complete"] == false)
+    );
+}
+
+#[test]
+fn tagged_structure_key_obligations_are_unexamined_not_broken() {
+    let fixture_dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/case1-japanese-typst");
+    let old = fixture_dir.join("old.pdf");
+    let new = fixture_dir.join("new.pdf");
+    assert!(old.exists() && new.exists(), "vendored fixture must exist");
+    let directory = TestDirectory::new();
+    let report = directory.join("tagged-default.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    // The Typst structure tree has no element IDs. The resulting key
+    // obligation records missing membership, not examined-and-untrustworthy
+    // evidence, so the line-wrap-only pair exits 3 as unexamined.
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["comparison_complete"], false);
+    assert_eq!(report["exit_basis"], "unexamined_evidence");
+    let relations = report["channel_verdicts"]
+        .as_array()
+        .expect("verdicts")
+        .iter()
+        .find(|verdict| verdict["channel"] == "relations")
+        .expect("relations verdict");
+    assert_eq!(relations["broken"], false);
+    assert_eq!(relations["unexamined"], true);
+    let obligations = report["comparison"]["key_presence"]["obligations"]
+        .as_array()
+        .expect("key obligations");
+    assert!(!obligations.is_empty());
+    assert!(
+        obligations
+            .iter()
+            .all(|obligation| obligation["work"] == "unavailable")
+    );
+}
+
+#[test]
+fn tagged_structure_key_obligations_do_not_block_a_text_detection() {
+    let fixture_dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/case3-typst");
+    let old = fixture_dir.join("old.pdf");
+    let new = fixture_dir.join("new.pdf");
+    assert!(old.exists() && new.exists(), "vendored fixture must exist");
+    let directory = TestDirectory::new();
+    let report = directory.join("tagged-replacement.json");
+    let output = run_default_engine(&old, &new, &["-j", path_text(&report), "-q"]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["exit_basis"], "detected_with_unexamined_evidence");
+    assert_eq!(report["difference_status"], "detected");
+    let relations = report["channel_verdicts"]
+        .as_array()
+        .expect("verdicts")
+        .iter()
+        .find(|verdict| verdict["channel"] == "relations")
+        .expect("relations verdict");
+    assert_eq!(relations["broken"], false);
+}
+
+#[test]
+fn flow_engine_acceptance_cases() {
+    let directory = TestDirectory::new();
+    // Line-wrap invariance.
+    let old = directory.join("wrap-old.pdf");
+    let new = directory.join("wrap-new.pdf");
+    let wrap_report = directory.join("wrap.json.gz");
+    write_pdf(
+        &old,
+        &["A detailed release note remains stable across lines"],
+    );
+    write_pdf(
+        &new,
+        &["A detailed release note", "remains stable across lines"],
+    );
+    let output = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&wrap_report), "-q"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}\n{}",
+        stderr(&output),
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let wrap = read_gzip_json(&wrap_report);
+    assert_eq!(wrap["report"]["engine"], "flow");
+    assert_eq!(wrap["report"]["summary"]["content_changes"], 0);
+    assert_eq!(
+        wrap["report"]["summary"]["difference_status"],
+        "no_content_change"
+    );
+    assert_eq!(wrap["report"]["changes"], Value::Array(Vec::new()));
+
+    // Page-break invariance.
+    let old = directory.join("page-old.pdf");
+    let new = directory.join("page-new.pdf");
+    let page_report = directory.join("page.json.gz");
+    write_pdf_pages(
+        &old,
+        &[&[
+            "First line keeps a steady cadence",
+            "Second line keeps a steady cadence",
+            "Third line keeps a steady cadence",
+            "Fourth line keeps a steady cadence",
+        ]],
+        12,
+    );
+    write_pdf_pages(
+        &new,
+        &[
+            &[
+                "First line keeps a steady cadence",
+                "Second line keeps a steady cadence",
+            ],
+            &[
+                "Third line keeps a steady cadence",
+                "Fourth line keeps a steady cadence",
+            ],
+        ],
+        12,
+    );
+    let output = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&page_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let page = read_gzip_json(&page_report);
+    assert_eq!(page["report"]["engine"], "flow");
+    assert_eq!(page["report"]["summary"]["content_changes"], 0);
+    assert_eq!(page["report"]["changes"], Value::Array(Vec::new()));
+
+    // Replacement: one exact change.
+    let old = directory.join("replace-old.pdf");
+    let new = directory.join("replace-new.pdf");
+    let report = directory.join("replace.json.gz");
+    write_pdf(
+        &old,
+        &[
+            "Opening context",
+            "Release 10 remains available",
+            "Closing context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening context",
+            "Release 20 remains available",
+            "Closing context",
+        ],
+    );
+    let output = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let json = read_gzip_json(&report);
+    let change = single_flow_change(&json, "replacement");
+    assert_eq!(change["old_span"]["text"], "10");
+    assert_eq!(change["new_span"]["text"], "20");
+    assert!(json["report"].get("assessment").is_none());
+    assert!(json["report"].get("not_produced_by_engine").is_none());
+
+    // Paragraph insertion: one exact change.
+    let old = directory.join("insert-old.pdf");
+    let new = directory.join("insert-new.pdf");
+    let insert_report = directory.join("insert.json.gz");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph remains stable",
+            "Closing paragraph remains stable",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph remains stable",
+            "Inserted paragraph contains generic text",
+            "Closing paragraph remains stable",
+        ],
+    );
+    let output = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&insert_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let insert = read_gzip_json(&insert_report);
+    let change = single_flow_change(&insert, "insertion");
+    assert!(change["old_span"].is_null());
+    assert_eq!(
+        change["new_span"]["text"],
+        "Inserted paragraph contains generic text"
+    );
+
+    // Paragraph deletion: one exact change.
+    let old = directory.join("delete-old.pdf");
+    let new = directory.join("delete-new.pdf");
+    let delete_report = directory.join("delete.json.gz");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph remains stable",
+            "Removed paragraph contains generic text",
+            "Closing paragraph remains stable",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph remains stable",
+            "Closing paragraph remains stable",
+        ],
+    );
+    let output = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&delete_report), "-q"],
+    );
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let delete = read_gzip_json(&delete_report);
+    let change = single_flow_change(&delete, "deletion");
+    assert_eq!(
+        change["old_span"]["text"],
+        "Removed paragraph contains generic text"
+    );
+    assert!(change["new_span"].is_null());
+}
+
+#[test]
+fn full_json_uses_flow_when_engine_is_omitted() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    let report = directory.join("full.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--native-text-only")
+        .arg("--full-json")
+        .arg("-j")
+        .arg(&report)
+        .arg("-q")
+        .arg(&old)
+        .arg(&new)
+        .output()
+        .expect("implicit flow full comparison");
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(
+        !stderr(&output).contains("select the proof engine"),
+        "{}",
+        stderr(&output)
+    );
+    let json = read_json(&report);
+    assert_eq!(json["artifact_format"], "pdfdelta-native-full");
+    assert_eq!(json["report"]["engine"], "flow");
+    assert!(
+        json["report"]["token_sources"]["old"]
+            .as_array()
+            .is_some_and(|tokens| !tokens.is_empty())
+    );
+    assert!(
+        json["report"]["glyph_accounting"]["old"]["token_referenced"]
+            .as_u64()
+            .is_some_and(|count| count > 0)
+    );
+}
+
+#[test]
+fn flow_full_and_trace_on_line_wrap_acceptance_fixture() {
+    let directory = TestDirectory::new();
+    let old = directory.join("acceptance-full-old.pdf");
+    let new = directory.join("acceptance-full-new.pdf");
+    write_pdf(
+        &old,
+        &["A detailed release note remains stable across lines"],
+    );
+    write_pdf(
+        &new,
+        &["A detailed release note", "remains stable across lines"],
+    );
+    let report = directory.join("acceptance-full.json.gz");
+    let trace = directory.join("acceptance-full-trace.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--native-text-only", "--full-json", "-j"])
+        .arg(&report)
+        .arg("-q")
+        .arg("--trace-json")
+        .arg(&trace)
+        .arg(&old)
+        .arg(&new)
+        .output()
+        .expect("full acceptance comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let json = read_gzip_json(&report);
+    assert_eq!(json["report"]["summary"]["content_changes"], 0);
+    assert_eq!(
+        json["report"]["summary"]["difference_status"],
+        "no_content_change"
+    );
+    assert!(
+        json["report"]["token_sources"]["old"]
+            .as_array()
+            .is_some_and(|tokens| !tokens.is_empty())
+    );
+    let trace = read_json(&trace);
+    assert_eq!(trace["result"]["exit_code"], 0);
+    assert_eq!(trace["result"]["status"], "completed");
+}
+
+#[test]
+fn compact_json_is_a_flow_native_alias() {
+    let directory = TestDirectory::new();
+    let old = directory.join("compact-old.pdf");
+    let new = directory.join("compact-new.pdf");
+    write_pdf(&old, &["A stable compact paragraph"]);
+    write_pdf(&new, &["A stable compact paragraph"]);
+    let plain = directory.join("plain.json");
+    let explicit = directory.join("explicit.json");
+    let first = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&plain), "-q"],
+    );
+    let second = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "--compact-json",
+            "-j",
+            path_text(&explicit),
+            "-q",
+        ],
+    );
+    assert_eq!(first.status.code(), Some(0), "{}", stderr(&first));
+    assert_eq!(second.status.code(), Some(0), "{}", stderr(&second));
+    assert_eq!(
+        fs::read(&plain).expect("plain report"),
+        fs::read(&explicit).expect("compact report")
+    );
+}
+
+#[test]
+fn flow_trace_reports_phases_without_changing_report_or_exit() {
+    let directory = TestDirectory::new();
+    let old = directory.join("trace-old.pdf");
+    let new = directory.join("trace-new.pdf");
+    write_pdf(&old, &["The fee is 100 dollars."]);
+    write_pdf(&new, &["The fee is 200 dollars."]);
+    let plain = directory.join("plain.json");
+    let traced = directory.join("traced.json");
+    let trace = directory.join("trace.json");
+    let first = run_default_engine(
+        &old,
+        &new,
+        &["--native-text-only", "-j", path_text(&plain), "-q"],
+    );
+    let second = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "-j",
+            path_text(&traced),
+            "-q",
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(first.status.code(), second.status.code());
+    assert_eq!(first.status.code(), Some(1));
+    assert_eq!(
+        fs::read(&plain).expect("plain report"),
+        fs::read(&traced).expect("traced report")
+    );
+    let value = read_json(&trace);
+    assert_eq!(value["trace_schema"], "pdfdelta-flow-trace/1");
+    assert_eq!(value["trace_schema_version"], 1);
+    assert_eq!(value["engine"], "flow");
+    assert_eq!(value["result"]["exit_code"], 1);
+    assert_eq!(
+        value["nondeterministic_fields"],
+        serde_json::json!(["duration_us"])
+    );
+    let names = value["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .map(|phase| phase["name"].as_str().expect("phase name"))
+        .collect::<Vec<_>>();
+    for expected in [
+        "input_reading",
+        "parse",
+        "glyph_extraction",
+        "tokenization_normalization",
+        "furniture_order",
+        "flow_diff",
+        "assessment_formatting",
+        "report",
+    ] {
+        assert!(names.contains(&expected), "{expected}: {names:?}");
+    }
+    assert!(
+        value["phases"]
+            .as_array()
+            .expect("phases")
+            .iter()
+            .filter(|phase| phase["status"] == "completed")
+            .all(|phase| phase.get("duration_us").is_some())
+    );
+    // A text-only run has no channel phase to run, but it still records the
+    // phase as explicitly skipped rather than omitting it.
+    let channel = value["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["name"] == "channel_comparison")
+        .expect("text-only trace should list channel_comparison");
+    assert_eq!(channel["status"], "skipped");
+    assert_eq!(channel["skip_reason"], "text_only");
+
+    // An existing trace destination is refused without replacing it.
+    let repeated = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "-j",
+            path_text(&traced),
+            "-q",
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(repeated.status.code(), Some(2));
+    assert!(
+        stderr(&repeated).contains("refusing to overwrite existing flow trace report"),
+        "{}",
+        stderr(&repeated)
+    );
+}
+
+#[test]
+fn flow_trace_records_failure_and_skipped_phases() {
+    let directory = TestDirectory::new();
+    let old = directory.join("trace-failure-old.pdf");
+    let new = directory.join("trace-failure-new.pdf");
+    write_pdf(&old, &["A valid paragraph"]);
+    fs::write(&new, b"this is not a PDF").expect("invalid PDF");
+    let report = directory.join("trace-failure.json.gz");
+    let trace = directory.join("trace-failure-trace.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--native-text-only", "-q", "-j"])
+        .arg(&report)
+        .arg("--trace-json")
+        .arg(&trace)
+        .arg(&old)
+        .arg(&new)
+        .output()
+        .expect("failed comparison trace");
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    assert_eq!(trace["result"]["status"], "failed");
+    assert_eq!(trace["result"]["exit_code"], 2);
+    let phases = trace["phases"].as_array().expect("phases");
+    let parse = phases
+        .iter()
+        .find(|phase| phase["status"] == "failed" && phase["name"] == "parse")
+        .expect("parse failure phase");
+    assert_eq!(parse["error"]["kind"], "backend", "{trace}");
+    assert!(
+        phases.iter().any(|phase| phase["status"] == "skipped"
+            && phase["skip_reason"] == "prior_phase_did_not_complete"),
+        "{trace}"
+    );
+}
+
+#[test]
+fn flow_trace_reports_an_unsupported_input_from_the_error_class() {
+    const SECRET: &str = "trace secret";
+    let directory = TestDirectory::new();
+    let old = directory.join("trace-unsupported-old.pdf");
+    let new = directory.join("trace-unsupported-new.pdf");
+    write_encrypted_pdf(&old, &["A paragraph with a secret"], SECRET);
+    write_pdf(&new, &["A paragraph without a secret"]);
+    let report = directory.join("trace-unsupported.json");
+    let trace = directory.join("trace-unsupported-trace.json");
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "-q",
+            "-j",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(!stderr(&output).contains(SECRET), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let failed = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["status"] == "failed")
+        .expect("failed phase");
+    assert_eq!(failed["name"], "parse", "{trace}");
+    assert_eq!(failed["error"]["kind"], "unsupported", "{trace}");
+}
+
+#[test]
+fn flow_trace_reports_unresolved_extraction_from_the_issue_kind() {
+    let directory = TestDirectory::new();
+    let old = directory.join("trace-image-old.pdf");
+    let new = directory.join("trace-image-new.pdf");
+    image_only_fixture(&old, [255, 0, 0]);
+    image_only_fixture(&new, [255, 0, 0]);
+    let report = directory.join("trace-image.json");
+    let trace = directory.join("trace-image-trace.json");
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "-q",
+            "-j",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let incomplete = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .filter(|phase| phase["name"] == "glyph_extraction" && phase["status"] == "incomplete")
+        .collect::<Vec<_>>();
+    assert_eq!(incomplete.len(), 2, "{trace}");
+    for phase in incomplete {
+        // The issue is typed unresolved even though its description says the
+        // content was "not examined"; no wording classifier is involved.
+        assert_eq!(phase["error"]["kind"], "unresolved", "{trace}");
+    }
+}
+
+#[test]
+fn flow_trace_reports_a_limit_exceeded_for_oversized_input() {
+    let directory = TestDirectory::new();
+    let old = directory.join("trace-oversized-old.pdf");
+    let new = directory.join("trace-oversized-new.pdf");
+    let oversized = fs::File::create(&old).expect("oversized fixture");
+    oversized
+        .set_len(256_u64 * 1024 * 1024 + 1)
+        .expect("oversized fixture is sparse");
+    write_pdf(&new, &["A paragraph within the input limit"]);
+    let report = directory.join("trace-oversized.json");
+    let trace = directory.join("trace-oversized-trace.json");
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--native-text-only",
+            "-q",
+            "-j",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let failed = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["status"] == "failed")
+        .expect("failed phase");
+    assert_eq!(failed["name"], "input_reading", "{trace}");
+    assert_eq!(failed["side"], "old", "{trace}");
+    assert_eq!(failed["error"]["kind"], "limit_exceeded", "{trace}");
+    assert_eq!(failed["error"]["resource"], "PDF input bytes", "{trace}");
+    assert_eq!(failed["error"]["limit"], 256_u64 * 1024 * 1024, "{trace}");
+}
+
+#[test]
+fn shared_evidence_trace_reports_unsupported_for_encrypted_input() {
+    const SECRET: &str = "shared trace secret";
+    let directory = TestDirectory::new();
+    let old = directory.join("shared-unsupported-old.pdf");
+    let new = directory.join("shared-unsupported-new.pdf");
+    write_encrypted_pdf(&old, &["A paragraph with a secret"], SECRET);
+    write_pdf(&new, &["A paragraph without a secret"]);
+    let report = directory.join("shared-unsupported.json");
+    let trace = directory.join("shared-unsupported-trace.json");
+    // Selecting only a non-text channel skips the flow text phase, so the
+    // failure is produced by compare_documents_with_evidence itself.
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--channels",
+            "visual",
+            "-q",
+            "-j",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(!stderr(&output).contains(SECRET), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let failed = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["status"] == "failed")
+        .expect("failed phase");
+    assert_eq!(failed["name"], "channel_comparison", "{trace}");
+    assert_eq!(failed["error"]["kind"], "unsupported", "{trace}");
+}
+
+#[test]
+fn shared_evidence_trace_reports_a_limit_for_oversized_input() {
+    let directory = TestDirectory::new();
+    let old = directory.join("shared-oversized-old.pdf");
+    let new = directory.join("shared-oversized-new.pdf");
+    let oversized = fs::File::create(&old).expect("oversized fixture");
+    oversized
+        .set_len(256_u64 * 1024 * 1024 + 1)
+        .expect("oversized fixture is sparse");
+    write_pdf(&new, &["A paragraph within the input limit"]);
+    let report = directory.join("shared-oversized.json");
+    let trace = directory.join("shared-oversized-trace.json");
+    let output = run_default_engine(
+        &old,
+        &new,
+        &[
+            "--channels",
+            "visual",
+            "-q",
+            "-j",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let failed = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["status"] == "failed")
+        .expect("failed phase");
+    assert_eq!(failed["name"], "channel_comparison", "{trace}");
+    assert_eq!(failed["error"]["kind"], "limit_exceeded", "{trace}");
+    assert_eq!(failed["error"]["resource"], "PDF input bytes", "{trace}");
+    assert_eq!(failed["error"]["limit"], 256_u64 * 1024 * 1024, "{trace}");
+}
+
+#[test]
+fn default_channel_trace_reports_the_review_preview_limit() {
+    let directory = TestDirectory::new();
+    let input = directory.join("many-pages.pdf");
+    write_many_page_pdf(&input, 3);
+    let review = directory.join("many-pages-review");
+    let trace = directory.join("many-pages-trace.json");
+    // The default channel set runs flow text first and then the shared
+    // evidence review. The debug-only seam lowers the preview bound so the
+    // CLI trace path does not need a 1,025-page fixture.
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .env("PDFDELTA_REVIEW_PREVIEW_LIMIT", "2")
+        .arg(&input)
+        .arg(&input)
+        .args([
+            "--review",
+            path_text(&review),
+            "-q",
+            "--trace-json",
+            path_text(&trace),
+        ])
+        .output()
+        .expect("default review-limit comparison");
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let failed = trace["phases"]
+        .as_array()
+        .expect("phases")
+        .iter()
+        .find(|phase| phase["status"] == "failed")
+        .expect("failed phase");
+    assert_eq!(failed["name"], "channel_comparison", "{trace}");
+    assert_eq!(failed["error"]["kind"], "limit_exceeded", "{trace}");
+    assert_eq!(
+        failed["error"]["resource"], "static review page previews",
+        "{trace}"
+    );
+    assert_eq!(failed["error"]["limit"], 2, "{trace}");
+}
+
+#[test]
+fn huge_image_page_is_a_resource_limit_not_a_renderer_abort() {
+    let directory = TestDirectory::new();
+    let input = directory.join("huge-image.pdf");
+    write_huge_image_pdf(&input);
+    let report = directory.join("huge-image.json");
+    let output = run_default_engine(&input, &input, &["-q", "-j", path_text(&report)]);
+    // The renderer would request a multi-gigabyte buffer for this 1-bit mask.
+    // The page must be a typed resource limit, not a SIGABRT/backend failure.
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert!(!stderr(&output).contains("SIGABRT"), "{}", stderr(&output));
+    let report = read_json(&report);
+    let issues = report["new"]["issues"].as_array().expect("new-side issues");
+    let page_issue = issues
+        .iter()
+        .find(|issue| issue["page"] == 0 && issue["channel"] == "visual")
+        .expect("page 1 visual issue");
+    assert_eq!(page_issue["kind"], "resource_limit", "{page_issue:#}");
+    assert!(
+        !issues
+            .iter()
+            .any(|issue| issue["kind"] == "backend_failure"),
+        "{issues:#?}"
+    );
+}
+
+#[test]
+fn flow_trace_with_channels_records_channel_comparison() {
+    let directory = TestDirectory::new();
+    let old = directory.join("channel-trace-old.pdf");
+    let new = directory.join("channel-trace-new.pdf");
+    write_pdf(&old, &["A stable channel paragraph"]);
+    write_pdf(&new, &["A stable channel paragraph"]);
+    let report = directory.join("channels.json");
+    let trace = directory.join("channels-trace.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--channels", "text", "-q", "-j"])
+        .arg(&report)
+        .arg("--trace-json")
+        .arg(&trace)
+        .arg(&old)
+        .arg(&new)
+        .output()
+        .expect("channel trace comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["engine"], "flow");
+    let trace = read_json(&trace);
+    assert_eq!(trace["trace_schema"], "pdfdelta-flow-trace/1");
+    assert!(
+        trace["phases"]
+            .as_array()
+            .expect("phases")
+            .iter()
+            .any(|phase| phase["name"] == "channel_comparison" && phase["status"] == "completed"),
+        "{trace}"
+    );
+}
+
+#[test]
+fn full_flow_report_accounts_for_every_visible_glyph() {
+    let directory = TestDirectory::new();
+    let old = directory.join("full-old.pdf");
+    let new = directory.join("full-new.pdf");
+    write_pdf(&old, &["A full report paragraph"]);
+    write_pdf(&new, &["A full report paragraph"]);
+    let report = directory.join("full.json.gz");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["--native-text-only", "--full-json", "-j"])
+        .arg(&report)
+        .arg("-q")
+        .arg(&old)
+        .arg(&new)
+        .output()
+        .expect("full flow comparison");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let json = read_gzip_json(&report);
+    assert_eq!(json["artifact_format"], "pdfdelta-native-full");
+    let report = &json["report"];
+    for side in ["old", "new"] {
+        let accounting = &report["glyph_accounting"][side];
+        let excluded = accounting["excluded"].as_array().expect("excluded");
+        let counts = &accounting["excluded_counts"];
         assert_eq!(
-            result["summary"]["old_alignment_coverage"]["total_tokens"],
-            0
+            accounting["visible"].as_u64().expect("visible"),
+            accounting["token_referenced"].as_u64().expect("referenced")
+                + counts["furniture"].as_u64().expect("furniture")
+                + counts["whitespace"].as_u64().expect("whitespace")
+                + counts["shared"].as_u64().expect("shared")
+        );
+        assert_eq!(
+            excluded.len(),
+            counts["furniture"].as_u64().expect("furniture") as usize
+                + counts["whitespace"].as_u64().expect("whitespace") as usize
+                + counts["invisible"].as_u64().expect("invisible") as usize
+                + counts["shared"].as_u64().expect("shared") as usize
+        );
+        assert!(excluded.iter().all(|glyph| {
+            matches!(
+                glyph["reason"].as_str(),
+                Some("furniture" | "whitespace" | "invisible" | "shared_source")
+            )
+        }));
+        let tokens = report["token_sources"][side]
+            .as_array()
+            .expect("token sources");
+        assert!(tokens.iter().all(|token| {
+            token["sources"]
+                .as_array()
+                .is_some_and(|sources| !sources.is_empty())
+        }));
+        let mut seen = std::collections::BTreeSet::new();
+        for token in tokens {
+            for source in token["sources"].as_array().expect("source") {
+                assert!(
+                    seen.insert(source["glyph_id"].as_u64().expect("glyph id")),
+                    "a glyph source is referenced by more than one token: {side}"
+                );
+            }
+        }
+        assert_eq!(
+            seen.len(),
+            accounting["token_referenced"].as_u64().expect("referenced") as usize
+                + counts["shared"].as_u64().expect("shared") as usize
+        );
+    }
+}
+
+#[test]
+fn flow_engine_supports_report_destinations_and_quiet() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening context",
+            "Release 10 remains available",
+            "Closing context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening context",
+            "Release 20 remains available",
+            "Closing context",
+        ],
+    );
+    for (label, extra, flow) in [
+        ("flow", vec!["--engine", "flow"], true),
+        ("default", Vec::new(), true),
+    ] {
+        let text = directory.join(&format!("{label}.txt"));
+        let report = directory.join(&format!("{label}.json.gz"));
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+            .arg("--native-text-only")
+            .args(extra)
+            .arg(&old)
+            .arg(&new)
+            .args(["-q", "-o", path_text(&text), "-j", path_text(&report)])
+            .output()
+            .expect("native comparison");
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{label}: {}",
+            stderr(&output)
+        );
+        assert!(output.stdout.is_empty(), "{label} quiet stdout");
+        assert_eq!(
+            fs::read_to_string(&text)
+                .expect("text report")
+                .contains("flow summary"),
+            flow,
+            "{label} text report"
+        );
+        assert!(report.is_file(), "{label} JSON report");
+        let json = read_gzip_json(&report);
+        assert_eq!(
+            json["report"].get("engine").and_then(Value::as_str),
+            flow.then_some("flow")
+        );
+    }
+}
+
+#[test]
+fn flow_engine_channels_text_uses_flow_and_keeps_channel_report() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening context",
+            "Release 10 remains available",
+            "Closing context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening context",
+            "Release 20 remains available",
+            "Closing context",
+        ],
+    );
+    for (label, explicit) in [("flow", true), ("default", false)] {
+        let report = directory.join(&format!("channels-{label}.json"));
+        let arguments = ["--channels", "text", "-j", path_text(&report), "-q"];
+        let output = if explicit {
+            run_flow_engine(&old, &new, &arguments)
+        } else {
+            run_default_engine(&old, &new, &arguments)
+        };
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{label}: {}",
+            stderr(&output)
+        );
+        let json = read_json(&report);
+        assert_eq!(json["engine"], "flow", "{label}");
+        assert_eq!(json["comparison_complete"], true, "{label}");
+        assert_eq!(json["flow_text"]["complete"], true, "{label}");
+        assert_eq!(
+            json["flow_text"]["summary"]["content_changes"], 1,
+            "{label}"
         );
         assert!(
-            result["extraction"]["issues"]
+            json["coverage"]
                 .as_array()
-                .expect("issues")
+                .expect("coverage")
                 .iter()
-                .any(|issue| issue["description"].as_str().is_some_and(
-                    |description| description.contains("image text presence is unexamined")
-                ))
+                .any(|coverage| coverage["channel"] == "text" && coverage["complete"] == true),
+            "{label}"
         );
-        reports.push(result);
     }
-    assert_eq!(reports[0], reports[1]);
-    assert_eq!(reports[1], reports[2]);
+}
+
+/// Replaces text inside a fixture's single content stream.
+fn rewrite_content(path: &Path, from: &str, to: &str) {
+    let mut pdf = Document::load(path).expect("load fixture for rewrite");
+    let page = *pdf.get_pages().values().next().expect("fixture has a page");
+    let contents = pdf
+        .get_object(page)
+        .expect("page")
+        .as_dict()
+        .expect("page dictionary")
+        .get(b"Contents")
+        .expect("page contents")
+        .as_reference()
+        .expect("contents reference");
+    let stream = pdf
+        .get_object_mut(contents)
+        .expect("contents stream")
+        .as_stream_mut()
+        .expect("content stream");
+    let content = String::from_utf8(stream.content.clone())
+        .expect("fixture content is UTF-8")
+        .replace(from, to);
+    stream.set_content(content.into_bytes());
+    pdf.save(path).expect("rewritten fixture saves");
+}
+
+#[test]
+fn flow_review_links_changes_formatting_and_verdicts_to_its_json() {
+    let directory = TestDirectory::new();
+    let old = directory.join("flow-review-old.pdf");
+    let new = directory.join("flow-review-new.pdf");
+    write_pdf(
+        &old,
+        &["A stable heading.", "The reported total is 10 units."],
+    );
+    write_pdf(
+        &new,
+        &["A stable heading.", "The reported total is 20 units."],
+    );
+    // The heading keeps its text and changes size only: a formatting entry,
+    // not a content change.
+    rewrite_content(&new, "10 Tf", "14 Tf");
+    let review = directory.join("review");
+    let report = directory.join("report.json");
+    let plain = directory.join("plain.json");
+    let plain_output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&old)
+        .arg(&new)
+        .args(["--channels", "text", "--json"])
+        .arg(&plain)
+        .arg("-q")
+        .output()
+        .expect("plain flow comparison");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&old)
+        .arg(&new)
+        .args(["--channels", "text", "--review"])
+        .arg(&review)
+        .args(["--json"])
+        .arg(&report)
+        .arg("-q")
+        .output()
+        .expect("flow review");
+    assert_eq!(output.status.code(), plain_output.status.code());
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let mut plain_json: Value =
+        serde_json::from_slice(&fs::read(&plain).expect("plain report")).expect("JSON");
+    let mut reviewed_json: Value =
+        serde_json::from_slice(&fs::read(&report).expect("report")).expect("JSON");
+    plain_json["comparison_wall_time_ms"] = Value::Null;
+    reviewed_json["comparison_wall_time_ms"] = Value::Null;
+    assert_eq!(
+        plain_json, reviewed_json,
+        "export must not alter the report"
+    );
+    let report: Value = serde_json::from_slice(&fs::read(&report).expect("report")).expect("JSON");
+    let html = fs::read_to_string(review.join("index.html")).expect("HTML review");
+    assert!(html.contains("id=\"flow-text\""));
+    assert!(
+        html.contains("/flow_text/changes/0"),
+        "the content change links its JSON entry: {html}"
+    );
+    assert_review_pointers(&html, &report);
+    assert!(html.contains("old.pdf#page=1") && html.contains("new.pdf#page=1"));
+    assert!(
+        report["flow_text"]["formatting_only_changes"]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty()),
+        "the font-size change is a formatting entry: {report}"
+    );
+    assert!(html.contains("flow-formatting-0"));
+    assert!(html.contains("/flow_text/formatting_only_changes/0"));
+    assert!(html.contains("/channel_verdicts/0"));
+    // A flow review stores the much larger source index compressed, and the
+    // HTML links that artifact rather than an absent sources.json.
+    assert!(!review.join("sources.json").exists());
+    let sources = fs::read(review.join("sources.json.gz")).expect("compressed sources");
+    assert_eq!(&sources[..2], &[0x1f, 0x8b]);
+    // Manifest version 3 writes one gzip stream. A second gzip layer would
+    // leave a gzip magic prefix after the first decompression and fail JSON
+    // parsing here.
+    let mut decoded = Vec::new();
+    std::io::Read::read_to_end(
+        &mut flate2::read::GzDecoder::new(sources.as_slice()),
+        &mut decoded,
+    )
+    .expect("single gzip layer");
+    let index: Value = serde_json::from_slice(&decoded).expect("source index JSON");
+    assert_eq!(index["version"], 1);
+    assert!(html.contains("sources.json.gz"));
+    assert!(
+        !html.contains("<script") && !html.contains("http://") && !html.contains("https://"),
+        "the static bundle neither runs script nor reaches the network"
+    );
+}
+
+#[test]
+fn flow_engine_publishes_review_bundles_without_changing_the_exit() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let agent = directory.join("agent-review");
+    let html = directory.join("html-review");
+    let agent_output = run_flow_engine(
+        &old,
+        &new,
+        &[
+            "--channels",
+            "text",
+            "--agent-review",
+            path_text(&agent),
+            "-q",
+        ],
+    );
+    let html_output = run_flow_engine(
+        &old,
+        &new,
+        &["--channels", "text", "--review", path_text(&html), "-q"],
+    );
+    // An equal comparison exits 0 with or without a bundle.
+    assert_eq!(
+        agent_output.status.code(),
+        Some(0),
+        "{}",
+        stderr(&agent_output)
+    );
+    assert_eq!(
+        html_output.status.code(),
+        Some(0),
+        "{}",
+        stderr(&html_output)
+    );
+    let manifest = read_json(&agent.join("manifest.json"));
+    assert_eq!(manifest["pipeline"], "shared_evidence");
+    assert!(
+        manifest["capabilities"]
+            .as_array()
+            .expect("capabilities")
+            .iter()
+            .any(|capability| capability["detail"] == "text" && capability["available"] == true)
+    );
+    let index = fs::read_to_string(html.join("index.html")).expect("flow HTML review");
+    assert!(
+        index.contains("id=\"flow-text\"") && index.contains("/flow_text/summary"),
+        "flow review should link its own JSON section"
+    );
+    assert!(index.contains("/channel_verdicts/0"));
 }

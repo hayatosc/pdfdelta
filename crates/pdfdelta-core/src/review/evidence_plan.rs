@@ -18,8 +18,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     BundleIdentity, CaseCompleteness, CaseFinding, Completeness, Detail, EngineClass,
-    EngineOutcome, EvidenceRef, GapScope, Hypothesis, HypothesisId, InventoryGap, OmissionKind,
-    OmissionScope, PlannerLimits, ReasonRecord, RequiredEvidence, RetrievalAction,
+    EngineOutcome, EvidenceRef, FlowTextReview, GapScope, Hypothesis, HypothesisId, InventoryGap,
+    OmissionKind, OmissionScope, PlannerLimits, ReasonRecord, RequiredEvidence, RetrievalAction,
     ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason, ReviewText, Side,
     SideLocation, TextOrder, UnlocalizedGap,
     case::Cardinality,
@@ -47,6 +47,12 @@ pub struct SharedEvidenceReview<'a> {
     pub new: DocumentView<'a>,
     pub comparison: &'a DocumentViewComparison,
     pub channels: &'a BTreeSet<Channel>,
+    /// Flow's verified text evidence, when the flow engine supplied text.
+    ///
+    /// The comparison records flow's text channel as superseded, so these
+    /// cases are projected from the flow report rather than rebuilt from
+    /// shared text-scope obligations.
+    pub flow: Option<&'a FlowTextReview<'a>>,
 }
 
 /// The fields a case is built from, before identity and evidence are derived.
@@ -96,6 +102,21 @@ struct Planner<'a> {
     contexts: Vec<super::CaseContext>,
     old_nodes: BTreeMap<NodeId, &'a GraphNode>,
     new_nodes: BTreeMap<NodeId, &'a GraphNode>,
+    /// First graph node that owns each source reference. This index turns the
+    /// residual-source lookup from a scan of every node per source into one
+    /// pass over each graph.
+    old_source_owner: BTreeMap<SourceRef, NodeId>,
+    new_source_owner: BTreeMap<SourceRef, NodeId>,
+}
+
+fn source_owners(nodes: &[GraphNode]) -> BTreeMap<SourceRef, NodeId> {
+    let mut owners = BTreeMap::new();
+    for node in nodes {
+        for source in &node.sources {
+            owners.entry(*source).or_insert(node.id);
+        }
+    }
+    owners
 }
 
 /// Projects a shared-evidence comparison into a bounded review plan.
@@ -129,8 +150,37 @@ pub fn plan_shared_evidence(input: &SharedEvidenceReview<'_>, limits: PlannerLim
             .iter()
             .map(|node| (node.id, node))
             .collect(),
+        old_source_owner: source_owners(&input.old.graph.nodes),
+        new_source_owner: source_owners(&input.new.graph.nodes),
     };
     planner.plan()
+}
+
+/// Deterministic importance order for acquisition cases.
+///
+/// Broken acquisition (`backend`, `resource_limit`) is more demanding than
+/// unexamined material, page-local gaps are more actionable than document-wide
+/// ones, and the old side precedes the new side only as a tie-break.
+fn acquisition_priority(side: Side, issue: &EvidenceIssue) -> (u8, u8, u32, u8) {
+    let kind = match issue.kind {
+        EvidenceFailure::BackendFailure => 0,
+        EvidenceFailure::ResourceLimit => 1,
+        EvidenceFailure::Unresolved => 2,
+        EvidenceFailure::Unsupported => 3,
+    };
+    let channel = match issue.channel {
+        Channel::Text => 0,
+        Channel::Visual => 1,
+        Channel::Forms => 2,
+        Channel::Relations => 3,
+        Channel::Presentation => 4,
+    };
+    let page = issue.page.map_or(u32::MAX, |page| page.0);
+    let side = match side {
+        Side::Old => 0,
+        Side::New => 1,
+    };
+    (kind, channel, page, side)
 }
 
 impl<'a> Planner<'a> {
@@ -141,13 +191,31 @@ impl<'a> Planner<'a> {
             self.input.comparison,
             self.input.channels,
         );
-        self.scopes();
-        self.relations();
-        self.acquisition();
-        self.visual_only_pages();
-        self.residual_sources(&accounting);
+        // Flow coverage is planned first: its cases partition report arrays
+        // that cannot be reconstructed later, so a shared-case budget stop
+        // must never consume the room they need. Shared cases then accept
+        // what remains and report their own omission if the budget ends.
         let visual_available = !self.input.old.evidence.rendered.is_empty()
             || !self.input.new.evidence.rendered.is_empty();
+        if let Some(flow) = self.input.flow {
+            super::flow_plan::plan_flow_into(super::flow_plan::FlowPlanContext {
+                flow,
+                identity: &self.input.identity,
+                channels: self.input.channels,
+                visual_available,
+                limits: self.limits,
+                budget: &mut self.budget,
+                identifiers: &mut self.identifiers,
+                cases: &mut self.cases,
+                gaps: &mut self.gaps,
+            });
+        }
+        self.scopes();
+        self.relations();
+        let flow_owns_text = self.input.flow.is_some();
+        self.acquisition(flow_owns_text);
+        self.visual_only_pages();
+        self.residual_sources(&accounting, flow_owns_text);
         let inventory_gaps = accounting
             .iter()
             .flat_map(|channel| {
@@ -167,8 +235,12 @@ impl<'a> Planner<'a> {
                     uncompared_sources: accounting.uncompared().count(),
                 })
             })
-            .filter(|gap| !gap.inventory_complete || gap.uncompared_sources > 0)
+            .filter(|gap| {
+                !(flow_owns_text && gap.channel == Channel::Text)
+                    && (!gap.inventory_complete || gap.uncompared_sources > 0)
+            })
             .collect();
+        self.budget.finalize();
         assemble(
             Assembly {
                 contexts: self.contexts,
@@ -526,6 +598,7 @@ impl<'a> Planner<'a> {
             evidence,
             // This contract accounts for material through source references.
             covered: Vec::new(),
+            flow_evidence: Vec::new(),
             regions,
         })
     }
@@ -943,7 +1016,8 @@ impl<'a> Planner<'a> {
         }
     }
 
-    fn acquisition(&mut self) {
+    fn acquisition(&mut self, flow_owns_text: bool) {
+        let mut pending: Vec<(Side, EvidenceIssue)> = Vec::new();
         for side in [Side::Old, Side::New] {
             let view = match side {
                 Side::Old => self.input.old,
@@ -952,6 +1026,12 @@ impl<'a> Planner<'a> {
             let mut channel_gaps: BTreeMap<(Channel, String), Vec<EvidenceIssue>> = BTreeMap::new();
             for issue in &view.evidence.issues {
                 if !self.input.channels.contains(&issue.channel) {
+                    continue;
+                }
+                // Flow's own extraction issues are the text channel's record;
+                // replaying the shared store's text acquisition issues would
+                // ask the same page-level question twice.
+                if flow_owns_text && issue.channel == Channel::Text {
                     continue;
                 }
                 if issue.kind == EvidenceFailure::Unsupported && issue.sources.is_empty() {
@@ -964,68 +1044,7 @@ impl<'a> Planner<'a> {
                         .push(issue.clone());
                     continue;
                 }
-                // A form obligation that names a stored field is a question
-                // about that field's value and its appearance, not a failure to
-                // acquire anything. The distinction is drawn from the evidence
-                // the issue points at, never from its wording.
-                let appearance = issue.channel == Channel::Forms
-                    && issue.kind == EvidenceFailure::Unresolved
-                    && issue.sources.iter().any(|source| {
-                        matches!(source, SourceRef::Structured { element }
-                        if view.evidence.structured.iter().any(|stored| {
-                            stored.id == *element
-                                && matches!(stored.value, StructuredValue::FormField { .. })
-                        }))
-                    });
-                let reasons = vec![
-                    ReasonRecord::new(if appearance {
-                        ReviewReason::ValueAppearanceUnverified
-                    } else {
-                        issue.kind.into()
-                    })
-                    .with_message(issue.reason.clone())
-                    .with_channel(issue.channel)
-                    .with_page(issue.page)
-                    .with_sources(
-                        issue
-                            .sources
-                            .iter()
-                            .map(|source| evidence_ref(side, *source))
-                            .collect(),
-                    ),
-                ];
-                let (extra_old, extra_new) = match side {
-                    Side::Old => (issue.sources.clone(), Vec::new()),
-                    Side::New => (Vec::new(), issue.sources.clone()),
-                };
-                let case = self.build_case(
-                    CaseDraft {
-                        question: if appearance {
-                            ReviewQuestion::CheckValueAppearance
-                        } else {
-                            ReviewQuestion::AcquisitionGap
-                        },
-                        engine_class: EngineClass::Unavailable,
-                        finding: CaseFinding::NotEstablished,
-                        old_nodes: &[],
-                        new_nodes: &[],
-                        reasons,
-                        assumptions: Vec::new(),
-                        completeness: CaseCompleteness {
-                            evidence: Completeness::Incomplete,
-                            candidate_enumeration: Completeness::Unknown,
-                            solver_search: Completeness::Unknown,
-                            response: Completeness::Complete,
-                        },
-                        hypotheses: Vec::new(),
-                        alternatives_total: None,
-                        extra_old,
-                        extra_new,
-                        location: None,
-                    }
-                    .located(side, SideLocation::unknown(side).with_page(issue.page)),
-                );
-                self.push(case);
+                pending.push((side, issue.clone()));
             }
             for ((channel, message), issues) in channel_gaps {
                 let mut key = CaseKey::new(ReviewQuestion::AcquisitionGap);
@@ -1053,6 +1072,83 @@ impl<'a> Planner<'a> {
                     sources: Vec::new(),
                 });
             }
+        }
+        // Broken acquisition comes before unexamined material, page-local
+        // gaps before document-wide ones, and the old side before the new one
+        // only as a final tie-break. Within one run this order is stable, so
+        // a case-budget stop exports the most actionable cases first.
+        pending.sort_by(|(side_a, issue_a), (side_b, issue_b)| {
+            acquisition_priority(*side_a, issue_a)
+                .cmp(&acquisition_priority(*side_b, issue_b))
+                .then(issue_a.reason.cmp(&issue_b.reason))
+        });
+        for (side, issue) in pending {
+            let view = match side {
+                Side::Old => self.input.old,
+                Side::New => self.input.new,
+            };
+            // A form obligation that names a stored field is a question
+            // about that field's value and its appearance, not a failure to
+            // acquire anything. The distinction is drawn from the evidence
+            // the issue points at, never from its wording.
+            let appearance = issue.channel == Channel::Forms
+                && issue.kind == EvidenceFailure::Unresolved
+                && issue.sources.iter().any(|source| {
+                    matches!(source, SourceRef::Structured { element }
+                    if view.evidence.structured.iter().any(|stored| {
+                        stored.id == *element
+                            && matches!(stored.value, StructuredValue::FormField { .. })
+                    }))
+                });
+            let reasons = vec![
+                ReasonRecord::new(if appearance {
+                    ReviewReason::ValueAppearanceUnverified
+                } else {
+                    issue.kind.into()
+                })
+                .with_message(issue.reason.clone())
+                .with_channel(issue.channel)
+                .with_page(issue.page)
+                .with_sources(
+                    issue
+                        .sources
+                        .iter()
+                        .map(|source| evidence_ref(side, *source))
+                        .collect(),
+                ),
+            ];
+            let (extra_old, extra_new) = match side {
+                Side::Old => (issue.sources.clone(), Vec::new()),
+                Side::New => (Vec::new(), issue.sources.clone()),
+            };
+            let case = self.build_case(
+                CaseDraft {
+                    question: if appearance {
+                        ReviewQuestion::CheckValueAppearance
+                    } else {
+                        ReviewQuestion::AcquisitionGap
+                    },
+                    engine_class: EngineClass::Unavailable,
+                    finding: CaseFinding::NotEstablished,
+                    old_nodes: &[],
+                    new_nodes: &[],
+                    reasons,
+                    assumptions: Vec::new(),
+                    completeness: CaseCompleteness {
+                        evidence: Completeness::Incomplete,
+                        candidate_enumeration: Completeness::Unknown,
+                        solver_search: Completeness::Unknown,
+                        response: Completeness::Complete,
+                    },
+                    hypotheses: Vec::new(),
+                    alternatives_total: None,
+                    extra_old,
+                    extra_new,
+                    location: None,
+                }
+                .located(side, SideLocation::unknown(side).with_page(issue.page)),
+            );
+            self.push(case);
         }
     }
 
@@ -1143,6 +1239,7 @@ impl<'a> Planner<'a> {
                     ],
                     evidence,
                     covered: Vec::new(),
+                    flow_evidence: Vec::new(),
                     regions: vec![super::CaseRegion {
                         side,
                         page_number: page.page.0.saturating_add(1),
@@ -1158,17 +1255,46 @@ impl<'a> Planner<'a> {
         }
     }
 
+    /// Counts the residual cases a spent case budget withholds.
+    fn record_residual_shortfall(&mut self, side: Side, residual: &[SourceRef]) {
+        let owners = match side {
+            Side::Old => &self.old_source_owner,
+            Side::New => &self.new_source_owner,
+        };
+        let mut pages = BTreeSet::new();
+        let mut orphan = false;
+        for source in residual {
+            match owners.get(source) {
+                Some(node) => {
+                    let page = self
+                        .node(side, *node)
+                        .and_then(|node| node.pages.first().copied());
+                    pages.insert(page);
+                }
+                None => orphan = true,
+            }
+        }
+        self.budget
+            .record_case_shortfall(pages.len().saturating_add(usize::from(orphan)));
+    }
+
     /// Discovered references that no case above accounts for.
     ///
     /// A reference owned by a view becomes a correspondence question for that
     /// view. One that belongs to no view cannot be turned into a question, so it
     /// is retained as an explicit gap instead of being dropped.
-    fn residual_sources(&mut self, accounting: &[ChannelSourceAccounting]) {
+    fn residual_sources(&mut self, accounting: &[ChannelSourceAccounting], flow_owns_text: bool) {
         for channel in accounting {
+            // Flow examined every token it extracted; unchanged tokens need no
+            // correspondence case, and only flow's change/formatting arrays
+            // can say which tokens those are.
+            if flow_owns_text && channel.channel == Channel::Text {
+                continue;
+            }
             for side in [Side::Old, Side::New] {
-                let (view, side_accounting) = match side {
-                    Side::Old => (self.input.old, &channel.old),
-                    Side::New => (self.input.new, &channel.new),
+                let side_accounting = match side {
+                    Side::Old => &channel.old,
+                    Side::New => &channel.new,
                 };
                 let residual: Vec<SourceRef> = side_accounting
                     .uncompared()
@@ -1177,20 +1303,26 @@ impl<'a> Planner<'a> {
                 if residual.is_empty() {
                     continue;
                 }
+                if !self.budget.case_budget_available() {
+                    // Count the page cases this channel would have added
+                    // without building them: a budget stop must not spend the
+                    // remaining time hashing and quoting every source.
+                    self.record_residual_shortfall(side, &residual);
+                    continue;
+                }
                 if !self.budget.visit_sources(residual.len()) {
                     return;
                 }
                 let mut owners: BTreeMap<NodeId, BTreeSet<SourceRef>> = BTreeMap::new();
                 let mut orphans: BTreeSet<SourceRef> = BTreeSet::new();
+                let source_owners = match side {
+                    Side::Old => &self.old_source_owner,
+                    Side::New => &self.new_source_owner,
+                };
                 for source in residual {
-                    match view
-                        .graph
-                        .nodes
-                        .iter()
-                        .find(|node| node.sources.contains(&source))
-                    {
+                    match source_owners.get(&source) {
                         Some(node) => {
-                            owners.entry(node.id).or_default().insert(source);
+                            owners.entry(*node).or_default().insert(source);
                         }
                         None => {
                             orphans.insert(source);
@@ -1454,14 +1586,13 @@ impl From<UnresolvedReason> for ReviewReason {
             UnresolvedReason::UnexaminedRivals => Self::CandidateEnumerationIncomplete,
             UnresolvedReason::UnpaddedTextBoundaryOnly => Self::NonOwningRangeOnly,
             UnresolvedReason::ExtractionBoundary => Self::ExtractionGap,
-            UnresolvedReason::ExtractionDependencyBudget | UnresolvedReason::LocalProofBudget => {
-                Self::WorkLimit
-            }
+            UnresolvedReason::ExtractionDependencyBudget
+            | UnresolvedReason::LocalTextWorkBudget => Self::WorkLimit,
             UnresolvedReason::TextComparisonLimit => Self::WorkLimit,
             UnresolvedReason::NormalizationInterpretationMissing
             | UnresolvedReason::NormalizationInterpretationsDisagree
             | UnresolvedReason::SpacingInterpretationsRetained => Self::NormalizationUncertainty,
-            UnresolvedReason::MultiplicityProofWithoutMask
+            UnresolvedReason::SourceCountWitnessWithoutMask
             | UnresolvedReason::NativeOrderUnresolved => Self::AmbiguousEditLocation,
             UnresolvedReason::PixelMaskOutputLimit => Self::OutputLimit,
             UnresolvedReason::IncompatibleRenderProfile => Self::VisualOnlyRegion,

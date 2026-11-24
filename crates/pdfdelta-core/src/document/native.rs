@@ -5,7 +5,7 @@ use crate::{
     layout::{BlockRole, reconstruct_blocks_with_issues, reconstruct_lines},
     model::PageId,
     normalize::{BlockText, TextSourceAtom, normalize_blocks},
-    pipeline::PipelineOptions,
+    options::PipelineOptions,
     source::{ExtractionIssueKind, ExtractionOutcome, ExtractionScope},
 };
 

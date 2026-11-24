@@ -1,7 +1,7 @@
 use pdfdelta_core::{
     Error,
-    diff::{LocalTextSide, local_text_claims},
     normalize::ComparableToken,
+    text_envelope::{LocalTextSide, local_text_claims},
 };
 
 fn tokens(text: &str) -> Vec<ComparableToken> {

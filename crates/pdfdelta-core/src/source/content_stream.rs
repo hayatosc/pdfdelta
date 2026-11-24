@@ -1,14 +1,18 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    fmt::Write as _,
     sync::Arc,
 };
+
+use sha2::{Digest, Sha256};
 
 use crate::{
     Error, Result,
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphDisplacement,
         GlyphId, GlyphIdentitySource, GlyphPathClipStatus, GlyphProvenance, MarkedContent,
-        NonTextPaint, PageId, Rect, TextRenderMode, Vec2, VectorLine, VectorLineId,
+        NonTextPaint, NonTextPaintKind, PageId, Rect, TextRenderMode, Vec2, VectorLine,
+        VectorLineId,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -232,6 +236,195 @@ struct PageGeometry {
     rotation: u16,
 }
 
+/// Deterministic byte writer used only for stable paint identities.
+///
+/// Every variable-length value is length-prefixed, and floating-point values
+/// are hashed by their bit patterns so reserialization cannot change identity.
+struct IdentityHasher(Sha256);
+
+impl IdentityHasher {
+    fn new() -> Self {
+        Self(Sha256::new())
+    }
+
+    fn raw(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.0.update((bytes.len() as u64).to_le_bytes());
+        self.0.update(bytes);
+    }
+
+    fn u8(&mut self, value: u8) {
+        self.0.update([value]);
+    }
+
+    fn u16(&mut self, value: u16) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn u32(&mut self, value: u32) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn f64(&mut self, value: f64) {
+        self.0.update(value.to_bits().to_le_bytes());
+    }
+
+    fn vec2(&mut self, point: Vec2) {
+        self.f64(point.x);
+        self.f64(point.y);
+    }
+
+    fn rect(&mut self, bounds: Rect) {
+        self.vec2(bounds.min);
+        self.vec2(bounds.max);
+    }
+
+    fn finish_bytes(self) -> [u8; 32] {
+        let digest = self.0.finalize();
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&digest);
+        bytes
+    }
+
+    fn finish_hex(self) -> String {
+        let mut text = String::with_capacity(64);
+        for byte in self.finish_bytes() {
+            write!(text, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        text
+    }
+}
+
+/// Tags a paint kind in the identity hash without depending on enum layout.
+fn paint_kind_tag(kind: NonTextPaintKind) -> u8 {
+    match kind {
+        NonTextPaintKind::Path => 0,
+        NonTextPaintKind::Image => 1,
+        NonTextPaintKind::InlineImage => 2,
+        NonTextPaintKind::Shading => 3,
+        NonTextPaintKind::Opaque => 4,
+    }
+}
+
+/// Exact geometry of one painted path, independent of its page number.
+fn path_paint_payload(
+    path: &CurrentPath,
+    operation: &Operation,
+    state: &InterpreterState,
+    origin: Option<Vec2>,
+) -> [u8; 32] {
+    let mut hasher = IdentityHasher::new();
+    hasher.bytes(b"path");
+    hasher.bytes(&operation.operator);
+    hasher.u32(path.drawn_subpaths as u32);
+    hasher.u64(path.subpath_starts.len() as u64);
+    for point in &path.subpath_starts {
+        hasher.vec2(match origin {
+            Some(origin) => Vec2 {
+                x: point.x - origin.x,
+                y: point.y - origin.y,
+            },
+            None => *point,
+        });
+    }
+    if path.boundary.is_empty() {
+        hasher.bytes(b"segments");
+        hasher.u64(path.segments.len() as u64);
+        for segment in &path.segments {
+            for point in [segment.from, segment.to] {
+                hasher.vec2(match origin {
+                    Some(origin) => Vec2 {
+                        x: point.x - origin.x,
+                        y: point.y - origin.y,
+                    },
+                    None => point,
+                });
+            }
+        }
+    } else {
+        hasher.bytes(b"edges");
+        hasher.u64(path.boundary.len() as u64);
+        for edge in &path.boundary {
+            match edge {
+                BoundaryEdge::Line(segment) => {
+                    hasher.u8(0);
+                    for point in [segment.from, segment.to] {
+                        hasher.vec2(match origin {
+                            Some(origin) => Vec2 {
+                                x: point.x - origin.x,
+                                y: point.y - origin.y,
+                            },
+                            None => point,
+                        });
+                    }
+                }
+                BoundaryEdge::Cubic(points) => {
+                    hasher.u8(1);
+                    for point in points {
+                        hasher.vec2(match origin {
+                            Some(origin) => Vec2 {
+                                x: point.x - origin.x,
+                                y: point.y - origin.y,
+                            },
+                            None => *point,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    hasher.f64(state.graphics.line_width);
+    hasher.f64(state.graphics.miter_limit);
+    hasher.u8(u8::from(state.graphics.stroke_adjustment));
+    hasher.finish_bytes()
+}
+
+/// Combines page placement, operation, and a kind-specific payload into the
+/// paint identity compared across documents.
+fn paint_identity(
+    kind: NonTextPaintKind,
+    geometry: PageGeometry,
+    operation: &Operation,
+    bounds: Option<Rect>,
+    payload: Option<&[u8]>,
+) -> Option<String> {
+    let payload = payload?;
+    let mut hasher = IdentityHasher::new();
+    hasher.raw(b"non-text-paint-v1");
+    hasher.u8(paint_kind_tag(kind));
+    hasher.rect(geometry.crop_bounds);
+    hasher.u16(geometry.rotation);
+    hasher.bytes(&operation.operator);
+    hasher.u8(u8::from(bounds.is_some()));
+    if let Some(bounds) = bounds {
+        hasher.rect(bounds);
+    }
+    hasher.bytes(payload);
+    Some(hasher.finish_hex())
+}
+
+/// Translation-invariant shape or image-data identity.
+fn paint_shape(
+    kind: NonTextPaintKind,
+    operation: &Operation,
+    payload: Option<&[u8]>,
+) -> Option<String> {
+    let payload = payload?;
+    let mut hasher = IdentityHasher::new();
+    hasher.raw(b"non-text-paint-shape-v1");
+    hasher.u8(paint_kind_tag(kind));
+    hasher.bytes(&operation.operator);
+    hasher.bytes(payload);
+    Some(hasher.finish_hex())
+}
+
 /// A native page transform constructed only from validated PDF page geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PageCoordinateFrame {
@@ -291,6 +484,10 @@ struct CurrentPath {
     clip_pending: bool,
     clip_even_odd: bool,
     has_unclosed_prior_subpath: bool,
+    /// Page-space starts of subpaths in paint order. Kept for the exact paint
+    /// identity hash; geometry without subpath starts cannot distinguish
+    /// connected and disjoint fills with the same edge list.
+    subpath_starts: Vec<Vec2>,
     witness_source: Option<Arc<FrozenPath>>,
     /// Curve controls retained from the first cubic onward. Empty for
     /// line-only paths, which use `segments` directly.
@@ -332,6 +529,7 @@ impl CurrentPath {
         if self.current_point.is_some() || !self.segments.is_empty() {
             self.clip_rectangle = None;
         }
+        self.subpath_starts.push(point);
         self.current_point = Some(point);
         self.subpath_start = Some(point);
         self.current_subpath_has_segment = false;
@@ -437,6 +635,7 @@ impl CurrentPath {
             self.boundary
                 .extend(rectangle_segments.into_iter().map(BoundaryEdge::Line));
         }
+        self.subpath_starts.push(corners[0]);
         self.current_point = Some(corners[0]);
         self.subpath_start = Some(corners[0]);
         self.clip_rectangle = was_empty.then_some(clip_rectangle).flatten();
@@ -1023,6 +1222,7 @@ impl<'a> Extraction<'a> {
                 operator: std::mem::take(&mut operation.operator),
                 operands: std::mem::take(&mut operation.operands),
                 index: operation.index,
+                inline_image_digest: operation.inline_image_digest,
             });
         }
         Ok(FrozenPath::new(owned, matrix, origin, even_odd).map(Arc::new))
@@ -1042,20 +1242,50 @@ impl<'a> Extraction<'a> {
         match operation.operator.as_slice() {
             b"BI" => {
                 self.note_unexamined_image(page_geometry, state)?;
+                let bounds =
+                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds);
+                let payload = operation
+                    .inline_image_digest
+                    .as_ref()
+                    .map(<[u8; 32]>::as_slice);
+                let identity = paint_identity(
+                    NonTextPaintKind::InlineImage,
+                    page_geometry,
+                    operation,
+                    bounds,
+                    payload,
+                );
+                let shape = paint_shape(NonTextPaintKind::InlineImage, operation, payload);
                 self.record_non_text_paint(
                     page,
                     stream,
                     operation,
-                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                    bounds,
+                    NonTextPaintKind::InlineImage,
+                    identity,
+                    shape,
                 );
             }
             b"sh" => {
-                one_name(operation)?;
+                let bounds = state.graphics.form_paint_bounds;
+                let payload = self.shading_paint_data_identity(resources, operation);
+                let payload = payload.as_ref().map(<[u8; 32]>::as_slice);
+                let identity = paint_identity(
+                    NonTextPaintKind::Shading,
+                    page_geometry,
+                    operation,
+                    bounds,
+                    payload,
+                );
+                let shape = paint_shape(NonTextPaintKind::Shading, operation, payload);
                 self.record_non_text_paint(
                     page,
                     stream,
                     operation,
-                    state.graphics.form_paint_bounds,
+                    bounds,
+                    NonTextPaintKind::Shading,
+                    identity,
+                    shape,
                 );
             }
             b"BMC" | b"BDC" => {
@@ -1486,7 +1716,15 @@ impl<'a> Extraction<'a> {
                         // one opaque operation, retaining its caller provenance.
                         self.non_text_paint_bounds.truncate(paint_start);
                         self.start_text_run(state);
-                        self.record_non_text_paint(page, stream, operation, bounds);
+                        self.record_non_text_paint(
+                            page,
+                            stream,
+                            operation,
+                            bounds,
+                            NonTextPaintKind::Opaque,
+                            None,
+                            None,
+                        );
                         self.issues.push(ExtractionIssue::from_error(
                             ExtractionScope::PageGlyphGap {
                                 page,
@@ -1536,13 +1774,36 @@ impl<'a> Extraction<'a> {
     }
 }
 
+/// Image dictionary keys that determine decoded image pixels and masks.
+const IMAGE_IDENTITY_KEYS: &[&[u8]] = &[
+    b"Width",
+    b"Height",
+    b"BitsPerComponent",
+    b"ColorSpace",
+    b"Decode",
+    b"DecodeParms",
+    b"Filter",
+    b"ImageMask",
+    b"Mask",
+    b"SMask",
+    b"Intent",
+];
+
+/// Bound on decoded bytes hashed for one paint identity.
+const MAX_PAINT_HASH_BYTES: usize = 64 * 1024 * 1024;
+const MAX_PAINT_HASH_DEPTH: usize = 16;
+
 impl Extraction<'_> {
+    #[allow(clippy::too_many_arguments)]
     fn record_non_text_paint(
         &mut self,
         page: PageId,
         stream: ObjectRef,
         operation: &Operation,
         bounds: Option<Rect>,
+        kind: NonTextPaintKind,
+        identity: Option<String>,
+        shape: Option<String>,
     ) {
         // Every record is charged by the existing global operator budget.
         self.non_text_paint_bounds.push(NonTextPaint {
@@ -1551,7 +1812,159 @@ impl Extraction<'_> {
             bounds,
             content_stream: stream,
             operator_index: operation.index,
+            kind,
+            identity,
+            shape,
         });
+    }
+
+    /// Hashes one resolved PDF value for a paint identity.
+    ///
+    /// References are resolved; streams contribute a bounded decoded byte
+    /// sequence. Anything beyond the depth or byte bound makes the identity
+    /// unavailable instead of guessing equality.
+    fn hash_paint_object(
+        &self,
+        value: &PdfObject,
+        hasher: &mut IdentityHasher,
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+        bytes: &mut usize,
+    ) -> Option<()> {
+        if depth > MAX_PAINT_HASH_DEPTH {
+            return None;
+        }
+        match value {
+            PdfObject::Null => hasher.u8(0),
+            PdfObject::Boolean(value) => {
+                hasher.u8(1);
+                hasher.u8(u8::from(*value));
+            }
+            PdfObject::Integer(value) => {
+                hasher.u8(2);
+                hasher.f64(*value as f64);
+            }
+            PdfObject::Real(value) => {
+                hasher.u8(3);
+                hasher.f64(*value);
+            }
+            PdfObject::Name(value) => {
+                hasher.u8(4);
+                hasher.bytes(value);
+            }
+            PdfObject::String(value) => {
+                hasher.u8(5);
+                hasher.bytes(value);
+            }
+            PdfObject::Array(values) => {
+                hasher.u8(6);
+                hasher.u64(values.len() as u64);
+                for value in values {
+                    self.hash_paint_object(value, hasher, depth + 1, active, bytes)?;
+                }
+            }
+            PdfObject::Dictionary(dictionary) => {
+                hasher.u8(7);
+                self.hash_paint_dictionary(dictionary, hasher, depth + 1, active, bytes)?;
+            }
+            PdfObject::Stream(dictionary) => {
+                hasher.u8(8);
+                self.hash_paint_dictionary(dictionary, hasher, depth + 1, active, bytes)?;
+            }
+            PdfObject::Reference(reference) => {
+                if !active.insert(*reference) {
+                    return None;
+                }
+                let result = (|| {
+                    let resolved = self.pdf.resolve(*reference).ok()?;
+                    if let PdfObject::Stream(dictionary) = &resolved {
+                        hasher.u8(9);
+                        self.hash_paint_dictionary(dictionary, hasher, depth + 1, active, bytes)?;
+                        let decoded = self.pdf.decoded_stream(*reference).ok()?;
+                        *bytes = bytes.checked_add(decoded.bytes.len())?;
+                        if *bytes > MAX_PAINT_HASH_BYTES {
+                            return None;
+                        }
+                        hasher.bytes(&decoded.bytes);
+                    } else {
+                        self.hash_paint_object(&resolved, hasher, depth + 1, active, bytes)?;
+                    }
+                    Some(())
+                })();
+                active.remove(reference);
+                result?;
+            }
+        }
+        Some(())
+    }
+
+    fn hash_paint_dictionary(
+        &self,
+        dictionary: &PdfDict,
+        hasher: &mut IdentityHasher,
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+        bytes: &mut usize,
+    ) -> Option<()> {
+        if depth > MAX_PAINT_HASH_DEPTH {
+            return None;
+        }
+        let image = dictionary
+            .get(b"Subtype".as_slice())
+            .and_then(|value| match value {
+                PdfObject::Name(name) => Some(name.as_slice() == b"Image"),
+                _ => None,
+            })
+            .unwrap_or(false);
+        let selected = dictionary
+            .iter()
+            .filter(|(key, _)| !image || IMAGE_IDENTITY_KEYS.contains(&key.as_slice()))
+            .collect::<Vec<_>>();
+        hasher.u64(selected.len() as u64);
+        for (key, value) in selected {
+            hasher.bytes(key);
+            self.hash_paint_object(value, hasher, depth + 1, active, bytes)?;
+        }
+        Some(())
+    }
+
+    fn image_paint_data_identity(&self, reference: ObjectRef) -> Option<[u8; 32]> {
+        // Decoded bytes are stable across lossless recompression; when a
+        // filter cannot be decoded, the raw stream is still an exact, if
+        // stricter, identity.
+        let (dictionary, data, decoded) = if let Ok(decoded) = self.pdf.decoded_stream(reference) {
+            (decoded.dictionary, decoded.bytes, true)
+        } else {
+            let raw = self.pdf.raw_stream(reference).ok()?;
+            (raw.dictionary, raw.bytes, false)
+        };
+        if data.len() > MAX_PAINT_HASH_BYTES {
+            return None;
+        }
+        let mut hasher = IdentityHasher::new();
+        hasher.raw(b"image-paint-v1");
+        hasher.u8(u8::from(decoded));
+        let mut active = HashSet::new();
+        active.insert(reference);
+        let mut bytes = data.len();
+        self.hash_paint_dictionary(&dictionary, &mut hasher, 0, &mut active, &mut bytes)?;
+        hasher.bytes(&data);
+        Some(hasher.finish_bytes())
+    }
+
+    fn shading_paint_data_identity(
+        &self,
+        resources: &Resources,
+        operation: &Operation,
+    ) -> Option<[u8; 32]> {
+        let name = one_name(operation).ok()?;
+        let shading = resources.shadings.entries.get(name)?;
+        let mut hasher = IdentityHasher::new();
+        hasher.raw(b"shading-paint-v1");
+        let mut active = HashSet::new();
+        let mut bytes = 0;
+        self.hash_paint_object(shading, &mut hasher, 0, &mut active, &mut bytes)?;
+        Some(hasher.finish_bytes())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1573,12 +1986,27 @@ impl Extraction<'_> {
         }
 
         if operation.operator != b"n" && state.current_path.drawn_subpaths != 0 {
+            let bounds = path_paint_bounds(page_geometry, state, stroke)
+                .or(state.graphics.form_paint_bounds);
+            let payload = path_paint_payload(&state.current_path, operation, state, None);
+            let identity = paint_identity(
+                NonTextPaintKind::Path,
+                page_geometry,
+                operation,
+                bounds,
+                Some(&payload),
+            );
+            let origin = state.current_path.subpath_starts.first().copied();
+            let shape_payload = path_paint_payload(&state.current_path, operation, state, origin);
+            let shape = paint_shape(NonTextPaintKind::Path, operation, Some(&shape_payload));
             self.record_non_text_paint(
                 page,
                 stream,
                 operation,
-                path_paint_bounds(page_geometry, state, stroke)
-                    .or(state.graphics.form_paint_bounds),
+                bounds,
+                NonTextPaintKind::Path,
+                identity,
+                shape,
             );
         }
 
@@ -2769,11 +3197,25 @@ impl Extraction<'_> {
         let xobject = self.cached_xobject(reference)?;
         if matches!(xobject.kind, CachedXObjectKind::Image) {
             self.note_unexamined_image(page_geometry, state)?;
+            let bounds =
+                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds);
+            let payload = xobject.image_identity.as_ref().map(<[u8; 32]>::as_slice);
+            let identity = paint_identity(
+                NonTextPaintKind::Image,
+                page_geometry,
+                operation,
+                bounds,
+                payload,
+            );
+            let shape = paint_shape(NonTextPaintKind::Image, operation, payload);
             self.record_non_text_paint(
                 page,
                 stream,
                 operation,
-                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                bounds,
+                NonTextPaintKind::Image,
+                identity,
+                shape,
             );
         }
         let CachedXObjectKind::Form {
@@ -2950,9 +3392,15 @@ impl Extraction<'_> {
                 )));
             }
         };
+        let image_identity = if matches!(kind, CachedXObjectKind::Image) {
+            self.image_paint_data_identity(terminal)
+        } else {
+            None
+        };
         let xobject = Arc::new(CachedXObject {
             reference: terminal,
             kind,
+            image_identity,
         });
         self.xobject_cache.insert(terminal, Arc::clone(&xobject));
         self.xobject_cache.insert(reference, Arc::clone(&xobject));
@@ -3290,6 +3738,7 @@ impl Extraction<'_> {
                         fonts: self.empty_resource_map()?,
                         xobjects: self.empty_resource_map()?,
                         ext_gstates: self.empty_resource_map()?,
+                        shadings: self.empty_resource_map()?,
                     })
                 },
                 Ok,
@@ -3311,10 +3760,13 @@ impl Extraction<'_> {
             dictionary.get(b"ExtGState".as_slice()),
             "ExtGState resources",
         )?;
+        let shadings =
+            self.shared_resource_map(dictionary.get(b"Shading".as_slice()), "Shading resources")?;
         Ok(Resources {
             fonts,
             xobjects,
             ext_gstates,
+            shadings,
         })
     }
 
@@ -3722,6 +4174,7 @@ struct Resources {
     fonts: Arc<ScopedResourceMap>,
     xobjects: Arc<ScopedResourceMap>,
     ext_gstates: Arc<ScopedResourceMap>,
+    shadings: Arc<ScopedResourceMap>,
 }
 
 type ResourceMap = BTreeMap<Vec<u8>, Arc<PdfObject>>;
@@ -3734,6 +4187,7 @@ struct ScopedResourceMap {
 struct CachedXObject {
     reference: ObjectRef,
     kind: CachedXObjectKind,
+    image_identity: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -4512,6 +4966,7 @@ mod tests {
             }),
             xobjects: empty_map(2),
             ext_gstates: empty_map(3),
+            shadings: empty_map(4),
         };
 
         let cloned_graphics = graphics.clone();
@@ -4755,16 +5210,19 @@ mod tests {
             fonts: empty_map(5),
             xobjects: empty_map(6),
             ext_gstates: Arc::clone(&ext_gstates),
+            shadings: empty_map(9),
         };
         let second_resources = Resources {
             fonts: empty_map(7),
             xobjects: empty_map(8),
             ext_gstates,
+            shadings: empty_map(10),
         };
         let operation = Operation {
             operands: vec![Operand::Name(b"GS".to_vec())],
             operator: b"gs".to_vec(),
             index: 0,
+            inline_image_digest: None,
         };
         let mut state = InterpreterState::default();
 
@@ -4840,6 +5298,7 @@ mod tests {
         let resources = |scope_id, negative, positive| Resources {
             fonts: empty_map(scope_id),
             xobjects: empty_map(scope_id + 1),
+            shadings: empty_map(scope_id + 3),
             ext_gstates: Arc::new(ScopedResourceMap {
                 scope_id: scope_id + 2,
                 entries: BTreeMap::from([
@@ -4860,6 +5319,7 @@ mod tests {
             operands: vec![Operand::Name(name.to_vec())],
             operator: b"gs".to_vec(),
             index: 0,
+            inline_image_digest: None,
         };
         let mut first_state = InterpreterState::default();
         let mut second_state = InterpreterState::default();

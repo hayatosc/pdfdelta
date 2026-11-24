@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use pdfdelta_core::pipeline::validate_limit_scale as validate_pipeline_limit_scale;
+use pdfdelta_core::options::validate_limit_scale as validate_pipeline_limit_scale;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -37,9 +37,17 @@ pub struct Cli {
     )]
     pub channels: Vec<ComparisonChannel>,
 
-    /// Compare only extracted native glyphs using the legacy report contract.
+    /// Compare only extracted native glyphs and write the flow-native text report.
     #[arg(long, conflicts_with = "channels")]
     pub native_text_only: bool,
+
+    /// Text-diff engine used by the main command (default: flow).
+    ///
+    /// The proof engine has been removed. `--engine flow` is accepted for
+    /// compatibility and is the default; `--engine proof` exits with an error
+    /// that names the flow replacements for the proof-only options.
+    #[arg(long, value_enum, value_name = "ENGINE")]
+    pub engine: Option<Engine>,
 
     /// Write a machine-readable JSON comparison report to a file. A path
     /// ending in `.gz` is written as gzip while it is produced.
@@ -51,9 +59,22 @@ pub struct Cli {
     #[arg(long, requires_all = ["native_text_only", "json"], conflicts_with = "full_json")]
     pub compact_json: bool,
 
-    /// Include all per-glyph sources in the native schema-11 JSON report.
+    /// Include all per-glyph sources in the full native flow JSON report.
     #[arg(long, requires_all = ["native_text_only", "json"])]
     pub full_json: bool,
+
+    /// Maximum number of cases an agent review bundle may plan.
+    ///
+    /// The default (4,096) bounds planning work and bundle size; a single
+    /// bundle is also limited to 512 MiB. Raising the case budget can still
+    /// stop at that byte limit and leaves an explicit incomplete bundle.
+    #[arg(
+        long,
+        value_name = "CASES",
+        default_value_t = pdfdelta_core::review::DEFAULT_AGENT_CASE_BUDGET,
+        value_parser = parse_agent_case_budget
+    )]
+    pub agent_case_budget: usize,
 
     /// Create a static HTML review directory with source PDFs and evidence JSON.
     #[arg(
@@ -79,7 +100,10 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", requires = "new")]
     pub trace_json: Option<PathBuf>,
 
-    /// Compatibility alias for the default incomplete-comparison exit code 3.
+    /// Accepted for compatibility; this flag does not change the comparison.
+    ///
+    /// Incomplete evidence already selects exit code 3, and the flow engine has
+    /// no strictness mode.
     #[arg(short = 's', long, requires = "new")]
     pub strict: bool,
 
@@ -97,11 +121,12 @@ pub struct Cli {
     )]
     pub color: ColorChoice,
 
-    /// Scale comparison pipeline resource limits by a factor of at least 1.
+    /// Scale flow extraction and shared footer-matching resource limits by a
+    /// factor of at least 1.
     ///
-    /// This scales n-gram token elements, alignment candidate visits and DP
-    /// cells, and diff token and edit-distance limits. Parser and extraction
-    /// limits are unchanged.
+    /// This scales flow extraction count limits uniformly and the shared
+    /// footer-matching work limit. Parser limits and layout thresholds are
+    /// unchanged.
     #[arg(
         long,
         value_name = "FACTOR",
@@ -135,6 +160,15 @@ pub struct Cli {
     /// cache.
     #[arg(long, value_name = "DIR", requires = "new")]
     pub extraction_cache_dir: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum Engine {
+    /// The removed proof engine; an explicit selection exits with an error
+    /// naming the flow replacements.
+    Proof,
+    /// The token-stream flow engine for the text channel (default).
+    Flow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
@@ -423,7 +457,6 @@ pub fn resolve_color(choice: ColorChoice) -> bool {
 #[derive(Clone, Copy)]
 pub struct ComparisonOptions<'a> {
     pub json_path: Option<&'a Path>,
-    pub compact_json: bool,
     pub review_dir: Option<&'a Path>,
     pub agent_review_dir: Option<&'a Path>,
     /// Resource-limit scale, retained because it is part of what a review
@@ -431,7 +464,6 @@ pub struct ComparisonOptions<'a> {
     /// different comparison from the same inputs.
     pub limit_scale: f64,
     pub output_path: Option<&'a Path>,
-    pub strict: bool,
     pub quiet: bool,
     pub color: ColorChoice,
 }
@@ -474,6 +506,18 @@ fn parse_output_budget(value: &str) -> Result<usize, String> {
     Ok(budget)
 }
 
+fn parse_agent_case_budget(value: &str) -> Result<usize, String> {
+    let cases = value
+        .parse::<usize>()
+        .map_err(|error| format!("invalid agent case budget {value:?}: {error}"))?;
+    if !(1..=65_536).contains(&cases) {
+        return Err(format!(
+            "agent case budget must be between 1 and 65536, got {cases}"
+        ));
+    }
+    Ok(cases)
+}
+
 fn parse_limit_scale(value: &str) -> Result<f64, String> {
     let scale = value
         .parse::<f64>()
@@ -485,7 +529,39 @@ fn parse_limit_scale(value: &str) -> Result<f64, String> {
 mod tests {
     use clap::Parser;
 
-    use super::{Cli, ColorChoice, Command, ReviewCommand, ReviewDetail};
+    use super::{Cli, ColorChoice, Command, Engine, ReviewCommand, ReviewDetail};
+
+    #[test]
+    fn agent_case_budget_defaults_and_is_explicitly_bounded() {
+        let cli = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf"])
+            .expect("default comparison arguments should parse");
+        assert_eq!(
+            cli.agent_case_budget,
+            pdfdelta_core::review::DEFAULT_AGENT_CASE_BUDGET
+        );
+        let raised = Cli::try_parse_from([
+            "pdfdelta",
+            "old.pdf",
+            "new.pdf",
+            "--agent-case-budget",
+            "12000",
+        ])
+        .expect("explicit case budget should parse");
+        assert_eq!(raised.agent_case_budget, 12_000);
+        for invalid in ["0", "65537", "many"] {
+            assert!(
+                Cli::try_parse_from([
+                    "pdfdelta",
+                    "old.pdf",
+                    "new.pdf",
+                    "--agent-case-budget",
+                    invalid,
+                ])
+                .is_err(),
+                "{invalid} should be rejected"
+            );
+        }
+    }
 
     #[test]
     fn parses_strict_comparison_mode() {
@@ -935,5 +1011,39 @@ mod tests {
                 shell: clap_complete::Shell::Bash
             })
         ));
+    }
+
+    #[test]
+    fn flow_is_the_default_and_explicit_engine_values_parse() {
+        let default = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf"])
+            .expect("default comparison arguments should parse");
+        assert_eq!(default.engine, None);
+
+        // The removed proof value still parses so the process can reject it
+        // with an explanation instead of a clap value error.
+        let proof = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--engine", "proof"])
+            .expect("explicit proof should parse");
+        assert_eq!(proof.engine, Some(Engine::Proof));
+
+        let flow = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--engine", "flow"])
+            .expect("explicit flow should parse");
+        assert_eq!(flow.engine, Some(Engine::Flow));
+    }
+
+    #[test]
+    fn flow_options_parse_without_an_engine_selection() {
+        for arguments in [
+            vec!["--review", "review"],
+            vec!["--agent-review", "review"],
+            vec!["--trace-json", "trace.json"],
+            vec!["--native-text-only", "--compact-json", "-j", "compact.json"],
+            vec!["--native-text-only", "--full-json", "-j", "full.json"],
+            vec!["--native-text-only", "--agent-review", "review"],
+        ] {
+            let mut command = vec!["pdfdelta", "old.pdf", "new.pdf"];
+            command.extend(arguments);
+            let cli = Cli::try_parse_from(command).expect("flow option should parse");
+            assert_eq!(cli.engine, None);
+        }
     }
 }

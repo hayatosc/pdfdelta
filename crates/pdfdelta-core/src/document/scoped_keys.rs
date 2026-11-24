@@ -38,8 +38,8 @@ pub struct ScopedKeyClaim {
 
 /// Complete native membership on both sides of an admitted scope premise.
 /// The opposite raw population also rules out relocation elsewhere in the
-/// document under the declared key contract. This report is not reusable proof
-/// for changed evidence or graphs.
+/// document under the declared key contract. This report is not reusable
+/// evidence for a changed comparison result or graph.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScopedKeyWitness {
     pub scope: usize,

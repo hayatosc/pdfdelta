@@ -48,8 +48,9 @@ pub enum UnresolvedReason {
     ExtractionBoundary,
     /// The extraction dependency search exhausted its work budget.
     ExtractionDependencyBudget,
-    /// The local character proof did not finish within its work budget.
-    LocalProofBudget,
+    /// The local character comparison did not finish within its work budget.
+    #[serde(alias = "local_proof_budget")]
+    LocalTextWorkBudget,
     /// The local text comparison hit a token or work limit.
     TextComparisonLimit,
     /// Normalization has no source-validated family of interpretations.
@@ -58,8 +59,9 @@ pub enum UnresolvedReason {
     NormalizationInterpretationsDisagree,
     /// Layout-derived spacing retains more than one interpretation.
     SpacingInterpretationsRetained,
-    /// A source-count witness proves change without localizing a mask.
-    MultiplicityProofWithoutMask,
+    /// A source-count witness establishes change without localizing a mask.
+    #[serde(alias = "multiplicity_proof_without_mask")]
+    SourceCountWitnessWithoutMask,
     /// Native token order is unresolved, so no ordered mask can be produced.
     NativeOrderUnresolved,
     /// The pixel mask exceeded its output limit.

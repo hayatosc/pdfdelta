@@ -48,8 +48,6 @@ pub struct DocumentEvaluation {
 #[derive(Deserialize)]
 struct ReportEvidence {
     revision: String,
-    #[serde(default)]
-    native_glyphs: Option<usize>,
     issues: Vec<EvidenceIssue>,
     backends: Vec<BackendIdentity>,
 }
@@ -213,66 +211,12 @@ fn parse_report(bytes: &[u8]) -> Result<DocumentReport> {
     }
     let report: DocumentReport = serde_json::from_slice(bytes)
         .map_err(|error| BenchError::InvalidInput(format!("document report: {error}")))?;
-    if report.schema_version != 2 || report.contract.version != 1 {
+    if !matches!(report.schema_version, 2 | 3) || report.contract.version != 1 {
         return Err(BenchError::InvalidInput(
             "unsupported document report or contract version".into(),
         ));
     }
     Ok(report)
-}
-
-/// Projects a shared-route report onto separately reconstructed native source
-/// blocks. Input hashes must identify exactly the source PDFs used by the report.
-///
-/// # Errors
-/// Rejects malformed reports, hash mismatch, inconsistent coverage, and exhausted
-/// source-projection limits. Invalid individual annotations remain unavailable.
-pub fn evaluate_revision_document_report(
-    expected: &crate::revisions::ExpectedDocument,
-    sources: [&crate::revisions::revision_selectors::PreparedRevisionSource; 2],
-    bytes: &[u8],
-) -> Result<crate::revisions::revision_document_report::RevisionDocumentEvaluation> {
-    let report = parse_report(bytes)?;
-    validate_coverage(&report)?;
-    let projects_native_sources = report.comparison.scopes.iter().any(|scope| {
-        scope.interpretation != InterpretationStatus::Inferred
-            && scope.result.comparisons.iter().any(|local| {
-                local.interpretation != InterpretationStatus::Inferred
-                    && local.compared
-                    && local
-                        .text_mask
-                        .as_ref()
-                        .is_some_and(|mask| !mask.old.is_empty() || !mask.new.is_empty())
-            })
-    });
-    for (source, actual) in sources.into_iter().zip([&report.old, &report.new]) {
-        let expected = &source.metadata;
-        if expected.sha256.len() != 64 || !expected.sha256.eq_ignore_ascii_case(&actual.revision) {
-            return Err(BenchError::InvalidInput(
-                "revision report input hash mismatch".into(),
-            ));
-        }
-        if projects_native_sources
-            && (!expected.extraction_complete
-                || actual.native_glyphs != Some(expected.glyph_count)
-                || !actual.backends.iter().any(|backend| {
-                    backend.kind == pdfdelta_core::document::BackendKind::NativeParser
-                        && backend.name == "pdfdelta-native"
-                        && backend.version == env!("CARGO_PKG_VERSION")
-                        && backend.profile == "content-stream-v2-paint-order-worker-v1"
-                }))
-        {
-            return Err(BenchError::InvalidInput(
-                "native source identity protocol or inventory differs".into(),
-            ));
-        }
-    }
-    crate::revisions::revision_document_report::evaluate(
-        expected,
-        [&sources[0].blocks, &sources[1].blocks],
-        &report.comparison,
-    )
-    .map_err(BenchError::InvalidInput)
 }
 
 /// Evaluate a report without treating its declared completion flag as truth.
@@ -484,6 +428,21 @@ mod tests {
         assert_eq!(summary.inferred_operations, 0);
         assert!(checked_work_sum([usize::MAX, 1].into_iter()).is_err());
         assert_eq!(checked_work_sum([37, 19].into_iter()).expect("sum"), 56);
+    }
+
+    #[test]
+    fn schema_three_reads_legacy_superseded_text_names() {
+        let (_, mut report) = fixture();
+        report["schema_version"] = json!(3);
+        report["comparison"]["superseded_text"] = json!({
+            "components": 1,
+            "comparisons": 2,
+            "obligations": {"local_proof_budget": 1}
+        });
+        let summary =
+            summarize_document_report(&serde_json::to_vec(&report).expect("serialize report"))
+                .expect("archived schema-2 field names remain readable");
+        assert!(!summary.comparison_complete);
     }
 
     #[test]

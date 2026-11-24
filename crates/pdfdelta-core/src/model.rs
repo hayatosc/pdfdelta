@@ -274,6 +274,16 @@ pub struct MarkedContent {
 /// An opaque or non-text painting operation with a conservative bound in native page
 /// coordinates. An unknown bound remains an obstruction to local text closure;
 /// neither a known bound nor its absence identifies the painted content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NonTextPaintKind {
+    Path,
+    Image,
+    InlineImage,
+    Shading,
+    /// A failed `Form` or `XObject` invocation retained as one opaque operation.
+    Opaque,
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct NonTextPaint {
     pub page: PageId,
@@ -282,6 +292,17 @@ pub struct NonTextPaint {
     pub bounds: Option<Rect>,
     pub content_stream: ObjectRef,
     pub operator_index: u32,
+    pub kind: NonTextPaintKind,
+    /// Stable identity of the page-relative paint geometry or image data.
+    ///
+    /// The page number is excluded so an identical page shifted within the
+    /// document compares equal. The page crop and rotation are included.
+    /// `None` means exact identity was not established; any comparison that
+    /// sees it cannot claim that text drawn as paint was unchanged.
+    pub identity: Option<String>,
+    /// Translation-invariant shape or image-data digest. Placement is carried
+    /// separately by `bounds`; this supports layout-shift alignment variants.
+    pub shape: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

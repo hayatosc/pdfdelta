@@ -872,6 +872,7 @@ mod tests {
                     operator: name.to_vec(),
                     operands: Vec::new(),
                     index: 0,
+                    inline_image_digest: None,
                 })
                 .collect::<Vec<_>>()
         };

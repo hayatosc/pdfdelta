@@ -627,6 +627,7 @@ dependencies = [
  "libfuzzer-sys",
  "pdfdelta-bench",
  "pdfdelta-core",
+ "pdfdelta-flow",
 ]
 
 [[package]]

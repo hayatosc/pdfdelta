@@ -238,6 +238,11 @@ mod tests {
                 block: 0,
                 uncertain: false,
                 line_break_after: false,
+                font_size: None,
+                raw: None,
+                position: None,
+                page_break_after: false,
+                normalization: 0,
             })
             .collect()
     }

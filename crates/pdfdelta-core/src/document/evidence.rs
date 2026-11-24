@@ -486,32 +486,15 @@ impl Default for EvidenceLimits {
     }
 }
 
-/// Text acquisition records with the same explicit dependency scope.
-#[derive(Default)]
-pub(super) struct ScopedTextEvidence<'a> {
-    pub inventories: Vec<ValidatedTextInventory<'a>>,
-    pub issues: Vec<&'a EvidenceIssue>,
-}
-
-/// A population certificate does not imply complete text acquisition.
-/// Unique same-page native references and equal population counts establish
-/// exact coverage; issue, provider and paint checks remain separate obligations.
-pub(super) struct ValidatedTextInventory<'a> {
-    pub inventory: &'a ChannelInventory,
-    pub covers_native_page: bool,
-}
-
 /// Native lookups retained from bounded evidence validation. Page slices retain
 /// all glyphs, including noncontiguous spans and sources absent from graph nodes.
 /// Paint lists retain every operation on each page, including unknown bounds.
-/// Text records retain page and document-wide scopes from every provider.
 #[derive(Default)]
 pub(super) struct NativeIndex<'a> {
     pub glyphs: BTreeMap<GlyphId, &'a Glyph>,
     pub pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
     pub baselines: BTreeMap<PageId, Vec<&'a Glyph>>,
     pub paint_pages: BTreeMap<PageId, Vec<&'a NonTextPaint>>,
-    pub text_scopes: BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
     /// Sources whose text interpretation a declared replacement covers. The
     /// graph fills this from the provider marking; projection must not clear
     /// that uncertainty for these sources.
@@ -1146,12 +1129,6 @@ impl EvidenceStore {
                 }
             }
         }
-        let native_page_counts: BTreeMap<_, usize> = sources
-            .native
-            .pages
-            .iter()
-            .map(|(page, spans)| (*page, spans.iter().map(|span| span.len()).sum()))
-            .collect();
         for inventory in &self.inventories {
             if inventory
                 .page
@@ -1168,9 +1145,7 @@ impl EvidenceStore {
                 "evidence references",
             )?;
             let mut unique = BTreeSet::new();
-            let mut all_native = true;
             for source in &inventory.sources {
-                all_native &= matches!(source, SourceRef::Native { .. });
                 if !sources.contains_key(source)
                     || inventory
                         .page
@@ -1182,35 +1157,8 @@ impl EvidenceStore {
                     ));
                 }
             }
-            if inventory.channel == Channel::Text {
-                let covers_native_page = all_native
-                    && inventory.page.is_some_and(|page| {
-                        native_page_counts
-                            .get(&page)
-                            .is_some_and(|count| *count == inventory.sources.len())
-                    });
-                sources
-                    .native
-                    .text_scopes
-                    .entry(inventory.page)
-                    .or_default()
-                    .inventories
-                    .push(ValidatedTextInventory {
-                        inventory,
-                        covers_native_page,
-                    });
-            }
         }
         for issue in &self.issues {
-            if issue.channel == Channel::Text {
-                sources
-                    .native
-                    .text_scopes
-                    .entry(issue.page)
-                    .or_default()
-                    .issues
-                    .push(issue);
-            }
             if let Some(boundary) = &issue.boundary {
                 let expected = match boundary {
                     EvidenceBoundary::GlyphGap {

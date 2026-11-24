@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{Result, alignment::BlockSeparator, layout::BlockRole, normalize::BlockText};
+use crate::{Result, layout::BlockRole, normalize::BlockText, span::BlockSeparator};
 
 pub(crate) struct FooterCandidate {
     pub page: u32,
@@ -292,7 +292,7 @@ impl super::DocumentGraph {
         &mut self,
         blocks: &[BlockText],
         block_start: usize,
-        options: crate::pipeline::PipelineOptions,
+        options: crate::options::PipelineOptions,
         limits: super::GraphLimits,
         tokens_used: &mut usize,
         references_used: &mut usize,
@@ -312,10 +312,10 @@ impl super::DocumentGraph {
             complete: true,
             work_limited: false,
         };
-        let mut remaining = options.diff.max_assessment_work;
+        let mut remaining = options.footer_work_limit;
         let candidates = candidates(
             blocks,
-            options.alignment.anchor_min_tokens,
+            options.footer_min_prefix_tokens,
             &mut remaining,
             limits.max_nodes,
             &mut search,
@@ -323,7 +323,7 @@ impl super::DocumentGraph {
         if search.work_limited {
             return Err(crate::Error::LimitExceeded {
                 resource: "native footer candidate work",
-                limit: options.diff.max_assessment_work,
+                limit: options.footer_work_limit,
             });
         }
         if !search.complete {

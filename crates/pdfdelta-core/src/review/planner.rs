@@ -21,6 +21,13 @@ use crate::{
     normalize::ComparableToken,
 };
 
+/// Default case budget for an agent review bundle.
+///
+/// A planned case costs a packet file and manifest entry. The default bounds a
+/// single bundle well below the shared 512 MiB artifact budget on large
+/// documents; a caller can raise it explicitly with the CLI option.
+pub const DEFAULT_AGENT_CASE_BUDGET: usize = 4_096;
+
 /// Bounds on the work a plan may perform and the size of what it retains.
 ///
 /// Every limit is a stopping point, not a target: when one is reached the plan
@@ -49,7 +56,7 @@ pub struct PlannerLimits {
 impl Default for PlannerLimits {
     fn default() -> Self {
         Self {
-            max_cases: 4_096,
+            max_cases: DEFAULT_AGENT_CASE_BUDGET,
             max_source_visits: 1_000_000,
             max_candidate_visits: 100_000,
             max_hypotheses_per_case: 16,
@@ -193,6 +200,8 @@ pub(super) struct Budget {
     source_visits: usize,
     candidate_visits: usize,
     cases: usize,
+    /// Cases a phase tried to add after the case limit was reached.
+    case_shortfall: usize,
     complete: bool,
     omissions: Vec<ExportOmission>,
 }
@@ -204,6 +213,7 @@ impl Budget {
             source_visits: 0,
             candidate_visits: 0,
             cases: 0,
+            case_shortfall: 0,
             complete: true,
             omissions: Vec::new(),
         }
@@ -235,12 +245,61 @@ impl Budget {
 
     /// Reserves room for one more case; false once the budget is spent.
     pub(super) fn accept_case(&mut self) -> bool {
-        if self.cases >= self.limits.max_cases {
+        if !self.case_budget_available() {
+            self.record_case_shortfall(1);
             self.stop(OmissionScope::Bundle, OmissionKind::CasesNotExported, None);
             return false;
         }
         self.cases += 1;
         true
+    }
+
+    /// Whether another case may still be accepted.
+    pub(super) fn case_budget_available(&self) -> bool {
+        self.cases < self.limits.max_cases
+    }
+
+    /// Records cases a phase did not attempt because the budget was spent.
+    ///
+    /// Phases that can count their withheld cases before building them use
+    /// this instead of constructing and discarding one case per omission.
+    pub(super) fn record_case_shortfall(&mut self, count: usize) {
+        if count == 0 {
+            return;
+        }
+        self.case_shortfall = self.case_shortfall.saturating_add(count);
+        self.complete = false;
+    }
+
+    /// Makes the case-limit omission carry the number of cases it withheld.
+    ///
+    /// The planner knows this count only after every phase has tried to add
+    /// its cases, so the bundle omission is finalized once, immediately before
+    /// the manifest is assembled.
+    pub(super) fn finalize(&mut self) {
+        if self.case_shortfall == 0 {
+            return;
+        }
+        self.complete = false;
+        if let Some(existing) = self.omissions.iter_mut().find(|omission| {
+            omission.scope == OmissionScope::Bundle
+                && omission.kind == OmissionKind::CasesNotExported
+        }) {
+            existing.omitted = Some(
+                existing
+                    .omitted
+                    .unwrap_or(0)
+                    .saturating_add(self.case_shortfall),
+            );
+        } else {
+            self.omissions.push(ExportOmission {
+                scope: OmissionScope::Bundle,
+                kind: OmissionKind::CasesNotExported,
+                omitted: Some(self.case_shortfall),
+                expand_with: None,
+                reason: None,
+            });
+        }
     }
 
     /// Records an omission and marks the export incomplete.
@@ -299,7 +358,7 @@ pub(super) fn text_order(basis: ViewBasis) -> TextOrder {
 /// boundary exists the caller withholds the whole run rather than cutting text
 /// at an arbitrary scalar, because a cut inside a number, a negation, or a unit
 /// changes what the reviewer reads.
-fn retention_boundary(scalars: &[char], budget: usize) -> Option<usize> {
+pub(super) fn retention_boundary(scalars: &[char], budget: usize) -> Option<usize> {
     if scalars.len() <= budget {
         return Some(scalars.len());
     }

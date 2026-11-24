@@ -28,7 +28,8 @@ use pdfdelta_core::{
         Block, BlockId, BlockOptions, BlockRole, Line, LineId, LineOptions, LineTextDirection,
         SyntheticSpace, reconstruct_blocks, reconstruct_lines,
     },
-    model::{DecodedText, Document, Glyph, GlyphId, PageId, Rect, Vec2},
+    model::{DecodedText, Document, Glyph, GlyphId, NonTextPaintKind, PageId, Rect, Vec2},
+    normalize::PositionSignature,
 };
 
 use crate::{
@@ -195,13 +196,104 @@ pub fn flow_tokens_pair(
     flow_order_from_candidates(old, new)
 }
 
+/// One non-text paint item retained for the flow text-completeness check.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintIdentity {
+    /// Page the paint appears on. It is excluded from `identity` equality.
+    pub page: PageId,
+    /// Paint kind, retained for diagnostics.
+    pub kind: NonTextPaintKind,
+    /// Page-relative geometry or image-data identity. `None` means exact
+    /// identity was unavailable and paint equality cannot be claimed.
+    pub identity: Option<String>,
+    /// Translation-invariant shape or image-data identity.
+    pub shape: Option<String>,
+    /// Page-space bounds, when the extraction established them.
+    pub bounds: Option<Rect>,
+}
+
 /// One side's three order hypotheses, with its extracted document no longer
 /// needed.
 pub struct FlowCandidates {
     candidates: Candidates,
+    paint_inventory: Option<Vec<PaintIdentity>>,
 }
 
 impl FlowCandidates {
+    /// Returns the extracted non-text paint inventory.
+    ///
+    /// `None` means the side was built without a paint census. The text engine
+    /// must not claim completeness in that case.
+    #[must_use]
+    pub fn paint_inventory(&self) -> Option<&[PaintIdentity]> {
+        self.paint_inventory.as_deref()
+    }
+
+    /// Number of tokens in the layout-order hypothesis.
+    ///
+    /// Trace metrics use this bounded count; the other hypotheses have the
+    /// same token multiset in a different order.
+    #[must_use]
+    pub fn token_count(&self) -> usize {
+        self.candidates.layout.tokens.len()
+    }
+
+    /// Borrows the three order hypotheses in layout, stream, and baseline
+    /// order. Their tokens may differ in order but not in multiset.
+    #[must_use]
+    pub fn hypotheses(&self) -> [&FlowStream; 3] {
+        [
+            &self.candidates.layout,
+            &self.candidates.stream,
+            &self.candidates.baseline,
+        ]
+    }
+
+    /// Attaches retained per-token source glyph ids to the three order
+    /// hypotheses.
+    ///
+    /// This is used when the hypotheses were built in a child process and the
+    /// compact cache carried only tokens. Each list must be aligned with its
+    /// hypothesis' token count, and sources must not already be attached.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a list is misaligned or sources were already
+    /// attached.
+    pub fn attach_sources(
+        &mut self,
+        layout: Vec<Vec<GlyphId>>,
+        stream: Vec<Vec<GlyphId>>,
+        baseline: Vec<Vec<GlyphId>>,
+    ) -> Result<()> {
+        for (name, hypothesis, sources) in [
+            ("layout", &mut self.candidates.layout, layout),
+            ("stream", &mut self.candidates.stream, stream),
+            ("baseline", &mut self.candidates.baseline, baseline),
+        ] {
+            if !hypothesis.source_glyphs.is_empty() {
+                return Err(pdfdelta_core::Error::Unresolved(format!(
+                    "{name} order hypothesis already carries source glyph ids"
+                )));
+            }
+            if sources.len() != hypothesis.tokens.len() {
+                return Err(pdfdelta_core::Error::Unresolved(format!(
+                    "{name} order hypothesis has {} tokens but {} source lists",
+                    hypothesis.tokens.len(),
+                    sources.len()
+                )));
+            }
+            hypothesis.source_glyphs = sources;
+        }
+        Ok(())
+    }
+
+    /// Whether every visible glyph is accounted for on this side.
+    #[must_use]
+    pub fn conservation_complete(&self) -> bool {
+        self.candidates.layout.conservation.is_complete()
+    }
+
     /// Writes the three reading-order hypotheses for another process.
     ///
     /// A flow comparison of a multi-million-glyph document keeps both sides'
@@ -229,6 +321,7 @@ impl FlowCandidates {
         ] {
             write_cached_stream(&mut writer, stream)?;
         }
+        write_cached_paint(&mut writer, self.paint_inventory.as_deref())?;
         let checksum = writer.checksum;
         writer.inner.write_all(&checksum.to_le_bytes())?;
         writer.inner.flush()
@@ -256,6 +349,7 @@ impl FlowCandidates {
         let layout = read_cached_stream(&mut reader)?;
         let stream = read_cached_stream(&mut reader)?;
         let baseline = read_cached_stream(&mut reader)?;
+        let paint_inventory = read_cached_paint(&mut reader)?;
         let checksum = reader.checksum;
         let mut stored = [0u8; 8];
         reader.inner.read_exact(&mut stored)?;
@@ -268,14 +362,206 @@ impl FlowCandidates {
                 stream,
                 baseline,
             },
+            paint_inventory,
         })
+    }
+}
+
+/// Largest accepted paint item count in one cached side.
+const CACHE_MAX_PAINT_ITEMS: u64 = 1_000_000;
+/// Largest accepted single paint identity string.
+const CACHE_MAX_PAINT_IDENTITY: usize = 1_024;
+
+/// Writes the optional paint inventory after the three order streams.
+fn write_cached_paint(
+    writer: &mut impl std::io::Write,
+    paints: Option<&[PaintIdentity]>,
+) -> std::io::Result<()> {
+    match paints {
+        None => writer.write_all(&[0]),
+        Some(paints) => {
+            writer.write_all(&[1])?;
+            writer.write_all(&(paints.len() as u64).to_le_bytes())?;
+            for paint in paints {
+                writer.write_all(&paint.page.0.to_le_bytes())?;
+                writer.write_all(&[paint_kind_tag(paint.kind)])?;
+                match &paint.identity {
+                    None => writer.write_all(&[0])?,
+                    Some(identity) => {
+                        if identity.len() > CACHE_MAX_PAINT_IDENTITY {
+                            return Err(cache_invalid("paint identity exceeds its cache bound"));
+                        }
+                        writer.write_all(&[1])?;
+                        writer.write_all(&(identity.len() as u32).to_le_bytes())?;
+                        writer.write_all(identity.as_bytes())?;
+                    }
+                }
+                write_optional_identity(&mut *writer, paint.shape.as_deref())?;
+                match paint.bounds {
+                    None => writer.write_all(&[0])?,
+                    Some(bounds) => {
+                        writer.write_all(&[1])?;
+                        for value in [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y] {
+                            writer.write_all(&value.to_bits().to_le_bytes())?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+fn write_optional_identity(
+    writer: &mut impl std::io::Write,
+    identity: Option<&str>,
+) -> std::io::Result<()> {
+    match identity {
+        None => writer.write_all(&[0]),
+        Some(identity) => {
+            if identity.len() > CACHE_MAX_PAINT_IDENTITY {
+                return Err(cache_invalid("paint identity exceeds its cache bound"));
+            }
+            writer.write_all(&[1])?;
+            writer.write_all(&(identity.len() as u32).to_le_bytes())?;
+            writer.write_all(identity.as_bytes())
+        }
+    }
+}
+
+/// Reads the paint inventory written by [`write_cached_paint`].
+fn read_cached_paint(
+    reader: &mut impl std::io::Read,
+) -> std::io::Result<Option<Vec<PaintIdentity>>> {
+    let mut present = [0u8; 1];
+    reader.read_exact(&mut present)?;
+    match present[0] {
+        0 => Ok(None),
+        1 => {
+            let count = read_u64(reader)?;
+            if count > CACHE_MAX_PAINT_ITEMS {
+                return Err(cache_invalid(
+                    "flow candidate cache has too many paint items",
+                ));
+            }
+            let mut paints = Vec::with_capacity(count as usize);
+            for _ in 0..count {
+                let page = PageId(read_u32(reader)?);
+                let mut kind = [0u8; 1];
+                reader.read_exact(&mut kind)?;
+                let kind = paint_kind(kind[0]).ok_or_else(|| {
+                    cache_invalid("flow candidate cache has an invalid paint kind")
+                })?;
+                let mut identity_present = [0u8; 1];
+                reader.read_exact(&mut identity_present)?;
+                let identity = match identity_present[0] {
+                    0 => None,
+                    1 => {
+                        let length = read_u32(reader)? as usize;
+                        if length > CACHE_MAX_PAINT_IDENTITY {
+                            return Err(cache_invalid(
+                                "flow candidate cache has an oversized paint identity",
+                            ));
+                        }
+                        let mut bytes = vec![0u8; length];
+                        reader.read_exact(&mut bytes)?;
+                        Some(String::from_utf8(bytes).map_err(|_| {
+                            cache_invalid("flow candidate cache has invalid paint identity text")
+                        })?)
+                    }
+                    _ => {
+                        return Err(cache_invalid(
+                            "flow candidate cache has an invalid paint flag",
+                        ));
+                    }
+                };
+                let shape = read_optional_identity(reader)?;
+                let mut bounds_present = [0u8; 1];
+                reader.read_exact(&mut bounds_present)?;
+                let bounds = match bounds_present[0] {
+                    0 => None,
+                    1 => Some(Rect {
+                        min: Vec2 {
+                            x: read_f64(reader)?,
+                            y: read_f64(reader)?,
+                        },
+                        max: Vec2 {
+                            x: read_f64(reader)?,
+                            y: read_f64(reader)?,
+                        },
+                    }),
+                    _ => {
+                        return Err(cache_invalid(
+                            "flow candidate cache has an invalid bounds flag",
+                        ));
+                    }
+                };
+                paints.push(PaintIdentity {
+                    page,
+                    kind,
+                    identity,
+                    shape,
+                    bounds,
+                });
+            }
+            Ok(Some(paints))
+        }
+        _ => Err(cache_invalid(
+            "flow candidate cache has an invalid paint census flag",
+        )),
+    }
+}
+
+fn read_optional_identity(reader: &mut impl std::io::Read) -> std::io::Result<Option<String>> {
+    let mut present = [0u8; 1];
+    reader.read_exact(&mut present)?;
+    match present[0] {
+        0 => Ok(None),
+        1 => {
+            let length = read_u32(reader)? as usize;
+            if length > CACHE_MAX_PAINT_IDENTITY {
+                return Err(cache_invalid(
+                    "flow candidate cache has an oversized paint identity",
+                ));
+            }
+            let mut bytes = vec![0u8; length];
+            reader.read_exact(&mut bytes)?;
+            Ok(Some(String::from_utf8(bytes).map_err(|_| {
+                cache_invalid("flow candidate cache has invalid paint identity text")
+            })?))
+        }
+        _ => Err(cache_invalid(
+            "flow candidate cache has an invalid identity flag",
+        )),
+    }
+}
+
+/// Stable tag for one paint kind in the cache.
+fn paint_kind_tag(kind: NonTextPaintKind) -> u8 {
+    match kind {
+        NonTextPaintKind::Path => 0,
+        NonTextPaintKind::Image => 1,
+        NonTextPaintKind::InlineImage => 2,
+        NonTextPaintKind::Shading => 3,
+        NonTextPaintKind::Opaque => 4,
+    }
+}
+
+fn paint_kind(tag: u8) -> Option<NonTextPaintKind> {
+    match tag {
+        0 => Some(NonTextPaintKind::Path),
+        1 => Some(NonTextPaintKind::Image),
+        2 => Some(NonTextPaintKind::InlineImage),
+        3 => Some(NonTextPaintKind::Shading),
+        4 => Some(NonTextPaintKind::Opaque),
+        _ => None,
     }
 }
 
 /// Magic bytes of the flow candidate cache.
 const CACHE_MAGIC: &[u8; 8] = b"PDFDFLOW";
 /// Version of the flow candidate cache layout.
-const CACHE_VERSION: u32 = 3;
+const CACHE_VERSION: u32 = 8;
 /// Largest accepted token count of one cached hypothesis.
 const CACHE_MAX_TOKENS: u64 = 100_000_000;
 /// Largest accepted token text in a cached hypothesis.
@@ -362,7 +648,11 @@ fn write_cached_stream(
         writer.write_all(&(token.block as u64).to_le_bytes())?;
         let flags = u8::from(token.bounds.is_some())
             | (u8::from(token.uncertain) << 1)
-            | (u8::from(token.line_break_after) << 2);
+            | (u8::from(token.line_break_after) << 2)
+            | (u8::from(token.font_size.is_some()) << 3)
+            | (u8::from(token.raw.is_some()) << 4)
+            | (u8::from(token.position.is_some()) << 5)
+            | (u8::from(token.page_break_after) << 6);
         writer.write_all(&[flags])?;
         if let Some(bounds) = token.bounds {
             writer.write_all(&bounds.min.x.to_bits().to_le_bytes())?;
@@ -370,6 +660,25 @@ fn write_cached_stream(
             writer.write_all(&bounds.max.x.to_bits().to_le_bytes())?;
             writer.write_all(&bounds.max.y.to_bits().to_le_bytes())?;
         }
+        if let Some(font_size) = token.font_size {
+            writer.write_all(&font_size.to_bits().to_le_bytes())?;
+        }
+        if let Some(position) = token.position {
+            let baseline = position.baseline();
+            let direction = position.direction();
+            writer.write_all(&baseline.x.to_bits().to_le_bytes())?;
+            writer.write_all(&baseline.y.to_bits().to_le_bytes())?;
+            writer.write_all(&direction.x.to_bits().to_le_bytes())?;
+            writer.write_all(&direction.y.to_bits().to_le_bytes())?;
+        }
+        if let Some(raw) = &token.raw {
+            if raw.len() > CACHE_MAX_TEXT_BYTES {
+                return Err(cache_invalid("flow candidate cache has oversized raw text"));
+            }
+            writer.write_all(&(raw.len() as u32).to_le_bytes())?;
+            writer.write_all(raw.as_bytes())?;
+        }
+        writer.write_all(&[token.normalization])?;
         writer.write_all(&(token.text.len() as u32).to_le_bytes())?;
         writer.write_all(token.text.as_bytes())?;
     }
@@ -413,6 +722,43 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
         } else {
             None
         };
+        let font_size = if flags[0] & 8 != 0 {
+            Some(read_f64(reader)?)
+        } else {
+            None
+        };
+        let position = if flags[0] & 32 != 0 {
+            let baseline = Vec2 {
+                x: read_f64(reader)?,
+                y: read_f64(reader)?,
+            };
+            let direction = Vec2 {
+                x: read_f64(reader)?,
+                y: read_f64(reader)?,
+            };
+            Some(PositionSignature::new(baseline, direction).ok_or_else(|| {
+                cache_invalid("flow candidate cache has invalid position evidence")
+            })?)
+        } else {
+            None
+        };
+        let raw = if flags[0] & 16 != 0 {
+            let raw_len = read_u32(reader)? as usize;
+            if raw_len > CACHE_MAX_TEXT_BYTES {
+                return Err(cache_invalid("flow candidate cache has oversized raw text"));
+            }
+            let mut raw = vec![0u8; raw_len];
+            reader.read_exact(&mut raw)?;
+            Some(
+                String::from_utf8(raw)
+                    .map_err(|_| cache_invalid("flow candidate cache has invalid raw text"))?
+                    .into_boxed_str(),
+            )
+        } else {
+            None
+        };
+        let mut normalization = [0u8; 1];
+        reader.read_exact(&mut normalization)?;
         let text_len = read_u32(reader)? as usize;
         if text_len > CACHE_MAX_TEXT_BYTES {
             return Err(cache_invalid("flow candidate cache has an oversized token"));
@@ -428,6 +774,11 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
             block,
             uncertain: flags[0] & 2 != 0,
             line_break_after: flags[0] & 4 != 0,
+            font_size,
+            raw,
+            position,
+            page_break_after: flags[0] & 64 != 0,
+            normalization: normalization[0],
         });
     }
     let visible = read_u64(reader)? as usize;
@@ -452,6 +803,7 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
     }
     Ok(FlowStream {
         tokens,
+        source_glyphs: Vec::new(),
         furniture: Vec::new(),
         conservation: Conservation {
             visible,
@@ -472,8 +824,27 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
 /// Returns an error when layout reconstruction, paint-order layout, or
 /// normalization fails.
 pub fn flow_candidates(document: &Document<Glyph>) -> Result<FlowCandidates> {
-    let candidates = candidates(document)?;
-    Ok(FlowCandidates { candidates })
+    flow_candidates_with_sources(document, false)
+}
+
+/// Builds all order hypotheses and retains each token's source glyph ids.
+///
+/// Used by the full report. The default path calls
+/// [`flow_candidates`], which leaves the source vectors empty.
+///
+/// # Errors
+///
+/// Returns the same errors as [`flow_candidates`].
+pub fn flow_candidates_with_sources(
+    document: &Document<Glyph>,
+    retain_sources: bool,
+) -> Result<FlowCandidates> {
+    let paint_inventory = paint_inventory(document);
+    let candidates = candidates(document, retain_sources)?;
+    Ok(FlowCandidates {
+        candidates,
+        paint_inventory,
+    })
 }
 
 /// Builds all reading-order hypotheses while consuming the document.
@@ -486,9 +857,42 @@ pub fn flow_candidates(document: &Document<Glyph>) -> Result<FlowCandidates> {
 /// Returns an error when layout reconstruction, paint-order layout, or
 /// normalization fails.
 pub fn flow_candidates_owned(document: Document<Glyph>) -> Result<FlowCandidates> {
+    flow_candidates_owned_with_sources(document, false)
+}
+
+/// Builds all order hypotheses while consuming the document and optionally
+/// retaining source glyph ids for a full report.
+///
+/// # Errors
+///
+/// Returns the same errors as [`flow_candidates_owned`].
+pub fn flow_candidates_owned_with_sources(
+    document: Document<Glyph>,
+    retain_sources: bool,
+) -> Result<FlowCandidates> {
+    let paint_inventory = paint_inventory(&document);
     let visible = visible_document_owned(document);
-    let candidates = candidates_from_visible(visible)?;
-    Ok(FlowCandidates { candidates })
+    let candidates = candidates_from_visible(visible, retain_sources)?;
+    Ok(FlowCandidates {
+        candidates,
+        paint_inventory,
+    })
+}
+
+/// Maps the extracted paint census into the compact flow inventory.
+fn paint_inventory(document: &Document<Glyph>) -> Option<Vec<PaintIdentity>> {
+    document.non_text_paint_bounds().map(|paints| {
+        paints
+            .iter()
+            .map(|paint| PaintIdentity {
+                page: paint.page,
+                kind: paint.kind,
+                identity: paint.identity.clone(),
+                shape: paint.shape.clone(),
+                bounds: paint.bounds,
+            })
+            .collect()
+    })
 }
 
 /// Chooses page orders from both sides' candidates and returns the flows.
@@ -565,16 +969,24 @@ pub fn flow_order_from_candidates(
     })
 }
 
-fn candidates(document: &Document<Glyph>) -> Result<Candidates> {
-    candidates_from_visible(visible_document(document))
+fn candidates(document: &Document<Glyph>, retain_sources: bool) -> Result<Candidates> {
+    candidates_from_visible(visible_document(document), retain_sources)
 }
 
-fn candidates_from_visible(visible: Document<Glyph>) -> Result<Candidates> {
+fn candidates_from_visible(visible: Document<Glyph>, retain_sources: bool) -> Result<Candidates> {
     let glyphs = crate::GlyphLookup::new(&visible);
     let conservation = crate::conservation_of(&visible);
     let lines = reconstruct_lines(&visible, LineOptions::default())?;
     let blocks = reconstruct_blocks(&visible, &lines, BlockOptions::default())?;
-    let layout = stream_from_layout(&visible, &glyphs, &conservation, &lines, &blocks, false)?;
+    let layout = stream_from_layout(
+        &visible,
+        &glyphs,
+        &conservation,
+        &lines,
+        &blocks,
+        false,
+        retain_sources,
+    )?;
     let (stream_lines, stream_blocks) = stream_layout(&visible);
     let stream = stream_from_layout(
         &visible,
@@ -583,6 +995,7 @@ fn candidates_from_visible(visible: Document<Glyph>) -> Result<Candidates> {
         &stream_lines,
         &stream_blocks,
         false,
+        retain_sources,
     )?;
     let (baseline_lines, baseline_blocks) = baseline_layout(&visible);
     let baseline = stream_from_layout(
@@ -592,6 +1005,7 @@ fn candidates_from_visible(visible: Document<Glyph>) -> Result<Candidates> {
         &baseline_lines,
         &baseline_blocks,
         false,
+        retain_sources,
     )?;
     Ok(Candidates {
         layout,
@@ -1004,6 +1418,7 @@ fn assemble_stream(
     let mut baseline_taken =
         take_selected_pages(&mut candidates.baseline, &baseline_ranges, &selected[2]);
     let mut chosen = Vec::new();
+    let mut chosen_sources = Vec::new();
     for evidence in &pages {
         if evidence.bands.is_empty() {
             let taken = match evidence.order {
@@ -1011,8 +1426,9 @@ fn assemble_stream(
                 OrderKind::Stream => &mut stream_taken,
                 OrderKind::Baseline => &mut baseline_taken,
             };
-            if let Some(mut tokens) = taken.remove(&evidence.page.0) {
+            if let Some((mut tokens, mut sources)) = taken.remove(&evidence.page.0) {
                 chosen.append(&mut tokens);
+                chosen_sources.append(&mut sources);
             }
             continue;
         }
@@ -1027,29 +1443,51 @@ fn assemble_stream(
                 OrderKind::Stream => 1,
                 OrderKind::Baseline => 2,
             };
-            let Some(run) = runs[run_index].as_mut() else {
+            let Some((run_tokens, run_sources)) = runs[run_index].as_mut() else {
                 continue;
             };
             let mut kept = Vec::new();
             let mut remaining = Vec::new();
-            for token in run.drain(..) {
+            let mut kept_sources = Vec::new();
+            let mut remaining_sources = Vec::new();
+            let retained_sources = !run_sources.is_empty();
+            let mut source_iter = std::mem::take(run_sources).into_iter();
+            for token in run_tokens.drain(..) {
+                let source = if retained_sources {
+                    source_iter.next().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
                 if ordered_band_of(&evidence.bands, &token) == index {
                     kept.push(token);
+                    if retained_sources {
+                        kept_sources.push(source);
+                    }
                 } else {
                     remaining.push(token);
+                    if retained_sources {
+                        remaining_sources.push(source);
+                    }
                 }
             }
-            *run = remaining;
+            *run_tokens = remaining;
+            *run_sources = if retained_sources {
+                remaining_sources
+            } else {
+                Vec::new()
+            };
             if let Some(last) = kept.last_mut() {
                 // The band ends at a line boundary; keep furniture line
                 // splitting from joining text across the band seam.
                 last.line_break_after = true;
             }
             chosen.append(&mut kept);
+            chosen_sources.append(&mut kept_sources);
         }
     }
     let stream = FlowStream {
         tokens: chosen,
+        source_glyphs: chosen_sources,
         furniture: Vec::new(),
         conservation: candidates.layout.conservation,
     };
@@ -1061,12 +1499,18 @@ fn take_selected_pages(
     stream: &mut FlowStream,
     ranges: &BTreeMap<u32, Range<usize>>,
     selected: &BTreeSet<u32>,
-) -> BTreeMap<u32, Vec<FlowToken>> {
+) -> BTreeMap<u32, (Vec<FlowToken>, Vec<Vec<GlyphId>>)> {
     let mut taken = BTreeMap::new();
+    let retained_sources = !stream.source_glyphs.is_empty();
     for (&page, range) in ranges.iter().rev() {
         if selected.contains(&page) {
+            let sources = if retained_sources {
+                stream.source_glyphs.drain(range.clone()).collect()
+            } else {
+                Vec::new()
+            };
             let tokens = stream.tokens.drain(range.clone()).collect();
-            taken.insert(page, tokens);
+            taken.insert(page, (tokens, sources));
         }
     }
     taken
@@ -2050,6 +2494,11 @@ mod tests {
             block: 0,
             uncertain: false,
             line_break_after: false,
+            font_size: None,
+            raw: None,
+            position: None,
+            page_break_after: false,
+            normalization: 0,
         }
     }
 
@@ -2067,18 +2516,48 @@ mod tests {
             block: 0,
             uncertain: false,
             line_break_after: true,
+            font_size: None,
+            raw: None,
+            position: None,
+            page_break_after: false,
+            normalization: 0,
         }
     }
 
     #[test]
     fn candidate_cache_round_trips_exactly() {
-        let candidates = candidates_of(&[&["alpha", "beta"], &["gamma"]]);
+        let mut candidates = candidates_of(&[&["alpha", "beta"], &["gamma"]]);
+        for stream in [
+            &mut candidates.layout,
+            &mut candidates.stream,
+            &mut candidates.baseline,
+        ] {
+            let token = &mut stream.tokens[0];
+            token.raw = Some("alpha ".into());
+            token.position = Some(
+                PositionSignature::new(Vec2 { x: 1.0, y: 2.0 }, Vec2 { x: 1.0, y: 0.0 })
+                    .expect("position"),
+            );
+            token.page_break_after = true;
+            token.normalization = 4;
+        }
+        let paint_inventory = vec![PaintIdentity {
+            page: PageId(2),
+            kind: NonTextPaintKind::Path,
+            identity: Some("identity".to_owned()),
+            shape: Some("shape".to_owned()),
+            bounds: Some(Rect {
+                min: Vec2 { x: 1.0, y: 2.0 },
+                max: Vec2 { x: 3.0, y: 4.0 },
+            }),
+        }];
         let cached = FlowCandidates {
             candidates: Candidates {
                 layout: candidates.layout.clone(),
                 stream: candidates.stream.clone(),
                 baseline: candidates.baseline.clone(),
             },
+            paint_inventory: Some(paint_inventory.clone()),
         };
         let mut bytes = Vec::new();
         cached
@@ -2089,6 +2568,7 @@ mod tests {
         assert_eq!(loaded.candidates.layout, candidates.layout);
         assert_eq!(loaded.candidates.stream, candidates.stream);
         assert_eq!(loaded.candidates.baseline, candidates.baseline);
+        assert_eq!(loaded.paint_inventory, Some(paint_inventory));
         assert!(FlowCandidates::read_cache(&b"notacache"[..]).is_err());
         let truncated = &bytes[..bytes.len() - 4];
         assert!(FlowCandidates::read_cache(truncated).is_err());
@@ -2153,6 +2633,11 @@ mod tests {
                     block: 0,
                     uncertain: false,
                     line_break_after: false,
+                    font_size: None,
+                    raw: None,
+                    position: None,
+                    page_break_after: false,
+                    normalization: 0,
                 });
             }
         }

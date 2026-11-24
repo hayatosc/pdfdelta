@@ -1,5 +1,7 @@
 use std::{cell::Cell, rc::Rc};
 
+use sha2::{Digest, Sha256};
+
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -18,6 +20,8 @@ pub(crate) struct Operation {
     pub(crate) operands: Vec<Operand>,
     pub(crate) operator: Vec<u8>,
     pub(crate) index: u32,
+    /// Digest of the inline-image dictionary and data attached to `BI`.
+    pub(crate) inline_image_digest: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -250,11 +254,12 @@ impl<'a> Parser<'a> {
                 let index = self.next_operator_index()?;
                 if token == b"BI" {
                     operands.clear();
-                    self.skip_inline_image()?;
+                    let inline_image_digest = self.skip_inline_image()?;
                     operations.push(Operation {
                         operands: Vec::new(),
                         operator: token.to_vec(),
                         index,
+                        inline_image_digest: Some(inline_image_digest),
                     });
                     continue;
                 }
@@ -262,6 +267,7 @@ impl<'a> Parser<'a> {
                     operands: std::mem::take(operands),
                     operator: token.to_vec(),
                     index,
+                    inline_image_digest: None,
                 });
             }
         }
@@ -480,7 +486,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn skip_inline_image(&mut self) -> Result<()> {
+    fn skip_inline_image(&mut self) -> Result<[u8; 32]> {
+        let start = self.position;
         loop {
             self.skip_space_and_comments();
             let Some(byte) = self.peek() else {
@@ -523,8 +530,11 @@ impl<'a> Parser<'a> {
                     .get(self.position + 2)
                     .is_none_or(|&byte| is_whitespace(byte) || is_delimiter(byte))
             {
+                let digest = Sha256::digest(&self.input[start..self.position]);
+                let mut digest_bytes = [0u8; 32];
+                digest_bytes.copy_from_slice(&digest);
                 self.position += 2;
-                return Ok(());
+                return Ok(digest_bytes);
             }
             self.position += 1;
         }
@@ -731,6 +741,7 @@ mod tests {
                 ],
                 operator: b"Tj".to_vec(),
                 index: 0,
+                inline_image_digest: None,
             }]
         );
         Ok(())
@@ -797,11 +808,13 @@ mod tests {
                     ],
                     operator: b"m".to_vec(),
                     index: 0,
+                    inline_image_digest: None,
                 },
                 Operation {
                     operands: Vec::new(),
                     operator: b"q".to_vec(),
                     index: 1,
+                    inline_image_digest: None,
                 },
             ]
         );

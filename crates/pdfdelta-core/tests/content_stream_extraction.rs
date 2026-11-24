@@ -3,18 +3,14 @@ use std::sync::Arc;
 use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
-    diff::{ChangeKind, Confidence, TextSpan, TokenRange},
     extraction_conformance::{
         GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
     },
-    layout::BlockId,
     model::{
         DecodedText, Document, Glyph, GlyphCropStatus, GlyphIdentitySource, GlyphPathClipStatus,
         PageId, Rect, Vec2,
     },
-    normalize::ScalarRange,
     pdf::{LopdfParser, ParseLimits, PdfParser},
-    pipeline::{PipelineOptions, compare_glyph_documents},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionIssueKind,
         ExtractionLimits, ExtractionOutcome, ExtractionScope, GlyphExtractor,
@@ -273,25 +269,6 @@ fn extract(mut document: LopdfDocument, limits: ExtractionLimits) -> Result<Docu
         .expect("fixture PDF should serialize");
     let pdf = LopdfParser.parse(Arc::from(bytes), ParseLimits::default())?;
     ContentStreamGlyphExtractor.extract(pdf.as_ref(), limits)
-}
-
-fn ruled_two_column_document(changed_value: &str) -> LopdfDocument {
-    let mut pdf = LopdfDocument::with_version("1.7");
-    let font = base_font(&mut pdf);
-    let content = format!(
-        "1 w 40 160 220 55 re S 150 160 m 150 215 l S 40 195 m 260 195 l S 40 180 m 260 180 l S BT /F1 10 Tf 1 0 0 1 50 200 Tm (Alpha) Tj 1 0 0 1 180 200 Tm (One) Tj 1 0 0 1 50 185 Tm (Beta) Tj 1 0 0 1 180 185 Tm ({changed_value}) Tj 1 0 0 1 50 170 Tm (Gamma) Tj 1 0 0 1 180 170 Tm (Three) Tj ET"
-    );
-    let content = pdf.add_object(Stream::new(dictionary! {}, content.into_bytes()));
-    install_page(
-        &mut pdf,
-        content.into(),
-        Object::Dictionary(dictionary! {
-            "Font" => dictionary! { "F1" => font },
-        }),
-        None,
-        None,
-    );
-    pdf
 }
 
 fn extract_outcome(
@@ -2067,85 +2044,6 @@ fn straight_diagonal_and_open_clips_are_classified_as_polygons() -> Result<()> {
 }
 
 #[test]
-fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
-    let old = extract(
-        ruled_two_column_document("VersionTwoStable"),
-        ExtractionLimits::default(),
-    )?;
-    let new = extract(
-        ruled_two_column_document("VersionTenStable"),
-        ExtractionLimits::default(),
-    )?;
-    assert_eq!(old.vector_lines().len(), 7);
-    assert_eq!(new.vector_lines().len(), 7);
-
-    let old_without_rules = Document::new(old.items().to_vec());
-    let new_without_rules = Document::new(new.items().to_vec());
-    let without_rules = compare_glyph_documents(
-        &old_without_rules,
-        &new_without_rules,
-        PipelineOptions::default(),
-    )?;
-    assert!(without_rules.changes.is_empty(), "{without_rules:#?}");
-    assert_eq!(
-        without_rules.change_candidates.len(),
-        1,
-        "{without_rules:#?}"
-    );
-    let candidate = &without_rules.change_candidates[0];
-    assert_eq!(candidate.change.kind, ChangeKind::Replacement);
-    assert_eq!(candidate.change.confidence, Confidence::Medium);
-    assert_eq!(
-        candidate.change.occurrences[0].old_span,
-        Some(TextSpan {
-            blocks: vec![BlockId(4)],
-            separator: None,
-            canonical_range: ScalarRange { start: 8, end: 10 },
-            comparable_range: TokenRange { start: 8, end: 10 },
-        })
-    );
-    assert_eq!(
-        candidate.change.occurrences[0].new_span,
-        Some(TextSpan {
-            blocks: vec![BlockId(4)],
-            separator: None,
-            canonical_range: ScalarRange { start: 8, end: 10 },
-            comparable_range: TokenRange { start: 8, end: 10 },
-        })
-    );
-    assert!(
-        without_rules
-            .assessment
-            .as_ref()
-            .expect("candidate assessment")
-            .relations[candidate.relation]
-            .reasons
-            .contains(&pdfdelta_core::diff::AssessmentReason::UnknownReadingOrder),
-        "{without_rules:#?}"
-    );
-    assert_eq!(
-        without_rules.unresolved_regions.len(),
-        6,
-        "{without_rules:#?}"
-    );
-    assert!(without_rules.unresolved_regions.iter().all(|region| {
-        region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
-    }));
-    assert_eq!(without_rules.old_coverage.resolved_tokens, 14);
-    assert_eq!(without_rules.old_coverage.total_tokens, 38);
-    assert_eq!(without_rules.new_coverage.resolved_tokens, 14);
-    assert_eq!(without_rules.new_coverage.total_tokens, 38);
-
-    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
-    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
-    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
-    assert!(comparison.unresolved_regions.is_empty());
-    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
-    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
-    Ok(())
-}
-
-#[test]
 fn vector_line_and_path_segment_limits_are_enforced() -> Result<()> {
     // Vector lines share an explicit extraction limit (`max_vector_lines`).
     // A stroked path that would emit more lines than the limit must be
@@ -2418,7 +2316,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
         store.key_inventories.push(tags.key_inventory);
         let graph = DocumentGraph::from_evidence(
             &store,
-            PipelineOptions::default(),
+            pdfdelta_core::options::PipelineOptions::default(),
             EvidenceLimits::default(),
             GraphLimits::default(),
         )?;
@@ -2472,7 +2370,7 @@ fn parses_tagged_content_dictionary_operands() -> Result<()> {
             store.structured[2].page = None;
             let graph = DocumentGraph::from_evidence(
                 &store,
-                PipelineOptions::default(),
+                pdfdelta_core::options::PipelineOptions::default(),
                 EvidenceLimits::default(),
                 GraphLimits::default(),
             )?;

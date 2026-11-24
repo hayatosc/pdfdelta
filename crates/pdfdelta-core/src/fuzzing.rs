@@ -1,6 +1,5 @@
 //! Fuzzing-only entry points for internal parsers.
 
-use crate::diff::Confidence;
 use crate::document::{
     BackendIdentity, BackendKind, ButtonAppearanceState, CorrespondenceScope,
     DocumentComparisonLimits, DocumentGraph, DocumentView, EvidenceLimits, EvidenceStore,
@@ -10,9 +9,8 @@ use crate::document::{
 };
 use crate::layout::{Line, LineOptions, RegionOptions, partition_regions, reconstruct_lines};
 use crate::model::{
-    DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphEvidence, GlyphId,
-    GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine,
-    VectorLineId,
+    DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+    GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine, VectorLineId,
 };
 use crate::pdf::LopdfParser;
 use crate::pdf::ParseLimits;
@@ -25,8 +23,6 @@ use crate::pdf::{
     DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfParser, PdfVersion,
     RawStream,
 };
-use crate::pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents};
-use crate::report::{TextReportOptions, render_text, summarize, write_json};
 use crate::source::{
     ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
 };
@@ -713,127 +709,9 @@ pub fn fuzz_layout_pipeline(input: &[u8]) {
         }
     }
 
-    let Ok(comparison) = compare_glyph_documents(&document, &document, PipelineOptions::default())
-    else {
-        return;
-    };
-    assert!(
-        comparison.changes.is_empty(),
-        "identity comparison reported {} exact changes",
-        comparison.changes.len()
-    );
-    assert!(
-        comparison.formatting_changes.is_empty(),
-        "identity comparison reported {} formatting changes",
-        comparison.formatting_changes.len()
-    );
-
-    if let Ok(svg) = crate::report::render_glyph_overlay_svg(&document) {
+    if let Ok(svg) = crate::overlay_svg::render_glyph_overlay_svg(&document) {
         assert!(svg.starts_with("<svg"));
     }
-}
-
-/// Compares two arbitrary synthetic documents through the full text pipeline.
-///
-/// Inputs larger than 64 KiB are ignored, and each half must be non-empty. The
-/// two halves produce separate documents that are compared in both directions,
-/// exercising alignment, recovery, sentence pairing, the Myers diff, and report
-/// summarization. Comparison errors are accepted outcomes; a successful
-/// comparison must still summarize and satisfy the public result shapes.
-///
-/// # Panics
-///
-/// Panics if a successful comparison cannot be summarized or violates a public
-/// result-shape invariant.
-#[doc(hidden)]
-pub fn fuzz_text_comparison(input: &[u8]) {
-    if input.len() > MAX_INPUT_BYTES || input.len() < 2 {
-        return;
-    }
-    let (left, right) = input.split_at(input.len() / 2);
-    if left.is_empty() || right.is_empty() {
-        return;
-    }
-    let old = synthetic_glyph_document(left);
-    let new = synthetic_glyph_document(right);
-    let _ = check_text_comparison(&old, &new);
-    let _ = check_text_comparison(&new, &old);
-}
-
-fn check_text_comparison(old: &Document<Glyph>, new: &Document<Glyph>) -> bool {
-    let Ok(outcome) = compare_extraction_outcomes(
-        ExtractionOutcome::complete(old.clone()),
-        ExtractionOutcome::complete(new.clone()),
-        PipelineOptions::default(),
-    ) else {
-        return false;
-    };
-    let comparison = &outcome.comparison;
-    let summary =
-        summarize(comparison, &outcome.extraction).expect("a successful comparison must summarize");
-    assert_eq!(summary.content_changes, comparison.changes.len());
-    assert_eq!(
-        summary.uncertain_changes,
-        comparison
-            .changes
-            .iter()
-            .filter(|change| change.confidence == Confidence::Low)
-            .count()
-    );
-    for change in &comparison.changes {
-        assert!(!change.occurrences.is_empty());
-        for occurrence in &change.occurrences {
-            assert!(occurrence.old_span.is_some() || occurrence.new_span.is_some());
-        }
-    }
-    for region in &comparison.unresolved_regions {
-        assert!(region.old_span.is_some() || region.new_span.is_some());
-    }
-    // A pipeline-produced comparison must satisfy the public report contracts.
-    let text = render_text(
-        &outcome.old_blocks,
-        &outcome.new_blocks,
-        comparison,
-        &outcome.extraction,
-        &TextReportOptions {
-            old_label: "old",
-            new_label: "new",
-            color: false,
-        },
-    )
-    .expect("a successful comparison must render as text");
-    assert!(!text.is_empty());
-    assert!(
-        !text.contains('\u{1b}') && !text.contains('\u{202e}'),
-        "PDF-derived text must be rendered with terminal controls escaped"
-    );
-    let old_evidence = old
-        .items()
-        .iter()
-        .map(GlyphEvidence::from)
-        .collect::<Vec<_>>();
-    let new_evidence = new
-        .items()
-        .iter()
-        .map(GlyphEvidence::from)
-        .collect::<Vec<_>>();
-    let mut json = Vec::new();
-    write_json(
-        &mut json,
-        &outcome.old_blocks,
-        &outcome.new_blocks,
-        &old_evidence,
-        &new_evidence,
-        comparison,
-        &outcome.extraction,
-    )
-    .expect("a successful comparison must serialize as JSON");
-    assert!(json.starts_with(b"{"));
-    assert!(
-        serde_json::from_slice::<serde_json::Value>(&json).is_ok(),
-        "the JSON report must parse"
-    );
-    true
 }
 
 /// Exercises the shared evidence graph and solver over arbitrary synthetic
@@ -875,7 +753,7 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
     let limits = EvidenceLimits::default();
     let Ok(mut old_graph) = DocumentGraph::from_evidence(
         old_store,
-        PipelineOptions::default(),
+        crate::options::PipelineOptions::default(),
         limits,
         GraphLimits::default(),
     ) else {
@@ -883,7 +761,7 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
     };
     let Ok(mut new_graph) = DocumentGraph::from_evidence(
         new_store,
-        PipelineOptions::default(),
+        crate::options::PipelineOptions::default(),
         limits,
         GraphLimits::default(),
     ) else {
@@ -949,7 +827,7 @@ fn check_graph_pair(old_store: &EvidenceStore, new_store: &EvidenceStore) -> boo
         &mut new_graph,
         old_store,
         new_store,
-        PipelineOptions::default(),
+        crate::options::PipelineOptions::default(),
         DocumentComparisonLimits::default(),
     ) else {
         return false;
@@ -1104,7 +982,7 @@ fn native_evidence_for_pdf(input: &[u8]) -> bool {
     }
     let Ok(graph) = DocumentGraph::from_evidence(
         &store,
-        PipelineOptions::default(),
+        crate::options::PipelineOptions::default(),
         limits,
         GraphLimits::default(),
     ) else {
@@ -1536,7 +1414,7 @@ fn exercise_default_graph_pipeline(document: &Document<Glyph>, seed: u8) -> Opti
     }
     let Ok(graph) = DocumentGraph::from_evidence(
         &store,
-        PipelineOptions::default(),
+        crate::options::PipelineOptions::default(),
         limits,
         GraphLimits::default(),
     ) else {
@@ -2236,7 +2114,6 @@ mod tests {
     #[test]
     fn synthetic_layout_seeds_reach_the_pipeline_without_changes() {
         let mut reconstruction_reached = 0;
-        let mut comparison_reached = 0;
         let mut graph_comparison_reached = 0;
         let mut svg_reached = 0;
         let mut vector_lines_seen = 0;
@@ -2256,13 +2133,10 @@ mod tests {
                 "seed {seed} produced a document that line reconstruction rejects"
             );
             reconstruction_reached += 1;
-            if compare_glyph_documents(&document, &document, PipelineOptions::default()).is_ok() {
-                comparison_reached += 1;
-            }
             if exercise_default_graph_pipeline(&document, seed).is_some() {
                 graph_comparison_reached += 1;
             }
-            if crate::report::render_glyph_overlay_svg(&document).is_ok() {
+            if crate::overlay_svg::render_glyph_overlay_svg(&document).is_ok() {
                 svg_reached += 1;
             }
             fuzz_layout_pipeline(&input);
@@ -2270,10 +2144,6 @@ mod tests {
         // The generator must keep producing documents that flow through the
         // whole exercised pipeline instead of stopping at validation.
         assert_eq!(reconstruction_reached, 65);
-        assert!(
-            comparison_reached >= 32,
-            "only {comparison_reached} of 65 seeds reached the comparison pipeline"
-        );
         assert!(
             graph_comparison_reached >= 32,
             "only {graph_comparison_reached} of 65 seeds reached the shared graph solver"
@@ -2312,30 +2182,6 @@ mod tests {
         assert!(
             reached >= 1,
             "no synthetic pair reached the shared graph solver"
-        );
-    }
-
-    #[test]
-    fn synthetic_text_comparison_seeds_reach_the_diff_pipeline() {
-        let mut reached = 0;
-        for seed in 0u8..=32 {
-            let mut input = vec![seed];
-            input.extend((0..192u16).map(|index| {
-                (index as u8)
-                    .wrapping_mul(seed.wrapping_add(7))
-                    .wrapping_add(seed.wrapping_mul(3))
-            }));
-            let (left, right) = input.split_at(input.len() / 2);
-            let old = synthetic_glyph_document(left);
-            let new = synthetic_glyph_document(right);
-            if check_text_comparison(&old, &new) && check_text_comparison(&new, &old) {
-                reached += 1;
-            }
-            fuzz_text_comparison(&input);
-        }
-        assert!(
-            reached >= 16,
-            "only {reached} of 33 seeds reached and summarized the comparison"
         );
     }
 

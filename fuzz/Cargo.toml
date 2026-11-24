@@ -11,6 +11,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 pdfdelta-bench = { path = "../crates/pdfdelta-bench", features = ["fuzzing"] }
 pdfdelta-core = { path = "../crates/pdfdelta-core", features = ["fuzzing"] }
+pdfdelta-flow = { path = "../crates/pdfdelta-flow", features = ["fuzzing"] }
 
 [[bin]]
 name = "parser_entry"

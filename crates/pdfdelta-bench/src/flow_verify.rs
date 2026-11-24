@@ -19,10 +19,10 @@ use std::{
 };
 
 use pdfdelta_core::{
-    diff::ChangeKind,
     model::{Document, Glyph},
     pdf::{LopdfParser, ParseLimits},
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
+    span::ChangeKind,
 };
 use pdfdelta_flow::{FlowChange, FlowToken, flow_diff, flow_tokens_pair};
 
@@ -72,7 +72,7 @@ impl FlowVerifySummary {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Truth {
+pub(crate) enum Truth {
     NoContentChange,
     Change {
         kind: ChangeKind,
@@ -82,7 +82,7 @@ enum Truth {
 }
 
 impl Truth {
-    fn label(&self) -> String {
+    pub(crate) fn label(&self) -> String {
         match self {
             Self::NoContentChange => "no content change".to_owned(),
             Self::Change {
@@ -151,7 +151,7 @@ pub fn verify_flow_fixtures() -> Result<FlowVerifySummary> {
     Ok(FlowVerifySummary { records, passed })
 }
 
-fn plan_text(plan: &RenderPlan) -> String {
+pub(crate) fn plan_text(plan: &RenderPlan) -> String {
     plan.pages()
         .iter()
         .flatten()
@@ -160,7 +160,7 @@ fn plan_text(plan: &RenderPlan) -> String {
         .join(" ")
 }
 
-fn span_text(plan: &RenderPlan, span: &ExpectedCanonicalSpan) -> String {
+pub(crate) fn span_text(plan: &RenderPlan, span: &ExpectedCanonicalSpan) -> String {
     plan_text(plan)
         .chars()
         .skip(span.start())
@@ -168,7 +168,7 @@ fn span_text(plan: &RenderPlan, span: &ExpectedCanonicalSpan) -> String {
         .collect()
 }
 
-fn truth_for_expectation(
+pub(crate) fn truth_for_expectation(
     changes: &[ExpectedSemanticChange],
     old_plan: &RenderPlan,
     new_plan: &RenderPlan,
@@ -346,7 +346,10 @@ fn read_bounded_pdf(path: &Path) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn extract_pair(old_pdf: &[u8], new_pdf: &[u8]) -> Result<(Document<Glyph>, Document<Glyph>)> {
+pub(crate) fn extract_pair(
+    old_pdf: &[u8],
+    new_pdf: &[u8],
+) -> Result<(Document<Glyph>, Document<Glyph>)> {
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let parse_limits = ParseLimits::default();
     let extraction_limits = ExtractionLimits::default();
@@ -393,14 +396,14 @@ fn compare_documents(
 }
 
 #[derive(Debug, Default)]
-struct ActualChanges {
-    content: Vec<(String, String, String)>,
-    moves: Vec<(String, String)>,
-    layout_only: usize,
+pub(crate) struct ActualChanges {
+    pub(crate) content: Vec<(String, String, String)>,
+    pub(crate) moves: Vec<(String, String)>,
+    pub(crate) layout_only: usize,
 }
 
 impl ActualChanges {
-    fn label(&self) -> String {
+    pub(crate) fn label(&self) -> String {
         let mut parts = Vec::new();
         for (kind, _, _) in &self.content {
             if !parts.iter().any(|part| part == kind) {
@@ -422,7 +425,7 @@ impl ActualChanges {
         parts.join(",")
     }
 
-    fn old_text(&self) -> String {
+    pub(crate) fn old_text(&self) -> String {
         self.content
             .iter()
             .filter(|(kind, _, _)| kind == "replace" || kind == "delete")
@@ -430,7 +433,7 @@ impl ActualChanges {
             .collect()
     }
 
-    fn new_text(&self) -> String {
+    pub(crate) fn new_text(&self) -> String {
         self.content
             .iter()
             .filter(|(kind, _, _)| kind == "replace" || kind == "insert")
@@ -439,7 +442,7 @@ impl ActualChanges {
     }
 }
 
-fn summarize_changes(
+pub(crate) fn summarize_changes(
     changes: &[FlowChange],
     old: &[FlowToken],
     new: &[FlowToken],
@@ -478,11 +481,11 @@ fn summarize_changes(
     actual
 }
 
-fn token_text(tokens: &[FlowToken]) -> String {
+pub(crate) fn token_text(tokens: &[FlowToken]) -> String {
     tokens.iter().map(|token| token.text.as_str()).collect()
 }
 
-fn check_truth(truth: &Truth, actual: &ActualChanges) -> (bool, String) {
+pub(crate) fn check_truth(truth: &Truth, actual: &ActualChanges) -> (bool, String) {
     match truth {
         Truth::NoContentChange => {
             let passed = actual.content.is_empty();
@@ -585,7 +588,7 @@ fn check_truth(truth: &Truth, actual: &ActualChanges) -> (bool, String) {
     }
 }
 
-fn normalize_text(text: &str) -> String {
+pub(crate) fn normalize_text(text: &str) -> String {
     text.chars()
         .filter(|scalar| !scalar.is_whitespace())
         .collect()

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{Result, model::GlyphId, normalize::ComparableToken, pipeline::PipelineOptions};
+use crate::{Result, model::GlyphId, normalize::ComparableToken, options::PipelineOptions};
 
 use super::{
     BackendKind, DocumentGraph, EdgeKind, EvidenceLimits, EvidenceStore, GraphEdge, GraphLimits,

@@ -7,10 +7,11 @@
 
 use std::{
     fs,
-    io::{self, Write},
+    io::{self, BufWriter, Write},
     path::Path,
 };
 
+use pdfdelta_flow::FlowError;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -19,8 +20,8 @@ pub(crate) const MAX_BYTES: usize = 512 * 1024 * 1024;
 
 /// One published file, with the exact bytes written and their digest.
 ///
-/// The digest identifies the artifact and detects drift. It is not a proof
-/// about the document's content.
+/// The digest identifies the artifact and detects drift. It says nothing about
+/// the document's content.
 #[derive(Serialize)]
 pub(crate) struct Artifact {
     pub name: String,
@@ -36,36 +37,40 @@ pub(crate) struct Artifact {
 pub(crate) fn validate_destination(
     directory: &Path,
     outputs: &[Option<&Path>],
-) -> Result<(), String> {
+) -> Result<(), FlowError> {
     match fs::symlink_metadata(directory) {
         Ok(_) => {
-            return Err(format!(
+            return Err(FlowError::backend(format!(
                 "refusing existing review directory {}",
                 directory.display()
-            ));
+            )));
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
-            return Err(format!(
+            return Err(FlowError::backend(format!(
                 "cannot inspect review directory {}: {error}",
                 directory.display()
-            ));
+            )));
         }
     }
-    let destination = crate::fs::normalized_destination(directory, "review directory")?;
+    let destination = crate::fs::normalized_destination(directory, "review directory")
+        .map_err(FlowError::backend)?;
     for output in outputs.iter().flatten() {
-        if crate::fs::normalized_destination(output, "review output")?.starts_with(&destination) {
-            return Err(format!(
+        if crate::fs::normalized_destination(output, "review output")
+            .map_err(FlowError::backend)?
+            .starts_with(&destination)
+        {
+            return Err(FlowError::backend(format!(
                 "output {} collides with the review directory",
                 output.display()
-            ));
+            )));
         }
     }
     Ok(())
 }
 
 /// Creates the bundle directory with owner-only access.
-pub(crate) fn create_directory(directory: &Path) -> Result<(), String> {
+pub(crate) fn create_directory(directory: &Path) -> Result<(), FlowError> {
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
@@ -73,10 +78,10 @@ pub(crate) fn create_directory(directory: &Path) -> Result<(), String> {
         builder.mode(0o700);
     }
     builder.create(directory).map_err(|error| {
-        format!(
+        FlowError::backend(format!(
             "cannot create new review directory {}: {error}",
             directory.display()
-        )
+        ))
     })
 }
 
@@ -84,11 +89,14 @@ pub(crate) struct BoundedWriter<'a> {
     pub inner: &'a mut dyn Write,
     pub remaining: &'a mut usize,
     pub hash: &'a mut Sha256,
+    /// Set when a write was refused because the bundle budget is exhausted.
+    pub over_budget: &'a mut bool,
 }
 
 impl Write for BoundedWriter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         if bytes.len() > *self.remaining {
+            *self.over_budget = true;
             return Err(io::Error::other(
                 "review bundle exceeds its 512 MiB output budget",
             ));
@@ -113,23 +121,75 @@ pub(crate) fn file(
     name: &str,
     remaining: &mut usize,
     write: impl FnOnce(&mut dyn Write) -> io::Result<()>,
-) -> Result<Artifact, String> {
+) -> Result<Artifact, FlowError> {
     let before = *remaining;
     let mut hash = Sha256::new();
     if let Some(parent) = Path::new(name)
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
     {
-        fs::create_dir_all(directory.join(parent))
-            .map_err(|error| format!("cannot create review artifact directory {name}: {error}"))?;
+        fs::create_dir_all(directory.join(parent)).map_err(|error| {
+            FlowError::backend(format!(
+                "cannot create review artifact directory {name}: {error}"
+            ))
+        })?;
     }
-    crate::fs::write_output_atomically(&directory.join(name), "review artifact", |writer| {
-        write(&mut BoundedWriter {
-            inner: writer,
-            remaining,
-            hash: &mut hash,
+    let compressed = Path::new(name)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("gz"));
+    let mut over_budget = false;
+    let result = if compressed {
+        // A `.gz` artifact is one gzip member. Compress inside the bounded
+        // writer so the bundle budget and the recorded digest both describe
+        // the bytes that are actually published, not an uncompressed payload
+        // that the output publisher would compress again.
+        crate::fs::write_output_atomically_uncompressed(
+            &directory.join(name),
+            "review artifact",
+            |writer| {
+                let mut bounded = BoundedWriter {
+                    inner: writer,
+                    remaining,
+                    hash: &mut hash,
+                    over_budget: &mut over_budget,
+                };
+                let mut encoder =
+                    flate2::write::GzEncoder::new(&mut bounded, flate2::Compression::default());
+                {
+                    // Batch the serializer's many small writes without
+                    // flushing the encoder. `into_inner` pushes the final
+                    // partial chunk to the encoder; a `flush` here would add a
+                    // sync-flush block and change the gzip stream.
+                    let mut buffered = BufWriter::with_capacity(64 * 1024, &mut encoder);
+                    write(&mut buffered)
+                        .map_err(|error| format!("cannot write review artifact {name}: {error}"))?;
+                    buffered
+                        .into_inner()
+                        .map_err(|error| format!("cannot write review artifact {name}: {error}"))?;
+                }
+                encoder
+                    .finish()
+                    .map_err(|error| format!("cannot write review artifact {name}: {error}"))?;
+                Ok(())
+            },
+        )
+    } else {
+        crate::fs::write_output_atomically(&directory.join(name), "review artifact", |writer| {
+            write(&mut BoundedWriter {
+                inner: writer,
+                remaining,
+                hash: &mut hash,
+                over_budget: &mut over_budget,
+            })
+            .map_err(|error| format!("cannot write review artifact {name}: {error}"))
         })
-        .map_err(|error| format!("cannot write review artifact {name}: {error}"))
+    };
+    result.map_err(|error| {
+        if over_budget {
+            FlowError::limit_exceeded("review bundle bytes", MAX_BYTES, error)
+        } else {
+            FlowError::backend(error)
+        }
     })?;
     Ok(Artifact {
         name: name.into(),
@@ -165,15 +225,71 @@ mod tests {
         let mut output = Vec::new();
         let mut remaining = 3;
         let mut hash = Sha256::new();
+        let mut over_budget = false;
         let mut writer = BoundedWriter {
             inner: &mut output,
             remaining: &mut remaining,
             hash: &mut hash,
+            over_budget: &mut over_budget,
         };
         writer.write_all(b"ab").expect("bounded prefix");
         assert!(writer.write_all(b"cd").is_err());
+        assert!(over_budget);
         assert_eq!(remaining, 1);
         assert_eq!(output, b"ab");
         assert_eq!(hash.finalize(), Sha256::digest(b"ab"));
+    }
+
+    #[test]
+    fn gzip_artifact_is_one_stream_and_charges_compressed_bytes() {
+        use std::io::Read as _;
+
+        let directory =
+            std::env::temp_dir().join(format!("pdfdelta-bundle-gzip-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir(&directory).expect("temporary bundle directory");
+        let payload = vec![b'x'; 1_000_000];
+        let mut remaining = 10_000;
+        let artifact = file(&directory, "sources.json.gz", &mut remaining, |output| {
+            output.write_all(&payload)
+        })
+        .expect("compressible gzip artifact fits the budget");
+        // The one-megabyte payload compresses below the ten-kilobyte budget,
+        // so the budget is charged the published bytes, not the payload.
+        assert!(artifact.bytes < payload.len(), "{}", artifact.bytes);
+        assert_eq!(artifact.bytes, 10_000 - remaining);
+        let bytes = fs::read(directory.join("sources.json.gz")).expect("gzip artifact");
+        assert_eq!(&bytes[..2], &[0x1f, 0x8b]);
+        let mut decoded = Vec::new();
+        flate2::read::GzDecoder::new(bytes.as_slice())
+            .read_to_end(&mut decoded)
+            .expect("one gzip layer");
+        assert_eq!(decoded, payload);
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn artifact_budget_failure_keeps_the_limit_class() {
+        use pdfdelta_flow::{FlowErrorClass, FlowLimit};
+
+        let directory =
+            std::env::temp_dir().join(format!("pdfdelta-bundle-budget-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir(&directory).expect("temporary bundle directory");
+        let mut remaining = 1;
+        let error = file(&directory, "artifact.bin", &mut remaining, |output| {
+            output.write_all(b"ab")
+        })
+        .err()
+        .expect("the artifact exceeds the remaining budget");
+        assert_eq!(error.class(), FlowErrorClass::LimitExceeded);
+        assert_eq!(
+            error.limit(),
+            Some(FlowLimit {
+                resource: "review bundle bytes",
+                limit: MAX_BYTES,
+            })
+        );
+        let _ = fs::remove_dir_all(&directory);
     }
 }

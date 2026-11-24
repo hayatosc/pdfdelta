@@ -863,6 +863,7 @@ dependencies = [
  "flate2",
  "hayro",
  "lopdf",
+ "pdfdelta-bench",
  "pdfdelta-core",
  "pdfdelta-flow",
  "png",

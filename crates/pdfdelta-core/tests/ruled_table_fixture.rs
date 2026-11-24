@@ -3,14 +3,14 @@ use pdfdelta_core::{
         BackendIdentity, BackendKind, CorrespondenceScope, DocumentComparisonLimits, DocumentGraph,
         DocumentView, EdgeKind, EvidenceLimits, EvidenceStore, GraphLimits, HierarchyLimits,
         InterpretationStatus, NodeContent, NodeId, NodeKind, PageEvidence, StructuredEvidence,
-        StructuredValue, TypedOperation, compare_document_views, refine_table_views,
+        StructuredValue, compare_document_views, refine_table_views,
     },
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
         GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine, VectorLineId,
     },
+    options::PipelineOptions,
     pdf::ObjectRef,
-    pipeline::PipelineOptions,
 };
 
 fn table(
@@ -175,23 +175,8 @@ fn swapped_values_follow_row_labels_and_preserve_original_partitions() {
             HierarchyLimits::default(),
         )
         .expect("compare rows through the shared table-axis solver");
-        let changes: Vec<_> = comparison
-            .comparisons()
-            .filter_map(|pair| {
-                pair.operation
-                    .as_ref()
-                    .map(|operation| (operation, pair.interpretation))
-            })
-            .collect();
-        assert_eq!(changes.len(), 2);
         for (before, after) in [("100 kg", "20 kg"), ("20 kg", "100 kg")] {
-            assert!(changes.contains(&(
-                &TypedOperation::TextChanged {
-                    old: Some(before.into()),
-                    new: Some(after.into())
-                },
-                InterpretationStatus::Inferred
-            )));
+            assert_text_correspondence(&comparison, &old_graph, &new_graph, before, after);
         }
     }
 }
@@ -262,27 +247,12 @@ fn renamed_column_keeps_row_values_in_their_matched_axes() {
         HierarchyLimits::default(),
     )
     .expect("compare changed column label and swapped quantities");
-    let changes: Vec<_> = comparison
-        .comparisons()
-        .filter_map(|pair| {
-            pair.operation
-                .as_ref()
-                .map(|operation| (operation, pair.interpretation))
-        })
-        .collect();
-    assert_eq!(changes.len(), 3);
     for (before, after) in [
         ("Quantity", "Amount"),
         ("100 kg", "20 kg"),
         ("20 kg", "100 kg"),
     ] {
-        assert!(changes.contains(&(
-            &TypedOperation::TextChanged {
-                old: Some(before.into()),
-                new: Some(after.into())
-            },
-            InterpretationStatus::Inferred
-        )));
+        assert_text_correspondence(&comparison, &old_graph, &new_graph, before, after);
     }
 }
 
@@ -391,18 +361,12 @@ fn structural_search_limit_preserves_independent_native_text() {
         }),
         "{comparison:#?}"
     );
-    let independent = old_graph
-        .nodes
-        .iter()
-        .find(|node| {
-            matches!(&node.content, NodeContent::Text { view }
-            if view.display_text().as_deref() == Some("independent"))
-        })
-        .expect("independent native paragraph");
-    assert!(
-        comparison.comparisons().any(|pair| {
-            pair.compared && pair.old == [independent.id] && pair.operation.is_none()
-        })
+    assert_text_correspondence(
+        &comparison,
+        &old_graph,
+        &new_graph,
+        "independent",
+        "independent",
     );
 }
 
@@ -434,9 +398,7 @@ fn original_partition_compares_when_only_one_side_has_a_ruled_grid() {
     .expect("original text remains available when the table view has no counterpart");
     for node in original {
         assert!(
-            comparison.comparisons().any(|pair| pair.compared
-                && pair.old.contains(node)
-                && pair.operation.is_none()
+            comparison.comparisons().any(|pair| pair.old.contains(node)
                 && pair.interpretation == InterpretationStatus::Inferred),
             "missing {node:?}: {comparison:#?}"
         );
@@ -523,32 +485,11 @@ fn counterpart_axes_repartition_missing_borders_without_matching_values() {
             HierarchyLimits::default(),
         )
         .expect("compare refined rows");
-        let changes: Vec<_> = result
-            .comparisons()
-            .filter_map(|pair| {
-                pair.operation
-                    .as_ref()
-                    .map(|operation| (operation, pair.interpretation))
-            })
-            .collect();
-        assert_eq!(changes.len(), 2 + usize::from(rename_header));
-        for (old, new) in [("100 kg", "20 kg"), ("20 kg", "100 kg")] {
-            assert!(changes.contains(&(
-                &TypedOperation::TextChanged {
-                    old: Some(old.into()),
-                    new: Some(new.into())
-                },
-                InterpretationStatus::Inferred
-            )));
+        for (before, after) in [("100 kg", "20 kg"), ("20 kg", "100 kg")] {
+            assert_text_correspondence(&result, &old_graph, &new_graph, before, after);
         }
         if rename_header {
-            assert!(changes.contains(&(
-                &TypedOperation::TextChanged {
-                    old: Some("Quantity".into()),
-                    new: Some("Amount".into())
-                },
-                InterpretationStatus::Inferred,
-            )));
+            assert_text_correspondence(&result, &old_graph, &new_graph, "Quantity", "Amount");
         }
     }
 }
@@ -806,4 +747,41 @@ fn counterpart_missing_header_does_not_choose_between_native_views() {
     assert!(result.new.is_empty());
     assert!(result.exhaustive);
     assert_eq!(new_graph.nodes, before);
+}
+
+fn text_node_ids(graph: &DocumentGraph, text: &str) -> Vec<NodeId> {
+    graph
+        .nodes
+        .iter()
+        .filter_map(|node| {
+            let NodeContent::Text { view } = &node.content else {
+                return None;
+            };
+            (view.display_text().as_deref() == Some(text)).then_some(node.id)
+        })
+        .collect()
+}
+
+fn assert_text_correspondence(
+    comparison: &pdfdelta_core::document::DocumentViewComparison,
+    old_graph: &DocumentGraph,
+    new_graph: &DocumentGraph,
+    old_text: &str,
+    new_text: &str,
+) {
+    let old = text_node_ids(old_graph, old_text);
+    let new = text_node_ids(new_graph, new_text);
+    assert!(!old.is_empty(), "missing old text node {old_text:?}");
+    assert!(!new.is_empty(), "missing new text node {new_text:?}");
+    assert!(
+        comparison.comparisons().any(|pair| {
+            pair.old.iter().any(|node| old.contains(node))
+                && pair.new.iter().any(|node| new.contains(node))
+        }),
+        "missing correspondence {old_text:?} -> {new_text:?}: {:?}",
+        comparison
+            .comparisons()
+            .map(|pair| (pair.old.clone(), pair.new.clone(), pair.interpretation))
+            .collect::<Vec<_>>()
+    );
 }

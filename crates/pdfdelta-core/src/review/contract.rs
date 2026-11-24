@@ -2,7 +2,7 @@
 //! agent review packet.
 //!
 //! The vocabulary here is deliberately separate from the comparison report: an
-//! external reviewer's selection is a review note, never a proof certificate,
+//! external reviewer's selection is a review note, never a comparison result,
 //! so its schema evolves independently of the engine's versioned result.
 
 use std::{collections::BTreeSet, fmt};
@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    diff::AssessmentReason,
     document::{Channel, EvidenceFailure, SourceRef},
     model::PageId,
     normalize::ScalarRange,
@@ -416,32 +415,19 @@ pub enum ReviewReason {
     CandidatesRejected,
     /// The export stopped before it could describe this material fully.
     ExportBudget,
+    /// A verified flow text change event.
+    ///
+    /// Flow's token-stream script establishes the change; the attached message
+    /// names the operation counts and the report indexes the case covers.
+    FlowTextChange,
+    /// A formatting-only difference on matched flow tokens.
+    ///
+    /// The message names the formatting dimensions (`normalization`,
+    /// `block_structure`, `font_size`, `position`, `line_break`, `page_break`).
+    FlowFormattingChange,
     /// The engine recorded an obligation this vocabulary does not classify.
     /// The original message is retained so the reason is never discarded.
     Other,
-}
-
-impl From<AssessmentReason> for ReviewReason {
-    /// Maps the native-text adapter's vocabulary onto the shared one.
-    ///
-    /// The match is exhaustive on purpose: a new engine reason must be
-    /// classified here rather than silently collapsing into
-    /// [`ReviewReason::Other`].
-    fn from(reason: AssessmentReason) -> Self {
-        match reason {
-            AssessmentReason::UnknownReadingOrder => Self::UnknownReadingOrder,
-            AssessmentReason::InferredReadingOrder => Self::InferredReadingOrder,
-            AssessmentReason::ExtractionGap => Self::ExtractionGap,
-            AssessmentReason::NormalizationUncertainty => Self::NormalizationUncertainty,
-            AssessmentReason::CompetingCorrespondence => Self::CompetingCorrespondence,
-            AssessmentReason::AmbiguousEditLocation => Self::AmbiguousEditLocation,
-            AssessmentReason::SearchIncomplete => Self::SearchIncomplete,
-            AssessmentReason::DomainNotClosed => Self::DomainNotClosed,
-            AssessmentReason::SourceEvidenceMissing => Self::SourceEvidenceMissing,
-            AssessmentReason::WorkLimit => Self::WorkLimit,
-            AssessmentReason::OutputLimit => Self::OutputLimit,
-        }
-    }
 }
 
 impl From<EvidenceFailure> for ReviewReason {
@@ -673,15 +659,6 @@ impl From<ScalarRange> for ScalarInterval {
 pub struct TokenInterval {
     pub start: usize,
     pub end: usize,
-}
-
-impl From<crate::diff::TokenRange> for TokenInterval {
-    fn from(range: crate::diff::TokenRange) -> Self {
-        Self {
-            start: range.start,
-            end: range.end,
-        }
-    }
 }
 
 /// Immutable identity of the comparison a bundle was exported from.

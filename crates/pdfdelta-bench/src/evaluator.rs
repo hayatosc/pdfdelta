@@ -1,51 +1,34 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+//! Scores generated fixtures with the flow engine.
+//!
+//! The evaluator renders the same canonical mutation matrix through the same
+//! project renderers, extracts glyphs, flattens both documents with the flow
+//! engine, and compares the verified edit script with the mutation's canonical
+//! truth. Every check is exact: an invariance case must report no content
+//! change, and a content change must cover exactly the mutated text.
+//!
+//! Token precision is estimated from the changed token text and the canonical
+//! mutation spans. It is a token-level estimate, not a source-mask comparison.
 
-use pdfdelta_core::{
-    alignment::BlockSeparator,
-    diff::{
-        Change, ChangeCandidate, ChangeKind, ChangedRegionProof, ProvenChangedRegion, TextSpan,
-    },
-    layout::{BlockId, reconstruct_blocks, reconstruct_lines},
-    model::{Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode},
-    normalize::normalize_blocks,
-    pdf::{LopdfParser, ParseLimits},
-    pipeline::{PipelineOptions, compare_extraction_outcomes},
-    report::summarize,
-    source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
-};
+use std::{collections::VecDeque, sync::Arc};
+
+use pdfdelta_core::span::ChangeKind;
+use pdfdelta_flow::{flow_diff, flow_tokens_pair};
 
 use crate::{
     BenchError, Result,
     cases::BenchmarkCase,
-    evaluation::change_kind_name,
-    mutation::{ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange, RenderPlan},
+    flow_verify::{
+        ActualChanges, check_truth, extract_pair, span_text, summarize_changes,
+        truth_for_expectation,
+    },
+    mutation::{ExpectedManifest, RenderPlan},
     renderers::{RenderLimits, RendererKind},
 };
 
-/// Controlled ASCII fixtures require exact canonical-range agreement (`IoU` 1.0).
+/// Retained for callers that gate exact canonical-span agreement. The flow
+/// evaluator checks exact changed text instead of span `IoU`, so this is not used
+/// for acceptance.
 pub const EXPECTED_SPAN_IOU_THRESHOLD: f64 = 1.0;
-
-#[derive(Debug)]
-struct CanonicalBlockPosition {
-    text: String,
-    global_start: usize,
-    source_gap_before: usize,
-}
-
-#[derive(Debug)]
-struct CanonicalDocumentIndex {
-    blocks: Vec<CanonicalBlockPosition>,
-    positions: HashMap<BlockId, usize>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ProjectedSpan {
-    start: usize,
-    end: usize,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EvaluationRecord {
@@ -54,8 +37,6 @@ pub struct EvaluationRecord {
     pub expected: ExpectedManifest,
     pub actual_changes: usize,
     pub actual_kinds: Vec<ChangeKind>,
-    pub candidate_changes: usize,
-    pub proven_changed_regions: usize,
     pub formatting_only_changes: usize,
     pub extraction_complete: bool,
     pub comparison_complete: bool,
@@ -66,7 +47,7 @@ pub struct EvaluationRecord {
     pub detail: String,
 }
 
-/// Precision and recall for one fully reviewed generated fixture.
+/// Precision and recall for one generated fixture.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GeneratedPrecisionMetrics {
     pub reported_events: usize,
@@ -91,7 +72,7 @@ pub struct GeneratedTokenMetrics {
 }
 
 impl GeneratedPrecisionMetrics {
-    /// Aggregates fully reviewed renderer records without averaging ratios.
+    /// Aggregates fully reviewed records without averaging ratios.
     pub fn aggregate(records: impl IntoIterator<Item = Self>) -> Option<Self> {
         let mut totals = PrecisionCounts::default();
         let mut evaluated = 0_usize;
@@ -176,25 +157,12 @@ impl PrecisionCounts {
 }
 
 pub fn evaluate_case(case: &BenchmarkCase, renderer: RendererKind) -> Result<EvaluationRecord> {
-    evaluate_case_with_options(case, renderer, pipeline_options())
-}
-
-/// Evaluates a built-in case with an explicitly selected pipeline configuration.
-///
-/// This is used by the development sensitivity matrix so every perturbation
-/// goes through the same renderer, extraction, and expectation checks.
-pub fn evaluate_case_with_options(
-    case: &BenchmarkCase,
-    renderer: RendererKind,
-    options: PipelineOptions,
-) -> Result<EvaluationRecord> {
-    evaluate_with_options(
+    evaluate(
         case.name(),
         case.plan().old(),
         case.plan().new_plan(),
         case.plan().expectation(),
         renderer,
-        options,
     )
 }
 
@@ -205,29 +173,11 @@ pub fn evaluate(
     expected: &ExpectedManifest,
     renderer: RendererKind,
 ) -> Result<EvaluationRecord> {
-    evaluate_with_options(
-        case_name,
-        old_plan,
-        new_plan,
-        expected,
-        renderer,
-        pipeline_options(),
-    )
-}
-
-fn evaluate_with_options(
-    case_name: &str,
-    old_plan: &RenderPlan,
-    new_plan: &RenderPlan,
-    expected: &ExpectedManifest,
-    renderer: RendererKind,
-    options: PipelineOptions,
-) -> Result<EvaluationRecord> {
     validate_case_name(case_name)?;
     let render_limits = RenderLimits::default();
     let old_pdf = renderer.render(old_plan, render_limits)?;
     let new_pdf = renderer.render(new_plan, render_limits)?;
-    evaluate_rendered_with_options(
+    evaluate_rendered(
         case_name,
         old_plan,
         new_plan,
@@ -235,22 +185,16 @@ fn evaluate_with_options(
         renderer.name(),
         Arc::from(old_pdf),
         Arc::from(new_pdf),
-        options,
     )
 }
 
-/// Evaluates a canonical mutation against a PDF pair produced outside the
-/// project renderers.
-///
-/// This keeps renderer execution out of the evaluator while applying the same
-/// extraction, comparison, and canonical-span expectation checks used by
-/// [`evaluate`].
+/// Evaluates an externally rendered pair with the same flow checks.
 ///
 /// # Errors
 ///
 /// Returns [`BenchError::InvalidInput`] when the case or renderer identity is
-/// invalid. Returns [`BenchError::Core`] when extraction, canonical projection,
-/// comparison, or summary generation fails.
+/// invalid, extraction is incomplete, or the flow engine rejects an input.
+/// Returns [`BenchError::Core`] for extraction failures.
 pub fn evaluate_rendered(
     case_name: &str,
     old_plan: &RenderPlan,
@@ -260,299 +204,131 @@ pub fn evaluate_rendered(
     old_pdf: Arc<[u8]>,
     new_pdf: Arc<[u8]>,
 ) -> Result<EvaluationRecord> {
-    evaluate_rendered_with_options(
-        case_name,
-        old_plan,
-        new_plan,
-        expected,
-        renderer,
-        old_pdf,
-        new_pdf,
-        pipeline_options(),
-    )
-}
-
-/// Evaluates externally rendered revisions with an explicitly selected
-/// comparison configuration.
-#[allow(clippy::too_many_arguments)]
-pub fn evaluate_rendered_with_options(
-    case_name: &str,
-    old_plan: &RenderPlan,
-    new_plan: &RenderPlan,
-    expected: &ExpectedManifest,
-    renderer: &str,
-    old_pdf: Arc<[u8]>,
-    new_pdf: Arc<[u8]>,
-    options: PipelineOptions,
-) -> Result<EvaluationRecord> {
     validate_case_name(case_name)?;
     validate_renderer_name(renderer)?;
-    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let old = source
-        .extract_outcome(old_pdf, parse_limits(), extraction_limits())
-        .map_err(|error| BenchError::core("old extraction", error))?;
-    let new = source
-        .extract_outcome(new_pdf, parse_limits(), extraction_limits())
-        .map_err(|error| BenchError::core("new extraction", error))?;
-    let (old_index, new_index) = if old.is_complete() && new.is_complete() {
-        (
-            canonical_document_index(old_plan, old.document(), options)
-                .map_err(|error| BenchError::core("old expectation context", error))?,
-            canonical_document_index(new_plan, new.document(), options)
-                .map_err(|error| BenchError::core("new expectation context", error))?,
-        )
-    } else {
-        (
-            CanonicalDocumentIndex::empty(),
-            CanonicalDocumentIndex::empty(),
-        )
-    };
-    let outcome = compare_extraction_outcomes(old, new, options)
-        .map_err(|error| BenchError::core("comparison", error))?;
-    let summary = summarize(&outcome.comparison, &outcome.extraction)
-        .map_err(|error| BenchError::core("summary", error))?;
+    let (old_document, new_document) = extract_pair(&old_pdf, &new_pdf)?;
+    let pair = flow_tokens_pair(&old_document, &new_document)
+        .map_err(|error| BenchError::core("flow tokenization", error))?;
+    let diff = flow_diff(&pair.old.tokens, &pair.new.tokens)
+        .map_err(|error| BenchError::InvalidInput(format!("flow comparison failed: {error}")))?;
+    let actual = summarize_changes(&diff.changes, &pair.old.tokens, &pair.new.tokens);
+    let truth = truth_for_expectation(expected.changes(), old_plan, new_plan)?;
+    let (truth_passed, truth_detail) = check_truth(&truth, &actual);
 
-    let actual_kinds = outcome
-        .comparison
-        .changes
-        .iter()
-        .map(|change| change.kind)
-        .collect::<Vec<_>>();
-    let extraction_complete = outcome.extraction.old_complete && outcome.extraction.new_complete;
-    let full_old_coverage = outcome.comparison.old_coverage.ratio == Some(1.0)
-        && outcome.comparison.old_coverage.resolved_tokens
-            == outcome.comparison.old_coverage.total_tokens;
-    let full_new_coverage = outcome.comparison.new_coverage.ratio == Some(1.0)
-        && outcome.comparison.new_coverage.resolved_tokens
-            == outcome.comparison.new_coverage.total_tokens;
-    let expected_change = matches_expectation(
+    let conservation_complete =
+        pair.old.conservation.is_complete() && pair.new.conservation.is_complete();
+    let actual_kinds = change_kinds(&actual);
+    let expected_events = expected.changes().len();
+    let reported_events = actual.content.len().saturating_add(actual.moves.len());
+    let matched_events = if truth_passed { expected_events } else { 0 };
+    let precision = precision_metrics(
         expected,
-        &outcome.comparison.changes,
-        &outcome.comparison.change_candidates,
-        &old_index,
-        &new_index,
+        old_plan,
+        new_plan,
+        &actual,
+        reported_events,
+        expected_events,
+        matched_events,
+        pair.old.tokens.len().saturating_add(pair.new.tokens.len()),
     );
-    let expected_presence = matches_presence_expectation(
-        expected,
-        &outcome.comparison.proven_changed_regions,
-        &old_index,
-        &new_index,
-    );
-    let precision = generated_precision_metrics(
-        expected,
-        &outcome.comparison.changes,
-        &old_index,
-        &new_index,
-        canonical_scalar_len(old_plan),
-        canonical_scalar_len(new_plan),
-    );
-    let exact_resolution_required = expected.proven_regions().is_empty();
-    let passed = extraction_complete
-        && (!exact_resolution_required
-            || (summary.comparison_complete && full_old_coverage && full_new_coverage))
-        && expected_change
-        && expected_presence;
-
+    let passed = truth_passed && conservation_complete;
     let mut failures = Vec::new();
-    if !extraction_complete {
-        failures.push("extraction is incomplete".to_owned());
+    if !truth_detail.is_empty() {
+        failures.push(truth_detail);
     }
-    if exact_resolution_required && !summary.comparison_complete {
-        failures.push("comparison is incomplete".to_owned());
+    if !conservation_complete {
+        failures.push("flow token conservation is incomplete".to_owned());
     }
-    if exact_resolution_required && (!full_old_coverage || !full_new_coverage) {
-        failures.push(format!(
-            "coverage is old={} new={}",
-            coverage_label(outcome.comparison.old_coverage.ratio),
-            coverage_label(outcome.comparison.new_coverage.ratio)
-        ));
-    }
-    if !expected_change {
-        if expected.is_candidate_policy() {
-            failures.push(format!(
-                "expected {} with {} candidate(s), observed {} candidate(s) and {} exact change(s)",
-                expected.label(),
-                expected.candidate_changes().len(),
-                outcome.comparison.change_candidates.len(),
-                actual_kinds.len(),
-            ));
-        } else {
-            failures.push(format!(
-                "expected {} at {:?}, observed {} at {:?}; document-global canonical span IoU must be at least {EXPECTED_SPAN_IOU_THRESHOLD:.1}",
-                expected.label(),
-                expected.changes(),
-                actual_label(&actual_kinds),
-                outcome.comparison.changes,
-            ));
-        }
-    }
-    if !expected_presence {
-        failures.push(format!(
-            "expected {} at {:?}, observed {} proven changed regions",
-            expected.label(),
-            expected.proven_regions(),
-            outcome.comparison.proven_changed_regions.len(),
-        ));
-    }
-
     Ok(EvaluationRecord {
         case_name: case_name.to_owned(),
         renderer: renderer.to_owned(),
         expected: expected.clone(),
-        actual_changes: actual_kinds.len(),
+        actual_changes: actual.content.len().saturating_add(actual.moves.len()),
         actual_kinds,
-        candidate_changes: outcome.comparison.change_candidates.len(),
-        proven_changed_regions: outcome.comparison.proven_changed_regions.len(),
-        formatting_only_changes: summary.formatting_only_changes,
-        extraction_complete,
-        comparison_complete: summary.comparison_complete,
-        old_coverage: outcome.comparison.old_coverage.ratio,
-        new_coverage: outcome.comparison.new_coverage.ratio,
+        formatting_only_changes: actual.layout_only,
+        extraction_complete: true,
+        comparison_complete: conservation_complete,
+        old_coverage: conservation_complete.then_some(1.0),
+        new_coverage: conservation_complete.then_some(1.0),
         precision,
         passed,
         detail: if failures.is_empty() {
-            if expected.is_candidate_policy() {
-                "matched tentative candidate and proven changed-region expectation with complete extraction"
-                    .to_owned()
-            } else if exact_resolution_required {
-                "matched expectation with complete extraction and coverage".to_owned()
-            } else {
-                "matched proven changed-region expectation with complete extraction".to_owned()
-            }
+            "flow script matched exact canonical truth with conserving token streams".to_owned()
         } else {
             failures.join("; ")
         },
     })
 }
 
-fn generated_precision_metrics(
+fn change_kinds(actual: &ActualChanges) -> Vec<ChangeKind> {
+    let mut kinds = Vec::new();
+    for (kind, _, _) in &actual.content {
+        let kind = match kind.as_str() {
+            "replace" => ChangeKind::Replacement,
+            "insert" => ChangeKind::Insertion,
+            "delete" => ChangeKind::Deletion,
+            _ => continue,
+        };
+        if !kinds.contains(&kind) {
+            kinds.push(kind);
+        }
+    }
+    if !actual.moves.is_empty() {
+        kinds.push(ChangeKind::Move);
+    }
+    kinds
+}
+
+#[allow(clippy::too_many_arguments)]
+fn precision_metrics(
     expected: &ExpectedManifest,
-    actual: &[Change],
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-    old_total_tokens: usize,
-    new_total_tokens: usize,
+    old_plan: &RenderPlan,
+    new_plan: &RenderPlan,
+    actual: &ActualChanges,
+    reported_events: usize,
+    expected_events: usize,
+    matched_events: usize,
+    total_tokens: usize,
 ) -> GeneratedPrecisionMetrics {
-    let actual_old =
-        projected_actual_spans(actual, old_index, |occurrence| occurrence.old_span.as_ref());
-    let actual_new =
-        projected_actual_spans(actual, new_index, |occurrence| occurrence.new_span.as_ref());
-    let token_metrics_complete = actual_old.is_some() && actual_new.is_some();
-    let actual_old = actual_old.unwrap_or_default();
-    let actual_new = actual_new.unwrap_or_default();
-    let expected_old = selected_expected_spans(expected.exact_changes(), &actual_old, |change| {
-        change.old_spans()
-    });
-    let expected_new = selected_expected_spans(expected.exact_changes(), &actual_new, |change| {
-        change.new_spans()
-    });
-    let actual_old = merge_spans(actual_old);
-    let actual_new = merge_spans(actual_new);
-    let expected_old = merge_spans(expected_old);
-    let expected_new = merge_spans(expected_new);
-    let changed_token_true_positives = intersection_len(&actual_old, &expected_old)
-        .saturating_add(intersection_len(&actual_new, &expected_new));
-    let actual_changed_tokens = spans_len(&actual_old).saturating_add(spans_len(&actual_new));
-    let expected_changed_tokens = spans_len(&expected_old).saturating_add(spans_len(&expected_new));
-    let expected_total_tokens = old_total_tokens.saturating_add(new_total_tokens);
+    let expected_old = expected
+        .changes()
+        .iter()
+        .flat_map(crate::mutation::ExpectedSemanticChange::old_spans)
+        .map(|span| span_text(old_plan, span).chars().count())
+        .sum::<usize>();
+    let expected_new = expected
+        .changes()
+        .iter()
+        .flat_map(crate::mutation::ExpectedSemanticChange::new_spans)
+        .map(|span| span_text(new_plan, span).chars().count())
+        .sum::<usize>();
+    let actual_old = crate::flow_verify::normalize_text(&actual.old_text())
+        .chars()
+        .count();
+    let actual_new = crate::flow_verify::normalize_text(&actual.new_text())
+        .chars()
+        .count();
+    let true_positives = if matched_events > 0 {
+        expected_old.saturating_add(expected_new)
+    } else {
+        0
+    };
+    let false_positives = actual_old
+        .saturating_add(actual_new)
+        .saturating_sub(true_positives);
+    let false_negatives = expected_old
+        .saturating_add(expected_new)
+        .saturating_sub(true_positives);
     PrecisionCounts {
-        reported_events: actual.len(),
-        expected_events: expected.exact_changes().len(),
-        matched_events: matched_event_count(expected, actual, old_index, new_index),
-        changed_token_true_positives,
-        changed_token_false_positives: actual_changed_tokens
-            .saturating_sub(changed_token_true_positives),
-        changed_token_false_negatives: expected_changed_tokens
-            .saturating_sub(changed_token_true_positives),
-        unchanged_tokens: expected_total_tokens.saturating_sub(expected_changed_tokens),
+        reported_events,
+        expected_events,
+        matched_events,
+        changed_token_true_positives: true_positives,
+        changed_token_false_positives: false_positives,
+        changed_token_false_negatives: false_negatives,
+        unchanged_tokens: total_tokens.saturating_sub(actual_old.saturating_add(actual_new)),
     }
-    .metrics(token_metrics_complete)
-}
-
-fn projected_actual_spans(
-    actual: &[Change],
-    index: &CanonicalDocumentIndex,
-    side: for<'a> fn(&'a pdfdelta_core::diff::ChangeOccurrence) -> Option<&'a TextSpan>,
-) -> Option<Vec<ProjectedSpan>> {
-    actual
-        .iter()
-        .flat_map(|change| &change.occurrences)
-        .filter_map(side)
-        .map(|span| global_span(span, index))
-        .collect()
-}
-
-fn selected_expected_spans(
-    expected: &[ExpectedSemanticChange],
-    actual: &[ProjectedSpan],
-    side: for<'a> fn(&'a ExpectedSemanticChange) -> &'a [ExpectedCanonicalSpan],
-) -> Vec<ProjectedSpan> {
-    expected
-        .iter()
-        .filter_map(|change| select_expected_span(side(change), actual))
-        .collect()
-}
-
-fn select_expected_span(
-    variants: &[ExpectedCanonicalSpan],
-    actual: &[ProjectedSpan],
-) -> Option<ProjectedSpan> {
-    let mut best = None;
-    for variant in variants {
-        let iou = best_span_iou(*variant, actual);
-        if best.is_none_or(|(_, best_iou)| iou > best_iou) {
-            best = Some((*variant, iou));
-        }
-    }
-    best.map(|(span, _)| ProjectedSpan {
-        start: span.start(),
-        end: span.end(),
-    })
-}
-
-fn best_span_iou(expected: ExpectedCanonicalSpan, actual: &[ProjectedSpan]) -> f64 {
-    actual
-        .iter()
-        .map(|actual| canonical_span_iou(expected, *actual))
-        .fold(0.0, f64::max)
-}
-
-fn merge_spans(mut spans: Vec<ProjectedSpan>) -> Vec<ProjectedSpan> {
-    spans.sort_unstable_by_key(|span| (span.start, span.end));
-    let mut merged: Vec<ProjectedSpan> = Vec::with_capacity(spans.len());
-    for span in spans {
-        if let Some(last) = merged.last_mut()
-            && span.start <= last.end
-        {
-            last.end = last.end.max(span.end);
-        } else {
-            merged.push(span);
-        }
-    }
-    merged
-}
-
-fn spans_len(spans: &[ProjectedSpan]) -> usize {
-    spans.iter().fold(0_usize, |total, span| {
-        total.saturating_add(span.end.saturating_sub(span.start))
-    })
-}
-
-fn intersection_len(left: &[ProjectedSpan], right: &[ProjectedSpan]) -> usize {
-    let (mut left_index, mut right_index, mut total) = (0, 0, 0_usize);
-    while let (Some(left), Some(right)) = (left.get(left_index), right.get(right_index)) {
-        total = total.saturating_add(
-            left.end
-                .min(right.end)
-                .saturating_sub(left.start.max(right.start)),
-        );
-        if left.end <= right.end {
-            left_index += 1;
-        } else {
-            right_index += 1;
-        }
-    }
-    total
+    .metrics(true)
 }
 
 fn score(numerator: usize, denominator: usize) -> f64 {
@@ -571,127 +347,22 @@ fn harmonic_mean(precision: f64, recall: f64) -> f64 {
     }
 }
 
-fn canonical_scalar_len(plan: &RenderPlan) -> usize {
-    plan.pages()
-        .iter()
-        .flatten()
-        .map(|line| line.chars().count())
-        .sum::<usize>()
-        .saturating_add(
-            plan.pages()
-                .iter()
-                .map(Vec::len)
-                .sum::<usize>()
-                .saturating_sub(1),
-        )
-}
-
-fn coverage_label(ratio: Option<f64>) -> String {
-    ratio.map_or_else(|| "unknown".to_owned(), |ratio| ratio.to_string())
-}
-
-fn matches_expectation(
-    expected: &ExpectedManifest,
-    actual: &[Change],
-    candidates: &[ChangeCandidate],
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-) -> bool {
-    if expected.is_candidate_policy() {
-        return expected.candidate_changes().len() == candidates.len()
-            && matched_candidate_count(expected, candidates, old_index, new_index)
-                == candidates.len();
+fn validate_case_name(name: &str) -> Result<()> {
+    if name.is_empty() || name.contains(['\t', '\r', '\n']) {
+        return Err(BenchError::InvalidInput(
+            "benchmark case name must be non-empty and single-line".into(),
+        ));
     }
-    expected.acceptance_exact_changes().len() == actual.len()
-        && matched_event_count(expected, actual, old_index, new_index) == actual.len()
+    Ok(())
 }
 
-fn matched_candidate_count(
-    expected: &ExpectedManifest,
-    actual: &[ChangeCandidate],
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-) -> usize {
-    let edges = expected
-        .candidate_changes()
-        .iter()
-        .map(|expected_change| {
-            actual
-                .iter()
-                .enumerate()
-                .filter_map(|(index, candidate)| {
-                    change_matches(expected_change, &candidate.change, old_index, new_index)
-                        .then_some(index)
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    maximum_cardinality_matching(&edges, actual.len())
-}
-
-fn matches_presence_expectation(
-    expected: &ExpectedManifest,
-    actual: &[ProvenChangedRegion],
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-) -> bool {
-    let expected = expected.proven_regions();
-    let edges = expected
-        .iter()
-        .map(|expected_region| {
-            actual
-                .iter()
-                .enumerate()
-                .filter_map(|(index, actual_region)| {
-                    proven_region_matches(expected_region, actual_region, old_index, new_index)
-                        .then_some(index)
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    expected.len() == actual.len()
-        && maximum_cardinality_matching(&edges, actual.len()) == actual.len()
-}
-
-fn matched_event_count(
-    expected: &ExpectedManifest,
-    actual: &[Change],
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-) -> usize {
-    let edges = expected
-        .exact_changes()
-        .iter()
-        .map(|expected_change| {
-            actual
-                .iter()
-                .enumerate()
-                .filter_map(|(index, actual_change)| {
-                    change_matches(expected_change, actual_change, old_index, new_index)
-                        .then_some(index)
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    maximum_cardinality_matching(&edges, actual.len())
-}
-
-fn proven_region_matches(
-    expected: &ExpectedSemanticChange,
-    actual: &ProvenChangedRegion,
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-) -> bool {
-    let proof_matches = match expected.kind() {
-        ChangeKind::Replacement => actual.proof == ChangedRegionProof::ExactTokenMultisetMismatch,
-        ChangeKind::Insertion | ChangeKind::Deletion => {
-            actual.proof == ChangedRegionProof::OneSidedNonEmptyRange
-        }
-        ChangeKind::Move => false,
-    };
-    proof_matches
-        && presence_side_span_matches(expected.old_spans(), actual.old_span.as_ref(), old_index)
-        && presence_side_span_matches(expected.new_spans(), actual.new_span.as_ref(), new_index)
+fn validate_renderer_name(name: &str) -> Result<()> {
+    if name.is_empty() || name.contains(['\t', '\r', '\n']) {
+        return Err(BenchError::InvalidInput(
+            "renderer name must be non-empty and single-line".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn maximum_cardinality_matching(edges: &[Vec<usize>], right_count: usize) -> usize {
@@ -745,745 +416,4 @@ pub(crate) fn maximum_cardinality_matching(edges: &[Vec<usize>], right_count: us
         matched += 1;
     }
     matched
-}
-
-fn change_matches(
-    expected: &ExpectedSemanticChange,
-    actual: &Change,
-    old_index: &CanonicalDocumentIndex,
-    new_index: &CanonicalDocumentIndex,
-) -> bool {
-    expected.kind() == actual.kind
-        && actual.occurrences.len() == 1
-        && actual.occurrences.iter().all(|occurrence| {
-            side_span_matches(
-                expected.old_spans(),
-                occurrence.old_span.as_ref(),
-                old_index,
-            ) && side_span_matches(
-                expected.new_spans(),
-                occurrence.new_span.as_ref(),
-                new_index,
-            )
-        })
-}
-
-fn side_span_matches(
-    expected: &[ExpectedCanonicalSpan],
-    actual: Option<&TextSpan>,
-    index: &CanonicalDocumentIndex,
-) -> bool {
-    match (expected.is_empty(), actual) {
-        (true, None) => true,
-        (false, Some(actual)) => global_span(actual, index).is_some_and(|actual| {
-            expected.iter().any(|expected| {
-                canonical_span_iou(*expected, actual) >= EXPECTED_SPAN_IOU_THRESHOLD
-            })
-        }),
-        (true, Some(_)) | (false, None) => false,
-    }
-}
-
-fn presence_side_span_matches(
-    expected: &[ExpectedCanonicalSpan],
-    actual: Option<&TextSpan>,
-    index: &CanonicalDocumentIndex,
-) -> bool {
-    match (expected.is_empty(), actual) {
-        (true, None) => true,
-        (false, Some(actual)) => global_span(actual, index).is_some_and(|actual| {
-            expected
-                .iter()
-                .any(|expected| actual.start <= expected.start() && expected.end() <= actual.end)
-        }),
-        (true, Some(_)) | (false, None) => false,
-    }
-}
-
-fn canonical_span_iou(expected: ExpectedCanonicalSpan, actual: ProjectedSpan) -> f64 {
-    let intersection_start = expected.start().max(actual.start);
-    let intersection_end = expected.end().min(actual.end);
-    let intersection = intersection_end.saturating_sub(intersection_start);
-    let expected_len = expected.end() - expected.start();
-    let actual_len = actual.end.saturating_sub(actual.start);
-    let union = expected_len
-        .saturating_add(actual_len)
-        .saturating_sub(intersection);
-    if union == 0 {
-        0.0
-    } else {
-        intersection as f64 / union as f64
-    }
-}
-
-fn global_span(span: &TextSpan, index: &CanonicalDocumentIndex) -> Option<ProjectedSpan> {
-    let group = index.ordered_group(&span.blocks)?;
-    let separator = match (span.blocks.len(), span.separator) {
-        (1, None) => None,
-        (count, Some(separator)) if count > 1 => Some(separator),
-        _ => return None,
-    };
-    project_group_span(span, &group, separator)
-}
-
-fn project_group_span(
-    span: &TextSpan,
-    group: &[&CanonicalBlockPosition],
-    separator: Option<BlockSeparator>,
-) -> Option<ProjectedSpan> {
-    let mut group_scalars = group.first()?.text.chars().count();
-    for (boundary, blocks) in group.windows(2).enumerate() {
-        let separator_scalars = usize::from(
-            separator?.at(boundary) == BlockSeparator::Space
-                && needs_group_space(&blocks[0].text, &blocks[1].text),
-        );
-        if blocks[1].source_gap_before != separator_scalars {
-            return None;
-        }
-        group_scalars = group_scalars
-            .checked_add(separator_scalars)?
-            .checked_add(blocks[1].text.chars().count())?;
-    }
-    if span.canonical_range.start >= span.canonical_range.end
-        || span.canonical_range.end > group_scalars
-    {
-        return None;
-    }
-    let global_start = group
-        .first()?
-        .global_start
-        .checked_add(span.canonical_range.start)?;
-    let global_end = group
-        .first()?
-        .global_start
-        .checked_add(span.canonical_range.end)?;
-    Some(ProjectedSpan {
-        start: global_start,
-        end: global_end,
-    })
-}
-
-fn needs_group_space(left: &str, right: &str) -> bool {
-    !left.ends_with(' ') && !right.starts_with(' ')
-}
-
-fn canonical_document_index(
-    plan: &RenderPlan,
-    document: &Document<Glyph>,
-    options: PipelineOptions,
-) -> pdfdelta_core::Result<CanonicalDocumentIndex> {
-    let document = Document::with_vector_lines(
-        document
-            .items()
-            .iter()
-            .filter(|glyph| is_comparison_visible(glyph))
-            .cloned()
-            .collect(),
-        document.vector_lines().to_vec(),
-    );
-    let lines = reconstruct_lines(&document, options.line)?;
-    let blocks = reconstruct_blocks(&document, &lines, options.block)?;
-    let normalized = normalize_blocks(&document, &lines, &blocks)?;
-    let canonical_source = plan
-        .pages()
-        .iter()
-        .flatten()
-        .map(String::as_str)
-        .collect::<Vec<_>>()
-        .join(" ");
-    map_canonical_blocks(
-        &canonical_source,
-        normalized
-            .into_iter()
-            .map(|block| (block.block, block.canonical.text)),
-    )
-}
-
-fn map_canonical_blocks(
-    canonical_source: &str,
-    blocks: impl IntoIterator<Item = (BlockId, String)>,
-) -> pdfdelta_core::Result<CanonicalDocumentIndex> {
-    let blocks = blocks.into_iter();
-    let mut indexed = Vec::with_capacity(blocks.size_hint().0);
-    let mut positions = HashMap::with_capacity(blocks.size_hint().0);
-    let mut source_cursor = 0_usize;
-
-    for (position, (block_id, text)) in blocks.enumerate() {
-        if text.is_empty() {
-            return Err(pdfdelta_core::Error::Unresolved(format!(
-                "normalized block {} has empty canonical text",
-                block_id.0
-            )));
-        }
-        if positions.insert(block_id, position).is_some() {
-            return Err(pdfdelta_core::Error::Unresolved(format!(
-                "duplicate normalized block id {}",
-                block_id.0
-            )));
-        }
-        let remaining = canonical_source.get(source_cursor..).ok_or_else(|| {
-            pdfdelta_core::Error::Unresolved(format!(
-                "normalized block {} starts beyond the render-plan canonical source",
-                block_id.0
-            ))
-        })?;
-        let source_gap_before = if remaining.starts_with(&text) {
-            0
-        } else if position > 0
-            && remaining
-                .strip_prefix(' ')
-                .is_some_and(|remaining| remaining.starts_with(&text))
-        {
-            1
-        } else {
-            return Err(pdfdelta_core::Error::Unresolved(format!(
-                "normalized block {} does not map at render-plan canonical scalar {}",
-                block_id.0, source_cursor
-            )));
-        };
-        let global_start = source_cursor.checked_add(source_gap_before).ok_or(
-            pdfdelta_core::Error::LimitExceeded {
-                resource: "benchmark canonical document scalars",
-                limit: usize::MAX,
-            },
-        )?;
-        let text_len = text.len();
-        indexed.push(CanonicalBlockPosition {
-            text,
-            global_start,
-            source_gap_before,
-        });
-        source_cursor =
-            global_start
-                .checked_add(text_len)
-                .ok_or(pdfdelta_core::Error::LimitExceeded {
-                    resource: "benchmark canonical document scalars",
-                    limit: usize::MAX,
-                })?;
-    }
-    if source_cursor != canonical_source.len() {
-        return Err(pdfdelta_core::Error::Unresolved(format!(
-            "normalized blocks consumed {source_cursor} of {} render-plan canonical scalars",
-            canonical_source.len()
-        )));
-    }
-    Ok(CanonicalDocumentIndex {
-        blocks: indexed,
-        positions,
-    })
-}
-
-impl CanonicalDocumentIndex {
-    fn empty() -> Self {
-        Self {
-            blocks: Vec::new(),
-            positions: HashMap::new(),
-        }
-    }
-
-    fn ordered_group(&self, ids: &[BlockId]) -> Option<Vec<&CanonicalBlockPosition>> {
-        let positions = ids
-            .iter()
-            .map(|id| self.positions.get(id).copied())
-            .collect::<Option<Vec<_>>>()?;
-        if positions.is_empty()
-            || positions
-                .windows(2)
-                .any(|positions| positions[0].checked_add(1) != Some(positions[1]))
-        {
-            return None;
-        }
-        positions
-            .into_iter()
-            .map(|position| self.blocks.get(position))
-            .collect()
-    }
-}
-
-fn is_painting(mode: TextRenderMode) -> bool {
-    matches!(
-        mode,
-        TextRenderMode::Fill
-            | TextRenderMode::Stroke
-            | TextRenderMode::FillAndStroke
-            | TextRenderMode::FillAndClip
-            | TextRenderMode::StrokeAndClip
-            | TextRenderMode::FillStrokeAndClip
-    )
-}
-
-fn is_comparison_visible(glyph: &Glyph) -> bool {
-    is_painting(glyph.render_mode)
-        && glyph.crop_status != GlyphCropStatus::Outside
-        && glyph.path_clip_status != GlyphPathClipStatus::Outside
-}
-
-fn actual_label(actual: &[ChangeKind]) -> String {
-    match actual {
-        [] => "none".to_owned(),
-        [kind] => change_kind_name(*kind).to_owned(),
-        _ => format!("{} changes", actual.len()),
-    }
-}
-
-fn validate_case_name(name: &str) -> Result<()> {
-    if name.trim().is_empty() || !name.is_ascii() {
-        return Err(BenchError::InvalidInput(
-            "evaluation case names must be nonblank ASCII".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_renderer_name(name: &str) -> Result<()> {
-    if name.is_empty()
-        || name.trim() != name
-        || name.len() > 128
-        || !name.is_ascii()
-        || name.chars().any(char::is_control)
-    {
-        return Err(BenchError::InvalidInput(
-            "evaluation renderer names must be 1-128 printable ASCII bytes without surrounding whitespace"
-                .to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn parse_limits() -> ParseLimits {
-    ParseLimits {
-        max_input_bytes: RenderLimits::default().max_pdf_bytes,
-        max_objects: 64,
-        max_recursion_depth: 16,
-        max_decoded_stream_bytes: 256 * 1024,
-        max_total_object_stream_bytes: 256 * 1024,
-        max_pages: RenderLimits::default().max_pages,
-    }
-}
-
-fn extraction_limits() -> ExtractionLimits {
-    ExtractionLimits {
-        max_glyphs: 16 * 1024,
-        max_form_depth: 4,
-        max_nesting_depth: 16,
-        max_operators: 4 * 1024,
-        max_stream_invocations: 64,
-        max_total_decoded_bytes: 256 * 1024,
-        max_operand_stack: 256,
-        max_array_elements: 4 * 1024,
-        max_operand_nodes: 32 * 1024,
-        max_fonts: 16,
-        max_cmap_entries: 4 * 1024,
-        max_cid_width_entries: 4 * 1024,
-        max_string_bytes: 16 * 1024,
-        max_vector_lines: 16 * 1024,
-    }
-}
-
-/// Returns the bounded comparison options used by the generated fixture
-/// evaluator and by sensitivity runs unless a scenario overrides them.
-#[must_use]
-pub fn default_pipeline_options() -> PipelineOptions {
-    let mut options = PipelineOptions {
-        max_ngram_token_elements: 64 * 1024,
-        ..PipelineOptions::default()
-    };
-    options.alignment.max_candidate_visits = 16 * 1024;
-    options.alignment.max_dp_cells = 16 * 1024;
-    options.diff.max_tokens = 32 * 1024;
-    options.diff.max_edit_distance = 4_000;
-    options
-}
-
-fn pipeline_options() -> PipelineOptions {
-    default_pipeline_options()
-}
-
-#[cfg(test)]
-mod tests {
-    use pdfdelta_core::{
-        diff::{ChangeOccurrence, Confidence, TokenRange},
-        normalize::ScalarRange,
-    };
-
-    use super::*;
-
-    #[test]
-    fn renderer_identity_requires_bounded_printable_ascii() {
-        for invalid in ["", " typst", "typst ", "typst\n0.15.1", "ティプスト"] {
-            assert!(validate_renderer_name(invalid).is_err(), "{invalid:?}");
-        }
-        assert!(validate_renderer_name(&"x".repeat(129)).is_err());
-        assert!(validate_renderer_name("typst-0.15.1").is_ok());
-    }
-
-    #[test]
-    fn concatenate_projects_across_a_zero_scalar_source_boundary() {
-        let index = map_canonical_blocks(
-            "abcd",
-            [(BlockId(1), "ab".to_owned()), (BlockId(2), "cd".to_owned())],
-        )
-        .expect("blocks map to canonical source");
-        let span = text_span(BlockSeparator::Concatenate, 2, 3);
-
-        let projected = global_span(&span, &index);
-
-        assert_eq!(projected, Some(ProjectedSpan { start: 2, end: 3 }));
-        assert_ne!(projected, Some(ProjectedSpan { start: 3, end: 4 }));
-    }
-
-    #[test]
-    fn projection_rejects_a_separator_that_disagrees_with_the_source_boundary() {
-        let index = map_canonical_blocks(
-            "ab cd",
-            [(BlockId(1), "ab".to_owned()), (BlockId(2), "cd".to_owned())],
-        )
-        .expect("blocks map to canonical source");
-
-        assert_eq!(
-            global_span(&text_span(BlockSeparator::Concatenate, 2, 3), &index),
-            None
-        );
-        assert_eq!(
-            global_span(&text_span(BlockSeparator::Space, 3, 4), &index),
-            Some(ProjectedSpan { start: 3, end: 4 })
-        );
-    }
-
-    #[test]
-    fn canonical_index_rejects_unmapped_and_incompletely_consumed_sources() {
-        let unmapped = map_canonical_blocks(
-            "abcd",
-            [(BlockId(1), "ab".to_owned()), (BlockId(2), "xy".to_owned())],
-        );
-        let incomplete = map_canonical_blocks("abcd", [(BlockId(1), "ab".to_owned())]);
-
-        assert!(matches!(unmapped, Err(pdfdelta_core::Error::Unresolved(_))));
-        assert!(matches!(
-            incomplete,
-            Err(pdfdelta_core::Error::Unresolved(_))
-        ));
-    }
-
-    #[test]
-    fn ordinary_expectation_rejects_a_matching_occurrence_with_a_surplus_occurrence() {
-        let old_index =
-            map_canonical_blocks("abcd", [(BlockId(1), "abcd".to_owned())]).expect("old index");
-        let new_index =
-            map_canonical_blocks("wxyz", [(BlockId(2), "wxyz".to_owned())]).expect("new index");
-        let expected = ExpectedSemanticChange::new(
-            ChangeKind::Replacement,
-            vec![ExpectedCanonicalSpan::new(1, 2).expect("old expected span")],
-            vec![ExpectedCanonicalSpan::new(1, 2).expect("new expected span")],
-        )
-        .expect("valid expectation");
-        let mut actual = Change::single_occurrence(
-            ChangeKind::Replacement,
-            Some(single_block_span(1, 1, 2)),
-            Some(single_block_span(2, 1, 2)),
-            Confidence::High,
-            Vec::new(),
-        );
-        actual.occurrences.push(ChangeOccurrence {
-            old_span: Some(single_block_span(1, 2, 3)),
-            new_span: Some(single_block_span(2, 2, 3)),
-        });
-
-        assert!(!change_matches(&expected, &actual, &old_index, &new_index));
-    }
-
-    #[test]
-    fn proven_region_expectation_requires_one_containing_context_envelope() {
-        let old_index =
-            map_canonical_blocks("abcd", [(BlockId(1), "abcd".to_owned())]).expect("old index");
-        let new_index =
-            map_canonical_blocks("wxyz", [(BlockId(2), "wxyz".to_owned())]).expect("new index");
-        let expected = ExpectedManifest::one_proven_region(
-            ExpectedSemanticChange::new(
-                ChangeKind::Replacement,
-                vec![ExpectedCanonicalSpan::new(1, 3).expect("old expected span")],
-                vec![ExpectedCanonicalSpan::new(1, 3).expect("new expected span")],
-            )
-            .expect("valid expectation"),
-        );
-        let actual = ProvenChangedRegion {
-            old_span: Some(single_block_span(1, 0, 4)),
-            new_span: Some(single_block_span(2, 0, 4)),
-            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
-            confidence: Confidence::High,
-        };
-
-        assert!(matches_presence_expectation(
-            &expected,
-            std::slice::from_ref(&actual),
-            &old_index,
-            &new_index,
-        ));
-        let mut too_narrow = actual.clone();
-        too_narrow.old_span = Some(single_block_span(1, 2, 4));
-        assert!(!matches_presence_expectation(
-            &expected,
-            &[too_narrow],
-            &old_index,
-            &new_index,
-        ));
-
-        assert!(!matches_presence_expectation(
-            &expected,
-            &[actual.clone(), actual],
-            &old_index,
-            &new_index,
-        ));
-    }
-
-    #[test]
-    fn exact_expectations_reject_unexpected_presence_proofs() {
-        let actual = ProvenChangedRegion {
-            old_span: None,
-            new_span: None,
-            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
-            confidence: Confidence::High,
-        };
-
-        assert!(!matches_presence_expectation(
-            &ExpectedManifest::none(),
-            &[actual],
-            &CanonicalDocumentIndex::empty(),
-            &CanonicalDocumentIndex::empty(),
-        ));
-    }
-
-    #[test]
-    fn precision_selects_one_maximum_iou_paragraph_span_variant() {
-        let old_index = map_canonical_blocks("abcdefghij", [(BlockId(1), "abcdefghij".to_owned())])
-            .expect("old index");
-        let expected = ExpectedManifest::one(
-            ExpectedSemanticChange::new(
-                ChangeKind::Deletion,
-                vec![
-                    ExpectedCanonicalSpan::new(1, 4).expect("separator variant"),
-                    ExpectedCanonicalSpan::new(2, 4).expect("exact variant"),
-                ],
-                Vec::new(),
-            )
-            .expect("valid expectation"),
-        );
-        let actual = Change::single_occurrence(
-            ChangeKind::Deletion,
-            Some(single_block_span(1, 2, 4)),
-            None,
-            Confidence::High,
-            Vec::new(),
-        );
-
-        let metrics = generated_precision_metrics(
-            &expected,
-            &[actual],
-            &old_index,
-            &CanonicalDocumentIndex::empty(),
-            10,
-            10,
-        );
-
-        assert_eq!(metrics.matched_events, 1);
-        let tokens = metrics.token_metrics.expect("token metrics");
-        assert_eq!(tokens.changed_token_true_positives, 2);
-        assert_eq!(tokens.changed_token_false_positives, 0);
-        assert_eq!(tokens.changed_token_false_negatives, 0);
-        assert_eq!(tokens.unchanged_tokens, 18);
-
-        assert_eq!(
-            select_expected_span(
-                &[
-                    ExpectedCanonicalSpan::new(2, 4).expect("exact variant"),
-                    ExpectedCanonicalSpan::new(2, 5).expect("separator variant"),
-                ],
-                &[],
-            ),
-            Some(ProjectedSpan { start: 2, end: 4 })
-        );
-    }
-
-    #[test]
-    fn precision_counts_unmatched_actual_and_expected_events() {
-        let old_index = map_canonical_blocks("abcdefghij", [(BlockId(1), "abcdefghij".to_owned())])
-            .expect("old index");
-        let expected = ExpectedManifest::one(
-            ExpectedSemanticChange::new(
-                ChangeKind::Deletion,
-                vec![ExpectedCanonicalSpan::new(2, 4).expect("expected span")],
-                Vec::new(),
-            )
-            .expect("valid expectation"),
-        );
-        let actual = Change::single_occurrence(
-            ChangeKind::Deletion,
-            Some(single_block_span(1, 6, 8)),
-            None,
-            Confidence::High,
-            Vec::new(),
-        );
-
-        let metrics = generated_precision_metrics(
-            &expected,
-            &[actual],
-            &old_index,
-            &CanonicalDocumentIndex::empty(),
-            10,
-            10,
-        );
-
-        assert_eq!(metrics.matched_events, 0);
-        assert_eq!(metrics.event_precision, 0.0);
-        assert_eq!(metrics.event_recall, 0.0);
-        let tokens = metrics.token_metrics.expect("token metrics");
-        assert_eq!(tokens.changed_token_true_positives, 0);
-        assert_eq!(tokens.changed_token_false_positives, 2);
-        assert_eq!(tokens.changed_token_false_negatives, 2);
-    }
-
-    #[test]
-    fn layout_only_precision_explicitly_requires_zero_content_changes() {
-        let clean = generated_precision_metrics(
-            &ExpectedManifest::none(),
-            &[],
-            &CanonicalDocumentIndex::empty(),
-            &CanonicalDocumentIndex::empty(),
-            10,
-            10,
-        );
-
-        assert_eq!(clean.reported_events, 0);
-        assert_eq!(clean.expected_events, 0);
-        assert_eq!(clean.event_precision, 1.0);
-        assert_eq!(clean.event_recall, 1.0);
-        let clean_tokens = clean.token_metrics.expect("clean token metrics");
-        assert_eq!(clean_tokens.changed_token_false_positives, 0);
-        assert_eq!(
-            clean_tokens.false_positive_changed_tokens_per_10k_unchanged_tokens,
-            0.0
-        );
-
-        let old_index = map_canonical_blocks("abcdefghij", [(BlockId(1), "abcdefghij".to_owned())])
-            .expect("old index");
-        let false_change = Change::single_occurrence(
-            ChangeKind::Deletion,
-            Some(single_block_span(1, 2, 4)),
-            None,
-            Confidence::Low,
-            Vec::new(),
-        );
-        let noisy = generated_precision_metrics(
-            &ExpectedManifest::none(),
-            &[false_change],
-            &old_index,
-            &CanonicalDocumentIndex::empty(),
-            10,
-            10,
-        );
-        assert_eq!(noisy.event_precision, 0.0);
-        let noisy_tokens = noisy.token_metrics.expect("noisy token metrics");
-        assert_eq!(noisy_tokens.changed_token_false_positives, 2);
-        assert_eq!(
-            noisy_tokens.false_positive_changed_tokens_per_10k_unchanged_tokens,
-            1_000.0
-        );
-    }
-
-    #[test]
-    fn token_metrics_are_unavailable_when_any_actual_span_cannot_be_projected() {
-        assert_eq!(GeneratedPrecisionMetrics::aggregate([]), None);
-
-        let actual = Change::single_occurrence(
-            ChangeKind::Deletion,
-            Some(single_block_span(99, 0, 1)),
-            None,
-            Confidence::Low,
-            Vec::new(),
-        );
-
-        let metrics = generated_precision_metrics(
-            &ExpectedManifest::none(),
-            &[actual],
-            &CanonicalDocumentIndex::empty(),
-            &CanonicalDocumentIndex::empty(),
-            10,
-            10,
-        );
-
-        assert_eq!(metrics.reported_events, 1);
-        assert_eq!(metrics.event_precision, 0.0);
-        assert_eq!(metrics.token_metrics, None);
-        assert_eq!(GeneratedPrecisionMetrics::aggregate([metrics]), None);
-    }
-
-    #[test]
-    fn event_matching_uses_a_maximum_cardinality_assignment() {
-        // A -> {1, 2}, B -> {1}; a first-fit assignment of A to 1 loses B.
-        let edges = vec![vec![0, 1], vec![0]];
-
-        assert_eq!(maximum_cardinality_matching(&edges, 2), 2);
-    }
-
-    #[test]
-    fn maximum_cardinality_matching_agrees_with_brute_force_on_small_graphs() {
-        fn brute_force(edges: &[Vec<usize>], right_count: usize) -> usize {
-            fn recurse(edges: &[Vec<usize>], used: &mut [bool], left: usize) -> usize {
-                if left == edges.len() {
-                    return 0;
-                }
-                let mut best = recurse(edges, used, left + 1);
-                for &right in &edges[left] {
-                    if !used[right] {
-                        used[right] = true;
-                        best = best.max(1 + recurse(edges, used, left + 1));
-                        used[right] = false;
-                    }
-                }
-                best
-            }
-            let mut used = vec![false; right_count];
-            recurse(edges, &mut used, 0)
-        }
-
-        for left in 0..=4usize {
-            for right in 0..=4usize {
-                let slots = left * right;
-                for mask in 0..(1u32 << slots) {
-                    let edges = (0..left)
-                        .map(|left_index| {
-                            (0..right)
-                                .filter(|right_index| {
-                                    mask & (1 << (left_index * right + right_index)) != 0
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>();
-                    assert_eq!(
-                        maximum_cardinality_matching(&edges, right),
-                        brute_force(&edges, right),
-                        "left={left} right={right} mask={mask}"
-                    );
-                }
-            }
-        }
-    }
-
-    fn text_span(separator: BlockSeparator, start: usize, end: usize) -> TextSpan {
-        TextSpan {
-            blocks: vec![BlockId(1), BlockId(2)],
-            separator: Some(separator),
-            canonical_range: ScalarRange { start, end },
-            comparable_range: TokenRange { start, end },
-        }
-    }
-
-    fn single_block_span(block: u64, start: usize, end: usize) -> TextSpan {
-        TextSpan {
-            blocks: vec![BlockId(block)],
-            separator: None,
-            canonical_range: ScalarRange { start, end },
-            comparable_range: TokenRange { start, end },
-        }
-    }
 }

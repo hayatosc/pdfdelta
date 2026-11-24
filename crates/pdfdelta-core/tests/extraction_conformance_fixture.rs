@@ -2,8 +2,8 @@ use pdfdelta_core::{
     extraction_conformance::{
         GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
     },
+    extraction_svg::render_extraction_mismatch_svg,
     model::{PageId, Rect, Vec2},
-    report::render_extraction_mismatch_svg,
 };
 
 #[test]

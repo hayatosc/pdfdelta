@@ -25,6 +25,7 @@ use pdfdelta_core::{
         ReviewText, Side,
     },
 };
+use pdfdelta_flow::FlowError;
 use serde::{Deserialize, Serialize};
 
 use crate::review::bundle::{self, Artifact, MAX_BYTES};
@@ -212,9 +213,9 @@ pub(crate) fn write(
     old: SourceDocument<'_>,
     new: SourceDocument<'_>,
     rasters: &[PageRaster<'_>],
-) -> Result<(), String> {
+) -> Result<(), FlowError> {
     bundle::create_directory(directory)?;
-    let result = (|| {
+    let result = (|| -> Result<(), FlowError> {
         let mut remaining = MAX_BYTES;
         let mut artifacts = vec![
             bundle::file(directory, "old.pdf", &mut remaining, |out| {
@@ -327,11 +328,11 @@ pub(crate) fn write(
         })?;
         Ok(())
     })();
-    result.map_err(|error: String| {
-        format!(
-            "{error}; review directory {} is incomplete without {COMPLETION_MARKER}",
+    result.map_err(|error| {
+        error.with_suffix(format!(
+            "review directory {} is incomplete without {COMPLETION_MARKER}",
             directory.display()
-        )
+        ))
     })
 }
 
@@ -1144,9 +1145,9 @@ pub(crate) fn render(
         }
     };
     bundle::validate_destination(output, &[])
-        .map_err(|error| QueryError::new("invalid_destination", error))?;
+        .map_err(|error| QueryError::new("invalid_destination", error.to_string()))?;
     bundle::create_directory(output)
-        .map_err(|error| QueryError::new("invalid_destination", error))?;
+        .map_err(|error| QueryError::new("invalid_destination", error.to_string()))?;
 
     let mut produced = Vec::new();
     let mut unavailable = Vec::new();
@@ -1195,7 +1196,7 @@ pub(crate) fn render(
         let artifact = bundle::file(output, &name, &mut remaining, |out| {
             bundle::write_png(out, width, height, &cropped)
         })
-        .map_err(|error| QueryError::new("render_failed", error))?;
+        .map_err(|error| QueryError::new("render_failed", error.to_string()))?;
         produced.push(RenderedImage {
             path: output.join(&name).display().to_string(),
             sha256: artifact.sha256,
@@ -1400,7 +1401,7 @@ pub(crate) fn import(
     };
     let reviewed = count(DecisionStatus::Changed) + count(DecisionStatus::UnchangedInScope);
     let stored = serde_json::json!({
-        "schema": "agent-review-result/v1",
+        "schema": "agent-review-result/v2",
         "bundle_id": manifest.bundle_id,
         // The engine's own result, copied without reinterpretation.
         "engine": manifest.engine,
@@ -1422,7 +1423,7 @@ pub(crate) fn import(
                 .count(),
             "unavailable_scopes": manifest.unlocalized_gaps.len(),
         },
-        "note": "External assessments are review notes. They do not change the comparison, its coverage, or its exit status, and a validated decision is not a proof.",
+        "note": "External assessments are review notes. They do not change the comparison, its coverage, or its exit status, and a validated decision does not establish a comparison result.",
     });
     let encoded = serde_json::to_vec_pretty(&stored)
         .map_err(|error| QueryError::new("encoding_failed", error.to_string()))?;
