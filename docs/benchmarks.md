@@ -12,8 +12,7 @@ directly with `cargo run -p pdfdelta-bench -- <command>`.
 - [Graph generalization evaluation](#graph-generalization-evaluation)
 - [Producer document matrix](#producer-document-matrix)
 - [Extraction conformance](#extraction-conformance)
-- [Candidate generator profiling](#candidate-generator-profiling)
-- [Real-world revision benchmark](#real-world-revision-benchmark)
+- [Real-world corpus](#real-world-corpus)
 - [Microbenchmarks](#microbenchmarks)
 
 ## Acceptance criteria
@@ -39,26 +38,29 @@ mise run bench     # cargo run -p pdfdelta-bench -- verify
 through two project-owned PDF construction paths (literal `Tj` and positioned
 `TJ`), giving 48 records. Cases include repetition, long prose reflow, numbered
 requirements, pagination churn, footnote-like paragraphs, section-labeled moves,
-and two-column reflow. It reports event and changed-token precision, recall,
-and F1, and is part of `mise run ci`.
+and two-column reflow. It is part of `mise run ci` and scores flow reports
+directly: for each case it extracts both PDFs, builds the flow token stream and
+verified script, and compares the reported changes with the known mutation
+through the exact text check.
 
-Current result: 42/48 strict passes; the remaining 6 retain candidates because
-edit boundaries are ambiguous and count only as candidate-policy matches. All
-26/26 expected events and 858/858 changed tokens are matched (20/26 events and
-810/858 tokens strictly), with zero false-positive changed tokens on layout-only
-cases.
+| reported column | flow evaluator |
+| --- | --- |
+| change events and kinds | 1:1 with `FlowChange` content and moves |
+| formatting-only changes | flow `LayoutOnly` count; flow formatting evidence is not re-scored |
+| old/new coverage | `1.0` only when both token streams conserve every visible glyph |
+| event precision and recall | exact truth check; pass means every expected event matched |
+| token masks | not computed; changed-token metrics come from the changed token text |
+| extraction complete | from the extractor outcome |
+
+Current result: **48/48 records pass** under the exact author-intent check.
+All 28/28 expected events and 2,216 expected changed tokens are matched, with 8
+false-positive tokens: token precision 0.996, recall 1.000. Layout-only cases
+report zero changed tokens.
 
 Parser-independent matrices separately cover glyph-to-line reconstruction
 (mixed font sizes, superscripts, synthesized spaces, horizontal Japanese/Latin
 text) and line-to-block grouping (paragraphs, headings, page boundaries,
 label/value rows).
-
-`pdfdelta-core/examples/glyph_comparison.rs` shows the backend-independent
-`Document<Glyph>` API with a small in-memory replacement:
-
-```bash
-mise run example-glyph-comparison
-```
 
 ## Canonical YAML fixtures
 
@@ -131,9 +133,10 @@ not need the producer installed:
 | [`vertical-tectonic`](../fixtures/external/vertical-tectonic/) | Tectonic-produced vertical Japanese |
 
 The vertical-text controls cover a single vertical column with a horizontal
-heading; a position-only change preserves all 14 native text sources, and a
-quantity change reports one inferred text operation. They are not evidence for
-ruby or multiple vertical columns.
+heading. A position-only change preserves all 14 native glyphs and detects no
+content change; a quantity change is detected. Both comparisons stay
+incomplete because vertical reading order is supported only in a bounded
+subset. They are not evidence for ruby or multiple vertical columns.
 
 ## Graph generalization evaluation
 
@@ -256,23 +259,9 @@ diagnostic exceeding 50,000 glyphs / 8 MiB SVG / 8 KiB per field.
 overwrites. A curated [`pdf_oxide` 0.3.77 oracle](../fixtures/extraction-conformance/pdf-oxide-0.3.77/)
 checks all 158 mapped horizontal glyphs of the vendored Japanese Typst fixture.
 
-## Candidate generator profiling
+## Real-world corpus
 
-```bash
-mise run bench-candidates -- --top-k 5,10
-mise run bench-candidate-profile -- --blocks 1000 --top-k 5,10 --json-output candidate-profile.json
-```
-
-`candidates` checks candidate recall and visit pressure on every built-in
-mutation. `candidate-profile` builds a deterministic synthetic corpus and
-reports recall@K, candidate-count p50/p95/max, index-build and query latency,
-and Linux resident memory for the inverted index, MinHash LSH, and exhaustive
-oracle, each in a separate worker process. `--blocks` is bounded to
-`2..=10000`. Latency and memory are diagnostic single observations.
-
-## Real-world revision benchmark
-
-Self-comparison cannot exercise alignment under real edits, so
+Self-comparison cannot exercise reflow under real edits, so
 [`benchmark/realworld/`](../benchmark/realworld/) records genuine public
 revision pairs (`old -> new`). Documents are downloaded, never committed; the
 manifest records each side's URL, capture date, byte size, and SHA-256.
@@ -290,47 +279,25 @@ mise run bench-capture -- <pair-id> <old-url> <new-url>
 
 # download every pair and verify byte counts and checksums
 mise run bench-fetch
-mise run bench-revisions-checksums
 
-# compare every pair and report metrics
-mise run bench-revisions
-mise run bench-revisions -- --set holdout --summary-json-output summary.json
-mise run bench-revisions -- --pair nist-csf-v1-1-to-v2-0 --json-output report.json
-
-# write a dated capture to benchmark/realworld/results/ (gitignored)
-mise run bench-revisions-capture
+# capture flow native reports for the frozen 36-pair panel
+systemd-run --user --scope -p MemoryMax=6000000000 -p MemorySwapMax=0 -- \
+  python3 benchmark/realworld/native_panel.py capture \
+  --binary target/release/pdfdelta --output benchmark/realworld/results/native-replay
 ```
 
 `bench-capture` accepts credential-free HTTPS URLs without query strings,
 follows at most five redirects, limits each PDF to 100 MiB, and validates both
 responses before publishing either cache file.
 
-Each pair ends as `OK` (compared), `LIMIT` (stopped at a documented resource
-budget), or `FAIL` (provenance, expectation, or execution failure). Metrics
-include extraction completeness, alignment coverage, unresolved-token share,
-change counts, and — where annotations exist — recall, precision (complete
-annotations only), change-kind accuracy, fragmentation, and suspicious one- or
-two-token edits. `--limit-scale` scales comparison budgets (parser and
-extraction limits are untouched); omitting it applies each pair's
-`limit_scale_hint`.
-
-Exit code `1` signals provenance failures, expectation mismatches, or pairs that
-ended `LIMIT`/`FAIL`. Quality scores never fail a run: current recall and
-fragmentation on these documents are too unstable for fixed thresholds.
-
-`--summary-json-output` writes a deterministic compact summary with scoped
-precision/recall and diagnostic fields; `--json-output` writes full reports.
-Both are published atomically and never overwrite. Two summaries can be
-compared with:
-
-```bash
-mise run bench-revisions-exact-parity -- baseline.json candidate.json
-mise run bench-revisions-schema-parity -- baseline.json candidate.json --ignore-field <field-path>
-```
-
-`benchmark/realworld/sensitivity.sh OUTPUT_JSON` runs the built-in corpus under
-layout, matching, score-margin, and candidate-budget perturbations. It is
-diagnostic evidence and never selects production defaults.
+The native panel driver (`native_panel.py`) fetches the frozen panel, verifies
+input hashes, runs the binary at `--engine flow --limit-scale 1`, and records
+source commit/tree, binary and input hashes, command arguments, report hashes,
+elapsed time, memory peak, and OOM counters. It validates every report against
+the flow contract and writes summaries atomically. Output directories must be
+new; `--resume` verifies completed rows before reusing them, and `--pair ID`
+keeps the denominator at 36 while marking unselected pairs `not_run`. See
+[Replay the frozen native panel](#replay-the-frozen-native-panel).
 
 Public smoke corpora for self-comparison are listed in
 [`benchmark/manifests/`](../benchmark/manifests/); downloading and running them
@@ -405,12 +372,6 @@ and `quote_misses` gives each miss a reason (`unlocated`,
 changed tokens, so a precise minimal diff of a long quoted line can report a
 low fraction by design. Quotes that cannot be located are reported as missing,
 never as zero coverage.
-
-`--legacy` additionally runs the existing native-text comparison
-(`pdfdelta --native-text-only -q OLD NEW`) for every pair
-inside the same 6 GB scope with a 180 s timeout and records
-`legacy_exit`/`legacy_seconds`/`legacy_rss_kb`. It is off by default because it
-roughly doubles corpus runtime.
 
 `--repeat N` reruns each selected pair N times and fails when the compressed
 report or either token sidecar differs by SHA-256 between runs. Use it as a
@@ -638,8 +599,8 @@ Khronos data-format pair. Identity now uses the strongest available evidence:
   non-empty outline exists.
 
 The first byte of the 32-byte identity hash tags the kind, text placeholders
-print it, flow token text uses `\uFFFC<kind>:<hash>:<glyph_id>`, and native JSON
-adds an `identity` field to `unmapped_tokens`.
+print it, flow token text uses `\uFFFC<kind>:<hash>:<glyph_id>`, and the native
+full report names the identity kind in each unmapped token source.
 
 Measured on the final corpus:
 
@@ -777,99 +738,6 @@ n-grams for one durable report that also contains token and geometry data;
 running without `--only` across the full corpus is a long operation and should
 start with one small pair.
 
-### Native-text completion coverage
-
-On 2026-09-27, a fresh release build of HEAD `cf5feb9` completed
-**3/36 pairs (8.3%)** under a shared 6 GB memory limit. All 36 pairs produced
-reports; 33 remained incomplete. No pair timed out or failed execution.
-This is document-comparison completion, not test coverage or change recall.
-It uses the fixed 36-pair panel, distinct from the 29-pair revision manifest
-above.
-
-| Outcome | Pairs |
-|---|---:|
-| Complete, differences detected (exit 1) | 3 |
-| Incomplete, differences detected (exit 3) | 20 |
-| Incomplete, difference status indeterminate (exit 3) | 13 |
-| Both inputs extracted completely, including incomplete comparisons | 32 |
-
-The complete pairs are `irs-schedule-se-2024-to-2025`,
-`faa-thunderstorms-b-to-c`, and `bunka-kana-1946-to-1986`. The latter two have
-zero visible native-text tokens on the old side. Thus only one complete pair
-compares nonempty native text on both sides. Completion does not establish
-image comparison or annotation-scored precision/recall.
-
-The retained diagnostic reports now total **72,550,851 bytes (72.6 MB)**,
-down from 1,874,123,872 compressed bytes (**96.1% smaller**). All semantic
-records and text are retained; repeated per-glyph drawing sources are summarized
-as described below. The whole retained run, including the compressed binary,
-source archive, manifests, scripts, and logs, is about **87.6 MB**. This storage
-change does not alter the 3/36 result.
-
-### Measurement conditions and verification
-
-- Build: `cargo build --release --locked -p pdfdelta-cli`, with
-  `CARGO_BUILD_JOBS=1`, at `cf5feb94a1f821fa7712a75791164ff9ada2cc54`.
-  The captured production diff is empty; only documentation was modified.
-  Binary SHA-256:
-  `80b86bebfeb4d9d5906bd94edcd8b46d991596f7f72854838709fe37b7f4a336`.
-- Route: `--native-text-only --limit-scale 1 --quiet --json REPORT.json.gz`,
-  schema 11, one run per pair, sequential execution, 180-second timeout per
-  comparison. Total comparison wall time was 778.93 seconds; build, hashing,
-  and summary processing take additional time. This run does not establish
-  repeat-run determinism.
-- Resource guard: the build and capture ran sequentially in systemd scopes
-  with `MemoryMax=6000000000` and `MemorySwapMax=0`. The capture verified the
-  effective cgroup limit of 5,999,996,928 bytes (kernel page rounding). Its
-  process-group memory peak reached that cap, with 5,144 `memory.events:max`
-  events, zero OOM events, zero OOM kills, and zero swap usage. The largest
-  per-comparison peak RSS was 5,634,948 KiB (about 5.77 GB). These metrics have
-  different scopes: the cgroup includes capture helpers and charged file cache.
-- Storage: full reports contain 48,202,083,963 logical bytes, stored directly
-  as 1,874,123,872 gzip bytes (about 48.2 GB versus 1.87 GB). Summaries were
-  extracted incrementally. A 4 GB capture-output budget was checked between
-  pairs; no unrelated historical captures were removed.
-- Provenance: the historical driver, frozen panel, input manifests, and
-  annotations were restored from `9229676` into the ignored capture setup
-  directory. The capture helper was adapted only for those paths and the
-  output-budget check; automatic retention was disabled. Input hashes were
-  checked by the driver. All 36 run-record hashes and compressed report hashes
-  were verified, and logical report hashes agreed between the driver and
-  capture summary. The binary, source archive, helper, panel, and driver hashes
-  were also checked.
-
-Local evidence is retained under
-`benchmark/realworld/results/current-native-2026-09-27/` (gitignored):
-
-- `capture/summary.json`: 36 distinct rows; SHA-256
-  `435beed6df9e0c7958b668badce0f58a4bac0bc8bb0bce11f71f06ce4cc111e0`.
-- `compact/`: compact diagnostic reports and the verified replacement manifest.
-- `capture/`: immutable capture summary, per-pair `runs.json`, logs, the exact
-  binary in `pdfdelta.gz`, and a compressed source archive. The original full
-  reports were replaced after verification; their recorded hashes are retained.
-- `artifact-compression.json`: original and compressed binary hashes. Restore
-  with `gzip -dc capture/pdfdelta.gz > /tmp/pdfdelta-replay` and
-  `chmod +x /tmp/pdfdelta-replay` from the run directory.
-- `memory.json`: effective limits, process-group peak, and OOM counters.
-- `setup/`: restored provenance files and the capture scripts used for this run.
-- `compact-tools/`: exact initial and resumed compactor scripts. One pair
-  exceeded the initial 64 MiB retained-JSON bound; conversion resumed with a
-  256 MiB bound and the same 6 GB process-group limit, preserving all fields.
-- `compaction-verification.json`: checks of all 36 compact artifacts, 72 input
-  PDF hashes, binary/source provenance, and unchanged completion counts.
-  The compact manifest SHA-256 is
-  `1c2f705c8563625da2d540c7cb64ae0c00f0697957b865d0d863333652cdcc16`.
-- `compact/pruned.json`: receipt for removal of the 36 verified original reports.
-
-The earlier experimental capture also reported 3/36, but included an
-uncommitted reference-bounds patch. The current run replaces that build caveat
-with evidence from the current source. The completion categories are unchanged;
-32/36 full report logical hashes match the experimental capture exactly.
-
-The historical panel definition and input provenance are available in the
-[`9229676` archive](https://github.com/hayatosc/pdfdelta/tree/9229676f47594a6cc2af8d5b54fdff64e441db15/benchmark/realworld/followup).
-Keep failed and incomplete pairs in the denominator when updating this result.
-
 ### Replay the frozen native panel
 
 `benchmark/realworld/native-panel.json` is the unchanged 36-pair panel from
@@ -940,12 +808,12 @@ python3 -m unittest discover -s benchmark/realworld -p test_capture_guard.py
 ```
 
 The resume command requires the same shared memory limit as the original capture.
-This runner resumes verified experiments; it does not change proof criteria,
+This runner resumes verified experiments; it does not change capture criteria,
 substitute inputs, upload files, or create a persistent scheduling service.
 
-The reader streams gzip and JSON to the end, validates the native completion
-predicate against extraction, coverage, unresolved regions, candidates and
-truncation, and checks that the exit code agrees. A meaningful completion also
+The reader streams gzip and JSON to the end, validates the flow completion
+predicate against extraction, coverage, and the retained compatibility fields,
+and checks that the exit code agrees. A meaningful completion also
 requires positive native-text token counts on **both** sides. Empty-text
 comparisons, missing inputs, hash mismatches, timeouts, output-limit stops and
 invalid reports stay in the denominator and never count as complete. Engine
@@ -954,10 +822,12 @@ This measures completion only; it does not establish annotation-scored accuracy.
 
 ### Compact native diagnostics
 
-Native schema 11 repeats per-glyph drawing provenance in resolution ranges,
-relation spans, changes, and unresolved regions. For example, the largest pair
-in the current 36-pair capture has 12.41 GB of pretty JSON, including 9.05 GB
-in assessment relations. Gzip compresses repetition but leaves large artifacts.
+A full flow report repeats per-glyph drawing provenance for every token. On
+the ten largest H1 pairs those reports totaled 609.7 MB of gzip. The former
+in-memory writer needed about 5.1 GB of peak resident memory on the largest
+pair; the current writer spills per-glyph records to a temporary side cache and
+peaked at 2.18 GB, close to the compact text-only run. The compact report is
+the default and never builds those arrays.
 
 For new native captures, write the small artifact at the source:
 
@@ -966,21 +836,20 @@ pdfdelta old.pdf new.pdf --native-text-only \
   --limit-scale 1 --quiet --json report.compact.json.gz
 ```
 
-This directly emits compact artifact version 2. It preserves all semantic
-records and text while summarizing sources before serialization. No full JSON
-file or whole-report glyph-source array is built. Source-array hashes use
-compact JSON in native schema-11 field order; there is no full-report hash for
-a report that was never emitted. Store PDF/binary hashes and execution metrics
-in the capture's run record. See [usage](usage.md#compact-native-json).
+This directly emits compact artifact version 3. It preserves every flow
+change, formatting change, extraction issue, reading-order record, and token
+count, and never builds a whole-report glyph-source array. Store
+PDF/binary hashes and execution metrics in the capture's run record. See
+[usage](usage.md#compact-native-json).
 
 A 2026-09-28 release build with the direct writer was checked against six
 saved pairs: IRS W-4, Schedule SE, GPT-3, MHLW care skills, FAA thunderstorms,
 and NIST controls. Their gzip reports totaled **16,689,103 bytes**, compared
-with **611,352,134 bytes** for the previous full reports (**97.3% smaller**).
+with **611,352,134 bytes** for the earlier full reports (**97.3% smaller**).
 The largest, NIST, fell from 495,567,773 to **9,460,205 bytes** and completed
 in 44.5 seconds. All six retained semantic projections, source counts, pages,
 and samples matched the saved results; hashes differ by the versioned encoding
-contract. This selected-pair check does not update the full-panel 3/36 coverage.
+contract.
 
 The shared 6,000,000,000-byte cgroup cap remained active, with swap disabled
 and no OOM events. NIST peak process RSS was 5,366,848 KiB; the workload
@@ -989,7 +858,8 @@ remains necessary. Replay arguments, PDF/binary hashes, the source patch,
 compressed executable, per-pair metrics, and compact outputs are retained in
 `benchmark/realworld/results/direct-compact-2026-09-28/` (gitignored).
 
-For existing full native reports, use the version-1 postprocessor:
+For archived proof-era full native reports, the version-1 postprocessor remains
+available; current flow captures do not need it:
 
 ```bash
 python3 benchmark/realworld/compact_capture.py convert \
@@ -1014,10 +884,12 @@ Original report paths in the immutable capture records describe the historical
 outputs and may no longer exist after pruning.
 
 Compact artifacts use a separate format with the retained report under `report`.
-They preserve **every** change, candidate, formatting change, unresolved region,
-resolution range, relation, review unit, text, unmapped token, extraction issue,
-coverage value, confidence, reason, assumption, and work-budget field. Text and
-semantic arrays are neither sampled nor truncated.
+Version-3 artifacts are the current schema-12 flow reports; they preserve every
+flow change, formatting change, extraction issue, order record, token count,
+and confidence and ambiguity field, and text and semantic arrays are neither
+sampled nor truncated. Version-2 schema-11 flow artifacts and version-1
+historical proof artifacts remain readable. The version-1 artifacts preserve
+every historical field except the per-glyph `sources` arrays.
 
 For postprocessed version-1 artifacts, each `sources` array is replaced by a
 `source_summary`: its raw serialized
@@ -1026,7 +898,8 @@ Individual glyph geometry and PDF operator provenance require regenerating the
 full report when the samples do not answer a question. The original input and
 binary hashes, arguments, full-report hashes, and compactor metadata preserve
 that audit path. This is a diagnostic projection, not a lossless archive of the
-native report, and it must not be passed to consumers expecting schema 11.
+native report, and it must not be passed to consumers expecting schema 12 or
+the archived schema-11 flow artifact.
 
 ### Capture archive
 
@@ -1039,13 +912,11 @@ Store new captures and raw logs outside the repository or in the gitignored
 
 ## Microbenchmarks
 
-[`benchmark/microbench/`](../benchmark/microbench/) holds versioned case
-matrices for two ignored measurement tests in `pdfdelta-core` (assignment
-pricing and text-candidate retrieval) and the Python drivers that run them in
-isolated release processes:
+[`benchmark/microbench/`](../benchmark/microbench/) holds a versioned case
+matrix for the ignored assignment-pricing measurement in `pdfdelta-core` and
+the Python driver that runs it in isolated release processes:
 
 ```bash
-python3 benchmark/microbench/measure-text.py /tmp/text-measurement
 python3 benchmark/microbench/measure-pricing.py /tmp/pricing-measurement
 ```
 
@@ -1065,59 +936,3 @@ Whitespace differences can be collapsed for this quotation audit; punctuation
 remains significant. A quotation-level changed region does not select one of
 several equally minimal character alignments and does not supply a glyph mask.
 Keep independently selected holdout targets separate from development targets.
-
-Assessment JSON includes `anchor_work`: candidate and occurrence indexing,
-sequence comparison and order uniqueness charges, starts examined, and the first
-refused request. Charges are logical work units rather than CPU instructions;
-`refused_remainder` identifies budget consumed without performing refused work.
-The global anchor proof enumerates every posting of the least frequent internal
-adjacent token pair (or the token itself for a single-token needle), translates its offset to a possible start, and verifies full token
-equality. This preserves overlapping matches and cross-block alternatives while
-reducing impossible start checks. Work for choosing the posting is also charged.
-Constructor sidecar reservations are reported separately. If
-`sidecar_refused_request` is nonzero, `sidecar_index` includes the remaining
-budget consumed by that failed reservation; those charged units were not
-executed comparisons. Anchor `refused_remainder` describes the anchor proof
-only, not a sidecar refusal.
-
-The distinct whole-block anchor order uses a bounded Fenwick-tree LIS path count
-instead of a quadratic token LCS table. It accepts only distinct positions and
-returns no uniqueness claim when its shared budget is insufficient. Both the
-rank array and tree share the exact check's 64 MiB allocation bound. Exhaustive
-small permutations compare the specialized result with the general exact oracle.
-When the maximum spine is ambiguous, a second bounded forward/reverse LIS check
-retains only anchors shared by every maximum path. A vertex is eligible when
-its prefix and suffix lengths sum to the maximum length plus one; a level with
-one eligible vertex is mandatory. Exhaustive maximum-path intersections for
-all permutations through length eight verify this rule. The check and its
-projection use fallible allocations and explicit 64 MiB bounds; any unfinished
-budget returns no anchors. `order_unique` remains false even when
-`verified_anchors` is nonzero. These common boundaries narrow correspondence
-windows; they do not clear source-order, normalization or extraction barriers.
-Every other verified source pair is retained as competing correspondence,
-including pairs outside maximum paths. A global window touching a competitor
-stays unclosed; a character LCS cannot choose that correspondence by favoring
-longer blocks. Ordered-window discovery keeps the same veto. Independently
-established local source domains still require their existing proof.
-`local_view_work` separates trusted view construction, automatic seed search,
-explicit-anchor search, source issue indexing, domain construction and footers.
-Stage totals minus the listed subphase charges remain unattributed work and
-must be reported separately. Completing a budget phase does not establish a
-unique anchor order or improve resolved coverage by itself.
-
-Optional local discovery retains up to one sixteenth of the configured shared
-work limit for later localization and emission (2 million units at the default
-32 million limit). The reserve is a bounded scheduling heuristic, not an
-accuracy guarantee. Only actual optional spend is deducted from shared work;
-unused work and the reserve remain available to settlement. Small limits below
-16 units retain a zero reserve.
-
-`local_view_work.budget_cap` and `settlement_reserve` describe that split.
-`cap_exhausted` means the optional cap reached zero, including an exact boundary
-or zero-cap invocation; it does not establish the size or even occurrence of a
-refused request. Current view helpers do not expose that receipt, so
-`refused_request_size` is unknown. A reached cap records the optional search as incomplete
-even when the restored shared budget is positive. Existing source closure and
-completion rules remain in force. An already established root retains its
-completed evidence; the optional stop gets a separate tentative record and
-does not establish ownership or invalidate established children.

@@ -39,45 +39,30 @@ gaps so you can judge whether a result applies to your documents.
 - General split/merge discovery, general footer recognition, and full document
   structure discovery remain incomplete.
 
-A coarse interior changed-region proof does not identify a unique deletion,
-insertion, or glyph mask. The optional mandatory-boundary rule currently holds
-one-sided interiors, whitespace-only changes, equal-multiset reorderings, nonwhitespace characters without literal
-glyph sources, shared glyph sources, source-map cuts that split a source, and
-unsupported whitespace joins. It keeps the candidate alternatives and unresolved
-coverage; reporting such a region does not establish full-document accuracy.
-
-A separate optional rule can resolve literal nonwhitespace equal subruns inside
-a two-sided whole single-block coarse region, with a complete clean parent,
-mandatory unique counterparts, singleton raw glyph evidence, safe normalization
-cuts and no source reuse. Ordinary certificates require the same page. A
-separate final route can certify paired equalities on different pages only
-under an isolated, complete exact whole single-block parent on each side, with
-no ancestor dependency and an explicit page-shift certificate. Each block must
-still belong to exactly one page; all literal-source checks remain required.
-The rule excludes partial or one-sided coarse
-regions, candidate overlaps and uncertain ancestors, and runs only with budget
-left after earlier proofs. Such subruns establish literal equality under those
-premises; they do not identify a unique edit history or resolve the remaining
-ambiguous positions. The containing coarse proof still prevents completion.
-
-An additional optional rule handles differing block splits only when the
-complete exact multi-block parent is already established and both literal
-sequences are identical, nonempty and no longer than 512 tokens. It requires
-strict source evidence for all nonwhitespace parent tokens before publishing
-any child. Each side stays on one page, whose ordinal may differ under that
-parent correspondence. Whitespace, candidates, coarse overlaps and previously
-owned ranges are excluded. It cannot discover a missing parent correspondence,
-resolve unequal parent sequences, repair extraction or relax strict completion.
-It is skipped when the preceding initial-component pass added relations, so
-the original late evidence capture keeps its existing resource priority.
+The flow engine reports one verified token script. One script is not a
+unique edit history: repeated equal runs can shift which occurrence is
+marked, and a coarse replacement may not localize its interior edit.
+When two adjacent equal runs swap order, either run can be described as the
+move. Flow prefers the explanation that relocates the smaller structural unit:
+the run intersecting fewer reconstructed blocks of the old document, when that
+run is at least as informative as the reported one. A paragraph that moved
+past a heading and its paragraph is therefore reported as the paragraph move,
+not as a move of the heading group. That preference is a quality rule, not
+author intent: a swap between runs with the same block span is reported as a
+move of whichever run the alignment left out, and a short, low-information run
+is never preferred as the moved run. Formatting-only reasons are approximate.
+The retained text-scope fields are compatibility positions: an empty or absent
+value means the engine did not compute that search, never that a search
+completed and found nothing.
 
 ## Text extraction
 
 Local optimal-alignment envelopes are optional explanations of supplied token
 pairs. They do not establish document correspondence, reading order, scope
 closure, extraction completeness, or source ownership. Mandatory masks use the
-same proof kernel as existing local claims; retaining more alternative
-information does not increase strict comparison completion. The envelope API
+same bounded local-alignment kernel as the text-envelope command; retaining
+more alternative information does not by itself complete a document
+comparison. The envelope API
 currently refuses optional-normalization families instead of selecting one
 interpretation. Its graph and counterpart lists consume additional time and
 output space, bounded independently of existing comparisons.
@@ -167,12 +152,12 @@ output space, bounded independently of existing comparisons.
 
 ## Diff and reporting
 
-- Paragraph moves are reported as `Move` only when a unique out-of-order anchor
-  matches exactly. Fuzzy moves stay candidates or unresolved.
-- Page- and glyph-scoped extraction gaps leave their anchor windows unresolved
-  while other windows are still compared. Recovering changes inside an
-  unresolved window is future work. Document-scoped gaps prevent correspondence
-  entirely.
+- The move detector reports a repeated run as `Move` only when it is long
+  enough to identify and carries information weight beyond punctuation. Fuzzy
+  or short reorderings can stay `Delete`/`Insert` pairs.
+- Extraction gaps make the affected pages incomplete while uninvolved pages are
+  still compared. Recovering text inside an unexamined region is future work.
+  A document-scoped extraction gap prevents a complete text channel.
 - Formatting-only reporting is best-effort and does not claim rendering
   identity.
 - Text reports do not list per-span provenance (JSON does), and SVG output is a
@@ -203,11 +188,191 @@ output space, bounded independently of existing comparisons.
   together, which is the reading a human expects on these pages, so the
   disagreement is reported rather than tuned away.
 - A short moved run that is just a rotation remainder around a larger move is
-  reported as its own `Move`, even below the five-token minimum. A short equal
-  run that is not adjacent to opposite ends of one move stays a `Delete` plus
-  an `Insert`. The move detector otherwise requires a shared five-token window
-  and a moved run of at least five tokens, so unrelated repeated-word edits can
-  still appear as delete/insert pairs.
+  reported as its own `Move`, even below the five-token minimum; the word
+  order swap `may not always` -> `may always not` is a one-token move of `not`.
+  A short equal run that is not adjacent to opposite ends of one move stays a
+  `Delete` plus an `Insert`. The move detector otherwise requires a shared
+  five-token window and a moved run of at least five tokens, so unrelated
+  repeated-word edits can still appear as delete/insert pairs. A `Move` selects
+  exit `1`, so these short reorders are never reported as "no difference".
+- Flow formatting evidence covers normalization, block structure, effective
+  font size, position, and line/page breaks on matched token runs. It does not
+  compare font family, fill colour, text render mode, or vector decorations.
+  Position requires complete token geometry on the segment being tested and
+  uniform baseline translations. That segment's internal line and page break
+  offsets must agree; a break difference in one segment no longer suppresses
+  position on another segment of the same matched run. A break at an old-block
+  boundary is a group boundary and is not counted. A run that moved to another
+  page with unchanged internal layout is reported as position, not suppressed.
+  Block-structure evidence is a boundary-pattern comparison because flow has no
+  separator token. Adjacent entries with the same evidence are coalesced; a
+  one-token LCS match inside rewritten text is dropped as a point rather than a
+  formatting span, and a point carrying only position is merged into its
+  neighbour without turning that position into a span.
+- Formatting reasons are approximate and are not interchangeable with the
+  removed engine's buckets. The removed engine is not an oracle: its captures
+  often had low comparison coverage, and some formatting entries do not
+  describe a visible PDF change. On the 62 pairs where both captures now exist
+  (including the NIST SP 800-57 retry), a word check (`\w+` words, ±3-page
+  window) finds a flow entry with the same reason for 84.2% of the removed
+  engine's 2,763 `position` entries, 88.4% of 43 `line_break`, 56.5% of 108
+  `normalization`, 57.3% of 358 `font_size`, and 3 of 3 `block_structure`
+  entries (strict same-page check: 83.6%, 83.7%, 52.8%, 56.7%, 3 of 3).
+  Auditing the misses against PDF glyphs found no actionable
+  `normalization`/`font_size` miss: of the 153 missed `font_size` entries, 18
+  are identical or differ by less than the 1% relative tolerance, 133 are
+  reported by flow under another reason or inside a content change, and 2 are
+  not a stable matched span; of the 47 missed `normalization` entries, 41 are
+  reported under another reason or inside a content change and 6 are not a
+  stable matched span. The `position` miss count is dominated by a real
+  root cause: a break difference in one segment used to suppress position for
+  the whole run. Position is now tested per segment. One clean sampled
+  class-(a) paragraph is recovered; the other five sampled entries are
+  garbled/reordered multi-column or form occurrences with no stable glyph
+  alignment. Flow is more granular because its
+  unit is the maximal matched run, not a block-grouped bucket, so a formatting
+  report can contain far more entries for the same pair.
+- The default text engine does not produce an assessment, change candidates,
+  proven changed regions, unresolved regions, or coverage intervals. Those
+  positions are absent from the native schema-12 report rather than retained as
+  empty compatibility arrays. Each change carries its own `confidence` and
+  `ambiguity` reasons. Absence means the phase does not exist, never that a
+  search completed and found nothing. `--trace-json`, `--compact-json`,
+  `--full-json`, `--review`, and `--agent-review` are flow capabilities. Flow
+  reports carry `"engine": "flow"` whenever the engine runs, including non-text
+  channel selections.
+- Flow review cases group change and formatting events by result class, token
+  geometry page, and event kind. A page with many events is one decision, so a
+  reviewer reads a wider quoted range than one change. Flow cases are planned
+  first; acquisition cases follow in importance order (broken before
+  unexamined, page-local before document-wide), and page-residual cases last.
+  When the 4,096-case default budget is exhausted the planner records a
+  bundle-level `cases_not_exported` omission with the number of withheld cases
+  and stops building further cases; it does not spend time constructing cases
+  it cannot export. A caller can raise the limit with
+  `--agent-case-budget` (1–65,536), but the 512 MiB bundle cap still applies.
+  On `nist-controls`, a complete export would need at least 16,802 cases
+  (9,537 acquisition gaps, 7,264 content cases, one relationship case), which
+  is larger than the bundle cap; the default exports 4,096 cases and omits
+  7,686. Candidate enumeration is `unknown` for every flow case because the
+  engine enumerates no competing correspondence universe. Token text and
+  source lists are truncated with explicit omissions. The HTML review does not
+  publish per-glyph token sources; `--agent-review` and `--full-json` do. A
+  native flow bundle never offers page pictures, because flow retains no
+  rasters.
+- Flow text completeness is extraction completeness, glyph conservation, and
+  equality of the non-text paint inventory. Paths, images, inline images, and
+  shadings are hashed by kind, exact shape or image data, and page-space
+  placement; the page number is excluded so an identical page shifted within
+  the document stays equal, while page crop and rotation are included.
+  Artifact-marked paint is included. If the multisets differ or an identity is
+  unavailable, the text channel is incomplete and says `non-text paint differs;
+  text drawn as paths or images was not examined`. Changes are still reported.
+  On the 64 H1 pairs, 63 have a paint difference and one (`irs-w2`) stays
+  complete; a page-local vertical-shift variant measured in M4b recovered no
+  additional pair.
+- Flow exit policy: a channel that detected a typed difference with its own
+  evidence intact selects exit `1` even when another channel is broken or was
+  not examined; `comparison_complete` stays `false` and `exit_basis` records
+  the coexistence. Broken evidence blocks exit `1` only for its channel, and
+  cross-channel or unknown broken reasons block every channel. Exit `3`
+  remains when no channel has an intact detection and something is broken or
+  unexamined. Exit `0` is only issued when every selected channel was examined
+  and nothing is broken. This is why a flow exit `1` can coexist with broken
+  forms, relation limits, visual backend failures, or unexamined paint.
+- Text views remain correspondence context for relationships and structure,
+  but an unselected text channel cannot justify exit `1`, and text-only
+  obligations cannot keep `comparison_complete` false. Components that mix
+  text with non-text sources keep every obligation. `flow_owned_text` (also
+  present at `comparison.flow_owned_text`) records shared-evidence text
+  components and local comparisons that flow ownership replaced, with an
+  `unchecked_obligations` count per skipped reason. Absence means no such
+  position was recorded, not that a text search completed.
+- Flow paint-gate issues have their own `unexamined_paint_issues` counter in
+  the native flow summary and `flow_text.summary`; they are excluded from
+  `unresolved_extraction_issues`. Reports written before this counter existed
+  included paint issues in the unresolved extraction count.
+- Superseding text evidence does not relax structure identity. Native
+  `pdf-structure-id` key obligations belong to relations/structure and
+  `pdf_field_name` obligations to forms; they block exit `1` only for those
+  channels. An obligation records why a key claim could not be established (a
+  missing inventory, unnamed or duplicate members, a retained rename
+  alternative, or an unavailable acquisition path), so it is unexamined
+  evidence on its channel. An exhausted raw key search is cross-channel
+  broken. An exhausted scoped key search, or a scoped `work_budget` obligation,
+  is broken on every channel that owns a claim in the search; other scoped
+  obligations are unexamined on their claim's domain.
+  In the 36-pair real-world corpus, 35 pairs exit `1` through an intact text
+  detection; only `mhlw-care-skills` stays exit `3` because its flow text
+  extraction itself is broken.
+- Exit `0` is not reachable with the default channel set for a document with
+  pages yet. Rendered page rasters are retained for review but not compared,
+  so each rendered page leaves the visual inventory incomplete, and native
+  relation endpoints and semantic relationships are not established, so
+  relations stays unexamined. An identical or purely reflowed document
+  therefore exits `3` with `exit_basis: "unexamined_evidence"` and
+  `comparison_complete: false`, not `0`. `--channels text`, `--channels
+  text,forms`, and `--native-text-only` report the verdict of the channels
+  they select; they exit `0` when those channels are complete and unchanged.
+- A text extraction issue about a page whose only possible text is inside
+  painted images is unexamined text evidence, not ignored: it cannot allow exit
+  `0` (or a "complete unchanged" text channel) but does not block a flow text
+  change. The flow paint gate covers changed or unavailable paint on those
+  pages; it does not establish text inside an unchanged image.
+- Flow reports a `Move` as a detected difference, including a one-token move
+  such as `may not always` -> `may always not`; layout-only changes do not count,
+  but a layout-only shift that changes token order is reported as a move and
+  selects exit `1`.
+- The flow HTML review's `sources.json.gz` is one gzip stream in manifest
+  version 3. The compatibility reader accepts the version-2 double-gzip shape
+  (one gzip member inside another) and the oldest uncompressed `sources.json`;
+  old bundles remain readable. The single stream is smaller and avoids a
+  second compression pass; the JSON content is unchanged.
+- The render child preflights image XObjects before rendering. A page that
+  contains a single image above 64M declared pixels is reported as a
+  page-scoped `resource_limit`, not a renderer backend failure. This covers
+  the real-world `mext-primary-japanese-2008-to-2017` new page 83 (0-based
+  `PageId` 82): a 19,848 × 28,063 1-bit mask whose full-size RGBA conversion
+  requested a 2 GiB allocation and aborted under the child's 2 GiB
+  address-space limit. The scan reads image dictionaries and recursively
+  follows Form XObject resources with depth and entry bounds; it never decodes
+  a stream. Inline images in page content are not preflighted by this check.
+  Reproduce the child path with `pdfdelta render-page 82 249 596 842 235 0 <
+  mext-primary-japanese-2008-to-2017-new.pdf`; it exits 3 without rendering.
+- Flow's confidence marker is a cheap heuristic, not a uniqueness guarantee.
+  Repeated runs, numeric-only spans, numeric table neighbours, order-uncertain
+  pages, coarse replaces, and moves of at most two tokens are flagged; a
+  unique changed run can still have another valid alignment that the marker
+  does not see. The marker never changes the exit code.
+- Channel rendering budgets every page by child CPU time: five CPU seconds per
+  page, measured against p99.9 0.51 s and max 0.84 s over 4,654 rendered pages
+  of the 36-pair channel panel. A page that exhausts this budget is a
+  resource-limit outcome and retains no raster, never an empty page. Each input
+  document also has a cumulative child-CPU budget of 60 s; measured per input,
+  the maximum was 26.4 s and p99 26.4 s over the 72 documents of the 36-pair
+  panel. The page that crosses the document budget is retained; later pages are
+  `resource_limit` with reason `document CPU budget exhausted`. Failed render
+  attempts charge the full page budget, and a page rejected before rendering
+  (for example by the raster budget) charges nothing. The page and document
+  wall-clock caps (120 s and 300 s) are safety stops only; their expiry is
+  reported as a distinct resource-limit reason and is explicitly dependent on
+  machine load. The retained-raster budget is deterministic. The old
+  `mhlw-care-skills-original-to-revised` 167-170 region splits came from the
+  former 30 s document wall cap; with CPU budgeting the old side renders until
+  its fixed raster budget (178 of 272 pages) and its logical report is
+  identical across idle and loaded runs. `nist-contingency-34-to-r1` likewise
+  renders all pages in every run. Do not pin a report whose wall safety stop
+  actually fired; no such run was observed in the M8d panel.
+- A `--full-json` capture retains per-glyph sources for every token. The
+  serializer streams token sources, and a side built in a child process spills
+  its per-glyph records to a temporary source cache that the reporting parent
+  copies back in token order, so it does not retain the extracted document. On
+  the largest H1 pair (`M/gcc-13-3-to-13-4`, `--limit-scale 2`) the peak
+  resident set was 2,180,660 KiB (about 2.1 GiB), close to the 2,056,812 KiB
+  compact text-only run; the former in-memory full report peaked at
+  5,136,876 KiB. The output is still large: the ten largest pairs produced
+  609.7 MB of gzip. Capture only with an explicit memory and output budget,
+  and delete the reports afterwards.
 - The text-edit and page-merge benchmark cases have known boundaries. A digit
   edit inside a furniture digit run that varies across pages (a page number or
   a per-page form code) is masked by design; the harness records it as a
@@ -378,9 +543,14 @@ revision pairs. On large real-world documents, recall is still low and many
 comparisons end incomplete or at a resource limit. These results do not imply
 support for arbitrary PDFs.
 
-The 2026-09-27 native-text benchmark of HEAD `cf5feb9`, with no production
-code changes and a shared 6 GB memory cap, records **3/36 complete comparisons
-(8.3%)**, with 33 incomplete. All pairs produced reports without timeout or OOM.
-Two of the three complete pairs have no visible native text on the old side. See
-[`Native-text completion coverage`](benchmarks.md#native-text-completion-coverage)
-for the build identity, outcome breakdown, and verification limits.
+The current flow build was measured on the frozen corpora with the shared
+6 GB limit, sequential runs, and default budgets. On the 64-pair native flow
+panel, **1/64 is a complete text comparison**
+(`P/irs-w2-2024-to-2025`); 62/64 detect a difference but stay incomplete
+because non-text paint or an image-only page was not examined, and 1/64 ends on
+broken evidence. On the 36-pair default-channel panel, 35 pairs detect a
+difference with incomplete evidence (exit `1`) and 1 ends on broken evidence
+(exit `3`); no pair reaches `comparison_complete`, because the visual and
+relations channels remain unexamined for real documents. All pairs produced
+reports without timeout or OOM. These are completion counts, not accuracy or
+change-recall figures.

@@ -1,158 +1,224 @@
-# pdfdelta 技術仕様書 v5
+# pdfdelta technical specification
 
-2026-09-20改訂：日本語の15章構成（v4まで）を復元し、現行実装の証拠チャネル、共通solver、局所失敗、安全境界を各章へ統合した。
-本文書は英語版 `comparison contract v5`（`3586485`、2026-09-10）を日本語の章立てへ戻した更新版であり、タイトルのv5は比較契約の版を指す。
-主評価は可視PDF-native文字であり、画像・パス文字・OCRの新規実行は現行スコープ外である。
-実装済みの範囲と将来目標を章ごとに区別して記す。
+pdfdelta compares two PDF documents and reports the content changes a document
+reader would recognize, while separating content that could not be compared.
+This document specifies the behavior of the current tree: one text engine (the
+flow token stream), the shared evidence path for non-text channels, and the
+output contracts. It states implemented behavior and names partial or absent
+capabilities explicitly. It is not a promise that an unlisted extension will
+be added.
 
-## 1. 目的
+Implementation status is marked **Implemented**, **Partial**, or **Not
+implemented**. Limits, schema versions, and measured counts in this document
+are the ones the current release enforces or produces.
 
-二つのPDFを比較し、文書として意味のある変更だけを検出するCLIツールをRustで実装する。
+## 1. Purpose
+
+Compare two PDFs and detect changes that matter to a reader.
 
 ```bash
 pdfdelta old.pdf new.pdf
 ```
 
-旧版の `Release 10 remains available.` が新版で `Release 20 remains available.` になっていれば、これを1件の置換として検出する。
-一方、文章内容が変わらないまま改行位置、改ページ位置、フォントサイズ、余白、段組、生成ソフトウェアだけが変わった場合は、変更に数えない。
+When `Release 10 remains available.` becomes `Release 20 remains available.`,
+the result is one replacement. When only line wraps, page breaks, font sizes,
+margins, column layout, or producer metadata change, the content change count
+must stay zero.
 
-検出対象はPDF内部表現の差ではなく、人間が文書として認識する内容の差である。
-比較は証拠に基づいて行い、著者の意図や画面上の完全一致を証明するものではない。
+The comparison targets what a reader understands as document content, not PDF
+byte differences. It reports evidence-based changes and does not claim to prove
+author intent or pixel-identical rendering.
 
-### 1.1 設計の骨格
-
-全体は次の思想で組む。
+### 1.1 Design skeleton
 
 ```text
-Raw PDF Evidence → Imperfect Structure → Robust Alignment → Exact Diff
+Raw PDF Evidence -> Imperfect Structure -> Robust Alignment -> Exact Diff
 ```
 
-- 構造化（Line/Block復元）に100%の精度を要求しない。構造化の誤りはAlignmentで救う。
-- Alignmentでは多少の文字変更を許容して対応付ける。
-- 最後のExact Diffだけは変更をごまかさない。`Release 10` → `Release 20` のような小さな変更を消さない。
-- どの段階でも、確信が持てない場合は誤った結果を返さずUNRESOLVEDとして報告する。
+- Structure reconstruction is not required to be perfect. Alignment must
+  recover from wrong line, block, or region boundaries.
+- Alignment may correspond text across wrappers, page breaks, and small edits.
+- The final step never hides a change: `Release 10` -> `Release 20` stays
+  visible even inside a coarse replacement.
+- Anything the engine cannot establish is reported as unresolved or
+  unsupported instead of an empty result.
 
-### 1.2 普通のdiffが使えない理由
+### 1.2 Why plain text diff is insufficient
 
-PDFは論理的な文章構造を保存する形式ではなく、「この文字をこのフォントでこの座標へこの順番で描画する」という命令の列に近い。
-そのためplain text抽出とdiffの組み合わせは次の点で壊れる。
+A PDF stores drawing instructions, not paragraphs. Extracting text and running
+a line diff breaks in predictable ways:
 
-- **改行**：同じ文が2行に分かれているだけで差分になる。
-- **改ページ**：同じ段落がページ境界を跨いで移動しただけで差分になる。
-- **段組**：左右2列の読み順は文書種別で異なる。論文なら左列から右列へ読むが、法律の新旧対照表なら左右が行単位で対応する。左右に分かれているという情報だけから読み順を決めてはならない。
-- **構造化の揺れ**：同じ文章でも版によってBlock分割が1個になったり2個になったりする。完全な文書構造を前提にした設計は成立しない。
+- **Line breaks:** the same sentence split on two lines becomes a difference.
+- **Page breaks:** a paragraph crossing a page boundary becomes a difference.
+- **Columns:** reading order is document-type dependent. Papers read
+  left-to-right column by column, while old/new legal tables pair rows across
+  the page. Column detection is not reading-order detection.
+- **Structure variance:** the same prose is split into one or two blocks by
+  different producers. Any design that requires exact block structure fails.
 
-### 1.3 主評価と現在の達成状況
+### 1.3 Primary evaluation
 
-主評価は、可視のPDF-native文字を比較する`--native-text-only`経路で、固定36ペアの公開改訂ペアを比較完了できるかである。
-従来の最終binaryでは少なくとも3/36ペア（Schedule SE、および片側に可視native文字を持たない独立producer 2ペア）が同一入力・同一引数・既定budgetで2回とも同一reportで完了することを確認した。
-2026-09-27に現行HEAD（`cf5feb9`、コード差分なし）をrelease buildし、合計メモリ6GB・swapなし・既定budget・各ペア180秒で全36ペアを各1回再測定した。
-結果は3/36完了（8.3%）、33/36未完了であり、timeout・OOMは発生しなかった。
-測定条件、内訳、検証範囲は[ベンチマーク文書](benchmarks.md#native-text-completion-coverage)に記す。
+The first practical release is defined by the five acceptance cases in §2.2.
+Two measurement layers support it.
 
-既定の証拠チャネル経路（text, visual, forms, relations）は、未知PDFに対する比較契約の移行目標である。
-チャネルごとのinventoryと比較義務がすべて解消して初めて文書比較は完了する。
-現行実装はこの目標の一部を実装しており、全PDFの完全比較を達成したとは扱わない。
+The generated acceptance matrix renders 24 cases through two project-owned PDF
+writers (literal `Tj` and positioned `TJ`), giving 48 records. On the current
+tree, 48/48 records pass the exact author-intent check, matching 28/28 expected
+events and 2,216 expected changed tokens, with 8 false-positive tokens (token
+precision 0.996, recall 1.000).
 
-## 2. スコープと完成条件
+The frozen real-world corpora measure completion, not accuracy. On the 64-pair
+native flow panel, 1 pair is a complete text comparison, 62 pairs detect a
+difference but remain incomplete because non-text paint or an image-only page
+was not examined, and 1 pair ends on broken evidence. On the 36-pair
+default-channel panel, 35 pairs exit `1` with unexamined evidence and 1 exits
+`3` with broken text evidence; no pair reaches a completed comparison because
+the visual and relations channels cannot be fully examined for real documents.
+Captured reports, pair lists, and run conditions live under
+`benchmark/realworld/results/`; [`benchmarks.md`](benchmarks.md) and
+[`limitations.md`](limitations.md) describe the methodology and known gaps.
 
-### 2.1 最初の対象
+## 2. Scope and completion conditions
 
-born-digital PDFを中心に、可視のnative文字を比較する。
+### 2.1 Supported inputs
 
-| 扱う | 扱わない |
+The primary target is born-digital PDFs with visible native text.
+
+| Handled | Not handled |
 |---|---|
-| 日本語・英語（初期完成条件は横書き） | 縦書きの完全対応、手書き |
-| 1段組の複数ページ文書 | AcroForm全般の解釈、高度なannotation |
-| ToUnicodeあり・なし双方の基本フォント、Unmapped token | 複雑な表の完全解釈、画像内容の意味比較 |
-| xref stream / object streamを含む現代的なPDF | PDF 2.0固有機能の網羅 |
-| empty user passwordまたは明示passwordで復号できる暗号化PDF | password不明の暗号化PDF、未対応security handler |
-| 保存済みAcroForm値、widget crop、明示的な参照edge | XFA、export option解釈、link/footnote targetの自動解釈 |
+| Horizontal Japanese and English | Full vertical writing, handwriting |
+| Multi-page single-column documents | General AcroForm interpretation, advanced annotations |
+| Simple fonts with or without ToUnicode, unmapped glyph tokens | Full interpretation of complex tables, semantic comparison of image content |
+| Modern PDFs with xref and object streams | Complete PDF 2.0 feature coverage |
+| Encrypted PDFs with an empty user password or an explicit password | Unknown passwords, unsupported security handlers |
+| Stored AcroForm values, widget crops, caller-supplied relation edges | XFA, export-option interpretation, automatic link/footnote target interpretation |
 
-非対応機能に遭遇した場合は、誤った結果を返すのではなくUNSUPPORTED / UNRESOLVEDとして扱う。
+Unsupported input is reported as unsupported or unresolved, never as an empty
+comparison.
 
-画像とパス文字は主評価の対象外であり、画像は復号済みpixel hashによる粗い比較だけを行う。
-既存の可視OCR文字層はnative glyphとして保持し、可視content比較の対象にする。
-非描画text（render mode 3等）は従来どおり可視content比較の対象外とする。
-OCRの新規実行、model loading、手書き認識は現行スコープ外であり、実装しない。これは恒久的な禁止ではなく、§10.3の証拠契約に沿う追加providerの将来課題として扱う。
+Images and text drawn as paths are outside the primary text evaluation. Images
+are compared coarsely by decoded pixel hash. An existing OCR text layer is kept
+as native glyph evidence and participates in visible-content comparison.
+Non-painting text (for example render mode 3) remains outside visible-content
+comparison. Running OCR, loading a recognition model, and handwriting
+recognition are not implemented; they are future evidence providers under the
+contract in §11, not part of this increment.
 
-### 2.2 最初の完成条件
+### 2.2 First practical release
 
-次の5ケースを確実に解いた時点を最初の実用版とする。この条件は変更しない。
+The first practical release requires all five cases below. This definition does
+not change.
 
-| Case | 内容 | 期待値 |
+| Case | Content | Expected |
 |---|---|---|
-| 1 | 改行位置だけ違う | 0 changes |
-| 2 | 改ページ位置だけ違う | 0 changes |
-| 3 | Release 10 → Release 20 | 1 replacement |
-| 4 | 段落追加 | 1 insertion |
-| 5 | 段落削除 | 1 deletion |
+| 1 | Only line-wrap positions differ | 0 changes |
+| 2 | Only page-break positions differ | 0 changes |
+| 3 | `Release 10` -> `Release 20` | 1 replacement |
+| 4 | Paragraph insertion | 1 insertion |
+| 5 | Paragraph deletion | 1 deletion |
 
-Case 1は英語文書も含む。英語PDFはspace glyphを描画せず座標移動でspaceを表現することが多いため、space再構成（§7.1）がこの完成条件の前提になる。
-二段組と表はこの時点の完成条件に含めない。
+Case 1 includes English documents. English PDFs commonly omit space glyphs and
+express spaces by coordinate movement, so space reconstruction (§7.1) is a
+prerequisite. Two-column layouts and tables are not part of this release
+definition.
 
-### 2.3 証拠チャネルとスコープの宣言
+The same five cases are also exercised on vendored Typst/Tectonic fixtures with
+a Japanese replacement, reverse deletion, and vertical-text controls. The
+release command reports the exact change set; it is not required to exit `0`,
+because the default channels can remain unexamined (§5.5).
 
-比較対象はチャネルとして選択する。
+### 2.3 Evidence channels and scope declaration
 
-| channel | 比較する内容 | 現状 |
+Comparison targets are selected as channels.
+
+| Channel | Compared content | Status |
 |---|---|---|
-| text | 可視native glyphの内容 | 実装済み（§6、§7、§8、§9、§10） |
-| visual | 埋め込み画像のpixel hashと配置 | 実装済み（粗い比較） |
-| forms | 保存済みfield値、widget crop、宣言appearance state | 一部実装済み |
-| relations | 呼び出し側が供給する参照edge | 一部実装済み（自動抽出は未実装） |
-| presentation | 改行、改ページ、座標、font metrics | 観測のみ。既定の内容変更に数えない |
+| `text` | Visible native glyph content, through the flow token stream | Implemented |
+| `visual` | Embedded raster images by decoded pixel hash and placement; page rasters retained for review | Partial |
+| `forms` | Stored field values, widget crops, declared appearance states | Partial |
+| `relations` | Typed relationships such as table membership, labels, captions, references | Partial |
+| `presentation` | Line/page breaks, coordinates, font metrics | Observation only; never a content change |
 
-既定チャネルはtext, visual, forms, relationsであり、`--channels`で明示的に選ぶ。すべての`--channels`実行は共通証拠pipelineを使う。
-`--native-text-only`はnative glyph専用の比較を行い、JSONは既定でcompact形式（artifact version 2）を出力する。全出典を含むreport schema 11は`--full-json`で選択できる。`--channels`とは併用できない。
+The default channel set is `text,visual,forms,relations`; `--channels` selects a
+subset. Every `--channels` run uses the shared evidence pipeline. The text
+channel is supplied by the flow engine in both the default command and the
+standalone `pdfdelta flow` command.
 
-選択したチャネルが欠落または未検証である場合、その比較は不完全である。
-providerの結果が無いことは「内容が空」ではなく「未取得」である。
-空のinventoryが完全であると言えるのは、そのチャネルとscopeを実際に検査したproviderがある場合だけである。
+`--native-text-only` runs the native-glyph flow comparison and writes the
+compact native artifact by default; `--full-json` selects the full native flow
+report. It cannot be combined with `--channels` or `--review`. `--agent-review`
+works with either path.
 
-### 2.4 完了・未解決・失敗の区別
+A selected channel that is missing or unexamined makes the comparison
+incomplete. An absent provider result means "not acquired", never "empty
+content". An empty inventory is complete only when a provider examined that
+channel and scope.
 
-- **完了**：選択した全チャネルで、各側のinventoryが完全であり、比較義務（対応付けと局所比較）が解消している。
-- **未解決**：証拠は保持しているが、対応や位置を確定できない。候補、競合、探索打ち切り、抽出gapを含む。
-- **未対応**：解釈自体が実装されていない（例：一般のlink target、XFA、画像内文字の認識）。
-- **実行失敗**：I/O、malformed input、fatal backend error、資源制限で結果を表現できない。
+Output vocabulary is flow-native. The native report schema, multi-channel
+report schema, and review manifest versions in §5.4 are current; no
+compatibility aliases are written. Artifacts written by earlier builds remain
+readable where §5.4 says so.
 
-欠落した証拠は、無関係な領域を不必要に無効化しない一方で、隠れた競合やglobal uniquenessを無効化し得る。
-局所性は隠れた競合を無視する許可ではない。
-独立して有効な局所結果は、比較が不完全でもreportに残す。
+### 2.4 Complete, unexamined, unsupported, failed
 
-## 3. アーキテクチャ
+- **Complete:** every selected channel has a complete inventory on both sides
+  and every comparison obligation is resolved.
+- **Unexamined:** evidence was not obtained. Examples are non-text paint that
+  may contain outlined text, uncompared page rasters, relation endpoints
+  without correspondence, missing key populations, and unexamined pages. The
+  flow text channel has no candidate phase: a flow change is either a verified
+  script entry or absent, and absence means the phase does not compute it.
+- **Unsupported:** interpretation is not implemented (for example a general
+  link target, XFA, or text recognition).
+- **Failed:** I/O, malformed input, a fatal backend error, or a resource limit
+  prevents a result.
 
-### 3.1 パイプライン
+A local result that is independently valid stays in the report even when the
+comparison is incomplete. Missing evidence must not disable unrelated regions,
+but it also must not be used to claim global uniqueness or completeness. §5.5
+defines how these classes select the exit code.
+
+## 3. Architecture
+
+### 3.1 Pipeline
 
 ```text
 PDF bytes
-  │
-  ▼ PDF Parser Backend        … object / xref / page / stream access
-  │
-  ▼ Primitive Extraction      … Content Stream interpreter → Glyph + geometry
-  │
-  ▼ Evidence Store            … native / rendered / structured evidence
-  │
-  ▼ Document Graph Views      … Line / Block / Region / tags / fields / edges
-  │
-  ▼ Shared Correspondence     … old ↔ new の対応候補と所有権
-  │
-  ▼ Local Comparisons         … exact diff / value / relationship / visual
-  │
-  ▼ Changes / Candidates / Coverage / Unresolved
+  |
+  v PDF parser backend       object / xref / page / stream access
+  |
+  v Primitive extraction     content stream interpreter -> Glyph + geometry
+  |
+  v Layout reconstruction    line / block / region views
+  |
+  v Flow token stream        tokens, order hypotheses, furniture, paint gate
+  |
+  v Alignment + script       information-weighted alignment, verified changes
+  |
+  v Channel evidence         formatting evidence, non-text channels, coverage
+  |
+  v Report                   changes, issues, verdicts, exit basis
 ```
 
-PDF構文とobject graphの解決、および描画命令からGlyphを復元する処理を分離する。
-既存parser libraryを使っても、lossyなplain text extractorへ依存しない。
-後段が必要とするraw object、Content Stream、Resources、object idはparser境界越しに保持する。
+PDF syntax and object-graph resolution are separated from glyph
+reconstruction, and neither step depends on a lossy plain-text extractor. Raw
+objects, content streams, resources, and object identities needed by later
+stages survive the parser boundary.
 
-各段は独立させる。Layout Reconstructionが間違ってもAlignmentで救い、Alignmentが不確実ならUNRESOLVEDへ落とす。
-構造と対応は局所的に互いを精錬できるが、精錬はviewを選ぶだけであり、差分を小さくするために元の文字、数値、画像、field値を書き換えない。
+Stages stay independent. Wrong layout is recovered by token alignment; an
+uncertain correspondence stays unexamined. Structure and correspondence may
+refine each other locally, but refinement selects a view; it never rewrites
+glyph text, numbers, images, or field values to shrink a diff.
 
-### 3.2 PdfParser境界とGlyphExtractor境界
+The text engine keeps only comparison-visible glyphs, flattens them into one
+token stream in reconstructed reading order, and diffs that stream. Line and
+block boundaries become token metadata and never constrain the diff (§8, §9).
+Non-text channels use the shared evidence store and correspondence solver
+(§11).
 
-PDF object parsing専用のtraitと、Glyph抽出専用のtraitを別々に置く。
+### 3.2 Parser boundary
+
+PDF object parsing and glyph extraction have separate traits.
 
 ```rust
 pub trait PdfParser: Send + Sync {
@@ -179,86 +245,132 @@ pub trait GlyphExtractor: Send + Sync {
 }
 ```
 
-`PdfVersion`、`ObjectRef`、`PdfObject`、`PdfDict`、`RawStream`、`DecodedStream`、`ParseLimits`、`ExtractionLimits`はpdfdelta側の中立型とし、`lopdf::Object`のようなlibrary固有型を後段へ漏らさない。
-`ParsedPdf`は完全なPDF DOMの再設計ではなく、Primitive Extractionに必要な最小capabilityを安定化するfacadeである。
+`PdfVersion`, `ObjectRef`, `PdfObject`, `PdfDict`, `RawStream`,
+`DecodedStream`, `ParseLimits`, and `ExtractionLimits` are pdfdelta's neutral
+types. Library-specific values such as `lopdf::Object` do not cross the
+boundary. `ParsedPdf` is a facade for primitive extraction, not a second PDF
+DOM.
 
-production pipelineでは`PdfParser`とpdfdelta独自の`GlyphExtractor`を`ParserBackedGlyphSource` facadeで合成し、PDF bytesから`Document<Glyph>`までを提供する。
-Diff engineの開発は、PDFを経由せずprogrammatically構築した`Document<Glyph>` fixtureで進められる。
-既存text extractorは主backendにせず、Differential Testingのoracleとしてのみ使う。
+The production pipeline composes `PdfParser` with pdfdelta's own
+`GlyphExtractor` in a `ParserBackedGlyphSource` facade that produces
+`Document<Glyph>` from PDF bytes. Diff-engine work can proceed on
+programmatically built `Document<Glyph>` fixtures without a PDF backend.
+External extractors are used only as differential-testing oracles.
 
-### 3.3 既存parserを先に使う方針と自作backendの条件
+### 3.3 Using an existing parser
 
-PDF object parserは自作しない。Header、lexer、indirect object、xref、object stream、trailer、Page Tree、stream decodeは既存libraryへ委譲し、独自実装は差分に必要な証拠を失わずGlyphへ復元する処理から始める。
-Content Stream / Text State interpreterは自前で持つ。既存のplain text extractorはrender order、文字単位のgeometry、raw code、Resourcesの由来を捨てることがあり、Exact Diffまで追跡可能な証拠として不足するためである。
+The PDF object parser is not reimplemented. Header, lexer, indirect objects,
+xref tables and streams, object streams, trailer chains, the page tree, and
+stream decoding are delegated to an existing library; pdfdelta implements the
+content-stream interpretation that preserves glyph-level evidence.
 
-自作`PdfParser` backendは、次のいずれかをfixtureまたはbenchmarkで確認した場合にだけ追加する。
+A custom `PdfParser` backend is added only when a fixture or benchmark
+demonstrates one of the following:
 
-- 必須scopeのxref stream、ObjStm、incremental update、resource inheritanceを既存backendが扱えず、adapterまたはupstream修正で解決できない。
-- Content Streamのraw bytes、object identity、filter情報など、後段に必要な証拠を取得できない。
-- malformed PDFへのresource limitやerror分類を既存backend上で安全に実装できない。
-- Differential Testingで既存backendの誤りが再現し、代替backendでも要件を満たせない。
+- A required scope feature (xref stream, object stream, incremental update,
+  resource inheritance) is mishandled and cannot be fixed through the adapter
+  or upstream.
+- Raw content bytes, object identity, or filter information needed downstream
+  is unavailable.
+- Resource limits or error classification for malformed input cannot be
+  implemented safely on the existing backend.
+- Differential testing reproduces a backend error that another backend cannot
+  avoid.
 
-自作backendを追加しても`PdfParser` / `ParsedPdf`境界と上位pipelineは変更しない。backend切り替え自体をロードマップの既定ゴールにしない。
+A new backend keeps the `PdfParser`/`ParsedPdf` boundary and the pipeline.
+Backend replacement is not a default roadmap goal.
 
-### 3.4 Workspace構成
+### 3.4 Workspace
 
 ```text
 pdfdelta/
-├ Cargo.toml
-├ crates/
-│  ├ pdfdelta-core/        # pure library。CLIを知らない
-│  │  └ src/
-│  │     ├ pdf/            # backend / object / content / font
-│  │     ├ source.rs       # ParserBackedGlyphSource、fixture、抽出境界
-│  │     ├ model/          # Glyph等の中立型
-│  │     ├ layout/         # Line / Block / geometry
-│  │     ├ alignment/      # anchor / candidate / score / ordered
-│  │     ├ diff/           # Myers、assessment、recovery
-│  │     ├ document/       # 証拠store、graph、channel、共通solver、局所比較
-│  │     └ report/         # text / JSON report
-│  ├ pdfdelta-cli/         # 入出力、password、worker、limit、publication
-│  └ pdfdelta-bench/       # fixture生成、mutation、評価、pdfbench
-├ fixtures/                # external / extraction-conformance / issue12 / issue20 等
-├ benchmark/
-│  ├ manifests/            # 公開smoke corpusのmanifest
-│  ├ microbench/           # core計測testのcase matrixとdriver
-│  └ realworld/            # 公開改訂ペアのmanifest、expected、取得・capture script
-├ docs/                    # 利用者向け文書と本仕様書
-└ fuzz/                    # このcrateのみnightly許容
+  Cargo.toml
+  crates/
+    pdfdelta-core/       pure library; no CLI concerns
+      src/
+        pdf/             backend, object access, content syntax, fonts
+        source.rs        ParserBackedGlyphSource, extraction boundary
+        model.rs         Glyph and neutral document types
+        layout/          line, block, region reconstruction
+        normalize/       canonical text, tokens, formatting evidence
+        document/        evidence store, graph, channels, solver, local comparisons
+        review/          agent review contract and planner
+        text_envelope/   conditional local text queries
+    pdfdelta-flow/       token-stream diff engine (depends on core only)
+      src/
+        order.rs         reading-order hypotheses
+        furniture.rs     repeated header/footer handling
+        align.rs         information-weighted alignment
+        script.rs        change classification and move rules
+        verify.rs        independent replay verification
+        assess.rs        confidence and formatting evidence
+    pdfdelta-cli/        filesystem, arguments, workers, publication
+    pdfdelta-bench/      generated fixtures, mutations, evaluation, pdfbench
+  fixtures/              external, extraction-conformance, issue fixtures
+  benchmark/             manifests, microbenchmarks, real-world corpus tooling
+  docs/                  user documentation and this specification
+  fuzz/                  nightly-only fuzz workspace
 ```
 
-crate名とバイナリ名の対応は次の通りである。
-
-| crate | 種別 | バイナリ |
+| Crate | Kind | Binary |
 |---|---|---|
-| `pdfdelta-core` | lib | — |
-| `pdfdelta-cli` | bin | `pdfdelta` |
-| `pdfdelta-bench` | bin | `pdfbench` |
+| `pdfdelta-core` | library | - |
+| `pdfdelta-flow` | library | - |
+| `pdfdelta-cli` | binary | `pdfdelta` |
+| `pdfdelta-bench` | binary | `pdfbench` |
 
-CLIはfilesystem、password、worker、limit、report publication、process statusを所有する。
-coreはvalidation、graph view、correspondence、局所比較、report modelを持ち、filesystemへ触れない。
-benchは生成入力、mutation、独立annotation、manifest、評価を所有する。
+The CLI owns filesystem access, passwords, child processes, limits, report
+publication, and process status. Core owns validation, graph views,
+correspondence, local comparisons, and report models, and never touches the
+filesystem. Flow owns tokenization, ordering, furniture, alignment, the edit
+script, replay verification, formatting evidence, and confidence. Bench owns
+generated inputs, mutations, independent annotations, manifests, and scoring.
+Flow depends on core only.
 
-### 3.5 外部プロセスの隔離
+### 3.5 One text engine and compatibility
 
-Linuxでは、native証拠取得、rendering、画像hashingを境界付き子プロセスで実行する。
-子プロセスはaddress space、CPU時間、wall-clock、入出力サイズ、page数、pixel数、occurrence数の上限を持ち、親が入力hash、page identity、acquisition role、証拠、集計上限を検証してから比較へ渡す。
-終了したworkerの欠落を、画像の追加・削除へ読み替えない。
-Windows等、子プロセス制限を実装していないplatformでは、その事実を明示的なunsupportedとして扱う。
+There is one text engine: the token-stream flow engine. `--engine flow` is the
+default and is accepted as a compatibility no-op. `--engine proof` is still
+parsed only so the process can reject it with exit `2` and a stable message
+naming the flow replacements (`--trace-json`, `--compact-json`, `--full-json`,
+`--review`, `--agent-review`, and the standalone `pdfdelta flow` report); it
+writes no output and runs no second engine.
 
-### 3.6 言語と依存の方針
+Reports carry `"engine": "flow"` whenever flow runs, including a run whose
+selected channels exclude text. Agent review bundles written by earlier builds
+remain readable through the `review` commands; a static HTML bundle is
+self-contained, and its source index remains readable through the
+compatibility reader in §5.4.
 
-stable Rust、Rust 2024 Editionを前提とする（例外はfuzz crateのみ）。
+### 3.6 Language and dependency policy
 
-**自前実装するもの**：parser library adapterと中立facade、Content Stream / Text State解釈、ToUnicode/CMapの必要部分、Glyph geometry復元、GlyphからLine/Block/Regionへの構造化、canonical/matching規則、soft line break policy、normalization event記録、anchor検出、candidate generation、alignment（1:N/N:1、move検出、coverage算出）、共通correspondence solver、assessment、Myers diff。
+Stable Rust and Edition 2024 are required. The fuzz workspace is the only
+nightly consumer; it is not part of the stable workspace or lockfile, and the
+stable gate only compiles its targets (`cargo check --manifest-path
+fuzz/Cargo.toml --bins`).
 
-**production dependencyとして使ってよいもの**：PDF object parser backend（現在`lopdf`）、CLI parsing（`clap`）、JSON（`serde` / `serde_json`）、Unicode character data（`unicode-normalization`、`unicode-segmentation`、`unicode-bidi`）、hash（`sha2`）、小容量vector（`smallvec`）、stream decode（`flate2`）、描画（`hayro`、CLIのvisual channel）、CID CMap参照data（`hayro-cmap`）。
-Unicode crateへ委ねるのは文字dataとNFC/segmentation primitiveに限り、canonical/matching規則、soft line break policy、normalization event記録は自前実装に保つ。
+**Implemented by pdfdelta:** parser-library adapter and neutral facade,
+content-stream and text-state interpretation, the required ToUnicode/CMap
+handling, glyph geometry recovery, line/block/region reconstruction, canonical
+text and tokenization, reading-order selection, furniture detection, paint
+identity, information-weighted token alignment, edit-script construction with
+move and layout rules, replay verification, change assessment, formatting
+evidence, the shared correspondence solver, and local comparisons for non-text
+channels.
 
-**dev / test dependency**：`proptest`、比較oracle用の外部extractor、fixture生成用の外部renderer。
-production設計をoracleの出力形式へ合わせない。
+**Used as production dependencies:** the PDF object parser backend (`lopdf`),
+CLI parsing (`clap`), JSON (`serde`/`serde_json`), Unicode character data
+(`unicode-normalization`, `unicode-segmentation`, `unicode-bidi`), hashing
+(`sha2`), small vectors (`smallvec`), stream decoding (`flate2`), rendering
+(`hayro`), and CID CMap reference data (`hayro-cmap`). Unicode crates provide
+character data and NFC/segmentation primitives only; canonical text, token
+boundaries, and normalization events remain pdfdelta's responsibility.
 
-## 4. データモデル
+**Development and test dependencies:** `proptest`, external extractors for
+oracle comparisons, and external renderers for fixture generation. A production
+design is never shaped to fit an oracle's output format.
+
+## 4. Data model
 
 ### 4.1 Glyph
 
@@ -284,12 +396,16 @@ pub struct GlyphProvenance {
 }
 ```
 
-座標と行列はf64を使う。行列積の累積誤差を考えるとf32を選ぶ理由がない。
-座標は`/Rotate`適用済みのcanonicalページ座標系で格納し、ページ回転の正規化を後段に持ち込まない。
-`bbox`はink outlineではなく、font width、ascent/descentと変換行列から求めるlayout bounding boxとする。rotated textでは`baseline`と`direction`も併用し、axis-aligned `Rect`だけで順序を決めない。
+Coordinates and matrices use `f64`: accumulated matrix error makes `f32`
+unjustified. Coordinates are stored in the canonical page coordinate system
+after `/Rotate` handling; rotation is not pushed downstream. `bbox` is the
+layout bounding box derived from font widths, ascent/descent, and the transform,
+not an ink outline. Rotated text also uses `baseline` and `direction`; an
+axis-aligned `Rect` alone never decides order.
 
-`render_mode`と`provenance`は、invisible textや上書き描画を後から検証し、backend間の差をobject/operator単位まで追跡するために保持する。
-初期stageで完全なvisibility判定を行わなくても証拠を捨てない。
+`render_mode` and `provenance` are retained so invisible text and overpainting
+can be verified later and backend differences can be traced to an object and
+operator. Incomplete visibility analysis does not discard evidence.
 
 ```rust
 pub enum DecodedText {
@@ -298,172 +414,299 @@ pub enum DecodedText {
 }
 ```
 
-Unicodeへ戻せないglyphをU+FFFDや空文字で潰さない。
-born-digital PDFでもsubset fontでToUnicodeを持たないものがあり、一律UNRESOLVEDに落とすとcoverageが実用にならないためである。
-old/newが同一font programを埋め込んでいれば`(font_hash, glyph_id)`を比較tokenとしてmatchingとdiffが成立する。
-font programが異なりUnicodeにも戻せない場合はUNRESOLVEDとする。
+A glyph that cannot be mapped to Unicode is never collapsed to U+FFFD or empty
+text. Subset fonts without ToUnicode exist in born-digital PDFs, and a blanket
+unresolved result would make coverage useless. When both revisions embed the
+same program, `(font_hash, glyph_id)` is a comparable identity. Different
+programs without a Unicode mapping remain unresolved unless the name or outline
+identity rules in §6.4 apply.
 
-### 4.2 可逆な構造化と文字列view
-
-構造化は不可逆変換にしない。
+### 4.2 Reversible layout
 
 ```rust
-pub struct Line  { pub glyphs: Vec<GlyphId>, /* … */ }
-pub struct Block { pub lines: Vec<LineId>,  /* … */ }
+pub struct Line  { pub glyphs: Vec<GlyphId>, /* ... */ }
+pub struct Block { pub lines: Vec<LineId>,  /* ... */ }
 ```
 
-Block分割を間違えた場合に元のGlyph列へ戻って再解析できることが、Alignment側での救済の前提になる。
-native blockは不可分なground truthではなくviewとして扱う。
+Line and block boundaries are hypotheses. A wrong boundary must be recoverable
+from the glyph sequence, and a native block is a view rather than
+ground truth. `BlockText` retains raw text, canonical text, comparable tokens,
+normalization events, source maps, break offsets, font-size signatures, and
+position signatures so later stages can project back to glyphs and geometry.
+
+A `ScalarRange` is a Unicode scalar index range, not a UTF-8 byte offset.
+Ligature expansion, NFC, and hyphen joins may map one glyph to several scalars
+or several glyphs to one scalar; every canonical range must still recover its
+source glyphs and geometry. Canonical text is used for visible comparison and
+evidence; a separate matching-oriented string is not an input to the flow diff.
+
+Canonical text absorbs only differences that do not change prose identity:
+NFC, context-dependent soft line-break joins, repeated whitespace, and ligature
+expansion. A soft break between Latin letters or digits becomes one space; a
+break between CJK scalars, or between CJK and alphanumerics, becomes no
+separator; explicit whitespace is never duplicated. A discretionary hyphen
+(U+00AD) may be removed with its break, while an ordinary `-` or U+2010 is
+retained because discretionary hyphenation cannot be proven from shape or word
+length; an uncertain hyphen source range stays unresolved and a paragraph
+boundary remains a recoverable block boundary.
+
+Canonical text does not absorb fullwidth/halfwidth or other compatibility
+differences (NFC, not NFKC), because those can be meaningful revisions in
+identifiers, model numbers, and contract numbers. Normalization events are
+recorded as `{kind, raw_range, canonical_range, source}`; after alignment, a
+matched run whose raw text differs but whose canonical text is equal is
+formatting-only evidence, and adjacent same-kind events merge so glyph or line
+count differences do not inflate the entry count. Numeric masking is never
+applied to canonical token identity; §8.4 confines digit masking to furniture.
+
+### 4.3 Flow token stream
 
 ```rust
-pub struct BlockText {
-    pub raw: MappedText,
-    pub canonical: MappedText,
-    pub matching: String,
-    pub normalization_events: Vec<NormalizationEvent>,
-}
-
-pub struct MappedText {
+pub struct FlowToken {
     pub text: String,
-    pub source_map: Vec<SourceMapEntry>,
+    pub page: PageId,
+    pub bounds: Option<Rect>,
+    pub block: usize,
+    pub uncertain: bool,
+    pub line_break_after: bool,
+    pub font_size: Option<f64>,
+    pub raw: Option<Box<str>>,
+    pub position: Option<PositionSignature>,
+    pub page_break_after: bool,
+    pub normalization: u8,
 }
 ```
 
-`ScalarRange`はUTF-8 byte offsetではなくUnicode scalar valueのindexで定義する。
-ligature展開、NFC、hyphenation結合で1 glyphがN文字またはN glyphが1文字になっても、canonical範囲から元Glyphとgeometryへ戻れることを必須とする。
-`matching`はExact DiffやChange spanに使わないため、完全なsource mapを要求しない。
+`FlowToken::text` is the token identity. For mapped text it is the canonical
+scalar sequence. For an unmapped glyph it is
+`\uFFFC<kind>:<identity-hash>:<glyph-id>`, where `kind` is `name`, `outline`, or
+`program` (§6.4), so two occurrences compare equal only when their identities
+do. `uncertain` marks the token as not decoded.
 
-### 4.3 変更と比較結果
+`bounds`, `font_size`, `raw`, `position`, and `normalization` are presentation
+evidence for matched tokens. They never affect token identity, alignment, or
+the edit script. `None` means the evidence could not be established exactly;
+it is not an empty value.
+
+A `FlowStream` holds the tokens in chosen reading order, the source glyph ids
+per token when requested, the separated furniture lines, and the glyph
+conservation record. Two documents are compared only through their token text
+sequences plus this evidence.
+
+### 4.4 Change script and assessment
 
 ```rust
-pub enum ChangeKind { Replacement, Insertion, Deletion, Move }
-
-pub struct Change {
-    pub kind: ChangeKind,
-    pub old_span: Option<TextSpan>,
-    pub new_span: Option<TextSpan>,
-    pub confidence: Confidence,
-    pub tags: Vec<ChangeTag>,
+pub enum FlowChange {
+    Delete { old: Range<usize> },
+    Insert { new: Range<usize> },
+    Replace { old: Range<usize>, new: Range<usize> },
+    Move { old: Range<usize>, new: Range<usize> },
+    LayoutOnly { old: Range<usize>, new: Range<usize> },
 }
 ```
 
-`TextSpan`はBlock集合、複数Blockを結合した際の`BlockSeparator`、canonical文字範囲、comparable token範囲を保持する。
-単一Blockのspanはseparatorを持たない。複数Blockのspanは`Concatenate`、`Space`、または境界ごとの明示patternを必要とする。
-変更の単位は対応付いたBlock集合の上のcanonical文字範囲であり、範囲indexはUnicode scalar indexである。
+The script covers every non-spine old and new token exactly once and is
+verified by replay (§9.5). A change carries a `ChangeAssessment`: a `Confidence`
+of `high`, `medium`, or `low`, and zero or more `AmbiguityReason` values
+(`coarse_span`, `repeated_run`, `order_uncertain`, `short_move`,
+`numeric_only`, `numeric_table`). Assessment is descriptive and never changes
+the selected exit code or the script.
 
-結果は次のように分離する。
+Formatting evidence is a separate list of matched token runs with one or more
+`FormattingReason` values (`normalization`, `block_structure`, `font_size`,
+`position`, `line_break`, `page_break`) and the changed font sizes when
+applicable (§10).
 
-| 概念 | 内容 |
-|---|---|
-| `Comparison.changes` | 位置と種類を確定した内容変更 |
-| `Comparison.change_candidates` | 推測した編集。原文範囲、競合グループ、未確定理由、必要なら順位を保持し、打ち切りを明示する |
-| `Comparison.proven_changed_regions` | 内容の不一致は確定しているが位置を特定できない領域 |
-| `Comparison.unresolved_regions` | 上記以外の未解決内容。候補がある範囲を含む |
-| review unit | 確定した対応の上でのcount query（変更token数の下限・上限、全optimal alignmentで変更される位置） |
+The native report does not have an assessment object, candidate changes,
+proven changed regions, unresolved regions, or an alignment-coverage position.
+Those concepts belonged to a removed engine. Absence means the phase does not
+exist, not that a search completed and found nothing.
 
-各側で、抽出済みcomparable tokenを同一、変更、未解決へ重複なく分割する。
+### 4.5 Evidence store and document graph
+
+Non-text channels use an immutable evidence store that distinguishes native,
+rendered, and structured source references.
+
+- A native reference retains glyph text, raw code, font identity, geometry,
+  baseline, direction, render order/mode, crop/clip observations, vector lines,
+  and PDF object/content-stream/operator provenance.
+- A rendered reference retains page/region geometry, polygons, a pixel or
+  verifiable image identity, and backend/version/profile.
+- A structured reference retains field, tag, or annotation identity and the
+  source object when available.
+
+Two views of the same visible content (for example a native text layer and an
+OCR layer) are equivalent or competing views, not two independent contents. The
+basis for equivalence is recorded; unproven duplication stays competing and is
+never consumed twice. A recognition result never fabricates a native glyph id.
+A future recognition provider keeps its own image reference and recognition
+alternative, and recognition-confusable differences (for example `0`/`O` or
+`1`/`I`) remain reported instead of being normalized away.
+
+A comparison contract records the selected channel set and its version. Backend
+identity (kind, name, version, profile, model) is retained in the report.
+
+The document graph represents sections, paragraphs, list items,
+tables/rows/columns/cells, form fields, figures/captions, annotations, code,
+mathematics, and unknown regions as source-backed nodes or candidate views.
+Typed edges cover containment, local order, row/column identity, labels,
+captions, references, and alternatives. Coordinates and text direction remain
+evidence, not graph keys.
+
+Existence of a tag is a source fact; its reading order and semantic role may
+compete, and a model score is not proof. Dangling references, malformed
+geometry, and cycles in hierarchical relations are rejected.
+
+## 5. Output contract
+
+### 5.1 Confidence and ambiguity
+
+Every flow change carries a confidence and an ambiguity list. They are cheap
+diagnostics about how the chosen script may be read; they are not a probability
+of correctness and never a precondition for reporting a change.
+
+Low confidence or an ambiguity reason never removes a change, never lowers
+coverage, and never changes the exit code. A change that replays correctly is
+reported even when a repeated run, a coarse span, a numeric-only edit, or an
+order-uncertain page makes its position less certain.
+
+### 5.2 Output categories
+
+The flow text channel reports:
+
+- content changes (`Delete`, `Insert`, `Replace`, `Move`), each with its
+  token ranges, pages, text, and assessment;
+- layout-only changes (`LayoutOnly`), counted but not listed and never a
+  detected difference;
+- formatting-only evidence on matched runs;
+- text extraction issues and paint-gate issues with their side, kind, and
+  message.
+
+It does not report tentative candidates, `TENTATIVE` markers, unresolved
+regions, source ownership, relation dependency, assumptions, search
+completeness, or work consumption. Those are non-text-channel structures where
+they apply, or removed-engine positions.
+
+Canonical normalization differences absorbed on matched runs are reported as
+formatting-only evidence, not silently dropped. Formatting-only reporting is
+best-effort, never proves rendering identity, and never affects the content
+change count or exit code.
+
+### 5.3 Human-readable report
+
+The multi-channel report lists typed and inferred change counts, per-channel
+coverage (discovered versus compared sources per side), flow text changes, and
+every unresolved region with its reason. Lists are bounded with explicit
+truncation markers.
+
+With `--native-text-only`, the report is the flow summary followed by numbered
+changes:
 
 ```text
-抽出済みcomparable token数
-  = 同一と確定したtoken数 + 変更と確定したtoken数 + 未解決token数
+text engine: flow (1 detected changes, 0 formatting-only)
+flow summary
+  old: 32 tokens
+  new: 32 tokens
+  equal: 31 tokens
+  delete: 0 changes, 0 old tokens, 0 new tokens
+  insert: 0 changes, 0 old tokens, 0 new tokens
+  replace: 1 changes, 1 old tokens, 1 new tokens
+  move: 0 changes, 0 old tokens, 0 new tokens
+  layout-only: 0 changes, 0 old tokens, 0 new tokens
+  content changes: 1
+  moved changes: 0
+  detected changes: 1
+  changes: 1
+  old extraction: complete
+  new extraction: complete
+  old order: 1 pages, 0 stream, 0 baseline, 0 uncertain
+  new order: 1 pages, 0 stream, 0 baseline, 0 uncertain
+  old glyph conservation: 222/222
+  new glyph conservation: 222/222
+  furniture: 0 old, 0 new masked lines
 
-解決済みcoverage
-  = (同一 + 変更) / 抽出済みcomparable token数
+1. replace old 1 -> new 1 [confidence: medium; ambiguity: numeric_only]
+   old: ... Release [10] remains available ...
+   new: ... Release [20] remains available ...
 ```
 
-件数はevent spanの単純合計ではなくtoken区間の和集合から求める。
-確定した挿入と削除は内容がある側を解決済みにし、零幅の境界はtoken数を消費しない。
-候補と位置未確定の変更領域は、位置が確定するまで分子に含めない。
-Formatting-onlyは内容の解決状態と直交し、coverageを増やさない。
-抽出が不完全な場合は`extraction_complete: false`と問題の範囲を併記し、量が不明な欠落を0 tokenとして扱わない。分母が0の場合は百分率を表示しない。
+Each change names its kind, the one-based old/new pages it touches, its
+confidence and ambiguity (when any ambiguity reason exists), and the changed
+tokens in brackets between a few unchanged context tokens. Incomplete pages,
+order-uncertain pages, and pages with name-identity placeholders are named.
+Token ranges are available in the JSON report.
+Furniture changes are listed separately. PDF-derived text is untrusted:
+Unicode bidi controls and control characters are escaped to literal `\u{...}`
+forms so a hostile glyph mapping cannot drive the terminal or reorder the
+display. Color (`--color auto|always|never`) only supplements the markers; the
+report is readable without it. The report never prints only "No differences
+found".
 
-### 4.4 証拠store、合同契約、source reference
+### 5.4 JSON reports and schema versions
 
-証拠はimmutableなstoreに保持し、native、rendered、structuredのsource referenceを区別する。
-
-- native referenceはglyph text、raw code、font identity、geometry、baseline、direction、render order/mode、crop/clip観測、vector line、PDF object/content-stream/operator provenanceを保持する。
-- rendered referenceはpage/region geometry、polygon、pixelまたは検証可能なimage identity、backend/version/profileを保持する。
-- structured referenceはfield、tag、annotationのidentityと、可能なら元objectを保持する。
-
-同じ可視内容のnative版とOCR版は、二つの独立contentではなく等価または競合するviewとして扱う。
-等価性の根拠を記録し、証明されない重複は競合として保持して二重消費しない。
-OCRは常にimage referenceと認識候補を保持し、native glyph IDを捏造しない。
-
-比較契約は選択channelの集合とversionを保持する。backend identityはkind、name、version、profile、modelを保持し、reportへ残す。
-
-### 4.5 Document graph
-
-section、paragraph、list/item、table/row/column/cell、form/field、figure/caption、annotation、code、mathematics、unknown regionを、source-backed nodeまたはcandidate viewとして表現する。
-typed edgeはcontainment、local order、row/column identity、label、caption、reference、alternativeを保持する。
-座標とtext directionはevidence側に留める。
-
-tag、geometric reconstruction、render order、modelは前提が異なる。
-tagの存在はsource factだが、そのreading orderやsemantic roleは競合し得る。model scoreは証明ではない。
-dangling reference、malformed geometry、hierarchical relationのcycleを拒否する。
-
-## 5. Change スキーマと出力
-
-### 5.1 判定とconfidence
-
-`Confidence`は判断の補助情報であり、正解確率や単独の確定条件として扱わない。
-`High`や`TrustedRun`という名称だけを確定の根拠にしない。
-確定とは、抽出、正規化、構造、探索に関する明示した前提のもとで比較の確定条件を満たした状態を指す。
-誤って対応付けた段落の内部でexact diffが計算できても、その差分は正しくない。
-
-### 5.2 出力カテゴリ
-
-出力は、位置まで確定した変更、位置未確定の変更領域、差分候補、formatting-only、未解決領域に分ける。
-候補には`TENTATIVE`を明示し、未確定理由と原文位置を表示する。
-候補件数は確定変更件数に含めず、候補範囲を解決済みcoverageへ加算しない。
-
-canonical正規化で吸収した差も黙って消さず、formatting-onlyとして独立に報告する。
-このカテゴリはbest-effortであり、0件でもrenderingが完全同一であることは保証しない。content change判定やexit codeには影響させない。
-
-### 5.3 人間向けtext report
-
-text reportはexact diffの結果をreviewしやすい文脈付きunified diffへ投影する。
-これは表示層のみの変換であり、`Comparison`やJSON reportの機械可読な意味を変えない。
-
-```text
-established changes: 1 · changed regions: 0 · tentative candidates: 1 · formatting-only: 3 · unresolved regions: 2 · extracted-token coverage 97.4% · incomplete
-
---- old.pdf
-+++ new.pdf
-
-@@ page 1 · old block 12 -> new block 14 · confidence: medium @@
-- ... Form 1040 (2024) ...
-+ ... Form 1040 (2025) ...
-
-@@ page 3 · UNRESOLVED @@
-? could not safely align this region (evidence: text_similarity)
-
-@@ page 3 · TENTATIVE · candidate group 1 @@
-? possible replacement; competing reading orders remain
-```
-
-要約行には全出力カテゴリとcoverageを1行で併記する。
-`---` / `+++`のfile header、`@@ page N ... @@`（page番号は1-based）のhunk header、`-` / `+`の変更行、有界なcontext、`~ moved`、未解決の`?`行を使う。
-PDF由来のtextは制御文字とUnicode bidi制御文字をliteralな`\u{...}`へescapeし、hostileなglyph mappingがterminalを操作できないようにする。
-ANSI色は`--color auto|always|never`で制御し、既定の`auto`はstdoutがterminalの時だけ着色する。色は記号の補助であり、色なしでも読める。
-「No differences found」とだけ表示することはない。
-
-### 5.4 JSON reportとtrace
-
-JSON reportはtext reportより多くの情報を保持する。
-確定変更、候補、位置未確定の変更領域、formatting-only、未解決領域、source ownership、relation dependency、assumption、探索完全性、work消費、抽出完全性、source coverage、review unitを含む。
-
-| report | schema | 内容 |
+| Surface | Version | Content |
 |---|---|---|
-| native report（`--native-text-only`） | 11 | glyph、block、change、assessment、extraction issue |
-| channel report（既定`--channels`） | 2 | 選択channel、証拠store view、graph、solver結果、局所比較 |
-| trace（`--trace-json`） | 26 | phaseごとのbounded diagnostics、typed limit error、skipしたphase |
+| native compact envelope | `artifact_format: pdfdelta-native-compact`, `artifact_version: 3`, `source_schema_version: 12` | compact flow report under `report` |
+| native compact report | `schema_version: 12` | summary, changes, formatting evidence, extraction, layout-only counts |
+| native full envelope | `artifact_format: pdfdelta-native-full`, `artifact_version: 2`, `source_schema_version: 12` | compact body plus `token_sources` and `glyph_accounting` |
+| multi-channel report | `schema_version: 3`, `contract.version: 1` | channel verdicts, coverage, flow text result, non-text changes |
+| standalone flow report | `schema: pdfdelta-flow/1` | flow summary, changes, formatting evidence, order, furniture, conservation |
+| diagnostic trace | `trace_schema: pdfdelta-flow-trace/1`, `trace_schema_version: 1` | bounded per-phase metrics and typed errors |
+| static review manifest | `version: 3` | published artifacts; source index `version: 1` |
+| agent review bundle | `agent-review/v1` | case packets and manifest |
+| agent decision input | `agent-decision/v1` | caller answers |
+| review import result | `agent-review-result/v2` | validated decision result |
+| text-envelope | `schema_version: 1` | conditional local text claims |
 
-traceの`duration_us`はrunごとに非決定的であり、golden-file比較から除外する。
-`--json`と`--trace-json`、`--output`はそれぞれ新しいpathへatomicにpublishし、既存fileと入力PDFを上書きしない。
-second publicationが失敗した場合、first artifactは残し、対になるrollbackは行わない。
-JSONの変更有無と比較完全性は独立した値であり、`detected`、`indeterminate`、`no_content_change`は抽出・比較の完全性とは別に扱う。
+The native summary carries `content_changes`, `formatting_only_changes`,
+`uncertain_changes`, the three extraction issue counters,
+`comparison_complete`, `difference_status`, `old_tokens`, and `new_tokens`.
+Each change carries `kind`, `old_span`, `new_span` (each `{pages, text,
+token_range}`), and, for content changes, `confidence` and `ambiguity`.
+Formatting entries carry `old_span`, `new_span`, `reasons`, and
+`old_size`/`new_size` only when `font_size` is a reason.
 
-### 5.5 CLI と exit code
+The full report streams `token_sources` and `glyph_accounting` through the
+serializer instead of building one JSON value. When a side was built in a child
+process, its per-glyph records spill to a temporary side cache that the
+reporting parent copies back in token order, so the parent does not retain an
+extracted document. The compact report carries no per-glyph sources and must be
+regenerated with `--full-json` when individual geometry or operator provenance
+is needed.
+
+The diagnostic trace records input reading, parse, glyph extraction,
+tokenization, furniture/order handling, flow diff, assessment/formatting,
+channel comparison, and report. A failed or incomplete phase records an `error`
+whose `kind` is the explicit error class (`backend`, `unsupported`,
+`unresolved`, or `limit_exceeded`); a limit error also names its resource and
+bound. The message is contextual and never decides the class. `duration_us` and
+`comparison_wall_time_ms` are the only wall-clock fields and are excluded from
+golden comparisons.
+
+The multi-channel report separates typed non-text changes and inferred
+non-text changes, per-channel coverage and completeness, `flow_text` changes
+and formatting evidence, unresolved source ranges, and `flow_owned_text`
+records. `flow_owned_text` (also at `comparison.flow_owned_text`) counts
+shared-evidence text components and local comparisons that flow ownership
+replaced, with an `unchecked_obligations` count per skipped reason; it is
+absent when the shared search recorded no such position. Absence is not a
+completed text search. A component that mixes text and non-text sources is
+never superseded. Text views remain correspondence context for relationships
+and structure, but their local comparisons are not exit evidence.
+
+`detected`, `indeterminate`, and `no_content_change` describe content
+differences independently of extraction and comparison completeness. A complete
+token comparison or a formatting annotation does not establish visual
+equivalence.
+
+Compatibility readers accept historical artifacts: schema-11 native compact
+reports and full envelopes, schema-2 multi-channel reports (including the old
+`superseded_text` and reason names as input-only aliases), proof-era agent
+review bundles, and static review source artifacts in the version-2 double-gzip
+shape or older uncompressed `sources.json`. New output never writes the old
+names.
+
+### 5.5 CLI and exit codes
 
 ```bash
 pdfdelta inspect document.pdf
@@ -476,61 +719,138 @@ pdfdelta old.pdf new.pdf --channels text,visual,forms,relations
 pdfdelta old.pdf new.pdf --native-text-only -j result.json
 pdfdelta old.pdf new.pdf -o diff.txt -q -s
 pdfdelta old.pdf new.pdf --review review-output
+pdfdelta old.pdf new.pdf --agent-review review-output
 pdfdelta old.pdf new.pdf --color auto|always|never
 pdfdelta old.pdf new.pdf --limit-scale 16
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity FontName=identity --new-font-identity FontName=identity
 pdfdelta old.pdf new.pdf --extraction-cache-dir ~/.cache/pdfdelta
+pdfdelta flow old.pdf new.pdf
+pdfdelta text-envelope request.json
 pdfdelta completions bash|zsh|fish|powershell|elvish
 ```
 
-`inspect`はbackend summary、object、glyph、SVG overlayを提供する。
-比較CLIはtext report、JSON、trace、review bundle、quiet、strict alias、color、limit scale、side別password file、side別external font identity、extraction cacheを持つ。
-passwordはargvへ直接渡さず、sideごとのpassword fileから読み、本文をerror、report、traceへ書かない。
-`--old-font-identity` / `--new-font-identity`は`BaseFont=identity`形式のcaller assertionであり、identity文字列はdomain-separated hashへ変換した後は保持しない。同じ外部font programを使うとcallerが保証できる場合だけ指定する。
-`--limit-scale`は比較pipelineのbudgetだけを拡大し、parserとextractionのlimitは変更しない。
+`inspect` provides backend summary, objects, glyphs, and an SVG overlay.
+Comparison writes a text report, JSON, trace, review bundle, or nothing
+(`-q`). Passwords are read from per-side files, never from argv, and never
+written to errors, reports, or traces. `--old-font-identity` /
+`--new-font-identity` are caller assertions of the form `BaseFont=identity`;
+the identity bytes are reduced to a domain-separated hash. `--limit-scale`
+scales flow extraction count limits and the shared footer-matching work limit;
+it does not lower any limit and does not change parser limits or layout
+thresholds. `-s`/`--strict` is accepted for compatibility and does not change
+the comparison or the exit status.
 
-exit codeはCI利用を前提に定義する。
-
-| code | 意味 |
+| Code | Meaning |
 |---|---|
-| 0 | 比較が完全で、確定した内容変更がない |
-| 1 | 比較が完全で、確定した内容変更がある |
-| 2 | 実行不能なerror（I/O、fatal parse error、report書き込み失敗等） |
-| 3 | 結果を返せるが比較が不完全。候補、未解決範囲、抽出欠落、位置未確定の変更領域を含む |
+| `0` | No detected difference and every selected channel examined (no reason) |
+| `1` | At least one selected channel detected a typed difference with its own evidence intact; the comparison may still be incomplete |
+| `2` | Execution or report-writing error (I/O, malformed input, fatal error, resource limit) |
+| `3` | No intact detection and at least one broken or unexamined reason |
 
-判定優先順位は`2 > 3 > 1 > 0`とする。不完全な比較は、確定した変更があっても既定で3を返す。
-`--strict`は新しい既定動作の互換aliasとして受理し、quiet modeにも同じ終了条件を適用する。
-coreは比較結果の状態を返し、process exit codeへの変換はCLIが所有する。
-text比較の完全性は画像比較や見た目の一致を意味しない。
+Exit `2` precedes any comparison result. Otherwise the channel verdicts decide:
 
-## 6. PDF Backend と Primitive Extraction (Track A)
+- A channel that detected a typed difference with its own evidence intact
+  selects `1`, even when another channel is broken or was not examined. In that
+  case `comparison_complete` stays `false` and `exit_basis` is
+  `detected_with_unexamined_evidence` (or `complete_detected` when nothing is
+  incomplete).
+- Broken evidence blocks only its own channel: text extraction and glyph
+  conservation for text, forms reasons for forms, relation graph and
+  work-budget failures for relations, and a visual backend failure for visual.
+  Cross-channel and unattributable reasons block every channel.
+- With no intact detection, any broken reason selects `3` with
+  `broken_evidence`; otherwise any unexamined reason selects `3` with
+  `unexamined_evidence`.
+- Exit `0` requires every selected channel to be complete.
 
-### 6.1 目的
+This is not a simple `3 > 1` priority. Exit `1` with incomplete evidence is
+normal and is the expected result for real documents.
 
-PDFからplain textを取り出すことではなく、後から検証可能なraw evidenceを保ったまま、文字、描画位置、描画順を復元することが仕事である。
+The single-channel `pdfdelta flow` and native path use the same verdicts with
+only the text channel: broken text evidence selects `3`, a detected difference
+with intact evidence selects `1`, unexamined-only evidence selects `3`, and a
+complete unchanged result selects `0`. Formatting-only and layout-only changes
+never select `1`.
 
-### 6.2 既存PDF Parser backend
+Exit `0` is not reachable with the default channels for a document with pages
+in the current build. Rendered page rasters are retained for review but not
+compared, so every rendered page leaves the visual inventory incomplete, and
+native relation endpoints and semantic relationships are not established, so
+relations stays unexamined. An identical or purely reflowed document therefore
+exits `3` with `exit_basis: "unexamined_evidence"`. `--channels text`,
+`--channels text,forms`, and `--native-text-only` select channels whose
+evidence can close and exit `0` when those channels are complete and unchanged.
 
-初期版は既存parser libraryを`PdfParser` adapter越しに使用する。現在のdefault adapterは`lopdf` 0.45.0である。
-必須capabilityは次の通りである。
+### 5.6 Review bundles
 
-- Header / version、indirect object、reference解決。
-- classic xref tableとxref stream、object stream、trailer chainとincremental updateのlatest revision解決。
-- Page Tree走査とResourcesの継承。壊れた枝にParent不整合または参照循環があっても、独立して検証できた正常枝は保持し、欠落枝とroot `Count`不一致をdocument-scoped UNRESOLVEDとして返す。
-- raw stream metadataとdecoded stream bytesの取得。
-- FlateDecode。未対応filterは空文字へ潰さずUNSUPPORTEDにする。
-- 暗号化の検出。empty user passwordの自動復号、またはcallerが明示passwordを借用して復号できた場合だけ受理する。password欠落・不一致、復号後も`Encrypt`が残る文書、未対応security handlerはUNSUPPORTEDにする。
-- object count、recursion、decoded size等のresource limitとerror categoryの保持。
+**Static HTML review** (`--review DIR`) publishes byte-exact source PDFs,
+lossless page previews, the complete comparison JSON, and source IDs with
+evidence, geometry, provenance, graph views, and warnings. The source index is
+one gzip stream (`sources.json.gz`) and the manifest is version 3. The output is
+bounded to 512 MiB, 1,024 page previews, and 20 million source-location visits;
+a failure may leave an incomplete directory without `index.html`. Review output
+never changes the comparison result or exit status. It is unavailable with
+`--native-text-only` because that path retains no rasters or shared evidence
+store.
 
-adapterはobject id、generation、dictionary key、stream filter、Content Stream順序を保持する。
-library独自型は`pdf/backend/`内で中立型へ変換し、後段へ漏らさない。
-backendの選定は人気ではなく、fixture通過率、raw evidenceへのaccess、安全なlimit実装可能性で決める。
+Excerpts distinguish strict changes (A), non-owning corresponding-range content
+changes (B), inferred comparisons (C), and formatting-only entries (F). A is a
+delete, insert, or high-confidence replace; B is a coarse replace whose inner
+edit is not localized; C is a move or an ambiguous change. The categories are
+never added together as strict recall. Flow has no separate
+unresolved-comparison category; broken or unexamined evidence is listed with
+its reason record and channel verdict.
 
-### 6.3 Content Stream interpreter と座標
+**Agent review** (`--agent-review DIR`) writes a bounded case bundle for a
+calling agent. The bundle schema is `agent-review/v1`; every response is
+complete JSON inside the requested byte budget, and `review import` records
+external decisions separately from the engine result. The bundle plans at most
+4,096 cases by default; `--agent-case-budget` raises that to 1–65,536, and the
+512 MiB bundle cap still applies. Cases are ordered by importance: flow content
+and formatting first, then acquisition evidence with broken before unexamined
+and page-local before document-wide, then page-residual cases. A truncated plan
+records a bundle-level `cases_not_exported` omission with the number of
+withheld cases. Exporting a bundle changes no comparison field, coverage count,
+or exit status.
 
-Content Streamの構文解釈とText / Graphics State追跡はpdfdelta側で実装する。
-扱うoperatorは次の通りである。
+## 6. PDF backend and primitive extraction
+
+### 6.1 Purpose
+
+The job is not plain-text extraction. It is recovering characters, drawing
+positions, and drawing order together with raw evidence that later stages can
+verify.
+
+### 6.2 Parser backend capabilities
+
+The default adapter is `lopdf` 0.45.0. Required capabilities:
+
+- Header/version, indirect objects, and reference resolution.
+- Classic xref tables and xref streams, object streams, trailer chains, and the
+  latest revision of incremental updates.
+- Page-tree traversal and resource inheritance. A broken branch with a parent
+  mismatch or reference cycle does not discard independently verifiable
+  branches; missing branches and a root `Count` mismatch become
+  document-scoped unresolved issues.
+- Raw stream metadata and decoded stream bytes.
+- Flate decoding. An unsupported filter becomes unsupported, never empty text.
+- Encryption detection. Automatic decryption with an empty user password, or
+  decryption with a caller-supplied password, is accepted. A missing or wrong
+  password, an `Encrypt` dictionary remaining after decryption, and unsupported
+  security handlers are unsupported.
+- Object count, recursion, and decoded-size limits, with error categories
+  preserved.
+
+The adapter preserves object id, generation, dictionary key, stream filter, and
+content-stream order. Library-specific types are converted inside
+`pdf/backend/` and never cross the facade. Backend selection is decided by
+fixture pass rate, access to raw evidence, and the ability to enforce safe
+limits, not by popularity.
+
+### 6.3 Content-stream interpreter and coordinates
+
+Content-stream syntax and text/graphics state are implemented in pdfdelta.
 
 ```text
 q Q cm
@@ -538,28 +858,47 @@ BT ET Tf Tm Td TD T* TL Tj TJ ' " Tc Tw Tz Ts Tr
 Do
 ```
 
-`q` / `Q` / `cm`でGraphics StateとCTMを追跡する。
-`Do`ではXObject subtypeを解決し、ResourcesとMatrixのstackに上限を設けた上で、Form XObjectだけを再帰的に解釈する。
-Formは呼び出し元から分離したstate snapshotで実行するため、対応する`Q`がない`q`はForm境界でのみ破棄してよい。一方、`Q`のunderflowとPage単位のstack不均衡はUNRESOLVEDのままにする。
-Image XObjectは画像比較が主scope外であるため明示的にskipする。`'`と`"`は対応する複合text operationへ展開してから解釈する。
-`BI` / `ID` / `EI`は専用inline-image lexerで処理し、後続operatorから解釈を再開する。
+`q`/`Q`/`cm` track the graphics state and CTM. `Do` resolves the XObject
+subtype and recursively interprets only Form XObjects, with bounded resources
+and matrix stacks. A Form runs on a state snapshot separated from its caller;
+a `q` without `Q` may be discarded at a Form boundary, while `Q` underflow and
+page-level imbalance remain unresolved. Image XObjects are skipped by the text
+interpreter; images are evidence for the visual channel. `'` and `"` expand to
+their compound text operations. `BI`/`ID`/`EI` use a dedicated inline-image
+lexer that resumes at the following operator.
 
-Pageの`/Contents`が複数streamのarrayである場合は指定順に解釈し、完成済みtokenをstream境界で連結しない。
-pending operandはarray全体で保持し、dictionary keyのvalueが次のstreamから始まる場合だけ限定的に回復する。
-未完成operandのbufferと再parseは1回に制限し、次のstreamでも完成しなければ同じprefixを繰り返し処理せずUNRESOLVEDとする。
+When `/Contents` is an array, streams are interpreted in order without joining
+completed tokens across a boundary. Pending operands persist across the array;
+a dictionary value beginning in the next stream is recovered only in that
+limited case. Incomplete operand recovery is attempted at most once per
+boundary; otherwise the same prefix becomes unresolved instead of being
+re-parsed repeatedly.
 
-Page boxは`/Rotate`を適用する前に各axisを`min`と`max`で正規化する。
-有限な座標の大小が逆転している場合は受理し、面積がゼロまたは非有限のboxはUNRESOLVEDとする。
+Page boxes are axis-normalized before `/Rotate`; finite reversed coordinates
+are accepted, and zero-area or non-finite boxes are unresolved.
 
-CTM、Text Matrix、Text Line Matrix、Font Matrix、horizontal scaling、character / word spacing、text riseを追跡し、最終Glyph座標とadvanceを求める。
-Text Render Modeは初期から記録する。
-non-painting modeのGlyphはevidenceとして保持するが、可視content比較からは除外する。
-clipping、alpha、白塗り上書き等を含む完全なvisibility判定は後続stageで扱う。
+The interpreter tracks CTM, text matrix, text line matrix, font matrix,
+horizontal scaling, character/word spacing, and text rise to compute glyph
+coordinates and advances. Render mode is recorded from the start. Non-painting
+glyphs remain evidence but are excluded from visible-content comparison.
+Clipping, alpha, white overpainting, and full visibility analysis belong to the
+clipping analysis described below and are never simplified to "visible".
+
+Clipping evidence is prepaid and bounded per page: rectangles,
+convex quadrilaterals, separated rectangle pairs, six-edge L shapes, eight-edge
+single-side notches, a rectangle/L pair, literally closed orthogonal subpaths,
+and exact point witnesses for cubic/straight paths in one `W n`/`W* n`
+construction run. Straight and curved clips additionally receive a conservative
+polygon classification. Unsupported nonrectangular compositions keep overlapping
+glyphs with a partial-clip status and a page-scoped extraction gap; glyphs
+strictly outside the outward control-point bound are excluded. A glyph is never
+treated as invisible merely because its clip is unsupported. Opacity and
+overpainting remain uninterpreted.
 
 ### 6.4 Font decoding
 
-glyph codeからUnicodeへの変換は単純ではない。ToUnicode、simple font、Type0 font、CIDを順次扱う。
-`pdf/font/` moduleとして分離し、codeの分割、mapping、advanceを一つの結果として返す。
+Glyph code to Unicode mapping is not simple. ToUnicode, simple fonts, Type0
+fonts, and CIDs are handled in `pdf/font/` as one decoding result.
 
 ```rust
 pub trait FontDecoder {
@@ -574,29 +913,582 @@ pub struct DecodedCode {
 }
 ```
 
-現在の対応範囲は次の通りである。
+Current coverage:
 
-- simple fontではcodeごとに完全一致するToUnicode entryを優先し、entryが存在しない場合だけDifferencesから宣言済みのStandard、WinAnsi、MacRoman encodingの順にfallbackする。明示された不正entryと未知のDifferencesは`Unmapped`のまま保持し、fallbackしてはならない。
-- Standard 14 fontではcanonicalなBaseFont名と、組み込みencodingまたは明示されたStandard / WinAnsi / MacRoman encoding名をstable identityへ含める。Differences dictionaryはcode selectorの意味を変えるため、このcanonical identityの対象にしない。
-- Type1Cのidentityは、subtypeが`Type1C`である単一の`FontFile3` streamを必要とする。MMType1はvariation axisを解釈せず、宣言済みsimple-font encodingとmetricsだけを使い、unmapped glyphへstable identityを与えない。
-- 定義済みIdentity-HとIdentity-Vは常に固定2-byte codeとしてcontentを分割する。custom Type0 Encoding CMapは、`WMode`が0または1で、単一のfull-domain codespaceと、同じ範囲をCID 0から写す単一のidentity `begincidrange`だけを持つ場合に限り、固定1-byteまたは2-byte codeとして扱う。`usecmap`、`begincidchar`、複数range、非identity mappingはUNSUPPORTEDとする。
-- ToUnicodeはdecoderの固定幅で完全一致参照する。entry欠落、孤立したUTF-16 surrogate destination、ToUnicode自体の欠落は`Unmapped`とする。一方、空、奇数長、非hexのdestinationはerrorのままにする。
-- 埋め込みfont programもToUnicodeもないCID fontは、BaseFont名だけでglyph同一性を推測しない。ただしcallerがsideごとに同じBaseFontへ同じexternal font identityを明示した場合だけ、そのidentityを専用domainでhashし、unmapped glyphのfont identityとして使用できる。これはfont discoveryではなくcaller assertionである。
-- Type 3 fontはaxis-alignedな有限`FontMatrix`（`a > 0`、`d != 0`）を持つsubsetだけを扱う。`FirstChar`、`LastChar`、`Widths`、`FontBBox`、`Encoding`、`CharProcs`を必須とし、rotation、shear、translation、horizontal reversalはUNSUPPORTEDのままにする。unmapped glyphのidentityはCharProc streamをglyph nameのbyte順に並べた専用domain hashとし、dictionary順、object ID、Encoding codeの再配置に依存しない。named resourceへ依存する場合は参照先をcanonical graphとしてhashし、循環、深度、byte数の上限で拒否する。
-- Identity-Vは、単一のCIDFontType0/CIDFontType2 descendant、固定2-byte code、完全一致参照のToUnicode、per-CID `W2`を持たないsubsetを扱う。`DW2`は省略時の`[880 -1000]`またはdownward displacementを持つ有限な2要素arrayを受理する。一般のcustom vertical CMap、per-CID `W2`、一般のvertical reading orderはscope外とする。
+- Simple fonts prefer an exact per-code ToUnicode entry. Without one, a
+  declared Standard, WinAnsi, or MacRoman encoding is used through
+  `Differences`. An explicit invalid entry and an unknown `Differences` name
+  stay `Unmapped`; they never fall back silently.
+- Standard 14 identity includes the canonical BaseFont name and the built-in or
+  declared Standard/WinAnsi/MacRoman encoding name. A `Differences` dictionary
+  changes code meaning and is excluded from that canonical identity.
+- Type1C identity requires a single `FontFile3` stream with subtype `Type1C`.
+  MMType1 variation axes are not interpreted; only declared simple-font
+  encoding and metrics are used, and no stable identity is given to an unmapped
+  glyph from an unrecognized path.
+- Identity-H and Identity-V always split content into fixed two-byte codes. A
+  custom Type0 encoding CMap is supported only with `WMode` 0 or 1, one
+  full-domain codespace, and one identity `begincidrange` mapping that range to
+  CIDs from 0. `usecmap`, `begincidchar`, multiple ranges, and non-identity
+  mappings are unsupported.
+- ToUnicode entries are matched at the decoder's fixed width. A missing entry,
+  an isolated UTF-16 surrogate destination, and a missing ToUnicode map are
+  `Unmapped`. Empty, odd-length, and non-hex destinations remain errors.
+- CID fonts without an embedded program and without ToUnicode do not infer
+  identity from BaseFont alone. A caller-provided external font identity for
+  the same BaseFont on both sides may be hashed in a dedicated domain and used
+  as the unmapped glyph identity; that is an assertion, not font discovery.
+  With the bundled predefined CID collections, Adobe Japan1/GB1/CNS1/Korea1
+  UCS2 tables map known CIDs to Unicode; ToUnicode keeps priority and unknown
+  CIDs stay placeholders.
+- Type 3 supports only axis-aligned finite `FontMatrix` (`a > 0`, `d != 0`) and
+  requires `FirstChar`, `LastChar`, `Widths`, `FontBBox`, `Encoding`, and
+  `CharProcs`. Rotation, shear, translation, and horizontal reversal are
+  unsupported. Unmapped identity hashes the CharProcs streams in glyph-name
+  byte order in a dedicated domain, so dictionary order, object ids, and
+  Encoding code movement do not change it. Named resources are hashed as a
+  canonical graph with cycle, depth, and byte limits.
+- Identity-V covers one CIDFontType0/CIDFontType2 descendant, fixed two-byte
+  codes, exact ToUnicode, and a subset without per-CID `W2`. `DW2` may be
+  omitted (default `[880 -1000]`) or a finite two-element downward
+  displacement. General custom vertical CMaps, per-CID `W2`, and general
+  vertical reading order are out of scope.
 
-CID descendantの`FontDescriptor`でAscent / Descentが欠落するか`Ascent <= Descent`となってcross-axis extentを構成できない場合は、妥当な`FontBBox`のtop/bottomをfont-wide vertical metricとして使う。どちらからも正のextentを得られない場合だけUNRESOLVEDとし、ゼロ面積Glyphを後段へ渡さない。
+When a CID descendant's `FontDescriptor` lacks Ascent/Descent or has
+`Ascent <= Descent`, a valid `FontBBox` top/bottom supplies the font-wide
+vertical metric. Only when neither yields a positive extent is the glyph
+unresolved; a zero-area glyph is never passed downstream.
 
-### 6.5 抽出の問題分類
+An unmapped glyph keeps a stable identity in this order: (1) the
+subset-stripped BaseFont plus the exact glyph name from PDF `Encoding`
+(including `Differences`), a cleartext Type1 `/Encoding`, or a Type1C charset;
+(2) a CID-keyed CFF `CharStrings` entry selected by the CID; (3) the embedded
+program hash plus glyph id. The first byte of the identity hash tags the source
+(`program`, `name`, or `outline`). Equal names in one family and equal outlines
+compare equal across subsets. CID 0 of an Identity-encoded composite font is
+treated as the specification's `.notdef` and uses name identity rather than an
+empty outline.
 
-抽出の問題はtyped issueとして、document、page、page-tree gap、glyph gapのscopeで報告する。
-unsupported（解釈未実装）、unresolved（証拠はあるが確定不能）、resource limit（budget到達）、fatal（結果を表現できない）を区別する。
-抽出できなかった量は不明として扱い、空文字や0 tokenへ置き換えない。
+Glyph names resolve through the Adobe Glyph List, the `uni`/`u` algorithmic
+forms, a bundled Apache-2.0 pdf.js supplement for unambiguous TeX/AMS names, and
+a small project-authored MIT table for remaining unambiguous TeX names. The
+supplement excludes private-use and control values. Combining overlays,
+enclosures, script names, and generic `gNN`/`glyphNNN` names stay placeholders
+because their meaning is not one standalone character.
 
-### 6.6 資源制限（既定値）
+### 6.5 Issue classification
 
-| 境界 | 既定上限 |
+Extraction issues are typed and scoped to the document, a page, a page-tree
+gap, or a glyph gap. Unsupported (interpretation missing), unresolved (evidence
+exists but cannot be decided), resource limit (budget reached), and fatal
+(result cannot be represented) are distinct. A quantity that could not be
+extracted is unknown; it is never replaced by empty text or zero tokens.
+
+## 7. Layout reconstruction
+
+### 7.1 Glyph to line
+
+For text direction `d = (dx, dy)` and its normal `n = (-dy, dx)`, glyph
+coordinates are projected onto both axes and compared as along-axis and
+baseline-axis positions. The model supports arbitrary direction; the release
+target is horizontal text, and vertical-specific metrics and reading order are
+bounded (§13).
+
+Line membership uses baseline distance, glyph height, font size, direction, and
+inline gaps. Fixed pixel thresholds are not used; the defaults are relative
+ratios (`max_baseline_distance_ratio` 0.25, `min_cross_axis_overlap_ratio` 0.25,
+`min_direction_similarity` 0.98). Off-baseline glyphs may join a line only when
+cross-axis overlap and script-size bounds hold; a glyph outside those bounds
+starts a new line.
+
+**Space reconstruction:** when the along-axis gap between adjacent glyphs
+exceeds a threshold relative to font size and the median advance, a synthetic
+space is inserted. This is required for Case 1 in English PDFs that draw no
+space glyph. A reconstructed space is marked synthetic and stays distinct from
+raw source.
+
+### 7.2 Line to block
+
+Line joining uses relative evidence: vertical proximity, horizontal overlap,
+indent similarity, and font continuity, with a minimum join score. Page
+boundaries are not block boundaries: a paragraph continuing across a page uses
+normalized body-area, indent, font, and line-gap continuity. Repeated headers
+and footers are excluded from body candidates; uncertain cases stay split and
+reach alignment.
+
+Content text is not the primary join signal. Punctuation alone does not end a
+paragraph, and page-boundary continuation may use a light character-class
+signal only as supporting evidence; it never decides a block alone.
+
+### 7.3 Regions and tables
+
+- **XY-cut:** a central vertical whitespace gap is a split candidate. Column
+  detection is not reading-order determination; region structure and reading
+  order stay separate, and an undecidable order stays `UNKNOWN`.
+- **Region graph:** a graph of Above/Below/LeftOf/RightOf/Aligned/SameColumn
+  relations, not a tree.
+- **Tables:** a ruled grid takes vector lines from drawing operators. A
+  borderless table is inferred from repeated x/y alignment. A table is not
+  serialized like ordinary blocks.
+
+A complete rectangular ruled grid supplies an inferred table view with column
+identities from the first row and row identities from the first column. Cell
+values never establish axis correspondence, and equal values in different rows
+never decide cell correspondence. Changed headers may receive inferred
+candidates from shared child or neighboring identities. Complex tables, merged
+cells, and arbitrary table semantics are not implemented.
+
+### 7.4 Reversibility and reading order
+
+Line, paragraph, cell, and tag boundaries are soft boundaries; extraction gaps
+and unsupported regions are hard boundaries. A split or merged view of one
+native block retains token ownership and separator provenance. Competing views
+that imply different edits stay as views and are never silently unified.
+
+Reading order is known only when extraction is complete and supports one order.
+Matching page numbers or similar headings do not establish order. A
+correspondence that depends on an unknown order keeps that premise and stays
+undecided. The flow engine's order selection is specified in §8.2.
+
+## 8. Flow token stream
+
+### 8.1 Tokenization
+
+Mapped canonical text is split into maximal alphanumeric runs that are not CJK,
+one token per CJK scalar, and one token per punctuation scalar. Whitespace is
+dropped from identity but its source glyphs remain accounted for. An unmapped
+glyph is one token with the encoded identity in §4.3. A token's `page` is the
+page of its first source glyph, and `bounds` is the union of its source boxes.
+
+Token identity is the exact canonical string (or the unmapped identity). No
+numeric mask, case fold, width fold, or similarity transform changes it. A
+numeric edit therefore stays visible.
+
+### 8.2 Reading-order selection
+
+Layout reconstruction can merge adjacent form rows into one oversized line.
+The engine therefore builds three hypotheses per page from the same visible
+glyphs: reconstructed layout order, content-stream paint order, and baseline-row
+order.
+
+Baseline rows use each glyph's baseline coordinate along the text direction's
+normal; row gaps are relative to font size, so tall overlapping boxes on tight
+CJK rows do not merge. Rows run top-to-bottom (right-to-left for vertical text)
+and glyphs follow their baseline advance direction.
+
+A page stays on layout order when layout and paint order have at least 0.9
+order-preserving overlap. Otherwise the page is matched to counterpart pages in
+the other document by an order-free, information-weighted bag overlap of page
+tokens. The best match, every match within half of its overlap, and the pages
+adjacent to the best match provide evidence. The three hypotheses are scored by
+the weighted bigrams and trigrams they share with the counterparts' three
+hypotheses, using a weight table built from the counterpart tokens alone.
+
+A page whose best overlap is below 30% of the document pair's median per-page
+best overlap has no counterpart and is ordered by intrinsic spatial coherence
+only. This keeps an inserted or deleted page from borrowing evidence from a
+structurally similar neighbor, and editing an unrelated page does not change an
+untouched page's evidence. Layout order is kept only when it has at least as
+much evidence and at least as much spatial coherence as paint order; baseline
+order replaces paint order only when it has more evidence and at least as much
+coherence. Otherwise paint order wins; exact ties keep layout, then paint order.
+
+Pages where layout and paint order disagree are marked order-uncertain, and an
+intrinsic per-page coherence score records how often consecutive chosen tokens
+are spatially adjacent. Pages below 0.5 coherence are listed separately.
+Neither marker changes the exit code. The engine never consults an external
+reader for this choice, and it does not propagate layout issues into token
+uncertainty: a token from an inferred order remains comparable.
+
+### 8.3 Stacked bands
+
+A page split by a vertical gap much larger than its line pitch can contain two
+independent page-like regions. This happens with a page merge and also on real
+pages with a wide whitespace band. Such a page is partitioned into stacked
+bands when each band holds at least a fifth of the page's tokens and at least
+two rows.
+
+Each band's information-weighted token bag is compared with whole pages of the
+other document. A band that reproduces one page at 0.9 overlap or more adopts
+that page's chosen order, and the page is assembled band by band. The two bands
+of a merged page can therefore keep two different hypotheses. Furniture
+positions are measured within each band, so a header or footer that a merge
+moved into the middle of the taller page keeps the relative position it had at
+the old page edge. A page formed from one band, and a band whose counterpart is
+itself stacked, keep the evidence-based whole-page choice.
+
+### 8.4 Furniture
+
+Repeated headers, footers, and page numbers are removed from the content stream
+and compared separately by digit-masked text. Furniture membership is decided
+jointly for the two documents: a line that qualifies on either side is
+furniture on both. Alphabetic running headers and titles are removed at every
+line-level occurrence, so a page merge or break stays invariant when the line
+is no longer at the new page edge. Numeric-only lines use the joined
+relative-position cluster.
+
+Within one furniture family, digit runs that change between occurrences (page
+numbers, counters) are masked to `0`; a run that is constant in every
+occurrence (a year, form number, or version) stays literal, so editing it is
+reported as a furniture change instead of disappearing behind the mask.
+Families are separated by digit-run lengths so a page number and a form code
+that share one full mask are not conflated.
+
+Each side selects one relative-position cluster per masked line. The joint
+comparison removes the union of both sides' selected clusters from both
+documents. The union matters when a page insertion or deletion changes which
+cluster meets the page threshold: the side that no longer qualifies still
+removes the same lines as the side that does, so an untouched page cannot
+become content on one side only. The digit mask is furniture evidence only; it
+is never an alignment transform.
+
+### 8.5 Image identity and paint gate
+
+Image-only pages first compare an encoded identity: the same ordered image
+XObjects, byte-identical encoded streams, pixel-affecting dictionaries, and
+CTMs. Equal encoded identities resolve the page without decoding and become one
+synthetic `⟦image-encoded:<hash>⟧` token. Different encoded bytes prove
+nothing, so the page falls back to a complete decoded pixel inventory and an
+`⟦image:<hash>⟧` token; the report names the resolving rule. A one-sided
+image-only page is a deletion or insertion once its identity is available.
+Pages with too many or too large images remain incomplete without OCR or a
+partial inventory.
+
+Flow text completeness requires both sides to be extraction-complete, glyph
+conservation complete, and the non-text paint inventories equal. Every painted
+path, image, inline image, and shading contributes a digest of its kind, exact
+geometry or image-data identity, and page-space placement. Page numbers are
+excluded so an identical page shifted within the document compares equal; page
+crop and rotation are included. Artifact-marked paint is included. If the two
+multisets differ, or an identity is unavailable, the text channel is incomplete
+and reports `non-text paint differs; text drawn as paths or images was not
+examined`, with bounded affected-page lists. Detected changes remain visible.
+This deliberately covers table rules and boxes: without OCR or text-shape
+recognition the engine cannot prove that a changed path is not outlined text.
+An extraction issue about a page whose only possible text is inside painted
+images is unexamined text evidence: it cannot allow exit `0`, but it does not
+block an intact text detection.
+
+### 8.6 Conservation and coverage
+
+Every comparison-visible glyph is either referenced by a block token source or
+appended by the content-stream fallback; per-page conservation counts
+`used/visible` and is reported. A missing glyph is never silently treated as an
+absent token.
+
+The text channel's coverage reports flow's extracted token counts as both
+discovered and compared; its completeness follows extraction completeness,
+glyph conservation, and the paint gate. The multi-channel report separately
+reports non-text channel coverage as discovered versus compared source
+references per side. Flow does not report the removed engine's
+`(same + changed) / comparable tokens` interval coverage.
+
+## 9. Alignment and edit script
+
+### 9.1 Token alignment
+
+Alignment returns equal token pairs strictly increasing on both sides. Any such
+pair list is a correct alignment; choosing a better one is a quality concern.
+Unmatched gaps become replacements or delete/insert changes.
+
+Small gaps use an exact information-weighted LCS with a cell budget. Rare words
+carry proportionally more weight than near-universal tokens (dot leaders,
+separators), so a shifted page number cannot outvote the title it belongs to.
+Large gaps anchor on unique n-grams (up to 3-grams), extend every anchor to its
+maximal equal run, and select the chain by total matched information rather than
+run length. A gap without anchors falls back to bounded Myers-style bisection;
+when its step budget is exhausted the gap stays unmatched rather than guessed.
+
+Alignment prefers long equal runs and promotes same-gap runs into the equal
+spine. After the weighted spine is final, a bounded plain LCS fills equal tokens
+left inside two-sided gaps without removing a weighted match. Alignment never
+rewrites token identity.
+
+### 9.2 Script construction
+
+The script builder classifies every non-spine token exactly once as delete,
+insert, replace, or move. A replacement whose concatenated text is unchanged is
+layout-only. A change carries no hidden edit: its old and new ranges are
+contiguous and are recorded in document order.
+
+### 9.3 Move rules
+
+A move requires a repeated run long enough to identify (at least five tokens)
+and carrying information weight; a run of minimum-weight punctuation or
+separators contributes nothing and cannot be a move. A delete run and an insert
+run with identical text at opposite ends of one accepted move are the remainder
+of a rotation and are reported as one additional move even when shorter than
+the minimum. Unrelated short equal runs stay delete/insert.
+
+A same-page move on a dot-leader contents page that spans only low-weight or
+numeric changes is promoted back into the spine, so a changed page number
+becomes one small replacement instead of moves of the heading and dot leaders.
+
+The engine evaluates three rules for both alignment strategies: the permissive
+rule, the information-weight rule, and the contents rule. It keeps the script
+with the fewest non-move changed tokens. A rule is skipped when it provably
+cannot change the script, and reusable alignment segments are memoized so the
+selected script and tie-breaking are identical to a full evaluation.
+
+A post-pass reconciles equal tokens that sit on opposite sides of a move or a
+shifted spine run: they become implicit equal tokens, and the shifted run
+becomes one move. This removes needless delete/insert pairs from rotations and
+page swaps.
+
+### 9.4 Transposition rewrite
+
+A transposition of two adjacent runs has two valid explanations. After the move
+pass, if a `Move` of run `R` sits beside an equal spine run `E`, the engine may
+rewrite the script to move `E` and keep `R` equal when all of the following
+hold:
+
+1. `E` intersects fewer reconstructed blocks in the old document than `R`.
+2. `E` carries at least the information weight of `R`.
+3. `E` has at least five tokens and at least the move information minimum.
+4. The rebuilt spine is strictly increasing on both sides and the rewritten
+   script replays.
+
+The old reading order defines the structural unit that left its place; a block
+split on the new side can be a line-wrap artifact. The information guard
+prevents trading a substantive paragraph for a short heading, form label, or
+separator run. Equal old-side block spans keep the alignment choice, and a move
+without a mirrored equal run is untouched. The rewrite is deterministic: a
+bounded number of rewrites is accepted per pass, each accepted rewrite strictly
+reduces the moved run's old-side block span, and no benchmark path, fixture
+name, page number, text, or fixed pixel threshold participates. This is a
+quality preference, not a claim about author intent.
+
+### 9.5 Replay verification
+
+Every returned script is replayed against both token sequences before use.
+Verification checks, in one pass, that:
+
+- every old and new token is covered exactly once;
+- covered old tokens are in ascending order;
+- the uncovered old and uncovered new token texts are the same sequence;
+- both sides of every move are identical; and
+- both sides of every layout-only change satisfy the layout-only relation.
+
+Any failure is an error; a partially verified script is never reported.
+
+### 9.6 Change selection
+
+A deletion, insertion, replacement, or move selects a detected difference (exit
+`1`). A layout-only change does not. Formatting evidence never selects an exit
+code and never changes the content script. The same predicate
+(`selects_difference`) is used by the CLI exit selection and the summary so the
+two cannot diverge.
+
+Confidence and ambiguity markers are computed per change but are descriptive
+only. Coarse spans, repeated boundary runs, short moves, numeric-only spans,
+numeric table neighbors, and order-uncertain pages lower confidence without
+removing or moving a change.
+
+## 10. Formatting evidence
+
+### 10.1 Reasons
+
+Matched token runs carry formatting-only evidence with these reasons:
+
+| Reason | Evidence |
 |---|---|
+| `normalization` | Raw text or its normalization-event mask differs, including an in-block line-wrap rewrite |
+| `block_structure` | The block-boundary pattern differs |
+| `font_size` | Effective font size differs beyond a relative 1% tolerance |
+| `position` | The tested segment's internal line and page break offsets agree and its lines are uniform baseline translations |
+| `line_break` | Internal line-break offsets differ |
+| `page_break` | Internal page-break offsets differ |
+
+A break after the last token of an old block is a group boundary, not internal
+evidence, so a page break between blocks is not a reflow. A run that moved to a
+different page with an unchanged internal layout is position evidence.
+
+Position is evaluated per segment: a break difference in one segment
+suppresses position only on that segment and is reported as `line_break` or
+`page_break`; it does not suppress position on another segment of the same
+matched run. Font size is reported once per distinct changed size pair over the
+whole matched run.
+
+### 10.2 Coalescing and points
+
+Entries are split at content changes and old-side blocks. Adjacent entries with
+the same reasons, sizes, and pages are coalesced into one presentation entry. A
+formatting entry must span at least one matched adjacency: a one-token LCS
+match inside rewritten text is a point, not a formatting span, and is dropped.
+
+A one-token point that carries only position may merge into a neighboring entry
+when both sides have the same non-position reasons and sizes; the merged entry
+keeps `position` only when both sides had it, so a point's position is never
+promoted into span evidence. Two multi-token segments with different position
+status stay separate.
+
+Formatting reasons are approximate and are not interchangeable with the removed
+engine's buckets.
+
+### 10.3 Agreement with historical formatting captures
+
+Formatting evidence is not an oracle compared metric. Where historical captures
+of the removed engine exist, a word-level check (`\w+` words, ±3-page window) on
+the 62 pairs finds a flow entry with the same formatting reason for 84.2% of
+2,763 `position` entries, 88.4% of 43 `line_break`, 56.5% of 108
+`normalization`, 57.3% of 358 `font_size`, and 3 of 3 `block_structure` entries.
+The strict same-page check gives 83.6%, 83.7%, 52.8%, 56.7%, and 3 of 3.
+
+The removed engine is not ground truth. Auditing the misses against PDF glyphs
+found no actionable normalization or font-size rule miss: of 153 missed
+`font_size` entries, 18 are identical or below the 1% tolerance, 133 are
+reported by flow under another reason or inside a content change, and 2 are not
+a stable matched span. Of 47 missed `normalization` entries, 41 are reported
+under another reason or inside a content change and 6 are not a stable matched
+span. The `position` misses were dominated by the former whole-run break
+suppression; the per-segment rule addresses that root cause. Flow's unit is
+the maximal matched run rather than a block-grouped bucket, so one pair can
+produce many more entries than the historical capture.
+
+## 11. Non-text channels
+
+### 11.1 Shared correspondence solver
+
+The non-text channels feed a shared correspondence solver with a versioned
+lexicographic objective: source-backed scoped identities (structure IDs, field
+names, row/column keys), then source-backed literal content, then inferred
+structural correspondence, then inferred literal content, then other inferred
+proposals.
+
+- Source-only mandatory correspondences are fixed before inferred candidates
+  are enumerated, so an inferred tie-break cannot override a source alignment.
+- Alternative views of the same evidence compete for ownership; selected
+  members must admit one shared partition, and no evidence is consumed twice.
+- The solver descends through matched containers with bounded depth and scope
+  counts and records each child scope's parent correspondence.
+- Exact text may match one ordered view to several (1:N or N:1) without changing
+  tokens or inventing separators.
+- A bounded search that runs out of budget is localized to its dependent
+  component; independent correspondences still proceed.
+- Equal optimal solutions stay ambiguous, and an exhausted component emits no
+  mandatory correspondence. Enumeration, validation, scoring, and discarded
+  work are charged.
+
+A supplier (text, heading, typed identity, label, row/column name, neighbor,
+visual feature, footer rule) proposes candidates but never emits a change
+alone. A solver-selected result that depends on an inferred tie-break is
+reported as inferred. Correspondence is conditional support for a local exact
+claim, not a proof of the author's edit history.
+
+### 11.2 Visual
+
+Embedded raster images, including those in Form XObjects and with intrinsic
+alpha masks, are decoded at their original resolution and hashed with SHA-256
+over width, height, and normalized RGBA8 samples. Lossless recompression or
+object renumbering alone does not change the hash; lossy recompression can.
+
+- Equal hashes are matched as a multiset, independent of page and draw order.
+- Remaining images at a unique identical page and placement are `changed`
+  (inferred).
+- Residual images become `added` or `removed` only when both inventories are
+  complete and no unmatched rival remains; ambiguous replacements and decoding
+  failures stay unresolved.
+
+Pages are rendered at 72 dpi against white and retained for review. Page
+rasters are context: composited-page proposals are disabled, so a retained page
+raster is a discovered visual source that no comparison consumes. Every
+rendered page therefore leaves the visual inventory incomplete. Placement
+changes, clipping, blend effects, and vector graphics are outside pixel-hash
+equality. Stencil images, pattern/Type 3 images, annotation images, and
+graphics soft masks remain unresolved.
+
+### 11.3 Forms
+
+Saved AcroForm text, choice, and button values are compared by field name;
+malformed values remain unresolved with their raw evidence.
+
+- Button fields retain declared widget appearance-state names and widget object
+  references. A saved selection that disagrees with the declared states
+  produces a field-local unresolved issue; independent fields still compare.
+- Widgets with direct normal appearance streams retain page rectangles, stream
+  references, and source-checked crops of the rendered page. JSON distinguishes
+  `value_changed` from `rendered_region_changed`.
+- Moving widgets or inserting a cover page produces no change; overlapping
+  widget crops are ambiguous rather than double-counted.
+
+A crop does not prove what text is visible or that the saved value is displayed
+correctly. Export-option interpretation, state-selected appearances, general
+stored-value/display agreement, and XFA remain unresolved. A changed stored
+field value that flow does not compare as text still produces a `text_mask` for
+that local value pair.
+
+### 11.4 Relations
+
+Typed relationships (row/column membership, labels, captions, references, and
+source-structured containment and order) are compared across endpoint
+correspondences established by the other channels. An absent edge requires
+complete relationship inventories on both sides; ambiguous endpoints and work
+limits stay unresolved. Native layout containment and order are not semantic
+relationship changes.
+
+Native PDF link extraction and automatic link/footnote target interpretation are
+not implemented, so relations is usually incomplete for real documents.
+
+### 11.5 Tables and tagged structure
+
+- **Ruled grids** supply an inferred table view; each cell is reconstructed
+  independently with column identities from the first row and row identities
+  from the first column. Values are compared within those identities, so equal
+  numbers in different rows never establish correspondence. Changed headers may
+  receive inferred candidates from shared child or neighboring identities.
+  Grids are limited to 1,024 cells per candidate.
+- **Borderless tables:** uniquely located row/column labels from a counterpart
+  table can propose a native partition when borders are missing. Target geometry
+  supplies separators and reconstructed axis labels must agree exactly. This
+  requires one table per page per input, unchanged unique row labels, a shared
+  top-left header, horizontal text, and non-crossing cell geometry. JSON
+  `table_refinements` records the counterpart table and its evidence.
+- **Keyed cells** without an explicit item key use scoped row/column identities;
+  missing, duplicate, or competing axis evidence leaves the scope unresolved.
+- The original block partition stays available as an alternative view, so
+  native text remains comparable when only one side admits a table.
+
+Bounded native structure trees are imported with roles, parent membership,
+declared order, and byte-exact structure IDs. Marked-content IDs and explicit
+references connect tagged paragraphs and cells to original glyphs, including
+inside Form XObjects. Tagged tables with stable IDs preserve cell identity
+across value swaps, reordered drawing commands, and an inserted cover page.
+Missing, repeated, or incomplete marked content leaves unresolved structure
+without deleting native text.
+
+### 11.6 Obligations and exit attribution
+
+An obligation records why a claim could not be established. It is unexamined
+evidence on its own channel, not a contradiction. Relation binding, membership,
+and endpoint gaps are unexamined relationship evidence; relation graph and
+work-budget failures are broken. Structure-ID key presence belongs to
+relations/structure, and field-name key presence to forms.
+
+A key-presence obligation records a missing inventory, unnamed or duplicate
+members, a retained rename alternative, or an unavailable acquisition path, so
+it is unexamined on its channel. An exhausted raw key search clears key
+exhaustiveness and is cross-channel broken. An exhausted scoped key search, or
+a scoped `work_budget` obligation, is broken on every channel that owns a claim
+(forms for field names, relations/structure for structure IDs); other scoped
+obligations are unexamined on their claim's domain. A scoped obligation without
+a claim index marks every claim domain unexamined and is never a blanket
+cross-channel reason.
+
+Text views remain correspondence context for relationships and structure. A
+component that mixes text and non-text sources is never superseded by flow
+ownership. `flow_owned_text` counts the positions where flow ownership replaced
+shared-evidence text comparisons, with `unchecked_obligations` per skipped
+reason; it is absent when none were recorded.
+
+## 12. Resource limits and process isolation
+
+Every PDF is untrusted input. Limits are finite, configurable only upward, and
+enforced at the boundary that spends the resource.
+
+### 12.1 Parser and extraction defaults
+
+| Boundary | Default |
+|---|---:|
 | input bytes | 256 MiB |
 | objects | 1,000,000 |
 | recursion depth | 128 |
@@ -608,446 +1500,179 @@ unsupported（解釈未実装）、unresolved（証拠はあるが確定不能�
 | nesting depth | 64 |
 | operators | 5,000,000 |
 | stream invocations | 5,000,000 |
-| total decoded bytes（抽出） | 512 MiB |
+| total decoded bytes (extraction) | 512 MiB |
 | operand stack | 4,096 |
-| array elements | 65,536 |
+| array elements per operand | 65,536 |
 | operand nodes | 10,000,000 |
 | fonts | 100,000 |
 | CMap entries | 1,000,000 |
 | CID width entries | 65,536 |
 | string bytes | 64 MiB |
 | vector lines | 5,000,000 |
-
-limitは有限かつ設定可能な状態を維持する。
-明示的に低いlimitを指定した場合は同じ課金境界で必ず失敗させる。
-default値の再調整は再現可能なfixtureまたはcorpusの証拠に基づく場合だけ行い、文書を通すためにlimit自体を削除しない。
-
-## 7. Layout Reconstruction (Track B)
-
-### 7.1 Glyph → Line
-
-文字進行方向d=(dx,dy)とその垂直方向n=(-dy,dx)を取り、Glyph座標を両方向へ射影してalong-axis / baseline-axis位置として比較する。
-data modelは任意方向を保持するが、初期完成条件は横書き文書で評価し、縦書き固有のfont metricsとreading orderは後続benchmarkで追加する。
-
-同一Line候補かどうかは、baseline距離、glyph高さ、フォントサイズ、書字方向、文字間隔から判断する。
-固定pixel閾値は使わず、`baseline_distance < 0.25 * median_glyph_height`のような相対値を候補とする。具体値はbenchmarkから決める。
-
-**Space再構成**：Line内で隣接glyph間のalong-axis gapが、フォントサイズと平均advanceに対する相対閾値を超える場合、spaceを挿入する。
-space glyphを描画しないPDF（英語文書に多い）でCase 1を解くための必須処理である。再構成したspaceはsyntheticとしてraw sourceと区別する。
-
-### 7.2 Line → Block
-
-Line間の接続score `S = wv·V + wx·X + wi·I + wf·F`を計算する。
-V=垂直近接、X=水平重なり、I=インデント類似、F=font連続性である。
-
-page boundaryをBlock boundaryとして固定しない。
-前page末尾と次page先頭のLineも、本文領域、indent、font、line gapの正規化値が連続する場合は同一Block候補にする。
-繰り返しheader/footerは本文候補から除外し、確信が持てない場合は分割したままAlignmentの1:2 / 2:1へ渡す。
-
-初期段階では文章内容を主判定に使わない。
-句読点だけで段落終了を決めず、layout情報を先に使う。page boundary継続の曖昧性を救うための軽い文字種signalは補助として記録してよいが、それだけでBlockを確定しない。
-
-### 7.3 Region
-
-- **XY-Cut**：中央のvertical whitespaceを分割候補とする。column detectedはreading order determinedではない。Region構造とreading orderは別物として扱い、決められない場合はUNKNOWNのまま残す。
-- **Region Graph**：TreeではなくAbove/Below/LeftOf/RightOf/Aligned/SameColumnの関係を持つgraphとして保持する。
-- **表**：罫線がある場合はvector drawing operatorから`VectorLine { from, to, width }`を取る。罫線なし表はx/y方向の繰り返しalignmentから推定する。表は通常Blockと同じ方法で直列化しない。
-
-rectangular ruled gridはinferred table viewとして、最初の行からcolumn identity、最初の列からrow identityを提案できる。
-cell値はaxis correspondenceの根拠にならず、別rowの等しい値でcell対応を確定しない。
-header identityが変わった場合は共有child identityまたは隣接identityからinferred候補を作れる。
-複雑な表、merged cell、任意のtable semanticsは実装しない。
-
-### 7.4 構造化の可逆性と読み順
-
-行、段落、table cell、tagの境界はsoft境界として保持し、抽出gapや未対応内容の境界はhard境界として区別する。
-一つのnative blockを分割・結合したviewは、tokenの所有範囲とseparatorの由来を保持する。
-複数の妥当なviewが異なる編集を示す場合は候補として残し、採用viewにかかわらず確定には同じ領域条件を適用する。
-
-読み順は、抽出が完全で対応する単一の順序を裏付けられる場合だけknownとする。
-page番号の一致や似た見出しの存在だけではknownにしない。
-未知のreading orderに依存する対応は、その前提を保持したまま未確定にする。
-
-## 8. Normalization
-
-一つのBlockから三種類の文字列を作る。ただし、文字列だけを保存してGlyphとの対応を失ってはいけない。
-`raw`はPDFから復元したまま、`canonical`は文章として同一とみなす正規化、`matching`はAlignment専用である。
-
-### 8.1 canonical の内容
-
-canonicalで吸収するのは、文章としての同一性に影響しない差に限る。
-
-**吸収する**：Unicode正規化（NFC）、soft line breakの文脈依存join、連続空白の単一化、行末ハイフネーションの結合、ligature展開。
-
-Soft line breakは一律に削除しない。
-Latin letter/digit境界では1 spaceを挿入し、CJKおよびCJK/alphanumeric混在境界では連結し、明示whitespaceを重複させない。
-行末のU+00AD discretionary hyphenはそのbreakとともに削除できる。
-通常の`-`とU+2010は保持する。文字形状や語長からdiscretionary hyphenationを証明できないためである。
-字句解釈が不確実な場合、hyphenのsource rangeは未解決のまま残す。段落境界は回復可能なblock境界として残す。
-
-**吸収しない**：全角/半角の差（NFKC相当の互換分解）。
-全角半角の統一は識別子、型番、契約番号などで意味のある改訂になり得るため、暗黙に同一視しない。NFKCではなくNFCを採用する理由である。
-
-**独立した解釈根拠**：相手文書と一致する解釈が存在すること自体は、その解釈が正しい証拠ではない。
-Exact Diffが消費できるのは独立に正当化されたsource/layout解釈だけである。
-Block間の境界は、保持したwhitespace、script規則、source line位置から個別に決める。
-候補variantがexact一致しても、joinが未知なら未解決に残す。
-
-canonicalで差を吸収した場合は`NormalizationEvent { kind, raw_range, canonical_range, source }`として記録する。
-Alignment後、対応Block集合のold/newでrawは異なるがcanonicalが等しいeventをformatting-onlyへ計上する。
-隣接する同種eventは一つへmergeし、Glyph数やLine分割数の違いだけで件数が増えないようにする。
-rawに差があったのに出力上なかったことになる状態を作らない。
-
-### 8.2 matching と数値マスク
-
-matchingはAlignmentだけに使う。全角半角の同一視、および`Release 10` / `Release 20`を対応させるための数値マスク（`Release <NUM>`）をここで許可する。
-
-**マスクの安全策**：数値密度の高いBlock（価格表やrelease一覧など）では、マスク後の文字列が行間でほぼ同一になり、誤った1:1対応から「一見正しい誤diff」が生まれる。これを防ぐため次を仕様とする。
-
-- Blockのmatching文字列に占めるマスク由来文字の割合に上限を設け、超えたBlockはマスクなしへフォールバックする。
-- マスク一致のみによる対応付けは確定させず、anchor鎖内の位置整合またはneighbor consistencyによる裏付けを必須にする。
-
-matchingはExact Diff、Change span、coverage計算に使わない。
-
-## 9. Cross-document Alignment
-
-candidate generationと最終matchingを分け、近似indexの誤りがそのままChange判定にならない構成にする。
-
-### 9.1 Anchor 検出
-
-一意性が高く確実な一致をAnchorとして探す。候補は長い完全一致Block、一意な見出し、条番号、節番号、表番号、稀な文字列である。
-old/new双方に一度ずつしか現れない文字列が強いanchorになる。
-anchorの文字列が一意でも、周辺領域の対応や読み順まで自動的に確定するとは限らない。
-区間の確定には境界、競合、探索範囲の条件を適用する。
-
-### 9.2 Anchor の順序整合と move 候補
-
-oldからnewへのanchor対応列に対し、new側indexのLongest Increasing Subsequenceを取り、main chainとする。
-局所的に同じ文字列が現れても、文書全体の順序から不自然な対応を除外できる。
-LISから外れたanchorはmove候補として保持する。
-
-`ChangeKind::Move`の確定には、内容の完全一致、出現箇所の曖昧さのない対応、移動を示す前後の順序関係を必要とする。
-scoreだけではmoveを確定しない。根拠が不足する場合はmove候補または未解決領域として残す。
-deletionとinsertionに分けて確定する場合も、それぞれの対応領域が確定条件を満たす必要がある。
-
-### 9.3 BlockFeatures と類似度
-
-Embeddingは使わない。文字n-gram（初期は3-gramのset）を使い、text類似度はDiceで計算する。
-
-```rust
-pub struct BlockFeatures {
-    pub exact_hash: ExactHash,
-    pub ngrams: NGramSet,
-    pub normalized_geometry: NormalizedRect,
-    pub style: StyleFeatures,
-    pub anchor_interval: Option<AnchorIntervalPosition>,
-}
-```
-
-absolute page座標は改ページやreflowで大きく変わるため、positionは補助signalである。
-利用する場合はpage内の正規化座標や前後anchor間の相対位置を使う。
-
-### 9.4 Candidate Generation
-
-全Block組を比較しない。candidate generationはtraitで切り離す。
-
-```rust
-pub trait CandidateGenerator {
-    fn candidates(&self, old: &BlockFeatures, limit: usize) -> Vec<Candidate>;
-}
-```
-
-候補集合は`exact/anchor候補 ∪ inverted-index候補 ∪ optional LSH候補 ∪ move候補`とする。
-defaultはnew側`HashMap<NGram, Vec<BlockId>>`のn-gram inverted indexであり、共有n-gram数と希少性で候補を絞り、最終Dice scoreは候補に対して別途計算する。
-MinHash LSHは長文書のoptional実装であり、holdoutを含むbenchmarkでcandidate recallを悪化させず、候補件数または実行時間を明確に改善した場合にだけdefault化する。
-
-contentとabsolute positionを一つのhashへ強制しない。改ページ、margin変更、段落moveでpositionが変わるとtrue matchを候補から落とすためである。
-LSH collisionや同一bucketであること自体はconfidenceへ加点せず、最終scoreとneighbor consistencyで検証する。
-candidate生成の打ち切りを、対応する内容が存在しない証拠にしない。
-
-### 9.5 Matching Score
-
-重みは固定せず、利用するsignalだけを仕様とする。text類似、geometry類似、style類似、neighbor類似、anchor文脈である。
-最も強いsignalはtextとし、geometryは補助にとどめる。
-candidate generator由来の情報は候補へ入った理由として診断に残すが、それだけでmatching scoreを上げない。
-数値マスク一致やgeometry一致だけによる確定も禁止する。
-
-### 9.6 共通correspondence solver
-
-supplierはtext、heading、typed identity、label、row/column名、neighbor、visual feature、embeddingなどを使ってよい。
-ただしsupplierが単独で確定変更を出力することは認めない。
-supplierは対応候補を提案し、共通solverがsource overlap、type互換、parent/neighbor整合、ownership、split/merge accountingを検証する。
-footer detection等のdocument-family ruleも一つのsupplierであり、独立した確定権限ではない。
-
-現在の目的関数は`ScopedIdentityThenLiteralThenPaddingThenInferredStructureV4`である。
-source-backedなscoped identity、source-backedなliteral content、inferred structural correspondence、inferred literal content、その他のinferred proposalの順に、supplier weightをlexicographicに最大化する。
-keyやlocal orderをmodelが供給した場合、その解釈はinferred classに留まり、解釈の正しさを証明しない。
-等価なoptimal solutionが複数ある場合はambiguousのまま残し、探索が打ち切られたcomponentはmandatory correspondenceを出力しない。
-
-solverはsource premiseだけでmandatoryなcorrespondenceを別に記録する。
-source-backed proposalがinferred tie-breakerによって選ばれた場合、その結果自体をinferredとして報告する。
-source-only保護はtie-breakerに依存せず、検証はcomponentのstate budgetを共有する。
-component-size capを適用する前に、残る最高objective classのbounded searchでmandatory correspondenceを確定できる。その後、それと非両立な候補だけを除去できる。残りの探索は強制されたownershipとpartition制約を保持し、prefixとresidual stateは同じbudgetを共有する。prefixを完了できなかったことはrival除去の根拠にならない。
-
-alternative correspondenceは明示的に保持する。探索打ち切りは、見かけ上唯一の候補を証明済みのunique matchへ昇格させない。
-enumeration、validation、scoring、final checking、破棄したworkを課金する。
-追加のview/recognition要求は競合時に限り、再訪はboundedで新しいdependencyを記録する。
-correspondenceは局所exact claimを条件付きで支えるものであり、著者の編集履歴の証明ではない。
-
-候補の所有は排他的だが、確定範囲は重複して所有しない。
-複数の出現箇所を一つの変更にまとめる場合はそれぞれを判定し、未確定の出現箇所を候補へ分ける。
-
-### 9.7 対応領域とその閉包
-
-**対応領域**は、新旧間で対応を主張する内容の範囲と、その境界を組にしたものとする。
-判定は次の情報を保持する。
-
-| 情報 | 保持する内容 |
-|---|---|
-| 原文範囲 | old/newごとのblock、comparable token、canonical scalar範囲とglyph/pageへの逆写像 |
-| 比較の前提 | 正規化policy、Unmappedのfont identity、合成space、採用した読み順と境界 |
-| 対応領域 | 比較する内容、領域の境界、境界が改訂間で対応する根拠 |
-| 探索状態 | 調べた競合候補、探索の打ち切り箇所、一意性を支える完全探索またはexact検証 |
-| 判定 | 確定、候補、未解決の状態と、構造化した理由および根拠への参照 |
-| 依存関係 | 判定が依存する抽出、境界、読み順、先行する対応。循環した根拠で互いを確定しない |
-
-**領域が閉じている**とは、主張を変え得る内容や競合する対応を、その領域から根拠なく除外していないことを指す。
-似た見出しが二つ見つかったことや、同じpage番号であることだけでは領域は閉じない。
-文書の他の場所に対応がないことを根拠にする場合は、その場所まで探索するか未確定として残す。
-小さな範囲の探索結果で、より広い範囲の一意性を主張しない。
-
-対応領域は外側から内側へ構成する。
-抽出が完全で単一の読み順を裏付けられる文書では、文書全体を最初の順序付き領域にできる。その読み順も比較modelの前提として記録する。
-確定した親領域の中で、境界候補のexactな出現箇所を必要なtoken範囲全体で調べ、交差する割り当てや競合を除き、境界間の内容を欠落なく分割する。子領域は親の未解決な前提を引き継ぐ。
-親や境界の対応を確定できない場合、recoveryは候補を提示できるが、領域が閉じたと見なして処理を進めない。
-
-探索の完全性は、明示した対応modelの範囲で定義する。
-modelには採用する構造上の順序制約、取り外せるsoft境界、区間を区切るexact anchor、繰り返し出現の扱いを含める。PDFのあらゆる解釈を列挙したという意味ではない。
-類似度の足切りやtop-kだけで競合を定義から除き、確定を正当化することは認めない。
-必要な探索を完了できなければ、その主張は未確定のまま残す。
-
-### 9.8 構造推定が外れた場合の回復
-
-glyph、line、block、region、trusted run、source mapを使い、構造化を可逆なviewとして扱う。
-未解決の領域では、既存のblock view、原文が連続するline/run view、既存の境界に依存しないanchor recoveryの順に、有界かつ決定的に試す。
-blockを分割または結合するviewは、tokenの所有範囲とseparatorの由来を保持する。
-geometryは局所的な文字の相対値を使い、既知の文書名、producer名、page番号、特定の文言で処理を分岐しない。
-
-回復の目的は、改行、改ページ、誤ったblock分割をまたいで正しい対応を増やすことである。
-予算内で候補探索を広げ、他の領域が未解決でも独立した局所領域を確定できるようにする。
-候補表示だけを改善して確定できる変更や範囲が増えない状態を完成とはしない。
-
-### 9.9 Alignmentの段階
-
-1:1、1:0、0:1に加え、同一anchor区間内で隣接Blockだけを結合する制約付き1:2 / 2:1を扱う。
-これはCase 1/2で、line wrapやpage boundaryにより片方だけBlockが分割された場合に必要である。
-1:3 / 3:1を含むgeneral DP alignmentへ拡張し、構造化誤差を吸収する。
-Matchingは一回で確定せず、initial matching、neighbor consistency、refinementの順に進める。
-
-## 10. Exact Diff とその先
-
-### 10.1 Myers Diff
-
-構造上有効な対応候補に対してMyersによるexact diffを実行する。
-共通判定を満たす対応からは確定した変更を出力し、根拠が不足する対応から得た編集は原文を保持した差分候補として出力できる。
-編集列がexactであっても、その前提となる対応付けの正しさまでは証明しない。
-
-diffの入力はcanonical文字列、またはUnmapped領域では`(font_hash, glyph_id)`トークン列であり、matching文字列は使わない。
-現在の実装は、bounded Myers、edit count bound、mandatory position、localized edit scriptを持つ。
-literal claimは宣言したtokenと正規化のもとで全optimal insertion/deletion pathを量化する。
-count bound、mandatory position、complete editing witnessは別の概念であり、位置が曖昧なpositive boundは変更の存在だけを示す。
-complete monotone witnessにはequal residueが必要であり、minimalityとは独立である。
-
-### 10.2 局所比較
-
-whole-field / whole-cell操作は構造identityとold/new値を保持する。そのreview範囲は非所有のcontextである。
-1件のdate置換が複数のexact character hunkを含み、間のequal characterを所有しなくてよい。
-relationshipはtext/value multisetが同じでも変化し得る。移動やmembership変更を等価へ黙って還元しない。
-
-visual regionは互換rendering profileのもとで比較する。
-pixel差はprofile依存のvisual factであり、自動的なsemantic claimではない。
-reflow、scale、antialiasing、producer効果と、image/figure内容の変更を分けて評価する。
-未知のvisual meaningを変更された単語として主張しない。
-
-formatting-only reportingはbest-effortであり、pixel-levelのrendering同一性を主張しない。
-
-### 10.3 将来の拡張
-
-- **Render Awareness**：render order、clipping、fill/stroke、CropBox、可視性まで扱う。現行実装はCropBoxと対応clipを分類し、非描画render modeを除外する段階である。透明・上塗り・複合clipの完全解釈は今後の課題である。
-- **OCR統合（未実装）**：OCRは固有の画像参照とrecognition alternativeを持つevidenceとして扱い、native glyph IDを捏造しない。`SourceRef`は`native`、`native_vector`、`rendered`、`structured`の由来を排他的に区別し、認識された文字がglyphを偽装できない。将来の認識結果はrenderedまたはstructured evidenceと専用の由来へ結び付け、同じ可視内容のnative版とOCR版を等価または競合するviewとして扱う。比較は既存の証拠pipelineと局所比較を再利用するが、由来の偽装ではなく証拠の共有として行う。誤認識らしい差分（`0 ↔ O`、`1 ↔ I`など）も消さず、`OcrConfusion`タグとして報告する。現行実装はprovider供給の候補を保持できるが、認識の新規実行は行わない。
-- **多段組と表**：XY-Cut、Region Graph、ruled grid、counterpart table、tagged structureによる部分実装から、一般的なreading orderとtable semanticsへ拡張する。
-
-## 11. ロードマップ
-
-Track A（PDF Backend + Primitive Extraction）とTrack B（Diff Engine）を並行させる。
-Track Bは`Document<Glyph>` fixtureで進められるため、parser backendの選定やfont edge caseがAlignment開発を止めない。
-
-旧段階の構成は履歴として維持し、現在の実装状況を併記する。
-「実装済み」は現行コードとテストで確認できる段階、「一部」は主要部品が動いており残作業がある段階、「未実装」は残作業である。
-ここに未実装と記した段階だけが残作業であり、実装済みの段階を開始前へ巻き戻すものではない。
-
-### Track A：PDF Backend + Primitive Extraction
-
-| Stage | 実装 | 確認 | 現在 |
-|---|---|---|---|
-| A0 | `PdfParser` / `ParsedPdf`中立境界、capability fixture、既存library比較、default backend選定 | `pdfdelta inspect doc.pdf --backend-info` | 実装済み（facadeと`lopdf` adapter） |
-| A1 | 既存parser adapter、xref（table + stream）、ObjStm、trailer chain、Page Tree、Resources、stream decode、limit/error分類 | `pdfdelta inspect doc.pdf --objects` | 実装済み |
-| A2 | Content Stream parser、Graphics/Text State、Form XObject、ToUnicode、Tj/TJ、Glyph座標、`/Rotate`正規化 | `pdfdelta inspect doc.pdf --glyphs` | 実装済み |
-| A3 | Debug renderer：Glyph overlay SVG、canonicalページ座標、object/operator provenance | `pdfdelta inspect doc.pdf --svg debug.svg` | 実装済み |
-| A4 | font decoding拡張（Type0、CID、Unmapped token）とDifferential Test | 抽出conformance suite | 一部実装（Type0/CID/Unmappedは対応済み、oracleはcurated 1件） |
-| A5(optional) | alternate/custom `PdfParser` backend | §3.3のtriggerが再現し、同一suiteを通過 | 未着手（trigger未再現） |
-
-A3のSVG上で、PDFに実際に見える文字と復元したGlyphが正しい座標で重なり、各GlyphからContent Stream/operatorへ戻れる状態をTrack Aの最初の観測可能なゴールとする。
-A5は既定のマイルストーンではない。
-
-### Track B：Diff Engine
-
-| Stage | 実装 | 完成条件 | 現在 |
-|---|---|---|---|
-| B0 | Workspace骨格、GlyphExtractor境界、Glyph document fixture、error types、parser-backed composition | `pdfdelta --help`とGlyph fixture test | 実装済み |
-| B1 | Glyph → Line（space再構成含む） | 1段組、多フォントサイズ、上付き、日英のbenchmark | 実装済み |
-| B2 | Line → Block | 段落、見出し、改ページ、spacing差のbenchmark | 実装済み |
-| B3 | canonical正規化、exact anchor、CandidateGenerator trait、n-gram inverted index、1:1 + 制約付き1:2/2:1 alignment、insert/delete、Myers Diff、Changeスキーマ、exit code | §2.2の5ケース（最初の実用版） | 実装済み（両rendererで5ケース通過） |
-| B4 | 1:3/3:1を含むgeneral DP alignment、neighbor consistency、move検出 | ParagraphMoveと複雑なBlock split/mergeを含むbenchmark | 実装済み（制約付き1:N/N:1、neighbor consistency、move検出） |
-| B5(optional) | MinHash LSH candidate generator、large-document profiling | §9.4を満たす場合だけdefault候補 | 一部実装（LSH実装済み、defaultはinverted index） |
-
-B4が最も重要な技術的マイルストーンである。
-B5はcorrectness機能ではなくscalability改善であり、B3/B4を先に成立させる。
-
-### 後続Stage（Track合流後）
-
-| Stage | 内容 | 現在 |
-|---|---|---|
-| C1 | Multi-column：XY-Cut、Region Graph、UNKNOWN fallback | 一部実装（XY-CutとRegion Graphは実装、一般的な段組の読み順は未解決のまま） |
-| C2 | Parallel / Table / Form：新旧対照表、vector line、grid推定、label/value、AcroForm値 | 一部実装（ruled grid、form値、counterpart tableは実装、一般の表と新旧対照表は未完） |
-| C3 | Render Awareness：z-order、clipping、可視性、CropBox | 一部実装（render mode、CropBox、対応clipを分類。透明・上塗り・可視性は未完） |
-| C4 | OCR統合 | 未実装（§10.3の証拠契約に沿うprovider待ち） |
-
-現在の優先課題は、可視native文字を両側に持つ改訂ペアで比較完了を増やすことである。
-空白・改行・繰り返し文字が残す対応の曖昧さを元の文字と位置の証拠から解消し、重複検証を減らして既定の探索上限内で比較を完了させる。
-フォントや抽出の不足は、現在の対象PDFで再現する問題から対応する。
-受入条件や探索上限を緩めて完了数を増やしてはならない。
-
-A4のconformance oracle拡充とC1〜C4の未完部分は長期的な課題である。
-一般的な表の解釈、画像内文字の認識、OCR providerの実装は、現在のnative文字比較を改善する作業の前提にはしない。
-
-### 証拠チャネル移行の実装順序と現在
-
-1. 証拠storeとchannel選択。— 実装済み
-2. document graph adapterとprovider（native text、ruled table、tagged structure、form、image）。— 一部実装
-3. 共通correspondence solverとsupplier。— 実装済み（objective V4）
-4. typed comparisonと公開出力（text report、channel JSON、review bundle）。— 一部実装（text/forms/image/relationの局所比較とchannel report schema 2）
-5. 資源制御と汎化評価。— 一部実装（limitsとfuzzingは実装済み、汎化評価は継続中）
-
-glyph adapterは移行中も維持する。
-document-family ruleの追加やconstructed fixtureだけでgraphを動かすことは、この移行の完了を意味しない。
-
-### 最初に実装しないもの
-
-OCRの新規実行、LLM、Embedding、semantic similarity model、visual pixel diffの完全化、高度な表認識、AcroForm全般、annotation diff、full PDF 2.0、GPU、WASM、Web UI、性能最適化、PDF object parserの自作。
-これらは現行incrementの対象外であり、恒久的な禁止ではない（§2.1のscopeと§10.3の将来課題を参照）。
-
-## 12. テストと検証
-
-### 12.1 Benchmark Generator (pdfdelta-bench)
-
-Canonical Document Spec（YAML）からPDFを生成する。
-
-```yaml
-document:
-  title: Quarterly Service Report
-  sections:
-    - id: availability
-      heading: Service availability
-      paragraphs:
-        - id: availability-p1
-          text: Release 10 remains available during the transition.
-```
-
-生成には複数系統のrendererを使う。単一writerのPDFだけでテストすると、そのwriter固有の内部構造へoverfitするためである。
-現在のmatrixはproject-ownedの`lopdf-tj`と`classic-xref-tj`の2経路、24ケース、48 recordで構成する。
-外部renderer（Typst、Tectonic）のPDFはvendored fixtureとして保持し、renderer本体をCIで実行しない。
-
-### 12.2 Mutation Engine
-
-Canonical Documentへ二種類のmutationを適用する。
-
-- **Semantic Mutation**（正解diffを発生させる）：TextReplace、TextInsert、TextDelete、NumberReplace、ParagraphInsert、ParagraphDelete、ParagraphMove。
-- **Rendering Mutation**（content diffを発生させない）：FontSizeChange、MarginChange、PageSizeChange、LineHeightChange、LineBreakChange、PageBreakChange。ColumnChangeはmulti-column benchmarkで有効化する。
-
-これにより「見た目は大幅変更 + `Release 10` → `Release 20` だけ内容変更」のようなケースを自動生成する。
-evaluatorは、報告されたChangeと期待Changeをkind一致とspan overlapで照合する。
-
-### 12.3 5つの初期受入条件
-
-`pdfbench verify`は、改行位置だけ違う、改ページ位置だけ違う、1件のtext replacement、1件のparagraph insertion、1件のparagraph deletionを、両renderer経路で検証する。
-
-現在の結果は次の通りである。
-
-- 5つの受入条件を名指しで含む48/48 recordが通過し、exit code 0を返す。
-- 生成matrix全体では42 recordがstrictに合格し、6 recordはedit境界の曖昧さのためcandidate-policy matchとして保持される。candidateはexact acceptanceに数えない。
-- 5ケースの期待semantic eventとchanged tokenは、両rendererでprecision/recall 1.0である。
-
-### 12.4 実データベンチマーク
-
-合成データだけではpdfdelta-bench固有の癖にoverfitする。
-公開されている規程、policy、report、manualなどの改訂ペアを、利用条件を確認した上でsourceとして使う。
-公開説明がexact spanや全変更を機械可読で与えるとは仮定せず、採用pairごとに人手でreviewしたexpected manifestを作る。
-
-現在の固定panelは36ペアであり、文書系列とproducer系列を一つのsplitへまとめる。
-調整には開発用グループを使い、評価用グループは調整前に固定する。
-native baselineはpanel全体を対象に取得し、従来の最終binaryの完了確認は少なくとも3/36ペア（各2回）である。
-現行HEAD（`cf5feb9`、コード差分なし）の全36ペア再測定は、合計メモリ6GB制限下で各1回実施した。
-最新の完了数、証拠、測定条件は[ベンチマーク文書](benchmarks.md#native-text-completion-coverage)に記す。
-holdoutは新規に凍結した未使用pairだけを使い、panelの分母やscopeを変更しない。
-
-完全なannotationから求めるprecisionとrecallはannotationの範囲に限る。
-部分annotationは列挙した変更のrecallを評価できるが、precisionを主張する分母には使わない。
-品質評価を省略したpairや抽出に失敗したpairも実行結果の集計に残す。
-
-### 12.5 Differential Testing / Backend Conformance
-
-**Parser backend conformance**：同一fixtureをdefault backendとalternate parserへ入力し、pdfdelta中立型へ正規化した上で、page順、reference解決、resource inheritance、decoded Content Stream bytes、object stream内object、incremental updateのlatest objectを比較する。library固有のdebug文字列やobject配置順は比較しない。
-
-**Primitive Extraction differential**：同一PDFに対し、pdfdeltaの`ParserBackedGlyphSource`と独立したposition-aware extractor / interpreterを比較する。
-decoded text、Glyph数、text order、bbox、baselineを許容誤差付きで比較し、SVG overlayで人間が確認できるようにする。
-plain textしか返さないextractorはtextの補助oracleとして使い、geometryの正解とはみなさない。
-同じunderlying parserを共有するtool同士だけの一致は独立oracleとみなさず、hand-written fixtureまたは別実装で裏付ける。
-curated oracleは`fixtures/extraction-conformance/pdf-oxide-0.3.77/`にあり、vendored Japanese Typst fixtureの158 mapped horizontal glyphを独立parserと照合する。unmapped、rotated、corpus横断のoracleは今後の課題である。
-
-### 12.6 Property Testing / Fuzzing
-
-`proptest`をtest用依存として使い、次を検証する。
-
-```text
-fixture object → backend adapter → equivalent neutral object
-normalize(normalize(x)) == normalize(x)
-diff(x, x) == empty
-alignment(x, x) == identity
-candidate_generator(x) contains identity match
-```
-
-PDFはuntrusted inputとして扱う。parser入口、中立object変換、CMap parser、Content Stream parser、FontDecoder、glyph抽出、layout、native証拠、graph、text比較をfuzz targetとする。
-malformed PDFでpanic、無限ループ、無制限のメモリ確保を起こさない。
-default limitは有限かつ設定可能な状態を維持し、cargo-fuzzはnightlyを要するためfuzz crateだけstable制約の例外とする。
-有限時間のfuzz実行から、crashしないこと全般を証明したとは扱わない。
-
-### 12.7 Candidate Generation評価
-
-小規模fixtureではexhaustive all-pairs scoreをoracleとして保存する。
-合成fixtureのcanonical paragraph idとspan overlapからtrue counterpartを定義し、各candidate generatorについて次を測る。
-
-- true matchがtop-K候補に含まれる割合（candidate recall）。
-- old Blockあたりのcandidate数（p50 / p95 / max）。
-- index build時間、query時間、memory。
-- ParagraphMove、改ページ、margin変更時にposition featureがrecallを落としていないこと。
-
-MinHash LSHのband数、signature長、K等は合成benchmarkで調整し、人手review済みのreal-world holdoutは評価にのみ使う。
-LSH導入前後で最終Changeの正解率が変わった場合、candidate recall低下をbugとして扱いdefault化しない。
-
-### 12.8 品質ゲート
-
-implementation commit前に次を実行する。
+| external font identities | 1,024 entries; BaseFont 127 bytes; identity 4,096 bytes |
+
+An explicitly lower limit must fail at the same charging boundary. Defaults are
+retuned only from reproducible fixture or corpus evidence; a limit is never
+removed to make one document pass. `--limit-scale` multiplies count limits
+(glyph, operator, invocation, decoded bytes, operand nodes, fonts, CMap, CID
+width, string, vector line, and the shared footer-matching work limit) by a
+finite factor of at least 1. It does not change structural bounds, parser
+limits, or layout thresholds.
+
+### 12.2 Child processes
+
+**Native acquisition** runs in bounded children: 2 GiB address space, 30 s CPU,
+35 s parent deadline, 1 MiB request header, 128 MiB response, and PDF input up
+to 256 MiB. Page metadata and form fields are acquired separately from glyphs
+and tags, so a content-extraction failure can leave forms and rendering usable.
+
+**Page rendering** runs in a child per page: 2 GiB address space, 5 s of CPU per
+page (the deterministic page budget; measured p99.9 0.51 s and max 0.84 s over
+4,654 rendered pages of the 36-pair channel panel), a cumulative child-CPU
+budget of 60 s per input document (measured max 26.4 s and p99 26.4 s over 72
+documents), 120 s wall per page and 300 s wall per document as safety stops,
+8 million pixels per page, and 256 MiB retained RGB per input. The page that
+crosses the document CPU budget is retained; later pages are a `resource_limit`
+outcome with reason `document CPU budget exhausted; this outcome is
+deterministic for this input` and no raster. A page that exhausts its CPU
+budget is also a resource-limit outcome with no raster. A wall safety stop is a
+distinct, explicitly load-dependent resource-limit reason.
+
+Before rendering, the child scans the page's image XObjects. One image above 64
+million declared pixels is a page-scoped `resource_limit` instead of a renderer
+abort; the scan follows Form resources with depth 8 and 4,096-entry bounds,
+reads dictionaries only, and never decodes a stream. Inline images in page
+content are not preflighted by this dictionary scan and remain bounded by the
+child's address space.
+
+**Image decoding** runs in a child: 2 GiB address space, 25 CPU seconds, 30 s
+wall time, 10,000 occurrences, 16 million pixels per image, 64 million
+base-image pixels per input, and an 8 MiB response. Encoded image identity is
+bounded by 256 MiB of encoded bytes, depth 8, and 4,096 nodes.
+
+The parent validates input hashes, page identity, acquisition roles, and
+aggregate limits before comparison. Passwords travel through private stdin and
+never appear in responses. Bounded workers support Linux and macOS; on other
+platforms the affected acquisition is reported as unsupported.
+
+### 12.3 Report, review, and agent budgets
+
+- A review bundle is bounded to 512 MiB, 1,024 page previews, and 20 million
+  source-location visits; a failure may leave an incomplete directory without
+  `index.html`.
+- An agent review bundle is bounded by the 512 MiB cap and the case budget
+  (default 4,096; `--agent-case-budget` 1–65,536).
+- A text-envelope request is bounded to 1,000,000 work units, 262,144 retained
+  cells, 1,048,576 output bytes, 1 MiB input, 1,024 pairs, and 32,768 tokens
+  per side; hard ceilings are 32,000,000 work units and 8,388,608 output bytes.
+  A refusal returns `unavailable`, never an empty envelope.
+- Reports are published atomically and never overwrite an existing path. A
+  second publication failure leaves the first artifact in place.
+
+### 12.4 Determinism
+
+Reports do not contain wall-clock time except the documented
+`comparison_wall_time_ms` (multi-channel) and trace `duration_us`, both
+excluded from golden comparisons. Rendering budgets are deterministic in child
+CPU time; only the wall safety stops depend on machine load, and their expiry
+is a distinct reason. Rendering is also bounded by the deterministic
+retained-raster budget. Report bytes for the same input, binary, arguments, and
+limits are otherwise stable, and the child-cache and in-process paths produce
+byte-identical reports.
+
+## 13. Validation and benchmarks
+
+### 13.1 Benchmark generator and mutation engine
+
+`pdfbench` generates PDFs from a canonical YAML document through two
+project-owned writers (`lopdf-tj` and `classic-xref-tj`). The generated matrix
+has 24 cases and 48 records. It covers repetition, prose reflow, numbered
+requirements, pagination churn, footnote-like paragraphs, section-labeled
+moves, and two-column reflow. External renderer output is vendored as fixtures;
+renderers are not executed in CI.
+
+Mutations split into semantic mutations (which must produce an expected change)
+and rendering mutations (which must not produce a content change):
+
+- Semantic: text replace, insert, delete, number replace, paragraph insert,
+  paragraph delete, paragraph move (same or cross section).
+- Rendering: font size, margin, page size, line height, line break, page break,
+  column change (selected section).
+
+The evaluator compares reported flow changes with the expected change by exact
+kind and exact changed text. A pass requires every expected event to be matched;
+a candidate or inferred result is never counted as an exact acceptance.
+
+`pdfbench flow-verify` runs the flow engine against fixtures with known edits
+(generated acceptance cases under both renderers and vendored Typst/Tectonic
+pairs). `pdfbench flow-metamorphic` builds exact ground truth on real PDFs by
+page-tree surgery: identity, page deletion, insertion, swap, duplication,
+single-token text edits, page merges, and harmless font-program resubsetting.
+Every planned case runs; a timeout is a failure, not a skip.
+
+### 13.2 Acceptance matrix
+
+`pdfbench verify` runs the 48-record matrix. On the current tree, 48/48 records
+pass: 28/28 expected events and 2,216 expected changed tokens are matched, with
+8 false-positive tokens (token precision 0.996, recall 1.000). Layout-only
+cases report zero changed tokens. The five release cases (plus reverse deletion)
+also pass on the vendored Typst fixtures under the default command and under
+`--native-text-only`; the default command is judged by the exact change set, not
+by exit `0`.
+
+### 13.3 Real-world panels
+
+The frozen corpora use public revision pairs with reviewed manifests. Two
+panels are measured:
+
+- **Native 64:** `--native-text-only` over 64 pairs with recorded
+  `--limit-scale`, one pair at a time. Current result: 1 complete text
+  comparison, 62 detected-but-incomplete, 1 broken evidence.
+- **Channels 36:** the default channel command over 36 pairs. Current result:
+  35 exit `1` with unexamined evidence, 1 exit `3` with broken text evidence,
+  none complete.
+
+Every pair produced a report without timeout or OOM in the final runs.
+Completion counts are not accuracy or recall figures. Formatting agreement with
+historical captures is reported in §10.3. Holdout pairs, when used, are newly
+frozen and unused; the panel denominator and scope are not changed after tuning.
+
+### 13.4 Metamorphic, property, and fuzz testing
+
+Property tests cover normalization idempotence, line reconstruction partitioning
+every glyph, and block reconstruction covering every line while preserving
+normalization order. Metamorphic tests cover page deletion/insertion/swap/
+duplication and font resubsetting with constructed exact truth.
+
+The fuzz workspace has 11 targets: parser entry, CMap parser, content-stream
+parser, font decoder, CFF built-in encoding, canonical YAML, glyph extraction,
+layout pipeline, graph pipeline, text comparison, and native evidence. Each
+target checks that malformed input does not panic, hang, or allocate without
+bound and that successful paths satisfy their invariants. The M8g session ran
+28,394,104 executions over 10 minutes per target with no crash, timeout, or
+OOM. Fuzzing is nightly-only and is not part of the stable gate; a crash-free
+finite session is not proof for all inputs.
+
+**Parser backend conformance** feeds the same fixture to the default backend
+and an alternate parser and compares the neutral result: page order, reference
+resolution, resource inheritance, decoded content-stream bytes, objects inside
+object streams, and the latest object of an incremental update. Library debug
+strings and object layout order are not compared.
+
+**Extraction differential testing** compares `ParserBackedGlyphSource` with an
+independent position-aware extractor or interpreter: decoded text, glyph count,
+text order, bounding boxes, and baselines, with documented tolerance, plus a
+glyph overlay for human inspection. A plain-text-only extractor is a text
+oracle, never a geometry oracle. Agreement between tools that share the same
+underlying parser is not independent evidence; a hand-written fixture or a
+separate implementation must confirm the claim. The curated `pdf-oxide`
+0.3.77 oracle under `fixtures/extraction-conformance/` checks all 158 mapped
+horizontal glyphs of the vendored Japanese Typst fixture against an independent
+parser; unmapped glyphs, rotated text, and a corpus-wide oracle remain open.
+
+### 13.5 Quality gate
+
+Before a commit:
 
 ```bash
 cargo fmt --all -- --check
@@ -1055,106 +1680,138 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo test --workspace --all-features --lib
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --document-private-items
+python3 -m unittest discover -s benchmark/realworld -p 'test_*.py'
+cargo check --manifest-path fuzz/Cargo.toml --bins
 cargo run -p pdfdelta-bench -- verify
 ```
 
-benchmark matrixまたは抽出適合性を変更した場合は、該当する`cargo test -p pdfdelta-bench --test bench_matrix`または`cargo test -p pdfdelta-bench --test extraction_conformance`で対象の条件を確認する。
-実文書の評価には、実行command、manifest、annotation hash、source revision、options、raw resultを残す。
-外部入力を取得できなかった実行は、合格ではなく実行不能として記録する。
-単一runのtimingは観測であり、end-to-endの速度主張ではない。
+The `--all-features` clippy and library-test runs compile the fuzzing entry
+points on stable Rust. They do not run libFuzzer. A benchmark matrix or
+extraction-conformance change additionally runs the focused
+`cargo test -p pdfdelta-bench --test bench_matrix` or
+`cargo test -p pdfdelta-bench --test extraction_conformance`.
 
-## 13. 依存候補・参考実装一覧
+Clippy enforces the `all`, `pedantic`, `correctness`, and `suspicious` groups.
+`Cargo.toml` documents the intentionally allowed pedantic lints. New code
+satisfies every other pedantic lint.
 
-production dependencyは現行のCargo.toml / Cargo.lockを根拠とする。
+A large build, test, or benchmark workload is capped at 6,000,000,000 bytes
+across its process tree, run sequentially, and started with
+`CARGO_BUILD_JOBS=1` and `RUST_TEST_THREADS=1`. OOM, timeout, and resource-limit
+outcomes are recorded, not hidden by raising the cap.
 
-| 対象 | 現在の採用 | 主に見るもの |
+## 14. Dependencies and development principles
+
+### 14.1 Dependencies
+
+Production dependencies are those in `Cargo.toml`/`Cargo.lock`.
+
+| Purpose | Current choice | What is used |
 |---|---|---|
-| PDF object parser | `lopdf` 0.45.0（default features無効） | object、xref、object stream、incremental update、raw stream access |
-| 描画 | `hayro` 0.7.1（CLI）、`hayro-cmap` 0.1.0（core） | visual channel、CID CMap参照data |
-| CLI | `clap` 4、`clap_complete` 4 | 引数解析、補完生成 |
-| 直列化 | `serde` 1、`serde_json` 1（float_roundtrip）、`serde-saphyr` 1 | JSON、YAML fixture |
-| Unicode | `unicode-normalization` 0.1、`unicode-segmentation` 1、`unicode-bidi` 0.3 | NFC、grapheme/word、bidi安全化 |
-| その他 | `flate2` 1.1、`sha2` 0.11、`smallvec` 1、`rayon` 1、`base64` 0.22、`png` 0.18、`rustix` 1（Linux/macOS） | stream decode、hash、buffer、並列、worker |
-| dev / test | `proptest` 1、外部oracle、外部renderer | property test、conformance、fixture生成 |
+| PDF object parser | `lopdf` 0.45.0 (default features off) | objects, xref, object streams, incremental updates, raw streams |
+| Rendering | `hayro` 0.7.1 (CLI), `hayro-cmap` 0.1.0 (core) | visual channel, CID CMap reference data |
+| CLI | `clap` 4, `clap_complete` 4 | argument parsing, completions |
+| Serialization | `serde` 1, `serde_json` 1 (`float_roundtrip`), `serde-saphyr` 1 | JSON, YAML fixtures |
+| Unicode | `unicode-normalization` 0.1, `unicode-segmentation` 1, `unicode-bidi` 0.3 | NFC, grapheme/word segmentation, bidi safety |
+| Other | `flate2` 1.1, `sha2` 0.11, `smallvec` 1, `rayon` 1, `base64` 0.22, `png` 0.18, `rustix` 1 (process, time; Linux/macOS) | stream decode, hashing, buffers, parallel work, workers |
+| Test only | `proptest` 1, external extractors, external renderers | property tests, conformance oracles, fixture generation |
 
-参考実装として、`pdf-extract`をtext oracle、`pdf-inspector`をposition-aware抽出の参考、`printpdf`をToUnicode/Type0/simple fontの参考、`similar`と`imara-diff`をMyers edit scriptの妥当性比較、`pdf-writer`をlow-level fixture生成、Typst/Tectonic/krillaを別系統rendererとして参照する。
-比較対象の抽象度を混ぜず、library固有型を上位層へ漏らさない。
-parser backendの最終選択はcapability fixtureで決める。
+Reference points: `pdf-extract` as a text oracle, `pdf-inspector` as a
+position-aware extraction reference, `printpdf` for ToUnicode/Type0/simple-font
+behavior, `similar`/`imara-diff` for edit-script comparison, `pdf-writer` for
+low-level fixture creation, and Typst/Tectonic/krilla as independent renderers.
+Abstraction levels are not mixed, and library-specific types do not leak
+upward. The final parser backend decision is made by capability fixtures.
 
-## 14. 開発判断の原則
+### 14.2 Development principles
 
-新機能は、「これがないと現在のBenchmarkで何が失敗するのか」を説明できる場合にだけ追加する。
+A new feature is added only when it explains which current benchmark failure it
+fixes. Examples of justified work: a block-segmentation error causes false
+positives, so alignment recovery is extended; a parser backend cannot handle a
+required object stream and neither the adapter nor upstream can fix it, so a
+backend replacement is evaluated. Examples of unjustified work: adding an
+embedding model because it may help later, writing a custom PDF object parser
+from the start, using LSH in final matching without correctness validation, or
+adding a document-name branch to make one PDF pass.
 
-妥当な例：
-
-- Block segmentationミスが主要なFalse Positive → 1:N alignmentを追加。
-- 1万Block文書でinverted indexのcandidate数が膨張し、exhaustive oracle比のrecallを維持したままLSHで改善できる → MinHash LSHを追加。
-- 既存parser backendが必須fixtureのObjStmを誤解釈し、alternate backendやadapter修正でも解決できない → custom `PdfParser` backendを追加。
-
-行わない例：
-
-- 将来役立ちそうという理由でLLM embeddingを追加。
-- PDF parserはいずれ必要そうという理由で最初からobject parserを自作。
-- correctness検証なしにLSHを最終matchingへ使用。
-- 一つの自然文書を通すために、その文書固有の条件分岐やlimit緩和を追加。
-
-常に次の順で進める。
+The order is always:
 
 ```text
-実PDFで失敗を確認
-→ 原因の層を分類（parser / extraction / layout / candidate / alignment / diff / correspondence）
-→ 最小限の機能またはbackend差し替えを追加
-→ exhaustive oracleとBenchmarkで改善確認
+reproduce a failure on a real PDF
+-> classify the layer (parser / extraction / layout / alignment / diff / correspondence)
+-> add the smallest rule or backend change
+-> confirm against the exact oracle and benchmark
 ```
 
-証拠の保持、可逆な構造化、明示的な未解決報告を、短期的な検出率より優先する。
-document-family ruleは複数の独立した証拠で裏付けられるまで候補に留める。
+Preserving evidence, reversible structure, and explicit unresolved reporting
+takes priority over short-term detection counts. A document-family rule stays a
+candidate until independent evidence supports it.
 
-## 15. 仕様変更履歴
+### 14.3 Not in the first increment
 
-この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。
-過去分は`git log --follow -- docs/SPEC.md`と各commitのdiffから復元した。詳細は`git show <commit> -- docs/SPEC.md`（2026-09-24にrootから移動する以前のcommitでは`SPEC.md`）で確認する。
+New OCR execution, LLMs, embeddings, semantic similarity models, complete
+visual pixel diffing, advanced table recognition, general AcroForm support,
+annotation diffing, full PDF 2.0, GPU, WASM, a web UI, performance optimization,
+and a custom PDF object parser are outside this increment. They are not
+permanently forbidden; a future evidence provider must follow the contracts in
+§2.1 and §11.
 
-### 2026-09-20 日本語15章構成の復元と現行仕様への更新（本変更）
+## 15. Specification history
 
-- v5英語版（`3586485`）を置き換え、v3/v4の日本語15章構成を復元した。
-- v4の§16「未知のPDFに対する比較設計」の内容を、§2の完了条件、§5の出力契約、§9の対応領域と回復、§12の評価へ統合した。
-- v5固有の証拠チャネル、共通solver、局所失敗、安全境界を、§2、§3、§4、§9、§10、§12へ統合した。
-- 主評価を可視PDF-native文字とし、画像、パス文字、OCRの新規実行は対象外、既存の可視OCR文字層とForm内native文字は対象、非描画textは対象外と明記した。
-- 5つの初期受入条件は変更していない。
-- 依存バージョンを現行Cargo.toml / Cargo.lockに合わせて整理した。
+This section records why the specification changed. Earlier revisions are
+available from the repository history.
 
-### 2026-09-08 未知PDFに対する比較設計（v4）
+### 2026-11-23: rewrite for the single flow engine
 
-- §5：確定した差分と要確認の候補を分離し、候補と位置未確定の領域を解決済みcoverageから除外する仕様を定めた。不完全な比較を既定でexit 3にする移行方針も追加した。
-- §9と§10：候補生成、共通の対応付け判定、exact diffの責務を分け、scoreやexactな編集列だけでは対応を確定しないことを明記した。
-- §11と§12：既存の受入条件を維持し、文書系列とproducer系列の混入を防ぐ評価方針を追加した。
-- §16（現行版では各章へ統合）：対応領域の条件、可逆な構造回復、範囲の所有関係、資源制限、結果の型、互換性の移行、検証matrix、公開条件、実装順序を記載した。
+- Replaced the removed proof-engine design with the token-stream flow engine:
+  tokenization, reading-order hypotheses, furniture, alignment, move and
+  transpose rules, replay verification, and formatting evidence.
+- Updated output contracts to the current flow-native schemas: native compact
+  artifact 3 / schema 12, native full artifact 2, multi-channel report 3, trace
+  version 1, static review manifest 3. Removed engine positions are absent
+  rather than retained as empty compatibility fields; historical artifacts
+  remain readable.
+- Updated the exit contract to per-channel verdicts: exit `1` may coexist with
+  incomplete evidence, and exit `0` requires every selected channel to be
+  examined. The default channel set is unchanged.
+- Updated the non-text evidence model with key-presence obligations, scoped key
+  attribution, single-gzip review sources, and the deterministic render CPU
+  budgets and image preflight.
+- Replaced the stale proof-era measurements with the current acceptance,
+  formatting-agreement, and completion figures.
 
-### 2026-08-24 人間向けreportのunified diff化
+### 2026-09-20: restored 15-chapter Japanese structure (v5)
 
-- §5.3：text reportを、exact diff結果の表示層のみの投影として文脈付きunified diff形式へ刷新した。要約行、`---` / `+++`、1-based page付きhunk header、`-` / `+`行、有界なcontext、`~ moved`、`?`による未解決表示、近接exact changeの表示上の統合、`--color auto|always|never`を定義した。`Comparison`とJSON reportの意味は不変とした。
+- Merged the English comparison contract v5 into the restored chapter layout,
+  integrating evidence channels, the shared correspondence solver, local
+  failures, and safety boundaries.
+- Set visible PDF-native text as the primary evaluation and excluded new OCR,
+  image semantics, and path text.
 
-### 2026-08-23 backend依存のupstream復帰
+### 2026-09-08: comparison design for unknown PDFs (v4)
 
-- §6.2：`lopdf`依存をupstream `J-F-Liu/lopdf`のmain revisionへ戻し、xref-stream entry数のdecoded body上限、object streamの非破壊parse、非標準`/BrotliDecode` filter、stream `/Length`不一致の回復、startxref解決失敗時の有界なxref再構築fallbackを取り込んだ。現在はcrates.ioの0.45.0をpinしている。
-- §6.2：公開test corpus由来の実PDFをstrict自己比較へ投入し、対応待ちだったBrotli prototypeとLength 0 XObjectをstrict完走へ移行した。
+- Separated established changes from tentative candidates, excluded candidates
+  from established coverage, and made incomplete comparisons exit `3` by
+  default.
+- Separated candidate generation, correspondence decisions, and exact diff, and
+  required independent justification for exact claims.
 
-### 2026-08-21 追加コーパスと入力付き対応
+### 2026-08-24: unified diff human report
 
-- §2.1、§3.2、§5.4、§6.2：借用password APIとside別password file入力を追加し、password本文をargv、report、traceへ残さない規則を定義した。
-- §6.2：Page Treeの正常枝を保持し、壊れた枝とroot Count不一致をdocument-scoped UNRESOLVEDとして部分成功へ変換する規則を追加した。
-- §6.4：未埋め込みCID fontへのside別external identity assertion、named Resourcesへ依存するType 3 identityの上限付きcanonical graph、custom Type0 CMapのfull-domain identity限定、CID FontDescriptorのFontBBox fallback、Standard 14のcanonical identity拡張を追加した。
-- §6.3：Form XObjectのstate分離、`/Contents` arrayをまたぐoperand回復、大小反転page boxの正規化を明文化した。
-- §12.6：公開PDF corpusの実測に基づく有限なoperand node、diff token、3-gram elementのdefault上限と、明示的な低上限を維持する原則を追加した。
+- Projected the exact diff into a contextual unified diff for the text report
+  without changing machine-readable results.
 
-### 過去の変更
+### 2026-08-21 and 2026-08-20: passwords, limits, fonts, and normalization
 
-| 日付 | Commit | 変更した仕様 |
-|---|---|---|
-| 2026-09-10 | `3586485` | 英語v5へ全面置換。証拠チャネル、共通solver、局所失敗、安全境界を定義した。本版で日本語15章構成へ復元・統合した。 |
-| 2026-08-21 | `111ffd5` | §2.1にempty user passwordで復号できるPDFを追加し、§6.2にpassword、security handler、秘密情報の境界を定義した。§6.4にFontBBox fallback、初期Type 3 subset、Identity-V subsetを追加した。 |
-| 2026-08-20 | `cf1156e` | canonical / matching規則、soft line break、normalization eventを自前実装の責務として明確化し、Unicode crateへ委ねる範囲をNFCとsegmentation primitiveに限定した。 |
-| 2026-08-20 | `c95378d` | §1と§2.2の例を一般的なrelease変更へ差し替え、§5.1に複数Blockのseparatorを含む`TextSpan`規則を追加した。§8と§12では数値mask例、benchmark fixture、公開real-world pair、holdout運用を一般化した。 |
-| 2026-08-20 | `1db8dd1` | §2.2の受入条件3を`Release 10`から`Release 20`への1 replacementとして明文化した。 |
-| 2026-08-19 | `2324f4c` | 初版SPECを追加し、目的、scope、architecture、data model、pipeline、roadmap、benchmark、resource limitの基本方針を定義した。 |
+- Added per-side password files and kept password text out of arguments,
+  reports, and traces.
+- Added the external CID font identity assertion, Type 3 identity limits,
+  custom Type0 CMap restriction, and CID FontBBox fallback.
+- Defined canonical text, soft line breaks, and normalization events as
+  pdfdelta responsibilities, with Unicode crates limited to NFC and
+  segmentation primitives.
+
+### 2026-08-19: initial specification
+
+- Defined goals, scope, architecture, data model, pipeline, roadmap, benchmark
+  approach, and resource-limit policy.

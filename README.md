@@ -31,12 +31,13 @@ standards, and other documents where every wording change matters.
 
 ## Features
 
-- **Layout-tolerant, exact text diff.** Line-wrap and page-break changes are
-  ignored; replacements, insertions, deletions, and paragraph moves are
-  reported exactly.
-- **Honest results.** Every change is classified as established, inferred, or
-  tentative. Unsupported and uncertain content is reported as unresolved, and a
-  distinct exit code marks incomplete comparisons.
+- **Layout-tolerant text diff.** One token-stream engine ignores line-wrap and
+  page-break changes and reports replacements, insertions, deletions, and moves
+  from a single verified script.
+- **Honest results.** Every change carries a confidence and ambiguity marker,
+  and formatting-only evidence is reported separately. Unsupported and
+  uncertain content is reported as unresolved, and a distinct exit code marks
+  incomplete comparisons.
 - **More than text.** Compares embedded images (by pixel hash), AcroForm field
   values, tables, and tagged PDF structure through selectable *channels*.
 - **CI-friendly.** Stable exit codes, a quiet mode, and a versioned JSON report.
@@ -74,15 +75,13 @@ platforms those parts of a comparison are reported as unsupported.
 ```console
 $ pdfdelta --channels text old.pdf new.pdf
 Document comparison: complete
-Typed changes: 0
-Inferred changes: 1
+Typed changes: 1
+Inferred changes: 0
+Scope content changes (B; non-owning): 0
+Inferred scope changes (C; non-owning): 0
+Text: old 32/32, new 32/32 source references compared; complete
 ...
-Text: old 222/222, new 222/222 source references compared; complete
-...
-Inferred change: Paragraph (page 1) -> Paragraph (page 1)
-  - "Release 10 remains available during the transition period."
-  + "Release 20 remains available during the transition period."
-  Mandatory changed positions: old 1, new 1. Displayed values include context.
+Text channel (flow): complete; 1 detected changes; 0 formatting-only changes
 ```
 
 Common tasks:
@@ -91,10 +90,18 @@ Common tasks:
 pdfdelta old.pdf new.pdf                        # compare all default channels
 pdfdelta old.pdf new.pdf --channels text        # compare text only
 pdfdelta old.pdf new.pdf -j report.json         # also write a JSON report
+pdfdelta old.pdf new.pdf --native-text-only --full-json -j full.json.gz  # full flow sources
+pdfdelta old.pdf new.pdf --trace-json trace.json # phase-by-phase trace
 pdfdelta old.pdf new.pdf --review review-out    # write a static HTML review
 pdfdelta -q old.pdf new.pdf; echo $?            # exit status only, for CI
 pdfdelta inspect document.pdf --glyphs          # show extracted glyph evidence
 ```
+
+The text channel always uses the flow engine. `--engine flow` is accepted for
+compatibility and is a no-op; `--engine proof` exits `2` with a message naming
+the flow replacements. Old proof review bundles remain readable with
+`pdfdelta review list/show/render/import`. `--compact-json`, `--full-json`,
+`--trace-json`, `--review`, and `--agent-review` are flow capabilities.
 
 For documents that are mostly continuous prose, `pdfdelta flow` reports a
 single token-level script that ignores line wrapping and page breaks:
@@ -107,6 +114,8 @@ flow summary
   equal: 31 tokens
   ...
   content changes: 1
+  moved changes: 0
+  detected changes: 1
   changes: 1
   old extraction: complete
   new extraction: complete
@@ -116,23 +125,24 @@ flow summary
   new glyph conservation: 222/222
   furniture: 0 old, 0 new masked lines
 
-1. replace old 1 -> new 1
+1. replace old 1 -> new 1 [confidence: medium; ambiguity: numeric_only]
    old: schedule details for the upcoming cycle . Release [10] remains available during the transition period . All
    new: schedule details for the upcoming cycle . Release [20] remains available during the transition period . All
 ```
 
-Flow output is intended for review and evaluation; the default channel
-comparison remains the primary report. See
-[Flow diff](docs/usage.md#flow-diff) for options, exit codes, and limits.
+This engine is the text channel of the main command. `pdfdelta flow` exposes
+the same token-level script directly. See
+[Flow diff](docs/usage.md#flow-diff) for options, exit codes, and limits, and
+[Current limitations](docs/limitations.md) for what flow does not report.
 
 ### Exit codes
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Complete comparison, no established content changes |
-| `1` | Complete comparison, established content changes found |
+| `0` | No detected difference and every selected channel examined |
+| `1` | A difference was detected (it may still be incomplete) |
 | `2` | Error (I/O, malformed input, resource limit, report writing) |
-| `3` | Incomplete comparison: some content could not be compared |
+| `3` | No difference detected and something was unexamined, or evidence is broken |
 
 See the [command-line reference](docs/usage.md) for all options, channels,
 report formats, review bundles, resource limits, and encrypted PDFs.
@@ -141,25 +151,45 @@ report formats, review bundles, resource limits, and encrypted PDFs.
 
 ```text
 PDF bytes → parser backend → glyph extraction → layout reconstruction
-          → cross-document alignment → exact diff → changes + coverage + unresolved regions
+          → flow token stream → verified token diff
+          → changes + formatting evidence + channel coverage + unresolved regions
 ```
 
-Alignment is tolerant, so it can match content across layout drift; the final
-diff is exact. Raw evidence such as glyph codes, geometry, and content-stream
-provenance is kept at every stage, so each reported change can be traced back
-to the PDF. See [How pdfdelta works](docs/how-it-works.md) for details.
+Layout reconstruction is reversible, so the token stream can recover from
+imperfect line and block boundaries; the final token diff is exact and replayed
+before it is reported. Raw evidence such as glyph codes, geometry, and
+content-stream provenance is kept at every stage, so each reported change can
+be traced back to the PDF. See [How pdfdelta works](docs/how-it-works.md) for
+details.
 
 ## Limitations
 
 - No OCR: text in images and scanned pages is not compared, and such pages stay
-  unresolved.
+  unresolved. The flow text channel also becomes incomplete when non-text paint
+  (paths, images, shadings) changes, because outlines may be text.
 - Supports a bounded subset of PDF fonts, encodings, and layouts. Complex
   multi-column, right-to-left, and non-horizontal layouts often end up
   unresolved rather than compared.
 - Relationship comparison (links, footnotes) and form appearance checks are
-  incomplete.
+  incomplete. Because rendered page rasters are review context and relation
+  endpoints are not established, the default channels report exit `3`
+  (`unexamined_evidence`) even for identical or purely reflowed documents;
+  use `--channels text` or `--native-text-only` for the text verdict.
+- Adjacent-block transpositions are reported as one move, preferring the
+  smaller structural unit that is no less informative (a moved paragraph rather
+  than a heading and its paragraph). The choice is a quality preference, not
+  author intent, and equal-span swaps keep the alignment choice. Formatting
+  reasons are approximate. Channel rendering budgets each page by CPU time and
+  each input document by cumulative child CPU (60 s); the much larger
+  wall-clock safety stops can still expire under extreme load and are reported
+  as a distinct resource-limit reason.
 - Large real-world documents may hit resource limits; `--limit-scale` raises
-  the comparison budgets.
+  flow extraction count limits and the shared footer-matching work limit. Full
+  JSON captures stream per-glyph sources through a temporary side cache and
+  stay near the compact run's memory (about 2.2 GB on the largest pair), but
+  the gzip output is still hundreds of megabytes. Agent review bundles plan at
+  most 4,096 cases by default; `--agent-case-budget` raises that within the
+  512 MiB bundle cap.
 
 The full list is in [`docs/limitations.md`](docs/limitations.md).
 
@@ -172,12 +202,13 @@ The full list is in [`docs/limitations.md`](docs/limitations.md).
 | [`docs/limitations.md`](docs/limitations.md) | Known gaps and unsupported inputs |
 | [`docs/agent-review.md`](docs/agent-review.md) | Agent review bundle contract |
 | [`docs/benchmarks.md`](docs/benchmarks.md) | Acceptance tests and benchmark tooling |
-| [`docs/SPEC.md`](docs/SPEC.md) | Technical specification and roadmap (Japanese) |
+| [`docs/SPEC.md`](docs/SPEC.md) | Technical specification and design contracts |
 
 ## Project layout
 
 ```text
-crates/pdfdelta-core    Comparison library and neutral data model
+crates/pdfdelta-core    Extraction, layout, evidence, and comparison library
+crates/pdfdelta-flow    Token-stream diff engine
 crates/pdfdelta-cli     The pdfdelta command-line tool
 crates/pdfdelta-bench   Benchmark and evaluation tooling (pdfbench)
 ```

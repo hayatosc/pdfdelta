@@ -21,7 +21,8 @@ Plain `cargo` works as well; each mise task is a thin wrapper.
 ## Workspace layout
 
 ```text
-crates/pdfdelta-core    Pure comparison library and neutral data model (no CLI concerns)
+crates/pdfdelta-core    Extraction, layout, evidence, and comparison library (no CLI concerns)
+crates/pdfdelta-flow    Token-stream diff engine
 crates/pdfdelta-cli     The pdfdelta binary: argument parsing, file I/O, reports, exit codes
 crates/pdfdelta-bench   pdfbench: fixture generation, mutations, and evaluation tooling
 fixtures/               Vendored test inputs with provenance
@@ -30,9 +31,8 @@ fuzz/                   Nightly-only cargo-fuzz workspace (see fuzz/README.md)
 docs/                   User and design documentation
 ```
 
-Diff-engine components accept programmatically constructed `Document<Glyph>`
-values, so alignment and diff work does not need PDF fixtures. See
-`crates/pdfdelta-core/examples/glyph_comparison.rs`.
+Flow diff components accept programmatically constructed token and
+`Document<Glyph>` values, so diff work does not need PDF fixtures.
 
 ## Quality gate
 
