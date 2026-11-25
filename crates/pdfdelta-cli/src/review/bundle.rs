@@ -18,6 +18,22 @@ use sha2::{Digest, Sha256};
 /// Total bytes one bundle may publish.
 pub(crate) const MAX_BYTES: usize = 512 * 1024 * 1024;
 
+/// Effective per-bundle byte cap.
+///
+/// Release builds always use [`MAX_BYTES`]. Debug builds may lower it so the
+/// split path can be exercised without materializing half a gigabyte.
+pub(crate) fn max_bytes() -> usize {
+    #[cfg(debug_assertions)]
+    if let Some(limit) = std::env::var("PDFDELTA_AGENT_BUNDLE_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|limit| *limit >= 1024)
+    {
+        return limit;
+    }
+    MAX_BYTES
+}
+
 /// One published file, with the exact bytes written and their digest.
 ///
 /// The digest identifies the artifact and detects drift. It says nothing about

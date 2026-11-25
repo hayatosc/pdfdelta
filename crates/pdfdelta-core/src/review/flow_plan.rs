@@ -25,12 +25,15 @@ use std::{
 };
 
 use super::{
-    BundleIdentity, CaseCompleteness, CaseFinding, CaseRegion, Completeness, EngineClass,
-    EngineOutcome, EvidenceRef, GapScope, Hypothesis, PlannerLimits, ReasonRecord, RetrievalAction,
-    ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion, ReviewReason, ReviewText,
-    ScalarInterval, Side, SideLocation, TextOrder, UnlocalizedGap,
+    BundleIdentity, CASE_SPLIT_SCHEMA, CaseCompleteness, CaseFinding, CaseRegion, CaseSplit,
+    Completeness, EngineClass, EngineOutcome, EvidenceRef, GapScope, Hypothesis, PlannerLimits,
+    ReasonRecord, RetrievalAction, ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion,
+    ReviewReason, ReviewText, ScalarInterval, Side, SideLocation, TextOrder, UnlocalizedGap,
     case::{OmissionReason, OmittedRun},
-    planner::{Assembly, Budget, CaseKey, Identifiers, assemble, evidence_ref, retention_boundary},
+    planner::{
+        Assembly, Budget, CaseKey, Identifiers, assemble, evidence_ref, retention_boundary,
+        split_case_id, split_review_case,
+    },
 };
 use crate::{
     document::Channel,
@@ -245,18 +248,47 @@ pub(super) fn plan_flow_into(mut context: FlowPlanContext<'_, '_>) {
     flow_evidence_cases(&mut context);
     let groups = flow_groups(context.flow, context.limits, context.cases.len());
     for group in groups {
-        if let Some(case) = build_flow_case(&mut context, &group) {
-            // Groups were bounded by the remaining case budget before any
-            // case was built, so acceptance cannot fail for the first flow
-            // case. The call still charges the shared export budget.
-            if context.budget.accept_case() {
-                context.cases.push(case);
+        let parts = split_flow_group(context.flow, &group, context.limits);
+        if parts.len() <= 1 {
+            if let Some(case) = build_flow_case(&mut context, &group, None) {
+                push_flow_case(&mut context, case);
+            }
+            continue;
+        }
+        let parent = context.identifiers.case(&flow_group_digest(&group));
+        let count = u32::try_from(parts.len()).unwrap_or(u32::MAX);
+        for (index, part) in parts.iter().enumerate() {
+            let split = CaseSplit {
+                schema: CASE_SPLIT_SCHEMA.into(),
+                parent: parent.clone(),
+                index: u32::try_from(index).unwrap_or(u32::MAX),
+                count,
+            };
+            if let Some(case) = build_flow_case(&mut context, part, Some(&split)) {
+                push_flow_case(&mut context, case);
             }
         }
     }
 }
 
-/// One planned group of report entries.
+/// Charges one built flow case, splitting it if a per-case source cap remains.
+fn push_flow_case(context: &mut FlowPlanContext<'_, '_>, case: ReviewCase) {
+    let parent = case.case_id.clone();
+    let parts = split_review_case(case, context.limits);
+    if parts.len() > 1 {
+        context
+            .budget
+            .clear_case_omission(&parent, super::OmissionKind::GapSourcesOmitted);
+    }
+    for part in parts {
+        if context.budget.accept_case() {
+            context.cases.push(part);
+        }
+    }
+}
+
+/// Cost of one token range in source references and retained scalars.
+#[derive(Clone)]
 struct Group {
     class: EngineClass,
     anchor_page: PageId,
@@ -268,6 +300,9 @@ struct Group {
     ambiguities: BTreeSet<FlowAmbiguity>,
     kind_counts: BTreeMap<&'static str, usize>,
     formatting_reasons: BTreeSet<&'static str>,
+    /// Source events retained so an oversized group can be split at range
+    /// boundaries without duplicating a report index.
+    events: Vec<Event>,
 }
 
 impl Group {
@@ -283,6 +318,7 @@ impl Group {
             ambiguities: BTreeSet::new(),
             kind_counts: BTreeMap::new(),
             formatting_reasons: BTreeSet::new(),
+            events: Vec::new(),
         }
     }
 
@@ -297,6 +333,7 @@ impl Group {
             *self.kind_counts.entry(kind).or_default() += count;
         }
         self.formatting_reasons.extend(other.formatting_reasons);
+        self.events.extend(other.events);
         // Merging can only weaken a class: a group that contains inferred
         // material must not remain strict.
         self.class = weaker_class(self.class, other.class);
@@ -379,6 +416,7 @@ const CLUSTER_GAP_TOKENS: usize = 32;
 /// Maximum report entries in one cluster before a new case starts.
 const CLUSTER_MAX_EVENTS: usize = 64;
 
+#[derive(Clone)]
 struct Event {
     key: GroupKey,
     start: usize,
@@ -395,6 +433,7 @@ struct Event {
 
 impl Event {
     fn absorb(self, group: &mut Group) {
+        group.events.push(self.clone());
         if let Some(index) = self.content {
             group.content.push(index);
         }
@@ -544,22 +583,162 @@ fn flow_groups(
     groups
 }
 
+/// Splits one token range into consecutive slices under the source cap.
+fn split_token_range(
+    flow: &FlowTextReview<'_>,
+    side: Side,
+    range: &Range<usize>,
+    limits: PlannerLimits,
+) -> Vec<Range<usize>> {
+    let tokens = match side {
+        Side::Old => flow.old.tokens,
+        Side::New => flow.new.tokens,
+    };
+    let mut slices = Vec::new();
+    let mut start = range.start;
+    let mut sources = 0usize;
+    for index in range.clone() {
+        let Some(token) = tokens.get(index) else {
+            break;
+        };
+        let token_sources = token.sources.len();
+        if index > start && sources.saturating_add(token_sources) > limits.max_sources_per_case {
+            slices.push(start..index);
+            start = index;
+            sources = 0;
+        }
+        sources = sources.saturating_add(token_sources);
+    }
+    if start < range.end {
+        slices.push(start..range.end);
+    }
+    slices
+}
+
+fn flow_group_digest(group: &Group) -> String {
+    let mut key = CaseKey::new(ReviewQuestion::CompareContent);
+    key.debug(&group.class);
+    key.debug(&CaseFinding::DifferenceEstablished);
+    key.debug(&group.content);
+    key.debug(&group.formatting);
+    key.debug(&group.old);
+    key.debug(&group.new);
+    key.finish()
+}
+
+fn range_sources(flow: &FlowTextReview<'_>, side: Side, range: &Range<usize>) -> usize {
+    let tokens = match side {
+        Side::Old => flow.old.tokens,
+        Side::New => flow.new.tokens,
+    };
+    range
+        .clone()
+        .filter_map(|index| tokens.get(index))
+        .fold(0usize, |total, token| {
+            total.saturating_add(token.sources.len())
+        })
+}
+
+/// Splits a group at the per-case source cap using its token ranges.
+///
+/// Range extents include gaps between events, so this pass measures the same
+/// tokens `flow_text` will quote. Events stay in the part containing their
+/// start index; a continuation part carries no duplicate report index.
+fn split_flow_group(flow: &FlowTextReview<'_>, group: &Group, limits: PlannerLimits) -> Vec<Group> {
+    let sources = |part: &Group| {
+        let old = part
+            .old
+            .as_ref()
+            .map_or(0, |range| range_sources(flow, Side::Old, range));
+        let new = part
+            .new
+            .as_ref()
+            .map_or(0, |range| range_sources(flow, Side::New, range));
+        old.max(new)
+    };
+    if sources(group) <= limits.max_sources_per_case {
+        return vec![group.clone()];
+    }
+    let mut parts = Vec::new();
+    let mut current = Group::new(group.class, group.anchor_page);
+    for event in &group.events {
+        let mut old = current.old.clone();
+        let mut new = current.new.clone();
+        extend_range(&mut old, event.old.clone());
+        extend_range(&mut new, event.new.clone());
+        let mut candidate = current.clone();
+        candidate.old = old;
+        candidate.new = new;
+        if !current.events.is_empty() && sources(&candidate) > limits.max_sources_per_case {
+            parts.push(current);
+            current = Group::new(group.class, group.anchor_page);
+        }
+        event.clone().absorb(&mut current);
+    }
+    if !current.events.is_empty() {
+        parts.push(current);
+    }
+    if parts.len() <= 1 {
+        // A single event can span enough pages that its own extent exceeds the
+        // cap. Split its token ranges; the report index stays on the first
+        // slice so no change is claimed twice.
+        let Some(event) = group.events.first() else {
+            return vec![group.clone()];
+        };
+        let old = event
+            .old
+            .as_ref()
+            .map(|range| split_token_range(flow, Side::Old, range, limits))
+            .unwrap_or_default();
+        let new = event
+            .new
+            .as_ref()
+            .map(|range| split_token_range(flow, Side::New, range, limits))
+            .unwrap_or_default();
+        let count = old.len().max(new.len());
+        if count <= 1 {
+            return vec![group.clone()];
+        }
+        let mut sliced = Vec::new();
+        for index in 0..count {
+            let mut part = Group::new(group.class, group.anchor_page);
+            part.old = old.get(index).cloned();
+            part.new = new.get(index).cloned();
+            let mut event = event.clone();
+            if index > 0 {
+                event.content = None;
+                event.formatting = None;
+                event.order_uncertain = false;
+                event.ambiguities.clear();
+                event.kind = None;
+                event.formatting_reasons.clear();
+            }
+            event.absorb(&mut part);
+            part.old = old.get(index).cloned();
+            part.new = new.get(index).cloned();
+            sliced.push(part);
+        }
+        return sliced;
+    }
+    parts
+}
+
 /// Builds one case for a group of flow report entries.
-fn build_flow_case(context: &mut FlowPlanContext<'_, '_>, group: &Group) -> Option<ReviewCase> {
+fn build_flow_case(
+    context: &mut FlowPlanContext<'_, '_>,
+    group: &Group,
+    split: Option<&CaseSplit>,
+) -> Option<ReviewCase> {
     let flow = context.flow;
     let marking = !group.content.is_empty();
     let question = ReviewQuestion::CompareContent;
     let class = group.class;
     let finding = CaseFinding::DifferenceEstablished;
-    let mut key = CaseKey::new(question);
-    key.debug(&class);
-    key.debug(&finding);
-    key.debug(&group.content);
-    key.debug(&group.formatting);
-    key.debug(&group.old);
-    key.debug(&group.new);
-    let digest = key.finish();
-    let case_id = context.identifiers.case(&digest);
+    let digest = flow_group_digest(group);
+    let case_id = split.map_or_else(
+        || context.identifiers.case(&digest),
+        |split| split_case_id(&split.parent, split.index),
+    );
     let quote = || RetrievalAction::Show {
         case: case_id.clone(),
         detail: super::Detail::Quote,
@@ -570,8 +749,8 @@ fn build_flow_case(context: &mut FlowPlanContext<'_, '_>, group: &Group) -> Opti
             Side::Old,
             flow.old.tokens,
             range,
+            None,
             &case_id,
-            context.budget,
             context.limits,
         )
     });
@@ -580,8 +759,8 @@ fn build_flow_case(context: &mut FlowPlanContext<'_, '_>, group: &Group) -> Opti
             Side::New,
             flow.new.tokens,
             range,
+            None,
             &case_id,
-            context.budget,
             context.limits,
         )
     });
@@ -652,14 +831,14 @@ fn build_flow_case(context: &mut FlowPlanContext<'_, '_>, group: &Group) -> Opti
     let regions = group
         .old
         .as_ref()
-        .map(|range| flow_regions(Side::Old, flow.old.tokens, range))
+        .map(|range| flow_regions(Side::Old, flow.old.tokens, range, None))
         .unwrap_or_default()
         .into_iter()
         .chain(
             group
                 .new
                 .as_ref()
-                .map(|range| flow_regions(Side::New, flow.new.tokens, range))
+                .map(|range| flow_regions(Side::New, flow.new.tokens, range, None))
                 .unwrap_or_default(),
         )
         .collect::<Vec<_>>();
@@ -691,6 +870,7 @@ fn build_flow_case(context: &mut FlowPlanContext<'_, '_>, group: &Group) -> Opti
     Some(ReviewCase {
         case_id,
         content_digest: digest,
+        subcase: split.cloned(),
         question,
         pipeline: context.identity.pipeline,
         engine_class: class,
@@ -748,8 +928,8 @@ fn flow_text(
     side: Side,
     tokens: &[FlowTokenView<'_>],
     range: &Range<usize>,
+    page: Option<PageId>,
     case: &super::CaseId,
-    budget: &mut Budget,
     limits: PlannerLimits,
 ) -> Option<ReviewText> {
     let selected = tokens.get(range.clone())?;
@@ -759,15 +939,19 @@ fn flow_text(
     let mut text = String::new();
     let mut unmapped = Vec::new();
     let mut sources = BTreeSet::new();
-    let mut sources_omitted = false;
     // Track the scalar position incrementally. Re-counting the accumulated
     // string per token is quadratic on a page-sized range.
     let mut scalar_position = 0usize;
-    for (position, token) in selected.iter().enumerate() {
-        if position > 0 {
+    let mut emitted = false;
+    for token in selected {
+        if page.is_some_and(|page| token.page != page) {
+            continue;
+        }
+        if emitted {
             text.push(' ');
             scalar_position += 1;
         }
+        emitted = true;
         if token.uncertain {
             unmapped.push(super::UnmappedMark {
                 position: scalar_position,
@@ -775,7 +959,6 @@ fn flow_text(
                 sources: token
                     .sources
                     .iter()
-                    .take(limits.max_sources_per_case)
                     .map(|glyph| {
                         evidence_ref(side, crate::document::SourceRef::Native { glyph: *glyph })
                     })
@@ -784,17 +967,14 @@ fn flow_text(
         }
         text.push_str(token.text);
         scalar_position += token.text.chars().count();
-        // A page-sized range can reference far more glyphs than a case may
-        // list. Stop growing the set at the limit instead of materializing
-        // every source and truncating afterwards.
+        // Retain every source here. The planner partitions an oversized case
+        // into linked parts after the group walk, which preserves evidence
+        // instead of recording a truncation.
         for glyph in token.sources {
-            let reference =
-                evidence_ref(side, crate::document::SourceRef::Native { glyph: *glyph });
-            if sources.len() < limits.max_sources_per_case {
-                sources.insert(reference);
-            } else {
-                sources_omitted = true;
-            }
+            sources.insert(evidence_ref(
+                side,
+                crate::document::SourceRef::Native { glyph: *glyph },
+            ));
         }
     }
     let scalars: Vec<char> = text.chars().collect();
@@ -813,16 +993,6 @@ fn flow_text(
             }),
         });
     }
-    if sources_omitted {
-        // The exact omitted count is unknown because the set stopped
-        // inserting at the limit; declaring it unknown is more honest than
-        // counting duplicates.
-        budget.stop(
-            super::OmissionScope::Case { case: case.clone() },
-            super::OmissionKind::GapSourcesOmitted,
-            None,
-        );
-    }
     let retained_sources = sources
         .into_iter()
         .filter(|reference| reference.side == side)
@@ -837,7 +1007,7 @@ fn flow_text(
             .filter(|mark| mark.position <= retained)
             .collect(),
         omitted,
-        token_range: Some(super::TokenInterval {
+        token_range: page.is_none().then_some(super::TokenInterval {
             start: range.start,
             end: range.end,
         }),
@@ -847,9 +1017,17 @@ fn flow_text(
 }
 
 /// Page regions covered by a token range, with the union of token geometry.
-fn flow_regions(side: Side, tokens: &[FlowTokenView<'_>], range: &Range<usize>) -> Vec<CaseRegion> {
+fn flow_regions(
+    side: Side,
+    tokens: &[FlowTokenView<'_>],
+    range: &Range<usize>,
+    page: Option<PageId>,
+) -> Vec<CaseRegion> {
     let mut pages: BTreeMap<PageId, Option<[f64; 4]>> = BTreeMap::new();
     for token in tokens.get(range.clone()).unwrap_or_default() {
+        if page.is_some_and(|page| token.page != page) {
+            continue;
+        }
         let entry = pages.entry(token.page).or_insert(None);
         if let Some(bounds) = token.bounds {
             let next = [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y];
@@ -977,8 +1155,8 @@ fn flow_evidence_cases(context: &mut FlowPlanContext<'_, '_>) {
                 side,
                 view.tokens,
                 &range,
+                Some(order.page),
                 &case_id,
-                context.budget,
                 context.limits,
             );
             let old_text = (side == Side::Old).then(|| text.clone()).flatten();
@@ -987,11 +1165,12 @@ fn flow_evidence_cases(context: &mut FlowPlanContext<'_, '_>) {
                 .as_ref()
                 .map(|text| text.sources.clone())
                 .unwrap_or_default();
-            let regions = flow_regions(side, view.tokens, &range);
+            let regions = flow_regions(side, view.tokens, &range, Some(order.page));
             let location = SideLocation::unknown(side).with_page(Some(order.page));
             let case = ReviewCase {
                 case_id: case_id.clone(),
                 content_digest: digest,
+                subcase: None,
                 question: ReviewQuestion::CompareContent,
                 pipeline: context.identity.pipeline,
                 engine_class: EngineClass::Unavailable,
@@ -1106,16 +1285,10 @@ fn evidence_case(
     key.field(issue.message.as_bytes());
     let digest = key.finish();
     let case_id = context.identifiers.case(&digest);
-    let text = old_range.as_ref().or(new_range.as_ref()).and_then(|range| {
-        flow_text(
-            side,
-            tokens,
-            range,
-            &case_id,
-            context.budget,
-            context.limits,
-        )
-    });
+    let text = old_range
+        .as_ref()
+        .or(new_range.as_ref())
+        .and_then(|range| flow_text(side, tokens, range, Some(page), &case_id, context.limits));
     let (old_text, new_text) = match side {
         Side::Old => (text.clone(), None),
         Side::New => (None, text.clone()),
@@ -1126,7 +1299,7 @@ fn evidence_case(
         .unwrap_or_default();
     let mut regions = Vec::new();
     if let Some(range) = old_range.as_ref().or(new_range.as_ref()) {
-        regions = flow_regions(side, tokens, range);
+        regions = flow_regions(side, tokens, range, Some(page));
     }
     if regions.is_empty() {
         regions.push(CaseRegion {
@@ -1147,6 +1320,7 @@ fn evidence_case(
     Some(ReviewCase {
         case_id: case_id.clone(),
         content_digest: digest,
+        subcase: None,
         question: ReviewQuestion::AcquisitionGap,
         pipeline: context.identity.pipeline,
         engine_class: EngineClass::Unavailable,
@@ -1278,6 +1452,154 @@ mod tests {
             },
             limits,
         )
+    }
+
+    #[test]
+    fn an_oversized_flow_case_is_split_into_linked_parts_without_source_omissions() {
+        let glyphs = (0..8_u64)
+            .map(|word| {
+                (0..3_u64)
+                    .map(|offset| GlyphId(word * 3 + offset))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let old = glyphs
+            .iter()
+            .map(|sources| FlowTokenView {
+                text: "a",
+                page: PageId(0),
+                bounds: None,
+                uncertain: false,
+                sources,
+            })
+            .collect::<Vec<_>>();
+        let new = [token("a", 0)];
+        let changes = vec![change(
+            0,
+            FlowChangeKind::Delete,
+            0..8,
+            0..1,
+            FlowConfidence::High,
+            Vec::new(),
+        )];
+        let flow = FlowTextReview {
+            old: FlowSideView {
+                tokens: &old,
+                issues: &[],
+                order: &[],
+                conservation_incomplete: false,
+            },
+            new: FlowSideView {
+                tokens: &new,
+                issues: &[],
+                order: &[],
+                conservation_incomplete: false,
+            },
+            changes: &changes,
+            formatting: &[],
+            diff_verified: true,
+        };
+        let limits = PlannerLimits {
+            max_sources_per_case: 4,
+            ..PlannerLimits::default()
+        };
+        let plan = plan(&flow, limits);
+        assert!(plan.cases.len() >= 2, "{}", plan.cases.len());
+        assert!(plan.manifest.export.export_complete);
+        let parent = plan.cases[0]
+            .subcase
+            .as_ref()
+            .expect("a split case")
+            .parent
+            .clone();
+        let mut parts = plan.cases.iter().collect::<Vec<_>>();
+        parts.sort_by_key(|case| case.subcase.as_ref().expect("linked").index);
+        for (index, case) in parts.into_iter().enumerate() {
+            let split = case.subcase.as_ref().expect("every part is linked");
+            assert_eq!(split.schema, CASE_SPLIT_SCHEMA);
+            assert_eq!(split.parent, parent);
+            assert_eq!(split.index, u32::try_from(index).expect("index"));
+            assert_eq!(split.count, u32::try_from(plan.cases.len()).expect("count"));
+            assert!(
+                case.old_text
+                    .as_ref()
+                    .is_none_or(|text| text.sources.len() <= 4)
+            );
+        }
+        assert_eq!(
+            plan.cases
+                .iter()
+                .flat_map(|case| &case.flow_evidence)
+                .filter(|entry| entry.kind == FlowEvidenceKind::Content)
+                .count(),
+            1,
+            "the original change index belongs to exactly one part"
+        );
+    }
+
+    #[test]
+    fn a_single_oversized_token_is_split_by_source_without_an_omission() {
+        let sources = (0..10).map(GlyphId).collect::<Vec<_>>();
+        let old = [FlowTokenView {
+            text: "a",
+            page: PageId(0),
+            bounds: None,
+            uncertain: false,
+            sources: &sources,
+        }];
+        let new = [token("a", 0)];
+        let changes = vec![change(
+            0,
+            FlowChangeKind::Delete,
+            0..1,
+            0..1,
+            FlowConfidence::High,
+            Vec::new(),
+        )];
+        let flow = FlowTextReview {
+            old: FlowSideView {
+                tokens: &old,
+                issues: &[],
+                order: &[],
+                conservation_incomplete: false,
+            },
+            new: FlowSideView {
+                tokens: &new,
+                issues: &[],
+                order: &[],
+                conservation_incomplete: false,
+            },
+            changes: &changes,
+            formatting: &[],
+            diff_verified: true,
+        };
+        let plan = plan(
+            &flow,
+            PlannerLimits {
+                max_sources_per_case: 4,
+                ..PlannerLimits::default()
+            },
+        );
+        assert_eq!(plan.cases.len(), 3, "{:?}", plan.manifest.export.omissions);
+        assert!(plan.manifest.export.export_complete);
+        let mut source_counts = plan
+            .cases
+            .iter()
+            .map(|case| {
+                assert!(case.subcase.is_some());
+                case.old_text.as_ref().map_or(0, |text| text.sources.len())
+            })
+            .collect::<Vec<_>>();
+        source_counts.sort_unstable();
+        assert_eq!(source_counts, vec![2, 4, 4]);
+        assert_eq!(
+            plan.cases
+                .iter()
+                .flat_map(|case| &case.flow_evidence)
+                .filter(|entry| entry.kind == FlowEvidenceKind::Content)
+                .count(),
+            1
+        );
     }
 
     #[test]

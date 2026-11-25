@@ -13,7 +13,7 @@
 use std::{
     cell::RefCell,
     fs::File,
-    io::{BufWriter, Read, Seek, SeekFrom, Write},
+    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::Path,
     sync::Arc,
 };
@@ -28,10 +28,75 @@ const HEADER_FLAG_GLYPHS: u8 = 1;
 const GLYPH_METADATA_BYTES: u64 = 9;
 /// Offset of the metadata-offset field: magic, version, flags, glyph count.
 const HEADER_METADATA_OFFSET: u64 = 21 + 4 + 1 + 8;
+/// Read window for the sidecar's per-glyph fragments.
+///
+/// Full reports request source records in token order, so consecutive glyph
+/// ids are normally adjacent. Reading each tiny fragment with its own seek and
+/// read made a multi-million-glyph report issue millions of syscalls. A bounded
+/// window keeps the access pattern sequential without retaining the glyph
+/// table: the window is the only extra resident state and is capped here.
+const READ_WINDOW_BYTES: usize = 4 * 1024 * 1024;
+
+struct SourceReader {
+    file: File,
+    window: Vec<u8>,
+    start: u64,
+}
+
+impl SourceReader {
+    fn new(file: File) -> Self {
+        Self {
+            file,
+            window: Vec::new(),
+            start: 0,
+        }
+    }
+
+    /// Returns the requested bytes from the window, refilling it on a miss.
+    fn fragment(&mut self, offset: u64, length: usize) -> std::io::Result<&[u8]> {
+        let end = offset
+            .checked_add(u64::try_from(length).unwrap_or(u64::MAX))
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "cached source glyph record offset overflows",
+                )
+            })?;
+        let start = self.start;
+        let window_end = start.saturating_add(u64::try_from(self.window.len()).unwrap_or(u64::MAX));
+        if offset < start || end > window_end {
+            let read_length = READ_WINDOW_BYTES.max(length);
+            self.window.resize(read_length, 0);
+            self.file.seek(SeekFrom::Start(offset))?;
+            let mut filled = 0usize;
+            while filled < read_length {
+                match self.file.read(&mut self.window[filled..])? {
+                    0 => break,
+                    read => filled += read,
+                }
+            }
+            self.window.truncate(filled);
+            self.start = offset;
+            if filled < length {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "cached source glyph record is truncated",
+                ));
+            }
+        }
+        let relative = usize::try_from(offset - self.start).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "cached source glyph record offset does not fit in memory",
+            )
+        })?;
+        Ok(&self.window[relative..relative + length])
+    }
+}
 
 /// Retained per-glyph source records for one flow side.
 pub(crate) struct SourceCache {
-    file: RefCell<File>,
+    reader: RefCell<SourceReader>,
     offsets: Vec<u64>,
     lengths: Vec<u32>,
     pages: Vec<u32>,
@@ -85,11 +150,8 @@ impl SourceCache {
                 "cached source glyph record length does not fit in memory",
             )
         })?;
-        let mut file = self.file.borrow_mut();
-        file.seek(SeekFrom::Start(offset))?;
-        let mut buffer = vec![0u8; length];
-        file.read_exact(&mut buffer)?;
-        out.write_all(&buffer)
+        let mut reader = self.reader.borrow_mut();
+        out.write_all(reader.fragment(offset, length)?)
     }
 
     /// Opens a source cache and reads its three hypotheses' source lists.
@@ -102,8 +164,12 @@ impl SourceCache {
         path: &Path,
         directory: Arc<CacheDirectory>,
     ) -> Result<OpenedSourceCache, String> {
-        let mut file =
+        let file =
             File::open(path).map_err(|error| format!("cannot open flow source cache: {error}"))?;
+        // Metadata and source lists are long runs of small integers. Reading
+        // them one field at a time from the unbuffered file made a full report
+        // issue tens of millions of read syscalls before writing any output.
+        let mut file = BufReader::with_capacity(1024 * 1024, file);
         let mut magic = vec![0u8; MAGIC.len()];
         file.read_exact(&mut magic)
             .map_err(|error| format!("cannot read flow source cache: {error}"))?;
@@ -192,7 +258,7 @@ impl SourceCache {
         }
         Ok((
             Self {
-                file: RefCell::new(file),
+                reader: RefCell::new(SourceReader::new(file.into_inner())),
                 offsets,
                 lengths,
                 pages,
@@ -225,7 +291,7 @@ impl SourceWriter {
     pub(crate) fn create(path: &Path, glyphs: Option<&[Glyph]>) -> Result<Self, String> {
         let file = File::create(path)
             .map_err(|error| format!("cannot create flow source cache: {error}"))?;
-        let mut writer = BufWriter::new(file);
+        let mut writer = BufWriter::with_capacity(1024 * 1024, file);
         write_header(&mut writer, glyphs)?;
         if let Some(glyphs) = glyphs {
             let mut metadata = Vec::with_capacity(glyphs.len() * 9);
@@ -233,14 +299,11 @@ impl SourceWriter {
                 if glyph.id.0 != u64::try_from(index).unwrap_or(u64::MAX) {
                     return Err("flow source cache glyph ids are not dense positions".into());
                 }
-                let fragment = crate::flow_full::source_fragment(glyph)?;
-                writer
-                    .write_all(&fragment)
-                    .map_err(|error| format!("cannot write flow source cache: {error}"))?;
+                let length = crate::flow_full::write_source_fragment(glyph, &mut writer)?;
                 metadata.extend_from_slice(&(glyph.page.0 + 1).to_le_bytes());
                 metadata.push(u8::from(glyph.is_comparison_visible()));
                 metadata.extend_from_slice(
-                    &u32::try_from(fragment.len())
+                    &u32::try_from(length)
                         .map_err(|_| "flow source glyph record does not fit in u32".to_owned())?
                         .to_le_bytes(),
                 );

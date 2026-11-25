@@ -510,9 +510,9 @@ fn parse_agent_case_budget(value: &str) -> Result<usize, String> {
     let cases = value
         .parse::<usize>()
         .map_err(|error| format!("invalid agent case budget {value:?}: {error}"))?;
-    if !(1..=65_536).contains(&cases) {
+    if !(1..=131_072).contains(&cases) {
         return Err(format!(
-            "agent case budget must be between 1 and 65536, got {cases}"
+            "agent case budget must be between 1 and 131072, got {cases}"
         ));
     }
     Ok(cases)
@@ -548,7 +548,7 @@ mod tests {
         ])
         .expect("explicit case budget should parse");
         assert_eq!(raised.agent_case_budget, 12_000);
-        for invalid in ["0", "65537", "many"] {
+        for invalid in ["0", "131073", "many"] {
             assert!(
                 Cli::try_parse_from([
                     "pdfdelta",

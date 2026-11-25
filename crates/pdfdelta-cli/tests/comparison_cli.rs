@@ -2882,6 +2882,34 @@ fn write_huge_image_pdf(path: &Path) {
         .expect("huge-image fixture should serialize");
 }
 
+fn write_inline_image_pdf(path: &Path) {
+    let mut document = Document::with_version("1.5");
+    let pages = document.new_object_id();
+    let contents = document.add_object(Stream::new(
+        dictionary! {},
+        b"q 100 0 0 100 0 0 cm BI /W 19848 /H 28063 /BPC 1 /CS /G /IM true ID \x00 EI Q".to_vec(),
+    ));
+    let page = document.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages,
+        "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(100), Object::from(100)],
+        "Contents" => contents,
+    });
+    document.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page)],
+            "Count" => 1,
+        }),
+    );
+    let catalog = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+    document.trailer.set("Root", catalog);
+    document
+        .save(path)
+        .expect("inline-image fixture should serialize");
+}
+
 fn write_many_page_pdf(path: &Path, page_count: usize) {
     let mut document = Document::with_version("1.7");
     let pages = document.new_object_id();
@@ -3110,6 +3138,36 @@ fn build_pdf_pages_with_font(
     });
     document.trailer.set("Root", catalog);
     document
+}
+
+fn write_pdf_with_structure(path: &Path, lines: &[&str], structure_root: Option<Object>) {
+    let mut document = build_pdf_pages_with_font(&[lines], 30, "Type1", TextEncoding::Literal);
+    if let Some(structure_root) = structure_root {
+        let catalog = document
+            .trailer
+            .get(b"Root")
+            .expect("fixture trailer should contain Root")
+            .as_reference()
+            .expect("fixture Root should be a reference");
+        document
+            .objects
+            .get_mut(&catalog)
+            .expect("fixture catalog should exist")
+            .as_dict_mut()
+            .expect("fixture catalog should be a dictionary")
+            .set("StructTreeRoot", structure_root);
+    }
+    document.save(path).expect("fixture PDF should serialize");
+}
+
+fn run_default_report(old: &Path, new: &Path, report: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(old)
+        .arg(new)
+        .arg("--json")
+        .arg(report)
+        .output()
+        .expect("default comparison CLI")
 }
 
 fn positioned_words(text: &str) -> String {
@@ -3600,6 +3658,110 @@ fn default_channels_report_unexamined_visual_evidence_without_detected_change() 
             .iter()
             .any(|entry| entry["channel"] == "visual" && entry["complete"] == false)
     );
+}
+
+#[test]
+fn untagged_pair_reports_a_complete_empty_relation_inventory() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("report.json");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = run_default_report(&old, &new, &report);
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert_eq!(report["comparison"]["relation_inventory"], "complete_empty");
+    assert_eq!(report["comparison"]["relations"], serde_json::json!([]));
+    assert_eq!(
+        report["comparison"]["relation_unresolved"],
+        serde_json::json!([])
+    );
+    let relations = report["coverage"]
+        .as_array()
+        .expect("coverage")
+        .iter()
+        .find(|coverage| coverage["channel"] == "relations")
+        .expect("relations coverage");
+    assert_eq!(relations["old_inventory_complete"], true);
+    assert_eq!(relations["new_inventory_complete"], true);
+    assert_eq!(relations["complete"], true);
+    let relations = report["channel_verdicts"]
+        .as_array()
+        .expect("channel verdicts")
+        .iter()
+        .find(|verdict| verdict["channel"] == "relations");
+    assert!(
+        relations
+            .is_none_or(|verdict| { verdict["broken"] == false && verdict["unexamined"] == false })
+    );
+}
+
+#[test]
+fn a_single_tagged_source_keeps_relations_unexamined() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("report.json");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf_with_structure(
+        &new,
+        &["A generic paragraph remains stable"],
+        Some(Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => Vec::<Object>::new(),
+        })),
+    );
+
+    let output = run_default_report(&old, &new, &report);
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert!(report["comparison"].get("relation_inventory").is_none());
+    let relations = report["coverage"]
+        .as_array()
+        .expect("coverage")
+        .iter()
+        .find(|coverage| coverage["channel"] == "relations")
+        .expect("relations coverage");
+    assert_eq!(relations["old_inventory_complete"], false);
+    assert_eq!(relations["complete"], false);
+    let relations = report["channel_verdicts"]
+        .as_array()
+        .expect("channel verdicts")
+        .iter()
+        .find(|verdict| verdict["channel"] == "relations")
+        .expect("relations verdict");
+    assert_eq!(relations["unexamined"], true);
+}
+
+#[test]
+fn an_unreadable_structure_root_remains_broken_relation_evidence() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("report.json");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf_with_structure(
+        &new,
+        &["A generic paragraph remains stable"],
+        Some(Object::Dictionary(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => Object::Integer(7),
+        })),
+    );
+
+    let output = run_default_report(&old, &new, &report);
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    assert!(report["comparison"].get("relation_inventory").is_none());
+    let relations = report["channel_verdicts"]
+        .as_array()
+        .expect("channel verdicts")
+        .iter()
+        .find(|verdict| verdict["channel"] == "relations")
+        .expect("relations verdict");
+    assert_eq!(relations["broken"], true);
 }
 
 #[test]
@@ -4328,6 +4490,35 @@ fn default_channel_trace_reports_the_review_preview_limit() {
 }
 
 #[test]
+fn huge_inline_image_page_is_a_resource_limit_not_a_renderer_abort() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("report.json");
+    write_inline_image_pdf(&old);
+    write_inline_image_pdf(&new);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(&old)
+        .arg(&new)
+        .arg("--json")
+        .arg(&report)
+        .output()
+        .expect("inline-image comparison CLI");
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let report = read_json(&report);
+    let issues = report["old"]["issues"].as_array().expect("old issues");
+    assert!(issues.iter().any(|issue| {
+        issue["channel"] == "visual" && issue["kind"] == "resource_limit" && issue["page"] == 0
+    }));
+    assert!(
+        !issues
+            .iter()
+            .any(|issue| { issue["channel"] == "visual" && issue["kind"] == "backend_failure" })
+    );
+}
+
+#[test]
 fn huge_image_page_is_a_resource_limit_not_a_renderer_abort() {
     let directory = TestDirectory::new();
     let input = directory.join("huge-image.pdf");
@@ -4664,15 +4855,22 @@ fn flow_review_links_changes_formatting_and_verdicts_to_its_json() {
     assert!(!review.join("sources.json").exists());
     let sources = fs::read(review.join("sources.json.gz")).expect("compressed sources");
     assert_eq!(&sources[..2], &[0x1f, 0x8b]);
-    // Manifest version 3 writes one gzip stream. A second gzip layer would
-    // leave a gzip magic prefix after the first decompression and fail JSON
-    // parsing here.
+    // The current writer keeps the inner gzip member for size; the
+    // compatibility reader accepts both the nested and single-stream shapes.
     let mut decoded = Vec::new();
     std::io::Read::read_to_end(
         &mut flate2::read::GzDecoder::new(sources.as_slice()),
         &mut decoded,
     )
-    .expect("single gzip layer");
+    .expect("outer gzip layer");
+    if decoded.starts_with(&[0x1f, 0x8b]) {
+        let inner = std::mem::take(&mut decoded);
+        std::io::Read::read_to_end(
+            &mut flate2::read::GzDecoder::new(inner.as_slice()),
+            &mut decoded,
+        )
+        .expect("inner gzip layer");
+    }
     let index: Value = serde_json::from_slice(&decoded).expect("source index JSON");
     assert_eq!(index["version"], 1);
     assert!(html.contains("sources.json.gz"));

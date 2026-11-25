@@ -426,6 +426,23 @@ pub struct ChannelInventory {
     pub complete: bool,
 }
 
+/// What native acquisition proved about the sources the relations channel
+/// inventories.
+///
+/// The relations channel inventories native structure tags. A PDF with no
+/// `/StructTreeRoot` has no such source at all: the empty inventory is a
+/// complete observation, not an unexamined one. Any other outcome, including a
+/// source that exists or a catalog that could not be read, leaves absence
+/// unproven.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelationSourceInventory {
+    /// The structure provider read the catalog and proved no relation source
+    /// exists in this input.
+    ProvenAbsent,
+    /// A relation source exists, or its absence could not be proven.
+    Unestablished,
+}
+
 /// Raw identity domains have different enumeration contracts from content channels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1245,6 +1262,43 @@ impl EvidenceStore {
             });
         }
         Ok(sources.native)
+    }
+
+    /// What the native structure acquisition proved about relation sources.
+    ///
+    /// This is deliberately narrower than [`Self::inventory_complete`]: it
+    /// answers only whether the input has no relation source at all. A tagged
+    /// source, a structure element, a relation issue, or a provider that did
+    /// not record an inventory all leave absence unproven.
+    #[must_use]
+    pub fn relation_source_inventory(&self) -> RelationSourceInventory {
+        let relation_inventories = self
+            .inventories
+            .iter()
+            .filter(|inventory| inventory.channel == Channel::Relations);
+        let relation_count = relation_inventories.clone().count();
+        let proves_absent = !self.native_structures.is_empty()
+            && self.native_structures.len() == relation_count
+            && self
+                .native_structures
+                .iter()
+                .all(|inventory| inventory.root.is_none() && inventory.roots.is_empty())
+            && relation_inventories
+                .into_iter()
+                .all(|inventory| !inventory.complete && inventory.sources.is_empty())
+            && !self
+                .issues
+                .iter()
+                .any(|issue| issue.channel == Channel::Relations)
+            && !self
+                .structured
+                .iter()
+                .any(|element| matches!(element.value, StructuredValue::StructureElement { .. }));
+        if proves_absent {
+            RelationSourceInventory::ProvenAbsent
+        } else {
+            RelationSourceInventory::Unestablished
+        }
     }
 
     /// True only when a provider inspected this channel and no dependent issue

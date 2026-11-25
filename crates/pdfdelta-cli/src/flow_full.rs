@@ -19,8 +19,8 @@ use pdfdelta_core::model::{
     DecodedText, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, TextRenderMode,
 };
 use pdfdelta_flow::{FlowStream, FlowToken};
-use serde::Serialize;
-use serde_json::{Value, json};
+use serde::{Serialize, Serializer};
+use serde_json::Value;
 
 use crate::{
     flow_cmd::FlowComparison, flow_native, flow_sources::SourceCache, fs::write_output_atomically,
@@ -53,15 +53,34 @@ struct GlyphAccounting {
     excluded_counts: ExclusionCounts,
 }
 
+/// Text evidence as the full report renders it.
+///
+/// Borrowing the mapped text avoids building a `serde_json::Value` map for
+/// every glyph in a multi-million-glyph document. The serialized shape is the
+/// same: `{"mapped": ...}` or `{"unmapped": {...}}`.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum SourceText<'a> {
+    Mapped { mapped: &'a str },
+    Unmapped { unmapped: UnmappedText },
+}
+
+#[derive(Serialize)]
+struct UnmappedText {
+    identity: &'static str,
+    font_hash: String,
+    glyph_id: u16,
+}
+
 /// One source glyph rendered with every evidence class the extracted glyph
 /// carries.
 #[derive(Serialize)]
-pub(crate) struct SourceGlyph {
+pub(crate) struct SourceGlyph<'a> {
     kind: &'static str,
     glyph_id: u64,
     page: u32,
-    text: Value,
-    raw_code_hex: String,
+    text: SourceText<'a>,
+    raw_code_hex: HexBytes<'a>,
     bbox: Bounds,
     baseline: Point,
     direction: Point,
@@ -74,27 +93,27 @@ pub(crate) struct SourceGlyph {
     operator_index: u32,
 }
 
-impl From<&Glyph> for SourceGlyph {
-    fn from(glyph: &Glyph) -> Self {
+impl<'a> From<&'a Glyph> for SourceGlyph<'a> {
+    fn from(glyph: &'a Glyph) -> Self {
         let text = match &glyph.text {
-            DecodedText::Mapped(text) => json!({"mapped": text}),
+            DecodedText::Mapped(text) => SourceText::Mapped { mapped: text },
             DecodedText::Unmapped {
                 font_hash,
                 glyph_id,
-            } => json!({
-                "unmapped": {
-                    "identity": font_hash.identity_source().name(),
-                    "font_hash": lowercase_hex(&font_hash.0),
-                    "glyph_id": glyph_id,
-                }
-            }),
+            } => SourceText::Unmapped {
+                unmapped: UnmappedText {
+                    identity: font_hash.identity_source().name(),
+                    font_hash: lowercase_hex(&font_hash.0),
+                    glyph_id: *glyph_id,
+                },
+            },
         };
         Self {
             kind: "glyph",
             glyph_id: glyph.id.0,
             page: glyph.page.0 + 1,
             text,
-            raw_code_hex: lowercase_hex(&glyph.raw_code),
+            raw_code_hex: HexBytes(&glyph.raw_code),
             bbox: Bounds::new(glyph.bbox),
             baseline: Point::new(glyph.baseline),
             direction: Point::new(glyph.direction),
@@ -115,17 +134,68 @@ impl From<&Glyph> for SourceGlyph {
     }
 }
 
-/// Serializes one glyph's full source record without the surrounding array.
+/// A byte string rendered as lowercase hexadecimal without an allocation for
+/// ordinary glyph codes.
+struct HexBytes<'a>(&'a [u8]);
+
+impl Serialize for HexBytes<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        const DIGITS: &[u8; 16] = b"0123456789abcdef";
+        let mut stack = [0u8; 64];
+        if let Some(buffer) = stack.get_mut(..self.0.len().saturating_mul(2)) {
+            for (index, byte) in self.0.iter().enumerate() {
+                buffer[index * 2] = DIGITS[usize::from(byte >> 4)];
+                buffer[index * 2 + 1] = DIGITS[usize::from(byte & 0x0f)];
+            }
+            let text = std::str::from_utf8(buffer)
+                .map_err(|error| serde::ser::Error::custom(error.to_string()))?;
+            serializer.serialize_str(text)
+        } else {
+            serializer.serialize_str(&lowercase_hex(self.0))
+        }
+    }
+}
+
+/// Writes one glyph's full source record and returns its byte length.
 ///
 /// A child builds this record while the extracted document is resident; the
 /// reporting parent copies it verbatim, so both paths publish identical bytes.
+/// Writing through the destination avoids a second full-size copy of every
+/// fragment.
 ///
 /// # Errors
 ///
 /// Returns an error when the record cannot be serialized.
-pub(crate) fn source_fragment(glyph: &Glyph) -> Result<Vec<u8>, String> {
-    serde_json::to_vec(&SourceGlyph::from(glyph))
-        .map_err(|error| format!("cannot serialize a full-report glyph source: {error}"))
+pub(crate) fn write_source_fragment(
+    glyph: &Glyph,
+    output: &mut dyn std::io::Write,
+) -> Result<u64, String> {
+    struct Counting<'a> {
+        inner: &'a mut dyn std::io::Write,
+        written: u64,
+    }
+
+    impl std::io::Write for Counting<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let written = self.inner.write(bytes)?;
+            self.written = self
+                .written
+                .saturating_add(u64::try_from(written).unwrap_or(u64::MAX));
+            Ok(written)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.inner.flush()
+        }
+    }
+
+    let mut counting = Counting {
+        inner: output,
+        written: 0,
+    };
+    serde_json::to_writer(&mut counting, &SourceGlyph::from(glyph))
+        .map_err(|error| format!("cannot serialize a full-report glyph source: {error}"))?;
+    Ok(counting.written)
 }
 
 #[derive(Serialize)]

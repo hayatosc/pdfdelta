@@ -152,7 +152,13 @@ works with either path.
 A selected channel that is missing or unexamined makes the comparison
 incomplete. An absent provider result means "not acquired", never "empty
 content". An empty inventory is complete only when a provider examined that
-channel and scope.
+channel and scope. The relations channel inventories native structure tags: an
+input whose catalog was read and has no `/StructTreeRoot`, no structure
+element, and no relation issue has a complete, empty relation inventory. When
+both sides prove that absence, no graph edge is enumerated as a declared
+relation and the comparison reports `relation_inventory: "complete_empty"`. If
+either side has a relation source, or its absence was not proven, the previous
+incomplete/unexamined behavior is unchanged.
 
 Output vocabulary is flow-native. The native report schema, multi-channel
 report schema, and review manifest versions in §5.4 are current; no
@@ -776,9 +782,10 @@ never select `1`.
 Exit `0` is not reachable with the default channels for a document with pages
 in the current build. Rendered page rasters are retained for review but not
 compared, so every rendered page leaves the visual inventory incomplete, and
-native relation endpoints and semantic relationships are not established, so
-relations stays unexamined. An identical or purely reflowed document therefore
-exits `3` with `exit_basis: "unexamined_evidence"`. `--channels text`,
+native relation endpoints and semantic relationships are not established for a
+tagged document, so relations stays unexamined; a pair where both inputs prove
+no relation source has a complete empty inventory. An identical or purely
+reflowed document therefore exits `3` with `exit_basis: "unexamined_evidence"`. `--channels text`,
 `--channels text,forms`, and `--native-text-only` select channels whose
 evidence can close and exit `0` when those channels are complete and unchanged.
 
@@ -786,9 +793,12 @@ evidence can close and exit `0` when those channels are complete and unchanged.
 
 **Static HTML review** (`--review DIR`) publishes byte-exact source PDFs,
 lossless page previews, the complete comparison JSON, and source IDs with
-evidence, geometry, provenance, graph views, and warnings. The source index is
-one gzip stream (`sources.json.gz`) and the manifest is version 3. The output is
-bounded to 512 MiB, 1,024 page previews, and 20 million source-location visits;
+evidence, geometry, provenance, graph views, and warnings. The source index
+(`sources.json.gz`) is a gzip member inside the artifact's gzip member, as in
+the version-2 writer, because the second pass keeps the large index substantially
+smaller; the reader also accepts the single-stream version-3 shape and older
+uncompressed indexes. The manifest is version 3. The output is bounded to
+512 MiB, 1,024 page previews, and 20 million source-location visits;
 a failure may leave an incomplete directory without `index.html`. Review output
 never changes the comparison result or exit status. It is unavailable with
 `--native-text-only` because that path retains no rasters or shared evidence
@@ -806,13 +816,26 @@ its reason record and channel verdict.
 calling agent. The bundle schema is `agent-review/v1`; every response is
 complete JSON inside the requested byte budget, and `review import` records
 external decisions separately from the engine result. The bundle plans at most
-4,096 cases by default; `--agent-case-budget` raises that to 1–65,536, and the
-512 MiB bundle cap still applies. Cases are ordered by importance: flow content
-and formatting first, then acquisition evidence with broken before unexamined
-and page-local before document-wide, then page-residual cases. A truncated plan
-records a bundle-level `cases_not_exported` omission with the number of
-withheld cases. Exporting a bundle changes no comparison field, coverage count,
-or exit status.
+4,096 cases by default; `--agent-case-budget` raises that to 1–131,072, and the
+512 MiB bundle cap applies to each published bundle. Cases are ordered by
+importance: flow content and formatting first, then acquisition evidence with
+broken before unexamined and page-local before document-wide, then page-residual
+cases. A truncated plan records a bundle-level `cases_not_exported` omission with
+the number of withheld cases.
+
+A plan larger than one 512 MiB bundle is published as numbered part bundles
+under the destination directory (`part-0001`, `part-0002`, ...). Each part is a
+complete `agent-review/v1` bundle with its own manifest, and the root
+`manifest.json` is a `pdfdelta-agent-review-set` version 1 manifest that lists
+every part, its case count and byte size, and the global `export_complete`
+flag. Queries and `review import` accept either a single bundle or this part set.
+A case that exceeds the per-case source or member cap is split into consecutive
+sub-cases rather than truncated. Each part records `subcase` with
+`schema: "agent-review-split/v1"`, the shared `parent` case id, zero-based
+`index`, and total `count`; the first part carries the quoted text and flow
+report entries, and later parts carry the remaining source evidence. Sub-cases
+count toward the case budget and `export_complete`. Exporting a bundle changes
+no comparison field, coverage count, or exit status.
 
 ## 6. PDF backend and primitive extraction
 
@@ -1427,7 +1450,10 @@ limits stay unresolved. Native layout containment and order are not semantic
 relationship changes.
 
 Native PDF link extraction and automatic link/footnote target interpretation are
-not implemented, so relations is usually incomplete for real documents.
+not implemented, so relations is usually incomplete for real documents. The
+exception is an input pair where both catalogs were read and provably contain no
+native relation source: that empty inventory is complete and produces no
+relation changes.
 
 ### 11.5 Tables and tagged structure
 
@@ -1538,12 +1564,13 @@ deterministic for this input` and no raster. A page that exhausts its CPU
 budget is also a resource-limit outcome with no raster. A wall safety stop is a
 distinct, explicitly load-dependent resource-limit reason.
 
-Before rendering, the child scans the page's image XObjects. One image above 64
-million declared pixels is a page-scoped `resource_limit` instead of a renderer
-abort; the scan follows Form resources with depth 8 and 4,096-entry bounds,
-reads dictionaries only, and never decodes a stream. Inline images in page
-content are not preflighted by this dictionary scan and remain bounded by the
-child's address space.
+Before rendering, the child scans the page's image XObjects and decoded content
+streams. One image above 64 million declared pixels, including an inline image
+declared with `/W`/`/H` or `/Width`/`Height`, is a page-scoped `resource_limit`
+instead of a renderer abort. The XObject scan follows Form resources with depth
+8 and 4,096-entry bounds, reads dictionaries only, and never decodes an image
+stream. Inline-image scanning reuses the content parser, reads only `BI`
+dictionaries, and skips `ID`..`EI` data.
 
 **Image decoding** runs in a child: 2 GiB address space, 25 CPU seconds, 30 s
 wall time, 10,000 occurrences, 16 million pixels per image, 64 million
@@ -1561,7 +1588,9 @@ platforms the affected acquisition is reported as unsupported.
   source-location visits; a failure may leave an incomplete directory without
   `index.html`.
 - An agent review bundle is bounded by the 512 MiB cap and the case budget
-  (default 4,096; `--agent-case-budget` 1–65,536).
+  (default 4,096; `--agent-case-budget` 1–131,072). A larger plan is published
+  as numbered part bundles under one set manifest; every part is separately
+  bounded by the 512 MiB cap.
 - A text-envelope request is bounded to 1,000,000 work units, 262,144 retained
   cells, 1,048,576 output bytes, 1 MiB input, 1,024 pairs, and 32,768 tokens
   per side; hard ceilings are 32,000,000 work units and 8,388,608 output bytes.
@@ -1760,6 +1789,20 @@ permanently forbidden; a future evidence provider must follow the contracts in
 
 This section records why the specification changed. Earlier revisions are
 available from the repository history.
+
+### 2026-11-24: relation absence, inline-image preflight, split review exports
+
+- Complete/empty relation inventories when both inputs prove no native relation
+  source exists.
+- Inline-image pixel preflight shares the content parser's `BI` scanning.
+- Static review source indexes return to the nested-gzip shape for size while
+  the reader keeps accepting single and legacy double-gzip bundles.
+- Agent review can publish numbered part bundles and links oversized cases as
+  `agent-review-split/v1` sub-cases; the case budget is a total cap raised to
+  131,072.
+- Full reports retain a bounded source-cache read window and reuse serialization
+  buffers; the temporary cache remains the source of the extra wall time over
+  the in-memory M8e path.
 
 ### 2026-11-23: rewrite for the single flow engine
 

@@ -407,6 +407,7 @@ mod tests {
         ReviewCase {
             case_id: CaseId::new("R17").expect("case id"),
             content_digest: "00".repeat(8),
+            subcase: None,
             question: ReviewQuestion::CompareContent,
             pipeline: PipelineContract::SharedEvidence,
             engine_class: EngineClass::Strict,

@@ -187,9 +187,9 @@ details.
   flow extraction count limits and the shared footer-matching work limit. Full
   JSON captures stream per-glyph sources through a temporary side cache and
   stay near the compact run's memory (about 2.2 GB on the largest pair), but
-  the gzip output is still hundreds of megabytes. Agent review bundles plan at
-  most 4,096 cases by default; `--agent-case-budget` raises that within the
-  512 MiB bundle cap.
+  the gzip output is still hundreds of megabytes. Agent review plans at most
+  4,096 cases by default; `--agent-case-budget` raises the total cap, and a
+  plan above one 512 MiB bundle is published as numbered part bundles.
 
 The full list is in [`docs/limitations.md`](docs/limitations.md).
 

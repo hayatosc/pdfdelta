@@ -625,6 +625,7 @@ mod tests {
             relations: vec![relation],
             relation_unresolved: Vec::new(),
             relation_obligations: Vec::new(),
+            relation_inventory: Default::default(),
             flow_owned_text: Default::default(),
         };
         let report = evaluate_fixture(&annotation, &comparison).expect("score alternatives");
@@ -649,6 +650,7 @@ mod tests {
             relations: Vec::new(),
             relation_unresolved: vec!["missing inventory".into()],
             relation_obligations: Vec::new(),
+            relation_inventory: Default::default(),
             flow_owned_text: Default::default(),
         };
         let mut annotation = GeneralizationAnnotation {
@@ -693,6 +695,7 @@ mod tests {
             relations: Vec::new(),
             relation_unresolved: Vec::new(),
             relation_obligations: Vec::new(),
+            relation_inventory: Default::default(),
             flow_owned_text: Default::default(),
         };
         assert!(

@@ -8,6 +8,19 @@ pub(crate) mod font;
 
 pub use backend::{LopdfParser, decode_text_string};
 
+/// Largest pixel count declared by any inline image in a decoded content
+/// stream.
+///
+/// The scan shares the content parser's PDF token grammar and resource bounds.
+/// It reads only `BI` dictionaries, skips `ID`..`EI` image data, and never
+/// decodes an image. A malformed stream reports the largest declaration seen
+/// before the error; callers must treat that as a lower bound, not as proof
+/// that the stream is small enough to render.
+#[must_use]
+pub fn max_inline_image_pixels(input: &[u8]) -> u64 {
+    content::scan_inline_image_pixels(input, content::ContentLimits::default())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParseLimits {
     pub max_input_bytes: usize,

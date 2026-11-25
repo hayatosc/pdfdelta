@@ -477,19 +477,24 @@ owns a claim in the search (forms for field names, relations/structure for
 structure IDs); other scoped obligations are unexamined on their claim's
 domain.
 
-The static HTML review publishes its source index as one gzip stream
-(`manifest.json` version 3). The compatibility reader accepts version-2
-double-gzip bundles and historical uncompressed `sources.json` files. The
-renderer preflights each page's image XObjects: one image above 64M declared
-pixels is reported as a page-scoped `resource_limit` instead of allowing the
-renderer's full-size RGBA conversion to abort the child. The preflight reads
-only image dictionaries and never decodes a stream.
+The static HTML review publishes its source index as a gzip member inside the
+artifact's gzip member (`manifest.json` version 3) because the second pass keeps
+the large index substantially smaller. The compatibility reader accepts the
+single-stream version-3 shape, version-2 double-gzip bundles, and historical
+uncompressed `sources.json` files. The renderer preflights each page's image
+XObjects and inline images: one image above 64M declared pixels, including
+`BI ... /W ... /H ... ID ... EI`, is reported as a page-scoped `resource_limit`
+instead of allowing the renderer's full-size RGBA conversion to abort the
+child. The XObject preflight reads only image dictionaries; inline scanning uses
+the content parser and never decodes image bytes.
 
 Exit `0` is not reachable with the default channels for a document with pages
 yet. Composited page rasters are review context and are not compared, so every
-rendered page leaves the visual inventory incomplete, and native relation
-endpoints and semantic relationships are not established, so relations stays
-unexamined. An identical or purely reflowed document exits `3` with
+rendered page leaves the visual inventory incomplete. Native relation endpoints
+and semantic relationships are not established for a tagged document, so
+relations stays unexamined; a pair where both inputs prove no relation source
+has a complete empty relations inventory. An identical or purely reflowed
+document therefore exits `3` with
 `unexamined_evidence` rather than `0`. `--channels text`, `--channels
 text,forms`, and `--native-text-only` select the channels whose verdict is
 established and exit `0` when those channels are complete and unchanged.
@@ -605,7 +610,10 @@ semantic relationship change.
 
 Native PDF link extraction and automatic link/footnote target interpretation are
 not implemented, so the relations channel is usually reported as incomplete for
-real documents.
+real documents. When both catalogs were read and provably have no native
+relation source, the empty inventory is complete and no graph edge is treated
+as a declared relationship; a pair with a structure source on either side keeps
+the incomplete/unexamined behavior.
 
 ## Process isolation and resource limits
 

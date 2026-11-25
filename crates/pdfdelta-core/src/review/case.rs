@@ -383,12 +383,33 @@ pub struct FlowEvidence {
     pub index: usize,
 }
 
+/// One part of a case that exceeded a per-case evidence cap.
+///
+/// The parts are consecutive, share the same parent question, and each lists
+/// its zero-based index and total count. A reviewer reassembles the original
+/// case by reading parts in index order. The schema name versions this shape
+/// independently of the packet schema, because a part set is only meaningful
+/// when its reader understands the link fields.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaseSplit {
+    pub schema: String,
+    pub parent: CaseId,
+    pub index: u32,
+    pub count: u32,
+}
+
+/// Schema identifier for the split-case link.
+pub const CASE_SPLIT_SCHEMA: &str = "agent-review-split/v1";
+
 /// One review case.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReviewCase {
     pub case_id: CaseId,
     /// Content digest over the canonical case key, for tamper and drift checks.
     pub content_digest: String,
+    /// Present when this packet is one consecutive part of a larger case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subcase: Option<CaseSplit>,
     pub question: ReviewQuestion,
     pub pipeline: PipelineContract,
     pub engine_class: EngineClass,

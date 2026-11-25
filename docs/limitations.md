@@ -248,15 +248,22 @@ output space, bounded independently of existing comparisons.
   unexamined, page-local before document-wide), and page-residual cases last.
   When the 4,096-case default budget is exhausted the planner records a
   bundle-level `cases_not_exported` omission with the number of withheld cases
-  and stops building further cases; it does not spend time constructing cases
-  it cannot export. A caller can raise the limit with
-  `--agent-case-budget` (1–65,536), but the 512 MiB bundle cap still applies.
-  On `nist-controls`, a complete export would need at least 16,802 cases
-  (9,537 acquisition gaps, 7,264 content cases, one relationship case), which
-  is larger than the bundle cap; the default exports 4,096 cases and omits
-  7,686. Candidate enumeration is `unknown` for every flow case because the
-  engine enumerates no competing correspondence universe. Token text and
-  source lists are truncated with explicit omissions. The HTML review does not
+  and stops accepting cases; it does not claim they were exported. A caller can
+  raise the limit with `--agent-case-budget` (1–131,072). A plan above one
+  512 MiB bundle is published as numbered part bundles under a
+  `pdfdelta-agent-review-set` version 1 root manifest; every part is a complete
+  bundle. An oversized case is split into consecutive
+  `agent-review-split/v1` sub-cases linked by parent, index, and count instead
+  of truncating its sources or members; sub-cases count toward the budget and
+  `export_complete`.
+  On `nist-controls` the planner still retains planned cases in memory. The
+  default 4,096-case export publishes two parts (about 0.6 GB) and withholds
+  about 85,600 sub-cases. A budget large enough for the full plan exceeds the
+  6 GB process budget, so a complete export inside 6 GB currently requires
+  streaming case/part writing, which is not implemented. Candidate enumeration
+  is `unknown` for every flow case because the engine enumerates no competing
+  correspondence universe. Retained text and source lists carry explicit
+  omissions when a limit is reached. The HTML review does not
   publish per-glyph token sources; `--agent-review` and `--full-json` do. A
   native flow bundle never offers page pictures, because flow retains no
   rasters.
@@ -308,8 +315,10 @@ output space, bounded independently of existing comparisons.
 - Exit `0` is not reachable with the default channel set for a document with
   pages yet. Rendered page rasters are retained for review but not compared,
   so each rendered page leaves the visual inventory incomplete, and native
-  relation endpoints and semantic relationships are not established, so
-  relations stays unexamined. An identical or purely reflowed document
+  relation endpoints and semantic relationships are not established for a
+  tagged document, so relations stays unexamined; a pair where both inputs
+  prove no relation source has a complete empty inventory. An identical or
+  purely reflowed document
   therefore exits `3` with `exit_basis: "unexamined_evidence"` and
   `comparison_complete: false`, not `0`. `--channels text`, `--channels
   text,forms`, and `--native-text-only` report the verdict of the channels
@@ -323,11 +332,12 @@ output space, bounded independently of existing comparisons.
   such as `may not always` -> `may always not`; layout-only changes do not count,
   but a layout-only shift that changes token order is reported as a move and
   selects exit `1`.
-- The flow HTML review's `sources.json.gz` is one gzip stream in manifest
-  version 3. The compatibility reader accepts the version-2 double-gzip shape
-  (one gzip member inside another) and the oldest uncompressed `sources.json`;
-  old bundles remain readable. The single stream is smaller and avoids a
-  second compression pass; the JSON content is unchanged.
+- The flow HTML review's `sources.json.gz` uses the version-2 nested-gzip shape
+  (a gzip member inside another) in manifest version 3. The compatibility
+  reader accepts the single-stream version-3 shape, the older double-gzip
+  shape, and the oldest uncompressed `sources.json`; old bundles remain
+  readable. The second pass keeps the source index near its previous size; the
+  JSON content is unchanged.
 - The render child preflights image XObjects before rendering. A page that
   contains a single image above 64M declared pixels is reported as a
   page-scoped `resource_limit`, not a renderer backend failure. This covers
@@ -336,7 +346,9 @@ output space, bounded independently of existing comparisons.
   requested a 2 GiB allocation and aborted under the child's 2 GiB
   address-space limit. The scan reads image dictionaries and recursively
   follows Form XObject resources with depth and entry bounds; it never decodes
-  a stream. Inline images in page content are not preflighted by this check.
+  an image stream. Inline images are preflighted from their declared
+  `/W`/`/H` (or `/Width`/`Height`) by the shared content parser, with the same
+  page-scoped `resource_limit` outcome; image data is skipped, never decoded.
   Reproduce the child path with `pdfdelta render-page 82 249 596 842 235 0 <
   mext-primary-japanese-2008-to-2017-new.pdf`; it exits 3 without rendering.
 - Flow's confidence marker is a cheap heuristic, not a uniqueness guarantee.

@@ -52,7 +52,7 @@ pub use obligations::{
     classification as unresolved_classification,
 };
 pub use operations::*;
-pub use relations::RelationComparison;
+pub use relations::{RelationComparison, RelationInventoryState};
 pub use scoped_keys::*;
 pub use source_partition::TextSourcePartition;
 pub use structures::*;

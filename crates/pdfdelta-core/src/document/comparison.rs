@@ -168,6 +168,13 @@ pub struct DocumentViewComparison {
     /// Classification of each retained relationship message, aligned by index.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relation_obligations: Vec<super::UnresolvedObligation>,
+    /// Why relationship enumeration produced no edges when both inputs proved
+    /// they have no relation source. The default records no such proof.
+    #[serde(
+        default,
+        skip_serializing_if = "super::RelationInventoryState::is_examined_or_unproven"
+    )]
+    pub relation_inventory: super::RelationInventoryState,
     /// Raw key-domain facts do not discharge text or semantic relationship claims.
     #[serde(default)]
     pub key_presence: Option<super::KeyPresenceComparison>,
@@ -261,6 +268,7 @@ pub fn compare_document_views(
         )),
         relations: Vec::new(),
         relation_unresolved: Vec::new(),
+        relation_inventory: super::RelationInventoryState::default(),
         scopes: vec![ComparedScope {
             parent: None,
             depth: 0,

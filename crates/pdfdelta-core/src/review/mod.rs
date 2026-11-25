@@ -30,9 +30,9 @@ mod flow_plan;
 mod planner;
 
 pub use case::{
-    Cardinality, CaseFinding, CaseRegion, FlowEvidence, FlowEvidenceKind, Hypothesis,
-    OmissionReason, OmittedRun, RequiredEvidence, ReviewCase, ReviewText, SideLocation,
-    StructureLabel, TextCoverage, TextOrder, UnmappedMark,
+    CASE_SPLIT_SCHEMA, Cardinality, CaseFinding, CaseRegion, CaseSplit, FlowEvidence,
+    FlowEvidenceKind, Hypothesis, OmissionReason, OmittedRun, RequiredEvidence, ReviewCase,
+    ReviewText, SideLocation, StructureLabel, TextCoverage, TextOrder, UnmappedMark,
 };
 pub use context::{CaseContext, ContextItem, ContextKind};
 pub use contract::{

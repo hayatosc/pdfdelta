@@ -96,6 +96,14 @@ fn run(arguments: &[&str]) -> Output {
         .expect("pdfdelta should run")
 }
 
+fn run_with_bundle_limit(arguments: &[&str], limit: &str) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(arguments)
+        .env("PDFDELTA_AGENT_BUNDLE_LIMIT", limit)
+        .output()
+        .expect("pdfdelta should run")
+}
+
 fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
@@ -1401,4 +1409,110 @@ fn a_missing_submission_file_is_not_reported_as_an_unreadable_bundle() {
     ]);
     assert_eq!(answer.status.code(), Some(2));
     assert_eq!(json(&answer)["error"], "unreadable_decisions");
+}
+#[test]
+fn a_split_export_is_listable_showable_and_importable() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let old_lines = (0..40)
+        .map(|index| format!("The reporting deadline is {index} days for section {index}."))
+        .collect::<Vec<_>>();
+    let new_lines = (0..40)
+        .map(|index| {
+            format!(
+                "The reporting deadline is {} days for section {index}.",
+                index + 100
+            )
+        })
+        .collect::<Vec<_>>();
+    let old_refs = old_lines.iter().map(String::as_str).collect::<Vec<_>>();
+    let new_refs = new_lines.iter().map(String::as_str).collect::<Vec<_>>();
+    write_pdf(&old, &old_refs);
+    write_pdf(&new, &new_refs);
+    let bundle = directory.join("split");
+
+    let exported = run_with_bundle_limit(
+        &[
+            old.to_str().expect("path"),
+            new.to_str().expect("path"),
+            "--native-text-only",
+            "--agent-review",
+            bundle.to_str().expect("path"),
+            "--agent-case-budget",
+            "500",
+            "--quiet",
+        ],
+        "32768",
+    );
+    assert!(
+        matches!(exported.status.code(), Some(0 | 1)),
+        "{}",
+        stderr(&exported)
+    );
+    let root: Value =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("root manifest"))
+            .expect("root manifest JSON");
+    assert_eq!(root["format"], "pdfdelta-agent-review-set");
+    let parts = root["parts"].as_array().expect("parts");
+    assert!(parts.len() >= 2, "the plan must split: {parts:?}");
+    let total = usize::try_from(root["cases"]["total"].as_u64().expect("cases"))
+        .expect("case count fits usize");
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "1048576",
+    ]);
+    assert_eq!(listed.status.code(), Some(0), "{}", stderr(&listed));
+    let listed = json(&listed);
+    assert_eq!(
+        listed["cases"].as_array().expect("listed cases").len(),
+        total
+    );
+    let case = listed["cases"][0]["case"].as_str().expect("a case");
+    let shown = run(&[
+        "review",
+        "show",
+        bundle.to_str().expect("path"),
+        "--case",
+        case,
+        "--detail",
+        "text",
+        "--max-output-bytes",
+        "16384",
+    ]);
+    assert_eq!(shown.status.code(), Some(0), "{}", stderr(&shown));
+    assert_eq!(json(&shown)["case_id"], case);
+
+    let decisions = decisions_file(
+        &directory,
+        "decisions.json",
+        &bundle,
+        &[serde_json::json!({
+            "case_id": case,
+            "status": "undetermined",
+            "rationale": "split export query fixture",
+        })],
+    );
+    let imported_path = directory.join("imported.json");
+    let imported = run(&[
+        "review",
+        "import",
+        bundle.to_str().expect("path"),
+        "--decisions",
+        decisions.to_str().expect("path"),
+        "--output",
+        imported_path.to_str().expect("path"),
+        "--max-output-bytes",
+        "16384",
+    ]);
+    assert_eq!(imported.status.code(), Some(0), "{}", stderr(&imported));
+    let imported: Value =
+        serde_json::from_slice(&fs::read(imported_path).expect("import result")).expect("JSON");
+    assert_eq!(
+        imported["counts"]["cases_total"],
+        u64::try_from(total).expect("case count")
+    );
 }

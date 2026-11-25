@@ -2,7 +2,7 @@
 //! failed writes leave an explicitly incomplete directory and never overwrite it.
 
 use std::{
-    io::{self, Read},
+    io::{self, BufWriter, Read},
     path::Path,
 };
 
@@ -75,10 +75,12 @@ fn page_preview_limit() -> usize {
 
 /// Reads the source index from a review bundle's `sources.json.gz`.
 ///
-/// The current writer publishes one gzip stream. Bundles written before the
-/// manifest version 3 bump are a gzip member inside another gzip member, and
-/// the oldest bundles used an uncompressed `sources.json`. This reader accepts
-/// all three shapes and returns the JSON bytes unchanged.
+/// The current writer publishes a gzip member inside the artifact's gzip
+/// member, as the version-2 writer did, because the second pass is what keeps
+/// the 2.2 GB source index near 110 MB instead of 146 MB. Version-3 bundles
+/// written before that change carry one gzip stream, and the oldest bundles
+/// used an uncompressed `sources.json`. This reader accepts all three shapes
+/// and returns the JSON bytes unchanged.
 ///
 /// The CLI's review query commands read the separate `--agent-review` bundle
 /// layout; this is the compatibility path for consumers that read the static
@@ -134,11 +136,25 @@ pub(super) fn write(
                 serde_json::to_writer_pretty(out, report).map_err(io::Error::other)
             })?,
             file(directory, "sources.json.gz", &mut remaining, |out| {
-                // The shared output publisher compresses a `.gz` destination
-                // exactly once. Writing a gzip member here would be compressed
-                // again by the publisher; older bundles used that nested
-                // double-gzip shape, which the reader below still accepts.
-                serde_json::to_writer(out, &sources).map_err(io::Error::other)
+                // The artifact writer adds the outer gzip member. Writing the
+                // JSON through an inner gzip member is deliberate: deflate's
+                // 32 KiB window misses repetition between the inner stream's
+                // blocks, and the outer pass recovers about a quarter of the
+                // source index size. The reader accepts the nested shape as
+                // well as a single stream.
+                let mut inner = flate2::write::GzEncoder::new(out, flate2::Compression::default());
+                {
+                    let mut buffered = BufWriter::with_capacity(64 * 1024, &mut inner);
+                    serde_json::to_writer(&mut buffered, &sources).map_err(io::Error::other)?;
+                    // Push the final partial chunk without a sync flush, which
+                    // would change the inner deflate stream.
+                    if let Err(error) = buffered.into_inner() {
+                        let kind = error.error().kind();
+                        let message = error.error().to_string();
+                        return Err(io::Error::new(kind, message));
+                    }
+                }
+                inner.finish().map(|_| ()).map_err(io::Error::other)
             })?,
         ];
         let preview_limit = page_preview_limit();

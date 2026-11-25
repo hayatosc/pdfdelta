@@ -13,7 +13,7 @@ use std::{
 };
 
 use hayro::hayro_syntax::{
-    object::{Dict, Stream},
+    object::{Dict, Name, Stream},
     page::Resources,
 };
 use pdfdelta_core::{
@@ -478,8 +478,16 @@ fn cpu_limit_termination(_status: std::process::ExitStatus) -> bool {
 /// a self-referential or pathological resource tree cannot make the preflight
 /// itself unbounded.
 fn page_image_exceeds_render_bound(page: &hayro::hayro_syntax::page::Page<'_>) -> bool {
+    if page.page_stream().is_some_and(content_exceeds_render_bound) {
+        return true;
+    }
     let mut remaining = MAX_PREFLIGHT_XOBJECTS;
     resources_exceed_render_bound(page.resources(), 0, &mut remaining)
+}
+
+/// Whether one decoded content stream declares an oversized inline image.
+fn content_exceeds_render_bound(content: &[u8]) -> bool {
+    pdfdelta_core::pdf::max_inline_image_pixels(content) > MAX_RENDER_IMAGE_PIXELS
 }
 
 fn resources_exceed_render_bound(
@@ -502,6 +510,15 @@ fn resources_exceed_render_bound(
         let width = dict.get::<u32>(b"Width" as &[u8]).unwrap_or(0);
         let height = dict.get::<u32>(b"Height" as &[u8]).unwrap_or(0);
         if u64::from(width).saturating_mul(u64::from(height)) > MAX_RENDER_IMAGE_PIXELS {
+            return true;
+        }
+        let is_form = dict
+            .get::<Name<'_>>(b"Subtype" as &[u8])
+            .is_some_and(|subtype| subtype.as_ref() == b"Form");
+        if is_form
+            && let Ok(decoded) = stream.decoded()
+            && content_exceeds_render_bound(decoded.as_ref())
+        {
             return true;
         }
         if let Some(form_resources) = dict.get::<Dict<'_>>(b"Resources" as &[u8]) {

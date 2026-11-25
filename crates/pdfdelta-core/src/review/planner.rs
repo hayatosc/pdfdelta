@@ -11,10 +11,10 @@ use sha2::{Digest, Sha256};
 
 use super::{
     AgentReviewManifest, BundleId, BundleIdentity, CaseCensus, CaseId, Detail, EngineOutcome,
-    EvidenceRef, ExportOmission, ExportStatus, GapId, InventoryGap, OmissionKind, OmissionScope,
-    OmittedRun, QuestionCount, RetrievalAction, RetrievalCapability, ReviewCase, ReviewQuestion,
-    ReviewText, ScalarInterval, Side, SourceAlias, TextOrder, UnlocalizedGap, UnmappedMark,
-    case::OmissionReason, lowercase_hex,
+    EvidenceRef, ExportOmission, ExportStatus, GapId, InventoryGap, MAX_IDENTIFIER_BYTES,
+    OmissionKind, OmissionScope, OmittedRun, QuestionCount, RetrievalAction, RetrievalCapability,
+    ReviewCase, ReviewQuestion, ReviewText, ScalarInterval, Side, SourceAlias, TextOrder,
+    UnlocalizedGap, UnmappedMark, case::OmissionReason, lowercase_hex,
 };
 use crate::{
     document::{Channel, SourceRef, TextView, ViewBasis},
@@ -93,6 +93,16 @@ impl ReviewPlan {
     }
 }
 
+/// Identifier of one consecutive part of a split case.
+///
+/// The parent identifier is already validated ASCII, and the fixed suffix keeps
+/// the result inside the identifier limit. Part numbering is zero-based and is
+/// never reused within one parent.
+pub(super) fn split_case_id(parent: &CaseId, index: u32) -> CaseId {
+    CaseId::new(format!("{}-p{index:04}", parent.as_str()))
+        .expect("a split case identifier is valid")
+}
+
 /// The bundle-local alias for one source reference.
 ///
 /// The alias is derived from the reference itself, so it is stable without an
@@ -163,21 +173,26 @@ impl Identifiers {
 
     /// Derives `prefix + digest`, lengthening the digest until it is unique.
     fn mint(&mut self, prefix: char, digest: &str) -> String {
-        for length in [12, 20, 32, 64] {
-            let candidate = format!("{prefix}{}", &digest[..length.min(digest.len())]);
+        let max_digest = MAX_IDENTIFIER_BYTES.saturating_sub(prefix.len_utf8());
+        for length in [12, 20, 32, max_digest] {
+            let length = length.min(digest.len()).min(max_digest);
+            let candidate = format!("{prefix}{}", &digest[..length]);
             if self.used.insert(candidate.clone()) {
                 return candidate;
             }
         }
-        // Two cases with the same full digest are the same case; disambiguate
-        // by ordinal rather than returning a duplicate identifier.
+        // Repeating digests are different observations with the same canonical
+        // key; disambiguate by ordinal while staying inside the identifier
+        // bound. The suffix is reserved before the digest prefix is taken.
         let mut ordinal = 1u32;
         loop {
-            let candidate = format!("{prefix}{digest}-{ordinal}");
+            let suffix = format!("-{ordinal}");
+            let keep = max_digest.saturating_sub(suffix.len()).min(digest.len());
+            let candidate = format!("{prefix}{}{suffix}", &digest[..keep]);
             if self.used.insert(candidate.clone()) {
                 return candidate;
             }
-            ordinal += 1;
+            ordinal = ordinal.saturating_add(1);
         }
     }
 
@@ -320,6 +335,19 @@ impl Budget {
         if !self.omissions.contains(&omission) {
             self.omissions.push(omission);
         }
+    }
+
+    /// Removes one case-scoped omission after its case was split.
+    ///
+    /// The split parts retain all material the original case held, so the
+    /// original truncation no longer describes the export. A withheld part is
+    /// reported separately through the case budget.
+    pub(super) fn clear_case_omission(&mut self, case: &CaseId, kind: OmissionKind) {
+        self.omissions.retain(|omission| {
+            !(omission.kind == kind
+                && matches!(&omission.scope, OmissionScope::Case { case: scoped } if scoped == case))
+        });
+        self.complete = self.omissions.is_empty() && self.case_shortfall == 0;
     }
 
     pub(super) fn status(&self, cases_planned: usize) -> ExportStatus {
@@ -507,6 +535,121 @@ pub(super) fn review_text(
             .map(|source| evidence_ref(side, source))
             .collect(),
     }
+}
+
+/// Chunks of source references that each respect a per-case cap.
+fn source_chunks(sources: &[EvidenceRef], cap: usize) -> Vec<Vec<EvidenceRef>> {
+    if sources.is_empty() {
+        return Vec::new();
+    }
+    sources.chunks(cap.max(1)).map(<[_]>::to_vec).collect()
+}
+
+/// Rewrites a retrieval action that names the original case.
+fn rekey_action(action: &RetrievalAction, old: &CaseId, new: &CaseId) -> RetrievalAction {
+    match action {
+        RetrievalAction::List { cursor } => RetrievalAction::List {
+            cursor: cursor.clone(),
+        },
+        RetrievalAction::Show {
+            case,
+            detail,
+            cursor,
+        } if case == old => RetrievalAction::Show {
+            case: new.clone(),
+            detail: *detail,
+            cursor: cursor.clone(),
+        },
+        RetrievalAction::Render { case } if case == old => {
+            RetrievalAction::Render { case: new.clone() }
+        }
+        other => other.clone(),
+    }
+}
+
+/// Splits one case at the per-case source cap without dropping material.
+///
+/// The split is only applied when a side's retained source list or the case's
+/// evidence list exceeds [`PlannerLimits::max_sources_per_case`]. Parts are
+/// consecutive: each carries the same text and regions, a disjoint source and
+/// evidence slice, and a link to the shared parent. Flow report entries stay
+/// on the first part so no change is counted twice.
+pub(super) fn split_review_case(case: ReviewCase, limits: PlannerLimits) -> Vec<ReviewCase> {
+    let cap = limits.max_sources_per_case.max(1);
+    let old = case
+        .old_text
+        .as_ref()
+        .map(|text| source_chunks(&text.sources, cap))
+        .unwrap_or_default();
+    let new = case
+        .new_text
+        .as_ref()
+        .map(|text| source_chunks(&text.sources, cap))
+        .unwrap_or_default();
+    let count = old.len().max(new.len());
+    if count <= 1 {
+        return vec![case];
+    }
+    let evidence_per_part = case.evidence.len().div_ceil(count).max(1);
+    let regions_per_part = case.regions.len().div_ceil(count).max(1);
+    let parent = case.case_id.clone();
+    let mut parts = Vec::with_capacity(count);
+    for index in 0..count {
+        let mut part = case.clone();
+        let case_id = split_case_id(&parent, u32::try_from(index).unwrap_or(u32::MAX));
+        part.case_id = case_id.clone();
+        part.content_digest = format!("{}:p{index:04}", case.content_digest);
+        part.subcase = Some(super::CaseSplit {
+            schema: super::CASE_SPLIT_SCHEMA.into(),
+            parent: parent.clone(),
+            index: u32::try_from(index).unwrap_or(u32::MAX),
+            count: u32::try_from(count).unwrap_or(u32::MAX),
+        });
+        if let Some(text) = &mut part.old_text {
+            text.sources = old.get(index).cloned().unwrap_or_default();
+        }
+        if let Some(text) = &mut part.new_text {
+            text.sources = new.get(index).cloned().unwrap_or_default();
+        }
+        if index > 0 {
+            // The first part carries the quoted text. Later parts carry the
+            // remaining source references, not another copy of the same text;
+            // the shared parent link tells a reviewer how to reassemble them.
+            for text in [&mut part.old_text, &mut part.new_text]
+                .into_iter()
+                .flatten()
+            {
+                text.text.clear();
+                text.scalar_count = 0;
+                text.unmapped.clear();
+                text.omitted.clear();
+            }
+        }
+        part.evidence = case
+            .evidence
+            .iter()
+            .skip(index * evidence_per_part)
+            .take(evidence_per_part)
+            .copied()
+            .collect();
+        part.regions = case
+            .regions
+            .iter()
+            .skip(index * regions_per_part)
+            .take(regions_per_part)
+            .copied()
+            .collect();
+        if index > 0 {
+            part.flow_evidence.clear();
+        }
+        part.available_actions = case
+            .available_actions
+            .iter()
+            .map(|action| rekey_action(action, &parent, &case_id))
+            .collect();
+        parts.push(part);
+    }
+    parts
 }
 
 /// Everything a finished projection hands to assembly.
@@ -713,7 +856,15 @@ mod tests {
     fn colliding_digests_still_receive_distinct_identifiers() {
         let mut identifiers = Identifiers::new();
         let digest = "f".repeat(64);
-        assert_ne!(identifiers.case(&digest), identifiers.case(&digest));
+        let minted = (0..6)
+            .map(|_| identifiers.case(&digest))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(minted.len(), 6);
+        assert!(
+            minted
+                .iter()
+                .all(|id| id.as_str().len() <= MAX_IDENTIFIER_BYTES)
+        );
     }
 
     #[test]

@@ -45,7 +45,7 @@ pdfdelta old.pdf new.pdf --color always        # force ANSI color
 | `--trace-json <PATH>` | Write a phase-by-phase diagnostic flow trace. |
 | `--review <DIR>` | Write a static HTML review bundle from flow evidence. |
 | `--agent-review <DIR>` | Write an agent review bundle from flow evidence (see [`agent-review.md`](agent-review.md)). |
-| `--agent-case-budget <CASES>` | Maximum cases an agent review bundle may plan: 1–65,536. Default `4096`. |
+| `--agent-case-budget <CASES>` | Maximum cases an agent review export may plan: 1–131,072. Default `4096`. |
 | `-q, --quiet` | Suppress the human-readable report on stdout. |
 | `--color <auto\|always\|never>` | Colorize the report. `auto` colors only when stdout is a terminal. |
 | `--limit-scale <FACTOR>` | Scale flow extraction count limits and the shared footer-matching work limit. |
@@ -572,10 +572,11 @@ provenance, graph views, rendering profiles, and warnings. Every reported change
 links to its JSON location and its source pages and regions.
 
 The source index is published as the lossless `sources.json.gz` because the
-comparison's evidence index is large. Manifest version 3 writes one gzip
-stream. Older bundles are read by `review::read_sources`, which accepts the
-version-2 double-gzip shape (a gzip member inside another gzip member) and the
-oldest uncompressed `sources.json`. The HTML review adds a flow
+comparison's evidence index is large. Manifest version 3 writes a gzip member
+inside the artifact's gzip member, matching the version-2 size behavior. Older
+bundles are read by `review::read_sources`, which accepts the single-stream
+version-3 shape, the version-2 double-gzip shape, and the oldest uncompressed
+`sources.json`. The HTML review adds a flow
 text section. Each
 non-layout flow change links to `/flow_text/changes/{index}`, each
 formatting-only entry to `/flow_text/formatting_only_changes/{index}`, each
@@ -626,18 +627,30 @@ bundles remain queryable. A path whose first component is literally `review`
 must be written as `./review`. The full contract is in
 [`agent-review.md`](agent-review.md).
 
-The bundle plans at most 4,096 cases by default. The limit is a safety bound:
-each case adds a packet and manifest entry, and the whole bundle is capped at
-512 MiB. `--agent-case-budget <CASES>` raises it explicitly (1–65,536); the
-bundle byte cap still applies, and a bundle that reaches either bound records a
-bundle-level `cases_not_exported` omission with the number of withheld cases
-and exits incomplete. Cases are ordered by importance: flow content and
-formatting changes first, then acquisition evidence with broken evidence
-before unexamined evidence and page-local gaps before document-wide ones.
-On `P/nist-controls-53-r4-to-r5` a complete export would need at least 16,802
-cases (9,537 acquisition gaps plus 7,264 content cases plus one relationship
-case), which would exceed the 512 MiB bundle cap; the default bundle exports
-4,096 cases with 7,686 known cases omitted.
+The export plans at most 4,096 cases by default. The limit is a total cap:
+each case adds a packet and manifest entry, and each published bundle is capped
+at 512 MiB. `--agent-case-budget <CASES>` raises it explicitly (1–131,072); a
+plan that reaches either bound records a bundle-level `cases_not_exported`
+omission with the number of withheld cases and exits incomplete. Cases are
+ordered by importance: flow content and formatting changes first, then
+acquisition evidence with broken evidence before unexamined evidence and
+page-local gaps before document-wide ones.
+
+A plan larger than one 512 MiB bundle is written as numbered part bundles under
+the destination (`part-0001`, `part-0002`, ...). Each part is a complete bundle;
+the root `manifest.json` is a `pdfdelta-agent-review-set` version 1 manifest
+listing every part, its case count and bytes, and the global `export_complete`
+flag. `review list`, `show`, `render`, and `import` accept either a single
+bundle or a part set. A case that exceeds the per-case source or member cap is
+split into consecutive sub-cases linked by `subcase.parent`, `subcase.index`,
+and `subcase.count` (`agent-review-split/v1`); the first part carries the quoted
+text and flow entries, later parts carry the remaining source evidence.
+Sub-cases count toward the budget and `export_complete`.
+
+On `P/nist-controls-53-r4-to-r5`, the current in-memory planner exports 4,096
+cases as two parts (about 0.6 GB) and withholds about 85,600 sub-cases. A
+budget large enough for the full plan reaches the 6 GB process budget before
+writing; complete streaming export is not implemented yet.
 
 ## Resource limits and caching
 
