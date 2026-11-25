@@ -214,9 +214,9 @@ pub struct FlowStats {
     pub new_tokens: usize,
     /// Old tokens whose text survives into the new stream.
     ///
-    /// This counts spine tokens, uncovered equal tokens, moved tokens, and
-    /// layout-only tokens, and excludes tokens covered by deletions and
-    /// replacements.
+    /// This counts spine tokens, uncovered equal tokens, moved tokens,
+    /// reading-order tokens, and layout-only tokens, and excludes tokens
+    /// covered by deletions and replacements.
     pub equal_tokens: usize,
     /// Deletions.
     pub delete: ChangeStats,
@@ -226,6 +226,8 @@ pub struct FlowStats {
     pub replace: ChangeStats,
     /// Moves.
     pub moves: ChangeStats,
+    /// Same-row reading-order transpositions.
+    pub reading_order: ChangeStats,
     /// Layout-only changes.
     pub layout_only: ChangeStats,
 }
@@ -243,6 +245,7 @@ impl FlowStats {
                 FlowChange::Insert { .. } => &mut stats.insert,
                 FlowChange::Replace { .. } => &mut stats.replace,
                 FlowChange::Move { .. } => &mut stats.moves,
+                FlowChange::ReadingOrder { .. } => &mut stats.reading_order,
                 FlowChange::LayoutOnly { .. } => &mut stats.layout_only,
             };
             bucket.changes += 1;
@@ -915,7 +918,8 @@ pub fn flow_diff(
         .best
         .expect("at least one diff variant was evaluated");
     let spine = Rc::try_unwrap(best.spine).unwrap_or_else(|shared| (*shared).clone());
-    let changes = best.changes;
+    let mut changes = best.changes;
+    reclassify_reading_order(&streams, &mut changes);
     verify(old, new, &changes)?;
     let stats = FlowStats::new(old.len(), new.len(), &changes);
     Ok(FlowDiff {
@@ -1337,6 +1341,445 @@ fn relocation_information(old_ids: &[u32], weights: &[u64], range: &std::ops::Ra
         .sum()
 }
 
+/// Minimum relative vertical overlap of two visual line extents for their
+/// runs to share a row band.
+const READING_ORDER_ROW_OVERLAP_MIN: f64 = 0.5;
+
+/// Maximum number of adjacent lines added on each side of a run when its
+/// visual cell is reconstructed.
+const READING_ORDER_CELL_STEPS: usize = 2;
+
+/// Maximum vertical gap between two lines of one visual cell, relative to the
+/// smaller line height.
+const READING_ORDER_CELL_GAP: f64 = 1.0;
+
+/// Relative tolerance for a wrapped line to stay inside its column.
+const READING_ORDER_COLUMN_TOLERANCE: f64 = 0.15;
+
+/// Minimum horizontal overlap of two lines in the same column, relative to the
+/// narrower line.
+const READING_ORDER_COLUMN_OVERLAP_MIN: f64 = 0.5;
+
+/// One reconstructed visual line, independent of the chosen reading order.
+#[derive(Clone, Copy, Debug)]
+struct VisualLine {
+    page: PageId,
+    x0: f64,
+    x1: f64,
+    y0: f64,
+    y1: f64,
+    start: usize,
+    end: usize,
+}
+
+impl VisualLine {
+    /// Builds a line box from a contiguous token range on one page.
+    ///
+    /// Returns `None` when the range is empty, crosses a page, lacks source
+    /// bounds, or has no positive area. Such evidence is unknown, not empty.
+    fn from_tokens(tokens: &[FlowToken], start: usize, end: usize) -> Option<Self> {
+        let page = tokens.get(start)?.page;
+        let mut x0 = f64::INFINITY;
+        let mut x1 = f64::NEG_INFINITY;
+        let mut y0 = f64::INFINITY;
+        let mut y1 = f64::NEG_INFINITY;
+        for token in tokens.get(start..end)? {
+            if token.page != page {
+                return None;
+            }
+            let bounds = token.bounds?;
+            x0 = x0.min(bounds.min.x);
+            x1 = x1.max(bounds.max.x);
+            y0 = y0.min(bounds.min.y);
+            y1 = y1.max(bounds.max.y);
+        }
+        (x1 > x0 && y1 > y0).then_some(Self {
+            page,
+            x0,
+            x1,
+            y0,
+            y1,
+            start,
+            end,
+        })
+    }
+
+    fn width(self) -> f64 {
+        self.x1 - self.x0
+    }
+
+    fn height(self) -> f64 {
+        self.y1 - self.y0
+    }
+}
+
+/// Source-backed visual lines of a document, grouped by page and sorted from
+/// bottom to top.
+fn visual_lines(tokens: &[FlowToken]) -> HashMap<PageId, Vec<VisualLine>> {
+    let mut pages: HashMap<PageId, Vec<VisualLine>> = HashMap::new();
+    let mut start = 0usize;
+    for (index, token) in tokens.iter().enumerate() {
+        let closes = token.line_break_after
+            || index + 1 == tokens.len()
+            || tokens[index + 1].page != token.page;
+        if closes {
+            if let Some(line) = VisualLine::from_tokens(tokens, start, index + 1) {
+                pages.entry(line.page).or_default().push(line);
+            }
+            start = index + 1;
+        }
+    }
+    for lines in pages.values_mut() {
+        lines.sort_unstable_by(|left, right| {
+            left.y0
+                .total_cmp(&right.y0)
+                .then(left.x0.total_cmp(&right.x0))
+        });
+    }
+    pages
+}
+
+/// Visual lines of one contiguous token range.
+///
+/// Returns `None` when the range crosses a page or any line lacks bounds.
+fn run_visual_lines(
+    tokens: &[FlowToken],
+    range: &std::ops::Range<usize>,
+) -> Option<Vec<VisualLine>> {
+    if range.is_empty() {
+        return None;
+    }
+    let mut lines = Vec::new();
+    let mut start = range.start;
+    for index in range.clone() {
+        let token = &tokens[index];
+        let closes = token.line_break_after
+            || index + 1 == range.end
+            || tokens[index + 1].page != token.page;
+        if closes {
+            lines.push(VisualLine::from_tokens(tokens, start, index + 1)?);
+            start = index + 1;
+        }
+    }
+    let page = lines.first()?.page;
+    lines.iter().all(|line| line.page == page).then_some(lines)
+}
+
+/// Prefix counts of changed tokens for O(1) membership checks.
+struct ChangedMask {
+    prefix: Vec<usize>,
+}
+
+impl ChangedMask {
+    fn new(len: usize, ranges: impl IntoIterator<Item = std::ops::Range<usize>>) -> Self {
+        let mut changed = vec![false; len];
+        for range in ranges {
+            for flag in &mut changed[range] {
+                *flag = true;
+            }
+        }
+        let mut prefix = Vec::with_capacity(len + 1);
+        prefix.push(0usize);
+        for flag in changed {
+            prefix.push(prefix.last().copied().unwrap_or(0) + usize::from(flag));
+        }
+        Self { prefix }
+    }
+
+    fn is_changed(&self, index: usize) -> bool {
+        self.prefix[index + 1] > self.prefix[index]
+    }
+}
+
+/// Maps every uncovered old token to its paired uncovered new token.
+///
+/// Uncovered tokens are the implicit equal pairs that replay verification
+/// zips in order. The map therefore describes the equal runs that surround a
+/// move even when the weighted spine omitted some of their tokens.
+fn uncovered_pairs(
+    old_len: usize,
+    new_len: usize,
+    old_changed: &ChangedMask,
+    new_changed: &ChangedMask,
+) -> Vec<Option<usize>> {
+    let old_uncovered = (0..old_len)
+        .filter(|&index| !old_changed.is_changed(index))
+        .collect::<Vec<_>>();
+    let new_uncovered = (0..new_len)
+        .filter(|&index| !new_changed.is_changed(index))
+        .collect::<Vec<_>>();
+    let mut pairs = vec![None; old_len];
+    for (&old_index, &new_index) in old_uncovered.iter().zip(&new_uncovered) {
+        pairs[old_index] = Some(new_index);
+    }
+    pairs
+}
+
+/// Relative vertical overlap of two visual lines on the same page.
+fn visual_line_overlap(left: VisualLine, right: VisualLine) -> f64 {
+    if left.page != right.page {
+        return 0.0;
+    }
+    let smaller = left.height().min(right.height());
+    if smaller <= 0.0 {
+        return 0.0;
+    }
+    let overlap = (left.y1.min(right.y1) - left.y0.max(right.y0)).max(0.0);
+    overlap / smaller
+}
+
+/// Relative horizontal overlap of two visual lines on the same page.
+fn visual_column_overlap(left: VisualLine, right: VisualLine) -> f64 {
+    let narrower = left.width().min(right.width());
+    if narrower <= 0.0 {
+        return 0.0;
+    }
+    let overlap = (left.x1.min(right.x1) - left.x0.max(right.x0)).max(0.0);
+    overlap / narrower
+}
+
+/// Whether two runs occupy disjoint horizontal extents.
+fn runs_are_side_by_side(left: &[VisualLine], right: &[VisualLine]) -> bool {
+    let left_x0 = left
+        .iter()
+        .map(|line| line.x0)
+        .fold(f64::INFINITY, f64::min);
+    let left_x1 = left
+        .iter()
+        .map(|line| line.x1)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let right_x0 = right
+        .iter()
+        .map(|line| line.x0)
+        .fold(f64::INFINITY, f64::min);
+    let right_x1 = right
+        .iter()
+        .map(|line| line.x1)
+        .fold(f64::NEG_INFINITY, f64::max);
+    left_x1 <= right_x0 || right_x1 <= left_x0
+}
+
+/// Whether `left` is visually left of `right`.
+fn left_of(left: &[VisualLine], right: &[VisualLine]) -> bool {
+    let left_center = left
+        .iter()
+        .map(|line| f64::midpoint(line.x0, line.x1))
+        .fold(f64::NEG_INFINITY, f64::max);
+    let right_center = right
+        .iter()
+        .map(|line| f64::midpoint(line.x0, line.x1))
+        .fold(f64::INFINITY, f64::min);
+    left_center < right_center
+}
+
+/// Reconstructs the lines of one visual cell around `run`.
+///
+/// Wrapped lines of a table cell are separate reconstructed blocks. Starting
+/// from the run's own line boxes, this adds the nearest line above and below
+/// that stays inside the run's horizontal column, touches it vertically, and
+/// is not part of the paired run. At most [`READING_ORDER_CELL_STEPS`] rounds
+/// are added.
+fn expand_visual_cell(
+    run: &[VisualLine],
+    pages: &HashMap<PageId, Vec<VisualLine>>,
+    other: &std::ops::Range<usize>,
+) -> Vec<VisualLine> {
+    let mut current = run.to_vec();
+    let column_x0 = current
+        .iter()
+        .map(|line| line.x0)
+        .fold(f64::INFINITY, f64::min);
+    let column_x1 = current
+        .iter()
+        .map(|line| line.x1)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let tolerance = READING_ORDER_COLUMN_TOLERANCE * (column_x1 - column_x0).max(0.0);
+    let mut seen = current
+        .iter()
+        .map(|line| (line.start, line.end))
+        .collect::<HashSet<_>>();
+    for _ in 0..READING_ORDER_CELL_STEPS {
+        let mut added = Vec::new();
+        for line in &current {
+            let Some(page_lines) = pages.get(&line.page) else {
+                continue;
+            };
+            let mut best_above: Option<(f64, f64, VisualLine)> = None;
+            let mut best_below: Option<(f64, f64, VisualLine)> = None;
+            for candidate in page_lines {
+                if candidate.start < other.end && candidate.end > other.start {
+                    continue;
+                }
+                if seen.contains(&(candidate.start, candidate.end)) {
+                    continue;
+                }
+                if candidate.x0 < column_x0 - tolerance || candidate.x1 > column_x1 + tolerance {
+                    continue;
+                }
+                if visual_column_overlap(*line, *candidate) < READING_ORDER_COLUMN_OVERLAP_MIN {
+                    continue;
+                }
+                let line_center = f64::midpoint(line.y0, line.y1);
+                let candidate_center = f64::midpoint(candidate.y0, candidate.y1);
+                let above = candidate_center >= line_center;
+                let gap = if above {
+                    (candidate.y0 - line.y1).max(0.0)
+                } else {
+                    (line.y0 - candidate.y1).max(0.0)
+                };
+                if gap > READING_ORDER_CELL_GAP * line.height().min(candidate.height()) {
+                    continue;
+                }
+                let distance = (candidate_center - line_center).abs();
+                let best = if above {
+                    &mut best_above
+                } else {
+                    &mut best_below
+                };
+                if best.is_none_or(|(best_gap, best_distance, _)| {
+                    (gap, distance) < (best_gap, best_distance)
+                }) {
+                    *best = Some((gap, distance, *candidate));
+                }
+            }
+            for best in [best_above, best_below] {
+                if let Some((_, _, candidate)) = best
+                    && seen.insert((candidate.start, candidate.end))
+                {
+                    added.push(candidate);
+                }
+            }
+        }
+        if added.is_empty() {
+            break;
+        }
+        current.extend(added);
+    }
+    current
+}
+
+/// Best relative vertical overlap of two expanded cell line sets.
+fn cell_row_overlap(left: &[VisualLine], right: &[VisualLine]) -> f64 {
+    let mut best = 0.0f64;
+    for left_line in left {
+        for right_line in right {
+            best = best.max(visual_line_overlap(*left_line, *right_line));
+        }
+    }
+    best
+}
+
+/// Reclassifies same-row reading-order transpositions as layout evidence.
+///
+/// A move beside the equal run it swapped with is a transposition: the same
+/// two runs are read in the opposite order in the two documents. When the runs stay in
+/// disjoint visual columns, their wrapped cells share a vertical row band in
+/// both documents, and their left-to-right order is unchanged, the difference
+/// is an extraction-order artifact rather than a content move. The run is then
+/// reported as [`FlowChange::ReadingOrder`], which never selects a content
+/// difference.
+///
+/// Runs without complete line geometry, runs that overlap horizontally, a
+/// genuine page or row relocation, and a transposition whose visual order also
+/// changed stay moves.
+fn reclassify_reading_order(streams: &DiffStreams<'_>, changes: &mut [FlowChange]) {
+    let DiffStreams { old, new, .. } = *streams;
+    if !changes
+        .iter()
+        .any(|change| matches!(change, FlowChange::Move { .. }))
+    {
+        return;
+    }
+    let old_pages = visual_lines(old);
+    let new_pages = visual_lines(new);
+    let old_changed = ChangedMask::new(old.len(), changes.iter().map(FlowChange::old_range));
+    let new_changed = ChangedMask::new(new.len(), changes.iter().map(FlowChange::new_range));
+    let pairs = uncovered_pairs(old.len(), new.len(), &old_changed, &new_changed);
+    for change in changes.iter_mut() {
+        let FlowChange::Move {
+            old: move_old,
+            new: move_new,
+        } = change
+        else {
+            continue;
+        };
+        let move_old = move_old.clone();
+        let move_new = move_new.clone();
+        let Some(run_old) = run_visual_lines(old, &move_old) else {
+            continue;
+        };
+        let Some(run_new) = run_visual_lines(new, &move_new) else {
+            continue;
+        };
+        let mut candidates = Vec::with_capacity(2);
+        // E is before the move on the old side and after it on the new side.
+        if let Some(old_end) = move_old.start.checked_sub(1)
+            && let Some(new_end) = pairs[old_end]
+            && new_end >= move_new.end
+        {
+            let mut old_start = old_end;
+            let mut new_start = new_end;
+            while old_start > 0
+                && new_start > move_new.end
+                && pairs[old_start - 1] == Some(new_start - 1)
+            {
+                old_start -= 1;
+                new_start -= 1;
+            }
+            candidates.push((old_start..old_end + 1, new_start..new_end + 1));
+        }
+        // E is after the move on the old side and before it on the new side.
+        if let Some(new_start) = pairs.get(move_old.end).copied().flatten()
+            && new_start < move_new.start
+        {
+            let mut length = 1usize;
+            while move_old.end + length < old.len()
+                && new_start + length < move_new.start
+                && pairs[move_old.end + length] == Some(new_start + length)
+            {
+                length += 1;
+            }
+            candidates.push((
+                move_old.end..move_old.end + length,
+                new_start..new_start + length,
+            ));
+        }
+        for (equal_old, equal_new) in candidates {
+            if equal_old.is_empty() || equal_new.is_empty() {
+                continue;
+            }
+            let Some(cell_old) = run_visual_lines(old, &equal_old) else {
+                continue;
+            };
+            let Some(cell_new) = run_visual_lines(new, &equal_new) else {
+                continue;
+            };
+            if !runs_are_side_by_side(&run_old, &cell_old)
+                || !runs_are_side_by_side(&run_new, &cell_new)
+                || left_of(&run_old, &cell_old) != left_of(&run_new, &cell_new)
+            {
+                continue;
+            }
+            let expanded_run_old = expand_visual_cell(&run_old, &old_pages, &equal_old);
+            let expanded_cell_old = expand_visual_cell(&cell_old, &old_pages, &move_old);
+            let expanded_run_new = expand_visual_cell(&run_new, &new_pages, &equal_new);
+            let expanded_cell_new = expand_visual_cell(&cell_new, &new_pages, &move_new);
+            if cell_row_overlap(&expanded_run_old, &expanded_cell_old)
+                < READING_ORDER_ROW_OVERLAP_MIN
+                || cell_row_overlap(&expanded_run_new, &expanded_cell_new)
+                    < READING_ORDER_ROW_OVERLAP_MIN
+            {
+                continue;
+            }
+            *change = FlowChange::ReadingOrder {
+                old: move_old,
+                new: move_new,
+            };
+            break;
+        }
+    }
+}
+
 /// Drops an equal delete/insert pair that sits on opposite sides of a move.
 fn try_drop_move_remainder(
     old: &[FlowToken],
@@ -1571,7 +2014,9 @@ fn changed_token_count(changes: &[FlowChange]) -> usize {
             FlowChange::Delete { old } => old.len(),
             FlowChange::Insert { new } => new.len(),
             FlowChange::Replace { old, new } => old.len().saturating_add(new.len()),
-            FlowChange::Move { .. } | FlowChange::LayoutOnly { .. } => 0,
+            FlowChange::Move { .. }
+            | FlowChange::ReadingOrder { .. }
+            | FlowChange::LayoutOnly { .. } => 0,
         })
         .fold(0usize, usize::saturating_add)
 }
@@ -2071,6 +2516,135 @@ pub(crate) mod tests {
             }
         }
         Document::new(glyphs)
+    }
+
+    /// Builds a document from `(line text, page, x, baseline y)` entries.
+    ///
+    /// Each non-space character becomes one glyph with a 6pt advance and a 5pt
+    /// bounding box; spaces are gaps wide enough for synthetic-space recovery.
+    fn document_at(lines: &[(&str, u32, f64, f64)]) -> Document<Glyph> {
+        let mut glyphs = Vec::new();
+        let mut id = 1u64;
+        for &(text, page, x0, y) in lines {
+            let mut x = x0;
+            for character in text.chars() {
+                let advance = if character == ' ' { 5.0 } else { 6.0 };
+                if character != ' ' {
+                    glyphs.push(glyph(
+                        id,
+                        DecodedText::Mapped(character.to_string()),
+                        page,
+                        x,
+                        y,
+                        advance - 1.0,
+                        10.0,
+                    ));
+                    id += 1;
+                }
+                x += advance;
+            }
+        }
+        Document::new(glyphs)
+    }
+
+    #[test]
+    fn a_same_row_reading_order_flip_is_layout_evidence() {
+        // Two side-by-side cells keep their visual columns and row band while
+        // the extraction order swaps. That is reading-order evidence, not a
+        // content move.
+        let old = document_at(&[
+            ("alpha beta gamma", 0, 0.0, 305.0),
+            ("delta epsilon", 0, 200.0, 300.0),
+        ]);
+        let new = document_at(&[
+            ("alpha beta gamma", 0, 0.0, 300.0),
+            ("delta epsilon", 0, 200.0, 305.0),
+        ]);
+        let old_tokens = flow_tokens(&old).expect("old tokens");
+        let new_tokens = flow_tokens(&new).expect("new tokens");
+        let diff = flow_diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
+        assert_eq!(
+            diff.changes,
+            [FlowChange::ReadingOrder {
+                old: 0..3,
+                new: 2..5,
+            }]
+        );
+        assert_eq!(diff.stats().reading_order.changes, 1);
+        assert_eq!(diff.stats().moves.changes, 0);
+        assert!(
+            !selects_difference(&diff.stats()),
+            "reading order must not select a content difference"
+        );
+    }
+
+    #[test]
+    fn a_cross_row_paragraph_move_stays_a_move() {
+        // The runs are in one column and different rows, so the visual row
+        // band differs even though the token order swaps.
+        let (tokens, diff) = flow_pair(
+            &lines(&[
+                "report title words",
+                "alpha beta gamma delta epsilon",
+                "one two three four five",
+            ]),
+            &lines(&[
+                "report title words",
+                "one two three four five",
+                "alpha beta gamma delta epsilon",
+            ]),
+        );
+        assert_eq!(diff.stats().moves.changes, 1, "{:?}", diff.changes);
+        assert_eq!(diff.stats().reading_order.changes, 0, "{:?}", diff.changes);
+        assert_eq!(move_texts(&tokens, &diff).len(), 1);
+        assert!(matches!(&diff.changes[0], FlowChange::Move { .. }));
+    }
+
+    #[test]
+    fn a_same_row_flip_with_changed_visual_order_stays_a_move() {
+        // The runs also exchange their visual columns, so the left-to-right
+        // order changes and the transposition is not a reading-order artifact.
+        let old = document_at(&[
+            ("alpha beta gamma", 0, 0.0, 300.0),
+            ("delta epsilon", 0, 200.0, 300.0),
+        ]);
+        let new = document_at(&[
+            ("delta epsilon", 0, 0.0, 300.0),
+            ("alpha beta gamma", 0, 200.0, 300.0),
+        ]);
+        let old_tokens = flow_tokens(&old).expect("old tokens");
+        let new_tokens = flow_tokens(&new).expect("new tokens");
+        let diff = flow_diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
+        assert_eq!(diff.stats().moves.changes, 1, "{:?}", diff.changes);
+        assert_eq!(diff.stats().reading_order.changes, 0, "{:?}", diff.changes);
+        assert!(matches!(&diff.changes[0], FlowChange::Move { .. }));
+    }
+
+    #[test]
+    fn a_page_moved_table_row_with_an_in_row_flip_is_layout_evidence() {
+        // The whole row changes page but the two cells keep their columns,
+        // row band, and left-to-right order; only the in-row extraction order
+        // swaps.
+        let old = document_at(&[
+            ("alpha beta gamma", 0, 0.0, 305.0),
+            ("delta epsilon", 0, 200.0, 300.0),
+        ]);
+        let new = document_at(&[
+            ("alpha beta gamma", 1, 0.0, 300.0),
+            ("delta epsilon", 1, 200.0, 305.0),
+        ]);
+        let old_tokens = flow_tokens(&old).expect("old tokens");
+        let new_tokens = flow_tokens(&new).expect("new tokens");
+        let diff = flow_diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
+        assert_eq!(
+            diff.changes,
+            [FlowChange::ReadingOrder {
+                old: 0..3,
+                new: 2..5,
+            }]
+        );
+        assert_eq!(diff.stats().reading_order.changes, 1);
+        assert_eq!(diff.stats().moves.changes, 0);
     }
 
     fn token_texts(tokens: &[FlowToken]) -> Vec<&str> {

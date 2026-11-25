@@ -220,10 +220,10 @@ comparison, review publication, and bundle budgets. `duration_us` is the only
 wall-clock field; it and the per-document render CPU measurements in
 `render_documents` are documented as nondeterministic.
 
-The native schema-12 report contains only what the flow engine computed: old
+The native schema-13 report contains only what the flow engine computed: old
 and new token counts, extraction completeness and issues, content, formatting,
 and uncertain change counts, the verified change script, formatting evidence,
-and layout-only counts. It has no top-level assessment, candidate,
+reading-order evidence, and layout-only counts. It has no top-level assessment, candidate,
 proven-region, unresolved-region, `not_produced_by_engine`, or alignment
 coverage positions. Each change carries its own `confidence` and `ambiguity`
 reasons. Absence records that the phase does not exist, not that a search
@@ -293,9 +293,20 @@ reconstructed blocks of the old document and carries at least as much
 information as the reported run. A paragraph that moved past a heading and its
 paragraph is therefore reported as the paragraph move, while a short heading or
 form label is never preferred as the moved run and an equal-span swap keeps the
-alignment choice. Every rewritten script is replayed before it is accepted. A deletion, insertion,
-replacement, or move selects a detected difference (exit `1`); a layout-only
-change does not. Each change also carries a cheap confidence and ambiguity
+alignment choice. Every rewritten script is replayed before it is accepted.
+After the script is selected, a final pass recognizes reading-order
+transpositions. When a move and the equal run it swapped with stay in disjoint
+visual columns, keep the same left-to-right order, and share a visual row band
+in both documents, the move is reported as `reading-order` instead of a
+content move. Line extents come from token bounds and layout line breaks;
+wrapped cell lines are added above and below within the run's column so a
+multi-line table cell supplies the row band. A move across rows or pages, a
+move whose runs overlap horizontally, a transposition whose visual order also
+changed, and a run without complete bounds stay moves. The classification is
+geometry evidence, not author intent: two words swapped on one line satisfy
+the same test, and the report says so. A deletion, insertion,
+replacement, or move selects a detected difference (exit `1`); a reading-order
+or layout-only change does not. Each change also carries a cheap confidence and ambiguity
 marker: coarse spans, repeated boundary runs within the same block, short
 moves, numeric-only spans, numeric table neighbours, and order-uncertain pages
 lower the confidence without changing the script or the exit code. Matched
@@ -435,7 +446,8 @@ skipped because the program bytes are then real identity evidence.
 
 Every returned script is replayed against both token sequences before it is
 used: every token must be covered exactly once, unmoved text must be equal,
-move endpoints must be equal, and layout-only changes must preserve text.
+move and reading-order endpoints must be equal, and layout-only changes must
+preserve text.
 Per-page glyph conservation is reported alongside extraction issues, so a
 missing glyph is never silently treated as an empty token.
 

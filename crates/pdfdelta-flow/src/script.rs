@@ -60,6 +60,16 @@ pub enum FlowChange {
         old: Range<usize>,
         new: Range<usize>,
     },
+    /// A run whose text is unchanged but whose reading-order position moved
+    /// while its visual row and left-to-right order stayed fixed.
+    ///
+    /// The two runs of a same-row transposition are physically side by side in
+    /// both documents. Only their extraction order differs, so the run is
+    /// layout evidence: it never selects a content difference.
+    ReadingOrder {
+        old: Range<usize>,
+        new: Range<usize>,
+    },
     /// Token text is unchanged; only line or page boundaries moved.
     LayoutOnly {
         old: Range<usize>,
@@ -75,6 +85,7 @@ impl FlowChange {
             Self::Delete { old }
             | Self::Replace { old, .. }
             | Self::Move { old, .. }
+            | Self::ReadingOrder { old, .. }
             | Self::LayoutOnly { old, .. } => old.clone(),
             Self::Insert { .. } => 0..0,
         }
@@ -87,6 +98,7 @@ impl FlowChange {
             Self::Insert { new }
             | Self::Replace { new, .. }
             | Self::Move { new, .. }
+            | Self::ReadingOrder { new, .. }
             | Self::LayoutOnly { new, .. } => new.clone(),
             Self::Delete { .. } => 0..0,
         }
@@ -413,6 +425,7 @@ fn fold_rotation_remainders(changes: &mut Vec<FlowChange>, old_ids: &[u32], new_
                     insert_by_end.insert(new.end, index);
                 }
                 FlowChange::Move { .. }
+                | FlowChange::ReadingOrder { .. }
                 | FlowChange::Replace { .. }
                 | FlowChange::LayoutOnly { .. } => {}
             }
@@ -805,7 +818,9 @@ fn low_weight_changes_between(
                     return (false, saw_low);
                 }
             }
-            FlowChange::Move { .. } | FlowChange::LayoutOnly { .. } => {}
+            FlowChange::Move { .. }
+            | FlowChange::ReadingOrder { .. }
+            | FlowChange::LayoutOnly { .. } => {}
         }
     }
     (true, saw_low)
@@ -863,7 +878,10 @@ impl IntervalSet {
 fn old_change_range(change: &FlowChange) -> Option<&Range<usize>> {
     match change {
         FlowChange::Delete { old } | FlowChange::Replace { old, .. } => Some(old),
-        FlowChange::Insert { .. } | FlowChange::Move { .. } | FlowChange::LayoutOnly { .. } => None,
+        FlowChange::Insert { .. }
+        | FlowChange::Move { .. }
+        | FlowChange::ReadingOrder { .. }
+        | FlowChange::LayoutOnly { .. } => None,
     }
 }
 
@@ -871,7 +889,10 @@ fn old_change_range(change: &FlowChange) -> Option<&Range<usize>> {
 fn new_change_range(change: &FlowChange) -> Option<&Range<usize>> {
     match change {
         FlowChange::Insert { new } | FlowChange::Replace { new, .. } => Some(new),
-        FlowChange::Delete { .. } | FlowChange::Move { .. } | FlowChange::LayoutOnly { .. } => None,
+        FlowChange::Delete { .. }
+        | FlowChange::Move { .. }
+        | FlowChange::ReadingOrder { .. }
+        | FlowChange::LayoutOnly { .. } => None,
     }
 }
 

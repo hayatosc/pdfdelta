@@ -507,6 +507,7 @@ pub enum FlowChange {
     Insert { new: Range<usize> },
     Replace { old: Range<usize>, new: Range<usize> },
     Move { old: Range<usize>, new: Range<usize> },
+    ReadingOrder { old: Range<usize>, new: Range<usize> },
     LayoutOnly { old: Range<usize>, new: Range<usize> },
 }
 ```
@@ -517,6 +518,10 @@ of `high`, `medium`, or `low`, and zero or more `AmbiguityReason` values
 (`coarse_span`, `repeated_run`, `order_uncertain`, `short_move`,
 `numeric_only`, `numeric_table`). Assessment is descriptive and never changes
 the selected exit code or the script.
+
+`ReadingOrder` covers a run whose text is unchanged and whose only difference is
+the extraction order of two side-by-side runs that share one visual row and
+keep their left-to-right order (§9.4). It never selects a content difference.
 
 Formatting evidence is a separate list of matched token runs with one or more
 `FormattingReason` values (`normalization`, `block_structure`, `font_size`,
@@ -582,6 +587,8 @@ The flow text channel reports:
 
 - content changes (`Delete`, `Insert`, `Replace`, `Move`), each with its
   token ranges, pages, text, and assessment;
+- reading-order changes (`ReadingOrder`), listed with their token ranges,
+  pages, and text but never a detected difference;
 - layout-only changes (`LayoutOnly`), counted but not listed and never a
   detected difference;
 - formatting-only evidence on matched runs;
@@ -652,10 +659,10 @@ found".
 
 | Surface | Version | Content |
 |---|---|---|
-| native compact envelope | `artifact_format: pdfdelta-native-compact`, `artifact_version: 3`, `source_schema_version: 12` | compact flow report under `report` |
-| native compact report | `schema_version: 12` | summary, changes, formatting evidence, extraction, layout-only counts |
-| native full envelope | `artifact_format: pdfdelta-native-full`, `artifact_version: 2`, `source_schema_version: 12` | compact body plus `token_sources` and `glyph_accounting` |
-| multi-channel report | `schema_version: 3`, `contract.version: 1` | channel verdicts, coverage, flow text result, non-text changes |
+| native compact envelope | `artifact_format: pdfdelta-native-compact`, `artifact_version: 3`, `source_schema_version: 13` | compact flow report under `report` |
+| native compact report | `schema_version: 13` | summary, changes, reading-order evidence, formatting evidence, extraction, layout-only counts |
+| native full envelope | `artifact_format: pdfdelta-native-full`, `artifact_version: 2`, `source_schema_version: 13` | compact body plus `token_sources` and `glyph_accounting` |
+| multi-channel report | `schema_version: 3`, `contract.version: 1` | channel verdicts, coverage, flow text result (including reading-order evidence), non-text changes |
 | standalone flow report | `schema: pdfdelta-flow/1` | flow summary, changes, formatting evidence, order, furniture, conservation |
 | diagnostic trace | `trace_schema: pdfdelta-flow-trace/1`, `trace_schema_version: 1` | bounded per-phase metrics and typed errors |
 | static review manifest | `version: 3` | published artifacts; source index `version: 1` |
@@ -665,12 +672,13 @@ found".
 | text-envelope | `schema_version: 1` | conditional local text claims |
 
 The native summary carries `content_changes`, `formatting_only_changes`,
-`uncertain_changes`, the three extraction issue counters,
-`comparison_complete`, `difference_status`, `old_tokens`, and `new_tokens`.
-Each change carries `kind`, `old_span`, `new_span` (each `{pages, text,
-token_range}`), and, for content changes, `confidence` and `ambiguity`.
-Formatting entries carry `old_span`, `new_span`, `reasons`, and
-`old_size`/`new_size` only when `font_size` is a reason.
+`reading_order_changes`, `uncertain_changes`, the three extraction issue
+counters, `comparison_complete`, `difference_status`, `old_tokens`, and
+`new_tokens`. `reading_order_changes[]` carries the same span shape as a
+content change but never contributes to `content_changes`. Each content change
+carries `kind`, `old_span`, `new_span` (each `{pages, text, token_range}`), and
+`confidence` and `ambiguity`. Formatting entries carry `old_span`, `new_span`,
+`reasons`, and `old_size`/`new_size` only when `font_size` is a reason.
 
 The full report streams `token_sources` and `glyph_accounting` through the
 serializer instead of building one JSON value. When a side was built in a child
@@ -776,8 +784,8 @@ normal and is the expected result for real documents.
 The single-channel `pdfdelta flow` and native path use the same verdicts with
 only the text channel: broken text evidence selects `3`, a detected difference
 with intact evidence selects `1`, unexamined-only evidence selects `3`, and a
-complete unchanged result selects `0`. Formatting-only and layout-only changes
-never select `1`.
+complete unchanged result selects `0`. Formatting-only, reading-order, and
+layout-only changes never select `1`.
 
 Exit `0` is not reachable with the default channels for a document with pages
 in the current build. Rendered page rasters are retained for review but not
@@ -1281,6 +1289,26 @@ reduces the moved run's old-side block span, and no benchmark path, fixture
 name, page number, text, or fixed pixel threshold participates. This is a
 quality preference, not a claim about author intent.
 
+After the script is selected, a final classification pass looks for
+same-row reading-order transpositions. For a move beside the equal run it
+swapped with, the pass requires that, in both documents:
+
+1. the two runs occupy disjoint horizontal columns;
+2. their left-to-right order is the same;
+3. their reconstructed visual lines share a row band: some line of one run has
+   at least half of its vertical extent in common with a line of the other.
+
+The line extents come from the token bounding boxes and the layout line breaks.
+A run may be extended by its wrapped cell: within the run's horizontal column,
+the nearest line above and below is added when it touches the run vertically
+(relative gap at most one line height) and stays inside the column, for at most
+two rounds. A same-row transposition is reported as `ReadingOrder`; a move
+across rows or pages, a move whose runs overlap horizontally, a transposition
+whose visual order also changed, and a run without complete bounds all stay
+`Move`. The classification is a quality preference: two words swapped on one
+line are indistinguishable from a reading-order flip, so the report calls the
+geometry evidence, not author intent.
+
 ### 9.5 Replay verification
 
 Every returned script is replayed against both token sequences before use.
@@ -1289,7 +1317,8 @@ Verification checks, in one pass, that:
 - every old and new token is covered exactly once;
 - covered old tokens are in ascending order;
 - the uncovered old and uncovered new token texts are the same sequence;
-- both sides of every move are identical; and
+- both sides of every move are identical;
+- both sides of every reading-order change are identical; and
 - both sides of every layout-only change satisfy the layout-only relation.
 
 Any failure is an error; a partially verified script is never reported.
@@ -1297,8 +1326,8 @@ Any failure is an error; a partially verified script is never reported.
 ### 9.6 Change selection
 
 A deletion, insertion, replacement, or move selects a detected difference (exit
-`1`). A layout-only change does not. Formatting evidence never selects an exit
-code and never changes the content script. The same predicate
+`1`). A reading-order change and a layout-only change do not. Formatting
+evidence never selects an exit code and never changes the content script. The same predicate
 (`selects_difference`) is used by the CLI exit selection and the summary so the
 two cannot diverge.
 
@@ -1810,7 +1839,7 @@ available from the repository history.
   tokenization, reading-order hypotheses, furniture, alignment, move and
   transpose rules, replay verification, and formatting evidence.
 - Updated output contracts to the current flow-native schemas: native compact
-  artifact 3 / schema 12, native full artifact 2, multi-channel report 3, trace
+  artifact 3 / schema 13, native full artifact 2, multi-channel report 3, trace
   version 1, static review manifest 3. Removed engine positions are absent
   rather than retained as empty compatibility fields; historical artifacts
   remain readable.

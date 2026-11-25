@@ -13,7 +13,7 @@ import native_panel
 
 
 def artifact12(tokens=4, engine="flow"):
-    """Current flow-native schema 12 compact artifact."""
+    """Current flow-native schema 13 compact artifact."""
     scope = {"supported_text": True, "images_compared": False}
     summary = {"comparison_complete": True, "difference_status": "detected",
                "content_changes": 1, "formatting_only_changes": 0,
@@ -21,8 +21,8 @@ def artifact12(tokens=4, engine="flow"):
                "unresolved_extraction_issues": 0, "unexamined_paint_issues": 0,
                "old_tokens": tokens, "new_tokens": tokens}
     return {"artifact_format": "pdfdelta-native-compact", "artifact_version": 3,
-            "source_schema_version": 12, "engine": engine,
-            "report": {"schema_version": 12, "engine": engine,
+            "source_schema_version": 13, "engine": engine,
+            "report": {"schema_version": 13, "engine": engine,
                        "comparison_scope": scope, "difference_status": "detected",
                        "summary": summary,
                        "extraction": {"old_complete": True, "new_complete": True,

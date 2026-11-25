@@ -2,7 +2,7 @@
 """Project serde-pretty native reports into bounded benchmark diagnostics.
 
 Current flow artifacts are already compact and are preserved with source
-metadata. Both the schema-12 (artifact version 3) and the older schema-11
+metadata. Both the schema-13 (artifact version 3) and the older schema-11
 (artifact version 2) flow artifacts are accepted and preserved. Historical
 schema-11 reports that still carry per-glyph ``sources`` arrays are projected
 to the version-1 artifact: only those arrays are summarized, and all other JSON
@@ -201,7 +201,7 @@ def compact_flow_artifact(source, output):
     if (artifact.get('artifact_format') != ARTIFACT_FORMAT
             or artifact.get('engine') != 'flow'
             or report.get('engine') != 'flow'
-            or envelope not in ((2, 11, 11), (3, 12, 12))):
+            or envelope not in ((2, 11, 11), (3, 12, 12), (3, 13, 13))):
         raise CompactError('unsupported flow artifact envelope')
     reject_sources(report)
     metadata = {

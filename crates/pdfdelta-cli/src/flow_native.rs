@@ -1,4 +1,4 @@
-//! Native schema-12 adapter for the flow text engine.
+//! Native schema-13 adapter for the flow text engine.
 //!
 //! `--native-text-only` writes the compact native flow envelope. The report
 //! contains only what flow computed: token counts, extraction completeness,
@@ -225,14 +225,24 @@ pub(crate) fn render_text(comparison: &FlowComparison, color: bool) -> String {
     }
 }
 
-/// Builds the compact native schema-12 artifact for a flow comparison.
+/// Builds the compact native schema-13 artifact for a flow comparison.
 pub(crate) fn native_report(comparison: &FlowComparison) -> Value {
     let old = &comparison.old_side;
     let new = &comparison.new_side;
     let complete = comparison.text_complete();
     let mut changes = Vec::new();
+    let mut reading_order = Vec::new();
     for (index, change) in comparison.diff.changes.iter().enumerate() {
         if matches!(change, FlowChange::LayoutOnly { .. }) {
+            continue;
+        }
+        if matches!(change, FlowChange::ReadingOrder { .. }) {
+            reading_order.push(change_json(
+                change,
+                comparison.assessments.get(index),
+                &old.stream,
+                &new.stream,
+            ));
             continue;
         }
         changes.push(change_json(
@@ -283,6 +293,7 @@ pub(crate) fn native_report(comparison: &FlowComparison) -> Value {
     let summary = json!({
         "content_changes": comparison.non_layout_changes(),
         "formatting_only_changes": comparison.formatting.len(),
+        "reading_order_changes": comparison.stats.reading_order.changes,
         "uncertain_changes": uncertain,
         "unsupported_extraction_issues": unsupported,
         "unresolved_extraction_issues": unresolved,
@@ -293,13 +304,14 @@ pub(crate) fn native_report(comparison: &FlowComparison) -> Value {
         "new_tokens": total_new,
     });
     let report = json!({
-        "schema_version": 12,
+        "schema_version": 13,
         "engine": "flow",
         "difference_status": status,
         "exit_basis": exit.basis,
         "comparison_scope": {"supported_text": true, "images_compared": false},
         "summary": summary,
         "changes": changes,
+        "reading_order_changes": reading_order,
         "formatting_only_changes": formatting,
         "extraction": {
             "old_complete": old_complete,
@@ -307,6 +319,9 @@ pub(crate) fn native_report(comparison: &FlowComparison) -> Value {
             "issues": old_issues.into_iter().chain(new_issues).collect::<Vec<_>>(),
         },
         "flow_summary": {
+            "reading_order_changes": comparison.stats.reading_order.changes,
+            "reading_order_old_tokens": comparison.stats.reading_order.old_tokens,
+            "reading_order_new_tokens": comparison.stats.reading_order.new_tokens,
             "layout_only_changes": comparison.stats.layout_only.changes,
             "layout_only_old_tokens": comparison.stats.layout_only.old_tokens,
             "layout_only_new_tokens": comparison.stats.layout_only.new_tokens,
@@ -315,7 +330,7 @@ pub(crate) fn native_report(comparison: &FlowComparison) -> Value {
     json!({
         "artifact_format": "pdfdelta-native-compact",
         "artifact_version": 3,
-        "source_schema_version": 12,
+        "source_schema_version": 13,
         "engine": "flow",
         "omitted_fields": {
             "sources": "compact reports omit per-glyph sources; use --full-json",
@@ -427,6 +442,7 @@ fn change_ranges(change: &FlowChange) -> (&'static str, Range<usize>, Range<usiz
         FlowChange::Insert { new } => ("insertion", 0..0, new.clone()),
         FlowChange::Replace { old, new } => ("replacement", old.clone(), new.clone()),
         FlowChange::Move { old, new } => ("move", old.clone(), new.clone()),
+        FlowChange::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
         FlowChange::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
     }
 }

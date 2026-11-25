@@ -71,7 +71,8 @@ pdfdelta flow <OLD_PDF> <NEW_PDF> [--json <PATH>] [--tokens] [--geometry] [--lim
 
 `flow` compares the two documents as one token stream reconstructed from their
 layout blocks. It ignores line-wrap and page-break changes, and reports a single
-script of `replace`, `insert`, `delete`, `move`, and `layout-only` changes. Use
+script of `replace`, `insert`, `delete`, `move`, `reading-order`, and
+`layout-only` changes. Use
 it when reviewing reflowed prose. The main command uses the same engine for its
 text channel; the standalone command exposes the token-level report directly. The global `--color` option styles this report with the same
 conventions as the main flow text output.
@@ -84,9 +85,10 @@ conventions as the main flow text output.
 | `--limit-scale <FACTOR>` | Scale extraction count limits by a factor of at least 1. Parser limits and layout thresholds are unchanged. |
 
 Text output opens with a `flow summary` block: old and new token totals, equal
-tokens, per-kind (`delete`, `insert`, `replace`, `move`, `layout-only`) counts,
-the number of content changes, moved changes, detected changes
-(content plus moves), formatting-only changes on matched tokens, extraction
+tokens, per-kind (`delete`, `insert`, `replace`, `move`, `reading-order`,
+`layout-only`) counts, the number of content changes, moved changes, detected
+changes (content plus moves), formatting-only changes on matched tokens,
+extraction
 status, glyph conservation, and furniture masked-line counts. When extraction or glyph conservation is
 incomplete, `old incomplete pages` / `new incomplete pages` list the affected
 pages and issue kinds, or `document-wide` when an issue cannot be tied to one
@@ -98,7 +100,10 @@ changes are then listed in old-document order. Each entry names the change
 kind, the old and new pages it touches (marked `(incomplete pages)` or
 `(order-uncertain pages)` when either side is suspect), and shows the changed
 tokens in brackets between a few unchanged context tokens; layout-only changes
-are counted but not listed. Furniture (running headers, footers, and page
+are counted but not listed. Same-row reading-order transpositions are listed
+under a separate `reading-order changes (text unchanged):` section with their
+pages and context, and never appear in the numbered content changes. Furniture
+(running headers, footers, and page
 numbers) is removed from the content stream and diffed by digit-masked text;
 added or removed masked lines are listed under a separate `furniture:` section.
 The confidence, ambiguity, and `formatting_only` fields are additive within
@@ -111,7 +116,8 @@ the schema string remains compatible.
 `touches_glyph_name_identity_page`, each change's `confidence`
 (`high`, `medium`, or `low`) and `ambiguity` reasons (`coarse_span`,
 `repeated_run`, `order_uncertain`, `short_move`, `numeric_only`,
-`numeric_table`), a `formatting_only` array of matched token runs whose
+`numeric_table`), a `stats` object whose `reading_order` entry counts
+reading-order changes, a `formatting_only` array of matched token runs whose
 formatting differs (`reasons` lists `normalization`, `block_structure`,
 `font_size`, `position`, `line_break`, and/or `page_break`; `reason` keeps the
 first reason for older readers, and `old_size`/`new_size` are present only when
@@ -254,13 +260,14 @@ with `pdfdelta review list/show/render/import`.
 
 `pdfdelta OLD.pdf NEW.pdf` keeps the multi-channel report and supplies its
 **text channel** from the flow engine. Non-text channels keep their current
-implementations. `--native-text-only` keeps the compact native schema-12
+implementations. `--native-text-only` keeps the compact native schema-13
 envelope and writes the flow text result there instead.
 
 | flow change | existing report field |
 | --- | --- |
 | `Delete` / `Insert` / `Replace` | `changes[]` with kind `deletion`, `insertion`, or `replacement`, using flow token ranges, texts, and 1-based pages |
 | `Move` | `changes[]` with kind `move` |
+| `ReadingOrder` | `reading_order_changes[]` with kind `reading-order`; never a content change; `flow_summary.reading_order_changes` counts it |
 | `LayoutOnly` | not a change; `flow_summary.layout_only_changes` counts it |
 | `formatting_only` | `formatting_only_changes[]` with a `reasons` list (`normalization`, `block_structure`, `font_size`, `position`, `line_break`, `page_break`) and exact sizes when `font_size` is present |
 | `confidence` / `ambiguity` | additive fields on each change |
@@ -288,7 +295,9 @@ unexamined flag, and message. `flow_text.order` carries the per-page
 reading-order evidence for both sides, including pages whose layout and paint
 orders disagreed.
 
-The flow report contains only what flow computed. It has no top-level
+`flow_text.reading_order_changes` carries same-row reading-order evidence with
+the same span shape as `flow_text.changes`; it is excluded from
+`content_changes`. The flow report contains only what flow computed. It has no top-level
 `assessment`, `change_candidates`, `proven_changed_regions`,
 `unresolved_regions`, `not_produced_by_engine`, or alignment-coverage
 positions; each change carries its own `confidence` and `ambiguity` reasons.
@@ -493,8 +502,14 @@ alias for that default and produces byte-identical output. Use `--full-json` to
 add per-token source provenance (the flow full report). Both flags require
 `--native-text-only` and `--json` and cannot be combined. The default writes a
 `pdfdelta-native-compact` envelope with `artifact_version: 3`,
-`source_schema_version: 12`, and the native semantic report under `report`.
+`source_schema_version: 13`, and the native semantic report under `report`.
 Comparison, exit status, and full text are unchanged.
+
+The native `reading_order_changes[]` array carries one entry per same-row
+transposition with the same `old_span`/`new_span` shape as a content change.
+It is never added to `summary.content_changes`, and `flow_summary` also carries
+`reading_order_changes`, `reading_order_old_tokens`, and
+`reading_order_new_tokens`.
 
 In a flow full report, each token's `sources` array carries its glyphs; a
 compact report does not carry per-glyph sources and must be regenerated with
@@ -507,7 +522,7 @@ version-2/schema-11 flow artifacts and the historical version-1 proof-era
 ### Flow full report
 
 `--native-text-only --full-json -j report.json.gz` writes the
-`pdfdelta-native-full` envelope (`artifact_version: 2`, source schema 12). The
+`pdfdelta-native-full` envelope (`artifact_version: 2`, source schema 13). The
 `report` object is the compact flow report plus:
 
 - `token_sources.old` / `.new`: one entry per token, aligned with the compact

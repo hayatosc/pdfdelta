@@ -2023,6 +2023,9 @@ fn change_texts(changes: &[FlowChange], old: &FlowStream, new: &FlowStream) -> S
                 old_range.start,
                 new_range.start
             ),
+            FlowChange::ReadingOrder { old: old_range, .. } => {
+                format!("reading-order={}t@{}", old_range.len(), old_range.start)
+            }
             FlowChange::LayoutOnly { old: old_range, .. } => {
                 format!("layout={}t@{}", old_range.len(), old_range.start)
             }
@@ -2367,7 +2370,9 @@ fn reported_tokens(diff: &FlowDiff, old: &FlowStream, new: &FlowStream) -> Multi
                     reported.add(&token.text);
                 }
             }
-            FlowChange::Move { .. } | FlowChange::LayoutOnly { .. } => {}
+            FlowChange::Move { .. }
+            | FlowChange::ReadingOrder { .. }
+            | FlowChange::LayoutOnly { .. } => {}
         }
     }
     reported
@@ -2604,7 +2609,9 @@ fn change_is_furniture_covered(
             }
             return range_covered(&mut remaining, &new.tokens[new_range.clone()]);
         }
-        FlowChange::Move { .. } | FlowChange::LayoutOnly { .. } => return false,
+        FlowChange::Move { .. }
+        | FlowChange::ReadingOrder { .. }
+        | FlowChange::LayoutOnly { .. } => return false,
     };
     range_covered(&mut remaining, tokens)
 }
@@ -2621,7 +2628,9 @@ fn is_unexpected_kind(case: CaseKind, change: &FlowChange) -> bool {
         CaseKind::Insert | CaseKind::Duplicate => !matches!(change, FlowChange::Insert { .. }),
         CaseKind::Swap => !matches!(
             change,
-            FlowChange::Move { .. } | FlowChange::LayoutOnly { .. }
+            FlowChange::Move { .. }
+                | FlowChange::ReadingOrder { .. }
+                | FlowChange::LayoutOnly { .. }
         ),
         CaseKind::TextEdit | CaseKind::Merge => false,
         CaseKind::Resubset => true,

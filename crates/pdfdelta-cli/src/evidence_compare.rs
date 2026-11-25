@@ -409,6 +409,7 @@ pub fn compare(
             "complete": flow.text_complete(),
             "summary": report["summary"],
             "changes": report["changes"],
+            "reading_order_changes": report["reading_order_changes"],
             "formatting_only_changes": report["formatting_only_changes"],
             // Text evidence reasons are part of the comparison record, not
             // only of the HTML presentation. Unexamined paint and image-only

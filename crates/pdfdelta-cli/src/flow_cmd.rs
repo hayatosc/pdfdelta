@@ -88,6 +88,8 @@ const ELISION_HEAD: usize = 40;
 const ELISION_TAIL: usize = 40;
 /// Number of formatting-only entries listed in the text report.
 const FORMATTING_TEXT_LIMIT: usize = 20;
+/// Maximum reading-order entries listed in the human report.
+const READING_ORDER_TEXT_LIMIT: usize = 20;
 
 /// One extracted input, with every extraction issue retained as evidence.
 pub(crate) struct Side {
@@ -521,6 +523,12 @@ pub(crate) fn render_text(comparison: &FlowComparison) -> String {
         &comparison.old_side,
         &comparison.new_side,
         &comparison.assessments,
+    );
+    write_reading_order(
+        &mut text,
+        &comparison.diff,
+        &comparison.old_side.stream,
+        &comparison.new_side.stream,
     );
     write_formatting(
         &mut text,
@@ -1643,6 +1651,12 @@ fn write_summary(
         .expect("writing to a String cannot fail");
     writeln!(
         text,
+        "  reading-order: {}",
+        describe_change_stats(&stats.reading_order)
+    )
+    .expect("writing to a String cannot fail");
+    writeln!(
+        text,
         "  layout-only: {}",
         describe_change_stats(&stats.layout_only)
     )
@@ -1880,7 +1894,10 @@ fn write_changes(
     let mut listed = 0;
     for (index, change) in diff.changes.as_slice().iter().enumerate() {
         let (kind, old_range, new_range) = change_ranges(change);
-        if matches!(change, FlowChange::LayoutOnly { .. }) {
+        if matches!(
+            change,
+            FlowChange::LayoutOnly { .. } | FlowChange::ReadingOrder { .. }
+        ) {
             continue;
         }
         listed += 1;
@@ -1921,6 +1938,53 @@ fn write_changes(
             .expect("writing to a String cannot fail");
         writeln!(text, "   new: {}", context_line(new, &new_range))
             .expect("writing to a String cannot fail");
+    }
+}
+
+/// Lists same-row reading-order transpositions. Their text is unchanged and
+/// they never select a content difference, so they are kept out of the
+/// numbered content-change list but remain visible.
+fn write_reading_order(text: &mut String, diff: &FlowDiff, old: &FlowStream, new: &FlowStream) {
+    let changes = diff
+        .changes
+        .as_slice()
+        .iter()
+        .filter_map(|change| match change {
+            FlowChange::ReadingOrder { old, new } => Some((old, new)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if changes.is_empty() {
+        return;
+    }
+    writeln!(
+        text,
+        "\nreading-order changes (text unchanged): {}",
+        changes.len()
+    )
+    .expect("writing to a String cannot fail");
+    for (index, (old_range, new_range)) in changes.iter().take(READING_ORDER_TEXT_LIMIT).enumerate()
+    {
+        writeln!(
+            text,
+            "  {}. reading-order, pages old {} -> new {}",
+            index + 1,
+            describe_pages(old, old_range),
+            describe_pages(new, new_range)
+        )
+        .expect("writing to a String cannot fail");
+        writeln!(text, "     old: {}", context_line(old, old_range))
+            .expect("writing to a String cannot fail");
+        writeln!(text, "     new: {}", context_line(new, new_range))
+            .expect("writing to a String cannot fail");
+    }
+    if changes.len() > READING_ORDER_TEXT_LIMIT {
+        writeln!(
+            text,
+            "  ... {} more reading-order entries in the JSON report",
+            changes.len() - READING_ORDER_TEXT_LIMIT
+        )
+        .expect("writing to a String cannot fail");
     }
 }
 
@@ -2034,6 +2098,7 @@ fn change_ranges(change: &FlowChange) -> (&'static str, Range<usize>, Range<usiz
         FlowChange::Insert { new } => ("insert", 0..0, new.clone()),
         FlowChange::Replace { old, new } => ("replace", old.clone(), new.clone()),
         FlowChange::Move { old, new } => ("move", old.clone(), new.clone()),
+        FlowChange::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
         FlowChange::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
     }
 }
@@ -2331,6 +2396,7 @@ fn stats_json(stats: &FlowStats, formatting_only: usize) -> Value {
         "insert": change_stats_json(&stats.insert),
         "replace": change_stats_json(&stats.replace),
         "move": change_stats_json(&stats.moves),
+        "reading_order": change_stats_json(&stats.reading_order),
         "layout_only": change_stats_json(&stats.layout_only),
     })
 }

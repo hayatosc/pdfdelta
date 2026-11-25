@@ -315,17 +315,17 @@ class CompactNativeTests(unittest.TestCase):
                 self.assertEqual(metadata["source_array_count"], 0)
                 self.assertEqual(metadata["source_logical_bytes"], len(source.read_bytes()))
 
-    def test_accepts_the_current_schema_12_flow_artifact(self) -> None:
+    def test_accepts_the_current_schema_13_flow_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             flow = {
                 "artifact_format": "pdfdelta-native-compact",
                 "artifact_version": 3,
-                "source_schema_version": 12,
+                "source_schema_version": 13,
                 "engine": "flow",
                 "omitted_fields": {"sources": "compact reports omit per-glyph sources; use --full-json"},
                 "report": {
-                    "schema_version": 12,
+                    "schema_version": 13,
                     "engine": "flow",
                     "difference_status": "detected",
                     "comparison_scope": {"supported_text": True, "images_compared": False},
@@ -354,8 +354,8 @@ class CompactNativeTests(unittest.TestCase):
             metadata = compact_native.compact_report(source, output)
             artifact = _read_artifact(output)
             self.assertEqual(artifact["artifact_version"], 3)
-            self.assertEqual(artifact["source_schema_version"], 12)
-            self.assertEqual(artifact["report"]["schema_version"], 12)
+            self.assertEqual(artifact["source_schema_version"], 13)
+            self.assertEqual(artifact["report"]["schema_version"], 13)
             self.assertEqual(metadata["source_array_count"], 0)
             self.assertEqual(metadata["source_logical_bytes"], len(source.read_bytes()))
 
@@ -367,7 +367,7 @@ class CompactNativeTests(unittest.TestCase):
                 "artifact_version": 3,
                 "source_schema_version": 11,
                 "engine": "flow",
-                "report": {"schema_version": 12, "engine": "flow", "summary": {},
+                "report": {"schema_version": 13, "engine": "flow", "summary": {},
                            "extraction": {"old_complete": True, "new_complete": True, "issues": []}},
             }
             source = directory / "bad.json"

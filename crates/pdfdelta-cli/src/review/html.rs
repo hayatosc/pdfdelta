@@ -853,7 +853,10 @@ fn flow_section(
     let mut report_index = 0usize;
     for (index, change) in flow.diff.changes.iter().enumerate() {
         use pdfdelta_flow::FlowChange;
-        if matches!(change, FlowChange::LayoutOnly { .. }) {
+        if matches!(
+            change,
+            FlowChange::LayoutOnly { .. } | FlowChange::ReadingOrder { .. }
+        ) {
             continue;
         }
         let assessment = flow.assessments.get(index);
@@ -869,6 +872,7 @@ fn flow_section(
             FlowChange::Insert { new } => ("insert", 0..0, new.clone()),
             FlowChange::Replace { old, new } => ("replace", old.clone(), new.clone()),
             FlowChange::Move { old, new } => ("move", old.clone(), new.clone()),
+            FlowChange::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
             FlowChange::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
         };
         write!(

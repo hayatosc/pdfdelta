@@ -157,7 +157,7 @@ def require_memory_guard(cgroup=None):
 def read_native_summary(path):
     """Consume the complete gzip/JSON stream while retaining only contract fields.
 
-    Native flow schema 12 is current. Historical schema-11 flow captures remain
+    Native flow schema 13 is current. Historical schema-11 and schema-12 flow captures remain
     readable; proof-era reports are still rejected because their fields do not
     satisfy either flow contract.
     """
@@ -230,7 +230,8 @@ def read_native_summary(path):
     schema = (required("artifact_format"), required("artifact_version"),
               required("source_schema_version"), required("report.schema_version"))
     if schema not in (("pdfdelta-native-compact", 2, 11, 11),
-                      ("pdfdelta-native-compact", 3, 12, 12)):
+                      ("pdfdelta-native-compact", 3, 12, 12),
+                      ("pdfdelta-native-compact", 3, 13, 13)):
         raise ValueError("unsupported native compact schema")
 
     for prefix in ("report.comparison_scope.",):
@@ -308,9 +309,9 @@ def read_native_summary(path):
                        engine=engine)
         return summary
 
-    # Current flow-native schema 12.
+    # Current flow-native schema 13.
     if "report.assessment" in values:
-        raise ValueError("schema 12 must not carry an assessment")
+        raise ValueError("schema 13 must not carry an assessment")
     counts = {"content_changes", "formatting_only_changes", "uncertain_changes",
               "unsupported_extraction_issues", "unresolved_extraction_issues"}
     summary = {key: count("report.summary." + key) for key in counts}

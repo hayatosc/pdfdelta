@@ -234,7 +234,7 @@ output space, bounded independently of existing comparisons.
   report can contain far more entries for the same pair.
 - The default text engine does not produce an assessment, change candidates,
   proven changed regions, unresolved regions, or coverage intervals. Those
-  positions are absent from the native schema-12 report rather than retained as
+  positions are absent from the native schema-13 report rather than retained as
   empty compatibility arrays. Each change carries its own `confidence` and
   `ambiguity` reasons. Absence means the phase does not exist, never that a
   search completed and found nothing. `--trace-json`, `--compact-json`,
@@ -329,9 +329,16 @@ output space, bounded independently of existing comparisons.
   change. The flow paint gate covers changed or unavailable paint on those
   pages; it does not establish text inside an unchanged image.
 - Flow reports a `Move` as a detected difference, including a one-token move
-  such as `may not always` -> `may always not`; layout-only changes do not count,
-  but a layout-only shift that changes token order is reported as a move and
-  selects exit `1`.
+  such as `may not always` -> `may always not`. A same-row extraction-order
+  transposition between side-by-side runs is reported as `ReadingOrder`, which
+  does not select an exit; a shift across rows or pages, a shift whose visual
+  order also changed, and a run without complete bounds remain `Move` and
+  select exit `1`.
+- The reading-order test extends a run by at most two wrapped lines above and
+  below inside its horizontal column. A longer cell, overlapping columns, or a
+  run without complete bounds stays a `Move`. The rule also cannot distinguish
+  an author swapping two words on one line from an extraction-order flip; it
+  reports geometry evidence, not author intent.
 - The flow HTML review's `sources.json.gz` uses the version-2 nested-gzip shape
   (a gzip member inside another) in manifest version 3. The compatibility
   reader accepts the single-stream version-3 shape, the older double-gzip

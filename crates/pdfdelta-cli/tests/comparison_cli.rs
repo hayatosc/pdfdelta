@@ -689,7 +689,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = read_json(&report);
-    assert_eq!(json["report"]["schema_version"], 12);
+    assert_eq!(json["report"]["schema_version"], 13);
     assert_eq!(json["report"]["summary"]["content_changes"], 0);
     assert_no_temporary_reports(&directory);
 }
@@ -869,7 +869,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     );
     let report = read_json(&report_path);
     let report = &report["report"];
-    assert_eq!(report["schema_version"], 12);
+    assert_eq!(report["schema_version"], 13);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
@@ -929,7 +929,7 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
     );
     let report = read_json(&report_path);
     let report = &report["report"];
-    assert_eq!(report["schema_version"], 12);
+    assert_eq!(report["schema_version"], 13);
     assert_eq!(report["summary"]["content_changes"], 2);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["extraction"]["old_complete"], false);

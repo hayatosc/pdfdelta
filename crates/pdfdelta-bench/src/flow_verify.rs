@@ -399,6 +399,7 @@ fn compare_documents(
 pub(crate) struct ActualChanges {
     pub(crate) content: Vec<(String, String, String)>,
     pub(crate) moves: Vec<(String, String)>,
+    pub(crate) reading_order: usize,
     pub(crate) layout_only: usize,
 }
 
@@ -414,10 +415,16 @@ impl ActualChanges {
             parts.push("move".to_owned());
         }
         if self.content.is_empty() && self.moves.is_empty() {
+            if self.reading_order > 0 {
+                return format!("reading-order x{}", self.reading_order);
+            }
             if self.layout_only > 0 {
                 return format!("layout-only x{}", self.layout_only);
             }
             return "none".to_owned();
+        }
+        if self.reading_order > 0 {
+            parts.push(format!("reading-order x{}", self.reading_order));
         }
         if self.layout_only > 0 {
             parts.push(format!("layout-only x{}", self.layout_only));
@@ -475,6 +482,7 @@ pub(crate) fn summarize_changes(
                 token_text(&old[old_range.clone()]),
                 token_text(&new[new_range.clone()]),
             )),
+            FlowChange::ReadingOrder { .. } => actual.reading_order += 1,
             FlowChange::LayoutOnly { .. } => actual.layout_only += 1,
         }
     }

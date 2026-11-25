@@ -7,7 +7,7 @@
 //! * old tokens covered by different changes appear in ascending order,
 //! * the uncovered old tokens and the uncovered new tokens are the same
 //!   sequence of texts (the implicit equal pairs),
-//! * both sides of every move are identical, and
+//! * both sides of every move and reading-order change are identical, and
 //! * both sides of every layout-only change satisfy the layout-only relation.
 //!
 //! Together these facts mean replaying the script on the old sequence produces
@@ -43,6 +43,11 @@ pub enum VerifyError {
     ContentMismatch { old_index: usize, new_index: usize },
     /// A move's old and new runs are not identical.
     MoveMismatch {
+        old: Range<usize>,
+        new: Range<usize>,
+    },
+    /// A reading-order change's old and new runs are not identical.
+    ReadingOrderMismatch {
         old: Range<usize>,
         new: Range<usize>,
     },
@@ -95,6 +100,12 @@ impl fmt::Display for VerifyError {
                 write!(
                     formatter,
                     "move sides {old:?} and {new:?} are not identical"
+                )
+            }
+            Self::ReadingOrderMismatch { old, new } => {
+                write!(
+                    formatter,
+                    "reading-order sides {old:?} and {new:?} are not identical"
                 )
             }
             Self::LayoutOnlyMismatch { old, new } => {
@@ -157,6 +168,15 @@ pub fn verify(
                         new: new_side.clone(),
                     });
                 }
+            }
+            FlowChange::ReadingOrder {
+                old: old_side,
+                new: new_side,
+            } if !texts_equal(&old[old_side.clone()], &new[new_side.clone()]) => {
+                return Err(VerifyError::ReadingOrderMismatch {
+                    old: old_side.clone(),
+                    new: new_side.clone(),
+                });
             }
             FlowChange::LayoutOnly {
                 old: old_side,
@@ -332,6 +352,27 @@ mod tests {
         let error = verify(&tokens(&["a"]), &tokens(&["b"]), &script)
             .expect_err("the script must be rejected");
         assert!(matches!(error, VerifyError::LayoutOnlyMismatch { .. }));
+    }
+
+    #[test]
+    fn accepts_a_reading_order_change_beside_uncovered_equal_tokens() {
+        let script = [FlowChange::ReadingOrder {
+            old: 0..1,
+            new: 1..2,
+        }];
+        verify(&tokens(&["a", "b"]), &tokens(&["b", "a"]), &script)
+            .expect("reading-order sides are identical");
+    }
+
+    #[test]
+    fn rejects_reading_order_changes_that_alter_text() {
+        let script = [FlowChange::ReadingOrder {
+            old: 0..1,
+            new: 0..1,
+        }];
+        let error = verify(&tokens(&["a"]), &tokens(&["b"]), &script)
+            .expect_err("the script must be rejected");
+        assert!(matches!(error, VerifyError::ReadingOrderMismatch { .. }));
     }
 
     #[test]

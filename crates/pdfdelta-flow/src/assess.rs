@@ -148,8 +148,9 @@ pub struct FormattingChange {
 /// Returns whether a verified script selects a detected difference.
 ///
 /// Deletions, insertions, replacements, and moves change the document or its
-/// order; a layout-only change does not. This is the single exit-selection
-/// predicate used by the CLI, so the policy and the summary cannot diverge.
+/// order; reading-order and layout-only changes do not. This is the single
+/// exit-selection predicate used by the CLI, so the policy and the summary
+/// cannot diverge.
 #[must_use]
 pub fn selects_difference(stats: &FlowStats) -> bool {
     stats.delete.changes + stats.insert.changes + stats.replace.changes + stats.moves.changes > 0

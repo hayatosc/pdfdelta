@@ -67,7 +67,12 @@ pub(crate) fn project(comparison: &FlowComparison) -> OwnedReview<'_> {
         .changes
         .iter()
         .enumerate()
-        .filter(|(_, change)| !matches!(change, FlowChange::LayoutOnly { .. }))
+        .filter(|(_, change)| {
+            !matches!(
+                change,
+                FlowChange::LayoutOnly { .. } | FlowChange::ReadingOrder { .. }
+            )
+        })
         .enumerate()
         .map(|(report_index, (index, change))| {
             let assessment = comparison.assessments.get(index);
@@ -190,7 +195,7 @@ fn change_kind(change: &FlowChange) -> FlowChangeKind {
         FlowChange::Insert { .. } => FlowChangeKind::Insert,
         FlowChange::Replace { .. } => FlowChangeKind::Replace,
         FlowChange::Move { .. } => FlowChangeKind::Move,
-        FlowChange::LayoutOnly { .. } => FlowChangeKind::Replace,
+        FlowChange::ReadingOrder { .. } | FlowChange::LayoutOnly { .. } => FlowChangeKind::Replace,
     }
 }
 

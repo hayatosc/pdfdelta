@@ -1,7 +1,7 @@
 //! Full flow report with per-token source provenance.
 //!
 //! The compact report remains the default artifact. This writer appends two
-//! sections to the same native schema-12 report: `token_sources`, one source
+//! sections to the same native schema-13 report: `token_sources`, one source
 //! list per token, and `glyph_accounting`, which lists every extracted glyph
 //! that is not referenced by a token with an explicit exclusion reason.
 //!
@@ -498,7 +498,7 @@ pub(crate) fn write_report(comparison: &FlowComparison, path: &Path) -> Result<(
     write_output_atomically(path, "full flow JSON report", |out| {
         out.write_all(
             b"{\"artifact_format\":\"pdfdelta-native-full\",\"artifact_version\":2,\
-              \"source_schema_version\":12,\"omitted_fields\":{},\"report\":",
+              \"source_schema_version\":13,\"omitted_fields\":{},\"report\":",
         )
         .map_err(|error| format!("cannot write full flow report: {error}"))?;
         write_report_object(out, report, &old_side, &new_side, comparison)?;

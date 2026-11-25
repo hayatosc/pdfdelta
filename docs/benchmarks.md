@@ -884,7 +884,7 @@ Original report paths in the immutable capture records describe the historical
 outputs and may no longer exist after pruning.
 
 Compact artifacts use a separate format with the retained report under `report`.
-Version-3 artifacts are the current schema-12 flow reports; they preserve every
+Version-3 artifacts are the current schema-13 flow reports; they preserve every
 flow change, formatting change, extraction issue, order record, token count,
 and confidence and ambiguity field, and text and semantic arrays are neither
 sampled nor truncated. Version-2 schema-11 flow artifacts and version-1
@@ -898,7 +898,7 @@ Individual glyph geometry and PDF operator provenance require regenerating the
 full report when the samples do not answer a question. The original input and
 binary hashes, arguments, full-report hashes, and compactor metadata preserve
 that audit path. This is a diagnostic projection, not a lossless archive of the
-native report, and it must not be passed to consumers expecting schema 12 or
+native report, and it must not be passed to consumers expecting schema 12/13 or
 the archived schema-11 flow artifact.
 
 ### Capture archive

@@ -96,7 +96,7 @@ def compact_capture(summary_path, destination, resume=False):
             if key in row and row[key] != value:
                 raise ValueError(f'summary field changed: {source}: {key}')
         if report.get('schema_version') != 11:
-            raise ValueError('compact_capture.py only migrates schema-11 reports; use compact_native.py for schema-12 artifacts')
+            raise ValueError('compact_capture.py only migrates schema-11 reports; use compact_native.py for schema-12/13 artifacts')
         for side in ('old', 'new'):
             key = f'{side}_extraction_complete'
             if key in row and row[key] != report['extraction'][f'{side}_complete']:

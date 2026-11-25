@@ -177,9 +177,11 @@ details.
   use `--channels text` or `--native-text-only` for the text verdict.
 - Adjacent-block transpositions are reported as one move, preferring the
   smaller structural unit that is no less informative (a moved paragraph rather
-  than a heading and its paragraph). The choice is a quality preference, not
-  author intent, and equal-span swaps keep the alignment choice. Formatting
-  reasons are approximate. Channel rendering budgets each page by CPU time and
+  than a heading and its paragraph). A same-row transposition between
+  side-by-side runs with an unchanged visual order is reported as reading-order
+  evidence instead of a content move. Both choices are quality preferences, not
+  author intent; equal-span swaps keep the alignment choice. Formatting reasons
+  are approximate. Channel rendering budgets each page by CPU time and
   each input document by cumulative child CPU (60 s); the much larger
   wall-clock safety stops can still expire under extreme load and are reported
   as a distinct resource-limit reason.
