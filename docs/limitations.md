@@ -357,24 +357,36 @@ output space, bounded independently of existing comparisons.
   unique changed run can still have another valid alignment that the marker
   does not see. The marker never changes the exit code.
 - Channel rendering budgets every page by child CPU time: five CPU seconds per
-  page, measured against p99.9 0.51 s and max 0.84 s over 4,654 rendered pages
-  of the 36-pair channel panel. A page that exhausts this budget is a
+  page. The current child-reported measurement over the 4,654 rendered pages of the
+  36-pair channel panel is median 0.032 s, p99 0.270 s, p99.9 1.336 s, and max
+  2.899 s, which is 18.5x headroom at p99 and 1.72x at the maximum. The maximum
+  is two reproducible `ipcc-synthesis-ar5-to-ar6` pages at 2.86-2.90 s; the
+  earlier `/proc`-sampled 0.84 s figure understated those pages. A page that
+  exhausts this budget is a
   resource-limit outcome and retains no raster, never an empty page. Each input
   document also has a cumulative child-CPU budget of 60 s; measured per input,
-  the maximum was 26.4 s and p99 26.4 s over the 72 documents of the 36-pair
-  panel. The page that crosses the document budget is retained; later pages are
-  `resource_limit` with reason `document CPU budget exhausted`. Failed render
-  attempts charge the full page budget, and a page rejected before rendering
-  (for example by the raster budget) charges nothing. The page and document
-  wall-clock caps (120 s and 300 s) are safety stops only; their expiry is
-  reported as a distinct resource-limit reason and is explicitly dependent on
-  machine load. The retained-raster budget is deterministic. The old
+  the maximum was 26.49 s and p99 26.49 s over the 72 documents of the 36-pair
+  panel (with 72 documents the nearest-rank p99 is the maximum), a 2.26x
+  headroom. The page that crosses the document budget is retained; later pages
+  are `resource_limit` with reason `document CPU budget exhausted`. Failed
+  render attempts charge the full page budget, and a page rejected before
+  rendering (for example by the raster budget) charges nothing. The page and
+  document wall-clock caps (120 s and 300 s) are safety stops only; their
+  expiry is reported as a distinct resource-limit reason and is explicitly
+  dependent on machine load. The retained-raster budget is deterministic.
+  Rerunning the five heaviest render pairs under an artificial 25% CPU quota
+  kept every exit and summary equal and did not fire a render CPU or wall
+  budget. The `mhlw-care-skills-original-to-revised` image-hash worker did hit
+  its separate 30 s wall cap under that quota, so its image inventory became
+  more incomplete; that is a load-dependent image-worker safety outcome, not a
+  render-budget change. The old
   `mhlw-care-skills-original-to-revised` 167-170 region splits came from the
   former 30 s document wall cap; with CPU budgeting the old side renders until
   its fixed raster budget (178 of 272 pages) and its logical report is
   identical across idle and loaded runs. `nist-contingency-34-to-r1` likewise
   renders all pages in every run. Do not pin a report whose wall safety stop
-  actually fired; no such run was observed in the M8d panel.
+  actually fired; no such run was observed in the earlier panel or in the
+  current 36-pair channel panel.
 - A `--full-json` capture retains per-glyph sources for every token. The
   serializer streams token sources, and a side built in a child process spills
   its per-glyph records to a temporary source cache that the reporting parent

@@ -546,16 +546,21 @@ tokenization/normalization, furniture/order handling, flow diff,
 assessment/formatting, channel comparison, and report phases. A text-only
 native run records `channel_comparison` as `skipped` with reason `text_only`;
 a multi-channel run records it completed. Each phase carries bounded counts and
-a wall-clock `duration_us`. A failed or incomplete phase carries an `error`
+a wall-clock `duration_us`. A multi-channel run also records
+`render_documents`: one entry per side with the page count, rendered and failed
+page counts, cumulative child CPU, and the measured child CPU of each rendered
+page in microseconds. These CPU values are measurements, not budgets; a failed
+render attempt is charged the full page budget in the cumulative value and is
+not added to the per-page list. A failed or incomplete phase carries an `error`
 whose `kind` is taken from the explicit class of the error: `backend`,
 `unsupported`, `unresolved`, or `limit_exceeded`. This applies to both the flow
 text phases and the shared-evidence `channel_comparison` phase. A limit error
 names its `resource` and `limit` (for example, `PDF input bytes`, `password
 file bytes`, or `static review page previews`); the message is contextual text
-and never decides the class. `duration_us` is nondeterministic and must be
-excluded from golden-file comparisons; the trace names it in
-`nondeterministic_fields`. Missing phases after a stop are marked `skipped`
-with a reason.
+and never decides the class. `duration_us` and `render_documents` are
+nondeterministic and must be excluded from golden-file comparisons; the trace
+names both in `nondeterministic_fields`. Missing phases after a stop are marked
+`skipped` with a reason.
 
 ## Review bundles
 

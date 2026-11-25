@@ -43,9 +43,11 @@ const MAX_PREFLIGHT_DEPTH: usize = 8;
 
 /// CPU seconds allowed to one page's render child.
 ///
-/// Measured over 4,654 pages of the 36-pair channel panel: p99.9 0.51 s and
-/// max 0.84 s. Five seconds is a sixfold margin over the slowest observed page
-/// and leaves room for a slower machine or a colder cache.
+/// Measured over 4,654 rendered pages of the 36-pair channel panel: median
+/// 0.032 s, p99 0.270 s, p99.9 1.336 s, and max 2.899 s. The maximum is two
+/// reproducible `ipcc-synthesis-ar5-to-ar6` pages at 2.86-2.90 s; an earlier
+/// `/proc`-sampled measurement understated them. Five seconds is a 1.72x
+/// margin over the maximum and 18x over p99.
 const PAGE_CPU_BUDGET_SECONDS: u64 = 5;
 
 /// Wall-clock safety stop for one page.
@@ -58,11 +60,12 @@ const PAGE_WALL_SAFETY: Duration = Duration::from_secs(120);
 
 /// Cumulative child CPU allowed to all rendered pages of one input document.
 ///
-/// Measured per input over the 36-pair channel panel: max 26.4 s, p99 26.4 s,
-/// p90 9.3 s, median 1.1 s. Sixty seconds is a 2.3-fold margin over the
-/// slowest observed document and still bounds a hostile input that yields many
-/// cheap pages. The page that pushes the cumulative total over the budget is
-/// retained; the total is therefore at most this budget plus one page budget.
+/// Measured per input over the 36-pair channel panel: max 26.49 s, p99 26.49 s
+/// (with 72 documents the nearest-rank p99 is the maximum), and median 1.38 s.
+/// Sixty seconds is a 2.26x margin over the slowest observed document and still
+/// bounds a hostile input that yields many cheap pages. The page that pushes
+/// the cumulative total over the budget is retained; the total is therefore at
+/// most this budget plus one page budget.
 const DOCUMENT_CPU_BUDGET_SECONDS: u64 = 60;
 const DOCUMENT_CPU_BUDGET_MICROS: u64 = DOCUMENT_CPU_BUDGET_SECONDS * 1_000_000;
 const DOCUMENT_CPU_BUDGET_REASON: &str =
@@ -111,13 +114,41 @@ impl DocumentCpu {
     }
 }
 
+/// Child CPU consumed while rendering one input document.
+///
+/// `page_micros` retains one measurement per successfully rendered page. A
+/// failed render attempt is charged the full page budget in `used_micros` and
+/// counted in `failed_pages`, but is not added to `page_micros`: the parent
+/// deliberately charges a budget rather than measuring a missing response.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RenderCpuSummary {
+    pub(crate) pages: usize,
+    pub(crate) rendered_pages: usize,
+    pub(crate) failed_pages: usize,
+    pub(crate) used_micros: u64,
+    pub(crate) page_micros: Vec<u64>,
+}
+
+impl RenderCpuSummary {
+    pub(crate) fn max_page_micros(&self) -> u64 {
+        self.page_micros.iter().copied().max().unwrap_or(0)
+    }
+}
+
+/// Render-CPU evidence for both sides of one comparison.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RenderCpuReport {
+    pub(crate) old: RenderCpuSummary,
+    pub(crate) new: RenderCpuSummary,
+}
+
 /// Retains partial page evidence without claiming renderer or annotation coverage.
 pub fn collect(
     store: &mut EvidenceStore,
     bytes: &[u8],
     page_refs: &[PageRef],
     password_supplied: bool,
-) {
+) -> RenderCpuSummary {
     collect_with_limits(
         store,
         bytes,
@@ -125,7 +156,7 @@ pub fn collect(
         password_supplied,
         DOCUMENT_CPU_BUDGET_MICROS,
         DOCUMENT_WALL_SAFETY,
-    );
+    )
 }
 
 /// Collects rendered page evidence with explicit document budgets.
@@ -136,7 +167,7 @@ fn collect_with_limits(
     password_supplied: bool,
     document_cpu_budget_micros: u64,
     document_wall_safety: Duration,
-) {
+) -> RenderCpuSummary {
     let backend = store.backends.len();
     store.backends.push(BackendIdentity {
         kind: BackendKind::Renderer,
@@ -148,7 +179,9 @@ fn collect_with_limits(
     let started = Instant::now();
     let mut retained_bytes = 0usize;
     let mut document_cpu = DocumentCpu::new(document_cpu_budget_micros);
+    let mut summary = RenderCpuSummary::default();
     for page in &store.pages {
+        let mut attempted = false;
         let result = (|| {
             if password_supplied {
                 return Err((
@@ -201,6 +234,7 @@ fn collect_with_limits(
                         "document wall-clock safety stop expired; this outcome depends on machine load".into(),
                     )
                 })?;
+            attempted = true;
             let rendered = render_page(
                 bytes,
                 page.page.0 as usize,
@@ -227,11 +261,13 @@ fn collect_with_limits(
             }
             let (raster, warned, page_cpu_micros) = rendered?;
             document_cpu.charge(page_cpu_micros);
-            Ok((bounds, raster, warned))
+            Ok((bounds, raster, warned, page_cpu_micros))
         })();
         let mut sources = Vec::new();
         let (kind, reason) = match result {
-            Ok((bounds, raster, warned)) => {
+            Ok((bounds, raster, warned, page_cpu_micros)) => {
+                summary.rendered_pages += 1;
+                summary.page_micros.push(page_cpu_micros);
                 let id = store.rendered.len() as u64;
                 retained_bytes += raster.rgb.len();
                 store.rendered.push(RenderedEvidence {
@@ -260,7 +296,12 @@ fn collect_with_limits(
                     "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified"
                 }.into())
             }
-            Err(error) => error,
+            Err(error) => {
+                if attempted {
+                    summary.failed_pages += 1;
+                }
+                error
+            }
         };
         store.inventories.push(ChannelInventory {
             page: Some(page.page),
@@ -278,6 +319,9 @@ fn collect_with_limits(
             reason,
         });
     }
+    summary.pages = store.pages.len();
+    summary.used_micros = document_cpu.used_micros;
+    summary
 }
 
 fn render_page(

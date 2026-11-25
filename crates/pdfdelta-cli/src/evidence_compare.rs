@@ -167,11 +167,13 @@ pub fn compare(
     output: ComparisonOptions<'_>,
     cache_dir: Option<&Path>,
     options: &EvidenceOptions<'_>,
-) -> Result<(u8, bool), FlowError> {
+) -> Result<(u8, bool, crate::render::RenderCpuReport), FlowError> {
     let started = std::time::Instant::now();
     let retain_inputs = output.review_dir.is_some() || output.agent_review_dir.is_some();
-    let (old, old_bytes, old_images) = collect(old_input, cache_dir, options, retain_inputs)?;
-    let (new, new_bytes, new_images) = collect(new_input, cache_dir, options, retain_inputs)?;
+    let (old, old_bytes, old_images, old_render_cpu) =
+        collect(old_input, cache_dir, options, retain_inputs)?;
+    let (new, new_bytes, new_images, new_render_cpu) =
+        collect(new_input, cache_dir, options, retain_inputs)?;
     let image_diff = match (old_images, new_images) {
         (Some(old), Some(new)) => {
             let comparison = compare_images(&old, &new).map_err(FlowError::from)?;
@@ -683,7 +685,14 @@ pub fn compare(
         || if complete { u8::from(changes > 0) } else { 3 },
         |exit| exit.code,
     );
-    Ok((code, !complete))
+    Ok((
+        code,
+        !complete,
+        crate::render::RenderCpuReport {
+            old: old_render_cpu,
+            new: new_render_cpu,
+        },
+    ))
 }
 
 /// Channels that reported a typed difference under their own channel.
@@ -868,7 +877,12 @@ fn bundle_identity(
     }
 }
 
-type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>, Option<ImageInventory>);
+type CollectedEvidence = (
+    EvidenceStore,
+    Option<Arc<[u8]>>,
+    Option<ImageInventory>,
+    crate::render::RenderCpuSummary,
+);
 
 fn collect(
     input: ComparisonInput<'_>,
@@ -910,12 +924,13 @@ fn collect(
             "native acquisition has unresolved content; image discovery is not certified".into(),
         );
     }
+    let mut render_cpu = crate::render::RenderCpuSummary::default();
     if options.channels.contains(&Channel::Text)
         || options.channels.contains(&Channel::Visual)
         || options.channels.contains(&Channel::Presentation)
         || store.structured.iter().any(|field| matches!(&field.value, pdfdelta_core::document::StructuredValue::FormField { widgets, .. } if !widgets.is_empty()))
     {
-        crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
+        render_cpu = crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
     }
     crate::widgets::collect(&mut store);
     for channel in [Channel::Presentation] {
@@ -934,5 +949,5 @@ fn collect(
         }
     }
     store.validate(limits).map_err(FlowError::from)?;
-    Ok((store, retain_input.then_some(bytes), images))
+    Ok((store, retain_input.then_some(bytes), images, render_cpu))
 }

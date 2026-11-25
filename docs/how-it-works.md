@@ -217,7 +217,8 @@ Phase failures carry a `pdfdelta_flow::FlowError` class (`backend`,
 being classified from message wording. The shared-evidence channel phase uses
 the same type for input reads, native acquisition, graph construction,
 comparison, review publication, and bundle budgets. `duration_us` is the only
-wall-clock field and is documented as nondeterministic.
+wall-clock field; it and the per-document render CPU measurements in
+`render_documents` are documented as nondeterministic.
 
 The native schema-12 report contains only what the flow engine computed: old
 and new token counts, extraction completeness and issues, content, formatting,
@@ -625,10 +626,11 @@ Every PDF is untrusted input.
   glyphs and tags, so a content-extraction failure can leave forms and
   rendering usable. PDF input is capped at 256 MiB.
 - **Page rendering** runs in a child process: 2 GiB address space, 5 s of CPU
-  per page (the deterministic page budget; measured p99.9 0.51 s and max
-  0.84 s over 4,654 rendered pages of the 36-pair channel panel), a cumulative
-  child-CPU budget of 60 s per input document (measured max 26.4 s and p99
-  26.4 s over 72 documents), 120 s wall per page and 300 s wall per document as
+  per page (the deterministic page budget; child-reported median 0.032 s, p99
+  0.270 s, p99.9 1.336 s, and max 2.899 s over 4,654 rendered pages of the
+  36-pair channel panel), a cumulative child-CPU budget of 60 s per input
+  document (measured max 26.49 s and p99 26.49 s over 72 documents), 120 s wall
+  per page and 300 s wall per document as
   safety stops, 8 million pixels per page, and 256 MiB retained RGB per input.
   The page that crosses the document CPU budget is retained; later pages are a
   `resource_limit` outcome with reason `document CPU budget exhausted`, never

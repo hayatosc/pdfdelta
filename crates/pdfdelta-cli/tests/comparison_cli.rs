@@ -4166,7 +4166,7 @@ fn flow_trace_reports_phases_without_changing_report_or_exit() {
     assert_eq!(value["result"]["exit_code"], 1);
     assert_eq!(
         value["nondeterministic_fields"],
-        serde_json::json!(["duration_us"])
+        serde_json::json!(["duration_us", "render_documents"])
     );
     let names = value["phases"]
         .as_array()

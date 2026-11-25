@@ -409,11 +409,50 @@ fn main() -> ExitCode {
                     );
                     if let Some(trace) = flow_trace.as_mut() {
                         match &result {
-                            Ok(status) => {
+                            Ok((status, render_cpu)) => {
+                                trace.record_render_cpu(
+                                    crate::flow_trace::TraceSide::Old,
+                                    &render_cpu.old,
+                                );
+                                trace.record_render_cpu(
+                                    crate::flow_trace::TraceSide::New,
+                                    &render_cpu.new,
+                                );
+                                let render_pages =
+                                    render_cpu.old.pages.saturating_add(render_cpu.new.pages);
+                                let rendered_pages = render_cpu
+                                    .old
+                                    .rendered_pages
+                                    .saturating_add(render_cpu.new.rendered_pages);
+                                let failed_pages = render_cpu
+                                    .old
+                                    .failed_pages
+                                    .saturating_add(render_cpu.new.failed_pages);
+                                let cpu_micros = render_cpu
+                                    .old
+                                    .used_micros
+                                    .saturating_add(render_cpu.new.used_micros);
+                                let max_page_micros = render_cpu
+                                    .old
+                                    .max_page_micros()
+                                    .max(render_cpu.new.max_page_micros());
                                 trace.complete(
                                     "channel_comparison",
                                     None,
-                                    [("channels", channel_count)],
+                                    [
+                                        ("channels", channel_count),
+                                        ("render_pages", render_pages),
+                                        ("render_rendered_pages", rendered_pages),
+                                        ("render_failed_pages", failed_pages),
+                                        (
+                                            "render_cpu_micros",
+                                            usize::try_from(cpu_micros).unwrap_or(usize::MAX),
+                                        ),
+                                        (
+                                            "render_page_cpu_max_micros",
+                                            usize::try_from(max_page_micros).unwrap_or(usize::MAX),
+                                        ),
+                                    ],
                                     channel_start.elapsed(),
                                 );
                                 trace.complete(
@@ -434,7 +473,7 @@ fn main() -> ExitCode {
                             trace,
                         )?;
                     }
-                    result
+                    result.map(|(status, _render_cpu)| status)
                 }
             })();
             match result {

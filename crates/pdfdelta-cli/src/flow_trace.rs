@@ -89,6 +89,17 @@ struct TracePhase {
 }
 
 #[derive(Debug, Serialize)]
+struct TraceRenderDocument {
+    side: TraceSide,
+    pages: usize,
+    rendered_pages: usize,
+    failed_pages: usize,
+    cpu_micros: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    page_cpu_micros: Vec<u64>,
+}
+
+#[derive(Debug, Serialize)]
 pub(crate) struct FlowTrace {
     trace_schema: &'static str,
     trace_schema_version: u8,
@@ -96,6 +107,8 @@ pub(crate) struct FlowTrace {
     command: TraceCommand,
     result: TraceResult,
     nondeterministic_fields: Vec<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    render_documents: Vec<TraceRenderDocument>,
     phases: Vec<TracePhase>,
 }
 
@@ -114,9 +127,30 @@ impl FlowTrace {
                 status: "failed",
                 exit_code: 2,
             },
-            nondeterministic_fields: vec!["duration_us"],
+            nondeterministic_fields: vec!["duration_us", "render_documents"],
+            render_documents: Vec::new(),
             phases: Vec::new(),
         }
+    }
+
+    /// Records the measured child CPU of one rendered input document.
+    ///
+    /// Per-page values are retained so a corpus run can combine the
+    /// distribution across documents; the parent already receives them from
+    /// each render response and does not measure anything extra.
+    pub(crate) fn record_render_cpu(
+        &mut self,
+        side: TraceSide,
+        summary: &crate::render::RenderCpuSummary,
+    ) {
+        self.render_documents.push(TraceRenderDocument {
+            side,
+            pages: summary.pages,
+            rendered_pages: summary.rendered_pages,
+            failed_pages: summary.failed_pages,
+            cpu_micros: summary.used_micros,
+            page_cpu_micros: summary.page_micros.clone(),
+        });
     }
 
     pub(crate) fn complete(
@@ -344,5 +378,40 @@ mod tests {
         }
         assert_eq!(value["phases"][3]["error"]["resource"], "PDF input bytes");
         assert_eq!(value["phases"][3]["error"]["limit"], 16);
+    }
+
+    #[test]
+    fn trace_records_per_document_render_cpu_without_changing_the_exit() {
+        let mut trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"));
+        let summary = crate::render::RenderCpuSummary {
+            pages: 3,
+            rendered_pages: 2,
+            failed_pages: 1,
+            used_micros: 5_000_000 + 1234 + 5678,
+            page_micros: vec![1234, 5678],
+        };
+        trace.record_render_cpu(TraceSide::Old, &summary);
+        trace.finish(1, false, true);
+        let mut output = Vec::new();
+        trace.write_json(&mut output).expect("trace serializes");
+        let value: serde_json::Value =
+            serde_json::from_slice(&output).expect("trace is valid JSON");
+        assert_eq!(value["result"]["exit_code"], 1);
+        assert_eq!(value["render_documents"][0]["side"], "old");
+        assert_eq!(value["render_documents"][0]["pages"], 3);
+        assert_eq!(value["render_documents"][0]["rendered_pages"], 2);
+        assert_eq!(value["render_documents"][0]["failed_pages"], 1);
+        assert_eq!(
+            value["render_documents"][0]["cpu_micros"],
+            5_000_000 + 1234 + 5678
+        );
+        assert_eq!(value["render_documents"][0]["page_cpu_micros"][1], 5678);
+        assert!(
+            value["nondeterministic_fields"]
+                .as_array()
+                .expect("nondeterministic fields are an array")
+                .iter()
+                .any(|field| field == "render_documents")
+        );
     }
 }
