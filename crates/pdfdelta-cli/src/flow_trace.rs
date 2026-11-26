@@ -100,6 +100,26 @@ struct TraceRenderDocument {
 }
 
 #[derive(Debug, Serialize)]
+struct TraceImageWorkerCall {
+    side: TraceSide,
+    kind: &'static str,
+    calls: usize,
+    cpu_micros: u64,
+}
+
+/// Scaled budgets this run used, so a trace identifies the limits it measured.
+#[derive(Debug, Serialize)]
+struct TraceResourceLimits {
+    limit_scale: f64,
+    render_page_cpu_seconds: u64,
+    render_document_cpu_micros: u64,
+    render_page_wall_seconds: u64,
+    render_document_wall_seconds: u64,
+    image_cpu_seconds: u64,
+    image_wall_seconds: u64,
+}
+
+#[derive(Debug, Serialize)]
 pub(crate) struct FlowTrace {
     trace_schema: &'static str,
     trace_schema_version: u8,
@@ -107,13 +127,19 @@ pub(crate) struct FlowTrace {
     command: TraceCommand,
     result: TraceResult,
     nondeterministic_fields: Vec<&'static str>,
+    resource_limits: TraceResourceLimits,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     render_documents: Vec<TraceRenderDocument>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    image_worker_calls: Vec<TraceImageWorkerCall>,
     phases: Vec<TracePhase>,
 }
 
 impl FlowTrace {
-    pub(crate) fn new(old_path: &Path, new_path: &Path) -> Self {
+    /// Creates a trace bound to the run's validated `--limit-scale` factor.
+    pub(crate) fn new(old_path: &Path, new_path: &Path, limit_scale: f64) -> Self {
+        let render = crate::render::RenderBudgets::for_limit_scale(limit_scale);
+        let image = crate::image_hashes::ImageBudgets::for_limit_scale(limit_scale);
         Self {
             trace_schema: FLOW_TRACE_SCHEMA,
             trace_schema_version: FLOW_TRACE_VERSION,
@@ -127,8 +153,18 @@ impl FlowTrace {
                 status: "failed",
                 exit_code: 2,
             },
-            nondeterministic_fields: vec!["duration_us", "render_documents"],
+            nondeterministic_fields: vec!["duration_us", "render_documents", "image_worker_calls"],
+            resource_limits: TraceResourceLimits {
+                limit_scale,
+                render_page_cpu_seconds: render.page_cpu_seconds,
+                render_document_cpu_micros: render.document_cpu_micros,
+                render_page_wall_seconds: render.page_wall.as_secs(),
+                render_document_wall_seconds: render.document_wall.as_secs(),
+                image_cpu_seconds: image.cpu_seconds,
+                image_wall_seconds: image.wall_seconds(),
+            },
             render_documents: Vec::new(),
+            image_worker_calls: Vec::new(),
             phases: Vec::new(),
         }
     }
@@ -150,6 +186,27 @@ impl FlowTrace {
             failed_pages: summary.failed_pages,
             cpu_micros: summary.used_micros,
             page_cpu_micros: summary.page_micros.clone(),
+        });
+    }
+
+    /// Records the child CPU reported by one successful image worker call.
+    ///
+    /// A call that produced no response has no measurement and is omitted
+    /// rather than recorded as zero CPU.
+    pub(crate) fn record_image_cpu(
+        &mut self,
+        side: TraceSide,
+        kind: &'static str,
+        summary: &crate::image_hashes::ImageCpuSummary,
+    ) {
+        if summary.calls == 0 {
+            return;
+        }
+        self.image_worker_calls.push(TraceImageWorkerCall {
+            side,
+            kind,
+            calls: summary.calls,
+            cpu_micros: summary.cpu_micros,
         });
     }
 
@@ -340,7 +397,7 @@ mod tests {
 
     #[test]
     fn trace_kinds_come_from_the_typed_class_not_the_message() {
-        let mut trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"));
+        let mut trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"), 1.0);
         let errors = [
             (
                 "backend",
@@ -381,8 +438,71 @@ mod tests {
     }
 
     #[test]
+    fn trace_records_the_scaled_resource_limits() {
+        let trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"), 2.5);
+        let mut output = Vec::new();
+        trace.write_json(&mut output).expect("trace serializes");
+        let value: serde_json::Value =
+            serde_json::from_slice(&output).expect("trace is valid JSON");
+        assert_eq!(value["resource_limits"]["limit_scale"], 2.5);
+        assert_eq!(value["resource_limits"]["render_page_cpu_seconds"], 25);
+        assert_eq!(
+            value["resource_limits"]["render_document_cpu_micros"],
+            300_000_000
+        );
+        assert_eq!(value["resource_limits"]["render_page_wall_seconds"], 300);
+        assert_eq!(
+            value["resource_limits"]["render_document_wall_seconds"],
+            1_500
+        );
+        assert_eq!(value["resource_limits"]["image_cpu_seconds"], 150);
+        assert_eq!(value["resource_limits"]["image_wall_seconds"], 750);
+    }
+
+    #[test]
+    fn trace_records_image_worker_cpu_and_omits_unmeasured_calls() {
+        let mut trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"), 1.0);
+        trace.record_image_cpu(
+            TraceSide::Old,
+            "document",
+            &crate::image_hashes::ImageCpuSummary {
+                calls: 0,
+                cpu_micros: 0,
+            },
+        );
+        trace.record_image_cpu(
+            TraceSide::New,
+            "page",
+            &crate::image_hashes::ImageCpuSummary {
+                calls: 1,
+                cpu_micros: 1234,
+            },
+        );
+        trace.finish(1, false, true);
+        let mut output = Vec::new();
+        trace.write_json(&mut output).expect("trace serializes");
+        let value: serde_json::Value =
+            serde_json::from_slice(&output).expect("trace is valid JSON");
+        let calls = value["image_worker_calls"]
+            .as_array()
+            .expect("image worker calls are an array");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0]["side"], "new");
+        assert_eq!(calls[0]["kind"], "page");
+        assert_eq!(calls[0]["calls"], 1);
+        assert_eq!(calls[0]["cpu_micros"], 1234);
+        assert!(
+            value["nondeterministic_fields"]
+                .as_array()
+                .expect("nondeterministic fields are an array")
+                .iter()
+                .any(|field| field == "image_worker_calls")
+        );
+    }
+
+    #[test]
     fn trace_records_per_document_render_cpu_without_changing_the_exit() {
-        let mut trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"));
+        let mut trace = FlowTrace::new(Path::new("old.pdf"), Path::new("new.pdf"), 1.0);
         let summary = crate::render::RenderCpuSummary {
             pages: 3,
             rendered_pages: 2,

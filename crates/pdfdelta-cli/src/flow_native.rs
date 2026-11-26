@@ -69,7 +69,7 @@ pub(crate) fn run(
     }
     let mut trace = options
         .trace_json
-        .map(|_| crate::flow_trace::FlowTrace::new(old_path, new_path));
+        .map(|_| crate::flow_trace::FlowTrace::new(old_path, new_path, options.limit_scale));
     let comparison = match flow_cmd::compare_flow(
         old_path,
         new_path,

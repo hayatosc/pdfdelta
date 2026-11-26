@@ -750,9 +750,9 @@ Comparison writes a text report, JSON, trace, review bundle, or nothing
 written to errors, reports, or traces. `--old-font-identity` /
 `--new-font-identity` are caller assertions of the form `BaseFont=identity`;
 the identity bytes are reduced to a domain-separated hash. `--limit-scale`
-scales flow extraction count limits and the shared footer-matching work limit;
-it does not lower any limit and does not change parser limits or layout
-thresholds. `-s`/`--strict` is accepted for compatibility and does not change
+scales flow extraction count limits, the shared footer-matching work limit, and
+the render and image worker CPU and wall budgets; it does not lower any limit
+and does not change parser limits, image pixel limits, or layout thresholds. `-s`/`--strict` is accepted for compatibility and does not change
 the comparison or the exit status.
 
 | Code | Meaning |
@@ -1570,9 +1570,11 @@ An explicitly lower limit must fail at the same charging boundary. Defaults are
 retuned only from reproducible fixture or corpus evidence; a limit is never
 removed to make one document pass. `--limit-scale` multiplies count limits
 (glyph, operator, invocation, decoded bytes, operand nodes, fonts, CMap, CID
-width, string, vector line, and the shared footer-matching work limit) by a
-finite factor of at least 1. It does not change structural bounds, parser
-limits, or layout thresholds.
+width, string, vector line, and the shared footer-matching work limit), the
+render page and per-document CPU budgets with their wall safety stops, and the
+image worker CPU budget with its wall stop by a finite factor of at least 1. It
+does not change structural bounds, parser limits, image pixel or occurrence
+limits, retained-raster budgets, or layout thresholds.
 
 ### 12.2 Child processes
 
@@ -1581,17 +1583,20 @@ limits, or layout thresholds.
 to 256 MiB. Page metadata and form fields are acquired separately from glyphs
 and tags, so a content-extraction failure can leave forms and rendering usable.
 
-**Page rendering** runs in a child per page: 2 GiB address space, 5 s of CPU per
-page (the deterministic page budget; measured p99.9 0.51 s and max 0.84 s over
-4,654 rendered pages of the 36-pair channel panel), a cumulative child-CPU
-budget of 60 s per input document (measured max 26.4 s and p99 26.4 s over 72
-documents), 120 s wall per page and 300 s wall per document as safety stops,
-8 million pixels per page, and 256 MiB retained RGB per input. The page that
-crosses the document CPU budget is retained; later pages are a `resource_limit`
-outcome with reason `document CPU budget exhausted; this outcome is
-deterministic for this input` and no raster. A page that exhausts its CPU
-budget is also a resource-limit outcome with no raster. A wall safety stop is a
-distinct, explicitly load-dependent resource-limit reason.
+**Page rendering** runs in a child per page: a 2 GiB memory ceiling, 10 s of CPU
+per page (the deterministic page budget; measured median 0.032 s, p99 0.282 s,
+p99.9 1.383 s, and max 3.019 s over 4,654 rendered pages of the 36-pair channel
+panel), a cumulative child-CPU budget of 120 s per input document (measured max
+27.31 s and p99 27.31 s over 72 documents), 120 s wall per page and 600 s wall
+per document as safety stops, 8 million pixels per page, and 256 MiB retained
+RGB per input. The page that crosses the document CPU budget is retained; later
+pages are a `resource_limit` outcome with reason `document CPU budget exhausted;
+this outcome is deterministic for this input` and no raster. A page that
+exhausts its CPU budget is also a resource-limit outcome with no raster. A wall
+safety stop is a distinct, explicitly load-dependent resource-limit reason. The
+document wall stop is five times its CPU budget, so at a 25% CPU quota the full
+CPU budget (about 480 wall seconds) still expires first. `--limit-scale`
+multiplies both CPU budgets and both wall stops.
 
 Before rendering, the child scans the page's image XObjects and decoded content
 streams. One image above 64 million declared pixels, including an inline image
@@ -1601,15 +1606,26 @@ instead of a renderer abort. The XObject scan follows Form resources with depth
 stream. Inline-image scanning reuses the content parser, reads only `BI`
 dictionaries, and skips `ID`..`EI` data.
 
-**Image decoding** runs in a child: 2 GiB address space, 25 CPU seconds, 30 s
-wall time, 10,000 occurrences, 16 million pixels per image, 64 million
-base-image pixels per input, and an 8 MiB response. Encoded image identity is
-bounded by 256 MiB of encoded bytes, depth 8, and 4,096 nodes.
+**Image decoding** runs in a child: a 2 GiB memory ceiling, 60 s of CPU per
+worker call, a 300 s wall backstop, 10,000 occurrences, 16 million pixels per
+image, 64 million base-image pixels per input, and an 8 MiB response. Encoded
+image identity is bounded by 256 MiB of encoded bytes, depth 8, and 4,096
+nodes. The 36-pair panel has 56 successful document calls with median 0.191 s,
+p99 13.909 s, and max 13.909 s; 16 calls that stop at an inventory limit before
+responding take 0.24-3.56 s, so 60 s is a 4.31x margin over the observed
+maximum. The CPU and wall budgets scale with `--limit-scale`; exhausting either
+is a typed `resource_limit` outcome, never a complete or empty inventory.
 
 The parent validates input hashes, page identity, acquisition roles, and
 aggregate limits before comparison. Passwords travel through private stdin and
 never appear in responses. Bounded workers support Linux and macOS; on other
 platforms the affected acquisition is reported as unsupported.
+
+Linux enforces the worker memory ceiling with `RLIMIT_AS`. macOS accepts
+`RLIMIT_AS` but does not enforce it, so worker subprocesses arm a counting
+global allocator at the same 2 GiB limit. An allocation above it terminates the
+worker with the limits exit code, which the parent maps to a typed
+`resource_limit`; the comparison process never arms the allocator.
 
 ### 12.3 Report, review, and agent budgets
 
@@ -1631,10 +1647,10 @@ platforms the affected acquisition is reported as unsupported.
 
 Reports do not contain wall-clock time except the documented
 `comparison_wall_time_ms` (multi-channel) and trace `duration_us`, both
-excluded from golden comparisons. Rendering budgets are deterministic in child
-CPU time; only the wall safety stops depend on machine load, and their expiry
-is a distinct reason. Rendering is also bounded by the deterministic
-retained-raster budget. Report bytes for the same input, binary, arguments, and
+excluded from golden comparisons. Render and image-decoding CPU budgets are
+deterministic in child CPU time; only the wall safety stops depend on machine
+load, and their expiry is a distinct reason. Rendering is also bounded by the
+deterministic retained-raster budget. Report bytes for the same input, binary, arguments, and
 limits are otherwise stable, and the child-cache and in-process paths produce
 byte-identical reports.
 

@@ -44,40 +44,93 @@ const MAX_PREFLIGHT_DEPTH: usize = 8;
 /// CPU seconds allowed to one page's render child.
 ///
 /// Measured over 4,654 rendered pages of the 36-pair channel panel: median
-/// 0.032 s, p99 0.270 s, p99.9 1.336 s, and max 2.899 s. The maximum is two
-/// reproducible `ipcc-synthesis-ar5-to-ar6` pages at 2.86-2.90 s; an earlier
-/// `/proc`-sampled measurement understated them. Five seconds is a 1.72x
-/// margin over the maximum and 18x over p99.
-const PAGE_CPU_BUDGET_SECONDS: u64 = 5;
+/// about 0.032 s, p99 about 0.27 s, p99.9 about 1.35 s, and max about 2.9 s.
+/// The maximum is two reproducible `ipcc-synthesis-ar5-to-ar6` pages at
+/// 2.86-2.90 s; an earlier `/proc`-sampled measurement understated them. Ten
+/// seconds is about a 3.5x margin over the maximum and 37x over p99.
+pub(crate) const PAGE_CPU_BUDGET_SECONDS: u64 = 10;
 
 /// Wall-clock safety stop for one page.
 ///
-/// The deterministic budget is [`PAGE_CPU_BUDGET_SECONDS`]. This cap is 24
+/// The deterministic budget is [`PAGE_CPU_BUDGET_SECONDS`]. This cap is 12
 /// times that budget and only stops a page that is blocked or descheduled far
-/// beyond the measured distribution. Its expiry is reported as a distinct
-/// resource-limit reason because the outcome depends on machine load.
-const PAGE_WALL_SAFETY: Duration = Duration::from_secs(120);
+/// beyond the measured distribution. At a 25% CPU quota ten CPU seconds take
+/// about 40 wall seconds, so the CPU budget still expires first. Its expiry is
+/// reported as a distinct resource-limit reason because the outcome depends on
+/// machine load.
+const PAGE_WALL_SAFETY_SECONDS: u64 = 120;
 
 /// Cumulative child CPU allowed to all rendered pages of one input document.
 ///
-/// Measured per input over the 36-pair channel panel: max 26.49 s, p99 26.49 s
-/// (with 72 documents the nearest-rank p99 is the maximum), and median 1.38 s.
-/// Sixty seconds is a 2.26x margin over the slowest observed document and still
-/// bounds a hostile input that yields many cheap pages. The page that pushes
-/// the cumulative total over the budget is retained; the total is therefore at
-/// most this budget plus one page budget.
-const DOCUMENT_CPU_BUDGET_SECONDS: u64 = 60;
-const DOCUMENT_CPU_BUDGET_MICROS: u64 = DOCUMENT_CPU_BUDGET_SECONDS * 1_000_000;
+/// Measured per input over the 36-pair channel panel: max and p99 about 26.7 s
+/// (with 72 documents the nearest-rank p99 is the maximum), and median about
+/// 1.35 s. One hundred twenty seconds is about a 4.5x margin over the slowest
+/// observed document and still bounds a hostile input that yields many cheap
+/// pages. The
+/// page that pushes the cumulative total over the budget is retained; the total
+/// is therefore at most this budget plus one page budget.
+pub(crate) const DOCUMENT_CPU_BUDGET_SECONDS: u64 = 120;
 const DOCUMENT_CPU_BUDGET_REASON: &str =
     "document CPU budget exhausted; this outcome is deterministic for this input";
 
 /// Wall-clock safety stop for one document's rendering loop.
 ///
-/// Five times the document CPU budget. The CPU budget is the deterministic
-/// limit; this cap only stops a page stream that is blocked or descheduled far
-/// beyond the measured distribution. Its expiry is reported as a distinct
-/// resource-limit reason that depends on machine load.
-const DOCUMENT_WALL_SAFETY: Duration = Duration::from_secs(300);
+/// Five times the document CPU budget. At a 25% CPU quota the full CPU budget
+/// takes about 480 wall seconds, so the deterministic CPU budget still expires
+/// before this cap. The CPU budget is the deterministic limit; this cap only
+/// stops a page stream that is blocked or descheduled far beyond the measured
+/// distribution. Its expiry is reported as a distinct resource-limit reason
+/// that depends on machine load.
+const DOCUMENT_WALL_SAFETY_SECONDS: u64 = 600;
+
+/// Child CPU and wall-clock budgets for channel rendering.
+///
+/// [`Self::for_limit_scale`] multiplies every value by the command's
+/// `--limit-scale`, so a slower machine can raise the deterministic CPU budgets
+/// and their load-dependent wall backstops together. Integer conversion
+/// saturates instead of wrapping.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RenderBudgets {
+    pub(crate) page_cpu_seconds: u64,
+    pub(crate) document_cpu_micros: u64,
+    pub(crate) page_wall: Duration,
+    pub(crate) document_wall: Duration,
+}
+
+impl RenderBudgets {
+    /// Scales the measured defaults by a validated `--limit-scale` factor.
+    ///
+    /// The CLI rejects non-finite factors below one before this runs. Casting
+    /// an out-of-range product through `f64` saturates at `u64::MAX`.
+    pub(crate) fn for_limit_scale(limit_scale: f64) -> Self {
+        let page_cpu_seconds = scale_seconds(PAGE_CPU_BUDGET_SECONDS, limit_scale);
+        let document_cpu_seconds = scale_seconds(DOCUMENT_CPU_BUDGET_SECONDS, limit_scale);
+        Self {
+            page_cpu_seconds,
+            document_cpu_micros: document_cpu_seconds.saturating_mul(1_000_000),
+            page_wall: Duration::from_secs(scale_seconds(PAGE_WALL_SAFETY_SECONDS, limit_scale)),
+            document_wall: Duration::from_secs(scale_seconds(
+                DOCUMENT_WALL_SAFETY_SECONDS,
+                limit_scale,
+            )),
+        }
+    }
+}
+
+/// Multiplies a whole-second limit by `scale` without wrapping.
+///
+/// The caller validates that `scale` is finite and at least one. The cast
+/// saturates at `u64::MAX` for products outside the representable range.
+pub(crate) fn scale_seconds(seconds: u64, scale: f64) -> u64 {
+    let scaled = seconds as f64 * scale;
+    if scaled >= u64::MAX as f64 {
+        u64::MAX
+    } else if scaled <= 0.0 {
+        0
+    } else {
+        scaled as u64
+    }
+}
 
 /// Length of the complete render response: warning flag plus CPU micros.
 const RESPONSE_HEADER: usize = 1 + 8;
@@ -85,19 +138,22 @@ const RESPONSE_HEADER: usize = 1 + 8;
 /// Cumulative child CPU used by one input document's render pages.
 ///
 /// Successful pages report their own process CPU. A failed page still consumed
-/// up to [`PAGE_CPU_BUDGET_SECONDS`], so it is charged that full budget; this
-/// keeps a stream of failed pages from bypassing the document budget.
+/// up to [`RenderBudgets::page_cpu_seconds`], so it is charged that full
+/// budget; this keeps a stream of failed pages from bypassing the document
+/// budget.
 #[derive(Clone, Copy, Debug)]
 struct DocumentCpu {
     used_micros: u64,
     budget_micros: u64,
+    page_budget_micros: u64,
 }
 
 impl DocumentCpu {
-    const fn new(budget_micros: u64) -> Self {
+    const fn new(budget_micros: u64, page_budget_micros: u64) -> Self {
         Self {
             used_micros: 0,
             budget_micros,
+            page_budget_micros,
         }
     }
 
@@ -110,7 +166,7 @@ impl DocumentCpu {
     }
 
     fn charge_failed_page(&mut self) {
-        self.charge(PAGE_CPU_BUDGET_SECONDS.saturating_mul(1_000_000));
+        self.charge(self.page_budget_micros);
     }
 }
 
@@ -143,30 +199,32 @@ pub(crate) struct RenderCpuReport {
 }
 
 /// Retains partial page evidence without claiming renderer or annotation coverage.
+///
+/// `limit_scale` is the validated `--limit-scale` factor; it scales both the
+/// deterministic CPU budgets and their wall-clock backstops.
 pub fn collect(
     store: &mut EvidenceStore,
     bytes: &[u8],
     page_refs: &[PageRef],
     password_supplied: bool,
+    limit_scale: f64,
 ) -> RenderCpuSummary {
-    collect_with_limits(
+    collect_with_budgets(
         store,
         bytes,
         page_refs,
         password_supplied,
-        DOCUMENT_CPU_BUDGET_MICROS,
-        DOCUMENT_WALL_SAFETY,
+        RenderBudgets::for_limit_scale(limit_scale),
     )
 }
 
-/// Collects rendered page evidence with explicit document budgets.
-fn collect_with_limits(
+/// Collects rendered page evidence with explicit budgets.
+fn collect_with_budgets(
     store: &mut EvidenceStore,
     bytes: &[u8],
     page_refs: &[PageRef],
     password_supplied: bool,
-    document_cpu_budget_micros: u64,
-    document_wall_safety: Duration,
+    budgets: RenderBudgets,
 ) -> RenderCpuSummary {
     let backend = store.backends.len();
     store.backends.push(BackendIdentity {
@@ -178,7 +236,10 @@ fn collect_with_limits(
     });
     let started = Instant::now();
     let mut retained_bytes = 0usize;
-    let mut document_cpu = DocumentCpu::new(document_cpu_budget_micros);
+    let mut document_cpu = DocumentCpu::new(
+        budgets.document_cpu_micros,
+        budgets.page_cpu_seconds.saturating_mul(1_000_000),
+    );
     let mut summary = RenderCpuSummary::default();
     for page in &store.pages {
         let mut attempted = false;
@@ -226,7 +287,8 @@ fn collect_with_limits(
                     DOCUMENT_CPU_BUDGET_REASON.into(),
                 ));
             }
-            let remaining = document_wall_safety
+            let remaining = budgets
+                .document_wall
                 .checked_sub(started.elapsed())
                 .ok_or_else(|| {
                     (
@@ -237,20 +299,23 @@ fn collect_with_limits(
             attempted = true;
             let rendered = render_page(
                 bytes,
-                page.page.0 as usize,
-                store.pages.len(),
+                PageRender {
+                    page: page.page.0 as usize,
+                    pages: store.pages.len(),
+                    reference: page_refs
+                        .get(page.page.0 as usize)
+                        .ok_or_else(|| {
+                            (
+                                EvidenceFailure::Unresolved,
+                                "native page reference is unavailable".into(),
+                            )
+                        })?
+                        .0,
+                },
                 width,
                 height,
-                page_refs
-                    .get(page.page.0 as usize)
-                    .ok_or_else(|| {
-                        (
-                            EvidenceFailure::Unresolved,
-                            "native page reference is unavailable".into(),
-                        )
-                    })?
-                    .0,
-                remaining.min(PAGE_WALL_SAFETY),
+                remaining.min(budgets.page_wall),
+                budgets,
             );
             if rendered.is_err() {
                 // A failed render attempt can consume up to the per-page CPU
@@ -324,14 +389,21 @@ fn collect_with_limits(
     summary
 }
 
-fn render_page(
-    bytes: &[u8],
+/// One page identity passed to the bounded render child.
+#[derive(Clone, Copy, Debug)]
+struct PageRender {
     page: usize,
     pages: usize,
+    reference: ObjectRef,
+}
+
+fn render_page(
+    bytes: &[u8],
+    request: PageRender,
     width: u16,
     height: u16,
-    reference: ObjectRef,
     timeout: Duration,
+    budgets: RenderBudgets,
 ) -> Result<(Raster, bool, u64), (EvidenceFailure, String)> {
     let failure = |error: std::io::Error| {
         (
@@ -342,12 +414,14 @@ fn render_page(
     let mut command = Command::new(std::env::current_exe().map_err(failure)?);
     command.args([
         "render-page",
-        &page.to_string(),
-        &pages.to_string(),
+        &request.page.to_string(),
+        &request.pages.to_string(),
         &width.to_string(),
         &height.to_string(),
-        &reference.object_number.to_string(),
-        &reference.generation.to_string(),
+        &request.reference.object_number.to_string(),
+        &request.reference.generation.to_string(),
+        "--cpu-seconds",
+        &budgets.page_cpu_seconds.to_string(),
     ]);
     let max_output = RESPONSE_HEADER + usize::from(width) * usize::from(height) * 3;
     let output = run_bounded(&mut command, bytes, max_output, timeout)?;
@@ -420,7 +494,7 @@ pub fn run_bounded(
                 Ok(None) => {
                     break Err((
                         EvidenceFailure::ResourceLimit,
-                        "page wall-clock safety stop expired; this outcome depends on machine load"
+                        "worker wall-clock safety stop expired; this outcome depends on machine load"
                             .into(),
                     ));
                 }
@@ -480,10 +554,11 @@ pub fn run_bounded(
 ///
 /// `CLOCK_PROCESS_CPUTIME_ID` is the safe POSIX process CPU clock; it measures
 /// the same user+system work as `getrusage(RUSAGE_SELF)` without sampling
-/// `/proc` and without an unsafe `wait4` binding. The render child reports this
-/// value in its response so the parent can enforce the document CPU budget.
+/// `/proc` and without an unsafe `wait4` binding. The render and image workers
+/// report this value in their responses so the parent can enforce their CPU
+/// budgets and record the measured headroom.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn process_cpu_micros() -> u64 {
+pub(crate) fn process_cpu_micros() -> u64 {
     use rustix::time::{ClockId, clock_gettime};
 
     let timespec = clock_gettime(ClockId::ProcessCPUTime);
@@ -495,7 +570,7 @@ fn process_cpu_micros() -> u64 {
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn process_cpu_micros() -> u64 {
+pub(crate) fn process_cpu_micros() -> u64 {
     0
 }
 
@@ -586,8 +661,9 @@ pub fn worker(
     height: u16,
     object_number: u32,
     generation: u16,
+    cpu_seconds: u64,
 ) -> Result<(), u8> {
-    restrict_process(PAGE_CPU_BUDGET_SECONDS)?;
+    restrict_process(cpu_seconds)?;
     if width == 0 || height == 0 || usize::from(width) * usize::from(height) > MAX_PIXELS {
         return Err(3);
     }
@@ -652,6 +728,11 @@ pub fn worker(
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub fn restrict_process(cpu_seconds: u64) -> Result<(), u8> {
     use rustix::process::{Resource, Rlimit, setrlimit};
+    // macOS accepts RLIMIT_AS but does not enforce it. Arm the worker
+    // allocator before any input is read so the 2 GiB ceiling is real on both
+    // supported platforms. Linux keeps its existing RLIMIT_AS behaviour.
+    #[cfg(target_os = "macos")]
+    crate::worker_allocator::enforce(crate::worker_allocator::WORKER_MEMORY_BUDGET_BYTES);
     for (resource, limit) in [
         (Resource::As, 2 * 1024 * 1024 * 1024),
         (Resource::Cpu, cpu_seconds),
@@ -764,7 +845,18 @@ mod tests {
             native_structures: Vec::new(),
             issues: Vec::new(),
         };
-        collect_with_limits(&mut store, &[], &[], false, 0, Duration::from_secs(1));
+        collect_with_budgets(
+            &mut store,
+            &[],
+            &[],
+            false,
+            RenderBudgets {
+                page_cpu_seconds: PAGE_CPU_BUDGET_SECONDS,
+                document_cpu_micros: 0,
+                page_wall: Duration::from_secs(1),
+                document_wall: Duration::from_secs(1),
+            },
+        );
         assert!(store.rendered.is_empty(), "an exhausted page has no raster");
         assert_eq!(store.issues.len(), 1);
         assert_eq!(store.issues[0].kind, EvidenceFailure::ResourceLimit);
@@ -773,9 +865,10 @@ mod tests {
 
     #[test]
     fn document_cpu_budget_charges_pages_and_failed_pages() {
-        let mut cpu = DocumentCpu::new(2 * PAGE_CPU_BUDGET_SECONDS * 1_000_000);
+        let page_micros = PAGE_CPU_BUDGET_SECONDS * 1_000_000;
+        let mut cpu = DocumentCpu::new(2 * page_micros, page_micros);
         assert!(!cpu.exhausted());
-        cpu.charge(PAGE_CPU_BUDGET_SECONDS * 1_000_000 - 1);
+        cpu.charge(page_micros - 1);
         assert!(!cpu.exhausted());
         cpu.charge_failed_page();
         assert!(!cpu.exhausted());
@@ -786,32 +879,58 @@ mod tests {
     }
 
     #[test]
+    fn render_budgets_scale_with_the_limit_factor() {
+        let base = RenderBudgets::for_limit_scale(1.0);
+        assert_eq!(base.page_cpu_seconds, 10);
+        assert_eq!(base.document_cpu_micros, 120_000_000);
+        assert_eq!(base.page_wall, Duration::from_mins(2));
+        assert_eq!(base.document_wall, Duration::from_mins(10));
+
+        let scaled = RenderBudgets::for_limit_scale(2.5);
+        assert_eq!(scaled.page_cpu_seconds, 25);
+        assert_eq!(scaled.document_cpu_micros, 300_000_000);
+        assert_eq!(scaled.page_wall, Duration::from_mins(5));
+        assert_eq!(scaled.document_wall, Duration::from_mins(25));
+
+        let saturated = RenderBudgets::for_limit_scale(f64::MAX);
+        assert_eq!(saturated.page_cpu_seconds, u64::MAX);
+        assert_eq!(saturated.document_cpu_micros, u64::MAX);
+        assert_eq!(saturated.page_wall, Duration::from_secs(u64::MAX));
+        assert_eq!(saturated.document_wall, Duration::from_secs(u64::MAX));
+    }
+
+    #[test]
     fn document_cpu_budget_reason_is_explicit() {
         assert!(DOCUMENT_CPU_BUDGET_REASON.contains("document CPU budget"));
         assert!(DOCUMENT_CPU_BUDGET_REASON.contains("deterministic"));
     }
 
     #[test]
-    fn worker_address_space_limit_rejects_excess_reservation() {
+    fn worker_memory_limit_terminates_or_rejects_an_excess_reservation() {
         const CHILD: &str = "PDFDELTA_LIMIT_TEST_CHILD";
         if std::env::var_os(CHILD).is_some() {
             restrict_process(3).expect("install worker resource limits");
             let mut bytes = Vec::<u8>::new();
+            // Linux enforces RLIMIT_AS here and returns the allocation error.
+            // macOS does not enforce RLIMIT_AS, so the worker allocator
+            // terminates the process with the limits exit code before this
+            // reservation can return. In both cases the parent must see the
+            // same typed resource-limit outcome.
             assert!(bytes.try_reserve_exact(3 * 1024 * 1024 * 1024).is_err());
-            println!("address-space-ceiling-verified");
-            return;
+            std::process::exit(3);
         }
         let mut command = Command::new(std::env::current_exe().expect("test executable"));
         command
             .args([
                 "--exact",
-                "render::tests::worker_address_space_limit_rejects_excess_reservation",
+                "render::tests::worker_memory_limit_terminates_or_rejects_an_excess_reservation",
                 "--nocapture",
             ])
             .env(CHILD, "1");
-        let output = run_bounded(&mut command, &[], 16 * 1024, Duration::from_secs(5))
-            .expect("bounded child rejects an allocation above the process ceiling");
-        assert!(String::from_utf8_lossy(&output).contains("address-space-ceiling-verified"));
+        let error = run_bounded(&mut command, &[], 16 * 1024, Duration::from_secs(5))
+            .expect_err("the worker memory ceiling must terminate an excess reservation");
+        assert_eq!(error.0, EvidenceFailure::ResourceLimit);
+        assert!(error.1.contains("exit status: 3"), "{}", error.1);
     }
 
     #[test]

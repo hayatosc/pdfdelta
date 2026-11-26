@@ -350,8 +350,8 @@ output space, bounded independently of existing comparisons.
   page-scoped `resource_limit`, not a renderer backend failure. This covers
   the real-world `mext-primary-japanese-2008-to-2017` new page 83 (0-based
   `PageId` 82): a 19,848 × 28,063 1-bit mask whose full-size RGBA conversion
-  requested a 2 GiB allocation and aborted under the child's 2 GiB
-  address-space limit. The scan reads image dictionaries and recursively
+  requested a 2 GiB allocation and aborted under the child's 2 GiB memory
+  ceiling. The scan reads image dictionaries and recursively
   follows Form XObject resources with depth and entry bounds; it never decodes
   an image stream. Inline images are preflighted from their declared
   `/W`/`/H` (or `/Width`/`Height`) by the shared content parser, with the same
@@ -363,30 +363,32 @@ output space, bounded independently of existing comparisons.
   pages, coarse replaces, and moves of at most two tokens are flagged; a
   unique changed run can still have another valid alignment that the marker
   does not see. The marker never changes the exit code.
-- Channel rendering budgets every page by child CPU time: five CPU seconds per
-  page. The current child-reported measurement over the 4,654 rendered pages of the
-  36-pair channel panel is median 0.032 s, p99 0.270 s, p99.9 1.336 s, and max
-  2.899 s, which is 18.5x headroom at p99 and 1.72x at the maximum. The maximum
-  is two reproducible `ipcc-synthesis-ar5-to-ar6` pages at 2.86-2.90 s; the
-  earlier `/proc`-sampled 0.84 s figure understated those pages. A page that
-  exhausts this budget is a
-  resource-limit outcome and retains no raster, never an empty page. Each input
-  document also has a cumulative child-CPU budget of 60 s; measured per input,
-  the maximum was 26.49 s and p99 26.49 s over the 72 documents of the 36-pair
-  panel (with 72 documents the nearest-rank p99 is the maximum), a 2.26x
-  headroom. The page that crosses the document budget is retained; later pages
-  are `resource_limit` with reason `document CPU budget exhausted`. Failed
-  render attempts charge the full page budget, and a page rejected before
-  rendering (for example by the raster budget) charges nothing. The page and
-  document wall-clock caps (120 s and 300 s) are safety stops only; their
-  expiry is reported as a distinct resource-limit reason and is explicitly
-  dependent on machine load. The retained-raster budget is deterministic.
-  Rerunning the five heaviest render pairs under an artificial 25% CPU quota
-  kept every exit and summary equal and did not fire a render CPU or wall
-  budget. The `mhlw-care-skills-original-to-revised` image-hash worker did hit
-  its separate 30 s wall cap under that quota, so its image inventory became
-  more incomplete; that is a load-dependent image-worker safety outcome, not a
-  render-budget change. The old
+- Channel rendering budgets every page by child CPU time: ten CPU seconds per
+  page. The current child-reported measurement over the 4,654 rendered pages
+  of the 36-pair channel panel is median 0.032 s, p99 0.282 s, p99.9 1.383 s,
+  and max 3.019 s, which is 35.5x headroom at p99, 7.2x at p99.9, and
+  3.31x at the maximum. The
+  maximum is two reproducible `ipcc-synthesis-ar5-to-ar6` pages at 2.86-3.02 s
+  across runs;
+  the earlier `/proc`-sampled 0.84 s figure understated those pages. A page
+  that exhausts this budget is a resource-limit outcome and retains no raster,
+  never an empty page. Each input document also has a cumulative child-CPU
+  budget of 120 s; measured per input, the maximum was 27.31 s and p99 27.31 s
+  over the 72 documents of the 36-pair panel (with 72 documents the
+  nearest-rank p99 is the maximum), a 4.39x headroom. The page that crosses the
+  document budget is retained; later pages are `resource_limit` with reason
+  `document CPU budget exhausted`. Failed render attempts charge the full page
+  budget, and a page rejected before rendering (for example by the raster
+  budget) charges nothing. The page and document wall-clock caps (120 s and
+  600 s) are safety stops only; their expiry is reported as a distinct
+  resource-limit reason and is explicitly dependent on machine load. The
+  document wall stop is five times its CPU budget, so at a 25% CPU quota the
+  full 120 s CPU budget (about 480 s of wall time) still expires first. The
+  page wall stop is twelve times its budget. Both CPU budgets and both wall
+  stops scale with `--limit-scale`. The retained-raster budget is
+  deterministic. Rerunning the five heaviest render pairs under an artificial
+  25% CPU quota kept every exit, summary, and logical report equal and did not
+  fire a render CPU or wall budget. The old
   `mhlw-care-skills-original-to-revised` 167-170 region splits came from the
   former 30 s document wall cap; with CPU budgeting the old side renders until
   its fixed raster budget (178 of 272 pages) and its logical report is
@@ -394,6 +396,24 @@ output space, bounded independently of existing comparisons.
   renders all pages in every run. Do not pin a report whose wall safety stop
   actually fired; no such run was observed in the earlier panel or in the
   current 36-pair channel panel.
+- The image-decoding worker uses the same CPU-budget model: an `RLIMIT_CPU`
+  budget of 60 s per worker call and a 300 s wall backstop, both scaled by
+  `--limit-scale`. Over the 36-pair channel panel, 56 successful document calls
+  have median 0.191 s, p99 13.909 s, and max 13.909 s; the 16 calls that stop
+  at an inventory limit before responding were timed separately at 0.24-3.56 s.
+  Sixty seconds is a 4.31x margin over the observed maximum. The 271
+  encoded-page calls peak at 0.021 s, and the 276 image calls recorded by the
+  native panel peak at 0.211 s. A worker that exhausts its CPU or wall limit is
+  a typed `resource_limit` outcome, never a complete or empty inventory.
+  Rerunning the five heaviest pairs under a 25% CPU quota kept every image
+  inventory identical to the unthrottled run.
+- macOS accepts `RLIMIT_AS` but does not enforce it. Worker subprocesses
+  therefore arm a counting allocator at the same 2 GiB ceiling: an allocation
+  that would exceed it terminates the worker with the limits exit code, which
+  the parent maps to a typed `resource_limit`. Linux keeps its existing
+  `RLIMIT_AS` behaviour. The address-space test checks the enforced mechanism
+  on each platform and asserts the same typed `resource_limit` outcome, rather
+  than skipping macOS.
 - A `--full-json` capture retains per-glyph sources for every token. The
   serializer streams token sources, and a side built in a child process spills
   its per-glyph records to a temporary source cache that the reporting parent

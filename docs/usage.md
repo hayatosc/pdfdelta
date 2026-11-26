@@ -48,7 +48,7 @@ pdfdelta old.pdf new.pdf --color always        # force ANSI color
 | `--agent-case-budget <CASES>` | Maximum cases an agent review export may plan: 1–131,072. Default `4096`. |
 | `-q, --quiet` | Suppress the human-readable report on stdout. |
 | `--color <auto\|always\|never>` | Colorize the report. `auto` colors only when stdout is a terminal. |
-| `--limit-scale <FACTOR>` | Scale flow extraction count limits and the shared footer-matching work limit. |
+| `--limit-scale <FACTOR>` | Scale flow extraction count limits, the footer-matching work limit, and render/image worker CPU and wall budgets. |
 | `--extraction-cache-dir <DIR>` | Reuse cached glyph extraction results. |
 | `--old-password-file`, `--new-password-file` | Read a side's password from a file. |
 | `--old-font-identity`, `--new-font-identity` | Assert an external font identity as `BASE_FONT=IDENTITY`. |
@@ -82,7 +82,7 @@ conventions as the main flow text output.
 | `--json <PATH>` | Write the `pdfdelta-flow/1` JSON report; a `.gz` suffix produces gzip. |
 | `--tokens` | Also write token text to JSON Lines sidecars (`PATH.old-tokens.jsonl[.gz]`, `PATH.new-tokens.jsonl[.gz]`). |
 | `--geometry` | Include per-token page and bounding box in the JSON report. |
-| `--limit-scale <FACTOR>` | Scale extraction count limits by a factor of at least 1. Parser limits and layout thresholds are unchanged. |
+| `--limit-scale <FACTOR>` | Scale extraction count limits, the footer-matching work limit, and image worker CPU/wall budgets by a factor of at least 1. Parser limits and layout thresholds are unchanged. |
 
 Text output opens with a `flow summary` block: old and new token totals, equal
 tokens, per-kind (`delete`, `insert`, `replace`, `move`, `reading-order`,
@@ -208,8 +208,8 @@ ambiguity fields are descriptive and do not change the exit code.
 
 Limits: the script is token-level, so words are separated at spaces and
 punctuation, and one CJK scalar is one token. Extraction budgets default to
-the shared parser limits; `--limit-scale` raises only the count limits for a
-document that legitimately needs more (the 3,100-page PostgreSQL manual needs
+the shared parser limits; `--limit-scale` raises the count limits and worker
+CPU/wall budgets for a document that legitimately needs more (the 3,100-page PostgreSQL manual needs
 scale 2). Above factor 1, each side is extracted and reconstructed in a child
 process and its candidate streams are cached in a private per-run directory
 (mode `0700`), so the second side's extraction does not overlap the first
@@ -564,17 +564,22 @@ a multi-channel run records it completed. Each phase carries bounded counts and
 a wall-clock `duration_us`. A multi-channel run also records
 `render_documents`: one entry per side with the page count, rendered and failed
 page counts, cumulative child CPU, and the measured child CPU of each rendered
-page in microseconds. These CPU values are measurements, not budgets; a failed
-render attempt is charged the full page budget in the cumulative value and is
-not added to the per-page list. A failed or incomplete phase carries an `error`
+page in microseconds. `image_worker_calls` records one entry per successful
+image worker call with its side, kind (`document`, `page`, or `encoded-page`),
+call count, and child CPU. The top-level `resource_limits` object records the
+scaled render page/document CPU and wall budgets and image CPU/wall budgets.
+These CPU values are measurements, not budgets; a failed render attempt is
+charged the full page budget in the cumulative value and is not added to the
+per-page list. A failed or incomplete phase carries an `error`
 whose `kind` is taken from the explicit class of the error: `backend`,
 `unsupported`, `unresolved`, or `limit_exceeded`. This applies to both the flow
 text phases and the shared-evidence `channel_comparison` phase. A limit error
 names its `resource` and `limit` (for example, `PDF input bytes`, `password
 file bytes`, or `static review page previews`); the message is contextual text
-and never decides the class. `duration_us` and `render_documents` are
+and never decides the class. `duration_us`, `render_documents`, and
+`image_worker_calls` are
 nondeterministic and must be excluded from golden-file comparisons; the trace
-names both in `nondeterministic_fields`. Missing phases after a stop are marked
+names all three in `nondeterministic_fields`. Missing phases after a stop are marked
 `skipped` with a reason.
 
 ## Review bundles
@@ -679,10 +684,13 @@ comparison run under explicit budgets. When a comparison budget is exhausted,
 the affected region is reported as unresolved or the command exits with an
 error; it is never treated as unchanged.
 
-`--limit-scale FACTOR` raises count limits for large documents: the flow text
-channel's extraction budgets and the bounded footer-matching work limit. The
-factor must be finite and at least `1`. Parser limits, layout thresholds, and
-image-decoder limits are unchanged.
+`--limit-scale FACTOR` raises count and CPU budgets for large documents: the
+flow text channel's extraction budgets, the bounded footer-matching work limit,
+channel render page CPU (10 s) and per-document child CPU (120 s) with their
+wall safety stops (120 s per page and 600 s per document), and image-decoder
+worker CPU (60 s) with its wall safety stop (300 s). The factor must be finite
+and at least `1`. Parser limits, layout thresholds, image pixel/occurrence
+limits, and retained-raster budgets are unchanged.
 
 ```bash
 pdfdelta old.pdf new.pdf --limit-scale 16

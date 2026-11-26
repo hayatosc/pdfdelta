@@ -217,8 +217,9 @@ Phase failures carry a `pdfdelta_flow::FlowError` class (`backend`,
 being classified from message wording. The shared-evidence channel phase uses
 the same type for input reads, native acquisition, graph construction,
 comparison, review publication, and bundle budgets. `duration_us` is the only
-wall-clock field; it and the per-document render CPU measurements in
-`render_documents` are documented as nondeterministic.
+wall-clock field; it, the per-document render CPU measurements in
+`render_documents`, and the per-call image worker CPU in `image_worker_calls`
+are documented as nondeterministic.
 
 The native schema-13 report contains only what the flow engine computed: old
 and new token counts, extraction completeness and issues, content, formatting,
@@ -637,26 +638,40 @@ Every PDF is untrusted input.
   response limits. Page metadata and form fields are acquired separately from
   glyphs and tags, so a content-extraction failure can leave forms and
   rendering usable. PDF input is capped at 256 MiB.
-- **Page rendering** runs in a child process: 2 GiB address space, 5 s of CPU
-  per page (the deterministic page budget; child-reported median 0.032 s, p99
-  0.270 s, p99.9 1.336 s, and max 2.899 s over 4,654 rendered pages of the
-  36-pair channel panel), a cumulative child-CPU budget of 60 s per input
-  document (measured max 26.49 s and p99 26.49 s over 72 documents), 120 s wall
-  per page and 300 s wall per document as
-  safety stops, 8 million pixels per page, and 256 MiB retained RGB per input.
-  The page that crosses the document CPU budget is retained; later pages are a
-  `resource_limit` outcome with reason `document CPU budget exhausted`, never
-  an empty raster. A page that exhausts the page CPU budget is also a
-  resource-limit outcome with no raster; a wall safety stop is a distinct,
-  explicitly load-dependent resource-limit reason.
-- **Image decoding** runs in a child process: 2 GiB address space, 25 CPU
-  seconds, 30 s wall time, 10,000 occurrences, 16 million pixels per image, 64
-  million base-image pixels per input, and an 8 MiB response.
+- **Page rendering** runs in a child process: a 2 GiB memory ceiling, 10 s of
+  CPU per page (the deterministic page budget; child-reported median 0.032 s,
+  p99 0.282 s, p99.9 1.383 s, and max 3.019 s over 4,654 rendered pages of the
+  36-pair channel panel), a cumulative child-CPU budget of 120 s per input
+  document (measured max 27.31 s and p99 27.31 s over 72 documents), 120 s wall
+  per page and 600 s wall per document as safety stops, 8 million pixels per
+  page, and 256 MiB retained RGB per input. The page that crosses the document
+  CPU budget is retained; later pages are a `resource_limit` outcome with
+  reason `document CPU budget exhausted`, never an empty raster. A page that
+  exhausts the page CPU budget is also a resource-limit outcome with no raster;
+  a wall safety stop is a distinct, explicitly load-dependent resource-limit
+  reason. The document wall stop is five times its CPU budget, so at a 25% CPU
+  quota the full CPU budget (about 480 wall seconds) still expires first.
+  `--limit-scale` multiplies both CPU budgets and both wall stops.
+- **Image decoding** runs in a child process: a 2 GiB memory ceiling, 60 s of
+  CPU per worker call, a 300 s wall backstop, 10,000 occurrences, 16 million
+  pixels per image, 64 million base-image pixels per input, and an 8 MiB
+  response. The 36-pair panel has 56 successful document calls with median
+  0.191 s, p99 13.909 s, and max 13.909 s; 16 calls that stop at an inventory
+  limit before responding take 0.24-3.56 s. Sixty seconds is a 4.31x margin
+  over the observed maximum. The CPU and wall budgets scale with
+  `--limit-scale`; exhausting either is a typed `resource_limit` outcome, never
+  a complete or empty inventory.
 
 The parent validates input hashes, page identity, acquisition roles, and
 aggregate limits before comparison. Passwords travel through private stdin and
 never appear in responses. Bounded workers support Linux and macOS; on other
 platforms the affected acquisition is reported as unsupported.
+
+Linux enforces the worker memory ceiling with `RLIMIT_AS`. macOS accepts
+`RLIMIT_AS` but does not enforce it, so worker subprocesses arm a counting
+global allocator at the same 2 GiB limit. An allocation above it terminates the
+worker with the limits exit code, which the parent maps to a typed
+`resource_limit`; the comparison process never arms the allocator.
 
 ## Dependencies
 

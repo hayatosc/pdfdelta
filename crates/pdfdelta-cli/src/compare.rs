@@ -146,7 +146,14 @@ pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), FlowErro
 pub fn compare_documents_with_evidence(
     command: CompareCommand<'_>,
     evidence: &crate::evidence_compare::EvidenceOptions<'_>,
-) -> Result<(u8, crate::render::RenderCpuReport), FlowError> {
+) -> Result<
+    (
+        u8,
+        crate::render::RenderCpuReport,
+        crate::image_hashes::ImageCpuReport,
+    ),
+    FlowError,
+> {
     let old_path = command
         .old_path
         .ok_or_else(|| FlowError::backend("cannot compare PDFs: OLD_PDF is required"))?;
@@ -176,7 +183,7 @@ pub fn compare_documents_with_evidence(
 
     validate_destinations(command)?;
 
-    let (status, _incomplete, render_cpu) = crate::evidence_compare::compare(
+    let (status, _incomplete, render_cpu, image_cpu) = crate::evidence_compare::compare(
         old_input,
         new_input,
         pipeline_options,
@@ -184,7 +191,7 @@ pub fn compare_documents_with_evidence(
         command.extraction_cache_dir,
         evidence,
     )?;
-    Ok((status, render_cpu))
+    Ok((status, render_cpu, image_cpu))
 }
 
 pub fn report_fatal_error<W: Write>(writer: &mut W, error: &str) {

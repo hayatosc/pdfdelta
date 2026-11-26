@@ -28,6 +28,12 @@ mod render;
 mod review;
 mod text_envelope;
 mod widgets;
+#[cfg(target_os = "macos")]
+mod worker_allocator;
+
+#[cfg(target_os = "macos")]
+#[global_allocator]
+static WORKER_ALLOCATOR: worker_allocator::WorkerAllocator = worker_allocator::WorkerAllocator;
 
 use crate::{
     args::{Cli, Command, CompareCommand, Engine, resolve_color},
@@ -167,16 +173,18 @@ fn main() -> ExitCode {
                 ExitCode::from(ExitStatus::ExecutionError.code())
             }
         },
-        Some(Command::HashImages) => match image_hashes::worker() {
+        Some(Command::HashImages { cpu_seconds }) => match image_hashes::worker(cpu_seconds) {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),
         },
-        Some(Command::HashImagePage { page }) => match image_hashes::worker_page(page) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(code) => ExitCode::from(code),
-        },
-        Some(Command::HashImagePageEncoded { page }) => {
-            match image_hashes::worker_encoded_page(page) {
+        Some(Command::HashImagePage { page, cpu_seconds }) => {
+            match image_hashes::worker_page(page, cpu_seconds) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(code) => ExitCode::from(code),
+            }
+        }
+        Some(Command::HashImagePageEncoded { page, cpu_seconds }) => {
+            match image_hashes::worker_encoded_page(page, cpu_seconds) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(code) => ExitCode::from(code),
             }
@@ -192,7 +200,16 @@ fn main() -> ExitCode {
             height,
             object_number,
             generation,
-        }) => match render::worker(page, pages, width, height, object_number, generation) {
+            cpu_seconds,
+        }) => match render::worker(
+            page,
+            pages,
+            width,
+            height,
+            object_number,
+            generation,
+            cpu_seconds,
+        ) {
             Ok(()) => ExitCode::SUCCESS,
             Err(code) => ExitCode::from(code),
         },
@@ -355,7 +372,7 @@ fn main() -> ExitCode {
                     let mut flow_trace = cli
                         .trace_json
                         .as_deref()
-                        .map(|_| crate::flow_trace::FlowTrace::new(old, new));
+                        .map(|_| crate::flow_trace::FlowTrace::new(old, new, cli.limit_scale));
                     let flow = if channels.contains(&pdfdelta_core::document::Channel::Text) {
                         match flow_cmd::compare_flow(
                             old,
@@ -409,7 +426,7 @@ fn main() -> ExitCode {
                     );
                     if let Some(trace) = flow_trace.as_mut() {
                         match &result {
-                            Ok((status, render_cpu)) => {
+                            Ok((status, render_cpu, image_cpu)) => {
                                 trace.record_render_cpu(
                                     crate::flow_trace::TraceSide::Old,
                                     &render_cpu.old,
@@ -417,6 +434,16 @@ fn main() -> ExitCode {
                                 trace.record_render_cpu(
                                     crate::flow_trace::TraceSide::New,
                                     &render_cpu.new,
+                                );
+                                trace.record_image_cpu(
+                                    crate::flow_trace::TraceSide::Old,
+                                    "document",
+                                    &image_cpu.old,
+                                );
+                                trace.record_image_cpu(
+                                    crate::flow_trace::TraceSide::New,
+                                    "document",
+                                    &image_cpu.new,
                                 );
                                 let render_pages =
                                     render_cpu.old.pages.saturating_add(render_cpu.new.pages);
@@ -473,7 +500,7 @@ fn main() -> ExitCode {
                             trace,
                         )?;
                     }
-                    result.map(|(status, _render_cpu)| status)
+                    result.map(|(status, _render_cpu, _image_cpu)| status)
                 }
             })();
             match result {

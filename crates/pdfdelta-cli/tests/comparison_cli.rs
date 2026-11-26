@@ -84,6 +84,37 @@ fn comparison_limit_scale_is_available_and_never_lowers_defaults() {
 }
 
 #[test]
+fn scaled_limit_scale_reaches_the_render_and_image_budgets() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let trace = directory.join("trace.json");
+
+    let output = compare(
+        &old,
+        &new,
+        &["--limit-scale", "3", "--trace-json", path_text(&trace)],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    assert_eq!(trace["resource_limits"]["limit_scale"], 3.0);
+    assert_eq!(trace["resource_limits"]["render_page_cpu_seconds"], 30);
+    assert_eq!(
+        trace["resource_limits"]["render_document_cpu_micros"],
+        360_000_000
+    );
+    assert_eq!(trace["resource_limits"]["render_page_wall_seconds"], 360);
+    assert_eq!(
+        trace["resource_limits"]["render_document_wall_seconds"],
+        1_800
+    );
+    assert_eq!(trace["resource_limits"]["image_cpu_seconds"], 180);
+    assert_eq!(trace["resource_limits"]["image_wall_seconds"], 900);
+}
+
+#[test]
 fn extraction_cache_produces_identical_reports_cold_and_warm() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
@@ -4166,8 +4197,9 @@ fn flow_trace_reports_phases_without_changing_report_or_exit() {
     assert_eq!(value["result"]["exit_code"], 1);
     assert_eq!(
         value["nondeterministic_fields"],
-        serde_json::json!(["duration_us", "render_documents"])
+        serde_json::json!(["duration_us", "render_documents", "image_worker_calls"])
     );
+    assert_eq!(value["resource_limits"]["limit_scale"], 1.0);
     let names = value["phases"]
         .as_array()
         .expect("phases")

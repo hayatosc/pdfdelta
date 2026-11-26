@@ -208,13 +208,20 @@ pub enum Command {
     },
     /// Internal bounded image-hashing process; consumes PDF bytes on standard input.
     #[command(hide = true)]
-    HashImages,
+    HashImages {
+        /// CPU seconds allowed to this worker.
+        #[arg(long, default_value_t = crate::image_hashes::IMAGE_CPU_BUDGET_SECONDS)]
+        cpu_seconds: u64,
+    },
     /// Internal bounded single-page image-hashing process.
     #[command(hide = true)]
     HashImagePage {
         /// Zero-based page index to interpret.
         #[arg(long)]
         page: usize,
+        /// CPU seconds allowed to this worker.
+        #[arg(long, default_value_t = crate::image_hashes::IMAGE_CPU_BUDGET_SECONDS)]
+        cpu_seconds: u64,
     },
     /// Internal bounded encoded-only single-page image identity process.
     #[command(hide = true)]
@@ -222,6 +229,9 @@ pub enum Command {
         /// Zero-based page index to interpret.
         #[arg(long)]
         page: usize,
+        /// CPU seconds allowed to this worker.
+        #[arg(long, default_value_t = crate::image_hashes::IMAGE_CPU_BUDGET_SECONDS)]
+        cpu_seconds: u64,
     },
     /// Internal bounded native acquisition process; consumes framed PDF bytes.
     #[command(hide = true)]
@@ -235,6 +245,9 @@ pub enum Command {
         height: u16,
         object_number: u32,
         generation: u16,
+        /// CPU seconds allowed to this worker.
+        #[arg(long, default_value_t = crate::render::PAGE_CPU_BUDGET_SECONDS)]
+        cpu_seconds: u64,
     },
     /// Inspect evidence extracted from one PDF.
     Inspect {

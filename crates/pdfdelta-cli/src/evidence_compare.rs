@@ -167,13 +167,31 @@ pub fn compare(
     output: ComparisonOptions<'_>,
     cache_dir: Option<&Path>,
     options: &EvidenceOptions<'_>,
-) -> Result<(u8, bool, crate::render::RenderCpuReport), FlowError> {
+) -> Result<
+    (
+        u8,
+        bool,
+        crate::render::RenderCpuReport,
+        crate::image_hashes::ImageCpuReport,
+    ),
+    FlowError,
+> {
     let started = std::time::Instant::now();
     let retain_inputs = output.review_dir.is_some() || output.agent_review_dir.is_some();
-    let (old, old_bytes, old_images, old_render_cpu) =
-        collect(old_input, cache_dir, options, retain_inputs)?;
-    let (new, new_bytes, new_images, new_render_cpu) =
-        collect(new_input, cache_dir, options, retain_inputs)?;
+    let (old, old_bytes, old_images, old_image_cpu, old_render_cpu) = collect(
+        old_input,
+        cache_dir,
+        options,
+        retain_inputs,
+        output.limit_scale,
+    )?;
+    let (new, new_bytes, new_images, new_image_cpu, new_render_cpu) = collect(
+        new_input,
+        cache_dir,
+        options,
+        retain_inputs,
+        output.limit_scale,
+    )?;
     let image_diff = match (old_images, new_images) {
         (Some(old), Some(new)) => {
             let comparison = compare_images(&old, &new).map_err(FlowError::from)?;
@@ -693,6 +711,10 @@ pub fn compare(
             old: old_render_cpu,
             new: new_render_cpu,
         },
+        crate::image_hashes::ImageCpuReport {
+            old: old_image_cpu,
+            new: new_image_cpu,
+        },
     ))
 }
 
@@ -882,6 +904,7 @@ type CollectedEvidence = (
     EvidenceStore,
     Option<Arc<[u8]>>,
     Option<ImageInventory>,
+    crate::image_hashes::ImageCpuSummary,
     crate::render::RenderCpuSummary,
 );
 
@@ -890,6 +913,7 @@ fn collect(
     cache_dir: Option<&Path>,
     options: &EvidenceOptions,
     retain_input: bool,
+    limit_scale: f64,
 ) -> Result<CollectedEvidence, FlowError> {
     let parse_limits = ParseLimits::default();
     let limits = EvidenceLimits::default();
@@ -910,10 +934,13 @@ fn collect(
         cache_dir,
         &options.channels,
     )?;
-    let mut images = options
-        .channels
-        .contains(&Channel::Visual)
-        .then(|| crate::image_hashes::collect(&bytes, &page_refs, password.is_some()));
+    let mut image_cpu = crate::image_hashes::ImageCpuSummary::default();
+    let mut images = options.channels.contains(&Channel::Visual).then(|| {
+        let (inventory, cpu) =
+            crate::image_hashes::collect(&bytes, &page_refs, password.is_some(), limit_scale);
+        image_cpu = cpu;
+        inventory
+    });
     if let Some(images) = &mut images
         && store
             .issues
@@ -931,7 +958,13 @@ fn collect(
         || options.channels.contains(&Channel::Presentation)
         || store.structured.iter().any(|field| matches!(&field.value, pdfdelta_core::document::StructuredValue::FormField { widgets, .. } if !widgets.is_empty()))
     {
-        render_cpu = crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
+        render_cpu = crate::render::collect(
+            &mut store,
+            &bytes,
+            &page_refs,
+            password.is_some(),
+            limit_scale,
+        );
     }
     crate::widgets::collect(&mut store);
     for channel in [Channel::Presentation] {
@@ -950,5 +983,11 @@ fn collect(
         }
     }
     store.validate(limits).map_err(FlowError::from)?;
-    Ok((store, retain_input.then_some(bytes), images, render_cpu))
+    Ok((
+        store,
+        retain_input.then_some(bytes),
+        images,
+        image_cpu,
+        render_cpu,
+    ))
 }

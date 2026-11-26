@@ -450,6 +450,7 @@ fn build_candidate_cache(path: &Path, output: &Path, limit_scale: f64) -> Result
     let options = FlowSideOptions {
         limits,
         extraction_limits,
+        limit_scale,
         password: None,
         font_identities: &fonts,
         cache: None,
@@ -558,6 +559,8 @@ pub(crate) fn render_text(comparison: &FlowComparison) -> String {
 pub(crate) struct FlowSideOptions<'a> {
     pub(crate) limits: ParseLimits,
     pub(crate) extraction_limits: ExtractionLimits,
+    /// Validated `--limit-scale` factor for worker CPU and wall budgets.
+    pub(crate) limit_scale: f64,
     pub(crate) password: Option<&'a str>,
     pub(crate) font_identities: &'a ExternalFontIdentities,
     pub(crate) cache: Option<&'a crate::extraction_cache::ExtractionCache>,
@@ -655,6 +658,7 @@ pub(crate) fn compare_flow(
     let old_options = FlowSideOptions {
         limits,
         extraction_limits,
+        limit_scale,
         password: old_password,
         font_identities: old_font_identities,
         cache,
@@ -662,6 +666,7 @@ pub(crate) fn compare_flow(
     let new_options = FlowSideOptions {
         limits,
         extraction_limits,
+        limit_scale,
         password: new_password,
         font_identities: new_font_identities,
         cache,
@@ -810,6 +815,8 @@ pub(crate) fn compare_flow(
             encoded: new_encoded_image_pages,
             input: new_image_input,
         },
+        limit_scale,
+        trace.as_deref_mut(),
     );
     let start = std::time::Instant::now();
     let pair = flow_order_from_candidates(old_candidates, new_candidates).map_err(|error| {
@@ -1260,8 +1267,16 @@ fn extract_side(
             FlowError::from(error).with_context(format!("failed to enumerate {}", path.display()))
         })?;
         for &page in &image_issue_pages {
-            let encoded =
-                crate::image_hashes::collect_encoded_page(&image_bytes, &pages, page, false);
+            let (encoded, cpu) = crate::image_hashes::collect_encoded_page(
+                &image_bytes,
+                &pages,
+                page,
+                false,
+                options.limit_scale,
+            );
+            if let Some(trace) = trace.as_mut() {
+                trace.record_image_cpu(side, "encoded-page", &cpu);
+            }
             if encoded.complete
                 && let Some(hash) = encoded.sha256
             {
@@ -1311,7 +1326,12 @@ struct ImageResolution {
 /// Resolves image-only pages with the strongest identity available on both
 /// sides. Encoded hashes may certify equality only; unequal encoded evidence
 /// falls back to decoded pixels or stays unresolved.
-fn resolve_image_pages(old: &ImageSide, new: &ImageSide) -> ImageResolution {
+fn resolve_image_pages(
+    old: &ImageSide,
+    new: &ImageSide,
+    limit_scale: f64,
+    mut trace: Option<&mut FlowTrace>,
+) -> ImageResolution {
     let mut result = ImageResolution::default();
     for page in old.issue_pages.intersection(&new.issue_pages).copied() {
         let old_encoded = old.encoded.get(&page);
@@ -1328,14 +1348,24 @@ fn resolve_image_pages(old: &ImageSide, new: &ImageSide) -> ImageResolution {
             result.new_rules.insert(u64::from(page.0) + 1, "encoded");
             continue;
         }
-        let old_token = old
-            .input
-            .as_ref()
-            .and_then(|input| decoded_image_token(input, page));
-        let new_token = new
-            .input
-            .as_ref()
-            .and_then(|input| decoded_image_token(input, page));
+        let old_token = old.input.as_ref().and_then(|input| {
+            decoded_image_token(
+                input,
+                page,
+                limit_scale,
+                TraceSide::Old,
+                trace.as_deref_mut(),
+            )
+        });
+        let new_token = new.input.as_ref().and_then(|input| {
+            decoded_image_token(
+                input,
+                page,
+                limit_scale,
+                TraceSide::New,
+                trace.as_deref_mut(),
+            )
+        });
         if let (Some(old_token), Some(new_token)) = (old_token, new_token) {
             result.old_tokens.insert(page, old_token);
             result.new_tokens.insert(page, new_token);
@@ -1349,14 +1379,18 @@ fn resolve_image_pages(old: &ImageSide, new: &ImageSide) -> ImageResolution {
     // own encoded or decoded identity is available, the synthetic token is a
     // complete image-page deletion/insertion rather than an unknown glyph gap.
     for page in old.issue_pages.difference(&new.issue_pages).copied() {
-        if let Some((token, rule)) = one_sided_image_token(old, page) {
+        if let Some((token, rule)) =
+            one_sided_image_token(old, page, limit_scale, TraceSide::Old, trace.as_deref_mut())
+        {
             result.old_tokens.insert(page, token);
             result.old_resolved.insert(page);
             result.old_rules.insert(u64::from(page.0) + 1, rule);
         }
     }
     for page in new.issue_pages.difference(&old.issue_pages).copied() {
-        if let Some((token, rule)) = one_sided_image_token(new, page) {
+        if let Some((token, rule)) =
+            one_sided_image_token(new, page, limit_scale, TraceSide::New, trace.as_deref_mut())
+        {
             result.new_tokens.insert(page, token);
             result.new_resolved.insert(page);
             result.new_rules.insert(u64::from(page.0) + 1, rule);
@@ -1365,19 +1399,37 @@ fn resolve_image_pages(old: &ImageSide, new: &ImageSide) -> ImageResolution {
     result
 }
 
-fn one_sided_image_token(side: &ImageSide, page: PageId) -> Option<(String, &'static str)> {
+fn one_sided_image_token(
+    side: &ImageSide,
+    page: PageId,
+    limit_scale: f64,
+    trace_side: TraceSide,
+    trace: Option<&mut FlowTrace>,
+) -> Option<(String, &'static str)> {
     if let Some(hash) = side.encoded.get(&page) {
         return Some((format!("⟦image-encoded:{hash}⟧"), "encoded"));
     }
-    side.input
-        .as_ref()
-        .and_then(|input| decoded_image_token(input, page))
-        .map(|token| (token, "pixels"))
+    let input = side.input.as_ref()?;
+    decoded_image_token(input, page, limit_scale, trace_side, trace).map(|token| (token, "pixels"))
 }
 
-fn decoded_image_token(input: &ImageInput, page: PageId) -> Option<String> {
-    let inventory =
-        crate::image_hashes::collect_page(input.bytes.as_ref(), &input.pages, page, false);
+fn decoded_image_token(
+    input: &ImageInput,
+    page: PageId,
+    limit_scale: f64,
+    side: TraceSide,
+    mut trace: Option<&mut FlowTrace>,
+) -> Option<String> {
+    let (inventory, cpu) = crate::image_hashes::collect_page(
+        input.bytes.as_ref(),
+        &input.pages,
+        page,
+        false,
+        limit_scale,
+    );
+    if let Some(trace) = trace.as_mut() {
+        trace.record_image_cpu(side, "page", &cpu);
+    }
     image_page_token(&inventory, page)
 }
 

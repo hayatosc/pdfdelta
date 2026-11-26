@@ -181,12 +181,14 @@ details.
   side-by-side runs with an unchanged visual order is reported as reading-order
   evidence instead of a content move. Both choices are quality preferences, not
   author intent; equal-span swaps keep the alignment choice. Formatting reasons
-  are approximate. Channel rendering budgets each page by CPU time and
-  each input document by cumulative child CPU (60 s); the much larger
-  wall-clock safety stops can still expire under extreme load and are reported
-  as a distinct resource-limit reason.
+  are approximate. Channel rendering budgets each page by CPU time (10 s) and
+  each input document by cumulative child CPU (120 s); image decoding budgets
+  60 s per worker call. The wall-clock safety stops (120 s per page, 600 s per
+  document, 300 s per image worker) can still expire under extreme load and are
+  reported as a distinct resource-limit reason.
 - Large real-world documents may hit resource limits; `--limit-scale` raises
-  flow extraction count limits and the shared footer-matching work limit. Full
+  flow extraction count limits, the shared footer-matching work limit, and the
+  render/image CPU and wall budgets. Full
   JSON captures stream per-glyph sources through a temporary side cache and
   stay near the compact run's memory (about 2.2 GB on the largest pair), but
   the gzip output is still hundreds of megabytes. Agent review plans at most

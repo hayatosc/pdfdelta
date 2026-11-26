@@ -30,6 +30,71 @@ use sha2::{Digest, Sha256};
 const MAX_RESPONSE: usize = 8 * 1024 * 1024;
 const MAX_TOTAL_PIXELS: u64 = 64_000_000;
 
+/// CPU seconds allowed to one image-decoding worker call.
+///
+/// Measured over the 36-pair channel panel: 56 successful document calls have
+/// median about 0.18 s, p99 and max about 13.7 s (the `mhlw-care-skills` new
+/// side); the 16 calls that stop at an inventory limit before responding were
+/// timed separately and peak at about 3.8 s. Sixty seconds is about a 4.4x
+/// margin over the observed maximum and roughly matches the render document
+/// budget's 4.5x headroom. One call parses the whole input and visits every
+/// page, so a single decoded page call cannot exceed this bound.
+pub(crate) const IMAGE_CPU_BUDGET_SECONDS: u64 = 60;
+
+/// Wall-clock safety stop for one image-decoding worker call.
+///
+/// The deterministic limit is [`IMAGE_CPU_BUDGET_SECONDS`]. This cap is five
+/// times that budget and only stops a worker that is blocked or descheduled
+/// far beyond the measured distribution. At a 25% CPU quota the full CPU
+/// budget takes about 240 wall seconds, so the CPU budget still expires first.
+const IMAGE_WALL_SAFETY_SECONDS: u64 = 300;
+
+/// Child CPU and wall-clock budgets for one image-decoding worker call.
+///
+/// [`Self::for_limit_scale`] multiplies every value by the command's
+/// `--limit-scale`, so a slower machine raises the deterministic CPU budget
+/// and its load-dependent wall backstop together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ImageBudgets {
+    pub(crate) cpu_seconds: u64,
+    pub(crate) wall: Duration,
+}
+
+impl ImageBudgets {
+    /// Scales the measured defaults by a validated `--limit-scale` factor.
+    ///
+    /// The CLI rejects non-finite factors below one before this runs. The
+    /// conversion saturates instead of wrapping.
+    pub(crate) fn for_limit_scale(limit_scale: f64) -> Self {
+        Self {
+            cpu_seconds: crate::render::scale_seconds(IMAGE_CPU_BUDGET_SECONDS, limit_scale),
+            wall: Duration::from_secs(crate::render::scale_seconds(
+                IMAGE_WALL_SAFETY_SECONDS,
+                limit_scale,
+            )),
+        }
+    }
+
+    /// Wall-clock seconds of the configured backstop.
+    pub(crate) const fn wall_seconds(&self) -> u64 {
+        self.wall.as_secs()
+    }
+}
+
+/// Child CPU consumed by one image worker call.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ImageCpuSummary {
+    pub(crate) calls: usize,
+    pub(crate) cpu_micros: u64,
+}
+
+/// Image-worker CPU evidence for both sides of one comparison.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ImageCpuReport {
+    pub(crate) old: ImageCpuSummary,
+    pub(crate) new: ImageCpuSummary,
+}
+
 fn revision(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -37,13 +102,15 @@ fn revision(bytes: &[u8]) -> String {
         .collect()
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Response {
     revision: String,
     pages: Vec<ObjectRef>,
     inventory: ImageInventory,
     #[serde(default)]
     encoded: Option<EncodedPageIdentity>,
+    /// Child process CPU consumed before writing the response.
+    cpu_micros: u64,
 }
 
 /// Sufficient page identity from encoded image streams without decoding.
@@ -107,7 +174,14 @@ const IMAGE_DICTIONARY_KEYS: [&[u8]; 12] = [
 ];
 const IMAGE_MASK_KEYS: [&[u8]; 2] = [b"SMask", b"Mask"];
 
-pub fn collect(bytes: &[u8], pages: &[PageRef], password_supplied: bool) -> ImageInventory {
+pub fn collect(
+    bytes: &[u8],
+    pages: &[PageRef],
+    password_supplied: bool,
+    limit_scale: f64,
+) -> (ImageInventory, ImageCpuSummary) {
+    let budgets = ImageBudgets::for_limit_scale(limit_scale);
+    let mut cpu = ImageCpuSummary::default();
     let result = (|| {
         if password_supplied {
             return Err("password-assisted image decoding is not implemented".into());
@@ -115,11 +189,8 @@ pub fn collect(bytes: &[u8], pages: &[PageRef], password_supplied: bool) -> Imag
         let mut command =
             Command::new(std::env::current_exe().map_err(|e| format!("image worker: {e}"))?);
         command.arg("hash-images");
-        let output =
-            crate::render::run_bounded(&mut command, bytes, MAX_RESPONSE, Duration::from_secs(30))
-                .map_err(|(kind, reason)| format!("{kind:?}: {reason}"))?;
-        let response: Response =
-            serde_json::from_slice(&output).map_err(|e| format!("invalid image response: {e}"))?;
+        let (response, measured) = run_worker(&mut command, bytes, budgets)?;
+        cpu = measured;
         if response.revision != revision(bytes)
             || response.pages != pages.iter().map(|p| p.0).collect::<Vec<_>>()
             || response
@@ -133,11 +204,14 @@ pub fn collect(bytes: &[u8], pages: &[PageRef], password_supplied: bool) -> Imag
         response.inventory.validate().map_err(|e| e.to_string())?;
         Ok(response.inventory)
     })();
-    result.unwrap_or_else(|reason| ImageInventory {
-        images: Vec::new(),
-        complete: false,
-        issues: vec![reason],
-    })
+    (
+        result.unwrap_or_else(|reason| ImageInventory {
+            images: Vec::new(),
+            complete: false,
+            issues: vec![reason],
+        }),
+        cpu,
+    )
 }
 
 pub fn collect_page(
@@ -145,7 +219,10 @@ pub fn collect_page(
     pages: &[PageRef],
     page: PageId,
     password_supplied: bool,
-) -> ImageInventory {
+    limit_scale: f64,
+) -> (ImageInventory, ImageCpuSummary) {
+    let budgets = ImageBudgets::for_limit_scale(limit_scale);
+    let mut cpu = ImageCpuSummary::default();
     let result = (|| {
         if password_supplied {
             return Err("password-assisted image decoding is not implemented".into());
@@ -159,11 +236,8 @@ pub fn collect_page(
             .arg("hash-image-page")
             .arg("--page")
             .arg(page.0.to_string());
-        let output =
-            crate::render::run_bounded(&mut command, bytes, MAX_RESPONSE, Duration::from_secs(30))
-                .map_err(|(kind, reason)| format!("{kind:?}: {reason}"))?;
-        let response: Response =
-            serde_json::from_slice(&output).map_err(|e| format!("invalid image response: {e}"))?;
+        let (response, measured) = run_worker(&mut command, bytes, budgets)?;
+        cpu = measured;
         if response.revision != revision(bytes)
             || response.pages != pages.iter().map(|p| p.0).collect::<Vec<_>>()
             || response
@@ -177,11 +251,14 @@ pub fn collect_page(
         response.inventory.validate().map_err(|e| e.to_string())?;
         Ok(response.inventory)
     })();
-    result.unwrap_or_else(|reason| ImageInventory {
-        images: Vec::new(),
-        complete: false,
-        issues: vec![reason],
-    })
+    (
+        result.unwrap_or_else(|reason| ImageInventory {
+            images: Vec::new(),
+            complete: false,
+            issues: vec![reason],
+        }),
+        cpu,
+    )
 }
 
 /// Collects the encoded-only identity for one image-only page.
@@ -193,8 +270,11 @@ pub fn collect_encoded_page(
     pages: &[PageRef],
     page: PageId,
     password_supplied: bool,
-) -> EncodedPageIdentity {
-    let fail = |reason: String| EncodedPageIdentity {
+    limit_scale: f64,
+) -> (EncodedPageIdentity, ImageCpuSummary) {
+    let budgets = ImageBudgets::for_limit_scale(limit_scale);
+    let mut cpu = ImageCpuSummary::default();
+    let failure = |reason: String| EncodedPageIdentity {
         page,
         complete: false,
         occurrences: 0,
@@ -202,10 +282,16 @@ pub fn collect_encoded_page(
         issues: vec![reason],
     };
     if password_supplied {
-        return fail("password-assisted image decoding is not implemented".into());
+        return (
+            failure("password-assisted image decoding is not implemented".into()),
+            cpu,
+        );
     }
     if page.0 as usize >= pages.len() {
-        return fail("image page index is outside the page list".into());
+        return (
+            failure("image page index is outside the page list".into()),
+            cpu,
+        );
     }
     let result = (|| {
         let mut command =
@@ -214,11 +300,8 @@ pub fn collect_encoded_page(
             .arg("hash-image-page-encoded")
             .arg("--page")
             .arg(page.0.to_string());
-        let output =
-            crate::render::run_bounded(&mut command, bytes, MAX_RESPONSE, Duration::from_secs(30))
-                .map_err(|(kind, reason)| format!("{kind:?}: {reason}"))?;
-        let response: Response =
-            serde_json::from_slice(&output).map_err(|e| format!("invalid image response: {e}"))?;
+        let (response, measured) = run_worker(&mut command, bytes, budgets)?;
+        cpu = measured;
         if response.revision != revision(bytes)
             || response.pages != pages.iter().map(|p| p.0).collect::<Vec<_>>()
         {
@@ -230,27 +313,52 @@ pub fn collect_encoded_page(
         encoded.validate(page)?;
         Ok(encoded)
     })();
-    result.unwrap_or_else(fail)
+    (result.unwrap_or_else(failure), cpu)
 }
 
-pub fn worker() -> Result<(), u8> {
-    worker_inner(None, true, false)
+/// Runs one image worker with its scaled CPU and wall budgets.
+///
+/// `run_bounded` classifies a `SIGXCPU` termination and the worker's limits
+/// exit code 3 as resource-limit outcomes; the reason keeps the typed kind so
+/// the inventory issue uses the same vocabulary as render limits.
+fn run_worker(
+    command: &mut Command,
+    bytes: &[u8],
+    budgets: ImageBudgets,
+) -> Result<(Response, ImageCpuSummary), String> {
+    command
+        .arg("--cpu-seconds")
+        .arg(budgets.cpu_seconds.to_string());
+    let output = crate::render::run_bounded(command, bytes, MAX_RESPONSE, budgets.wall)
+        .map_err(|(kind, reason)| format!("{kind:?}: {reason}"))?;
+    let response: Response =
+        serde_json::from_slice(&output).map_err(|e| format!("invalid image response: {e}"))?;
+    let summary = ImageCpuSummary {
+        calls: 1,
+        cpu_micros: response.cpu_micros,
+    };
+    Ok((response, summary))
 }
 
-pub fn worker_page(page: usize) -> Result<(), u8> {
-    worker_inner(Some(page), true, false)
+pub fn worker(cpu_seconds: u64) -> Result<(), u8> {
+    worker_inner(None, true, false, cpu_seconds)
 }
 
-pub fn worker_encoded_page(page: usize) -> Result<(), u8> {
-    worker_inner(Some(page), false, true)
+pub fn worker_page(page: usize, cpu_seconds: u64) -> Result<(), u8> {
+    worker_inner(Some(page), true, false, cpu_seconds)
+}
+
+pub fn worker_encoded_page(page: usize, cpu_seconds: u64) -> Result<(), u8> {
+    worker_inner(Some(page), false, true, cpu_seconds)
 }
 
 fn worker_inner(
     selected_page: Option<usize>,
     decode: bool,
     record_encoded: bool,
+    cpu_seconds: u64,
 ) -> Result<(), u8> {
-    crate::render::restrict_process(25)?;
+    crate::render::restrict_process(cpu_seconds)?;
     let mut bytes = Vec::new();
     let limit = ParseLimits::default().max_input_bytes;
     std::io::stdin()
@@ -374,6 +482,7 @@ fn worker_inner(
         pages,
         inventory: device.inventory,
         encoded,
+        cpu_micros: crate::render::process_cpu_micros(),
     };
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     serde_json::to_writer(
@@ -852,5 +961,62 @@ impl<'a> Device<'a> for Images {
             self.encoded
                 .fail("Type3 glyph image inventory is not examined");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn image_budgets_scale_with_the_limit_factor() {
+        let base = ImageBudgets::for_limit_scale(1.0);
+        assert_eq!(base.cpu_seconds, 60);
+        assert_eq!(base.wall_seconds(), 300);
+
+        let scaled = ImageBudgets::for_limit_scale(2.5);
+        assert_eq!(scaled.cpu_seconds, 150);
+        assert_eq!(scaled.wall_seconds(), 750);
+
+        let saturated = ImageBudgets::for_limit_scale(f64::MAX);
+        assert_eq!(saturated.cpu_seconds, u64::MAX);
+        assert_eq!(saturated.wall_seconds(), u64::MAX);
+    }
+
+    #[test]
+    fn run_worker_passes_the_scaled_cpu_budget_and_reads_its_measurement() {
+        let budgets = ImageBudgets::for_limit_scale(2.0);
+        let mut command = Command::new("sh");
+        command.args([
+            "-c",
+            r#"printf '{"revision":"fixture","pages":[],"inventory":{"images":[],"complete":true,"issues":[]},"cpu_micros":%s}' "$1""#,
+        ]);
+        let (response, summary) =
+            run_worker(&mut command, &[], budgets).expect("the scripted worker response parses");
+        assert_eq!(response.revision, "fixture");
+        assert_eq!(
+            response.cpu_micros, budgets.cpu_seconds,
+            "the worker must receive the scaled CPU budget"
+        );
+        assert_eq!(summary.calls, 1);
+        assert_eq!(summary.cpu_micros, budgets.cpu_seconds);
+    }
+
+    #[test]
+    fn image_worker_wall_stop_is_a_typed_resource_limit() {
+        let budgets = ImageBudgets {
+            cpu_seconds: 1,
+            wall: Duration::from_millis(50),
+        };
+        let mut command = Command::new("sh");
+        command.args(["-c", "exec sleep 30"]);
+        let error = run_worker(&mut command, &[], budgets)
+            .expect_err("a blocked worker must not outlive its wall backstop");
+        assert!(
+            error.starts_with("ResourceLimit:"),
+            "the wall stop keeps the typed kind: {error}"
+        );
+        assert!(error.contains("wall-clock safety stop"), "{error}");
+        assert!(error.contains("machine load"), "{error}");
     }
 }
