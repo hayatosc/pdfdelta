@@ -1792,6 +1792,52 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
 }
 
 #[test]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn render_worker_installs_limits_and_renders_a_trivial_page() {
+    let directory = TestDirectory::new();
+    let fixture = directory.join("trivial.pdf");
+    write_pdf(&fixture, &["Hello"]);
+    let bytes = fs::read(&fixture).expect("fixture bytes");
+
+    // The hidden worker command checks the page object it was asked to render
+    // against the page it found, so derive that identity from the fixture.
+    let document = Document::load_mem(&bytes).expect("fixture parses with lopdf");
+    let page = document.get_pages()[&1];
+    let object_number = page.0.to_string();
+    let generation = page.1.to_string();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args([
+            "render-page",
+            "0",
+            "1",
+            "300",
+            "300",
+            &object_number,
+            &generation,
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("render worker starts");
+    std::io::Write::write_all(&mut child.stdin.take().expect("piped input"), &bytes)
+        .expect("render input");
+    let output = child.wait_with_output().expect("render result");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "render worker failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        output.stdout.len(),
+        1 + 8 + 300 * 300 * 3,
+        "response is one warning flag, CPU micros, and RGB samples"
+    );
+    assert!(output.stdout[0] <= 1, "warning flag is a byte");
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn render_process_rejects_oversized_output_before_reading_input() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))

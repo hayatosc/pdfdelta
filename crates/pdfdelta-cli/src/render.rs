@@ -725,34 +725,112 @@ pub fn worker(
     stdout.flush().map_err(|_| 2)
 }
 
+/// A process limit the worker could not install.
+///
+/// The parent observes only the worker's exit status, so the resource name and
+/// the operating system's error are reported on stderr as well as returned. A
+/// failed limit is an execution error (exit 4), never a render result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RestrictProcessError {
+    resource: &'static str,
+    detail: String,
+}
+
+impl RestrictProcessError {
+    /// Exit code the worker uses for a limit it could not install.
+    pub const EXIT_CODE: u8 = 4;
+
+    fn new(resource: &'static str, detail: impl Into<String>) -> Self {
+        Self {
+            resource,
+            detail: detail.into(),
+        }
+    }
+
+    /// The limit that failed, for example `RLIMIT_CPU`.
+    #[must_use]
+    pub const fn resource(&self) -> &'static str {
+        self.resource
+    }
+
+    /// The operating system's error text, including its errno.
+    #[must_use]
+    pub fn detail(&self) -> &str {
+        &self.detail
+    }
+}
+
+impl std::fmt::Display for RestrictProcessError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "cannot install {} for the worker: {}",
+            self.resource, self.detail
+        )
+    }
+}
+
+impl std::error::Error for RestrictProcessError {}
+
+impl From<RestrictProcessError> for u8 {
+    fn from(error: RestrictProcessError) -> Self {
+        // A worker's stderr is normally discarded by its parent, but a direct
+        // invocation should still name the failing limit.
+        eprintln!("pdfdelta: {error}");
+        RestrictProcessError::EXIT_CODE
+    }
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-pub fn restrict_process(cpu_seconds: u64) -> Result<(), u8> {
-    use rustix::process::{Resource, Rlimit, setrlimit};
-    // macOS accepts RLIMIT_AS but does not enforce it. Arm the worker
-    // allocator before any input is read so the 2 GiB ceiling is real on both
-    // supported platforms. Linux keeps its existing RLIMIT_AS behaviour.
+fn install_limit(
+    resource: rustix::process::Resource,
+    name: &'static str,
+    limit: u64,
+) -> Result<(), RestrictProcessError> {
+    use rustix::process::{Rlimit, setrlimit};
+
+    setrlimit(
+        resource,
+        Rlimit {
+            current: Some(limit),
+            maximum: Some(limit),
+        },
+    )
+    .map_err(|error| RestrictProcessError::new(name, error.to_string()))
+}
+
+/// Installs the worker's CPU, core-dump, and (on Linux) address-space limits.
+///
+/// # Errors
+/// Returns [`RestrictProcessError`] naming the limit and the operating
+/// system's error when any limit cannot be installed.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn restrict_process(cpu_seconds: u64) -> Result<(), RestrictProcessError> {
+    use rustix::process::Resource;
+
+    // macOS accepts RLIMIT_AS but does not enforce it, and its address-space
+    // limit is not a reliable RSS ceiling. Arm the worker allocator before any
+    // input is read instead; Linux keeps its existing RLIMIT_AS behaviour.
     #[cfg(target_os = "macos")]
     crate::worker_allocator::enforce(crate::worker_allocator::WORKER_MEMORY_BUDGET_BYTES);
-    for (resource, limit) in [
-        (Resource::As, 2 * 1024 * 1024 * 1024),
-        (Resource::Cpu, cpu_seconds),
-        (Resource::Core, 0),
-    ] {
-        setrlimit(
-            resource,
-            Rlimit {
-                current: Some(limit),
-                maximum: Some(limit),
-            },
-        )
-        .map_err(|_| 4)?;
-    }
+    #[cfg(target_os = "linux")]
+    install_limit(Resource::As, "RLIMIT_AS", 2 * 1024 * 1024 * 1024)?;
+    install_limit(Resource::Cpu, "RLIMIT_CPU", cpu_seconds)?;
+    install_limit(Resource::Core, "RLIMIT_CORE", 0)?;
     Ok(())
 }
 
+/// Non-Unix platforms have no worker resource limits to install.
+///
+/// # Errors
+/// Always returns [`RestrictProcessError`]: a worker must not run without the
+/// limits the rest of the pipeline assumes.
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-pub fn restrict_process(_cpu_seconds: u64) -> Result<(), u8> {
-    Err(4)
+pub fn restrict_process(_cpu_seconds: u64) -> Result<(), RestrictProcessError> {
+    Err(RestrictProcessError::new(
+        "worker resource limits",
+        "unsupported platform",
+    ))
 }
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
@@ -903,6 +981,34 @@ mod tests {
     fn document_cpu_budget_reason_is_explicit() {
         assert!(DOCUMENT_CPU_BUDGET_REASON.contains("document CPU budget"));
         assert!(DOCUMENT_CPU_BUDGET_REASON.contains("deterministic"));
+    }
+
+    #[test]
+    fn worker_resource_limits_install_in_a_child() {
+        const CHILD: &str = "PDFDELTA_RESTRICT_TEST_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            match restrict_process(5) {
+                Ok(()) => std::process::exit(0),
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(4);
+                }
+            }
+        }
+        let output = Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "render::tests::worker_resource_limits_install_in_a_child",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .expect("child test process");
+        assert!(
+            output.status.success(),
+            "resource limits must install on this platform: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     #[test]
