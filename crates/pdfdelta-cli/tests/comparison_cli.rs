@@ -1704,7 +1704,8 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
             .expect("issues")
             .is_empty()
     );
-    #[cfg(target_os = "linux")]
+    // Rendering is available on every platform with a worker, not only Linux.
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         assert_eq!(report["old"]["rendered_regions"], 1);
         assert_eq!(report["old"]["issues"][0]["kind"], "unresolved");
@@ -1787,7 +1788,8 @@ fn default_contract_retains_image_evidence_without_claiming_complete_coverage() 
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
     }
-    #[cfg(not(target_os = "linux"))]
+    // Only platforms without a worker leave the page unrendered.
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     assert_eq!(report["old"]["rendered_regions"], 0);
 }
 
@@ -1838,7 +1840,7 @@ fn render_worker_installs_limits_and_renders_a_trivial_page() {
 }
 
 #[test]
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn render_process_rejects_oversized_output_before_reading_input() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .args(["render-page", "0", "1", "65535", "65535", "1", "0"])
@@ -1848,7 +1850,10 @@ fn render_process_rejects_oversized_output_before_reading_input() {
     assert!(output.stdout.is_empty());
 }
 
-#[cfg(unix)]
+// APFS rejects non-UTF-8 names with EILSEQ, so this filesystem scenario can
+// only be constructed on Linux. The worker's JSON path handling is still
+// covered by the UTF-8 cache tests on every platform.
+#[cfg(target_os = "linux")]
 #[test]
 fn non_utf8_cache_directories_do_not_disable_native_evidence() {
     use std::os::unix::ffi::OsStringExt;
@@ -2461,7 +2466,7 @@ fn native_field_presence_reaches_cli_counts_and_coverage_without_character_masks
 }
 
 #[test]
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn native_worker_preserves_encrypted_cache_results_without_exposing_passwords() {
     let directory = TestDirectory::new();
     let old = directory.join("encrypted-old.pdf");
@@ -2520,7 +2525,7 @@ fn native_worker_preserves_encrypted_cache_results_without_exposing_passwords() 
 }
 
 #[test]
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn native_worker_rejects_malformed_and_oversized_request_frames() {
     use std::io::Write as _;
     for (input, expected) in [
@@ -2612,7 +2617,7 @@ fn button_appearance_state_disagreement_keeps_independent_field_changes() {
 }
 
 #[test]
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn form_widget_pixels_and_saved_values_compare_independently() {
     let directory = TestDirectory::new();
     let old = directory.join("old-widget.pdf");
