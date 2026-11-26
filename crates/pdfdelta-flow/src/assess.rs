@@ -501,6 +501,19 @@ pub fn formatting_changes(
         start = end;
     }
     coalesce(&mut changes, old, new);
+    // A segment boundary gap can become interior after coalescing. Add raw
+    // normalization for the final entry spans, then coalesce again so newly
+    // equal reasons still merge.
+    loop {
+        let added = add_interior_raw_normalization(&mut changes, old, new);
+        let before = changes.len();
+        if added {
+            coalesce(&mut changes, old, new);
+        }
+        if !added || changes.len() == before {
+            break;
+        }
+    }
     // A formatting entry must span a matched run, not a single token. A
     // one-token match is a point: LCS can match an isolated common word inside
     // heavily rewritten text, but it provides no line or block span that the
@@ -720,13 +733,115 @@ fn font_size_pair(
     Some((old_token.font_size?, new_token.font_size?))
 }
 
+/// Splits a token's raw projection into its own text and its trailing gap.
+///
+/// The gap is whitespace evidence only when it contains no line break and no
+/// non-whitespace text. An over-extended projection or a line break leaves the
+/// gap unknown rather than inventing evidence.
+fn raw_parts(raw: &str) -> (&str, Option<&str>) {
+    let split = raw
+        .find(|character: char| character.is_whitespace())
+        .unwrap_or(raw.len());
+    let own = &raw[..split];
+    let gap = &raw[split..];
+    if gap.chars().all(char::is_whitespace) && !gap.contains(['\n', '\r']) {
+        (own, Some(gap))
+    } else {
+        (own, None)
+    }
+}
+
+/// Returns whether the raw text of any matched pair differs.
+///
+/// The last pair owns the whitespace up to the next non-whitespace token, which
+/// may lie outside this segment. Compare only its own raw text there; span
+/// boundary whitespace is not interior evidence. Line-break gaps and
+/// over-extended raw projections are not whitespace evidence.
 fn raw_differs_in_segment(old: &[FlowToken], new: &[FlowToken], pairs: &[(usize, usize)]) -> bool {
-    pairs.iter().any(
-        |&(old_index, new_index)| match (&old[old_index].raw, &new[new_index].raw) {
-            (Some(old), Some(new)) => old != new,
-            _ => false,
-        },
-    )
+    let last = pairs.len().saturating_sub(1);
+    pairs
+        .iter()
+        .enumerate()
+        .any(|(offset, &(old_index, new_index))| {
+            let old_token = &old[old_index];
+            let new_token = &new[new_index];
+            let (Some(old_raw), Some(new_raw)) = (&old_token.raw, &new_token.raw) else {
+                return false;
+            };
+            let (old_own, old_gap) = raw_parts(old_raw);
+            let (new_own, new_gap) = raw_parts(new_raw);
+            if old_own != new_own {
+                return true;
+            }
+            if offset == last
+                || old_token.line_break_after
+                || old_token.page_break_after
+                || new_token.line_break_after
+                || new_token.page_break_after
+            {
+                return false;
+            }
+            matches!((old_gap, new_gap), (Some(old_gap), Some(new_gap)) if old_gap != new_gap)
+        })
+}
+
+/// Adds normalization when a final entry span contains an interior raw gap
+/// difference. The last token's trailing gap is outside the entry and is not
+/// compared.
+fn add_interior_raw_normalization(
+    changes: &mut [FormattingChange],
+    old: &[FlowToken],
+    new: &[FlowToken],
+) -> bool {
+    let mut added = false;
+    for change in changes {
+        if change.old_size.is_some()
+            || change.new_size.is_some()
+            || change.reasons.contains(&FormattingReason::Normalization)
+        {
+            continue;
+        }
+        if raw_differs_in_change(old, new, change) {
+            change.reasons.push(FormattingReason::Normalization);
+            change.reasons.sort_unstable();
+            change.reasons.dedup();
+            added = true;
+        }
+    }
+    added
+}
+
+fn raw_differs_in_change(old: &[FlowToken], new: &[FlowToken], change: &FormattingChange) -> bool {
+    let len = change.old.end - change.old.start;
+    if len != change.new.end - change.new.start {
+        return false;
+    }
+    for offset in 0..len {
+        let old_token = &old[change.old.start + offset];
+        let new_token = &new[change.new.start + offset];
+        let (Some(old_raw), Some(new_raw)) = (&old_token.raw, &new_token.raw) else {
+            continue;
+        };
+        let (old_own, old_gap) = raw_parts(old_raw);
+        let (new_own, new_gap) = raw_parts(new_raw);
+        if old_own != new_own {
+            return true;
+        }
+        if offset + 1 == len
+            || old_token.line_break_after
+            || old_token.page_break_after
+            || new_token.line_break_after
+            || new_token.page_break_after
+        {
+            continue;
+        }
+        if let (Some(old_gap), Some(new_gap)) = (old_gap, new_gap)
+            && old_gap != new_gap
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn normalization_differs_in_segment(
@@ -1313,6 +1428,70 @@ mod tests {
         assert_eq!(formatting[0].old, 0..4);
         assert_eq!(formatting[0].new, 0..4);
         assert_eq!(formatting[0].reasons, vec![FormattingReason::Normalization]);
+    }
+
+    #[test]
+    fn a_line_break_or_overextended_gap_is_not_normalization_evidence() {
+        let mut old = vec![token("alpha", 0, 10.0), token("beta", 0, 10.0)];
+        let mut new = old.clone();
+        old[0].raw = Some("alpha\nbeta".into());
+        new[0].raw = Some("alpha ".into());
+        let diff = diff(&old, &new);
+        let formatting = formatting_changes(&old, &new, &diff.spine);
+        assert!(formatting.is_empty(), "{formatting:?}");
+    }
+
+    #[test]
+    fn whitespace_after_a_matched_span_is_not_normalization_evidence() {
+        let old_document = crate::tests::document_with_literal_spaces(&[
+            ("alpha beta", 0, 100.0),
+            ("old-only", 0, 90.0),
+        ]);
+        let new_document =
+            crate::tests::document_with_literal_spaces(&[("alpha beta new-only", 0, 100.0)]);
+        let old = crate::flow_tokens(&old_document).expect("old tokens");
+        let new = crate::flow_tokens(&new_document).expect("new tokens");
+        let diff = diff(&old.tokens, &new.tokens);
+        let formatting = formatting_changes(&old.tokens, &new.tokens, &diff.spine);
+        assert!(
+            formatting
+                .iter()
+                .all(|change| !change.reasons.contains(&FormattingReason::Normalization)),
+            "{formatting:?}"
+        );
+    }
+
+    #[test]
+    fn literal_whitespace_differences_are_normalization_evidence() {
+        let cases = [
+            ("alpha  beta", "alpha beta"),
+            ("alpha beta", "alpha\u{a0}beta"),
+        ];
+        for (old_text, new_text) in cases {
+            let old_document = crate::tests::document_with_literal_spaces(&[(old_text, 0, 100.0)]);
+            let new_document = crate::tests::document_with_literal_spaces(&[(new_text, 0, 100.0)]);
+            let old = crate::flow_tokens(&old_document).expect("old tokens");
+            let new = crate::flow_tokens(&new_document).expect("new tokens");
+            let diff = diff(&old.tokens, &new.tokens);
+            let formatting = formatting_changes(&old.tokens, &new.tokens, &diff.spine);
+            assert_eq!(
+                formatting.len(),
+                1,
+                "{old_text:?} -> {new_text:?}: {formatting:?}"
+            );
+            assert_eq!(formatting[0].reasons, vec![FormattingReason::Normalization]);
+        }
+    }
+
+    #[test]
+    fn identical_literal_whitespace_is_not_normalization_evidence() {
+        let old_document = crate::tests::document_with_literal_spaces(&[("alpha  beta", 0, 100.0)]);
+        let new_document = crate::tests::document_with_literal_spaces(&[("alpha  beta", 0, 100.0)]);
+        let old = crate::flow_tokens(&old_document).expect("old tokens");
+        let new = crate::flow_tokens(&new_document).expect("new tokens");
+        let diff = diff(&old.tokens, &new.tokens);
+        let formatting = formatting_changes(&old.tokens, &new.tokens, &diff.spine);
+        assert!(formatting.is_empty(), "{formatting:?}");
     }
 
     #[test]

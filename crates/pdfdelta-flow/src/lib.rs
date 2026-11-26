@@ -2518,6 +2518,30 @@ pub(crate) mod tests {
         Document::new(glyphs)
     }
 
+    /// Builds a document that emits one glyph for every character, including
+    /// literal spaces, so raw whitespace evidence survives token construction.
+    pub(crate) fn document_with_literal_spaces(lines: &[(&str, u32, f64)]) -> Document<Glyph> {
+        let mut glyphs = Vec::new();
+        let mut id = 1u64;
+        for &(text, page, y) in lines {
+            let mut x = 0.0;
+            for character in text.chars() {
+                glyphs.push(glyph(
+                    id,
+                    DecodedText::Mapped(character.to_string()),
+                    page,
+                    x,
+                    y,
+                    5.0,
+                    10.0,
+                ));
+                id += 1;
+                x += 6.0;
+            }
+        }
+        Document::new(glyphs)
+    }
+
     /// Builds a document from `(line text, page, x, baseline y)` entries.
     ///
     /// Each non-space character becomes one glyph with a 6pt advance and a 5pt

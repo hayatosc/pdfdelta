@@ -212,26 +212,44 @@ output space, bounded independently of existing comparisons.
 - Formatting reasons are approximate and are not interchangeable with the
   removed engine's buckets. The removed engine is not an oracle: its captures
   often had low comparison coverage, and some formatting entries do not
-  describe a visible PDF change. On the 62 pairs where both captures now exist
-  (including the NIST SP 800-57 retry), a word check (`\w+` words, ±3-page
-  window) finds a flow entry with the same reason for 84.2% of the removed
-  engine's 2,763 `position` entries, 88.4% of 43 `line_break`, 56.5% of 108
-  `normalization`, 57.3% of 358 `font_size`, and 3 of 3 `block_structure`
-  entries (strict same-page check: 83.6%, 83.7%, 52.8%, 56.7%, 3 of 3).
-  Auditing the misses against PDF glyphs found no actionable
-  `normalization`/`font_size` miss: of the 153 missed `font_size` entries, 18
-  are identical or differ by less than the 1% relative tolerance, 133 are
-  reported by flow under another reason or inside a content change, and 2 are
-  not a stable matched span; of the 47 missed `normalization` entries, 41 are
-  reported under another reason or inside a content change and 6 are not a
-  stable matched span. The `position` miss count is dominated by a real
-  root cause: a break difference in one segment used to suppress position for
-  the whole run. Position is now tested per segment. One clean sampled
-  class-(a) paragraph is recovered; the other five sampled entries are
-  garbled/reordered multi-column or form occurrences with no stable glyph
-  alignment. Flow is more granular because its
-  unit is the maximal matched run, not a block-grouped bucket, so a formatting
-  report can contain far more entries for the same pair.
+  describe a visible PDF change. On all 64 pairs where both captures now exist
+  (including the NIST SP 800-57 retry and the two pairs the removed engine
+  previously could not compare under the same memory limit), a word check
+  (`\w+` words, ±3-page window) finds a flow entry with the same reason for
+  83.2% of the removed engine's 2,797 `position` entries, 97.9% of 289
+  `line_break`, 90.3% of 422 `normalization`, 32.2% of 941 `font_size`, and 4
+  of 4 `block_structure` entries (strict same-page check: 82.7%, 96.9%, 88.9%,
+  31.8%, 4 of 4). The GCC 13.3→13.4 capture reports no formatting-only entries
+  at its benchmark scale; the Unicode 15→16 capture adds 656 formatting entries
+  (1,178 reason entries). Auditing the Unicode misses against PDF glyphs found
+  one actionable class: nine `normalization` entries on matched spans whose
+  literal whitespace (a repeated space, a non-breaking space, or table padding)
+  differed. Flow's raw projection attached that whitespace to the
+  whitespace-only canonical tokens it does not emit, so the gap was invisible.
+  Keeping the gap on the preceding emitted token, while excluding span-boundary,
+  line-break, and over-extended gaps, raises normalization recall to
+  90.3%/88.9% on the 64 pairs (73.1%/69.4% on the original 62) and leaves no
+  actionable normalization miss. An independent pdfplumber sample of 60 added
+  normalization entries confirmed an interior whitespace-character difference
+  in 49 (81.7%); the 11 unconfirmed samples were line-break-only spans or
+  spacing without literal whitespace characters, and the boundary-gap false
+  positives are gone. The remaining Unicode `font_size` misses are 453 reported
+  under another reason or inside a content change, 30 identical or below the 1%
+  relative tolerance, and 2 isolated one-token matches that flow's formatting
+  contract does not treat as spans (one is reported as a layout-only
+  re-tokenization). On the original 62-pair set the same audit found no
+  actionable `normalization`/`font_size` miss: of the 153 missed `font_size`
+  entries, 18 are identical or below tolerance, 133 are reported under another
+  reason or inside a content change, and 2 are not a stable matched span; of the
+  47 missed `normalization` entries, 41 are reported under another reason or
+  inside a content change and 6 are not a stable matched span. The `position`
+  miss count is dominated by a real root cause: a break difference in one
+  segment used to suppress position for the whole run. Position is now tested
+  per segment. One clean sampled class-(a) paragraph is recovered; the other
+  five sampled entries are garbled/reordered multi-column or form occurrences
+  with no stable glyph alignment. Flow is more granular because its unit is the
+  maximal matched run, not a block-grouped bucket, so a formatting report can
+  contain far more entries for the same pair.
 - The default text engine does not produce an assessment, change candidates,
   proven changed regions, unresolved regions, or coverage intervals. Those
   positions are absent from the native schema-13 report rather than retained as

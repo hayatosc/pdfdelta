@@ -1914,10 +1914,18 @@ fn flow_raw_tokens(
         }
     }
 
-    // A token owns the raw gap after it. Walk backwards so the next token's
-    // start is known before extending the current end.
+    // A non-whitespace token owns the raw gap after it, including any
+    // whitespace that flow drops as separate tokens. Walk backwards so the
+    // next emitted token's start is known before extending the current end.
     let mut next_start = raw_len;
-    for range in ranges.iter_mut().rev() {
+    for (token, range) in tokens.iter().zip(ranges.iter_mut()).rev() {
+        let is_whitespace = matches!(
+            token,
+            (ComparableToken::Scalar(scalar), _) if scalar.is_whitespace()
+        );
+        if is_whitespace {
+            continue;
+        }
         if let Some((start, end)) = *range {
             *range = Some((start, end.max(next_start)));
             next_start = start;
