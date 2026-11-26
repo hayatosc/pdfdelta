@@ -256,11 +256,15 @@ output space, bounded independently of existing comparisons.
   `agent-review-split/v1` sub-cases linked by parent, index, and count instead
   of truncating its sources or members; sub-cases count toward the budget and
   `export_complete`.
-  On `nist-controls` the planner still retains planned cases in memory. The
-  default 4,096-case export publishes two parts (about 0.6 GB) and withholds
-  about 85,600 sub-cases. A budget large enough for the full plan exceeds the
-  6 GB process budget, so a complete export inside 6 GB currently requires
-  streaming case/part writing, which is not implemented. Candidate enumeration
+  Planned case bodies and contexts are spooled to a private temporary file;
+  the resident plan is a fixed-size index of identifiers, digests, counts,
+  ordering keys, and omission records, so its peak does not grow with the case
+  count. On `nist-controls` the default 4,096-case export is one 276 MB bundle
+  and withholds 11,647 sub-cases; the complete 20,222-case export is one
+  342 MB bundle. Both peak at about 2.89 GB, and a diagnostic 4x plan of
+  80,888 cases also peaks at about 2.89 GB. The remaining cost is the
+  comparison's retained evidence and page rasters, not the packets. A case
+  budget stop is still an explicit `cases_not_exported` omission. Candidate enumeration
   is `unknown` for every flow case because the engine enumerates no competing
   correspondence universe. Retained text and source lists carry explicit
   omissions when a limit is reached. The HTML review does not

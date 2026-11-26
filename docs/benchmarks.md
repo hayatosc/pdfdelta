@@ -820,6 +820,24 @@ invalid reports stay in the denominator and never count as complete. Engine
 completion and empty-text outcomes remain separately visible in each row.
 This measures completion only; it does not establish annotation-scored accuracy.
 
+### Agent review plan memory
+
+The agent review planner spools case bodies and contexts, so peak memory should
+not track the number of planned cases. A diagnostic Cargo feature constructs a
+larger plan from the same comparison without changing the planner:
+
+```bash
+cargo build --release -p pdfdelta-cli --features plan-multiplier
+PDFDELTA_AGENT_PLAN_MULTIPLIER=4 pdfdelta old.pdf new.pdf \
+  --agent-review run-4x --agent-case-budget 90000 --quiet
+```
+
+The multiplier duplicates finalized cases in the private store and listing
+order; it is not a user feature and default builds compile it out. Compare peak
+RSS and wall time at multiplier 1 and 4 under the same memory limit. The
+complete NIST plan measured 20,222 cases at 2,894,308 KiB peak RSS and 80,888
+cases at 2,894,200 KiB; the 4x wall time includes writing a 1.8 GB part set.
+
 ### Compact native diagnostics
 
 A full flow report repeats per-glyph drawing provenance for every token. On

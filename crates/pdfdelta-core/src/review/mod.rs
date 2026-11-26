@@ -46,11 +46,13 @@ pub use decision::{
     AgentDecision, DecisionChangeKind, DecisionOutcome, DecisionRejection, DecisionStatus,
     RetrievalRequest, validate_decision, validate_decisions,
 };
-pub use evidence_plan::{SharedEvidenceReview, plan_shared_evidence};
+pub use evidence_plan::{
+    SharedEvidenceReview, plan_shared_evidence, plan_shared_evidence_streaming,
+};
 pub use flow_plan::{
     FlowAmbiguity, FlowChangeKind, FlowChangeView, FlowConfidence, FlowFormattingView,
     FlowIssueKind, FlowIssueView, FlowNativeReview, FlowPageOrderView, FlowSideView,
-    FlowTextReview, FlowTokenView, plan_flow_native,
+    FlowTextReview, FlowTokenView, plan_flow_native, plan_flow_native_streaming,
 };
 pub use manifest::{
     AgentReviewManifest, CaseCensus, EngineOutcome, EngineStatus, ExportOmission, ExportStatus,
@@ -58,7 +60,8 @@ pub use manifest::{
     UnlocalizedGap,
 };
 pub use planner::{
-    DEFAULT_AGENT_CASE_BUDGET, PlannerLimits, ReviewPlan, evidence_ref, retain_text, source_alias,
+    CaseLinks, CaseStore, DEFAULT_AGENT_CASE_BUDGET, MemoryCaseStore, OrderedCase, PlanError,
+    PlannerLimits, ReviewPlan, StreamingPlan, evidence_ref, retain_text, source_alias,
     withhold_text,
 };
 

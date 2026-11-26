@@ -672,10 +672,16 @@ and `subcase.count` (`agent-review-split/v1`); the first part carries the quoted
 text and flow entries, later parts carry the remaining source evidence.
 Sub-cases count toward the budget and `export_complete`.
 
-On `P/nist-controls-53-r4-to-r5`, the current in-memory planner exports 4,096
-cases as two parts (about 0.6 GB) and withholds about 85,600 sub-cases. A
-budget large enough for the full plan reaches the 6 GB process budget before
-writing; complete streaming export is not implemented yet.
+Case bodies and contexts are spooled to a private temporary file; the resident
+plan is a fixed-size listing index, so peak memory does not grow with the case
+count. On `P/nist-controls-53-r4-to-r5`, the default 4,096-case export is one
+276 MB bundle and withholds 11,647 sub-cases; the complete 20,222-case export
+is one 342 MB bundle. Both peak at about 2.89 GB, and a diagnostic 4x plan of
+80,888 cases peaks at the same value.
+
+Cases are attempted in 4,096-case batches. A part that would exceed its cap is
+halved and retried, so a part can close in the middle of a batch without
+reordering a case; split sub-cases stay consecutive across a batch boundary.
 
 ## Resource limits and caching
 

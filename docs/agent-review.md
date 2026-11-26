@@ -81,20 +81,39 @@ evidence, page-local gaps before document-wide ones, and the old side before
 the new side only as a tie-break. Page-residual cases come last. When the case
 budget is exhausted, the planner stops building cases, records a bundle-level
 `cases_not_exported` omission with the number of withheld cases, and leaves
-`export_complete: false`. On `P/nist-controls-53-r4-to-r5`, the current in-memory planner
-exports 4,096 cases as two parts (about 0.6 GB) and withholds about 85,600
-sub-cases. A budget large enough for the full plan reaches the 6 GB process
-budget before writing; complete streaming export is not implemented yet.
+`export_complete: false`. On `P/nist-controls-53-r4-to-r5`, the default
+4,096-case export is one 276 MB bundle and withholds 11,647 sub-cases; the
+complete 21,000-case budget plans 20,222 cases into one 342 MB bundle.
+
+Planning is streaming. Case bodies and their gathered contexts are written to
+a private temporary store; the planner keeps only the fixed-size listing
+index (case identifiers, digests, counts, ordering keys, and omission
+records). The peak therefore does not grow with the number of cases. On
+`P/nist-controls-53-r4-to-r5` the complete export fell from 3.91 GB to 2.89 GB
+peak RSS, and a diagnostic 4x plan of 80,888 finalized cases peaked at the
+same 2.89 GB. The comparison's own evidence, not the planned packets, is now
+the dominant cost.
 
 A larger plan is published as `part-0001`, `part-0002`, ... directories under
-the destination. Each part is a complete bundle. The root `manifest.json` is a
+the destination. Cases are attempted in 4,096-case batches; a part that would
+exceed its 512 MiB cap is halved and retried, so a part can close in the middle
+of a batch without losing or reordering a case. Each part is a complete bundle,
+and the root `manifest.json` is written last. It is a
 `pdfdelta-agent-review-set` version 1 manifest that lists every part with its
 case count, bytes, and manifest digest, plus the global `export_complete` flag.
 Queries and `review import` accept the root or any part. A case that exceeds a
 per-case source or member cap is split into consecutive sub-cases rather than
 truncated; `subcase` records `schema: "agent-review-split/v1"`, the shared
-`parent`, zero-based `index`, and `count`. The first part carries the quoted text
-and flow report entries; later parts carry the remaining source evidence.
+`parent`, zero-based `index`, and `count`. Split sub-cases stay consecutive in
+the listing order, including across a batch boundary. The first part carries
+the quoted text and flow report entries; later parts carry the remaining source
+evidence.
+
+The bundle layout and every published artifact are unchanged by streaming: the
+same cases, case identifiers, ordering, links, manifests, and digests are
+written as before. A missing `manifest.json` still means the bundle is
+incomplete, whether the run stopped during planning, during a case write, or
+before the root set manifest.
 
 Flow result classes map the engine's own evidence:
 

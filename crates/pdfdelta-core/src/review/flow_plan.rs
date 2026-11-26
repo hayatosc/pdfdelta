@@ -28,11 +28,13 @@ use super::{
     BundleIdentity, CASE_SPLIT_SCHEMA, CaseCompleteness, CaseFinding, CaseRegion, CaseSplit,
     Completeness, EngineClass, EngineOutcome, EvidenceRef, GapScope, Hypothesis, PlannerLimits,
     ReasonRecord, RetrievalAction, ReviewAssumption, ReviewCase, ReviewPlan, ReviewQuestion,
-    ReviewReason, ReviewText, ScalarInterval, Side, SideLocation, TextOrder, UnlocalizedGap,
+    ReviewReason, ReviewText, ScalarInterval, Side, SideLocation, StreamingPlan, TextOrder,
+    UnlocalizedGap,
     case::{OmissionReason, OmittedRun},
     planner::{
-        Assembly, Budget, CaseKey, Identifiers, assemble, evidence_ref, retention_boundary,
-        split_case_id, split_review_case,
+        Assembly, Budget, CaseKey, CaseSink, CaseStore, Identifiers, MemoryCaseStore, PlanError,
+        SourceExtents, assemble_streaming, evidence_ref, retention_boundary, split_case_id,
+        split_review_case,
     },
 };
 use crate::{
@@ -191,37 +193,88 @@ pub struct FlowNativeReview<'a> {
 ///
 /// The manifest records the `NativeText` pipeline because no non-text evidence
 /// was selected; the cases still carry flow's own change indexes.
+///
+/// This frontend keeps both stores in memory. Callers that need memory bounded
+/// independently of the case count use [`plan_flow_native_streaming`].
 #[must_use]
 pub fn plan_flow_native(input: &FlowNativeReview<'_>, limits: PlannerLimits) -> ReviewPlan {
+    let mut raw = MemoryCaseStore::new();
+    let mut final_store = MemoryCaseStore::new();
+    let plan = plan_flow_native_streaming(input, limits, &mut raw, &mut final_store)
+        .expect("the in-memory case store cannot fail");
+    super::planner::materialize(plan, &mut final_store)
+}
+
+/// Plans a flow-only bundle, storing case bodies in `raw`.
+///
+/// The returned plan keeps only fixed-size case metadata; bodies are read back
+/// from `raw` by the caller's publisher.
+pub fn plan_flow_native_streaming(
+    input: &FlowNativeReview<'_>,
+    limits: PlannerLimits,
+    raw: &mut dyn CaseStore,
+    final_store: &mut dyn CaseStore,
+) -> Result<StreamingPlan, PlanError> {
     let mut budget = Budget::new(limits);
     let mut identifiers = Identifiers::new();
-    let mut cases = Vec::new();
     let mut gaps = Vec::new();
+    let mut sink = CaseSink::new(raw);
+    let channels = BTreeSet::from([Channel::Text]);
     plan_flow_into(FlowPlanContext {
         flow: &input.flow,
         identity: &input.identity,
-        channels: &BTreeSet::from([Channel::Text]),
+        channels: &channels,
         visual_available: false,
         limits,
         budget: &mut budget,
         identifiers: &mut identifiers,
-        cases: &mut cases,
+        sink: &mut sink,
         gaps: &mut gaps,
     });
+    if let Some(error) = sink.take_error() {
+        return Err(error);
+    }
+    let handles = sink.take_handles();
+    drop(sink);
     budget.finalize();
-    assemble(
+    let extents = flow_source_extents(&input.flow);
+    let finalized =
+        super::planner::finalize_cases(raw, final_store, limits, &mut budget, &extents, handles)?;
+    Ok(assemble_streaming(
         Assembly {
-            contexts: Vec::new(),
             identity: input.identity.clone(),
             outcome: input.outcome.clone(),
-            channels: &BTreeSet::from([Channel::Text]),
+            channels: &channels,
             inventory_gaps: Vec::new(),
             unlocalized_gaps: gaps,
-            cases,
             visual_available: false,
         },
         &budget,
-    )
+        finalized.entries,
+        &finalized.tracker,
+        finalized.contexts,
+    ))
+}
+
+/// Source-array bounds for a flow-only plan.
+///
+/// Flow retains native glyph identifiers only. The other origins stay empty,
+/// so a flow bundle does not allocate arrays it can never address.
+fn flow_source_extents(flow: &FlowTextReview<'_>) -> SourceExtents {
+    let next = |tokens: &[FlowTokenView<'_>]| {
+        tokens
+            .iter()
+            .flat_map(|token| token.sources)
+            .map(|glyph| glyph.0)
+            .max()
+            .map_or(0, |id| {
+                usize::try_from(id).unwrap_or(usize::MAX).saturating_add(1)
+            })
+    };
+    SourceExtents::new([
+        [next(flow.old.tokens), 0, 0, 0],
+        [next(flow.new.tokens), 0, 0, 0],
+    ])
 }
 
 /// Adds flow cases and gaps to a plan that already projected shared evidence.
@@ -229,7 +282,7 @@ pub fn plan_flow_native(input: &FlowNativeReview<'_>, limits: PlannerLimits) -> 
 /// The function never returns early on a source budget: coverage grouping
 /// happens before any optional source is visited, and a case whose references
 /// were truncated still accounts for its changes.
-pub(super) struct FlowPlanContext<'a, 'b> {
+pub(super) struct FlowPlanContext<'a, 'b, 's> {
     pub flow: &'b FlowTextReview<'a>,
     pub identity: &'b BundleIdentity,
     pub channels: &'b BTreeSet<Channel>,
@@ -237,16 +290,16 @@ pub(super) struct FlowPlanContext<'a, 'b> {
     pub limits: PlannerLimits,
     pub budget: &'b mut Budget,
     pub identifiers: &'b mut Identifiers,
-    pub cases: &'b mut Vec<ReviewCase>,
+    pub sink: &'b mut CaseSink<'s>,
     pub gaps: &'b mut Vec<UnlocalizedGap>,
 }
 
-pub(super) fn plan_flow_into(mut context: FlowPlanContext<'_, '_>) {
+pub(super) fn plan_flow_into(mut context: FlowPlanContext<'_, '_, '_>) {
     // Evidence that was not examined or cannot be trusted is planned first:
     // its cases are few compared with the change clusters, and every such
     // reason must remain nameable even when the change coverage has to merge.
     flow_evidence_cases(&mut context);
-    let groups = flow_groups(context.flow, context.limits, context.cases.len());
+    let groups = flow_groups(context.flow, context.limits, context.sink.len());
     for group in groups {
         let parts = split_flow_group(context.flow, &group, context.limits);
         if parts.len() <= 1 {
@@ -272,7 +325,7 @@ pub(super) fn plan_flow_into(mut context: FlowPlanContext<'_, '_>) {
 }
 
 /// Charges one built flow case, splitting it if a per-case source cap remains.
-fn push_flow_case(context: &mut FlowPlanContext<'_, '_>, case: ReviewCase) {
+fn push_flow_case(context: &mut FlowPlanContext<'_, '_, '_>, case: ReviewCase) {
     let parent = case.case_id.clone();
     let parts = split_review_case(case, context.limits);
     if parts.len() > 1 {
@@ -282,7 +335,7 @@ fn push_flow_case(context: &mut FlowPlanContext<'_, '_>, case: ReviewCase) {
     }
     for part in parts {
         if context.budget.accept_case() {
-            context.cases.push(part);
+            context.sink.push_unique(part, None);
         }
     }
 }
@@ -725,7 +778,7 @@ fn split_flow_group(flow: &FlowTextReview<'_>, group: &Group, limits: PlannerLim
 
 /// Builds one case for a group of flow report entries.
 fn build_flow_case(
-    context: &mut FlowPlanContext<'_, '_>,
+    context: &mut FlowPlanContext<'_, '_, '_>,
     group: &Group,
     split: Option<&CaseSplit>,
 ) -> Option<ReviewCase> {
@@ -1067,7 +1120,7 @@ impl TokenPage for FlowTextReview<'_> {
 }
 
 /// Cases and gaps for material flow did not examine or could not trust.
-fn flow_evidence_cases(context: &mut FlowPlanContext<'_, '_>) {
+fn flow_evidence_cases(context: &mut FlowPlanContext<'_, '_, '_>) {
     let flow = context.flow;
     for (side, view) in [(Side::Old, &flow.old), (Side::New, &flow.new)] {
         for issue in view.issues {
@@ -1121,7 +1174,7 @@ fn flow_evidence_cases(context: &mut FlowPlanContext<'_, '_>) {
             if let Some(case) = case
                 && context.budget.accept_case()
             {
-                context.cases.push(case);
+                context.sink.push_unique(case, None);
             }
         }
         if view.conservation_incomplete {
@@ -1215,20 +1268,17 @@ fn flow_evidence_cases(context: &mut FlowPlanContext<'_, '_>) {
                 flow_evidence: Vec::new(),
             };
             if context.budget.accept_case() {
-                context.cases.push(case);
+                context.sink.push_unique(case, None);
             }
         }
         // A broken or unexamined text channel must always leave something a
         // reviewer can name, even when the individual issue had no page.
         if view.broken() || view.unexamined() {
-            let covered = context.cases.iter().any(|case| {
-                case.reasons
+            let covered = context.sink.has_text_page_case()
+                || context
+                    .gaps
                     .iter()
-                    .any(|reason| reason.channel == Some(Channel::Text) && reason.page.is_some())
-            }) || context
-                .gaps
-                .iter()
-                .any(|gap| gap.channel == Some(Channel::Text) && gap.side == Some(side));
+                    .any(|gap| gap.channel == Some(Channel::Text) && gap.side == Some(side));
             if !covered {
                 let mut key = CaseKey::new(ReviewQuestion::AcquisitionGap);
                 key.field(b"flow-text-channel");
@@ -1267,7 +1317,7 @@ struct EvidenceCase<'a> {
 }
 
 fn evidence_case(
-    context: &mut FlowPlanContext<'_, '_>,
+    context: &mut FlowPlanContext<'_, '_, '_>,
     case: EvidenceCase<'_>,
 ) -> Option<ReviewCase> {
     let EvidenceCase {

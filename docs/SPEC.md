@@ -831,19 +831,32 @@ broken before unexamined and page-local before document-wide, then page-residual
 cases. A truncated plan records a bundle-level `cases_not_exported` omission with
 the number of withheld cases.
 
+Planning and publication are streaming. Case bodies and gathered contexts are
+written to a private temporary store; the resident planner keeps only the
+fixed-size listing index (identifiers, digests, counts, ordering keys, and
+omission records). The manifest and index order are the same as the previous
+whole-plan assembler, so a bundle's cases, identifiers, links, and digests are
+unchanged. Peak memory is therefore independent of the case count: on
+`nist-controls` both the 20,222-case complete export and a diagnostic
+80,888-case plan peak at about 2.89 GB, while the comparison's own evidence
+remains resident.
+
 A plan larger than one 512 MiB bundle is published as numbered part bundles
-under the destination directory (`part-0001`, `part-0002`, ...). Each part is a
-complete `agent-review/v1` bundle with its own manifest, and the root
-`manifest.json` is a `pdfdelta-agent-review-set` version 1 manifest that lists
-every part, its case count and byte size, and the global `export_complete`
-flag. Queries and `review import` accept either a single bundle or this part set.
-A case that exceeds the per-case source or member cap is split into consecutive
-sub-cases rather than truncated. Each part records `subcase` with
-`schema: "agent-review-split/v1"`, the shared `parent` case id, zero-based
-`index`, and total `count`; the first part carries the quoted text and flow
-report entries, and later parts carry the remaining source evidence. Sub-cases
-count toward the case budget and `export_complete`. Exporting a bundle changes
-no comparison field, coverage count, or exit status.
+under the destination directory (`part-0001`, `part-0002`, ...). Cases are
+attempted in 4,096-case batches; a part that would exceed its cap is halved and
+retried, so a part can close mid-batch without reordering a case. Each part is
+a complete `agent-review/v1` bundle with its own manifest, and the root
+`manifest.json` is written last as a `pdfdelta-agent-review-set` version 1
+manifest that lists every part, its case count and byte size, and the global
+`export_complete` flag. Queries and `review import` accept either a single
+bundle or this part set. A case that exceeds the per-case source or member cap
+is split into consecutive sub-cases rather than truncated. Each part records
+`subcase` with `schema: "agent-review-split/v1"`, the shared `parent` case id,
+zero-based `index`, and total `count`; split sub-cases remain consecutive
+across a batch boundary. The first part carries the quoted text and flow report
+entries, and later parts carry the remaining source evidence. Sub-cases count
+toward the case budget and `export_complete`. Exporting a bundle changes no
+comparison field, coverage count, or exit status.
 
 ## 6. PDF backend and primitive extraction
 
@@ -1633,9 +1646,10 @@ worker with the limits exit code, which the parent maps to a typed
   source-location visits; a failure may leave an incomplete directory without
   `index.html`.
 - An agent review bundle is bounded by the 512 MiB cap and the case budget
-  (default 4,096; `--agent-case-budget` 1–131,072). A larger plan is published
-  as numbered part bundles under one set manifest; every part is separately
-  bounded by the 512 MiB cap.
+  (default 4,096; `--agent-case-budget` 1–131,072). Case bodies are spooled, so
+  the resident listing index is independent of the case count. A larger plan is
+  published as numbered part bundles under one set manifest; every part is
+  separately bounded by the 512 MiB cap.
 - A text-envelope request is bounded to 1,000,000 work units, 262,144 retained
   cells, 1,048,576 output bytes, 1 MiB input, 1,024 pairs, and 32,768 tokens
   per side; hard ceilings are 32,000,000 work units and 8,388,608 output bytes.
@@ -1834,6 +1848,17 @@ permanently forbidden; a future evidence provider must follow the contracts in
 
 This section records why the specification changed. Earlier revisions are
 available from the repository history.
+
+### 2026-11-26: streaming agent-review plan
+
+- Agent review plans stream case bodies and contexts through a private
+  temporary store; the resident plan keeps only a fixed-size listing index.
+  Complete NIST export peak RSS fell from 3.91 GB to 2.89 GB, and a diagnostic
+  4x plan of 80,888 cases peaked at the same value.
+- Bundles are byte-identical to the whole-plan assembler for the acceptance
+  cases, `arxiv-bert`, and the default and complete NIST exports.
+- Part batches and the 512 MiB cap close parts deterministically; split
+  sub-cases stay consecutive across a batch boundary.
 
 ### 2026-11-24: relation absence, inline-image preflight, split review exports
 

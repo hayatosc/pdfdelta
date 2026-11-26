@@ -486,7 +486,8 @@ pub fn compare(
             .as_ref()
             .zip(options.flow_text)
             .map(|(owned, comparison)| owned.review(comparison));
-        let plan = pdfdelta_core::review::plan_shared_evidence(
+        let mut spool = crate::agent_review::PlanSpool::new()?;
+        let mut plan = pdfdelta_core::review::plan_shared_evidence_streaming(
             &pdfdelta_core::review::SharedEvidenceReview {
                 identity: bundle_identity(
                     old_bytes,
@@ -513,10 +514,15 @@ pub fn compare(
                 max_cases: options.agent_case_budget,
                 ..pdfdelta_core::review::PlannerLimits::default()
             },
-        );
-        crate::agent_review::write(
+            &mut spool.raw,
+            &mut spool.final_store,
+        )
+        .map_err(|error| FlowError::backend(error.to_string()))?;
+        crate::agent_review::multiply_plan(&mut plan, &mut spool.final_store)?;
+        crate::agent_review::write_streaming(
             directory,
             &plan,
+            &mut spool.final_store,
             crate::agent_review::SourceDocument {
                 name: old_input.path,
                 bytes: old_bytes,

@@ -398,6 +398,35 @@ fn a_flow_bundle_accounts_for_every_change_and_channel_reason() {
 }
 
 #[test]
+fn a_bundle_without_its_completion_manifest_is_not_readable() {
+    let directory = TestDirectory::new();
+    let (old, new) = fixture(&directory);
+    let bundle = directory.join("interrupted");
+    let exported = run(&[
+        old.to_str().expect("path"),
+        new.to_str().expect("path"),
+        "--agent-review",
+        bundle.to_str().expect("path"),
+        "--quiet",
+    ]);
+    assert!(
+        matches!(exported.status.code(), Some(0 | 1 | 3)),
+        "{}",
+        stderr(&exported)
+    );
+    fs::remove_file(bundle.join("manifest.json")).expect("completion marker removal");
+    let listed = run(&[
+        "review",
+        "list",
+        bundle.to_str().expect("path"),
+        "--max-output-bytes",
+        "4096",
+    ]);
+    assert_eq!(listed.status.code(), Some(2));
+    assert_eq!(json(&listed)["error"], "unreadable_bundle");
+}
+
+#[test]
 fn an_incomplete_comparison_still_publishes_a_readable_bundle() {
     let directory = TestDirectory::new();
     let (old, new) = fixture(&directory);

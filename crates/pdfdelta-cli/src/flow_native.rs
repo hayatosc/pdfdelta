@@ -174,7 +174,8 @@ fn write_agent_review(
     };
     let owned = crate::flow_review::project(comparison);
     let review = owned.review(comparison);
-    let plan = pdfdelta_core::review::plan_flow_native(
+    let mut spool = crate::agent_review::PlanSpool::new()?;
+    let mut plan = pdfdelta_core::review::plan_flow_native_streaming(
         &pdfdelta_core::review::FlowNativeReview {
             identity: crate::flow_review::native_identity(comparison, options.limit_scale, true),
             outcome: crate::flow_review::outcome(comparison, exit),
@@ -184,12 +185,17 @@ fn write_agent_review(
             max_cases: options.agent_case_budget,
             ..pdfdelta_core::review::PlannerLimits::default()
         },
-    );
+        &mut spool.raw,
+        &mut spool.final_store,
+    )
+    .map_err(|error| FlowError::backend(error.to_string()))?;
+    crate::agent_review::multiply_plan(&mut plan, &mut spool.final_store)?;
     // Input names are caller-supplied text; they are never used to choose an
     // artifact path.
-    crate::agent_review::write(
+    crate::agent_review::write_streaming(
         directory,
         &plan,
+        &mut spool.final_store,
         crate::agent_review::SourceDocument {
             name: old_path,
             bytes: &old,

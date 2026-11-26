@@ -21,15 +21,19 @@ use pdfdelta_core::{
     model::PageId,
     review::{
         AgentDecision, AgentReviewManifest, CaseCensus, CaseCompleteness, CaseContext, CaseFinding,
-        CaseId, Cursor, DecisionStatus, Detail, EngineClass, EngineOutcome, Hypothesis,
-        MAX_CURSOR_BYTES, QuestionCount, RequiredEvidence, RetrievalAction, ReviewCase, ReviewPlan,
-        ReviewQuestion, ReviewReason, ReviewText, Side,
+        CaseId, CaseStore, Cursor, DecisionStatus, Detail, EngineClass, EngineOutcome, Hypothesis,
+        MAX_CURSOR_BYTES, OrderedCase, QuestionCount, RequiredEvidence, RetrievalAction,
+        ReviewCase, ReviewQuestion, ReviewReason, ReviewText, Side, StreamingPlan,
     },
 };
 use pdfdelta_flow::{FlowError, FlowErrorClass};
 use serde::{Deserialize, Serialize};
 
 use crate::review::bundle::{self, Artifact, MAX_BYTES};
+
+mod spool;
+
+pub(crate) use spool::PlanSpool;
 
 /// The exact acquired bytes of one input, published beside the packets.
 #[derive(Clone, Copy)]
@@ -217,13 +221,17 @@ struct PartRecord {
     manifest_sha256: String,
 }
 
-/// Publishes a plan as a bundle, or as numbered parts when it does not fit.
+/// Publishes a streaming plan as a bundle, or as numbered parts when it does
+/// not fit.
 ///
-/// Files are written in dependency order and the manifest last, so a reader
-/// that finds the manifest knows every artifact it names is already present.
-pub(crate) fn write(
+/// The plan's ordering index is resident, but every case body is loaded from
+/// `store` only while it is being written. Files are written in dependency
+/// order and the manifest last, so a reader that finds the manifest knows every
+/// artifact it names is already present.
+pub(crate) fn write_streaming(
     directory: &Path,
-    plan: &ReviewPlan,
+    plan: &StreamingPlan,
+    store: &mut dyn CaseStore,
     old: SourceDocument<'_>,
     new: SourceDocument<'_>,
     rasters: &[PageRaster<'_>],
@@ -231,38 +239,27 @@ pub(crate) fn write(
     // A case can be large, and page rasters add their own bytes. Estimate the
     // unavoidable JSON before attempting a one-bundle write so a known-large
     // plan does not spend a minute filling a part that must be split anyway.
-    let estimated_cases = plan.cases.iter().try_fold(0usize, |total, case| {
-        let bytes = serde_json::to_vec(case)
-            .map_err(|error| FlowError::backend(format!("cannot size review case: {error}")))?
-            .len();
-        total
-            .checked_add(bytes)
-            .ok_or_else(|| FlowError::backend("review case estimate overflows"))
-    })?;
-    let estimated_contexts = plan.contexts.iter().try_fold(0usize, |total, context| {
-        let bytes = serde_json::to_vec(context)
-            .map_err(|error| FlowError::backend(format!("cannot size review context: {error}")))?
-            .len();
-        total
-            .checked_add(bytes)
-            .ok_or_else(|| FlowError::backend("review context estimate overflows"))
-    })?;
-    let lower_bound = estimated_cases
-        .saturating_add(estimated_contexts)
+    // The estimate reads one case at a time and retains only totals.
+    let lower_bound = estimate_plan_bytes(plan, store)?
         .saturating_add(old.bytes.len())
         .saturating_add(new.bytes.len());
-    let cases: Vec<&ReviewCase> = plan.cases.iter().collect();
-    let contexts: Vec<&CaseContext> = plan.contexts.iter().collect();
     let max_bytes = bundle::max_bytes();
+    let io = BundleIo {
+        old,
+        new,
+        rasters,
+        max_bytes,
+    };
     if lower_bound < max_bytes.saturating_sub(8 * 1024 * 1024) {
         bundle::create_directory(directory)?;
-        let io = BundleIo {
-            old,
-            new,
-            rasters,
-            max_bytes,
-        };
-        match write_bundle_into(directory, &plan.manifest, &cases, &contexts, &io) {
+        match write_bundle_streaming(
+            directory,
+            &plan.manifest,
+            &plan.order,
+            &plan.contexts,
+            store,
+            &io,
+        ) {
             Ok(_) => return Ok(()),
             Err(error) if is_bundle_limit(&error) => {
                 fs::remove_dir_all(directory).map_err(|remove| {
@@ -280,7 +277,127 @@ pub(crate) fn write(
             }
         }
     }
-    write_part_set(directory, plan, &old, &new, rasters, max_bytes)
+    write_part_set_streaming(directory, plan, store, &io)
+}
+
+/// Replicates every finalized case for a diagnostic memory measurement.
+///
+/// This exists only under the `plan-multiplier` feature. It duplicates case
+/// bodies in the store and adds their handles to the listing order, so the
+/// publisher sees a plan with several times the planned case count without
+/// changing how the comparison or the planner produced it. Normal builds
+/// compile this to a no-op.
+#[cfg(feature = "plan-multiplier")]
+pub(crate) fn multiply_plan(
+    plan: &mut StreamingPlan,
+    store: &mut dyn CaseStore,
+) -> Result<(), FlowError> {
+    use sha2::{Digest, Sha256};
+
+    let multiplier = std::env::var("PDFDELTA_AGENT_PLAN_MULTIPLIER")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| (1..=16).contains(value))
+        .unwrap_or(1);
+    if multiplier <= 1 {
+        return Ok(());
+    }
+    let originals = plan.order.clone();
+    let mut order = Vec::with_capacity(originals.len().saturating_mul(multiplier));
+    for ordered in originals {
+        let (case, _) = load_planned_case(store, ordered.handle)?;
+        let mut retained = case;
+        attach_links(&mut retained, &ordered);
+        for copy in 0..multiplier {
+            if copy == 0 {
+                order.push(ordered.clone());
+                continue;
+            }
+            let mut duplicate = retained.clone();
+            let digest = pdfdelta_core::review::lowercase_hex(&Sha256::digest(
+                format!("{}:{copy}", ordered.case_id).as_bytes(),
+            ));
+            let case_id = CaseId::new(format!("R{}", &digest[..20]))
+                .map_err(|error| FlowError::backend(error.to_string()))?;
+            duplicate.case_id = case_id.clone();
+            duplicate.content_digest = digest;
+            let handle = store
+                .store(duplicate, None)
+                .map_err(|error| FlowError::backend(error.to_string()))?;
+            order.push(OrderedCase {
+                handle,
+                case_id,
+                question: ordered.question,
+                finding: ordered.finding,
+                old_page: ordered.old_page,
+                new_page: ordered.new_page,
+                pages: ordered.pages.clone(),
+                links: ordered.links.clone(),
+                context: None,
+            });
+        }
+    }
+    plan.order = order;
+    Ok(())
+}
+
+/// Replication is not part of a normal build.
+#[cfg(not(feature = "plan-multiplier"))]
+pub(crate) fn multiply_plan(
+    _plan: &mut StreamingPlan,
+    _store: &mut dyn CaseStore,
+) -> Result<(), FlowError> {
+    Ok(())
+}
+
+/// Measures the case and context JSON a plan will publish.
+///
+/// This is the same body the one-bundle writer would serialize, read back one
+/// case at a time. It is an estimate only for the old and new documents and
+/// page rasters, which are added by the caller.
+fn estimate_plan_bytes(
+    plan: &StreamingPlan,
+    store: &mut dyn CaseStore,
+) -> Result<usize, FlowError> {
+    let mut total = 0usize;
+    for ordered in &plan.order {
+        let (mut case, _) = load_planned_case(store, ordered.handle)?;
+        attach_links(&mut case, ordered);
+        let bytes = serde_json::to_vec(&case)
+            .map_err(|error| FlowError::backend(format!("cannot size review case: {error}")))?
+            .len();
+        total = total
+            .checked_add(bytes)
+            .ok_or_else(|| FlowError::backend("review case estimate overflows"))?;
+    }
+    for handle in &plan.contexts {
+        let (_, context) = load_planned_case(store, *handle)?;
+        if let Some(context) = context {
+            let bytes = serde_json::to_vec(&context)
+                .map_err(|error| {
+                    FlowError::backend(format!("cannot size review context: {error}"))
+                })?
+                .len();
+            total = total
+                .checked_add(bytes)
+                .ok_or_else(|| FlowError::backend("review context estimate overflows"))?;
+        }
+    }
+    Ok(total)
+}
+
+fn load_planned_case(
+    store: &mut dyn CaseStore,
+    handle: usize,
+) -> Result<(ReviewCase, Option<CaseContext>), FlowError> {
+    store
+        .load(handle)
+        .map_err(|error| FlowError::backend(format!("cannot read planned review case: {error}")))
+}
+
+fn attach_links(case: &mut ReviewCase, ordered: &OrderedCase) {
+    case.related_cases.clone_from(&ordered.links.related);
+    case.conflicts_with.clone_from(&ordered.links.conflicts);
 }
 
 /// Whether an error is the per-bundle byte cap, which a split can resolve.
@@ -309,11 +426,12 @@ struct BundleIo<'a> {
 ///
 /// The caller owns the directory and removes it when a byte-limit failure
 /// means the cases must be split across parts.
-fn write_bundle_into(
+fn write_bundle_streaming(
     directory: &Path,
     base_manifest: &AgentReviewManifest,
-    cases: &[&ReviewCase],
-    contexts: &[&CaseContext],
+    cases: &[OrderedCase],
+    contexts: &[usize],
+    store: &mut dyn CaseStore,
     io: &BundleIo<'_>,
 ) -> Result<BundleFiles, FlowError> {
     let mut remaining = io.max_bytes;
@@ -329,8 +447,7 @@ fn write_bundle_into(
     // enlarge the bundle without answering any question in it.
     let needed: BTreeSet<(Side, PageId)> = cases
         .iter()
-        .flat_map(|case| &case.regions)
-        .map(|region| (region.side, region.page_index))
+        .flat_map(|case| case.pages.iter().copied())
         .collect();
     let mut pages = Vec::new();
     let mut pages_complete = true;
@@ -376,8 +493,9 @@ fn write_bundle_into(
         )?);
     }
     let mut records = Vec::with_capacity(cases.len());
-    for case in cases {
-        let mut case = (*case).clone();
+    for ordered in cases {
+        let (mut case, _) = load_planned_case(store, ordered.handle)?;
+        attach_links(&mut case, ordered);
         let available: BTreeSet<(Side, PageId)> = case
             .regions
             .iter()
@@ -394,10 +512,13 @@ fn write_bundle_into(
             serde_json::to_writer(out, &case).map_err(io::Error::other)
         })?);
     }
-    for context in contexts {
+    for handle in contexts {
+        let (_, context) = load_planned_case(store, *handle)?;
+        let context = context
+            .ok_or_else(|| FlowError::backend("a planned context handle has no stored context"))?;
         let name = format!("cases/{}.context.json", context.case_id);
         artifacts.push(bundle::file(directory, &name, &mut remaining, |out| {
-            serde_json::to_writer(out, context).map_err(io::Error::other)
+            serde_json::to_writer(out, &context).map_err(io::Error::other)
         })?);
     }
     let index = CaseIndex {
@@ -413,7 +534,7 @@ fn write_bundle_into(
     let old_name = io.old.name.display().to_string();
     let new_name = io.new.name.display().to_string();
     let mut manifest = base_manifest.clone();
-    manifest.cases = case_census(cases);
+    manifest.cases = case_census_ordered(cases);
     manifest.export.cases_planned = cases.len();
     for capability in &mut manifest.capabilities {
         capability.available &= match capability.detail {
@@ -440,7 +561,7 @@ fn write_bundle_into(
     })
 }
 
-fn case_census(cases: &[&ReviewCase]) -> CaseCensus {
+fn case_census_ordered(cases: &[OrderedCase]) -> CaseCensus {
     let mut by_question: BTreeMap<ReviewQuestion, usize> = BTreeMap::new();
     for case in cases {
         *by_question.entry(case.question).or_default() += 1;
@@ -454,27 +575,46 @@ fn case_census(cases: &[&ReviewCase]) -> CaseCensus {
     }
 }
 
+/// Case indices a publisher puts in one part before attempting the write.
+///
+/// The default is the established 4,096-case batch. A debug build may lower it
+/// so a split family crossing a batch boundary can be exercised without a
+/// fixture of thousands of cases; release builds always use the default.
+fn part_batch_size() -> usize {
+    #[cfg(debug_assertions)]
+    if let Some(size) = std::env::var("PDFDELTA_AGENT_PART_BATCH")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|size| *size > 0)
+    {
+        return size;
+    }
+    pdfdelta_core::review::DEFAULT_AGENT_CASE_BUDGET
+}
+
 /// Writes a plan as numbered parts and a root manifest.
-fn write_part_set(
+fn write_part_set_streaming(
     directory: &Path,
-    plan: &ReviewPlan,
-    old: &SourceDocument<'_>,
-    new: &SourceDocument<'_>,
-    rasters: &[PageRaster<'_>],
-    max_bytes: usize,
+    plan: &StreamingPlan,
+    store: &mut dyn CaseStore,
+    io: &BundleIo<'_>,
+) -> Result<(), FlowError> {
+    write_part_set_streaming_with_batch(directory, plan, store, io, part_batch_size())
+}
+
+/// The part writer with an explicit batch size, so boundary tests do not need
+/// to mutate process environment variables.
+fn write_part_set_streaming_with_batch(
+    directory: &Path,
+    plan: &StreamingPlan,
+    store: &mut dyn CaseStore,
+    io: &BundleIo<'_>,
+    batch: usize,
 ) -> Result<(), FlowError> {
     bundle::create_directory(directory)?;
-    let contexts: BTreeMap<&CaseId, &CaseContext> = plan
-        .contexts
-        .iter()
-        .map(|context| (&context.case_id, context))
-        .collect();
     let mut pending = VecDeque::new();
     let mut offset = 0usize;
-    for chunk in plan
-        .cases
-        .chunks(pdfdelta_core::review::DEFAULT_AGENT_CASE_BUDGET)
-    {
+    for chunk in plan.order.chunks(batch) {
         pending.push_back((offset..offset + chunk.len()).collect::<Vec<_>>());
         offset += chunk.len();
     }
@@ -484,18 +624,19 @@ fn write_part_set(
         let path = format!("part-{part_number:04}");
         let part_directory = directory.join(&path);
         bundle::create_directory(&part_directory)?;
-        let cases: Vec<&ReviewCase> = indices.iter().map(|index| &plan.cases[*index]).collect();
-        let part_contexts: Vec<&CaseContext> = indices
+        let cases: Vec<OrderedCase> = indices
             .iter()
-            .filter_map(|index| contexts.get(&plan.cases[*index].case_id).copied())
+            .map(|index| plan.order[*index].clone())
             .collect();
-        let io = BundleIo {
-            old: *old,
-            new: *new,
-            rasters,
-            max_bytes,
-        };
-        match write_bundle_into(&part_directory, &plan.manifest, &cases, &part_contexts, &io) {
+        let contexts: Vec<usize> = cases.iter().filter_map(|case| case.context).collect();
+        match write_bundle_streaming(
+            &part_directory,
+            &plan.manifest,
+            &cases,
+            &contexts,
+            store,
+            io,
+        ) {
             Ok(files) => {
                 parts.push(PartRecord {
                     path,
@@ -533,12 +674,12 @@ fn write_part_set(
             sha256: part.manifest_sha256.clone(),
         })
         .collect();
-    let old_name = old.name.display().to_string();
-    let new_name = new.name.display().to_string();
+    let old_name = io.old.name.display().to_string();
+    let new_name = io.new.name.display().to_string();
     let mut set_manifest = plan.manifest.clone();
-    set_manifest.cases = case_census(&plan.cases.iter().collect::<Vec<_>>());
-    set_manifest.export.cases_planned = plan.cases.len();
-    let mut remaining = max_bytes;
+    set_manifest.cases = case_census_ordered(&plan.order);
+    set_manifest.export.cases_planned = plan.order.len();
+    let mut remaining = io.max_bytes;
     bundle::file(directory, COMPLETION_MARKER, &mut remaining, |out| {
         serde_json::to_writer_pretty(
             out,
@@ -1982,54 +2123,64 @@ mod tests {
             "next": { "action": "list", "cursor": null }
         }))
         .expect("fixture manifest");
-        let mut cases = Vec::new();
+        let mut store = pdfdelta_core::review::MemoryCaseStore::new();
+        let mut order = Vec::new();
         for index in 0..6 {
-            cases.push(
-                serde_json::from_value(serde_json::json!({
-                    "case_id": format!("R{index:012}"),
-                    "content_digest": format!("{index:064}"),
-                    "question": "compare_content",
-                    "pipeline": "native_text",
-                    "engine_class": "strict",
-                    "finding": "difference_established",
-                    "channels": ["text"],
-                    "completeness": {
-                        "evidence": "complete",
-                        "candidate_enumeration": "complete",
-                        "solver_search": "complete",
-                        "response": "complete"
-                    },
-                    "old_text": {
-                        "side": "old",
-                        "text": "x".repeat(2_000),
-                        "scalar_count": 2_000,
-                        "order": "render_order"
-                    },
-                    "alternatives_returned": 0
-                }))
-                .expect("fixture case"),
-            );
+            let case: ReviewCase = serde_json::from_value(serde_json::json!({
+                "case_id": format!("R{index:012}"),
+                "content_digest": format!("{index:064}"),
+                "question": "compare_content",
+                "pipeline": "native_text",
+                "engine_class": "strict",
+                "finding": "difference_established",
+                "channels": ["text"],
+                "completeness": {
+                    "evidence": "complete",
+                    "candidate_enumeration": "complete",
+                    "solver_search": "complete",
+                    "response": "complete"
+                },
+                "old_text": {
+                    "side": "old",
+                    "text": "x".repeat(2_000),
+                    "scalar_count": 2_000,
+                    "order": "render_order"
+                },
+                "alternatives_returned": 0
+            }))
+            .expect("fixture case");
+            let case_id = case.case_id.clone();
+            let handle = store.store(case, None).expect("fixture case store");
+            order.push(OrderedCase {
+                handle,
+                case_id,
+                question: ReviewQuestion::CompareContent,
+                finding: CaseFinding::DifferenceEstablished,
+                old_page: None,
+                new_page: None,
+                pages: Vec::new(),
+                links: pdfdelta_core::review::CaseLinks::default(),
+                context: None,
+            });
         }
-        let plan = ReviewPlan {
+        let plan = StreamingPlan {
             manifest,
-            cases,
+            order,
             contexts: Vec::new(),
         };
-        write_part_set(
-            &directory,
-            &plan,
-            &SourceDocument {
+        let io = BundleIo {
+            old: SourceDocument {
                 name: Path::new("old.pdf"),
                 bytes: &[],
             },
-            &SourceDocument {
+            new: SourceDocument {
                 name: Path::new("new.pdf"),
                 bytes: &[],
             },
-            &[],
-            8_192,
-        )
-        .expect("split export");
+            rasters: &[],
+            max_bytes: 8_192,
+        };
+        write_part_set_streaming(&directory, &plan, &mut store, &io).expect("split export");
         let root: serde_json::Value = serde_json::from_slice(
             &std::fs::read(directory.join(COMPLETION_MARKER)).expect("root manifest"),
         )
@@ -2037,6 +2188,12 @@ mod tests {
         assert_eq!(root["format"], SET_FORMAT);
         let parts = root["parts"].as_array().expect("parts");
         assert!(parts.len() >= 2, "the plan must split: {parts:?}");
+        assert!(
+            parts
+                .iter()
+                .all(|part| { part["cases"].as_u64().is_some_and(|cases| cases < 6) }),
+            "a capped part closes in the middle of its batch: {parts:?}"
+        );
         let total: usize = parts
             .iter()
             .map(|part| {
@@ -2057,6 +2214,153 @@ mod tests {
             .read_verified(&part_directory, name)
             .expect("verified case");
         assert_eq!(case.case_id.as_str(), "R000000000000");
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn part_batches_keep_a_split_family_consecutive_across_a_boundary() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let directory = std::env::temp_dir().join(format!(
+            "pdfdelta-agent-batch-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&directory);
+        let manifest: AgentReviewManifest = serde_json::from_value(serde_json::json!({
+            "schema": "agent-review/v1",
+            "bundle_id": "b000000000000000000000000000000000",
+            "identity": {
+                "policy_version": 1,
+                "schema": "agent-review/v1",
+                "old_sha256": "00".repeat(32),
+                "new_sha256": "11".repeat(32),
+                "old_bytes": 0,
+                "new_bytes": 0,
+                "options": "test",
+                "old_revision": "old",
+                "new_revision": "new",
+                "backends": [],
+                "pipeline": "native_text",
+                "selected_channels": []
+            },
+            "pipeline": "native_text",
+            "selected_channels": [],
+            "engine": {
+                "status": "complete_changed",
+                "comparison_complete": true,
+                "typed_changes": 0,
+                "inferred_changes": 0,
+                "scope_content_changes": 0,
+                "inferred_scope_changes": 0
+            },
+            "cases": { "total": 0, "by_question": [] },
+            "export": {
+                "export_complete": true,
+                "source_visits": 0,
+                "source_visit_limit": 1,
+                "candidate_visits": 0,
+                "candidate_visit_limit": 1,
+                "cases_planned": 0,
+                "case_limit": 100
+            },
+            "capabilities": [],
+            "next": { "action": "list", "cursor": null }
+        }))
+        .expect("fixture manifest");
+        let identifiers = [
+            "R000000000001-p0000",
+            "R000000000001-p0001",
+            "R000000000001-p0002",
+            "R999999999999",
+        ];
+        let mut store = pdfdelta_core::review::MemoryCaseStore::new();
+        let mut order = Vec::new();
+        for (index, identifier) in identifiers.iter().enumerate() {
+            let case: ReviewCase = serde_json::from_value(serde_json::json!({
+                "case_id": identifier,
+                "content_digest": format!("{index:064}"),
+                "question": "compare_content",
+                "pipeline": "native_text",
+                "engine_class": "strict",
+                "finding": "difference_established",
+                "channels": ["text"],
+                "completeness": {
+                    "evidence": "complete",
+                    "candidate_enumeration": "complete",
+                    "solver_search": "complete",
+                    "response": "complete"
+                },
+                "old_text": {
+                    "side": "old",
+                    "text": "x".repeat(100),
+                    "scalar_count": 100,
+                    "order": "render_order"
+                },
+                "alternatives_returned": 0
+            }))
+            .expect("fixture case");
+            let case_id = case.case_id.clone();
+            let handle = store.store(case, None).expect("fixture case store");
+            order.push(OrderedCase {
+                handle,
+                case_id,
+                question: ReviewQuestion::CompareContent,
+                finding: CaseFinding::DifferenceEstablished,
+                old_page: None,
+                new_page: None,
+                pages: Vec::new(),
+                links: pdfdelta_core::review::CaseLinks::default(),
+                context: None,
+            });
+        }
+        let plan = StreamingPlan {
+            manifest,
+            order,
+            contexts: Vec::new(),
+        };
+        let io = BundleIo {
+            old: SourceDocument {
+                name: Path::new("old.pdf"),
+                bytes: &[],
+            },
+            new: SourceDocument {
+                name: Path::new("new.pdf"),
+                bytes: &[],
+            },
+            rasters: &[],
+            max_bytes: 1_048_576,
+        };
+        write_part_set_streaming_with_batch(&directory, &plan, &mut store, &io, 2)
+            .expect("batched split export");
+        let stored: StoredManifest =
+            read_json(&directory.join(COMPLETION_MARKER)).expect("root manifest");
+        assert!(stored.is_split());
+        let parts = read_json::<serde_json::Value>(&directory.join(COMPLETION_MARKER))
+            .expect("root JSON")["parts"]
+            .as_array()
+            .expect("parts")
+            .clone();
+        assert_eq!(parts.len(), 2, "two cases per batch: {parts:?}");
+        assert_eq!(parts[0]["cases"], 2);
+        assert_eq!(parts[1]["cases"], 2);
+        let index = read_case_index(&directory, &stored).expect("combined index");
+        let ids: Vec<&str> = index
+            .records
+            .iter()
+            .map(|record| record.case.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                "R000000000001-p0000",
+                "R000000000001-p0001",
+                "R000000000001-p0002",
+                "R999999999999"
+            ],
+            "the split family stays consecutive across the batch boundary"
+        );
         let _ = std::fs::remove_dir_all(&directory);
     }
 

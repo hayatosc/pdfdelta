@@ -21,11 +21,12 @@ use super::{
     Completeness, Detail, EngineClass, EngineOutcome, EvidenceRef, FlowTextReview, GapScope,
     Hypothesis, HypothesisId, InventoryGap, OmissionKind, OmissionScope, PlannerLimits,
     ReasonRecord, RequiredEvidence, RetrievalAction, ReviewAssumption, ReviewCase, ReviewPlan,
-    ReviewQuestion, ReviewReason, ReviewText, Side, SideLocation, TextOrder, UnlocalizedGap,
+    ReviewQuestion, ReviewReason, ReviewText, Side, SideLocation, StreamingPlan, TextOrder,
+    UnlocalizedGap,
     case::Cardinality,
     planner::{
-        Assembly, Budget, CaseKey, Identifiers, assemble, evidence_ref, review_text, split_case_id,
-        split_review_case,
+        Assembly, Budget, CaseKey, CaseSink, CaseStore, Identifiers, MemoryCaseStore, PlanError,
+        SourceExtents, SourceMarks, assemble_streaming, evidence_ref, review_text, split_case_id,
     },
 };
 use crate::{
@@ -103,94 +104,172 @@ impl CaseDraft<'_> {
 
 /// Geometry retained for every source reference in one side's evidence.
 ///
-/// `regions` used to scan the entire native glyph vector for each source of
-/// each case. That is quadratic on a residual case holding thousands of
-/// sources. One pass per side keeps the lookup bounded.
-type SourceGeometry = BTreeMap<SourceRef, (PageId, Option<[f64; 4]>)>;
-
-fn source_geometry(view: DocumentView<'_>) -> SourceGeometry {
-    let store = view.evidence;
-    let mut geometry = BTreeMap::new();
-    for item in store.native.items() {
-        geometry
-            .entry(SourceRef::Native { glyph: item.id })
-            .or_insert((
-                item.page,
-                Some([
-                    item.bbox.min.x,
-                    item.bbox.min.y,
-                    item.bbox.max.x,
-                    item.bbox.max.y,
-                ]),
-            ));
-    }
-    for line in store.native.vector_lines() {
-        geometry
-            .entry(SourceRef::NativeVector { line: line.id })
-            .or_insert((
-                line.page,
-                Some([
-                    line.from.x.min(line.to.x),
-                    line.from.y.min(line.to.y),
-                    line.from.x.max(line.to.x),
-                    line.from.y.max(line.to.y),
-                ]),
-            ));
-    }
-    for region in &store.rendered {
-        geometry
-            .entry(SourceRef::Rendered { region: region.id })
-            .or_insert((region.page, polygon_bounds(&region.polygon)));
-    }
-    for element in &store.structured {
-        if let Some(page) = element.page {
-            geometry
-                .entry(SourceRef::Structured {
-                    element: element.id,
-                })
-                .or_insert((
-                    page,
-                    element
-                        .bounds
-                        .map(|bounds| [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]),
-                ));
-        }
-    }
-    geometry
+/// Source identifiers are dense ordinals assigned by the extractor, so an
+/// indexed array answers `regions` without a tree node per glyph. Structured
+/// ids may start at a nonzero base, so those few entries keep an ordered map.
+#[derive(Clone, Debug, Default)]
+struct SourceGeometry {
+    native: Vec<Option<(PageId, Option<[f64; 4]>)>>,
+    vector: Vec<Option<(PageId, Option<[f64; 4]>)>>,
+    rendered: Vec<Option<(PageId, Option<[f64; 4]>)>>,
+    structured: BTreeMap<u64, (PageId, Option<[f64; 4]>)>,
 }
 
-struct Planner<'a> {
+impl SourceGeometry {
+    fn new(view: DocumentView<'_>, lengths: [usize; 4]) -> Self {
+        let store = view.evidence;
+        let mut geometry = Self {
+            native: vec![None; lengths[0]],
+            vector: vec![None; lengths[1]],
+            rendered: vec![None; lengths[2]],
+            structured: BTreeMap::new(),
+        };
+        for item in store.native.items() {
+            if let Some(slot) = geometry.native.get_mut(item.id.0 as usize) {
+                *slot = Some((
+                    item.page,
+                    Some([
+                        item.bbox.min.x,
+                        item.bbox.min.y,
+                        item.bbox.max.x,
+                        item.bbox.max.y,
+                    ]),
+                ));
+            }
+        }
+        for line in store.native.vector_lines() {
+            if let Some(slot) = geometry.vector.get_mut(line.id.0 as usize) {
+                *slot = Some((
+                    line.page,
+                    Some([
+                        line.from.x.min(line.to.x),
+                        line.from.y.min(line.to.y),
+                        line.from.x.max(line.to.x),
+                        line.from.y.max(line.to.y),
+                    ]),
+                ));
+            }
+        }
+        for region in &store.rendered {
+            if let Some(slot) = geometry.rendered.get_mut(region.id as usize) {
+                *slot = Some((region.page, polygon_bounds(&region.polygon)));
+            }
+        }
+        for element in &store.structured {
+            if let Some(page) = element.page {
+                geometry.structured.insert(
+                    element.id,
+                    (
+                        page,
+                        element
+                            .bounds
+                            .map(|bounds| [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]),
+                    ),
+                );
+            }
+        }
+        geometry
+    }
+
+    fn get(&self, source: SourceRef) -> Option<(PageId, Option<[f64; 4]>)> {
+        match source {
+            SourceRef::Native { glyph } => self.native.get(glyph.0 as usize).copied().flatten(),
+            SourceRef::NativeVector { line } => self.vector.get(line.0 as usize).copied().flatten(),
+            SourceRef::Rendered { region } => self.rendered.get(region as usize).copied().flatten(),
+            SourceRef::Structured { element } => self.structured.get(&element).copied(),
+        }
+    }
+}
+
+/// First graph node owning each source reference in one side's graph.
+///
+/// The dense slots use `u64::MAX` as the empty marker, which no node id can
+/// take. This keeps the index at eight bytes per native source instead of a
+/// tree node per reference.
+#[derive(Clone, Debug, Default)]
+struct SourceOwners {
+    native: Vec<u64>,
+    vector: Vec<u64>,
+    rendered: Vec<u64>,
+    structured: BTreeMap<u64, NodeId>,
+}
+
+impl SourceOwners {
+    fn new(nodes: &[GraphNode], lengths: [usize; 4]) -> Self {
+        let mut owners = Self {
+            native: vec![u64::MAX; lengths[0]],
+            vector: vec![u64::MAX; lengths[1]],
+            rendered: vec![u64::MAX; lengths[2]],
+            structured: BTreeMap::new(),
+        };
+        for node in nodes {
+            for source in &node.sources {
+                match source {
+                    SourceRef::Native { glyph } => {
+                        if let Some(slot) = owners.native.get_mut(glyph.0 as usize)
+                            && *slot == u64::MAX
+                        {
+                            *slot = node.id.0;
+                        }
+                    }
+                    SourceRef::NativeVector { line } => {
+                        if let Some(slot) = owners.vector.get_mut(line.0 as usize)
+                            && *slot == u64::MAX
+                        {
+                            *slot = node.id.0;
+                        }
+                    }
+                    SourceRef::Rendered { region } => {
+                        if let Some(slot) = owners.rendered.get_mut(*region as usize)
+                            && *slot == u64::MAX
+                        {
+                            *slot = node.id.0;
+                        }
+                    }
+                    SourceRef::Structured { element } => {
+                        owners.structured.entry(*element).or_insert(node.id);
+                    }
+                }
+            }
+        }
+        owners
+    }
+
+    fn get(&self, source: SourceRef) -> Option<NodeId> {
+        let dense = match source {
+            SourceRef::Native { glyph } => self.native.get(glyph.0 as usize).copied(),
+            SourceRef::NativeVector { line } => self.vector.get(line.0 as usize).copied(),
+            SourceRef::Rendered { region } => self.rendered.get(region as usize).copied(),
+            SourceRef::Structured { element } => return self.structured.get(&element).copied(),
+        }?;
+        (dense != u64::MAX).then_some(NodeId(dense))
+    }
+}
+
+struct Planner<'a, 's> {
     input: &'a SharedEvidenceReview<'a>,
     limits: PlannerLimits,
     budget: Budget,
     identifiers: Identifiers,
-    cases: Vec<ReviewCase>,
+    sink: CaseSink<'s>,
     gaps: Vec<UnlocalizedGap>,
-    explained: BTreeSet<(Side, SourceRef)>,
-    /// Content digest to case index, so the same question asked twice about the
-    /// same material is one case rather than two competing identifiers.
+    marks: SourceMarks,
+    /// Content digest to case handle, so the same question asked twice about
+    /// the same material is one case rather than two competing identifiers.
     by_digest: BTreeMap<String, usize>,
-    contexts: Vec<super::CaseContext>,
+    /// Context gathered by `build_case`, stored with the case if it is kept.
+    pending_context: Option<super::CaseContext>,
     old_nodes: BTreeMap<NodeId, &'a GraphNode>,
     new_nodes: BTreeMap<NodeId, &'a GraphNode>,
     /// First graph node that owns each source reference. This index turns the
     /// residual-source lookup from a scan of every node per source into one
     /// pass over each graph.
-    old_source_owner: BTreeMap<SourceRef, NodeId>,
-    new_source_owner: BTreeMap<SourceRef, NodeId>,
+    old_source_owner: SourceOwners,
+    new_source_owner: SourceOwners,
     /// Retained geometry per source, built once per side.
     old_geometry: SourceGeometry,
     new_geometry: SourceGeometry,
-}
-
-fn source_owners(nodes: &[GraphNode]) -> BTreeMap<SourceRef, NodeId> {
-    let mut owners = BTreeMap::new();
-    for node in nodes {
-        for source in &node.sources {
-            owners.entry(*source).or_insert(node.id);
-        }
-    }
-    owners
+    extents: SourceExtents,
 }
 
 /// Projects a shared-evidence comparison into a bounded review plan.
@@ -198,18 +277,43 @@ fn source_owners(nodes: &[GraphNode]) -> BTreeMap<SourceRef, NodeId> {
 /// The comparison is not modified and not recomputed. Planning stops at its
 /// budgets, recording what it could not describe as an explicit omission rather
 /// than as a resolved obligation.
+///
+/// This frontend keeps both stores in memory. Callers that need memory bounded
+/// independently of the case count use [`plan_shared_evidence_streaming`].
 #[must_use]
 pub fn plan_shared_evidence(input: &SharedEvidenceReview<'_>, limits: PlannerLimits) -> ReviewPlan {
+    let mut raw = MemoryCaseStore::new();
+    let mut final_store = MemoryCaseStore::new();
+    let plan = plan_shared_evidence_streaming(input, limits, &mut raw, &mut final_store)
+        .expect("the in-memory case store cannot fail");
+    super::planner::materialize(plan, &mut final_store)
+}
+
+/// Projects a shared-evidence comparison, storing case bodies in `store`.
+///
+/// The planner retains only a fixed-size index: case identifiers, digests,
+/// counts, ordering keys, and omission records. Bodies and contexts are read
+/// back from the raw and final stores one at a time, so peak memory does not
+/// grow with the number of planned cases.
+pub fn plan_shared_evidence_streaming(
+    input: &SharedEvidenceReview<'_>,
+    limits: PlannerLimits,
+    raw: &mut dyn CaseStore,
+    final_store: &mut dyn CaseStore,
+) -> Result<StreamingPlan, PlanError> {
+    let old_lengths = source_lengths(input.old);
+    let new_lengths = source_lengths(input.new);
+    let extents = SourceExtents::new([old_lengths, new_lengths]);
     let planner = Planner {
         input,
         limits,
         budget: Budget::new(limits),
         identifiers: Identifiers::new(),
-        cases: Vec::new(),
+        sink: CaseSink::new(raw),
         gaps: Vec::new(),
-        explained: BTreeSet::new(),
+        marks: SourceMarks::new(&extents),
         by_digest: BTreeMap::new(),
-        contexts: Vec::new(),
+        pending_context: None,
         old_nodes: input
             .old
             .graph
@@ -224,12 +328,48 @@ pub fn plan_shared_evidence(input: &SharedEvidenceReview<'_>, limits: PlannerLim
             .iter()
             .map(|node| (node.id, node))
             .collect(),
-        old_source_owner: source_owners(&input.old.graph.nodes),
-        new_source_owner: source_owners(&input.new.graph.nodes),
-        old_geometry: source_geometry(input.old),
-        new_geometry: source_geometry(input.new),
+        old_source_owner: SourceOwners::new(&input.old.graph.nodes, old_lengths),
+        new_source_owner: SourceOwners::new(&input.new.graph.nodes, new_lengths),
+        old_geometry: SourceGeometry::new(input.old, old_lengths),
+        new_geometry: SourceGeometry::new(input.new, new_lengths),
+        extents,
     };
-    planner.plan()
+    planner.plan(final_store)
+}
+
+/// One past the largest source id for each origin of one side.
+fn source_lengths(view: DocumentView<'_>) -> [usize; 4] {
+    let next = |maximum: Option<u64>| {
+        maximum.map_or(0, |id| {
+            usize::try_from(id).unwrap_or(usize::MAX).saturating_add(1)
+        })
+    };
+    [
+        next(
+            view.evidence
+                .native
+                .items()
+                .iter()
+                .map(|item| item.id.0)
+                .max(),
+        ),
+        next(
+            view.evidence
+                .native
+                .vector_lines()
+                .iter()
+                .map(|line| line.id.0)
+                .max(),
+        ),
+        next(view.evidence.rendered.iter().map(|region| region.id).max()),
+        next(
+            view.evidence
+                .structured
+                .iter()
+                .map(|element| element.id)
+                .max(),
+        ),
+    ]
 }
 
 /// Deterministic importance order for acquisition cases.
@@ -259,13 +399,25 @@ fn acquisition_priority(side: Side, issue: &EvidenceIssue) -> (u8, u8, u32, u8) 
     (kind, channel, page, side)
 }
 
-impl<'a> Planner<'a> {
-    fn plan(mut self) -> ReviewPlan {
+impl<'a> Planner<'a, '_> {
+    fn plan(mut self, final_store: &mut dyn CaseStore) -> Result<StreamingPlan, PlanError> {
+        let flow_owns_text = self.input.flow.is_some();
+        // Flow already accounts for every text token it extracted. Building
+        // the shared text source sets would spend hundreds of megabytes on
+        // material no residual case can use, so the accounting is restricted
+        // to the channels that still need it.
+        let accounting_channels: BTreeSet<Channel> = self
+            .input
+            .channels
+            .iter()
+            .copied()
+            .filter(|channel| !(flow_owns_text && *channel == Channel::Text))
+            .collect();
         let accounting = document_source_accounting(
             self.input.old,
             self.input.new,
             self.input.comparison,
-            self.input.channels,
+            &accounting_channels,
         );
         // Flow coverage is planned first: its cases partition report arrays
         // that cannot be reconstructed later, so a shared-case budget stop
@@ -282,17 +434,18 @@ impl<'a> Planner<'a> {
                 limits: self.limits,
                 budget: &mut self.budget,
                 identifiers: &mut self.identifiers,
-                cases: &mut self.cases,
+                sink: &mut self.sink,
                 gaps: &mut self.gaps,
             });
         }
         self.scopes();
         self.relations();
-        let flow_owns_text = self.input.flow.is_some();
         self.acquisition(flow_owns_text);
         self.visual_only_pages();
         self.residual_sources(&accounting, flow_owns_text);
-        self.split_oversized_cases();
+        if let Some(error) = self.sink.take_error() {
+            return Err(error);
+        }
         let inventory_gaps = accounting
             .iter()
             .flat_map(|channel| {
@@ -317,43 +470,60 @@ impl<'a> Planner<'a> {
                     && (!gap.inventory_complete || gap.uncompared_sources > 0)
             })
             .collect();
-        self.budget.finalize();
-        assemble(
+        let gaps = std::mem::take(&mut self.gaps);
+        let identity = self.input.identity.clone();
+        let outcome = self.input.outcome.clone();
+        let channels = self.input.channels;
+        self.finish(
+            final_store,
             Assembly {
-                contexts: self.contexts,
-                identity: self.input.identity.clone(),
-                outcome: self.input.outcome.clone(),
-                channels: self.input.channels,
+                identity,
+                outcome,
+                channels,
                 inventory_gaps,
-                unlocalized_gaps: self.gaps,
-                cases: self.cases,
+                unlocalized_gaps: gaps,
                 visual_available,
             },
-            &self.budget,
         )
     }
 
-    /// Splits cases that still exceed a per-case source cap.
+    /// Splits oversized cases, charges their parts, and assembles the index.
     ///
-    /// Flow cases retain every source they quote so this pass can partition
-    /// them instead of recording an omission. The first part replaces the
-    /// already-accepted case; each additional part is charged to the case
-    /// budget.
-    fn split_oversized_cases(&mut self) {
-        let cases = std::mem::take(&mut self.cases);
-        for case in cases {
-            let parent = case.case_id.clone();
-            let parts = split_review_case(case, self.limits);
-            if parts.len() > 1 {
-                self.budget
-                    .clear_case_omission(&parent, OmissionKind::GapSourcesOmitted);
-            }
-            for (index, part) in parts.into_iter().enumerate() {
-                if index == 0 || self.budget.accept_case() {
-                    self.cases.push(part);
-                }
-            }
+    /// Each raw case is read back from the store, partitioned at the per-case
+    /// caps, and written to the final store one part at a time. Only the
+    /// fixed-size listing metadata survives for the whole plan.
+    fn finish(
+        self,
+        final_store: &mut dyn CaseStore,
+        assembly: Assembly<'_>,
+    ) -> Result<StreamingPlan, PlanError> {
+        let Planner {
+            mut sink,
+            mut budget,
+            limits,
+            extents,
+            ..
+        } = self;
+        let handles = sink.take_handles();
+        let finalized = super::planner::finalize_cases(
+            sink.store(),
+            final_store,
+            limits,
+            &mut budget,
+            &extents,
+            handles,
+        )?;
+        if let Some(error) = sink.take_error() {
+            return Err(error);
         }
+        budget.finalize();
+        Ok(assemble_streaming(
+            assembly,
+            &budget,
+            finalized.entries,
+            &finalized.tracker,
+            finalized.contexts,
+        ))
     }
 
     fn node(&self, side: Side, id: NodeId) -> Option<&'a GraphNode> {
@@ -450,7 +620,7 @@ impl<'a> Planner<'a> {
         ] {
             let mut pages: BTreeMap<PageId, Option<[f64; 4]>> = BTreeMap::new();
             for source in sources {
-                let Some(&(page, bounds)) = geometry.get(source) else {
+                let Some((page, bounds)) = geometry.get(*source) else {
                     continue;
                 };
                 let entry = pages.entry(page).or_insert(None);
@@ -487,30 +657,26 @@ impl<'a> Planner<'a> {
         let Some(case) = case else {
             return;
         };
-        if let Some(index) = self.by_digest.get(&case.content_digest).copied() {
-            let existing = &mut self.cases[index];
-            for reference in case.evidence {
-                if !existing.evidence.contains(&reference) {
-                    existing.evidence.push(reference);
-                }
-            }
-            for reference in &existing.evidence {
-                self.explained.insert((reference.side, reference.source));
-            }
+        if let Some(handle) = self.by_digest.get(&case.content_digest).copied() {
+            self.sink.append_evidence(handle, &case.evidence);
+            self.marks.mark(&case.evidence);
+            self.pending_context = None;
             return;
         }
         if !self.budget.accept_case() {
+            self.pending_context = None;
             return;
         }
-        for reference in &case.evidence {
-            self.explained.insert((reference.side, reference.source));
+        self.marks.mark(&case.evidence);
+        let digest = case.content_digest.clone();
+        let context = self.pending_context.take();
+        if let Some(handle) = self.sink.push_unique(case, context) {
+            self.by_digest.insert(digest, handle);
         }
-        self.by_digest
-            .insert(case.content_digest.clone(), self.cases.len());
-        self.cases.push(case);
     }
 
     fn build_case(&mut self, draft: CaseDraft<'_>) -> Option<ReviewCase> {
+        self.pending_context = None;
         let CaseDraft {
             question,
             engine_class,
@@ -543,9 +709,8 @@ impl<'a> Planner<'a> {
             }
         }
         let digest = key.finish();
-        if let Some(index) = self.by_digest.get(&digest).copied() {
-            let existing = &mut self.cases[index];
-            for source in old_sources
+        if let Some(handle) = self.by_digest.get(&digest).copied() {
+            let references: Vec<EvidenceRef> = old_sources
                 .iter()
                 .map(|source| evidence_ref(Side::Old, *source))
                 .chain(
@@ -553,14 +718,9 @@ impl<'a> Planner<'a> {
                         .iter()
                         .map(|source| evidence_ref(Side::New, *source)),
                 )
-            {
-                if !existing.evidence.contains(&source) {
-                    existing.evidence.push(source);
-                }
-            }
-            for reference in &existing.evidence {
-                self.explained.insert((reference.side, reference.source));
-            }
+                .collect();
+            self.sink.append_evidence(handle, &references);
+            self.marks.mark(&references);
             return None;
         }
         let subcase = split.as_ref().map(|split| CaseSplit {
@@ -583,7 +743,7 @@ impl<'a> Planner<'a> {
                 self.limits,
             );
             if !context.items.is_empty() || !context.complete {
-                self.contexts.push(context);
+                self.pending_context = Some(context);
                 has_context = true;
             }
         }
@@ -1382,10 +1542,10 @@ impl<'a> Planner<'a> {
         let mut pages = BTreeSet::new();
         let mut orphan = false;
         for source in residual {
-            match owners.get(source) {
+            match owners.get(*source) {
                 Some(node) => {
                     let page = self
-                        .node(side, *node)
+                        .node(side, node)
                         .and_then(|node| node.pages.first().copied());
                     pages.insert(page);
                 }
@@ -1416,7 +1576,7 @@ impl<'a> Planner<'a> {
                 };
                 let residual: Vec<SourceRef> = side_accounting
                     .uncompared()
-                    .filter(|source| !self.explained.contains(&(side, *source)))
+                    .filter(|source| !self.marks.contains(side, *source))
                     .collect();
                 if residual.is_empty() {
                     continue;
@@ -1438,9 +1598,9 @@ impl<'a> Planner<'a> {
                     Side::New => &self.new_source_owner,
                 };
                 for source in residual {
-                    match source_owners.get(&source) {
+                    match source_owners.get(source) {
                         Some(node) => {
-                            owners.entry(*node).or_default().insert(source);
+                            owners.entry(node).or_default().insert(source);
                         }
                         None => {
                             orphans.insert(source);

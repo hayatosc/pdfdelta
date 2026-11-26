@@ -11,6 +11,12 @@ description = "Compare meaningful text changes between PDF documents"
 name = "pdfdelta"
 path = "src/main.rs"
 
+[features]
+# Diagnostic only: lets a benchmark replicate a finished plan before
+# publication so peak memory can be measured at several case counts. Release
+# binaries for users are built without this feature.
+plan-multiplier = []
+
 [dependencies]
 base64 = "0.22.1"
 clap.workspace = true
