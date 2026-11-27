@@ -30,6 +30,33 @@ use super::{
 
 const SCHEMA_VERSION: u32 = 11;
 
+
+fn memory_probe(label: &str) {
+    if std::env::var_os("PDFDELTA_MEM_TRACE").is_none() {
+        return;
+    }
+    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
+        return;
+    };
+    let field = |name: &str| {
+        status
+            .lines()
+            .find(|line| line.starts_with(name))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap_or("?")
+            .to_owned()
+    };
+    if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open("/dev/stderr") {
+        use std::io::Write as _;
+        let _ = writeln!(
+            file,
+            "mem[{label}] rss={} hwm={}",
+            field("VmRSS:"),
+            field("VmHWM:")
+        );
+    }
+}
+
 pub fn write_json<W: Write>(
     mut writer: W,
     old_blocks: &[BlockText],
@@ -76,6 +103,7 @@ pub fn write_compact_json<W: Write>(
     comparison: &Comparison,
     extraction: &ExtractionStatus,
 ) -> Result<()> {
+    memory_probe("report-start");
     let report = build_report(
         old_blocks,
         new_blocks,
@@ -85,6 +113,7 @@ pub fn write_compact_json<W: Write>(
         extraction,
         true,
     )?;
+    memory_probe("report-built");
     let artifact = JsonCompactArtifact {
         artifact_format: "pdfdelta-native-compact",
         artifact_version: 2,
@@ -96,6 +125,7 @@ pub fn write_compact_json<W: Write>(
     };
     serde_json::to_writer(&mut writer, &artifact)
         .map_err(|error| Error::Report(error.to_string()))?;
+    memory_probe("report-serialized");
     writer
         .write_all(b"\n")
         .map_err(|error| Error::Report(error.to_string()))
@@ -111,8 +141,10 @@ fn build_report<'a>(
     compact: bool,
 ) -> Result<JsonReport<'a>> {
     let summary = summarize(comparison, extraction)?;
+    memory_probe("report-summarized");
     let old = SideIndex::new(old_blocks)?;
     let new = SideIndex::new(new_blocks)?;
+    memory_probe("report-side-index");
     let old_sources = ReportSources {
         projector: SpanSourceProjector::new(
             old_blocks,
@@ -129,6 +161,7 @@ fn build_report<'a>(
         )?,
         compact,
     };
+    memory_probe("report-projectors");
     JsonReport::new(
         comparison,
         extraction,

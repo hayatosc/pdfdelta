@@ -436,6 +436,33 @@ impl PipelineDiagnostics {
     }
 }
 
+
+fn memory_probe(label: &str) {
+    if std::env::var_os("PDFDELTA_MEM_TRACE").is_none() {
+        return;
+    }
+    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
+        return;
+    };
+    let field = |name: &str| {
+        status
+            .lines()
+            .find(|line| line.starts_with(name))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap_or("?")
+            .to_owned()
+    };
+    if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open("/dev/stderr") {
+        use std::io::Write as _;
+        let _ = writeln!(
+            file,
+            "mem[{label}] rss={} hwm={}",
+            field("VmRSS:"),
+            field("VmHWM:")
+        );
+    }
+}
+
 pub fn compare_extraction_outcomes(
     old: ExtractionOutcome,
     new: ExtractionOutcome,
@@ -681,6 +708,7 @@ fn compare_extraction_outcomes_with_structures_inner(
         None,
         PipelineMetrics::default(),
     );
+    memory_probe("pipeline-start");
     let old_complete = old.is_complete();
     let new_complete = new.is_complete();
     let (old_document, old_issues) = old.into_parts();
@@ -712,7 +740,9 @@ fn compare_extraction_outcomes_with_structures_inner(
                         };
                     }
                     let old_glyph_evidence = glyph_evidence(old_document);
+                    memory_probe("glyph-evidence-old");
                     let new_glyph_evidence = glyph_evidence(new_document);
+                    memory_probe("glyph-evidence-new");
                     if old_complete && new_complete {
                         diagnostics.completed(
                             PipelinePhase::CompletenessGate,
@@ -1024,6 +1054,7 @@ fn compare_validated_glyph_documents_inner(
     let old_features = old_features?;
     diagnostics.append(new_feature_diagnostics);
     let new_features = new_features?;
+    memory_probe("features-built");
     let gap_plan = phase_result(
         diagnostics,
         PipelinePhase::Alignment,
@@ -1061,6 +1092,7 @@ fn compare_validated_glyph_documents_inner(
             ..PipelineMetrics::default()
         },
     );
+    memory_probe("candidate-index-built");
     let attempt = align_ordered_with_metrics_and_gap_plan(
         &old_features,
         &new_features,
@@ -1107,6 +1139,7 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
+    memory_probe("alignment-done");
     // A document whose other side carries no native text at all is one-sided:
     // the whole present side is an insertion or deletion, independent of the
     // window reading-order uncertainty that the layout could not resolve. The
@@ -1283,6 +1316,7 @@ fn compare_validated_glyph_documents_inner(
             ..PipelineMetrics::default()
         },
     );
+    memory_probe("exact-diff-done");
     Ok(ValidatedComparisonOutcome {
         comparison,
         old_blocks: old,
@@ -1608,6 +1642,7 @@ fn prepare(
     )
     .with_displacements(displacements);
     let painting_glyphs = document.items().len();
+    memory_probe(match side { DocumentSide::Old => "prepare-filtered-old", DocumentSide::New => "prepare-filtered-new" });
     let lines = phase_result(
         diagnostics,
         PipelinePhase::LineReconstruction,
@@ -1623,6 +1658,7 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
+    memory_probe(match side { DocumentSide::Old => "prepare-lines-old", DocumentSide::New => "prepare-lines-new" });
     let reconstruction = phase_result(
         diagnostics,
         PipelinePhase::BlockReconstruction,
@@ -1680,6 +1716,7 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
+    memory_probe(match side { DocumentSide::Old => "prepare-blocks-old", DocumentSide::New => "prepare-blocks-new" });
     let normalized = phase_result(
         diagnostics,
         PipelinePhase::Normalization,
@@ -1710,6 +1747,7 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
+    memory_probe(match side { DocumentSide::Old => "prepare-normalized-old", DocumentSide::New => "prepare-normalized-new" });
     let uncertain_line_ids = reconstruction
         .issues
         .into_iter()
