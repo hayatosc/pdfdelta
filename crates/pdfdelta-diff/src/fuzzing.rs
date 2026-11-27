@@ -1,6 +1,6 @@
-//! Fuzzing-only entry points for the flow engine.
+//! Fuzzing-only entry points for the diff engine.
 
-use crate::{FlowToken, flow_diff};
+use crate::{Token, diff};
 use pdfdelta_core::model::PageId;
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
@@ -28,7 +28,7 @@ pub fn fuzz_text_comparison(input: &[u8]) {
     }
     let old = tokens(left);
     let new = tokens(right);
-    let Ok(diff) = flow_diff(&old, &new) else {
+    let Ok(diff) = diff(&old, &new) else {
         return;
     };
     let stats = diff.stats();
@@ -52,11 +52,11 @@ pub fn fuzz_text_comparison(input: &[u8]) {
     }
 }
 
-fn tokens(input: &[u8]) -> Vec<FlowToken> {
+fn tokens(input: &[u8]) -> Vec<Token> {
     input
         .iter()
         .take(MAX_TOKENS)
-        .map(|byte| FlowToken {
+        .map(|byte| Token {
             text: char::from(*byte).to_string(),
             page: PageId(0),
             bounds: None,
@@ -77,7 +77,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn curated_flow_seeds_reach_the_verified_diff() {
+    fn curated_diff_seeds_reach_the_verified_diff() {
         for seed in [
             b"ab".as_slice(),
             b"aaaa",

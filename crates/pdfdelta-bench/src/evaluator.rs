@@ -12,7 +12,7 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use pdfdelta_core::span::ChangeKind;
-use pdfdelta_flow::{flow_diff, flow_tokens_pair};
+use pdfdelta_diff::{diff, order_pair};
 
 use crate::{
     BenchError, Result,
@@ -207,9 +207,9 @@ pub fn evaluate_rendered(
     validate_case_name(case_name)?;
     validate_renderer_name(renderer)?;
     let (old_document, new_document) = extract_pair(&old_pdf, &new_pdf)?;
-    let pair = flow_tokens_pair(&old_document, &new_document)
+    let pair = order_pair(&old_document, &new_document)
         .map_err(|error| BenchError::core("flow tokenization", error))?;
-    let diff = flow_diff(&pair.old.tokens, &pair.new.tokens)
+    let diff = diff(&pair.old.tokens, &pair.new.tokens)
         .map_err(|error| BenchError::InvalidInput(format!("flow comparison failed: {error}")))?;
     let actual = summarize_changes(&diff.changes, &pair.old.tokens, &pair.new.tokens);
     let truth = truth_for_expectation(expected.changes(), old_plan, new_plan)?;

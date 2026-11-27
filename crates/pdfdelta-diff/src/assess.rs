@@ -1,4 +1,4 @@
-//! Cheap confidence and formatting evidence for a verified flow script.
+//! Cheap confidence and formatting evidence for a verified diff script.
 //!
 //! The edit script is always a correct replay. This module adds two
 //! orthogonal, cheap annotations:
@@ -21,7 +21,7 @@ use std::{
 
 use pdfdelta_core::model::PageId;
 
-use crate::{FlowChange, FlowDiff, FlowStats, FlowToken, intern_tokens};
+use crate::{Change, Diff, DiffStats, Token, intern_tokens};
 
 /// Relative font-size difference that counts as a presentation change.
 ///
@@ -90,7 +90,7 @@ impl AmbiguityReason {
 /// Threshold above which a replace is treated as a coarse span.
 pub const COARSE_SPAN_TOKENS: usize = 40;
 
-/// Confidence and reasons for one change of [`FlowDiff::changes`].
+/// Confidence and reasons for one change of [`Diff::changes`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChangeAssessment {
     /// Overall confidence.
@@ -103,7 +103,7 @@ pub struct ChangeAssessment {
 ///
 /// The vocabulary and order are fixed by the formatting contract:
 /// normalization, block structure, font size, position, line break, and page
-/// break. A flow entry may carry several reasons when the same matched run
+/// break. A diff entry may carry several reasons when the same matched run
 /// differs in several dimensions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FormattingReason {
@@ -152,7 +152,7 @@ pub struct FormattingChange {
 /// exit-selection predicate used by the CLI, so the policy and the summary
 /// cannot diverge.
 #[must_use]
-pub fn selects_difference(stats: &FlowStats) -> bool {
+pub fn selects_difference(stats: &DiffStats) -> bool {
     stats.delete.changes + stats.insert.changes + stats.replace.changes + stats.moves.changes > 0
 }
 
@@ -164,9 +164,9 @@ pub fn selects_difference(stats: &FlowStats) -> bool {
 /// proportional to the number of changes, not to the number of tokens.
 #[must_use]
 pub fn assess_changes(
-    old: &[FlowToken],
-    new: &[FlowToken],
-    diff: &FlowDiff,
+    old: &[Token],
+    new: &[Token],
+    diff: &Diff,
     old_order_uncertain: &BTreeSet<PageId>,
     new_order_uncertain: &BTreeSet<PageId>,
 ) -> Vec<ChangeAssessment> {
@@ -188,12 +188,11 @@ pub fn assess_changes(
             let new_len = new_range.len();
             let numeric_only = range_is_numeric(old, old_range.clone())
                 && range_is_numeric(new, new_range.clone());
-            if matches!(change, FlowChange::Replace { .. })
-                && old_len.max(new_len) > COARSE_SPAN_TOKENS
+            if matches!(change, Change::Replace { .. }) && old_len.max(new_len) > COARSE_SPAN_TOKENS
             {
                 ambiguity.push(AmbiguityReason::CoarseSpan);
             }
-            if matches!(change, FlowChange::Move { .. }) && old_len.min(new_len) <= 2 {
+            if matches!(change, Change::Move { .. }) && old_len.min(new_len) <= 2 {
                 ambiguity.push(AmbiguityReason::ShortMove);
             }
             if numeric_only {
@@ -254,7 +253,7 @@ const REPEATED_RUN_WINDOW: usize = 16;
 /// Watches the boundary sequences of every change on one side.
 fn watched_sequences(
     ids: &[u32],
-    diff: &FlowDiff,
+    diff: &Diff,
     new_side: bool,
     numeric_table: &[NumericTableNeighbour],
 ) -> Vec<Vec<u32>> {
@@ -297,7 +296,7 @@ fn positions_of(ids: &[u32], watched: &[Vec<u32>]) -> HashMap<Vec<u32>, Vec<usiz
     positions
 }
 
-fn change_start(change: &FlowChange, new_side: bool) -> usize {
+fn change_start(change: &Change, new_side: bool) -> usize {
     if new_side {
         change.new_range().start
     } else {
@@ -307,7 +306,7 @@ fn change_start(change: &FlowChange, new_side: bool) -> usize {
 
 /// Returns whether a watched sequence occurs again near `own` in the same block.
 fn near_duplicate(
-    tokens: &[FlowToken],
+    tokens: &[Token],
     positions: &HashMap<Vec<u32>, Vec<usize>>,
     sequence: Vec<u32>,
     own: usize,
@@ -333,10 +332,10 @@ type NumericTableNeighbour = Option<(bool, u32)>;
 
 fn numeric_table_candidates(
     old_ids: &[u32],
-    old: &[FlowToken],
+    old: &[Token],
     new_ids: &[u32],
-    new: &[FlowToken],
-    diff: &FlowDiff,
+    new: &[Token],
+    diff: &Diff,
 ) -> Vec<NumericTableNeighbour> {
     diff.changes
         .iter()
@@ -372,7 +371,7 @@ fn numeric_table_candidates(
         .collect()
 }
 
-fn range_is_numeric(tokens: &[FlowToken], range: Range<usize>) -> bool {
+fn range_is_numeric(tokens: &[Token], range: Range<usize>) -> bool {
     if range.is_empty() {
         return false;
     }
@@ -393,7 +392,7 @@ fn is_numeric_token(text: &str) -> bool {
 }
 
 fn touched_uncertain_page(
-    tokens: &[FlowToken],
+    tokens: &[Token],
     range: Range<usize>,
     uncertain: &BTreeSet<PageId>,
 ) -> bool {
@@ -421,9 +420,9 @@ fn boundary_sequences(ids: &[u32], range: Range<usize>) -> Vec<Vec<u32>> {
 }
 
 fn repeated_boundary(
-    change: &FlowChange,
-    old: &[FlowToken],
-    new: &[FlowToken],
+    change: &Change,
+    old: &[Token],
+    new: &[Token],
     old_ids: &[u32],
     new_ids: &[u32],
     old_positions: &HashMap<Vec<u32>, Vec<usize>>,
@@ -483,8 +482,8 @@ fn repeated_boundary(
 /// Formatting never changes the edit script or the exit code.
 #[must_use]
 pub fn formatting_changes(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     spine: &[(usize, usize)],
 ) -> Vec<FormattingChange> {
     let mut changes = Vec::new();
@@ -534,7 +533,7 @@ pub fn formatting_changes(
 /// describe the same formatting change and are reported once. A page boundary
 /// is never merged across, and adjacent entries from different matched runs
 /// cannot merge because a content change separates their token ranges.
-fn coalesce(changes: &mut Vec<FormattingChange>, old: &[FlowToken], new: &[FlowToken]) {
+fn coalesce(changes: &mut Vec<FormattingChange>, old: &[Token], new: &[Token]) {
     let mut merged: Vec<FormattingChange> = Vec::with_capacity(changes.len());
     for change in changes.drain(..) {
         if let Some(last) = merged.last_mut()
@@ -606,11 +605,7 @@ fn merged_reasons(left: &[FormattingReason], right: &[FormattingReason]) -> Vec<
 /// grouping reference, so a break at an old block end is not an internal
 /// reflow. This keeps the page-break acceptance fixture reporting only the
 /// moved lines' position.
-fn break_differences(
-    old: &[FlowToken],
-    new: &[FlowToken],
-    pairs: &[(usize, usize)],
-) -> (bool, bool) {
+fn break_differences(old: &[Token], new: &[Token], pairs: &[(usize, usize)]) -> (bool, bool) {
     let mut line_break = false;
     let mut page_break = false;
     for (offset, &(old_index, new_index)) in pairs.iter().enumerate() {
@@ -628,8 +623,8 @@ fn break_differences(
 
 fn push_run(
     changes: &mut Vec<FormattingChange>,
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     pairs: &[(usize, usize)],
 ) {
     if pairs.is_empty() {
@@ -678,7 +673,7 @@ fn push_run(
         let (line_break, page_break) = break_differences(old, new, segment);
         // Normalization is reported when the raw token sequence differs. An
         // in-block line wrap replaces a raw gap with a line boundary that the
-        // flow projection cannot see, so a line-break difference carries the
+        // raw projection cannot see, so a line-break difference carries the
         // same normalization evidence. A page break between blocks moves no
         // raw text, so it carries only the page-break reason.
         if raw_differs_in_segment(old, new, segment)
@@ -692,7 +687,7 @@ fn push_run(
         }
         if block_structure {
             // Block-structure evidence always coexists with raw separator and
-            // line-break evidence on this corpus. Flow has no separate
+            // line-break evidence on this corpus. The diff engine has no separate
             // separator token, so the same structural change carries
             // normalization and line-break evidence.
             reasons.push(FormattingReason::Normalization);
@@ -721,8 +716,8 @@ fn push_run(
 }
 
 fn font_size_pair(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     (old_index, new_index): (usize, usize),
 ) -> Option<(f64, f64)> {
     let old_token = old.get(old_index)?;
@@ -757,7 +752,7 @@ fn raw_parts(raw: &str) -> (&str, Option<&str>) {
 /// may lie outside this segment. Compare only its own raw text there; span
 /// boundary whitespace is not interior evidence. Line-break gaps and
 /// over-extended raw projections are not whitespace evidence.
-fn raw_differs_in_segment(old: &[FlowToken], new: &[FlowToken], pairs: &[(usize, usize)]) -> bool {
+fn raw_differs_in_segment(old: &[Token], new: &[Token], pairs: &[(usize, usize)]) -> bool {
     let last = pairs.len().saturating_sub(1);
     pairs
         .iter()
@@ -790,8 +785,8 @@ fn raw_differs_in_segment(old: &[FlowToken], new: &[FlowToken], pairs: &[(usize,
 /// compared.
 fn add_interior_raw_normalization(
     changes: &mut [FormattingChange],
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
 ) -> bool {
     let mut added = false;
     for change in changes {
@@ -811,7 +806,7 @@ fn add_interior_raw_normalization(
     added
 }
 
-fn raw_differs_in_change(old: &[FlowToken], new: &[FlowToken], change: &FormattingChange) -> bool {
+fn raw_differs_in_change(old: &[Token], new: &[Token], change: &FormattingChange) -> bool {
     let len = change.old.end - change.old.start;
     if len != change.new.end - change.new.start {
         return false;
@@ -845,8 +840,8 @@ fn raw_differs_in_change(old: &[FlowToken], new: &[FlowToken], change: &Formatti
 }
 
 fn normalization_differs_in_segment(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     pairs: &[(usize, usize)],
 ) -> bool {
     pairs
@@ -854,7 +849,7 @@ fn normalization_differs_in_segment(
         .any(|&(old_index, new_index)| old[old_index].normalization != new[new_index].normalization)
 }
 
-fn position_changed(old: &[FlowToken], new: &[FlowToken], pairs: &[(usize, usize)]) -> bool {
+fn position_changed(old: &[Token], new: &[Token], pairs: &[(usize, usize)]) -> bool {
     let mut start = 0;
     let mut changed = false;
     for (offset, &(old_index, _new_index)) in pairs.iter().enumerate() {
@@ -876,11 +871,7 @@ fn position_changed(old: &[FlowToken], new: &[FlowToken], pairs: &[(usize, usize
 /// Returns `Some(changed)` when one line has complete geometry and every token
 /// shares one translation; `None` means the evidence is incomplete or the line
 /// is not a pure translation.
-fn translated_line_change(
-    old: &[FlowToken],
-    new: &[FlowToken],
-    pairs: &[(usize, usize)],
-) -> Option<bool> {
+fn translated_line_change(old: &[Token], new: &[Token], pairs: &[(usize, usize)]) -> Option<bool> {
     let mut anchor: Option<(pdfdelta_core::model::Vec2, pdfdelta_core::model::Vec2)> = None;
     let mut changed = false;
     for &(old_index, new_index) in pairs {
@@ -907,8 +898,8 @@ fn translated_line_change(
 
 /// Returns whether the block-boundary pattern differs after numbering each
 /// side's first block zero. Block ids themselves are side-local.
-fn block_pattern_differs(old: &[FlowToken], new: &[FlowToken], pairs: &[(usize, usize)]) -> bool {
-    fn pattern(tokens: &[FlowToken], pairs: &[(usize, usize)], side: usize) -> Vec<usize> {
+fn block_pattern_differs(old: &[Token], new: &[Token], pairs: &[(usize, usize)]) -> bool {
+    fn pattern(tokens: &[Token], pairs: &[(usize, usize)], side: usize) -> Vec<usize> {
         let mut pattern = Vec::with_capacity(pairs.len());
         let mut previous = None;
         let mut ordinal = 0;
@@ -949,10 +940,10 @@ mod tests {
     use pdfdelta_core::{model::PageId, normalize::PositionSignature};
 
     use super::*;
-    use crate::flow_diff;
+    use crate::diff;
 
-    fn token(text: &str, page: u32, size: f64) -> FlowToken {
-        FlowToken {
+    fn token(text: &str, page: u32, size: f64) -> Token {
+        Token {
             text: text.to_owned(),
             page: PageId(page),
             bounds: None,
@@ -967,8 +958,8 @@ mod tests {
         }
     }
 
-    fn diff(old: &[FlowToken], new: &[FlowToken]) -> FlowDiff {
-        flow_diff(old, new).expect("test script verifies")
+    fn verified_diff(old: &[Token], new: &[Token]) -> Diff {
+        diff(old, new).expect("test script verifies")
     }
 
     #[test]
@@ -983,7 +974,7 @@ mod tests {
             token("delta", 0, 10.0),
             token("gamma", 0, 10.0),
         ];
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let assessments = assess_changes(&old, &new, &diff, &BTreeSet::new(), &BTreeSet::new());
         assert_eq!(assessments.len(), diff.changes.len());
         assert_eq!(assessments[0].confidence, Confidence::High);
@@ -1004,7 +995,7 @@ mod tests {
             token("9", 0, 10.0),
             token("820", 0, 10.0),
         ];
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let assessments = assess_changes(&old, &new, &diff, &BTreeSet::new(), &BTreeSet::new());
         let repeated = assessments
             .iter()
@@ -1030,7 +1021,7 @@ mod tests {
             token(",", 0, 10.0),
             token("820", 0, 10.0),
         ];
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let assessments = assess_changes(&old, &new, &diff, &BTreeSet::new(), &BTreeSet::new());
         assert!(
             assessments.iter().any(|assessment| assessment
@@ -1044,7 +1035,7 @@ mod tests {
     fn an_order_uncertain_page_is_flagged() {
         let old = vec![token("alpha", 2, 10.0), token("beta", 2, 10.0)];
         let new = vec![token("alpha", 2, 10.0), token("gamma", 2, 10.0)];
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let uncertain = BTreeSet::from([PageId(2)]);
         let assessments = assess_changes(&old, &new, &diff, &uncertain, &BTreeSet::new());
         assert!(assessments.iter().any(|assessment| {
@@ -1058,7 +1049,7 @@ mod tests {
     fn font_size_change_is_reported_and_coalesced() {
         let old = vec![token("default", 0, 10.0), token("policy", 0, 10.0)];
         let new = vec![token("default", 0, 14.0), token("policy", 0, 14.0)];
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].old, 0..2);
@@ -1074,7 +1065,7 @@ mod tests {
     fn a_single_token_size_change_is_reported_on_its_whole_run() {
         let old = vec![token("default", 0, 10.0), token("policy", 0, 10.0)];
         let new = vec![token("default", 0, 14.0), token("policy", 0, 10.0)];
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].old, 0..2);
@@ -1116,7 +1107,7 @@ mod tests {
             );
             token.line_break_after = index == 1;
         }
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].reasons, vec![FormattingReason::Position]);
@@ -1154,7 +1145,7 @@ mod tests {
             );
             token.line_break_after = index == 1;
         }
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].reasons, vec![FormattingReason::Position]);
@@ -1175,7 +1166,7 @@ mod tests {
         old[0].page_break_after = true;
         old[1].line_break_after = true;
         new[1].line_break_after = true;
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert!(
@@ -1202,8 +1193,8 @@ mod tests {
             ("delta", 0, 280.0),
             ("epsilon zeta", 1, 320.0),
         ]);
-        let pair = crate::flow_tokens_pair(&old, &new).expect("document pair");
-        let diff = flow_diff(&pair.old.tokens, &pair.new.tokens).expect("verified diff");
+        let pair = crate::order_pair(&old, &new).expect("document pair");
+        let diff = diff(&pair.old.tokens, &pair.new.tokens).expect("verified diff");
         let formatting = formatting_changes(&pair.old.tokens, &pair.new.tokens, &diff.spine);
         let page_one = pair
             .old
@@ -1291,7 +1282,7 @@ mod tests {
         new[1].line_break_after = true;
         new[2].line_break_after = true;
         new[3].line_break_after = true;
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert!(
             formatting.iter().any(|change| {
@@ -1332,7 +1323,7 @@ mod tests {
             PositionSignature::new(Vec2 { x: 0.0, y: 20.0 }, Vec2 { x: 1.0, y: 0.0 })
                 .expect("new1"),
         );
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         assert!(formatting_changes(&old, &new, &diff.spine).is_empty());
     }
 
@@ -1370,7 +1361,7 @@ mod tests {
                 .expect("new position"),
             );
         }
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         assert!(
             formatting_changes(&old, &new, &diff.spine).is_empty(),
             "a partial block is not a formatting unit"
@@ -1397,7 +1388,7 @@ mod tests {
         old[1].page_break_after = true;
         old[3].line_break_after = true;
         new[3].line_break_after = true;
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         assert!(formatting_changes(&old, &new, &diff.spine).is_empty());
     }
 
@@ -1422,7 +1413,7 @@ mod tests {
             old[index].raw = Some(old[index].text.clone().into());
             new[index].raw = Some(new[index].text.to_uppercase().into());
         }
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].old, 0..4);
@@ -1436,7 +1427,7 @@ mod tests {
         let mut new = old.clone();
         old[0].raw = Some("alpha\nbeta".into());
         new[0].raw = Some("alpha ".into());
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert!(formatting.is_empty(), "{formatting:?}");
     }
@@ -1449,9 +1440,9 @@ mod tests {
         ]);
         let new_document =
             crate::tests::document_with_literal_spaces(&[("alpha beta new-only", 0, 100.0)]);
-        let old = crate::flow_tokens(&old_document).expect("old tokens");
-        let new = crate::flow_tokens(&new_document).expect("new tokens");
-        let diff = diff(&old.tokens, &new.tokens);
+        let old = crate::tokens(&old_document).expect("old tokens");
+        let new = crate::tokens(&new_document).expect("new tokens");
+        let diff = verified_diff(&old.tokens, &new.tokens);
         let formatting = formatting_changes(&old.tokens, &new.tokens, &diff.spine);
         assert!(
             formatting
@@ -1470,9 +1461,9 @@ mod tests {
         for (old_text, new_text) in cases {
             let old_document = crate::tests::document_with_literal_spaces(&[(old_text, 0, 100.0)]);
             let new_document = crate::tests::document_with_literal_spaces(&[(new_text, 0, 100.0)]);
-            let old = crate::flow_tokens(&old_document).expect("old tokens");
-            let new = crate::flow_tokens(&new_document).expect("new tokens");
-            let diff = diff(&old.tokens, &new.tokens);
+            let old = crate::tokens(&old_document).expect("old tokens");
+            let new = crate::tokens(&new_document).expect("new tokens");
+            let diff = verified_diff(&old.tokens, &new.tokens);
             let formatting = formatting_changes(&old.tokens, &new.tokens, &diff.spine);
             assert_eq!(
                 formatting.len(),
@@ -1487,9 +1478,9 @@ mod tests {
     fn identical_literal_whitespace_is_not_normalization_evidence() {
         let old_document = crate::tests::document_with_literal_spaces(&[("alpha  beta", 0, 100.0)]);
         let new_document = crate::tests::document_with_literal_spaces(&[("alpha  beta", 0, 100.0)]);
-        let old = crate::flow_tokens(&old_document).expect("old tokens");
-        let new = crate::flow_tokens(&new_document).expect("new tokens");
-        let diff = diff(&old.tokens, &new.tokens);
+        let old = crate::tokens(&old_document).expect("old tokens");
+        let new = crate::tokens(&new_document).expect("new tokens");
+        let diff = verified_diff(&old.tokens, &new.tokens);
         let formatting = formatting_changes(&old.tokens, &new.tokens, &diff.spine);
         assert!(formatting.is_empty(), "{formatting:?}");
     }
@@ -1500,7 +1491,7 @@ mod tests {
         let mut new = old.clone();
         old[0].raw = Some("A".into());
         new[0].raw = Some("Ａ".into());
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].reasons, vec![FormattingReason::Normalization]);
@@ -1514,7 +1505,7 @@ mod tests {
         new[0].raw = Some("A".into());
         old[0].normalization = 4;
         new[0].normalization = 0;
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(formatting[0].reasons, vec![FormattingReason::Normalization]);
@@ -1526,7 +1517,7 @@ mod tests {
         let mut new = old.clone();
         old[0].line_break_after = false;
         new[0].line_break_after = true;
-        let first_diff = diff(&old, &new);
+        let first_diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &first_diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert!(formatting[0].reasons.contains(&FormattingReason::LineBreak));
@@ -1535,7 +1526,7 @@ mod tests {
         let mut new = old.clone();
         old[0].page_break_after = false;
         new[0].page_break_after = true;
-        let second_diff = diff(&old, &new);
+        let second_diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &second_diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert_eq!(
@@ -1555,7 +1546,7 @@ mod tests {
         new[1].block = 1;
         old[0].line_break_after = true;
         new[0].line_break_after = true;
-        let diff = diff(&old, &new);
+        let diff = verified_diff(&old, &new);
         let formatting = formatting_changes(&old, &new, &diff.spine);
         assert_eq!(formatting.len(), 1, "{formatting:?}");
         assert!(
@@ -1572,7 +1563,7 @@ mod tests {
             vec![token("a", 0, 10.0), token("b", 0, 10.0)],
             vec![token("a", 0, 10.0), token("b", 0, 10.0)],
         );
-        let unchanged = diff(&old, &new);
+        let unchanged = verified_diff(&old, &new);
         assert!(!selects_difference(&unchanged.stats()));
         let (old, new) = (
             vec![
@@ -1590,7 +1581,7 @@ mod tests {
                 token("b", 0, 10.0),
             ],
         );
-        let reordered = diff(&old, &new);
+        let reordered = verified_diff(&old, &new);
         assert!(selects_difference(&reordered.stats()));
     }
 }

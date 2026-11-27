@@ -37,10 +37,9 @@ use pdfdelta_core::{
         ParserBackedGlyphSource,
     },
 };
-use pdfdelta_flow::{
-    FlowChange, FlowDiff, FlowStream, FlowToken, FurnitureChange, FurnitureKind, FurnitureLine,
-    OrderKind, PageOrderEvidence, flow_candidates_owned, flow_diff, flow_order_from_candidates,
-    flow_tokens, furniture_changes,
+use pdfdelta_diff::{
+    Change, Diff, FurnitureChange, FurnitureKind, FurnitureLine, OrderKind, PageOrderEvidence,
+    Token, TokenStream, candidates_owned, diff, furniture_changes, order_from_candidates, tokens,
 };
 use sha2::{Digest, Sha256};
 
@@ -582,7 +581,7 @@ fn timeout_record(mut record: MetamorphicRecord, case_timeout: Duration) -> Meta
 
 /// One side of a completed flow comparison.
 struct SideFlow {
-    stream: FlowStream,
+    stream: TokenStream,
     pages: Vec<PageOrderEvidence>,
     complete: bool,
     unresolved: Vec<String>,
@@ -595,7 +594,7 @@ struct SideFlow {
 struct Comparison {
     old: SideFlow,
     new: SideFlow,
-    diff: FlowDiff,
+    diff: Diff,
     furniture: Vec<FurnitureChange>,
 }
 
@@ -625,14 +624,14 @@ fn compare_pdf_bytes(
     let (new_document, new_issues) = extract_document(new_bytes.clone(), limit_scale)?;
     let old_glyphs = glyph_multiset(&old_document);
     let new_glyphs = glyph_multiset(&new_document);
-    let old_candidates = flow_candidates_owned(old_document)
+    let old_candidates = candidates_owned(old_document)
         .map_err(|error| BenchError::core("flow candidates", error))?;
-    let new_candidates = flow_candidates_owned(new_document)
+    let new_candidates = candidates_owned(new_document)
         .map_err(|error| BenchError::core("flow candidates", error))?;
-    let pair = flow_order_from_candidates(old_candidates, new_candidates)
+    let pair = order_from_candidates(old_candidates, new_candidates)
         .map_err(|error| BenchError::core("flow order selection", error))?;
     let images = resolve_image_pages(&old_bytes, &new_bytes, &old_issues, &new_issues);
-    let pdfdelta_flow::FlowOrderPair {
+    let pdfdelta_diff::OrderPair {
         mut old,
         mut new,
         old_pages,
@@ -642,7 +641,7 @@ fn compare_pdf_bytes(
     insert_image_tokens(&mut new, &images.new_tokens);
     let old_unresolved = retained_issues(&old_issues, &images.old_resolved);
     let new_unresolved = retained_issues(&new_issues, &images.new_resolved);
-    let v_diff = flow_diff(&old.tokens, &new.tokens);
+    let v_diff = diff(&old.tokens, &new.tokens);
     let diff = v_diff.map_err(|error| {
         BenchError::InvalidInput(format!("flow diff failed verification: {error}"))
     })?;
@@ -896,7 +895,7 @@ fn retained_issues(issues: &[ExtractionIssue], resolved: &BTreeSet<PageId>) -> V
 }
 
 /// Inserts one synthetic token for a page that had no text tokens.
-fn insert_image_tokens(stream: &mut FlowStream, tokens: &BTreeMap<PageId, String>) {
+fn insert_image_tokens(stream: &mut TokenStream, tokens: &BTreeMap<PageId, String>) {
     for (page, text) in tokens {
         if stream.tokens.iter().any(|token| token.page == *page) {
             continue;
@@ -904,7 +903,7 @@ fn insert_image_tokens(stream: &mut FlowStream, tokens: &BTreeMap<PageId, String
         let position = stream.tokens.partition_point(|token| token.page.0 < page.0);
         stream.tokens.insert(
             position,
-            FlowToken {
+            Token {
                 text: text.clone(),
                 page: *page,
                 bounds: None,
@@ -1163,14 +1162,14 @@ fn text_edit_cases(
             return Vec::new();
         }
     };
-    let flow = match flow_tokens(&document) {
+    let flow = match tokens(&document) {
         Ok(flow) => flow,
         Err(error) => {
             add_skip(skips, &format!("text-edit: flow tokens failed: {error}"));
             return Vec::new();
         }
     };
-    let mut tokens_by_page: BTreeMap<u32, Vec<&FlowToken>> = BTreeMap::new();
+    let mut tokens_by_page: BTreeMap<u32, Vec<&Token>> = BTreeMap::new();
     for token in &flow.tokens {
         tokens_by_page.entry(token.page.0).or_default().push(token);
     }
@@ -1345,10 +1344,10 @@ fn evenly_spaced(values: &[u32], limit: usize) -> Vec<u32> {
 }
 
 fn digit_token<'a>(
-    tokens: &[&'a FlowToken],
+    tokens: &[&'a Token],
     glyph: &Glyph,
     digit: char,
-) -> std::result::Result<&'a FlowToken, &'static str> {
+) -> std::result::Result<&'a Token, &'static str> {
     // The glyph must lie wholly inside the token's source bounds. Choosing the
     // smallest containing token prevents a neighbouring or overlapping line
     // that also contains the digit from standing in for the edited glyph.
@@ -1710,7 +1709,7 @@ fn evaluate_text_edit(
     let mut replacement_matches = false;
     let mut boundary_tokens = None;
     if let [
-        FlowChange::Replace {
+        Change::Replace {
             old: old_range,
             new: new_range,
         },
@@ -1982,25 +1981,25 @@ fn match_furniture_edit(changes: &[FurnitureChange], old_token: &str, new_token:
 }
 
 /// Summarises the reported changes for a failing special case.
-fn change_texts(changes: &[FlowChange], old: &FlowStream, new: &FlowStream) -> String {
+fn change_texts(changes: &[Change], old: &TokenStream, new: &TokenStream) -> String {
     let mut parts = Vec::new();
     for change in changes.iter().take(8) {
         let text = match change {
-            FlowChange::Delete { old: range } => format!(
+            Change::Delete { old: range } => format!(
                 "delete={:?}",
                 old.tokens[range.clone()]
                     .iter()
                     .map(|token| token.text.as_str())
                     .collect::<Vec<_>>()
             ),
-            FlowChange::Insert { new: range } => format!(
+            Change::Insert { new: range } => format!(
                 "insert={:?}",
                 new.tokens[range.clone()]
                     .iter()
                     .map(|token| token.text.as_str())
                     .collect::<Vec<_>>()
             ),
-            FlowChange::Replace {
+            Change::Replace {
                 old: old_range,
                 new: new_range,
             } => format!(
@@ -2014,7 +2013,7 @@ fn change_texts(changes: &[FlowChange], old: &FlowStream, new: &FlowStream) -> S
                     .map(|token| token.text.as_str())
                     .collect::<Vec<_>>()
             ),
-            FlowChange::Move {
+            Change::Move {
                 old: old_range,
                 new: new_range,
             } => format!(
@@ -2023,10 +2022,10 @@ fn change_texts(changes: &[FlowChange], old: &FlowStream, new: &FlowStream) -> S
                 old_range.start,
                 new_range.start
             ),
-            FlowChange::ReadingOrder { old: old_range, .. } => {
+            Change::ReadingOrder { old: old_range, .. } => {
                 format!("reading-order={}t@{}", old_range.len(), old_range.start)
             }
-            FlowChange::LayoutOnly { old: old_range, .. } => {
+            Change::LayoutOnly { old: old_range, .. } => {
                 format!("layout={}t@{}", old_range.len(), old_range.start)
             }
         };
@@ -2277,7 +2276,7 @@ fn parent_of(document: &LopdfDocument, page_id: lopdf::ObjectId) -> Result<lopdf
 }
 
 /// Page token multisets for the chosen pages of the identity flow stream.
-fn page_multisets(stream: &FlowStream, pages: &[u32]) -> HashMap<u32, Multiset> {
+fn page_multisets(stream: &TokenStream, pages: &[u32]) -> HashMap<u32, Multiset> {
     let mut multisets = pages
         .iter()
         .map(|&page| (page, Multiset::default()))
@@ -2292,7 +2291,7 @@ fn page_multisets(stream: &FlowStream, pages: &[u32]) -> HashMap<u32, Multiset> 
 }
 
 /// Token multiset of one page in a flow stream.
-fn page_multiset(stream: &FlowStream, page: u32) -> Multiset {
+fn page_multiset(stream: &TokenStream, page: u32) -> Multiset {
     let mut multiset = Multiset::default();
     for token in &stream.tokens {
         if token.page.0 + 1 == page {
@@ -2345,21 +2344,21 @@ fn hex_bytes(bytes: &[u8]) -> String {
     out
 }
 
-fn reported_tokens(diff: &FlowDiff, old: &FlowStream, new: &FlowStream) -> Multiset {
+fn reported_tokens(diff: &Diff, old: &TokenStream, new: &TokenStream) -> Multiset {
     let mut reported = Multiset::default();
     for change in &diff.changes {
         match change {
-            FlowChange::Delete { old: range } => {
+            Change::Delete { old: range } => {
                 for token in &old.tokens[range.clone()] {
                     reported.add(&token.text);
                 }
             }
-            FlowChange::Insert { new: range } => {
+            Change::Insert { new: range } => {
                 for token in &new.tokens[range.clone()] {
                     reported.add(&token.text);
                 }
             }
-            FlowChange::Replace {
+            Change::Replace {
                 old: old_range,
                 new: new_range,
             } => {
@@ -2370,9 +2369,7 @@ fn reported_tokens(diff: &FlowDiff, old: &FlowStream, new: &FlowStream) -> Multi
                     reported.add(&token.text);
                 }
             }
-            FlowChange::Move { .. }
-            | FlowChange::ReadingOrder { .. }
-            | FlowChange::LayoutOnly { .. } => {}
+            Change::Move { .. } | Change::ReadingOrder { .. } | Change::LayoutOnly { .. } => {}
         }
     }
     reported
@@ -2520,7 +2517,7 @@ fn order_name(order: OrderKind) -> &'static str {
 }
 
 /// Number of furniture lines that differ between the identity and case runs.
-fn furniture_difference(identity: &FlowStream, current: &FlowStream) -> usize {
+fn furniture_difference(identity: &TokenStream, current: &TokenStream) -> usize {
     fn signatures(furniture: &[FurnitureLine]) -> BTreeSet<(String, Vec<u32>, usize)> {
         furniture
             .iter()
@@ -2569,7 +2566,7 @@ fn furniture_token_multiset(changes: &[FurnitureChange]) -> Multiset {
 /// the identity truth can still contain its tokens. Only lines present in both
 /// furniture lists are added, scaled by the untouched side's occurrence count,
 /// so unrelated content that happens to share a furniture word is not excused.
-fn add_joint_furniture(multiset: &mut Multiset, a_side: &FlowStream, other: &FlowStream) {
+fn add_joint_furniture(multiset: &mut Multiset, a_side: &TokenStream, other: &TokenStream) {
     let other_texts = other
         .furniture
         .iter()
@@ -2591,16 +2588,16 @@ fn add_joint_furniture(multiset: &mut Multiset, a_side: &FlowStream, other: &Flo
 
 /// Returns whether a change is entirely explained by the furniture section.
 fn change_is_furniture_covered(
-    change: &FlowChange,
-    old: &FlowStream,
-    new: &FlowStream,
+    change: &Change,
+    old: &TokenStream,
+    new: &TokenStream,
     furniture: &Multiset,
 ) -> bool {
     let mut remaining = furniture.clone();
     let tokens = match change {
-        FlowChange::Delete { old: range } => &old.tokens[range.clone()],
-        FlowChange::Insert { new: range } => &new.tokens[range.clone()],
-        FlowChange::Replace {
+        Change::Delete { old: range } => &old.tokens[range.clone()],
+        Change::Insert { new: range } => &new.tokens[range.clone()],
+        Change::Replace {
             old: old_range,
             new: new_range,
         } => {
@@ -2609,28 +2606,26 @@ fn change_is_furniture_covered(
             }
             return range_covered(&mut remaining, &new.tokens[new_range.clone()]);
         }
-        FlowChange::Move { .. }
-        | FlowChange::ReadingOrder { .. }
-        | FlowChange::LayoutOnly { .. } => return false,
+        Change::Move { .. } | Change::ReadingOrder { .. } | Change::LayoutOnly { .. } => {
+            return false;
+        }
     };
     range_covered(&mut remaining, tokens)
 }
 
-fn range_covered(multiset: &mut Multiset, tokens: &[FlowToken]) -> bool {
+fn range_covered(multiset: &mut Multiset, tokens: &[Token]) -> bool {
     tokens.iter().all(|token| multiset.take_masked(&token.text))
 }
 
 /// Whether a change kind is unexpected for a constructed edit.
-fn is_unexpected_kind(case: CaseKind, change: &FlowChange) -> bool {
+fn is_unexpected_kind(case: CaseKind, change: &Change) -> bool {
     match case {
         CaseKind::Identity => true,
-        CaseKind::Delete => !matches!(change, FlowChange::Delete { .. }),
-        CaseKind::Insert | CaseKind::Duplicate => !matches!(change, FlowChange::Insert { .. }),
+        CaseKind::Delete => !matches!(change, Change::Delete { .. }),
+        CaseKind::Insert | CaseKind::Duplicate => !matches!(change, Change::Insert { .. }),
         CaseKind::Swap => !matches!(
             change,
-            FlowChange::Move { .. }
-                | FlowChange::ReadingOrder { .. }
-                | FlowChange::LayoutOnly { .. }
+            Change::Move { .. } | Change::ReadingOrder { .. } | Change::LayoutOnly { .. }
         ),
         CaseKind::TextEdit | CaseKind::Merge => false,
         CaseKind::Resubset => true,

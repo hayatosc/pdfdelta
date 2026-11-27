@@ -50,7 +50,7 @@ pub fn align_weighted(old: &[u32], new: &[u32], weights: &[u64]) -> Vec<(usize, 
 enum AlignmentMode {
     /// Exact information-weighted LCS for small gaps (the public alignment).
     Information,
-    /// Long-run and block-boundary aware alignment used by flow.
+    /// Long-run and block-boundary aware alignment used by the diff engine.
     Runs,
 }
 
@@ -133,7 +133,7 @@ pub fn align_with_fixed(
     )
 }
 
-/// Flow's alignment strategy: prefer long equal runs in small gaps.
+/// The run-aware alignment strategy: prefer long equal runs in small gaps.
 ///
 /// A gap with a repeated paragraph pattern can have two alignments of nearly
 /// equal information weight: one matching many short identical phrases in
@@ -143,7 +143,7 @@ pub fn align_with_fixed(
 /// Small gaps therefore take the anchor-chain result when anchors exist,
 /// even if a token LCS would match one or two more low-information tokens.
 #[must_use]
-pub(crate) fn align_flow(
+pub(crate) fn align_runs(
     old: &[u32],
     new: &[u32],
     weights: &[u64],
@@ -184,8 +184,8 @@ pub(crate) fn align_with_fixed_cached(
     )
 }
 
-/// Flow alignment that reuses unchanged segments of the previous round.
-pub(crate) fn align_flow_cached(
+/// Run-aware alignment that reuses unchanged segments of the previous round.
+pub(crate) fn align_runs_cached(
     old: &[u32],
     new: &[u32],
     weights: &[u64],
@@ -195,7 +195,7 @@ pub(crate) fn align_flow_cached(
     segments: &mut SegmentCache,
 ) -> Vec<(usize, usize)> {
     if fixed.len() < SEGMENT_CACHE_MIN_FIXED {
-        return align_flow(old, new, weights, fixed, old_boundaries, new_boundaries);
+        return align_runs(old, new, weights, fixed, old_boundaries, new_boundaries);
     }
     align_with_fixed_impl(
         old,

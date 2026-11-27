@@ -852,10 +852,10 @@ fn flow_section(
     }
     let mut report_index = 0usize;
     for (index, change) in flow.diff.changes.iter().enumerate() {
-        use pdfdelta_flow::FlowChange;
+        use pdfdelta_diff::Change;
         if matches!(
             change,
-            FlowChange::LayoutOnly { .. } | FlowChange::ReadingOrder { .. }
+            Change::LayoutOnly { .. } | Change::ReadingOrder { .. }
         ) {
             continue;
         }
@@ -868,12 +868,12 @@ fn flow_section(
             category,
         )?;
         let (kind, old_range, new_range) = match change {
-            FlowChange::Delete { old } => ("delete", old.clone(), 0..0),
-            FlowChange::Insert { new } => ("insert", 0..0, new.clone()),
-            FlowChange::Replace { old, new } => ("replace", old.clone(), new.clone()),
-            FlowChange::Move { old, new } => ("move", old.clone(), new.clone()),
-            FlowChange::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
-            FlowChange::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
+            Change::Delete { old } => ("delete", old.clone(), 0..0),
+            Change::Insert { new } => ("insert", 0..0, new.clone()),
+            Change::Replace { old, new } => ("replace", old.clone(), new.clone()),
+            Change::Move { old, new } => ("move", old.clone(), new.clone()),
+            Change::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
+            Change::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
         };
         write!(
             out,
@@ -964,22 +964,22 @@ fn flow_section(
 }
 
 fn flow_change_category(
-    change: &pdfdelta_flow::FlowChange,
-    assessment: Option<&pdfdelta_flow::ChangeAssessment>,
+    change: &pdfdelta_diff::Change,
+    assessment: Option<&pdfdelta_diff::ChangeAssessment>,
 ) -> Category {
-    use pdfdelta_flow::{Confidence, FlowChange};
-    if matches!(change, FlowChange::LayoutOnly { .. }) {
+    use pdfdelta_diff::{Change, Confidence};
+    if matches!(change, Change::LayoutOnly { .. }) {
         return Category::Unresolved;
     }
     let coarse = assessment.is_some_and(|assessment| {
         assessment
             .ambiguity
-            .contains(&pdfdelta_flow::AmbiguityReason::CoarseSpan)
+            .contains(&pdfdelta_diff::AmbiguityReason::CoarseSpan)
     });
     if coarse {
         return Category::B;
     }
-    if matches!(change, FlowChange::Move { .. }) {
+    if matches!(change, Change::Move { .. }) {
         return Category::C;
     }
     match assessment.map(|assessment| assessment.confidence) {
@@ -993,7 +993,7 @@ fn flow_change_category(
 fn flow_side(
     out: &mut dyn Write,
     name: &'static str,
-    stream: &pdfdelta_flow::FlowStream,
+    stream: &pdfdelta_diff::TokenStream,
     range: &std::ops::Range<usize>,
     side: &Side<'_>,
     remaining: &mut usize,

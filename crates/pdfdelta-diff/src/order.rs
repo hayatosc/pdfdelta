@@ -33,7 +33,7 @@ use pdfdelta_core::{
 };
 
 use crate::{
-    Conservation, FlowStream, FlowToken, PageConservation, align, furniture, intern_tokens,
+    Conservation, PageConservation, Token, TokenStream, align, furniture, intern_tokens,
     stream_from_layout, visible_document, visible_document_owned,
 };
 
@@ -159,13 +159,13 @@ pub struct PageOrderEvidence {
     pub bands: Vec<BandOrder>,
 }
 
-/// Old and new flows after per-page order selection.
+/// Old and new token streams after per-page order selection.
 #[derive(Clone, Debug)]
-pub struct FlowOrderPair {
+pub struct OrderPair {
     /// Old-side stream with the chosen page orders and furniture removed.
-    pub old: FlowStream,
+    pub old: TokenStream,
     /// New-side stream with the chosen page orders and furniture removed.
-    pub new: FlowStream,
+    pub new: TokenStream,
     /// Old-side page evidence, ascending by page.
     pub old_pages: Vec<PageOrderEvidence>,
     /// New-side page evidence, ascending by page.
@@ -173,13 +173,13 @@ pub struct FlowOrderPair {
 }
 
 struct Candidates {
-    layout: FlowStream,
-    stream: FlowStream,
-    baseline: FlowStream,
+    layout: TokenStream,
+    stream: TokenStream,
+    baseline: TokenStream,
 }
 
 /// Builds all order hypotheses for each document, chooses one per page from
-/// cross-document n-gram evidence, and returns the flows with furniture
+/// cross-document n-gram evidence, and returns the streams with furniture
 /// removed.
 ///
 /// # Errors
@@ -187,16 +187,16 @@ struct Candidates {
 /// Returns an error when line or block reconstruction fails, when the
 /// paint-order hypothesis cannot be normalized, or when resource limits are
 /// exceeded.
-pub fn flow_tokens_pair(
+pub fn order_pair(
     old_document: &Document<Glyph>,
     new_document: &Document<Glyph>,
-) -> Result<FlowOrderPair> {
-    let old = flow_candidates(old_document)?;
-    let new = flow_candidates(new_document)?;
-    flow_order_from_candidates(old, new)
+) -> Result<OrderPair> {
+    let old = candidates(old_document)?;
+    let new = candidates(new_document)?;
+    order_from_candidates(old, new)
 }
 
-/// One non-text paint item retained for the flow text-completeness check.
+/// One non-text paint item retained for the text-completeness check.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaintIdentity {
     /// Page the paint appears on. It is excluded from `identity` equality.
@@ -214,12 +214,12 @@ pub struct PaintIdentity {
 
 /// One side's three order hypotheses, with its extracted document no longer
 /// needed.
-pub struct FlowCandidates {
+pub struct OrderCandidates {
     candidates: Candidates,
     paint_inventory: Option<Vec<PaintIdentity>>,
 }
 
-impl FlowCandidates {
+impl OrderCandidates {
     /// Returns the extracted non-text paint inventory.
     ///
     /// `None` means the side was built without a paint census. The text engine
@@ -241,7 +241,7 @@ impl FlowCandidates {
     /// Borrows the three order hypotheses in layout, stream, and baseline
     /// order. Their tokens may differ in order but not in multiset.
     #[must_use]
-    pub fn hypotheses(&self) -> [&FlowStream; 3] {
+    pub fn hypotheses(&self) -> [&TokenStream; 3] {
         [
             &self.candidates.layout,
             &self.candidates.stream,
@@ -296,7 +296,7 @@ impl FlowCandidates {
 
     /// Writes the three reading-order hypotheses for another process.
     ///
-    /// A flow comparison of a multi-million-glyph document keeps both sides'
+    /// A diff comparison of a multi-million-glyph document keeps both sides'
     /// hypotheses alive while the second side is extracted. Serializing one
     /// side lets the caller build the other side in a process whose
     /// normalization buffers are not shared, then reload both compact token
@@ -640,7 +640,7 @@ fn read_f64(reader: &mut impl std::io::Read) -> std::io::Result<f64> {
 /// Writes one cache stream.
 fn write_cached_stream(
     writer: &mut impl std::io::Write,
-    stream: &FlowStream,
+    stream: &TokenStream,
 ) -> std::io::Result<()> {
     writer.write_all(&(stream.tokens.len() as u64).to_le_bytes())?;
     for token in &stream.tokens {
@@ -696,7 +696,7 @@ fn write_cached_stream(
 }
 
 /// Reads one cache stream.
-fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowStream> {
+fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<TokenStream> {
     let count = read_u64(reader)?;
     if count > CACHE_MAX_TOKENS {
         return Err(cache_invalid("flow candidate cache has too many tokens"));
@@ -767,7 +767,7 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
         reader.read_exact(&mut text)?;
         let text = String::from_utf8(text)
             .map_err(|_| cache_invalid("flow candidate cache has invalid text"))?;
-        tokens.push(FlowToken {
+        tokens.push(Token {
             text,
             page,
             bounds,
@@ -801,7 +801,7 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
             "flow candidate cache has unexpected furniture",
         ));
     }
-    Ok(FlowStream {
+    Ok(TokenStream {
         tokens,
         source_glyphs: Vec::new(),
         furniture: Vec::new(),
@@ -823,25 +823,25 @@ fn read_cached_stream(reader: &mut impl std::io::Read) -> std::io::Result<FlowSt
 ///
 /// Returns an error when layout reconstruction, paint-order layout, or
 /// normalization fails.
-pub fn flow_candidates(document: &Document<Glyph>) -> Result<FlowCandidates> {
-    flow_candidates_with_sources(document, false)
+pub fn candidates(document: &Document<Glyph>) -> Result<OrderCandidates> {
+    candidates_with_sources(document, false)
 }
 
 /// Builds all order hypotheses and retains each token's source glyph ids.
 ///
 /// Used by the full report. The default path calls
-/// [`flow_candidates`], which leaves the source vectors empty.
+/// [`candidates`], which leaves the source vectors empty.
 ///
 /// # Errors
 ///
-/// Returns the same errors as [`flow_candidates`].
-pub fn flow_candidates_with_sources(
+/// Returns the same errors as [`candidates`].
+pub fn candidates_with_sources(
     document: &Document<Glyph>,
     retain_sources: bool,
-) -> Result<FlowCandidates> {
+) -> Result<OrderCandidates> {
     let paint_inventory = paint_inventory(document);
-    let candidates = candidates(document, retain_sources)?;
-    Ok(FlowCandidates {
+    let candidates = candidates_from_document(document, retain_sources)?;
+    Ok(OrderCandidates {
         candidates,
         paint_inventory,
     })
@@ -856,8 +856,8 @@ pub fn flow_candidates_with_sources(
 ///
 /// Returns an error when layout reconstruction, paint-order layout, or
 /// normalization fails.
-pub fn flow_candidates_owned(document: Document<Glyph>) -> Result<FlowCandidates> {
-    flow_candidates_owned_with_sources(document, false)
+pub fn candidates_owned(document: Document<Glyph>) -> Result<OrderCandidates> {
+    candidates_owned_with_sources(document, false)
 }
 
 /// Builds all order hypotheses while consuming the document and optionally
@@ -865,21 +865,21 @@ pub fn flow_candidates_owned(document: Document<Glyph>) -> Result<FlowCandidates
 ///
 /// # Errors
 ///
-/// Returns the same errors as [`flow_candidates_owned`].
-pub fn flow_candidates_owned_with_sources(
+/// Returns the same errors as [`candidates_owned`].
+pub fn candidates_owned_with_sources(
     document: Document<Glyph>,
     retain_sources: bool,
-) -> Result<FlowCandidates> {
+) -> Result<OrderCandidates> {
     let paint_inventory = paint_inventory(&document);
     let visible = visible_document_owned(document);
     let candidates = candidates_from_visible(visible, retain_sources)?;
-    Ok(FlowCandidates {
+    Ok(OrderCandidates {
         candidates,
         paint_inventory,
     })
 }
 
-/// Maps the extracted paint census into the compact flow inventory.
+/// Maps the extracted paint census into the compact paint inventory.
 fn paint_inventory(document: &Document<Glyph>) -> Option<Vec<PaintIdentity>> {
     document.non_text_paint_bounds().map(|paints| {
         paints
@@ -895,15 +895,12 @@ fn paint_inventory(document: &Document<Glyph>) -> Option<Vec<PaintIdentity>> {
     })
 }
 
-/// Chooses page orders from both sides' candidates and returns the flows.
+/// Chooses page orders from both sides' candidates and returns the streams.
 ///
 /// # Errors
 ///
 /// Returns an error when either side has no candidate stream.
-pub fn flow_order_from_candidates(
-    old: FlowCandidates,
-    new: FlowCandidates,
-) -> Result<FlowOrderPair> {
+pub fn order_from_candidates(old: OrderCandidates, new: OrderCandidates) -> Result<OrderPair> {
     let old = old.candidates;
     let new = new.candidates;
     let old_side = SidePages::of(&old);
@@ -961,7 +958,7 @@ pub fn flow_order_from_candidates(
     let new_bands = band_positions(&new_pages);
     let (old_stream, new_stream) =
         furniture::split_pair(old_stream, new_stream, &old_bands, &new_bands);
-    Ok(FlowOrderPair {
+    Ok(OrderPair {
         old: old_stream,
         new: new_stream,
         old_pages,
@@ -969,7 +966,10 @@ pub fn flow_order_from_candidates(
     })
 }
 
-fn candidates(document: &Document<Glyph>, retain_sources: bool) -> Result<Candidates> {
+fn candidates_from_document(
+    document: &Document<Glyph>,
+    retain_sources: bool,
+) -> Result<Candidates> {
     candidates_from_visible(visible_document(document), retain_sources)
 }
 
@@ -1128,7 +1128,7 @@ fn stacked_pages(candidates: &Candidates, pages: &SidePages) -> BTreeMap<u32, Ve
 /// belongs to exactly one band. A split needs at least [`STACKED_MIN_BAND_ROWS`]
 /// text rows on both sides, and the band boundary sits in the middle of the
 /// gap, where no glyph can be assigned to the wrong side.
-fn stacked_bands(tokens: &[FlowToken]) -> Vec<Band> {
+fn stacked_bands(tokens: &[Token]) -> Vec<Band> {
     if tokens.len() < STACKED_MIN_PAGE_ROWS {
         return Vec::new();
     }
@@ -1230,7 +1230,7 @@ fn stacked_bands(tokens: &[FlowToken]) -> Vec<Band> {
 }
 
 /// Returns the band index of one token's vertical center.
-fn band_of(bands: &[Band], token: &FlowToken) -> usize {
+fn band_of(bands: &[Band], token: &Token) -> usize {
     let y = token.bounds.map_or(f64::INFINITY, |bounds| {
         f64::midpoint(bounds.min.y, bounds.max.y)
     });
@@ -1241,7 +1241,7 @@ fn band_of(bands: &[Band], token: &FlowToken) -> usize {
 }
 
 /// Returns the band index of one token under a per-band order plan.
-fn ordered_band_of(bands: &[BandOrder], token: &FlowToken) -> usize {
+fn ordered_band_of(bands: &[BandOrder], token: &Token) -> usize {
     let y = token.bounds.map_or(f64::INFINITY, |bounds| {
         f64::midpoint(bounds.min.y, bounds.max.y)
     });
@@ -1253,7 +1253,7 @@ fn ordered_band_of(bands: &[BandOrder], token: &FlowToken) -> usize {
 
 /// Information-weighted bag of the tokens assigned to one band.
 fn band_bag(
-    tokens: &[FlowToken],
+    tokens: &[Token],
     bands: &[Band],
     index: usize,
     vocabulary: &JointVocabulary<'_>,
@@ -1391,7 +1391,7 @@ fn band_positions(pages: &[PageOrderEvidence]) -> BTreeMap<u32, Vec<(f64, f64)>>
 fn assemble_stream(
     mut candidates: Candidates,
     pages: Vec<PageOrderEvidence>,
-) -> (FlowStream, Vec<PageOrderEvidence>) {
+) -> (TokenStream, Vec<PageOrderEvidence>) {
     let mut selected = [BTreeSet::new(), BTreeSet::new(), BTreeSet::new()];
     for evidence in &pages {
         let index = match evidence.order {
@@ -1485,7 +1485,7 @@ fn assemble_stream(
             chosen_sources.append(&mut kept_sources);
         }
     }
-    let stream = FlowStream {
+    let stream = TokenStream {
         tokens: chosen,
         source_glyphs: chosen_sources,
         furniture: Vec::new(),
@@ -1496,10 +1496,10 @@ fn assemble_stream(
 
 /// Removes the selected page token runs from `stream`.
 fn take_selected_pages(
-    stream: &mut FlowStream,
+    stream: &mut TokenStream,
     ranges: &BTreeMap<u32, Range<usize>>,
     selected: &BTreeSet<u32>,
-) -> BTreeMap<u32, (Vec<FlowToken>, Vec<Vec<GlyphId>>)> {
+) -> BTreeMap<u32, (Vec<Token>, Vec<Vec<GlyphId>>)> {
     let mut taken = BTreeMap::new();
     let retained_sources = !stream.source_glyphs.is_empty();
     for (&page, range) in ranges.iter().rev() {
@@ -1516,7 +1516,7 @@ fn take_selected_pages(
     taken
 }
 
-fn page_ranges(stream: &FlowStream) -> BTreeMap<u32, Range<usize>> {
+fn page_ranges(stream: &TokenStream) -> BTreeMap<u32, Range<usize>> {
     let mut pages = BTreeMap::new();
     let mut start = 0usize;
     for (index, token) in stream.tokens.iter().enumerate() {
@@ -1623,7 +1623,7 @@ struct PageEvidence<'a> {
 }
 
 impl<'a> PageEvidence<'a> {
-    fn of(runs: &[&'a [FlowToken]]) -> Self {
+    fn of(runs: &[&'a [Token]]) -> Self {
         let mut counts: HashMap<&'a str, u64> = HashMap::new();
         let mut total = 0u64;
         for run in runs {
@@ -1668,7 +1668,7 @@ impl<'a> PageEvidence<'a> {
     /// Sums the information weight of every bigram and trigram of `tokens`
     /// that also occurs in the counterpart evidence. Tokens outside the local
     /// vocabulary cannot match, so their windows score nothing.
-    fn score(&self, tokens: &[FlowToken]) -> u64 {
+    fn score(&self, tokens: &[Token]) -> u64 {
         let ids = tokens
             .iter()
             .map(|token| self.ids.get(token.text.as_str()).copied())
@@ -2016,7 +2016,7 @@ fn bag_similarity(left: &PageBag, right: &PageBag, weights: &[u64]) -> f64 {
     }
 }
 
-fn order_agreement(layout: &[FlowToken], stream: &[FlowToken]) -> f64 {
+fn order_agreement(layout: &[Token], stream: &[Token]) -> f64 {
     let longest = layout.len().max(stream.len());
     if longest == 0 {
         return 1.0;
@@ -2026,7 +2026,7 @@ fn order_agreement(layout: &[FlowToken], stream: &[FlowToken]) -> f64 {
     pairs.len() as f64 / longest as f64
 }
 
-fn order_coherence(tokens: &[FlowToken]) -> f64 {
+fn order_coherence(tokens: &[Token]) -> f64 {
     if tokens.len() < 2 {
         return 1.0;
     }
@@ -2037,7 +2037,7 @@ fn order_coherence(tokens: &[FlowToken]) -> f64 {
     adjacent as f64 / (tokens.len() - 1) as f64
 }
 
-fn spatially_adjacent(left: &FlowToken, right: &FlowToken) -> bool {
+fn spatially_adjacent(left: &Token, right: &Token) -> bool {
     if left.page != right.page {
         return false;
     }
@@ -2486,8 +2486,8 @@ mod tests {
         assert_eq!(text, ["AB", "CD"]);
     }
 
-    fn token(page: u32) -> FlowToken {
-        FlowToken {
+    fn token(page: u32) -> Token {
+        Token {
             text: "t".to_owned(),
             page: PageId(page),
             bounds: None,
@@ -2502,8 +2502,8 @@ mod tests {
         }
     }
 
-    fn row_token(y: f64) -> FlowToken {
-        FlowToken {
+    fn row_token(y: f64) -> Token {
+        Token {
             text: "t".to_owned(),
             page: PageId(0),
             bounds: Some(Rect {
@@ -2551,7 +2551,7 @@ mod tests {
                 max: Vec2 { x: 3.0, y: 4.0 },
             }),
         }];
-        let cached = FlowCandidates {
+        let cached = OrderCandidates {
             candidates: Candidates {
                 layout: candidates.layout.clone(),
                 stream: candidates.stream.clone(),
@@ -2564,24 +2564,24 @@ mod tests {
             .write_cache(&mut bytes)
             .expect("cache write should succeed");
         let loaded =
-            FlowCandidates::read_cache(bytes.as_slice()).expect("cache read should succeed");
+            OrderCandidates::read_cache(bytes.as_slice()).expect("cache read should succeed");
         assert_eq!(loaded.candidates.layout, candidates.layout);
         assert_eq!(loaded.candidates.stream, candidates.stream);
         assert_eq!(loaded.candidates.baseline, candidates.baseline);
         assert_eq!(loaded.paint_inventory, Some(paint_inventory));
-        assert!(FlowCandidates::read_cache(&b"notacache"[..]).is_err());
+        assert!(OrderCandidates::read_cache(&b"notacache"[..]).is_err());
         let truncated = &bytes[..bytes.len() - 4];
-        assert!(FlowCandidates::read_cache(truncated).is_err());
+        assert!(OrderCandidates::read_cache(truncated).is_err());
         let mut corrupted = bytes.clone();
         *corrupted.last_mut().expect("cache bytes are non-empty") ^= 0xff;
-        assert!(FlowCandidates::read_cache(corrupted.as_slice()).is_err());
+        assert!(OrderCandidates::read_cache(corrupted.as_slice()).is_err());
         let mut wrong_version = bytes.clone();
         wrong_version[8] ^= 0xff;
-        assert!(FlowCandidates::read_cache(wrong_version.as_slice()).is_err());
+        assert!(OrderCandidates::read_cache(wrong_version.as_slice()).is_err());
         let mut oversized = CACHE_MAGIC.to_vec();
         oversized.extend_from_slice(&CACHE_VERSION.to_le_bytes());
         oversized.extend_from_slice(&(u64::MAX / 2).to_le_bytes());
-        assert!(FlowCandidates::read_cache(oversized.as_slice()).is_err());
+        assert!(OrderCandidates::read_cache(oversized.as_slice()).is_err());
     }
 
     #[test]
@@ -2608,9 +2608,9 @@ mod tests {
 
     #[test]
     fn page_ranges_keep_every_page_exactly_once() {
-        let stream = FlowStream {
+        let stream = TokenStream {
             tokens: vec![token(0), token(0), token(2), token(2), token(3)],
-            ..FlowStream::default()
+            ..TokenStream::default()
         };
         let ranges = page_ranges(&stream);
         assert_eq!(ranges.get(&0), Some(&(0..2)));
@@ -2626,7 +2626,7 @@ mod tests {
         let mut tokens = Vec::new();
         for (page, texts) in pages.iter().enumerate() {
             for text in *texts {
-                tokens.push(FlowToken {
+                tokens.push(Token {
                     text: (*text).to_owned(),
                     page: PageId(u32::try_from(page).expect("test page fits u32")),
                     bounds: None,
@@ -2641,9 +2641,9 @@ mod tests {
                 });
             }
         }
-        let stream = FlowStream {
+        let stream = TokenStream {
             tokens,
-            ..FlowStream::default()
+            ..TokenStream::default()
         };
         Candidates {
             layout: stream.clone(),

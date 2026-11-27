@@ -13,13 +13,13 @@ use pdfdelta_core::{
     options::PipelineOptions,
     pdf::ParseLimits,
 };
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 use serde::Serialize;
 
 use crate::{
     args::{ColorChoice, ComparisonInput, ComparisonOptions, resolve_color},
     fs::{
-        MAX_PASSWORD_FILE_BYTES, input_read_flow_error, read_limited_typed,
+        MAX_PASSWORD_FILE_BYTES, input_read_diff_error, read_limited_typed,
         read_password_file_typed, write_output_atomically, write_text_report_atomically,
     },
 };
@@ -174,7 +174,7 @@ pub fn compare(
         crate::render::RenderCpuReport,
         crate::image_hashes::ImageCpuReport,
     ),
-    FlowError,
+    DiffError,
 > {
     let started = std::time::Instant::now();
     let retain_inputs = output.review_dir.is_some() || output.agent_review_dir.is_some();
@@ -194,7 +194,7 @@ pub fn compare(
     )?;
     let image_diff = match (old_images, new_images) {
         (Some(old), Some(new)) => {
-            let comparison = compare_images(&old, &new).map_err(FlowError::from)?;
+            let comparison = compare_images(&old, &new).map_err(DiffError::from)?;
             Some(ImageReport {
                 old,
                 new,
@@ -230,12 +230,12 @@ pub fn compare(
         ..DocumentComparisonLimits::default()
     };
     let mut old_graph = DocumentGraph::from_evidence(&old, pipeline, limits.evidence, limits.graph)
-        .map_err(FlowError::from)?;
+        .map_err(DiffError::from)?;
     let mut new_graph = DocumentGraph::from_evidence(&new, pipeline, limits.evidence, limits.graph)
-        .map_err(FlowError::from)?;
+        .map_err(DiffError::from)?;
     let table_refinements = if limits.matching.channels.text {
         refine_table_views(&mut old_graph, &mut new_graph, &old, &new, pipeline, limits)
-            .map_err(FlowError::from)?
+            .map_err(DiffError::from)?
     } else {
         TableRefinements {
             old: Vec::new(),
@@ -259,7 +259,7 @@ pub fn compare(
         limits,
         HierarchyLimits::default(),
     )
-    .map_err(FlowError::from)?;
+    .map_err(DiffError::from)?;
     if !table_refinements.exhaustive {
         comparison.retain_relation_unresolved(
             pdfdelta_core::document::UnresolvedObligation::new(
@@ -473,11 +473,11 @@ pub fn compare(
             serde_json::to_writer_pretty(writer, &report)
                 .map_err(|error| format!("cannot write document report: {error}"))
         })
-        .map_err(FlowError::backend)?;
+        .map_err(DiffError::backend)?;
     }
     if let Some(directory) = output.agent_review_dir {
         let (Some(old_bytes), Some(new_bytes)) = (&old_bytes, &new_bytes) else {
-            return Err(FlowError::backend("review source bytes were not retained"));
+            return Err(DiffError::backend("review source bytes were not retained"));
         };
         // The plan is projected from this run's own evidence, so its references
         // point at the material this comparison actually examined.
@@ -517,7 +517,7 @@ pub fn compare(
             &mut spool.raw,
             &mut spool.final_store,
         )
-        .map_err(|error| FlowError::backend(error.to_string()))?;
+        .map_err(|error| DiffError::backend(error.to_string()))?;
         crate::agent_review::multiply_plan(&mut plan, &mut spool.final_store)?;
         crate::agent_review::write_streaming(
             directory,
@@ -536,7 +536,7 @@ pub fn compare(
     }
     if let Some(directory) = output.review_dir {
         let (Some(old_bytes), Some(new_bytes)) = (old_bytes, new_bytes) else {
-            return Err(FlowError::backend("review source bytes were not retained"));
+            return Err(DiffError::backend("review source bytes were not retained"));
         };
         crate::review::write(
             directory,
@@ -699,12 +699,12 @@ pub fn compare(
         text
     };
     if let Some(path) = output.output_path {
-        write_text_report_atomically(path, &text).map_err(FlowError::backend)?;
+        write_text_report_atomically(path, &text).map_err(DiffError::backend)?;
     } else if !output.quiet {
         std::io::stdout()
             .lock()
             .write_all(text.as_bytes())
-            .map_err(|error| FlowError::backend(error.to_string()))?;
+            .map_err(|error| DiffError::backend(error.to_string()))?;
     }
     let code = flow_exit.map_or_else(
         || if complete { u8::from(changes > 0) } else { 3 },
@@ -920,18 +920,18 @@ fn collect(
     options: &EvidenceOptions,
     retain_input: bool,
     limit_scale: f64,
-) -> Result<CollectedEvidence, FlowError> {
+) -> Result<CollectedEvidence, DiffError> {
     let parse_limits = ParseLimits::default();
     let limits = EvidenceLimits::default();
     let bytes = read_limited_typed(input.path, parse_limits.max_input_bytes).map_err(|error| {
-        input_read_flow_error(error, "PDF input bytes", parse_limits.max_input_bytes)
+        input_read_diff_error(error, "PDF input bytes", parse_limits.max_input_bytes)
     })?;
     let password = input
         .password_file
         .map(read_password_file_typed)
         .transpose()
         .map_err(|error| {
-            input_read_flow_error(error, "password file bytes", MAX_PASSWORD_FILE_BYTES)
+            input_read_diff_error(error, "password file bytes", MAX_PASSWORD_FILE_BYTES)
         })?;
     let (mut store, page_refs) = crate::native_worker::collect(
         &bytes,
@@ -988,7 +988,7 @@ fn collect(
             }
         }
     }
-    store.validate(limits).map_err(FlowError::from)?;
+    store.validate(limits).map_err(DiffError::from)?;
     Ok((
         store,
         retain_input.then_some(bytes),

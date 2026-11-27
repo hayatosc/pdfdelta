@@ -14,7 +14,7 @@ use std::{
 
 use pdfdelta_core::model::PageId;
 
-use super::FlowToken;
+use super::Token;
 
 /// Minimum number of tokens in a moved run.
 pub const MOVE_MIN_TOKENS: usize = 5;
@@ -45,7 +45,7 @@ const MAX_CANDIDATES_PER_GRAM: usize = 16;
 
 /// One change of a token-stream edit script.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FlowChange {
+pub enum Change {
     /// Old tokens removed without a matching new run.
     Delete { old: Range<usize> },
     /// New tokens added without a matching old run.
@@ -77,7 +77,7 @@ pub enum FlowChange {
     },
 }
 
-impl FlowChange {
+impl Change {
     /// Old token range covered by this change; empty for an insertion.
     #[must_use]
     pub fn old_range(&self) -> Range<usize> {
@@ -110,11 +110,7 @@ impl FlowChange {
 /// The spine must be strictly increasing on both sides. Every non-spine token
 /// is covered exactly once by the returned changes.
 #[must_use]
-pub fn build_script(
-    old: &[FlowToken],
-    new: &[FlowToken],
-    spine: &[(usize, usize)],
-) -> Vec<FlowChange> {
+pub fn build_script(old: &[Token], new: &[Token], spine: &[(usize, usize)]) -> Vec<Change> {
     let (old_ids, new_ids) = super::intern_tokens(old, new);
     let weights = super::align::information_weights(&old_ids, &new_ids);
     let dot_leaders = DotLeaderCache::new(old, new);
@@ -139,8 +135,8 @@ pub fn build_script(
 
 /// The token streams and alignment inputs one script is built from.
 pub(crate) struct ScriptContext<'a> {
-    pub(crate) old: &'a [FlowToken],
-    pub(crate) new: &'a [FlowToken],
+    pub(crate) old: &'a [Token],
+    pub(crate) new: &'a [Token],
     pub(crate) old_ids: &'a [u32],
     pub(crate) new_ids: &'a [u32],
     pub(crate) weights: &'a [u64],
@@ -163,8 +159,8 @@ pub(crate) struct ScriptBase {
 
 /// Classifies the gaps of `spine` and marks layout-only replacements.
 pub(crate) fn build_script_base(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     spine: &[(usize, usize)],
 ) -> ScriptBase {
     let mut changes = base_changes(old.len(), new.len(), spine);
@@ -181,7 +177,7 @@ pub(crate) fn build_script_and_promotions(
     context: &ScriptContext<'_>,
     spine: &[(usize, usize)],
     rule: MoveRule,
-) -> (Vec<FlowChange>, Vec<(usize, usize)>, bool) {
+) -> (Vec<Change>, Vec<(usize, usize)>, bool) {
     let base = build_script_base(context.old, context.new, spine);
     script_from_base(context, &base, rule)
 }
@@ -191,7 +187,7 @@ pub(crate) fn script_from_base(
     context: &ScriptContext<'_>,
     base: &ScriptBase,
     rule: MoveRule,
-) -> (Vec<FlowChange>, Vec<(usize, usize)>, bool) {
+) -> (Vec<Change>, Vec<(usize, usize)>, bool) {
     let mut changes = base.changes.clone();
     // Both the promotion pass and the move rewriting filter the same accepted
     // candidate spans, so the detection runs once per script.
@@ -210,7 +206,7 @@ pub(crate) fn script_from_base(
 #[derive(Clone)]
 struct GapChange {
     gap: usize,
-    change: FlowChange,
+    change: Change,
 }
 
 /// Classifies the gaps between spine pairs.
@@ -244,17 +240,17 @@ fn base_changes(old_len: usize, new_len: usize, spine: &[(usize, usize)]) -> Vec
 fn push_gap(changes: &mut Vec<GapChange>, gap: usize, old: Range<usize>, new: Range<usize>) {
     let change = match (old.is_empty(), new.is_empty()) {
         (true, true) => return,
-        (true, false) => FlowChange::Insert { new },
-        (false, true) => FlowChange::Delete { old },
-        (false, false) => FlowChange::Replace { old, new },
+        (true, false) => Change::Insert { new },
+        (false, true) => Change::Delete { old },
+        (false, false) => Change::Replace { old, new },
     };
     changes.push(GapChange { gap, change });
 }
 
 /// Rewrites replacements whose only difference is layout into `LayoutOnly`.
-fn refine_layout_only(changes: &mut [GapChange], old: &[FlowToken], new: &[FlowToken]) {
+fn refine_layout_only(changes: &mut [GapChange], old: &[Token], new: &[Token]) {
     for entry in changes {
-        let FlowChange::Replace {
+        let Change::Replace {
             old: old_range,
             new: new_range,
         } = &entry.change
@@ -262,7 +258,7 @@ fn refine_layout_only(changes: &mut [GapChange], old: &[FlowToken], new: &[FlowT
             continue;
         };
         if layout_only_equal(&old[old_range.clone()], &new[new_range.clone()]) {
-            entry.change = FlowChange::LayoutOnly {
+            entry.change = Change::LayoutOnly {
                 old: old_range.clone(),
                 new: new_range.clone(),
             };
@@ -278,7 +274,7 @@ fn refine_layout_only(changes: &mut [GapChange], old: &[FlowToken], new: &[FlowT
 /// the only layout decision that can add punctuation to the visible stream, so
 /// the second arm only applies where the line-break evidence supports it.
 #[must_use]
-pub fn layout_only_equal(old: &[FlowToken], new: &[FlowToken]) -> bool {
+pub fn layout_only_equal(old: &[Token], new: &[Token]) -> bool {
     if concatenated_text(old) == concatenated_text(new) {
         return true;
     }
@@ -288,7 +284,7 @@ pub fn layout_only_equal(old: &[FlowToken], new: &[FlowToken]) -> bool {
     strip_hyphens(&concatenated_text(old)) == strip_hyphens(&concatenated_text(new))
 }
 
-fn concatenated_text(tokens: &[FlowToken]) -> String {
+fn concatenated_text(tokens: &[Token]) -> String {
     let mut text = String::new();
     for token in tokens {
         text.push_str(&token.text);
@@ -306,7 +302,7 @@ fn is_break_hyphen(character: char) -> bool {
     matches!(character, '-' | '\u{2010}' | '\u{00ad}')
 }
 
-fn has_line_end_hyphen(tokens: &[FlowToken]) -> bool {
+fn has_line_end_hyphen(tokens: &[Token]) -> bool {
     tokens.iter().any(|token| {
         token.line_break_after && token.text.chars().last().is_some_and(is_break_hyphen)
     })
@@ -353,16 +349,15 @@ fn apply_moves(context: &ScriptContext<'_>, changes: &mut Vec<GapChange>, moves:
         let old_moves: &[&MoveSpan] = moves_by_old.get(&index).map_or(&[], Vec::as_slice);
         let new_moves: &[&MoveSpan] = moves_by_new.get(&index).map_or(&[], Vec::as_slice);
         match &entry.change {
-            FlowChange::Delete { old: range } => {
-                let mut events: Vec<(usize, FlowChange)> =
-                    complement(range.clone(), old_moves, true)
-                        .into_iter()
-                        .map(|piece| (piece.start, FlowChange::Delete { old: piece }))
-                        .collect();
+            Change::Delete { old: range } => {
+                let mut events: Vec<(usize, Change)> = complement(range.clone(), old_moves, true)
+                    .into_iter()
+                    .map(|piece| (piece.start, Change::Delete { old: piece }))
+                    .collect();
                 events.extend(old_moves.iter().map(|span| {
                     (
                         span.old.start,
-                        FlowChange::Move {
+                        Change::Move {
                             old: span.old.clone(),
                             new: span.new.clone(),
                         },
@@ -371,14 +366,14 @@ fn apply_moves(context: &ScriptContext<'_>, changes: &mut Vec<GapChange>, moves:
                 events.sort_unstable_by_key(|(start, _)| *start);
                 out.extend(events.into_iter().map(|(_, change)| change));
             }
-            FlowChange::Insert { new: range } => {
+            Change::Insert { new: range } => {
                 out.extend(
                     complement(range.clone(), new_moves, false)
                         .into_iter()
-                        .map(|piece| FlowChange::Insert { new: piece }),
+                        .map(|piece| Change::Insert { new: piece }),
                 );
             }
-            FlowChange::Replace {
+            Change::Replace {
                 old: old_range,
                 new: new_range,
             } => emit_replacement_split(
@@ -408,7 +403,7 @@ fn apply_moves(context: &ScriptContext<'_>, changes: &mut Vec<GapChange>, moves:
 /// Insert touch opposite ends of the same accepted move, they are the remainder
 /// of that rotation, so they are reported as one Move. Unrelated short equal
 /// runs are not adjacent to opposite ends of one move and stay Delete+Insert.
-fn fold_rotation_remainders(changes: &mut Vec<FlowChange>, old_ids: &[u32], new_ids: &[u32]) {
+fn fold_rotation_remainders(changes: &mut Vec<Change>, old_ids: &[u32], new_ids: &[u32]) {
     loop {
         let mut delete_by_end = HashMap::new();
         let mut delete_by_start = HashMap::new();
@@ -416,25 +411,25 @@ fn fold_rotation_remainders(changes: &mut Vec<FlowChange>, old_ids: &[u32], new_
         let mut insert_by_end = HashMap::new();
         for (index, change) in changes.iter().enumerate() {
             match change {
-                FlowChange::Delete { old } => {
+                Change::Delete { old } => {
                     delete_by_end.insert(old.end, index);
                     delete_by_start.insert(old.start, index);
                 }
-                FlowChange::Insert { new } => {
+                Change::Insert { new } => {
                     insert_by_start.insert(new.start, index);
                     insert_by_end.insert(new.end, index);
                 }
-                FlowChange::Move { .. }
-                | FlowChange::ReadingOrder { .. }
-                | FlowChange::Replace { .. }
-                | FlowChange::LayoutOnly { .. } => {}
+                Change::Move { .. }
+                | Change::ReadingOrder { .. }
+                | Change::Replace { .. }
+                | Change::LayoutOnly { .. } => {}
             }
         }
         let mut folds: Vec<(usize, Range<usize>, Range<usize>)> = Vec::new();
         let mut used_delete = HashSet::new();
         let mut used_insert = HashSet::new();
         for change in changes.iter() {
-            let FlowChange::Move {
+            let Change::Move {
                 old: moved_old,
                 new: moved_new,
             } = change
@@ -458,10 +453,10 @@ fn fold_rotation_remainders(changes: &mut Vec<FlowChange>, old_ids: &[u32], new_
                 if used_delete.contains(&delete_index) || used_insert.contains(&insert_index) {
                     continue;
                 }
-                let FlowChange::Delete { old: deleted } = &changes[delete_index] else {
+                let Change::Delete { old: deleted } = &changes[delete_index] else {
                     continue;
                 };
-                let FlowChange::Insert { new: inserted } = &changes[insert_index] else {
+                let Change::Insert { new: inserted } = &changes[insert_index] else {
                     continue;
                 };
                 if deleted.len() != inserted.len()
@@ -478,7 +473,7 @@ fn fold_rotation_remainders(changes: &mut Vec<FlowChange>, old_ids: &[u32], new_
             break;
         }
         for (delete_index, old, new) in &folds {
-            changes[*delete_index] = FlowChange::Move {
+            changes[*delete_index] = Change::Move {
                 old: old.clone(),
                 new: new.clone(),
             };
@@ -502,29 +497,28 @@ fn fold_rotation_remainders(changes: &mut Vec<FlowChange>, old_ids: &[u32], new_
 /// whose text is layout-equivalent becomes a layout-only change instead of a
 /// replacement.
 fn emit_replacement_split(
-    out: &mut Vec<FlowChange>,
+    out: &mut Vec<Change>,
     old_range: &Range<usize>,
     new_range: &Range<usize>,
     old_moves: &[&MoveSpan],
     new_moves: &[&MoveSpan],
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
 ) {
     let old_pieces = complement(old_range.clone(), old_moves, true);
     let new_pieces = complement(new_range.clone(), new_moves, false);
     let paired = old_pieces.len().min(new_pieces.len());
-    let mut events: Vec<(usize, FlowChange)> =
-        Vec::with_capacity(old_pieces.len() + old_moves.len());
+    let mut events: Vec<(usize, Change)> = Vec::with_capacity(old_pieces.len() + old_moves.len());
     for index in 0..paired {
         let old_piece = old_pieces[index].clone();
         let new_piece = new_pieces[index].clone();
         let change = if layout_only_equal(&old[old_piece.clone()], &new[new_piece.clone()]) {
-            FlowChange::LayoutOnly {
+            Change::LayoutOnly {
                 old: old_piece.clone(),
                 new: new_piece,
             }
         } else {
-            FlowChange::Replace {
+            Change::Replace {
                 old: old_piece.clone(),
                 new: new_piece,
             }
@@ -532,12 +526,12 @@ fn emit_replacement_split(
         events.push((old_piece.start, change));
     }
     for piece in old_pieces.into_iter().skip(paired) {
-        events.push((piece.start, FlowChange::Delete { old: piece }));
+        events.push((piece.start, Change::Delete { old: piece }));
     }
     for span in old_moves {
         events.push((
             span.old.start,
-            FlowChange::Move {
+            Change::Move {
                 old: span.old.clone(),
                 new: span.new.clone(),
             },
@@ -551,7 +545,7 @@ fn emit_replacement_split(
         new_pieces
             .into_iter()
             .skip(paired)
-            .map(|piece| FlowChange::Insert { new: piece }),
+            .map(|piece| Change::Insert { new: piece }),
     );
 }
 
@@ -652,7 +646,7 @@ pub(crate) struct DotLeaderCache {
 impl DotLeaderCache {
     /// Classifies every page of both token streams.
     #[must_use]
-    pub(crate) fn new(old: &[FlowToken], new: &[FlowToken]) -> Self {
+    pub(crate) fn new(old: &[Token], new: &[Token]) -> Self {
         let (old_pages, old_any) = page_dot_leaders(old);
         let (new_pages, new_any) = page_dot_leaders(new);
         Self {
@@ -688,7 +682,7 @@ impl DotLeaderCache {
 }
 
 /// Returns one dot-leader flag per page and whether any flag is set.
-fn page_dot_leaders(tokens: &[FlowToken]) -> (Vec<bool>, bool) {
+fn page_dot_leaders(tokens: &[Token]) -> (Vec<bool>, bool) {
     let Some(page_count) = tokens
         .iter()
         .map(|token| usize::try_from(token.page.0).unwrap_or(usize::MAX))
@@ -762,13 +756,13 @@ fn low_weight_changes_between(
         if entry.gap < low || entry.gap > high {
             continue;
         }
-        let mut check = |tokens: &[FlowToken], ids: &[u32]| {
+        let mut check = |tokens: &[Token], ids: &[u32]| {
             let (all_low, any_low) = low_weight_tokens(tokens, ids, weights);
             saw_low |= any_low;
             all_low
         };
         match &entry.change {
-            FlowChange::Delete { old: range } => {
+            Change::Delete { old: range } => {
                 let pieces = if index == span.old_change {
                     complement(range.clone(), &[span], true)
                 } else {
@@ -781,7 +775,7 @@ fn low_weight_changes_between(
                     return (false, saw_low);
                 }
             }
-            FlowChange::Insert { new: range } => {
+            Change::Insert { new: range } => {
                 let pieces = if index == span.new_change {
                     complement(range.clone(), &[span], false)
                 } else {
@@ -794,7 +788,7 @@ fn low_weight_changes_between(
                     return (false, saw_low);
                 }
             }
-            FlowChange::Replace {
+            Change::Replace {
                 old: old_range,
                 new: new_range,
             } => {
@@ -818,9 +812,7 @@ fn low_weight_changes_between(
                     return (false, saw_low);
                 }
             }
-            FlowChange::Move { .. }
-            | FlowChange::ReadingOrder { .. }
-            | FlowChange::LayoutOnly { .. } => {}
+            Change::Move { .. } | Change::ReadingOrder { .. } | Change::LayoutOnly { .. } => {}
         }
     }
     (true, saw_low)
@@ -828,7 +820,7 @@ fn low_weight_changes_between(
 
 /// Whether every token has minimum information weight or is numeric/punctuation,
 /// and whether at least one token is.
-fn low_weight_tokens(tokens: &[FlowToken], ids: &[u32], weights: &[u64]) -> (bool, bool) {
+fn low_weight_tokens(tokens: &[Token], ids: &[u32], weights: &[u64]) -> (bool, bool) {
     let mut any = false;
     let all = tokens.iter().zip(ids).all(|(token, &id)| {
         let low = weights[id as usize] <= 1
@@ -875,24 +867,24 @@ impl IntervalSet {
 }
 
 /// Returns the old-token range of a change that can start a move.
-fn old_change_range(change: &FlowChange) -> Option<&Range<usize>> {
+fn old_change_range(change: &Change) -> Option<&Range<usize>> {
     match change {
-        FlowChange::Delete { old } | FlowChange::Replace { old, .. } => Some(old),
-        FlowChange::Insert { .. }
-        | FlowChange::Move { .. }
-        | FlowChange::ReadingOrder { .. }
-        | FlowChange::LayoutOnly { .. } => None,
+        Change::Delete { old } | Change::Replace { old, .. } => Some(old),
+        Change::Insert { .. }
+        | Change::Move { .. }
+        | Change::ReadingOrder { .. }
+        | Change::LayoutOnly { .. } => None,
     }
 }
 
 /// Returns the new-token range of a change that can receive a move.
-fn new_change_range(change: &FlowChange) -> Option<&Range<usize>> {
+fn new_change_range(change: &Change) -> Option<&Range<usize>> {
     match change {
-        FlowChange::Insert { new } | FlowChange::Replace { new, .. } => Some(new),
-        FlowChange::Delete { .. }
-        | FlowChange::Move { .. }
-        | FlowChange::ReadingOrder { .. }
-        | FlowChange::LayoutOnly { .. } => None,
+        Change::Insert { new } | Change::Replace { new, .. } => Some(new),
+        Change::Delete { .. }
+        | Change::Move { .. }
+        | Change::ReadingOrder { .. }
+        | Change::LayoutOnly { .. } => None,
     }
 }
 
@@ -1029,10 +1021,10 @@ mod tests {
     use super::*;
     use pdfdelta_core::model::PageId;
 
-    fn tokens(texts: &[&str]) -> Vec<FlowToken> {
+    fn tokens(texts: &[&str]) -> Vec<Token> {
         texts
             .iter()
-            .map(|&text| FlowToken {
+            .map(|&text| Token {
                 text: text.to_owned(),
                 page: PageId(0),
                 bounds: None,
@@ -1096,12 +1088,12 @@ mod tests {
         let old = tokens(&["alpha", "beta", "gamma", "delta"]);
         let new = tokens(&["gamma", "delta", "alpha", "beta"]);
         assert!(!layout_only_equal(&old, &new));
-        let diff = crate::flow_diff(&old, &new).expect("test script verifies");
+        let diff = crate::diff(&old, &new).expect("test script verifies");
         assert!(
             !diff
                 .changes
                 .iter()
-                .any(|change| matches!(change, FlowChange::LayoutOnly { .. })),
+                .any(|change| matches!(change, Change::LayoutOnly { .. })),
             "{:?}",
             diff.changes
         );
@@ -1121,22 +1113,22 @@ mod tests {
         let new = tokens(&["a", "m0", "m1", "m2", "m3", "m4", "r", "b"]);
         let (old_ids, new_ids) = crate::intern_tokens(&old, &new);
         let mut changes = vec![
-            FlowChange::Delete { old: 1..2 },
-            FlowChange::Move {
+            Change::Delete { old: 1..2 },
+            Change::Move {
                 old: 2..7,
                 new: 1..6,
             },
-            FlowChange::Insert { new: 6..7 },
+            Change::Insert { new: 6..7 },
         ];
         fold_rotation_remainders(&mut changes, &old_ids, &new_ids);
         assert_eq!(
             changes,
             [
-                FlowChange::Move {
+                Change::Move {
                     old: 1..2,
                     new: 6..7,
                 },
-                FlowChange::Move {
+                Change::Move {
                     old: 2..7,
                     new: 1..6,
                 },
@@ -1152,21 +1144,21 @@ mod tests {
         let new = tokens(&["a", "m0", "m1", "m2", "m3", "m4", "b"]);
         let (old_ids, new_ids) = crate::intern_tokens(&old, &new);
         let mut changes = vec![
-            FlowChange::Move {
+            Change::Move {
                 old: 1..6,
                 new: 1..6,
             },
-            FlowChange::Delete { old: 6..7 },
+            Change::Delete { old: 6..7 },
         ];
         fold_rotation_remainders(&mut changes, &old_ids, &new_ids);
         assert_eq!(
             changes,
             [
-                FlowChange::Move {
+                Change::Move {
                     old: 1..6,
                     new: 1..6,
                 },
-                FlowChange::Delete { old: 6..7 },
+                Change::Delete { old: 6..7 },
             ]
         );
     }
@@ -1179,11 +1171,11 @@ mod tests {
         assert_eq!(
             changes,
             [
-                FlowChange::Replace {
+                Change::Replace {
                     old: 2..3,
                     new: 2..3,
                 },
-                FlowChange::Move {
+                Change::Move {
                     old: 3..8,
                     new: 4..9,
                 },
@@ -1199,7 +1191,7 @@ mod tests {
         // as a move by the script builder on its own.
         let changes = vec![GapChange {
             gap: 0,
-            change: FlowChange::Replace {
+            change: Change::Replace {
                 old: 0..7,
                 new: 0..12,
             },
@@ -1231,7 +1223,7 @@ mod tests {
         assert!(
             !script
                 .iter()
-                .any(|change| matches!(change, FlowChange::Move { .. })),
+                .any(|change| matches!(change, Change::Move { .. })),
             "a same-gap run must not be emitted as a move: {script:?}"
         );
     }
@@ -1246,11 +1238,11 @@ mod tests {
         assert_eq!(
             changes,
             [
-                FlowChange::Move {
+                Change::Move {
                     old: 2..7,
                     new: 6..11,
                 },
-                FlowChange::Insert { new: 2..4 },
+                Change::Insert { new: 2..4 },
             ]
         );
     }

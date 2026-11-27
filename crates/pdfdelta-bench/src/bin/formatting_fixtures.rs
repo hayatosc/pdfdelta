@@ -16,7 +16,7 @@ use pdfdelta_core::{
     pdf::{LopdfParser, ParseLimits},
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
-use pdfdelta_flow::{FlowStream, flow_tokens};
+use pdfdelta_diff::{TokenStream, tokens};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -132,7 +132,7 @@ fn relative(path: &Path, output: &Path) -> String {
         .into_owned()
 }
 
-fn extract_tokens(bytes: &[u8], side: &str) -> Result<FlowStream, String> {
+fn extract_tokens(bytes: &[u8], side: &str) -> Result<TokenStream, String> {
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let outcome = source
         .extract_outcome(
@@ -150,10 +150,10 @@ fn extract_tokens(bytes: &[u8], side: &str) -> Result<FlowStream, String> {
                 .map_or("unknown issue", |issue| issue.description())
         ));
     }
-    flow_tokens(outcome.document()).map_err(|error| format!("{side} tokenization failed: {error}"))
+    tokens(outcome.document()).map_err(|error| format!("{side} tokenization failed: {error}"))
 }
 
-fn token_records(stream: &FlowStream) -> Vec<TokenRecord> {
+fn token_records(stream: &TokenStream) -> Vec<TokenRecord> {
     stream
         .tokens
         .iter()
@@ -164,7 +164,7 @@ fn token_records(stream: &FlowStream) -> Vec<TokenRecord> {
         .collect()
 }
 
-fn token_words(stream: &FlowStream) -> Vec<(String, u64)> {
+fn token_words(stream: &TokenStream) -> Vec<(String, u64)> {
     stream
         .tokens
         .iter()
@@ -172,7 +172,7 @@ fn token_words(stream: &FlowStream) -> Vec<(String, u64)> {
         .collect()
 }
 
-fn join_text(stream: &FlowStream) -> String {
+fn join_text(stream: &TokenStream) -> String {
     stream
         .tokens
         .iter()

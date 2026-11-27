@@ -11,7 +11,7 @@ use std::{
     path::Path,
 };
 
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -53,30 +53,30 @@ pub(crate) struct Artifact {
 pub(crate) fn validate_destination(
     directory: &Path,
     outputs: &[Option<&Path>],
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     match fs::symlink_metadata(directory) {
         Ok(_) => {
-            return Err(FlowError::backend(format!(
+            return Err(DiffError::backend(format!(
                 "refusing existing review directory {}",
                 directory.display()
             )));
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
-            return Err(FlowError::backend(format!(
+            return Err(DiffError::backend(format!(
                 "cannot inspect review directory {}: {error}",
                 directory.display()
             )));
         }
     }
     let destination = crate::fs::normalized_destination(directory, "review directory")
-        .map_err(FlowError::backend)?;
+        .map_err(DiffError::backend)?;
     for output in outputs.iter().flatten() {
         if crate::fs::normalized_destination(output, "review output")
-            .map_err(FlowError::backend)?
+            .map_err(DiffError::backend)?
             .starts_with(&destination)
         {
-            return Err(FlowError::backend(format!(
+            return Err(DiffError::backend(format!(
                 "output {} collides with the review directory",
                 output.display()
             )));
@@ -86,7 +86,7 @@ pub(crate) fn validate_destination(
 }
 
 /// Creates the bundle directory with owner-only access.
-pub(crate) fn create_directory(directory: &Path) -> Result<(), FlowError> {
+pub(crate) fn create_directory(directory: &Path) -> Result<(), DiffError> {
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
@@ -94,7 +94,7 @@ pub(crate) fn create_directory(directory: &Path) -> Result<(), FlowError> {
         builder.mode(0o700);
     }
     builder.create(directory).map_err(|error| {
-        FlowError::backend(format!(
+        DiffError::backend(format!(
             "cannot create new review directory {}: {error}",
             directory.display()
         ))
@@ -137,7 +137,7 @@ pub(crate) fn file(
     name: &str,
     remaining: &mut usize,
     write: impl FnOnce(&mut dyn Write) -> io::Result<()>,
-) -> Result<Artifact, FlowError> {
+) -> Result<Artifact, DiffError> {
     let before = *remaining;
     let mut hash = Sha256::new();
     if let Some(parent) = Path::new(name)
@@ -145,7 +145,7 @@ pub(crate) fn file(
         .filter(|path| !path.as_os_str().is_empty())
     {
         fs::create_dir_all(directory.join(parent)).map_err(|error| {
-            FlowError::backend(format!(
+            DiffError::backend(format!(
                 "cannot create review artifact directory {name}: {error}"
             ))
         })?;
@@ -202,9 +202,9 @@ pub(crate) fn file(
     };
     result.map_err(|error| {
         if over_budget {
-            FlowError::limit_exceeded("review bundle bytes", MAX_BYTES, error)
+            DiffError::limit_exceeded("review bundle bytes", MAX_BYTES, error)
         } else {
-            FlowError::backend(error)
+            DiffError::backend(error)
         }
     })?;
     Ok(Artifact {
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn artifact_budget_failure_keeps_the_limit_class() {
-        use pdfdelta_flow::{FlowErrorClass, FlowLimit};
+        use pdfdelta_diff::{ErrorClass, Limit};
 
         let directory =
             std::env::temp_dir().join(format!("pdfdelta-bundle-budget-{}", std::process::id()));
@@ -298,10 +298,10 @@ mod tests {
         })
         .err()
         .expect("the artifact exceeds the remaining budget");
-        assert_eq!(error.class(), FlowErrorClass::LimitExceeded);
+        assert_eq!(error.class(), ErrorClass::LimitExceeded);
         assert_eq!(
             error.limit(),
-            Some(FlowLimit {
+            Some(Limit {
                 resource: "review bundle bytes",
                 limit: MAX_BYTES,
             })

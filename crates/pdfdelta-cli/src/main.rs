@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::{CommandFactory, Parser};
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 
 mod agent_review;
 mod args;
@@ -297,29 +297,29 @@ fn main() -> ExitCode {
                     color: cli.color,
                 },
             };
-            let result = (|| -> Result<u8, FlowError> {
+            let result = (|| -> Result<u8, DiffError> {
                 let old = cli.old.as_deref().ok_or_else(|| {
-                    FlowError::backend("cannot compare PDFs: OLD_PDF is required")
+                    DiffError::backend("cannot compare PDFs: OLD_PDF is required")
                 })?;
                 let new = cli.new.as_deref().ok_or_else(|| {
-                    FlowError::backend("cannot compare PDFs: NEW_PDF is required")
+                    DiffError::backend("cannot compare PDFs: NEW_PDF is required")
                 })?;
                 let old_password = cli
                     .old_password_file
                     .as_deref()
                     .map(crate::fs::read_password_file)
                     .transpose()
-                    .map_err(FlowError::backend)?;
+                    .map_err(DiffError::backend)?;
                 let new_password = cli
                     .new_password_file
                     .as_deref()
                     .map(crate::fs::read_password_file)
                     .transpose()
-                    .map_err(FlowError::backend)?;
+                    .map_err(DiffError::backend)?;
                 let old_fonts = crate::fs::parse_external_font_identities(&cli.old_font_identity)
-                    .map_err(FlowError::backend)?;
+                    .map_err(DiffError::backend)?;
                 let new_fonts = crate::fs::parse_external_font_identities(&cli.new_font_identity)
-                    .map_err(FlowError::backend)?;
+                    .map_err(DiffError::backend)?;
                 let cache = cli
                     .extraction_cache_dir
                     .as_deref()
@@ -364,7 +364,7 @@ fn main() -> ExitCode {
                     if let Some(path) = cli.trace_json.as_deref()
                         && path.exists()
                     {
-                        return Err(FlowError::backend(format!(
+                        return Err(DiffError::backend(format!(
                             "refusing to overwrite existing flow trace report {}: output path already exists",
                             path.display()
                         )));

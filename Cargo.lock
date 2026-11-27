@@ -846,7 +846,7 @@ dependencies = [
  "hayro",
  "lopdf",
  "pdfdelta-core",
- "pdfdelta-flow",
+ "pdfdelta-diff",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -865,7 +865,7 @@ dependencies = [
  "lopdf",
  "pdfdelta-bench",
  "pdfdelta-core",
- "pdfdelta-flow",
+ "pdfdelta-diff",
  "png",
  "rayon",
  "rustix",
@@ -893,7 +893,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdfdelta-flow"
+name = "pdfdelta-diff"
 version = "0.1.0"
 dependencies = [
  "pdfdelta-core",

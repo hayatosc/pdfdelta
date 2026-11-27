@@ -45,7 +45,7 @@ through the exact text check.
 
 | reported column | flow evaluator |
 | --- | --- |
-| change events and kinds | 1:1 with `FlowChange` content and moves |
+| change events and kinds | 1:1 with `Change` content and moves |
 | formatting-only changes | flow `LayoutOnly` count; flow formatting evidence is not re-scored |
 | old/new coverage | `1.0` only when both token streams conserve every visible glyph |
 | event precision and recall | exact truth check; pass means every expected event matched |

@@ -22,7 +22,7 @@ Plain `cargo` works as well; each mise task is a thin wrapper.
 
 ```text
 crates/pdfdelta-core    Extraction, layout, evidence, and comparison library (no CLI concerns)
-crates/pdfdelta-flow    Token-stream diff engine
+crates/pdfdelta-diff    Token-stream diff engine
 crates/pdfdelta-cli     The pdfdelta binary: argument parsing, file I/O, reports, exit codes
 crates/pdfdelta-bench   pdfbench: fixture generation, mutations, and evaluation tooling
 fixtures/               Vendored test inputs with provenance
@@ -31,7 +31,7 @@ fuzz/                   Nightly-only cargo-fuzz workspace (see fuzz/README.md)
 docs/                   User and design documentation
 ```
 
-Flow diff components accept programmatically constructed token and
+Diff components accept programmatically constructed token and
 `Document<Glyph>` values, so diff work does not need PDF fixtures.
 
 ## Quality gate

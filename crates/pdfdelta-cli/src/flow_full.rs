@@ -18,7 +18,7 @@ use std::{
 use pdfdelta_core::model::{
     DecodedText, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus, TextRenderMode,
 };
-use pdfdelta_flow::{FlowStream, FlowToken};
+use pdfdelta_diff::{Token, TokenStream};
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 
@@ -284,9 +284,9 @@ struct Side<'a> {
 
 fn prepare_side<'a>(
     cache: &'a SourceCache,
-    tokens: &'a [FlowToken],
+    tokens: &'a [Token],
     source_glyphs: &'a [Vec<GlyphId>],
-    furniture: &'a [pdfdelta_flow::FurnitureLine],
+    furniture: &'a [pdfdelta_diff::FurnitureLine],
 ) -> Result<Side<'a>, String> {
     if source_glyphs.len() != tokens.len() {
         return Err(format!(
@@ -395,7 +395,7 @@ fn lowercase_hex(bytes: &[u8]) -> String {
 /// Writes one side's token source array.
 fn write_token_sources(
     out: &mut dyn std::io::Write,
-    stream: &FlowStream,
+    stream: &TokenStream,
     side: &Side<'_>,
 ) -> Result<(), String> {
     let write_error = |error: std::io::Error| format!("cannot write full flow report: {error}");

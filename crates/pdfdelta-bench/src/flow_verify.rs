@@ -24,7 +24,7 @@ use pdfdelta_core::{
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
     span::ChangeKind,
 };
-use pdfdelta_flow::{FlowChange, FlowToken, flow_diff, flow_tokens_pair};
+use pdfdelta_diff::{Change, Token, diff, order_pair};
 
 use crate::{
     BenchError, Result,
@@ -379,9 +379,9 @@ fn compare_documents(
     new_document: &Document<Glyph>,
     truth: Truth,
 ) -> Result<FlowVerifyRecord> {
-    let pair = flow_tokens_pair(old_document, new_document)
+    let pair = order_pair(old_document, new_document)
         .map_err(|error| BenchError::core("flow tokenization", error))?;
-    let diff = flow_diff(&pair.old.tokens, &pair.new.tokens)
+    let diff = diff(&pair.old.tokens, &pair.new.tokens)
         .map_err(|error| BenchError::InvalidInput(format!("flow verification failed: {error}")))?;
     let actual = summarize_changes(&diff.changes, &pair.old.tokens, &pair.new.tokens);
     let expected = truth.label();
@@ -449,25 +449,21 @@ impl ActualChanges {
     }
 }
 
-pub(crate) fn summarize_changes(
-    changes: &[FlowChange],
-    old: &[FlowToken],
-    new: &[FlowToken],
-) -> ActualChanges {
+pub(crate) fn summarize_changes(changes: &[Change], old: &[Token], new: &[Token]) -> ActualChanges {
     let mut actual = ActualChanges::default();
     for change in changes {
         match change {
-            FlowChange::Delete { old: range } => actual.content.push((
+            Change::Delete { old: range } => actual.content.push((
                 "delete".to_owned(),
                 token_text(&old[range.clone()]),
                 String::new(),
             )),
-            FlowChange::Insert { new: range } => actual.content.push((
+            Change::Insert { new: range } => actual.content.push((
                 "insert".to_owned(),
                 String::new(),
                 token_text(&new[range.clone()]),
             )),
-            FlowChange::Replace {
+            Change::Replace {
                 old: old_range,
                 new: new_range,
             } => actual.content.push((
@@ -475,21 +471,21 @@ pub(crate) fn summarize_changes(
                 token_text(&old[old_range.clone()]),
                 token_text(&new[new_range.clone()]),
             )),
-            FlowChange::Move {
+            Change::Move {
                 old: old_range,
                 new: new_range,
             } => actual.moves.push((
                 token_text(&old[old_range.clone()]),
                 token_text(&new[new_range.clone()]),
             )),
-            FlowChange::ReadingOrder { .. } => actual.reading_order += 1,
-            FlowChange::LayoutOnly { .. } => actual.layout_only += 1,
+            Change::ReadingOrder { .. } => actual.reading_order += 1,
+            Change::LayoutOnly { .. } => actual.layout_only += 1,
         }
     }
     actual
 }
 
-pub(crate) fn token_text(tokens: &[FlowToken]) -> String {
+pub(crate) fn token_text(tokens: &[Token]) -> String {
     tokens.iter().map(|token| token.text.as_str()).collect()
 }
 
@@ -686,14 +682,14 @@ mod tests {
                     .render(case.plan().new_plan(), limits)
                     .expect("new render");
                 let (old, new) = extract_pair(&old_pdf, &new_pdf).expect("extract");
-                let pair = flow_tokens_pair(&old, &new).expect("order selection");
+                let pair = order_pair(&old, &new).expect("order selection");
                 for page in pair.old_pages.iter().chain(&pair.new_pages) {
                     minimum = minimum.min(page.coherence);
                 }
             }
         }
         assert!(
-            minimum >= pdfdelta_flow::ORDER_COHERENCE_MIN,
+            minimum >= pdfdelta_diff::ORDER_COHERENCE_MIN,
             "minimum generated fixture coherence {minimum}"
         );
     }

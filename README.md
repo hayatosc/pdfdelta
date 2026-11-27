@@ -212,7 +212,7 @@ The full list is in [`docs/limitations.md`](docs/limitations.md).
 
 ```text
 crates/pdfdelta-core    Extraction, layout, evidence, and comparison library
-crates/pdfdelta-flow    Token-stream diff engine
+crates/pdfdelta-diff    Token-stream diff engine
 crates/pdfdelta-cli     The pdfdelta command-line tool
 crates/pdfdelta-bench   Benchmark and evaluation tooling (pdfbench)
 ```

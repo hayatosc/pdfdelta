@@ -544,9 +544,9 @@ pub struct BlockText {
     pub page_breaks: Option<Vec<usize>>,
 }
 
-/// One flow-normalized block plus the raw text of each canonical token.
+/// One normalized block plus the raw text of each canonical token.
 ///
-/// Flow formatting evidence compares raw text, line/page breaks, block
+/// Formatting evidence compares raw text, line/page breaks, block
 /// boundaries, and source baselines without retaining the full comparison
 /// source map or matching masks. `raw_tokens[i]` corresponds to canonical
 /// comparable token `i` and includes the raw gap up to the next token, so a
@@ -554,7 +554,7 @@ pub struct BlockText {
 /// `None` marks a token whose raw text cannot be projected exactly (for
 /// example an unmapped token).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FlowBlock {
+pub struct ComparableBlock {
     pub text: BlockText,
     pub raw_tokens: Vec<Option<String>>,
     /// Normalization kinds observed for each canonical comparable token.
@@ -564,11 +564,11 @@ pub struct FlowBlock {
     pub normalization: Vec<u8>,
 }
 
-/// Raw text and normalization masks for one flow-normalized block.
-type FlowFormattingEvidence = (Vec<Option<String>>, Vec<u8>);
+/// Raw text and normalization masks for one normalized block.
+type FormattingEvidence = (Vec<Option<String>>, Vec<u8>);
 
-/// One normalized block plus flow formatting evidence when requested.
-type NormalizedBlock = (BlockText, Option<FlowFormattingEvidence>);
+/// One normalized block plus formatting evidence when requested.
+type NormalizedBlock = (BlockText, Option<FormattingEvidence>);
 
 impl BlockText {
     /// Returns retained discretionary hyphens in the requested comparable-token
@@ -1100,25 +1100,25 @@ pub fn normalize_blocks(
 ///
 /// The returned [`BlockText`] keeps canonical text, line/page breaks, pages,
 /// role, block identity, and exact font-size and position signatures. The
-/// accompanying [`FlowBlock::raw_tokens`] retains the raw text projected to
-/// each canonical token so flow formatting can report normalization changes.
-/// Numeric matching masks, normalization issues, and the full raw source map
-/// are not retained after projection.
+/// accompanying [`ComparableBlock::raw_tokens`] retains the raw text projected
+/// to each canonical token so formatting evidence can report normalization
+/// changes. Numeric matching masks, normalization issues, and the full raw
+/// source map are not retained after projection.
 ///
 /// # Errors
 /// Matches [`normalize_blocks`].
 #[must_use = "the normalized blocks must be consumed"]
-pub fn normalize_blocks_for_flow(
+pub fn normalize_blocks_for_diff(
     document: &Document<Glyph>,
     lines: &[Line],
     blocks: &[Block],
-) -> Result<Vec<FlowBlock>> {
+) -> Result<Vec<ComparableBlock>> {
     normalize_blocks_impl(document, lines, blocks, false).map(|blocks| {
         blocks
             .into_iter()
-            .map(|(text, flow)| {
-                let (raw_tokens, normalization) = flow.unwrap_or_default();
-                FlowBlock {
+            .map(|(text, evidence)| {
+                let (raw_tokens, normalization) = evidence.unwrap_or_default();
+                ComparableBlock {
                     text,
                     raw_tokens,
                     normalization,
@@ -1806,8 +1806,9 @@ fn normalize_block(
     resolve_line_breaks(&mut atoms, &mut issues);
     collapse_whitespace(&mut atoms);
     let pieces = normalize_nfc(atoms);
-    // Flow needs events to project canonical tokens back to raw text; it
-    // clears them before returning so the reduced-memory contract still holds.
+    // Formatting evidence needs events to project canonical tokens back to raw
+    // text; it clears them before returning so the reduced-memory contract
+    // still holds.
     let (canonical, events) = assemble_canonical(pieces, true);
     let canonical_tokens = canonical.comparable_tokens_with_sources()?;
     let line_breaks = canonical_breaks(&canonical_tokens, &line_break_following_glyphs);
@@ -1832,8 +1833,8 @@ fn normalize_block(
             line_breaks,
             page_breaks,
         };
-        let raw_tokens = flow_raw_tokens(&text, &canonical_tokens);
-        let normalization = flow_normalization_masks(&canonical_tokens, &text.normalization_events);
+        let raw_tokens = raw_token_texts(&text, &canonical_tokens);
+        let normalization = normalization_masks(&canonical_tokens, &text.normalization_events);
         text.raw = MappedText {
             text: String::new(),
             source_map: Vec::new(),
@@ -1872,7 +1873,7 @@ fn normalize_block(
 /// comparison. Unmapped tokens carry identity rather than raw text and return
 /// `None`; a token whose raw range cannot be established also returns `None`
 /// rather than an invented string.
-fn flow_raw_tokens(
+fn raw_token_texts(
     block: &BlockText,
     tokens: &[(ComparableToken, TextSource)],
 ) -> Vec<Option<String>> {
@@ -1915,7 +1916,7 @@ fn flow_raw_tokens(
     }
 
     // A non-whitespace token owns the raw gap after it, including any
-    // whitespace that flow drops as separate tokens. Walk backwards so the
+    // whitespace that tokenization drops as separate tokens. Walk backwards so the
     // next emitted token's start is known before extending the current end.
     let mut next_start = raw_len;
     for (token, range) in tokens.iter().zip(ranges.iter_mut()).rev() {
@@ -1941,7 +1942,7 @@ fn flow_raw_tokens(
 }
 
 /// Maps normalization events to the canonical token indexes they touch.
-fn flow_normalization_masks(
+fn normalization_masks(
     tokens: &[(ComparableToken, TextSource)],
     events: &[NormalizationEvent],
 ) -> Vec<u8> {

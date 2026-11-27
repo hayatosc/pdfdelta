@@ -302,7 +302,7 @@ pdfdelta/
         document/        evidence store, graph, channels, solver, local comparisons
         review/          agent review contract and planner
         text_envelope/   conditional local text queries
-    pdfdelta-flow/       token-stream diff engine (depends on core only)
+    pdfdelta-diff/       token-stream diff engine (depends on core only)
       src/
         order.rs         reading-order hypotheses
         furniture.rs     repeated header/footer handling
@@ -321,17 +321,18 @@ pdfdelta/
 | Crate | Kind | Binary |
 |---|---|---|
 | `pdfdelta-core` | library | - |
-| `pdfdelta-flow` | library | - |
+| `pdfdelta-diff` | library | - |
 | `pdfdelta-cli` | binary | `pdfdelta` |
 | `pdfdelta-bench` | binary | `pdfbench` |
 
 The CLI owns filesystem access, passwords, child processes, limits, report
 publication, and process status. Core owns validation, graph views,
 correspondence, local comparisons, and report models, and never touches the
-filesystem. Flow owns tokenization, ordering, furniture, alignment, the edit
-script, replay verification, formatting evidence, and confidence. Bench owns
+filesystem. `pdfdelta-diff` owns tokenization, ordering, furniture, alignment,
+the edit script, replay verification, formatting evidence, and confidence.
+Bench owns
 generated inputs, mutations, independent annotations, manifests, and scoring.
-Flow depends on core only.
+The diff crate depends on core only.
 
 ### 3.5 One text engine and compatibility
 
@@ -444,7 +445,8 @@ A `ScalarRange` is a Unicode scalar index range, not a UTF-8 byte offset.
 Ligature expansion, NFC, and hyphen joins may map one glyph to several scalars
 or several glyphs to one scalar; every canonical range must still recover its
 source glyphs and geometry. Canonical text is used for visible comparison and
-evidence; a separate matching-oriented string is not an input to the flow diff.
+evidence; a separate matching-oriented string is not an input to the
+token-stream diff.
 
 Canonical text absorbs only differences that do not change prose identity:
 NFC, context-dependent soft line-break joins, repeated whitespace, and ligature
@@ -468,7 +470,7 @@ applied to canonical token identity; §8.4 confines digit masking to furniture.
 ### 4.3 Flow token stream
 
 ```rust
-pub struct FlowToken {
+pub struct Token {
     pub text: String,
     pub page: PageId,
     pub bounds: Option<Rect>,
@@ -483,7 +485,7 @@ pub struct FlowToken {
 }
 ```
 
-`FlowToken::text` is the token identity. For mapped text it is the canonical
+`Token::text` is the token identity. For mapped text it is the canonical
 scalar sequence. For an unmapped glyph it is
 `\uFFFC<kind>:<identity-hash>:<glyph-id>`, where `kind` is `name`, `outline`, or
 `program` (§6.4), so two occurrences compare equal only when their identities
@@ -494,7 +496,7 @@ evidence for matched tokens. They never affect token identity, alignment, or
 the edit script. `None` means the evidence could not be established exactly;
 it is not an empty value.
 
-A `FlowStream` holds the tokens in chosen reading order, the source glyph ids
+A `TokenStream` holds the tokens in chosen reading order, the source glyph ids
 per token when requested, the separated furniture lines, and the glyph
 conservation record. Two documents are compared only through their token text
 sequences plus this evidence.
@@ -502,7 +504,7 @@ sequences plus this evidence.
 ### 4.4 Change script and assessment
 
 ```rust
-pub enum FlowChange {
+pub enum Change {
     Delete { old: Range<usize> },
     Insert { new: Range<usize> },
     Replace { old: Range<usize>, new: Range<usize> },

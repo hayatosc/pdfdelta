@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use pdfdelta_core::model::{GlyphId, PageId};
 
-use crate::{FlowStream, FlowToken};
+use crate::{Token, TokenStream};
 
 /// Fraction of a page's content extent that counts as near the top or bottom.
 const EDGE_FRACTION: f64 = 0.12;
@@ -68,9 +68,9 @@ pub struct FurnitureChange {
 
 /// Splits repeated furniture lines out of `tokens`.
 pub(crate) fn split(
-    tokens: Vec<FlowToken>,
+    tokens: Vec<Token>,
     source_glyphs: Vec<Vec<GlyphId>>,
-) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
+) -> (Vec<Token>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
     let (records, selection) = select_furniture(&tokens, &BTreeMap::new(), &BTreeSet::new());
     apply_selection(tokens, source_glyphs, &records, &selection)
 }
@@ -90,11 +90,11 @@ pub(crate) fn split(
 /// crossed the furniture threshold: a deleted page can change the cluster
 /// statistics on one side without turning that side's edge lines into content.
 pub(crate) fn split_pair(
-    old: FlowStream,
-    new: FlowStream,
+    old: TokenStream,
+    new: TokenStream,
     old_bands: &BTreeMap<u32, Vec<(f64, f64)>>,
     new_bands: &BTreeMap<u32, Vec<(f64, f64)>>,
-) -> (FlowStream, FlowStream) {
+) -> (TokenStream, TokenStream) {
     let empty = BTreeSet::new();
     let (old_records, mut old_selection) = select_furniture(&old.tokens, old_bands, &empty);
     let (new_records, mut new_selection) = select_furniture(&new.tokens, new_bands, &empty);
@@ -117,13 +117,13 @@ pub(crate) fn split_pair(
     let (new_tokens, new_sources, new_furniture) =
         apply_selection(new.tokens, new.source_glyphs, &new_records, &joint);
     (
-        FlowStream {
+        TokenStream {
             tokens: old_tokens,
             source_glyphs: old_sources,
             furniture: old_furniture,
             conservation: old.conservation,
         },
-        FlowStream {
+        TokenStream {
             tokens: new_tokens,
             source_glyphs: new_sources,
             furniture: new_furniture,
@@ -217,7 +217,7 @@ fn join_selections(
 /// [`POSITION_TOLERANCE`] of the page extent, which is what separates a running
 /// header from a body line that happens to repeat.
 fn select_furniture(
-    tokens: &[FlowToken],
+    tokens: &[Token],
     bands: &BTreeMap<u32, Vec<(f64, f64)>>,
     extra_texts: &BTreeSet<String>,
 ) -> (Vec<LineRecord>, BTreeMap<String, SelectedText>) {
@@ -304,7 +304,7 @@ fn select_furniture(
 ///
 /// A line on a page split into stacked bands uses its band's vertical extent,
 /// so the seam of a merged page is treated like the page edge it came from.
-fn line_records(tokens: &[FlowToken], bands: &BTreeMap<u32, Vec<(f64, f64)>>) -> Vec<LineRecord> {
+fn line_records(tokens: &[Token], bands: &BTreeMap<u32, Vec<(f64, f64)>>) -> Vec<LineRecord> {
     let lines = collect_lines(tokens);
     let extents = banded_extents(tokens, bands);
     let mut records = Vec::with_capacity(lines.len());
@@ -336,11 +336,11 @@ fn line_records(tokens: &[FlowToken], bands: &BTreeMap<u32, Vec<(f64, f64)>>) ->
 
 /// Removes the selected records and reports the removed furniture families.
 fn apply_selection(
-    tokens: Vec<FlowToken>,
+    tokens: Vec<Token>,
     source_glyphs: Vec<Vec<GlyphId>>,
     records: &[LineRecord],
     selection: &BTreeMap<String, SelectedText>,
-) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
+) -> (Vec<Token>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
     let mut removed = vec![false; tokens.len()];
     let mut removed_indices = Vec::new();
     for (index, record) in records.iter().enumerate() {
@@ -406,7 +406,7 @@ fn apply_selection(
 /// so an edit of a year or form number becomes a furniture change instead of
 /// disappearing behind the mask.
 fn furniture_groups(
-    tokens: &[FlowToken],
+    tokens: &[Token],
     records: &[LineRecord],
     indices: &[usize],
 ) -> Vec<(String, Vec<usize>)> {
@@ -427,7 +427,7 @@ fn furniture_groups(
 }
 
 /// The digit-run lengths of a line, used to separate furniture families.
-fn line_signature(tokens: &[FlowToken], record: &LineRecord) -> String {
+fn line_signature(tokens: &[Token], record: &LineRecord) -> String {
     tokens[record.start..=record.end]
         .iter()
         .map(|token| {
@@ -443,7 +443,7 @@ fn line_signature(tokens: &[FlowToken], record: &LineRecord) -> String {
 }
 
 /// Builds one furniture family's text, masking only varying digit runs.
-fn furniture_line_text(tokens: &[FlowToken], records: &[LineRecord], indices: &[usize]) -> String {
+fn furniture_line_text(tokens: &[Token], records: &[LineRecord], indices: &[usize]) -> String {
     let Some(&first) = indices.first() else {
         return String::new();
     };
@@ -497,11 +497,11 @@ fn split_digit_runs(text: &str) -> Vec<(bool, String)> {
 
 /// Removes planned furniture tokens and keeps the trailing break evidence.
 fn apply_plan(
-    tokens: Vec<FlowToken>,
+    tokens: Vec<Token>,
     source_glyphs: Vec<Vec<GlyphId>>,
     removed: Vec<bool>,
     mut furniture: Vec<FurnitureLine>,
-) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
+) -> (Vec<Token>, Vec<Vec<GlyphId>>, Vec<FurnitureLine>) {
     if furniture.is_empty() {
         return (tokens, source_glyphs, Vec::new());
     }
@@ -530,7 +530,7 @@ struct LineSpan {
     end: usize,
 }
 
-fn collect_lines(tokens: &[FlowToken]) -> Vec<LineSpan> {
+fn collect_lines(tokens: &[Token]) -> Vec<LineSpan> {
     let mut lines = Vec::new();
     let mut start = 0;
     for index in 0..tokens.len() {
@@ -550,7 +550,7 @@ fn collect_lines(tokens: &[FlowToken]) -> Vec<LineSpan> {
 ///
 /// Pages without bands use index zero, so their behaviour is unchanged.
 fn banded_extents(
-    tokens: &[FlowToken],
+    tokens: &[Token],
     bands: &BTreeMap<u32, Vec<(f64, f64)>>,
 ) -> BTreeMap<(PageId, usize), (f64, f64)> {
     let mut extents: BTreeMap<(PageId, usize), (f64, f64)> = BTreeMap::new();
@@ -570,7 +570,7 @@ fn banded_extents(
 }
 
 /// Index of the band containing a token's vertical center.
-fn band_index(bands: Option<&Vec<(f64, f64)>>, token: &FlowToken) -> usize {
+fn band_index(bands: Option<&Vec<(f64, f64)>>, token: &Token) -> usize {
     let Some(bands) = bands else {
         return 0;
     };
@@ -583,7 +583,7 @@ fn band_index(bands: Option<&Vec<(f64, f64)>>, token: &FlowToken) -> usize {
         .unwrap_or(bands.len().saturating_sub(1))
 }
 
-fn line_center(tokens: &[FlowToken]) -> Option<f64> {
+fn line_center(tokens: &[Token]) -> Option<f64> {
     let mut sum = 0.0;
     let mut count = 0;
     for token in tokens {
@@ -595,7 +595,7 @@ fn line_center(tokens: &[FlowToken]) -> Option<f64> {
     (count > 0).then(|| sum / count as f64)
 }
 
-fn join_text(tokens: &[FlowToken]) -> String {
+fn join_text(tokens: &[Token]) -> String {
     tokens
         .iter()
         .map(|token| token.text.as_str())
@@ -622,7 +622,7 @@ fn mask_digits(text: &str) -> String {
 
 /// Compares the furniture streams of two revisions.
 #[must_use]
-pub fn furniture_changes(old: &FlowStream, new: &FlowStream) -> Vec<FurnitureChange> {
+pub fn furniture_changes(old: &TokenStream, new: &TokenStream) -> Vec<FurnitureChange> {
     let old_text: HashMap<&str, &FurnitureLine> = old
         .furniture
         .iter()
@@ -684,8 +684,8 @@ mod tests {
 
     use super::*;
 
-    fn token(page: u32, text: &str, y: f64, line_break: bool) -> FlowToken {
-        FlowToken {
+    fn token(page: u32, text: &str, y: f64, line_break: bool) -> Token {
+        Token {
             text: text.to_owned(),
             page: PageId(page),
             bounds: Some(Rect {
@@ -706,7 +706,7 @@ mod tests {
         }
     }
 
-    fn page_tokens(page: u32, header: bool) -> Vec<FlowToken> {
+    fn page_tokens(page: u32, header: bool) -> Vec<Token> {
         let mut tokens = Vec::new();
         if header {
             tokens.push(token(page, "Running", 0.0, false));
@@ -723,12 +723,12 @@ mod tests {
         tokens
     }
 
-    fn stream(pages: u32, header_pages: &[u32]) -> FlowStream {
+    fn stream(pages: u32, header_pages: &[u32]) -> TokenStream {
         let mut tokens = Vec::new();
         for page in 0..pages {
             tokens.extend(page_tokens(page, header_pages.contains(&page)));
         }
-        FlowStream {
+        TokenStream {
             tokens,
             source_glyphs: Vec::new(),
             furniture: Vec::new(),
@@ -758,7 +758,7 @@ mod tests {
         );
     }
 
-    fn marker_stream(top_pages: &[u32], bottom_pages: &[u32]) -> FlowStream {
+    fn marker_stream(top_pages: &[u32], bottom_pages: &[u32]) -> TokenStream {
         let names = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"];
         let mut tokens = Vec::new();
         for (page, name) in names.into_iter().enumerate() {
@@ -772,7 +772,7 @@ mod tests {
                 tokens.push(token(page, "Marker", 45.0, true));
             }
         }
-        FlowStream {
+        TokenStream {
             tokens,
             source_glyphs: Vec::new(),
             furniture: Vec::new(),
@@ -817,7 +817,7 @@ mod tests {
                 tokens.push(token(page, &format!("{name}body"), 50.0, true));
                 tokens.push(token(page, "Marker", y, true));
             }
-            FlowStream {
+            TokenStream {
                 tokens,
                 source_glyphs: Vec::new(),
                 furniture: Vec::new(),

@@ -27,11 +27,11 @@ use pdfdelta_core::{
         ExtractionLimits, ExtractionScope,
     },
 };
-use pdfdelta_flow::{
-    ChangeAssessment, FlowCandidates, FlowChange, FlowDiff, FlowError, FlowStats, FlowStream,
-    FlowToken, FormattingChange, ORDER_COHERENCE_MIN, OrderKind, PageOrderEvidence, PaintIdentity,
-    assess_changes, flow_candidates_owned, flow_diff, flow_order_from_candidates,
-    formatting_changes, furniture_changes, selects_difference,
+use pdfdelta_diff::{
+    Change, ChangeAssessment, Diff, DiffStats, Error as DiffError, FormattingChange,
+    ORDER_COHERENCE_MIN, OrderCandidates, OrderKind, PageOrderEvidence, PaintIdentity, Token,
+    TokenStream, assess_changes, candidates_owned, diff, formatting_changes, furniture_changes,
+    order_from_candidates, selects_difference,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -39,7 +39,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     evidence_text::escape_terminal_controls,
     flow_trace::{FlowTrace, TraceSide, issue_metrics},
-    fs::{input_read_flow_error, parse_lopdf, read_limited_typed, write_output_atomically},
+    fs::{input_read_diff_error, parse_lopdf, read_limited_typed, write_output_atomically},
 };
 
 /// Writes token texts as one JSON string per line next to the report.
@@ -48,7 +48,11 @@ use crate::{
 /// `.<side>-tokens.jsonl` and `.gz` again when the report itself is compressed.
 /// Tokens stay out of the report object so a large corpus run can stream them
 /// without holding every token in memory.
-fn write_token_sidecars(path: &Path, old: &FlowStream, new: &FlowStream) -> Result<(), FlowError> {
+fn write_token_sidecars(
+    path: &Path,
+    old: &TokenStream,
+    new: &TokenStream,
+) -> Result<(), DiffError> {
     for (side, stream) in [("old", old), ("new", new)] {
         let sidecar = token_sidecar_path(path, side);
         write_output_atomically(&sidecar, "flow token sidecar", |output| {
@@ -61,7 +65,7 @@ fn write_token_sidecars(path: &Path, old: &FlowStream, new: &FlowStream) -> Resu
             }
             Ok(())
         })
-        .map_err(FlowError::backend)?;
+        .map_err(DiffError::backend)?;
     }
     Ok(())
 }
@@ -93,7 +97,7 @@ const READING_ORDER_TEXT_LIMIT: usize = 20;
 
 /// One extracted input, with every extraction issue retained as evidence.
 pub(crate) struct Side {
-    pub(crate) stream: FlowStream,
+    pub(crate) stream: TokenStream,
     pub(crate) issues: Vec<ExtractionIssue>,
     /// Number of paint-gate issues at the end of `issues`. These are the only
     /// issues that mean evidence was not examined rather than broken.
@@ -210,19 +214,19 @@ static CACHE_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU
 pub(crate) struct CacheDirectory(PathBuf);
 
 impl CacheDirectory {
-    pub(crate) fn create() -> Result<Self, FlowError> {
+    pub(crate) fn create() -> Result<Self, DiffError> {
         let sequence = CACHE_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let path =
-            std::env::temp_dir().join(format!("pdfdelta-flow-{}-{sequence}", std::process::id()));
+            std::env::temp_dir().join(format!("pdfdelta-diff-{}-{sequence}", std::process::id()));
         std::fs::create_dir(&path).map_err(|error| {
-            FlowError::backend(format!("cannot create the flow cache directory: {error}"))
+            DiffError::backend(format!("cannot create the flow cache directory: {error}"))
         })?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).map_err(
                 |error| {
-                    FlowError::backend(format!("cannot protect the flow cache directory: {error}"))
+                    DiffError::backend(format!("cannot protect the flow cache directory: {error}"))
                 },
             )?;
         }
@@ -287,11 +291,11 @@ fn prepare_side(
     side_name: TraceSide,
 ) -> Result<
     (
-        FlowCandidates,
+        OrderCandidates,
         SideMeta,
         Option<crate::flow_sources::SourceCache>,
     ),
-    FlowError,
+    DiffError,
 > {
     let extracted = extract_side(
         path,
@@ -313,7 +317,7 @@ fn prepare_side(
     let start = std::time::Instant::now();
     let (candidates, source_cache) = if retention.source_glyphs {
         let directory = source_directory.ok_or_else(|| {
-            FlowError::backend("a full report needs a source cache directory for this side")
+            DiffError::backend("a full report needs a source cache directory for this side")
         })?;
         let name = match side_name {
             TraceSide::Old => "old",
@@ -322,28 +326,28 @@ fn prepare_side(
         let source_path = directory.file(&format!("{name}.sources"));
         let mut writer =
             crate::flow_sources::SourceWriter::create(&source_path, Some(document.items()))
-                .map_err(FlowError::backend)?;
-        let candidates = pdfdelta_flow::flow_candidates_owned_with_sources(document, true)
-            .map_err(|error| {
-                FlowError::from(error).with_context("failed to reconstruct reading order")
+                .map_err(DiffError::backend)?;
+        let candidates =
+            pdfdelta_diff::candidates_owned_with_sources(document, true).map_err(|error| {
+                DiffError::from(error).with_context("failed to reconstruct reading order")
             })?;
         writer
             .write_lists(&candidates)
-            .map_err(FlowError::backend)?;
-        writer.finish().map_err(FlowError::backend)?;
+            .map_err(DiffError::backend)?;
+        writer.finish().map_err(DiffError::backend)?;
         let (cache, _) =
             crate::flow_sources::SourceCache::open(&source_path, Arc::clone(directory))
-                .map_err(FlowError::backend)?;
+                .map_err(DiffError::backend)?;
         (candidates, Some(cache))
     } else if retention.sources {
-        let candidates = pdfdelta_flow::flow_candidates_owned_with_sources(document, true)
-            .map_err(|error| {
-                FlowError::from(error).with_context("failed to reconstruct reading order")
+        let candidates =
+            pdfdelta_diff::candidates_owned_with_sources(document, true).map_err(|error| {
+                DiffError::from(error).with_context("failed to reconstruct reading order")
             })?;
         (candidates, None)
     } else {
-        let candidates = flow_candidates_owned(document).map_err(|error| {
-            FlowError::from(error).with_context("failed to reconstruct reading order")
+        let candidates = candidates_owned(document).map_err(|error| {
+            DiffError::from(error).with_context("failed to reconstruct reading order")
         })?;
         (candidates, None)
     };
@@ -388,9 +392,9 @@ fn build_cached_side(
     cache: &Path,
     sources: Option<&Path>,
     retain_source_glyphs: bool,
-) -> Result<bool, FlowError> {
+) -> Result<bool, DiffError> {
     let executable = std::env::current_exe().map_err(|error| {
-        FlowError::backend(format!("cannot locate the pdfdelta executable: {error}"))
+        DiffError::backend(format!("cannot locate the pdfdelta executable: {error}"))
     })?;
     let scale = limit_scale.to_string();
     let mut command = Command::new(executable);
@@ -409,13 +413,13 @@ fn build_cached_side(
         );
     }
     let status = command.status().map_err(|error| {
-        FlowError::backend(format!("cannot start the flow candidate builder: {error}"))
+        DiffError::backend(format!("cannot start the flow candidate builder: {error}"))
     })?;
     if status.code() == Some(4) {
         return Ok(false);
     }
     if !status.success() {
-        return Err(FlowError::backend(format!(
+        return Err(DiffError::backend(format!(
             "flow candidate builder exited with status {status}; no comparison was produced"
         )));
     }
@@ -423,29 +427,29 @@ fn build_cached_side(
 }
 
 /// Loads a cache file produced by [`build_cached_side`].
-fn load_cached_side(path: &Path) -> Result<FlowCandidates, FlowError> {
+fn load_cached_side(path: &Path) -> Result<OrderCandidates, DiffError> {
     let file = File::open(path).map_err(|error| {
-        FlowError::backend(format!("cannot open cached flow candidates: {error}"))
+        DiffError::backend(format!("cannot open cached flow candidates: {error}"))
     })?;
-    FlowCandidates::read_cache(BufReader::new(file))
-        .map_err(|error| FlowError::backend(format!("cannot read cached flow candidates: {error}")))
+    OrderCandidates::read_cache(BufReader::new(file))
+        .map_err(|error| DiffError::backend(format!("cannot read cached flow candidates: {error}")))
 }
 
 /// Writes one side's candidates for the parent flow process.
 ///
 /// Returns exit code `4` when the extracted side has image, issue, or
 /// glyph-name evidence that the compact cache does not represent.
-fn build_candidate_cache(path: &Path, output: &Path, limit_scale: f64) -> Result<u8, FlowError> {
+fn build_candidate_cache(path: &Path, output: &Path, limit_scale: f64) -> Result<u8, DiffError> {
     #[cfg(debug_assertions)]
     if std::env::var_os("PDFDELTA_FLOW_BUILD_FAIL").is_some() {
-        return Err(FlowError::backend(
+        return Err(DiffError::backend(
             "candidate cache build failed for this test",
         ));
     }
     let limits = ParseLimits::default();
     let extraction_limits = ExtractionLimits::default()
         .scaled(limit_scale)
-        .map_err(|error| FlowError::from(error).with_context("invalid flow limit scale"))?;
+        .map_err(|error| DiffError::from(error).with_context("invalid flow limit scale"))?;
     let fonts = ExternalFontIdentities::default();
     let options = FlowSideOptions {
         limits,
@@ -472,36 +476,36 @@ fn build_candidate_cache(path: &Path, output: &Path, limit_scale: f64) -> Result
                 Path::new(path),
                 retain_source_glyphs.then(|| extracted.document.items()),
             )
-            .map_err(FlowError::backend)?,
+            .map_err(DiffError::backend)?,
         ),
         None => None,
     };
     let candidates = if source_output.is_some() {
-        pdfdelta_flow::flow_candidates_owned_with_sources(extracted.document, true).map_err(
-            |error| FlowError::from(error).with_context("failed to reconstruct reading order"),
-        )?
+        pdfdelta_diff::candidates_owned_with_sources(extracted.document, true).map_err(|error| {
+            DiffError::from(error).with_context("failed to reconstruct reading order")
+        })?
     } else {
-        flow_candidates_owned(extracted.document).map_err(|error| {
-            FlowError::from(error).with_context("failed to reconstruct reading order")
+        candidates_owned(extracted.document).map_err(|error| {
+            DiffError::from(error).with_context("failed to reconstruct reading order")
         })?
     };
     if let Some(writer) = &mut source_writer {
         writer
             .write_lists(&candidates)
-            .map_err(FlowError::backend)?;
+            .map_err(DiffError::backend)?;
     }
     if let Some(writer) = source_writer {
-        writer.finish().map_err(FlowError::backend)?;
+        writer.finish().map_err(DiffError::backend)?;
     }
     let file = File::create(output).map_err(|error| {
-        FlowError::backend(format!("cannot create cached flow candidates: {error}"))
+        DiffError::backend(format!("cannot create cached flow candidates: {error}"))
     })?;
     let mut writer = BufWriter::new(file);
     candidates.write_cache(&mut writer).map_err(|error| {
-        FlowError::backend(format!("cannot write cached flow candidates: {error}"))
+        DiffError::backend(format!("cannot write cached flow candidates: {error}"))
     })?;
     writer.flush().map_err(|error| {
-        FlowError::backend(format!("cannot flush cached flow candidates: {error}"))
+        DiffError::backend(format!("cannot flush cached flow candidates: {error}"))
     })?;
     Ok(0)
 }
@@ -584,8 +588,8 @@ pub(crate) struct FlowComparisonOptions<'a> {
 
 /// One verified flow comparison shared by `pdfdelta flow` and `--engine flow`.
 pub(crate) struct FlowComparison {
-    pub(crate) diff: FlowDiff,
-    pub(crate) stats: FlowStats,
+    pub(crate) diff: Diff,
+    pub(crate) stats: DiffStats,
     pub(crate) old_side: Side,
     pub(crate) new_side: Side,
     /// Exact input bytes, retained when a review bundle publishes them.
@@ -625,9 +629,9 @@ pub(crate) fn compare_flow(
     new_path: &Path,
     options: &FlowComparisonOptions<'_>,
     mut trace: Option<&mut FlowTrace>,
-) -> Result<FlowComparison, FlowError> {
+) -> Result<FlowComparison, DiffError> {
     if old_path == Path::new("-") && new_path == Path::new("-") {
-        return Err(FlowError::backend(
+        return Err(DiffError::backend(
             "cannot read both OLD_PDF and NEW_PDF from standard input",
         ));
     }
@@ -640,7 +644,7 @@ pub(crate) fn compare_flow(
     let limits = ParseLimits::default();
     let extraction_limits = ExtractionLimits::default()
         .scaled(limit_scale)
-        .map_err(|error| FlowError::from(error).with_context("invalid flow limit scale"))?;
+        .map_err(|error| DiffError::from(error).with_context("invalid flow limit scale"))?;
     // Raised extraction limits mean a document large enough that the second
     // side's extraction must not overlap the first side's normalization
     // buffers. Build both sides in child processes, then load the compact
@@ -702,18 +706,18 @@ pub(crate) fn compare_flow(
                 (Some(old_path), Some(new_path)) => {
                     let (old_cache, old_lists) =
                         crate::flow_sources::SourceCache::open(old_path, directory.clone())
-                            .map_err(FlowError::backend)?;
+                            .map_err(DiffError::backend)?;
                     let (new_cache, new_lists) =
                         crate::flow_sources::SourceCache::open(new_path, directory.clone())
-                            .map_err(FlowError::backend)?;
+                            .map_err(DiffError::backend)?;
                     let [old_layout, old_stream, old_baseline] = old_lists;
                     old_candidates
                         .attach_sources(old_layout, old_stream, old_baseline)
-                        .map_err(FlowError::from)?;
+                        .map_err(DiffError::from)?;
                     let [new_layout, new_stream, new_baseline] = new_lists;
                     new_candidates
                         .attach_sources(new_layout, new_stream, new_baseline)
-                        .map_err(FlowError::from)?;
+                        .map_err(DiffError::from)?;
                     (
                         options.retain_source_glyphs.then_some(old_cache),
                         options.retain_source_glyphs.then_some(new_cache),
@@ -819,8 +823,8 @@ pub(crate) fn compare_flow(
         trace.as_deref_mut(),
     );
     let start = std::time::Instant::now();
-    let pair = flow_order_from_candidates(old_candidates, new_candidates).map_err(|error| {
-        let error = FlowError::from(error).with_context("failed to choose reading order");
+    let pair = order_from_candidates(old_candidates, new_candidates).map_err(|error| {
+        let error = DiffError::from(error).with_context("failed to choose reading order");
         if let Some(trace) = trace.as_mut() {
             trace.fail("furniture_order", None, &error);
         }
@@ -891,17 +895,17 @@ pub(crate) fn compare_flow(
     };
 
     let start = std::time::Instant::now();
-    let diff = flow_diff(&old_side.stream.tokens, &new_side.stream.tokens).map_err(|error| {
-        let error = FlowError::backend(format!("flow diff failed verification: {error}"));
+    let diff = diff(&old_side.stream.tokens, &new_side.stream.tokens).map_err(|error| {
+        let error = DiffError::backend(format!("flow diff failed verification: {error}"));
         if let Some(trace) = trace.as_mut() {
-            trace.fail("flow_diff", None, &error);
+            trace.fail("diff", None, &error);
         }
         error
     })?;
     let stats = diff.stats();
     if let Some(trace) = trace.as_mut() {
         trace.complete(
-            "flow_diff",
+            "diff",
             None,
             [
                 ("changes", diff.changes.len()),
@@ -975,7 +979,7 @@ pub fn run(
     new_path: &Path,
     options: &FlowRunOptions<'_>,
     writer: &mut impl Write,
-) -> Result<u8, FlowError> {
+) -> Result<u8, DiffError> {
     let FlowRunOptions {
         json_path,
         include_tokens,
@@ -1022,7 +1026,7 @@ pub fn run(
     let text = if color { paint_report(&text) } else { text };
     writer
         .write_all(text.as_bytes())
-        .map_err(|error| FlowError::backend(format!("failed to write flow report: {error}")))?;
+        .map_err(|error| DiffError::backend(format!("failed to write flow report: {error}")))?;
 
     if let Some(path) = json_path {
         let report = json_report(&comparison, include_geometry, exit);
@@ -1030,7 +1034,7 @@ pub fn run(
             serde_json::to_writer(output, &report)
                 .map_err(|error| format!("failed to serialize flow report: {error}"))
         })
-        .map_err(FlowError::backend)?;
+        .map_err(DiffError::backend)?;
         if include_tokens {
             write_token_sidecars(
                 path,
@@ -1149,13 +1153,13 @@ fn extract_side(
     retain_input: bool,
     mut trace: Option<&mut FlowTrace>,
     side: TraceSide,
-) -> Result<ExtractedSide, FlowError> {
+) -> Result<ExtractedSide, DiffError> {
     let start = std::time::Instant::now();
     let bytes = match read_limited_typed(path, options.limits.max_input_bytes) {
         Ok(bytes) => bytes,
         Err(error) => {
             let error =
-                input_read_flow_error(error, "PDF input bytes", options.limits.max_input_bytes);
+                input_read_diff_error(error, "PDF input bytes", options.limits.max_input_bytes);
             if let Some(trace) = trace.as_mut() {
                 trace.fail("input_reading", Some(side), &error);
             }
@@ -1177,7 +1181,7 @@ fn extract_side(
         Ok(pdf) => pdf,
         Err(error) => {
             let error =
-                FlowError::from(error).with_context(format!("failed to parse {}", path.display()));
+                DiffError::from(error).with_context(format!("failed to parse {}", path.display()));
             if let Some(trace) = trace.as_mut() {
                 trace.fail("parse", Some(side), &error);
             }
@@ -1197,7 +1201,7 @@ fn extract_side(
                 options.font_identities,
             )
             .map_err(|error| {
-                FlowError::from(error).with_context(format!("failed to extract {}", path.display()))
+                DiffError::from(error).with_context(format!("failed to extract {}", path.display()))
             })
     };
     let outcome = match options.cache {
@@ -1228,7 +1232,7 @@ fn extract_side(
         let mut metrics = issue_metrics(issues);
         metrics.insert("glyphs", glyphs);
         if let Some(issue) = issues.first() {
-            let error = FlowError::from_extraction_issue(issue);
+            let error = DiffError::from_extraction_issue(issue);
             trace.incomplete(
                 "glyph_extraction",
                 Some(side),
@@ -1264,7 +1268,7 @@ fn extract_side(
     let mut image_input = None;
     if !image_issue_pages.is_empty() {
         let pages = pdf.pages().map_err(|error| {
-            FlowError::from(error).with_context(format!("failed to enumerate {}", path.display()))
+            DiffError::from(error).with_context(format!("failed to enumerate {}", path.display()))
         })?;
         for &page in &image_issue_pages {
             let (encoded, cpu) = crate::image_hashes::collect_encoded_page(
@@ -1462,7 +1466,7 @@ const MAX_PAINT_PAGES_IN_REASON: usize = 12;
 fn paint_issues(
     old: Option<&[PaintIdentity]>,
     new: Option<&[PaintIdentity]>,
-) -> Result<(Vec<ExtractionIssue>, Vec<ExtractionIssue>), FlowError> {
+) -> Result<(Vec<ExtractionIssue>, Vec<ExtractionIssue>), DiffError> {
     let (old_summary, new_summary) = match (old, new) {
         (Some(old), Some(new)) if paint_equal(old, new) => {
             return Ok((Vec::new(), Vec::new()));
@@ -1499,7 +1503,7 @@ fn paint_issues(
                 description,
             )
             .map_err(|error| {
-                FlowError::from(error).with_context("cannot record paint incompleteness")
+                DiffError::from(error).with_context("cannot record paint incompleteness")
             })?,
         );
     }
@@ -1632,7 +1636,7 @@ fn image_page_token(inventory: &ImageInventory, page: PageId) -> Option<String> 
     ))
 }
 
-fn mark_uncertain_pages(stream: &mut FlowStream, pages: &BTreeSet<PageId>) {
+fn mark_uncertain_pages(stream: &mut TokenStream, pages: &BTreeSet<PageId>) {
     for token in &mut stream.tokens {
         if pages.contains(&token.page) {
             token.uncertain = true;
@@ -1640,7 +1644,7 @@ fn mark_uncertain_pages(stream: &mut FlowStream, pages: &BTreeSet<PageId>) {
     }
 }
 
-fn insert_image_tokens(stream: &mut FlowStream, image_tokens: &BTreeMap<PageId, String>) {
+fn insert_image_tokens(stream: &mut TokenStream, image_tokens: &BTreeMap<PageId, String>) {
     for (page, text) in image_tokens {
         if stream.tokens.iter().any(|token| token.page == *page) {
             continue;
@@ -1651,7 +1655,7 @@ fn insert_image_tokens(stream: &mut FlowStream, image_tokens: &BTreeMap<PageId, 
         }
         stream.tokens.insert(
             position,
-            FlowToken {
+            Token {
                 text: text.clone(),
                 page: *page,
                 bounds: None,
@@ -1683,8 +1687,8 @@ struct ExtractedSide {
 
 fn write_summary(
     text: &mut String,
-    diff: &FlowDiff,
-    stats: &FlowStats,
+    diff: &Diff,
+    stats: &DiffStats,
     old_side: &Side,
     new_side: &Side,
 ) {
@@ -1901,7 +1905,7 @@ fn write_order_summary(text: &mut String, side: &str, pages: &[PageOrderEvidence
     }
 }
 
-fn describe_change_stats(stats: &pdfdelta_flow::ChangeStats) -> String {
+fn describe_change_stats(stats: &pdfdelta_diff::ChangeStats) -> String {
     format!(
         "{} changes, {} old tokens, {} new tokens",
         stats.changes, stats.old_tokens, stats.new_tokens
@@ -1930,9 +1934,9 @@ fn describe_extraction(side: &Side) -> String {
 /// counted in the summary but intentionally not listed.
 fn write_changes(
     text: &mut String,
-    diff: &FlowDiff,
-    old: &FlowStream,
-    new: &FlowStream,
+    diff: &Diff,
+    old: &TokenStream,
+    new: &TokenStream,
     old_side: &Side,
     new_side: &Side,
     assessments: &[ChangeAssessment],
@@ -1948,7 +1952,7 @@ fn write_changes(
         let (kind, old_range, new_range) = change_ranges(change);
         if matches!(
             change,
-            FlowChange::LayoutOnly { .. } | FlowChange::ReadingOrder { .. }
+            Change::LayoutOnly { .. } | Change::ReadingOrder { .. }
         ) {
             continue;
         }
@@ -1996,13 +2000,13 @@ fn write_changes(
 /// Lists same-row reading-order transpositions. Their text is unchanged and
 /// they never select a content difference, so they are kept out of the
 /// numbered content-change list but remain visible.
-fn write_reading_order(text: &mut String, diff: &FlowDiff, old: &FlowStream, new: &FlowStream) {
+fn write_reading_order(text: &mut String, diff: &Diff, old: &TokenStream, new: &TokenStream) {
     let changes = diff
         .changes
         .as_slice()
         .iter()
         .filter_map(|change| match change {
-            FlowChange::ReadingOrder { old, new } => Some((old, new)),
+            Change::ReadingOrder { old, new } => Some((old, new)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -2060,8 +2064,8 @@ fn assessment_marker(assessment: &ChangeAssessment) -> String {
 fn write_formatting(
     text: &mut String,
     changes: &[FormattingChange],
-    old: &FlowStream,
-    new: &FlowStream,
+    old: &TokenStream,
+    new: &TokenStream,
 ) {
     if changes.is_empty() {
         return;
@@ -2114,7 +2118,7 @@ fn write_formatting(
 
 /// Lists furniture changes separately: repeated headers, footers, and page
 /// numbers are reported but never counted as content changes.
-fn write_furniture(text: &mut String, old: &FlowStream, new: &FlowStream) {
+fn write_furniture(text: &mut String, old: &TokenStream, new: &TokenStream) {
     let changes = furniture_changes(old, new);
     if old.furniture.is_empty() && new.furniture.is_empty() {
         return;
@@ -2126,8 +2130,8 @@ fn write_furniture(text: &mut String, old: &FlowStream, new: &FlowStream) {
     }
     for change in &changes {
         let kind = match change.kind {
-            pdfdelta_flow::FurnitureKind::Added => "added",
-            pdfdelta_flow::FurnitureKind::Removed => "removed",
+            pdfdelta_diff::FurnitureKind::Added => "added",
+            pdfdelta_diff::FurnitureKind::Removed => "removed",
         };
         let pages = if change.old_pages.is_empty() {
             &change.new_pages
@@ -2144,19 +2148,19 @@ fn write_furniture(text: &mut String, old: &FlowStream, new: &FlowStream) {
     }
 }
 
-fn change_ranges(change: &FlowChange) -> (&'static str, Range<usize>, Range<usize>) {
+fn change_ranges(change: &Change) -> (&'static str, Range<usize>, Range<usize>) {
     match change {
-        FlowChange::Delete { old } => ("delete", old.clone(), 0..0),
-        FlowChange::Insert { new } => ("insert", 0..0, new.clone()),
-        FlowChange::Replace { old, new } => ("replace", old.clone(), new.clone()),
-        FlowChange::Move { old, new } => ("move", old.clone(), new.clone()),
-        FlowChange::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
-        FlowChange::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
+        Change::Delete { old } => ("delete", old.clone(), 0..0),
+        Change::Insert { new } => ("insert", 0..0, new.clone()),
+        Change::Replace { old, new } => ("replace", old.clone(), new.clone()),
+        Change::Move { old, new } => ("move", old.clone(), new.clone()),
+        Change::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
+        Change::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
     }
 }
 
 /// Pages touched by a token range, in first-appearance order.
-fn describe_pages(stream: &FlowStream, range: &Range<usize>) -> String {
+fn describe_pages(stream: &TokenStream, range: &Range<usize>) -> String {
     let mut pages = Vec::new();
     for token in &stream.tokens[range.clone()] {
         let page = u64::from(token.page.0) + 1;
@@ -2176,7 +2180,7 @@ fn describe_pages(stream: &FlowStream, range: &Range<usize>) -> String {
 
 /// Renders `context [changed] context`, escaping terminal controls. The
 /// changed part is elided in the middle when it is long.
-fn context_line(stream: &FlowStream, range: &Range<usize>) -> String {
+fn context_line(stream: &TokenStream, range: &Range<usize>) -> String {
     let total = stream.tokens.len();
     let start = range.start.min(total);
     let end = range.end.min(total).max(start);
@@ -2200,7 +2204,7 @@ fn context_line(stream: &FlowStream, range: &Range<usize>) -> String {
     line
 }
 
-fn append_tokens(text: &mut String, tokens: &[pdfdelta_flow::FlowToken]) {
+fn append_tokens(text: &mut String, tokens: &[pdfdelta_diff::Token]) {
     for (index, token) in tokens.iter().enumerate() {
         if index > 0 {
             text.push(' ');
@@ -2209,7 +2213,7 @@ fn append_tokens(text: &mut String, tokens: &[pdfdelta_flow::FlowToken]) {
     }
 }
 
-fn elided_tokens(tokens: &[pdfdelta_flow::FlowToken]) -> String {
+fn elided_tokens(tokens: &[pdfdelta_diff::Token]) -> String {
     if tokens.len() > ELISION_HEAD + ELISION_TAIL {
         let mut head = String::new();
         append_tokens(&mut head, &tokens[..ELISION_HEAD]);
@@ -2251,7 +2255,7 @@ fn json_report(
         "old": side_json(old_side),
         "new": side_json(new_side),
         "order": {
-            "agreement_min": pdfdelta_flow::ORDER_AGREEMENT_MIN,
+            "agreement_min": pdfdelta_diff::ORDER_AGREEMENT_MIN,
             "coherence_min": ORDER_COHERENCE_MIN,
             "old": order_pages_json(&old_side.order),
             "new": order_pages_json(&new_side.order),
@@ -2277,7 +2281,7 @@ fn json_report(
     report
 }
 
-fn furniture_json(line: &pdfdelta_flow::FurnitureLine) -> Value {
+fn furniture_json(line: &pdfdelta_diff::FurnitureLine) -> Value {
     json!({
         "text": line.text,
         "pages": line.pages.iter().map(|page| u64::from(page.0) + 1).collect::<Vec<_>>(),
@@ -2285,10 +2289,10 @@ fn furniture_json(line: &pdfdelta_flow::FurnitureLine) -> Value {
     })
 }
 
-fn furniture_change_json(change: &pdfdelta_flow::FurnitureChange) -> Value {
+fn furniture_change_json(change: &pdfdelta_diff::FurnitureChange) -> Value {
     let kind = match change.kind {
-        pdfdelta_flow::FurnitureKind::Added => "added",
-        pdfdelta_flow::FurnitureKind::Removed => "removed",
+        pdfdelta_diff::FurnitureKind::Added => "added",
+        pdfdelta_diff::FurnitureKind::Removed => "removed",
     };
     json!({
         "kind": kind,
@@ -2298,7 +2302,7 @@ fn furniture_change_json(change: &pdfdelta_flow::FurnitureChange) -> Value {
     })
 }
 
-fn geometry_json(stream: &FlowStream) -> Value {
+fn geometry_json(stream: &TokenStream) -> Value {
     stream
         .tokens
         .iter()
@@ -2434,7 +2438,7 @@ fn conservation_json(side: &Side) -> Value {
     })
 }
 
-fn stats_json(stats: &FlowStats, formatting_only: usize) -> Value {
+fn stats_json(stats: &DiffStats, formatting_only: usize) -> Value {
     let content_changes = stats.delete.changes + stats.insert.changes + stats.replace.changes;
     json!({
         "content_changes": content_changes,
@@ -2453,7 +2457,7 @@ fn stats_json(stats: &FlowStats, formatting_only: usize) -> Value {
     })
 }
 
-fn change_stats_json(stats: &pdfdelta_flow::ChangeStats) -> Value {
+fn change_stats_json(stats: &pdfdelta_diff::ChangeStats) -> Value {
     json!({
         "changes": stats.changes,
         "old_tokens": stats.old_tokens,
@@ -2471,7 +2475,7 @@ struct ChangeEvidence<'a> {
 }
 
 fn change_json(
-    change: &FlowChange,
+    change: &Change,
     old: &Side,
     new: &Side,
     spine: &[(usize, usize)],
@@ -2516,7 +2520,7 @@ fn change_json(
                 .collect::<Vec<_>>()
         );
     }
-    if matches!(change, FlowChange::Move { .. }) {
+    if matches!(change, Change::Move { .. }) {
         let old_gap = spine.partition_point(|(old_index, _)| *old_index < old_range.start);
         let new_gap = spine.partition_point(|(_, new_index)| *new_index < new_range.start);
         value["old_gap"] = json!(old_gap);
@@ -2550,7 +2554,7 @@ fn formatting_json(change: &FormattingChange, old: &Side, new: &Side) -> Value {
     value
 }
 
-fn page_numbers(stream: &FlowStream, range: &Range<usize>) -> Vec<u64> {
+fn page_numbers(stream: &TokenStream, range: &Range<usize>) -> Vec<u64> {
     let mut pages = Vec::new();
     for token in &stream.tokens[range.clone()] {
         let page = u64::from(token.page.0) + 1;
@@ -2561,7 +2565,7 @@ fn page_numbers(stream: &FlowStream, range: &Range<usize>) -> Vec<u64> {
     pages
 }
 
-fn token_texts(stream: &FlowStream) -> Vec<&str> {
+fn token_texts(stream: &TokenStream) -> Vec<&str> {
     stream
         .tokens
         .iter()
@@ -2569,7 +2573,7 @@ fn token_texts(stream: &FlowStream) -> Vec<&str> {
         .collect()
 }
 
-fn join_tokens(tokens: &[pdfdelta_flow::FlowToken]) -> String {
+fn join_tokens(tokens: &[pdfdelta_diff::Token]) -> String {
     tokens
         .iter()
         .map(|token| token.text.as_str())
@@ -2588,7 +2592,7 @@ mod tests {
 
     fn side(issues: Vec<ExtractionIssue>) -> Side {
         Side {
-            stream: FlowStream::default(),
+            stream: TokenStream::default(),
             issues,
             paint_issues: 0,
             order: Vec::new(),

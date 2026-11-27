@@ -130,7 +130,7 @@ def diff_changed(
     new_flags = bytearray(len(new_tokens))
     old_counter: collections.Counter = collections.Counter()
     new_counter: collections.Counter = collections.Counter()
-    directory = tempfile.mkdtemp(prefix="pdfdelta-flow-audit-")
+    directory = tempfile.mkdtemp(prefix="pdfdelta-diff-audit-")
     try:
         old_path = pathlib.Path(directory) / "old.tokens"
         new_path = pathlib.Path(directory) / "new.tokens"

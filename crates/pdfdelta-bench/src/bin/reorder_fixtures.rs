@@ -21,7 +21,7 @@ use pdfdelta_core::{
     pdf::{LopdfParser, ParseLimits},
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
-use pdfdelta_flow::{FlowStream, flow_tokens};
+use pdfdelta_diff::{TokenStream, tokens};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -160,7 +160,7 @@ fn relative(path: &Path, output: &Path) -> String {
         .into_owned()
 }
 
-fn extract_tokens(bytes: &[u8], side: &str) -> Result<FlowStream, String> {
+fn extract_tokens(bytes: &[u8], side: &str) -> Result<TokenStream, String> {
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let outcome = source
         .extract_outcome(
@@ -178,10 +178,10 @@ fn extract_tokens(bytes: &[u8], side: &str) -> Result<FlowStream, String> {
                 .map_or("unknown issue", |issue| issue.description())
         ));
     }
-    flow_tokens(outcome.document()).map_err(|error| format!("{side} tokenization failed: {error}"))
+    tokens(outcome.document()).map_err(|error| format!("{side} tokenization failed: {error}"))
 }
 
-fn token_records(stream: &FlowStream) -> Vec<TokenRecord> {
+fn token_records(stream: &TokenStream) -> Vec<TokenRecord> {
     stream
         .tokens
         .iter()
@@ -192,7 +192,7 @@ fn token_records(stream: &FlowStream) -> Vec<TokenRecord> {
         .collect()
 }
 
-fn counts(stream: &FlowStream) -> BTreeMap<&str, usize> {
+fn counts(stream: &TokenStream) -> BTreeMap<&str, usize> {
     let mut counts = BTreeMap::new();
     for token in &stream.tokens {
         *counts.entry(token.text.as_str()).or_insert(0) += 1;
@@ -203,8 +203,8 @@ fn counts(stream: &FlowStream) -> BTreeMap<&str, usize> {
 fn ensure_same_multiset(
     id: &str,
     renderer: RendererKind,
-    old: &FlowStream,
-    new: &FlowStream,
+    old: &TokenStream,
+    new: &TokenStream,
 ) -> Result<(), String> {
     if old.tokens == new.tokens {
         return Err(format!(

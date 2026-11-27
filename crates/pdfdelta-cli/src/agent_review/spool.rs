@@ -15,7 +15,7 @@ use std::{
 };
 
 use pdfdelta_core::review::{CaseContext, CaseStore, EvidenceRef, PlanError, ReviewCase};
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 use serde::{Deserialize, Serialize};
 
 /// Largest single case record a spool will read back.
@@ -46,14 +46,14 @@ pub(crate) struct FileCaseStore {
 }
 
 impl FileCaseStore {
-    fn create(path: &Path) -> Result<Self, FlowError> {
+    fn create(path: &Path) -> Result<Self, DiffError> {
         let writer = OpenOptions::new()
             .create_new(true)
             .read(true)
             .write(true)
             .open(path)
             .map_err(|error| {
-                FlowError::backend(format!(
+                DiffError::backend(format!(
                     "cannot create review case spool {}: {error}",
                     path.display()
                 ))
@@ -62,7 +62,7 @@ impl FileCaseStore {
         // shared file offset on Unix, so a read would move the writer and the
         // next append would land inside the record that was just read.
         let reader = File::open(path).map_err(|error| {
-            FlowError::backend(format!(
+            DiffError::backend(format!(
                 "cannot open review case spool {} for reading: {error}",
                 path.display()
             ))
@@ -168,7 +168,7 @@ struct TempDirectory {
 }
 
 impl TempDirectory {
-    fn create() -> Result<Self, FlowError> {
+    fn create() -> Result<Self, DiffError> {
         loop {
             let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!(
@@ -185,7 +185,7 @@ impl TempDirectory {
                 Ok(()) => return Ok(Self { path }),
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(error) => {
-                    return Err(FlowError::backend(format!(
+                    return Err(DiffError::backend(format!(
                         "cannot create the review plan directory {}: {error}",
                         path.display()
                     )));
@@ -212,7 +212,7 @@ pub(crate) struct PlanSpool {
 }
 
 impl PlanSpool {
-    pub(crate) fn new() -> Result<Self, FlowError> {
+    pub(crate) fn new() -> Result<Self, DiffError> {
         let directory = TempDirectory::create()?;
         let raw = FileCaseStore::create(&directory.path.join("raw.cases"))?;
         let final_store = FileCaseStore::create(&directory.path.join("final.cases"))?;

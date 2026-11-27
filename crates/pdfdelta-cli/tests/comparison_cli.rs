@@ -4263,7 +4263,7 @@ fn flow_trace_reports_phases_without_changing_report_or_exit() {
         "glyph_extraction",
         "tokenization_normalization",
         "furniture_order",
-        "flow_diff",
+        "diff",
         "assessment_formatting",
         "report",
     ] {

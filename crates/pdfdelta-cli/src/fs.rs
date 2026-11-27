@@ -14,7 +14,7 @@ use pdfdelta_core::{
     pdf::{LopdfParser, ParseLimits, ParsedPdf, PdfParser},
     source::ExternalFontIdentities,
 };
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 
 pub static NEXT_TEMPORARY_FILE: AtomicU64 = AtomicU64::new(0);
 
@@ -58,17 +58,17 @@ pub fn read_limited(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, String> 
 ///
 /// The resource and bound are supplied by the caller because the generic
 /// reader does not know whether it is reading a PDF or a password file.
-pub(crate) fn input_read_flow_error(
+pub(crate) fn input_read_diff_error(
     error: InputReadError,
     resource: &'static str,
     limit: usize,
-) -> FlowError {
+) -> DiffError {
     match error {
         InputReadError::LimitExceeded { message } => {
-            FlowError::limit_exceeded(resource, limit, message)
+            DiffError::limit_exceeded(resource, limit, message)
         }
         InputReadError::Io(message) | InputReadError::InvalidConfiguration(message) => {
-            FlowError::backend(message)
+            DiffError::backend(message)
         }
     }
 }

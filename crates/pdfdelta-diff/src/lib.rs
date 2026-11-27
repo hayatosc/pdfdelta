@@ -8,7 +8,7 @@
 //! # Correctness contract
 //!
 //! Any script that transforms the old token sequence into the new token
-//! sequence is a correct diff. [`flow_diff`] therefore always replays its own
+//! sequence is a correct diff. [`diff`] therefore always replays its own
 //! script through [`crate::verify::verify`] before returning: the script must cover every old
 //! and every new token exactly once, unmoved content must be equal, move
 //! endpoints must be equal, and layout-only changes must satisfy the
@@ -21,7 +21,7 @@
 //! characters; whitespace is dropped. Unmapped glyphs never disappear: each is
 //! kept as one token whose text encodes the font hash and glyph id, so two
 //! occurrences match only when they are the same unmapped glyph, and the token
-//! is marked [`FlowToken::uncertain`].
+//! is marked [`Token::uncertain`].
 
 pub mod align;
 mod assess;
@@ -47,7 +47,7 @@ use pdfdelta_core::{
     layout::{Block, BlockOptions, Line, LineOptions, reconstruct_blocks, reconstruct_lines},
     model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, PageId, Rect, Vec2},
     normalize::{
-        ComparableToken, FlowBlock, PositionSignature, TextSource, normalize_blocks_for_flow,
+        ComparableBlock, ComparableToken, PositionSignature, TextSource, normalize_blocks_for_diff,
     },
 };
 
@@ -55,23 +55,22 @@ pub use assess::{
     AmbiguityReason, ChangeAssessment, Confidence, FONT_SIZE_RELATIVE_TOLERANCE, FormattingChange,
     FormattingReason, assess_changes, font_size_differs, formatting_changes, selects_difference,
 };
-pub use error::{FlowError, FlowErrorClass, FlowLimit};
+pub use error::{Error, ErrorClass, Limit};
 pub use order::{
-    FlowCandidates, FlowOrderPair, ORDER_AGREEMENT_MIN, ORDER_COHERENCE_MIN, OrderKind,
-    PageOrderEvidence, PaintIdentity, flow_candidates, flow_candidates_owned,
-    flow_candidates_owned_with_sources, flow_candidates_with_sources, flow_order_from_candidates,
-    flow_tokens_pair,
+    ORDER_AGREEMENT_MIN, ORDER_COHERENCE_MIN, OrderCandidates, OrderKind, OrderPair,
+    PageOrderEvidence, PaintIdentity, candidates, candidates_owned, candidates_owned_with_sources,
+    candidates_with_sources, order_from_candidates, order_pair,
 };
-pub use script::{FlowChange, build_script};
+pub use script::{Change, build_script};
 pub use verify::{VerifyError, verify};
 
 /// One word or punctuation token in document reading order.
 #[derive(Clone, Debug, PartialEq)]
-pub struct FlowToken {
+pub struct Token {
     /// Canonical token text.
     ///
     /// For mapped text this is the exact canonical scalar sequence. For an
-    /// unmapped glyph it is an encoded identity (see [`flow_tokens`]) so that
+    /// unmapped glyph it is an encoded identity (see [`tokens`]) so that
     /// identity equality is text equality.
     pub text: String,
     /// Page the token's first source glyph was painted on.
@@ -116,9 +115,9 @@ pub struct FlowToken {
 
 /// Flattened token sequence of one document.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct FlowStream {
+pub struct TokenStream {
     /// Tokens in reconstructed reading order, without page furniture.
-    pub tokens: Vec<FlowToken>,
+    pub tokens: Vec<Token>,
     /// Source glyph ids for each token, aligned with [`Self::tokens`].
     ///
     /// Empty when source retention was not requested. A full report asks for
@@ -131,7 +130,7 @@ pub struct FlowStream {
     pub conservation: Conservation,
 }
 
-/// Per-page glyph accounting for one flow stream.
+/// Per-page glyph accounting for one token stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PageConservation {
     /// Page the counts refer to.
@@ -142,7 +141,7 @@ pub struct PageConservation {
     pub used: usize,
 }
 
-/// Glyph accounting for one flow stream.
+/// Glyph accounting for one token stream.
 ///
 /// A side is conserving only when every comparison-visible glyph is referenced
 /// by the sources of a block token (including whitespace-only sources) or was
@@ -178,18 +177,18 @@ impl Conservation {
 
 /// Verified diff of two token sequences.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FlowDiff {
+pub struct Diff {
     /// Equal pairs `(old_index, new_index)`, strictly increasing on both sides.
     pub spine: Vec<(usize, usize)>,
     /// Changes covering every non-spine token exactly once.
-    pub changes: Vec<FlowChange>,
-    stats: FlowStats,
+    pub changes: Vec<Change>,
+    stats: DiffStats,
 }
 
-impl FlowDiff {
+impl Diff {
     /// Token and per-kind change counts of this diff.
     #[must_use]
-    pub fn stats(&self) -> FlowStats {
+    pub fn stats(&self) -> DiffStats {
         self.stats
     }
 }
@@ -205,9 +204,9 @@ pub struct ChangeStats {
     pub new_tokens: usize,
 }
 
-/// Token and change counts of a verified flow diff.
+/// Token and change counts of a verified diff.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FlowStats {
+pub struct DiffStats {
     /// Number of old tokens.
     pub old_tokens: usize,
     /// Number of new tokens.
@@ -232,8 +231,8 @@ pub struct FlowStats {
     pub layout_only: ChangeStats,
 }
 
-impl FlowStats {
-    fn new(old_tokens: usize, new_tokens: usize, changes: &[FlowChange]) -> Self {
+impl DiffStats {
+    fn new(old_tokens: usize, new_tokens: usize, changes: &[Change]) -> Self {
         let mut stats = Self {
             old_tokens,
             new_tokens,
@@ -241,12 +240,12 @@ impl FlowStats {
         };
         for change in changes {
             let bucket = match change {
-                FlowChange::Delete { .. } => &mut stats.delete,
-                FlowChange::Insert { .. } => &mut stats.insert,
-                FlowChange::Replace { .. } => &mut stats.replace,
-                FlowChange::Move { .. } => &mut stats.moves,
-                FlowChange::ReadingOrder { .. } => &mut stats.reading_order,
-                FlowChange::LayoutOnly { .. } => &mut stats.layout_only,
+                Change::Delete { .. } => &mut stats.delete,
+                Change::Insert { .. } => &mut stats.insert,
+                Change::Replace { .. } => &mut stats.replace,
+                Change::Move { .. } => &mut stats.moves,
+                Change::ReadingOrder { .. } => &mut stats.reading_order,
+                Change::LayoutOnly { .. } => &mut stats.layout_only,
             };
             bucket.changes += 1;
             bucket.old_tokens += change.old_range().len();
@@ -264,8 +263,8 @@ impl FlowStats {
 /// Returns an error when line or block reconstruction fails, when
 /// normalization rejects the reconstructed structure, or when normalization
 /// resource limits are exceeded.
-pub fn flow_tokens(document: &Document<Glyph>) -> Result<FlowStream> {
-    flow_tokens_with_options(document, LineOptions::default(), BlockOptions::default())
+pub fn tokens(document: &Document<Glyph>) -> Result<TokenStream> {
+    tokens_with_options(document, LineOptions::default(), BlockOptions::default())
 }
 
 /// Flattens `document` into a token stream with explicit layout options.
@@ -273,18 +272,18 @@ pub fn flow_tokens(document: &Document<Glyph>) -> Result<FlowStream> {
 /// Glyphs that are not comparison visible are dropped before reconstruction,
 /// exactly like the comparison pipeline. Runs of letters and digits form one
 /// token; each CJK scalar is its own token. Unmapped glyph tokens are marked
-/// [`FlowToken::uncertain`] because their text is not decoded.
+/// [`Token::uncertain`] because their text is not decoded.
 ///
 /// # Errors
 ///
 /// Returns an error when line or block reconstruction fails, when
 /// normalization rejects the reconstructed structure, or when normalization
 /// resource limits are exceeded.
-pub fn flow_tokens_with_options(
+pub fn tokens_with_options(
     document: &Document<Glyph>,
     line_options: LineOptions,
     block_options: BlockOptions,
-) -> Result<FlowStream> {
+) -> Result<TokenStream> {
     let visible = visible_document(document);
     let glyphs = GlyphLookup::new(&visible);
     let conservation = conservation_of(&visible);
@@ -381,7 +380,7 @@ pub(crate) fn visible_document(document: &Document<Glyph>) -> Document<Glyph> {
 
 /// Limits a document to comparison glyphs without cloning its glyphs.
 ///
-/// The flow engine reads only glyphs and vector lines from the document:
+/// The diff engine reads only glyphs and vector lines from the document:
 /// reading-order reconstruction, normalization, and tokenization never read
 /// displacement evidence. The filtered document therefore keeps the glyph
 /// vector in place (`retain` shifts the kept items without reallocating) and
@@ -392,7 +391,7 @@ pub(crate) fn visible_document_owned(document: Document<Glyph>) -> Document<Glyp
     Document::with_vector_lines(items, vector_lines)
 }
 
-/// Builds a flow stream from explicit lines and blocks.
+/// Builds a token stream from explicit lines and blocks.
 ///
 /// `strip_furniture` removes repeated headers, footers, and page numbers. The
 /// order hypotheses keep furniture in place until a page order is chosen so
@@ -408,10 +407,10 @@ pub(crate) fn stream_from_layout(
     blocks_layout: &[Block],
     strip_furniture: bool,
     retain_sources: bool,
-) -> Result<FlowStream> {
-    let blocks = normalize_blocks_for_flow(visible, lines, blocks_layout)?;
+) -> Result<TokenStream> {
+    let blocks = normalize_blocks_for_diff(visible, lines, blocks_layout)?;
     let block_count = blocks.len();
-    let mut tokens: Vec<FlowToken> = Vec::new();
+    let mut tokens: Vec<Token> = Vec::new();
     let mut source_glyphs: Vec<Vec<GlyphId>> = Vec::new();
     let mut referenced = ReferencedGlyphs::new(glyphs, visible.items().len());
     for (index, block) in blocks.into_iter().enumerate() {
@@ -448,7 +447,7 @@ pub(crate) fn stream_from_layout(
     // Every visible glyph is either referenced by a block source or emitted by
     // the fallback below, so the fallback must visit exactly the unreferenced
     // glyphs; conservation already accounts for all of them.
-    let mut fallback = HashMap::<PageId, Vec<(FlowToken, GlyphId)>>::new();
+    let mut fallback = HashMap::<PageId, Vec<(Token, GlyphId)>>::new();
     for glyph in visible.items() {
         if referenced.contains(glyph.id) {
             continue;
@@ -461,7 +460,7 @@ pub(crate) fn stream_from_layout(
     } else {
         (tokens, source_glyphs, Vec::new())
     };
-    Ok(FlowStream {
+    Ok(TokenStream {
         tokens,
         source_glyphs,
         furniture,
@@ -471,10 +470,10 @@ pub(crate) fn stream_from_layout(
 
 /// Appends fallback tokens to the end of their page's token run.
 fn insert_fallback_tokens(
-    tokens: Vec<FlowToken>,
+    tokens: Vec<Token>,
     source_glyphs: Vec<Vec<GlyphId>>,
-    mut fallback: HashMap<PageId, Vec<(FlowToken, GlyphId)>>,
-) -> (Vec<FlowToken>, Vec<Vec<GlyphId>>) {
+    mut fallback: HashMap<PageId, Vec<(Token, GlyphId)>>,
+) -> (Vec<Token>, Vec<Vec<GlyphId>>) {
     let retained = !source_glyphs.is_empty();
     let mut out = Vec::with_capacity(tokens.len());
     let mut out_sources = if retained {
@@ -530,10 +529,10 @@ fn insert_fallback_tokens(
 /// This is the conservation fallback: the glyph was extracted but the layout or
 /// normalization dropped it, so it is appended in content-stream order and
 /// marked uncertain instead of disappearing.
-fn emit_fallback_tokens(glyph: &Glyph, block: usize, out: &mut Vec<(FlowToken, GlyphId)>) {
+fn emit_fallback_tokens(glyph: &Glyph, block: usize, out: &mut Vec<(Token, GlyphId)>) {
     let mut push = |text: String, uncertain: bool| {
         out.push((
-            FlowToken {
+            Token {
                 text,
                 page: glyph.page,
                 bounds: Some(glyph.bbox),
@@ -591,7 +590,7 @@ fn emit_fallback_tokens(glyph: &Glyph, block: usize, out: &mut Vec<(FlowToken, G
 /// Panics if the combined vocabulary exceeds `u32::MAX` distinct texts; token
 /// streams are bounded by document size, so this is unreachable in practice.
 #[must_use]
-pub fn intern_tokens(old: &[FlowToken], new: &[FlowToken]) -> (Vec<u32>, Vec<u32>) {
+pub fn intern_tokens(old: &[Token], new: &[Token]) -> (Vec<u32>, Vec<u32>) {
     let mut ids: HashMap<String, u32> = HashMap::new();
     let mut intern = |text: &str| -> u32 {
         if let Some(&id) = ids.get(text) {
@@ -620,7 +619,7 @@ type Spine = Rc<Vec<(usize, usize)>>;
 type PromotedSet = Vec<(usize, usize)>;
 
 /// A spine together with the changes between its pairs.
-type CandidateScript = (Spine, Vec<FlowChange>);
+type CandidateScript = (Spine, Vec<Change>);
 
 /// One evaluated alignment/script variant during diff selection.
 struct ScriptCandidate {
@@ -628,7 +627,7 @@ struct ScriptCandidate {
     rule_rank: u8,
     strategy: AlignmentStrategy,
     spine: Spine,
-    changes: Vec<FlowChange>,
+    changes: Vec<Change>,
 }
 
 /// The permissive move rule: any detected run may be a move.
@@ -706,7 +705,7 @@ impl AlignmentCache {
                 promoted,
                 &mut self.segments,
             ),
-            AlignmentStrategy::Runs => align::align_flow_cached(
+            AlignmentStrategy::Runs => align::align_runs_cached(
                 old_ids,
                 new_ids,
                 weights,
@@ -775,7 +774,7 @@ impl Selection {
         strategy: AlignmentStrategy,
         rule_rank: u8,
         spine: Spine,
-        changes: Vec<FlowChange>,
+        changes: Vec<Change>,
     ) {
         if let Some((previous_spine, previous_changes)) = &self.considered
             && Rc::ptr_eq(previous_spine, &spine)
@@ -794,7 +793,7 @@ impl Selection {
         strategy: AlignmentStrategy,
         rule_rank: u8,
         spine: Spine,
-        changes: Vec<FlowChange>,
+        changes: Vec<Change>,
     ) {
         let (spine, changes) = bridge_equal_boundaries(streams, &spine, changes);
         let count = changed_token_count(&changes);
@@ -820,10 +819,7 @@ impl Selection {
     }
 }
 
-pub fn flow_diff(
-    old: &[FlowToken],
-    new: &[FlowToken],
-) -> std::result::Result<FlowDiff, VerifyError> {
+pub fn diff(old: &[Token], new: &[Token]) -> std::result::Result<Diff, VerifyError> {
     let (old_ids, new_ids) = intern_tokens(old, new);
     let weights = align::information_weights(&old_ids, &new_ids);
     let old_blocks = block_starts(old);
@@ -921,8 +917,8 @@ pub fn flow_diff(
     let mut changes = best.changes;
     reclassify_reading_order(&streams, &mut changes);
     verify(old, new, &changes)?;
-    let stats = FlowStats::new(old.len(), new.len(), &changes);
-    Ok(FlowDiff {
+    let stats = DiffStats::new(old.len(), new.len(), &changes);
+    Ok(Diff {
         spine,
         changes,
         stats,
@@ -936,8 +932,8 @@ enum AlignmentStrategy {
 }
 
 struct DiffStreams<'a> {
-    old: &'a [FlowToken],
-    new: &'a [FlowToken],
+    old: &'a [Token],
+    new: &'a [Token],
     old_ids: &'a [u32],
     new_ids: &'a [u32],
     weights: &'a [u64],
@@ -1003,7 +999,7 @@ fn diff_once(
     rule: script::MoveRule,
     cache: &mut AlignmentCache,
     dot_leaders: &script::DotLeaderCache,
-) -> (Spine, Vec<FlowChange>, bool) {
+) -> (Spine, Vec<Change>, bool) {
     let DiffStreams {
         old,
         new,
@@ -1089,7 +1085,7 @@ const MAX_ROTATION_CANDIDATES: usize = 16;
 const MAX_TRANSPOSITION_REWRITES: usize = 64;
 
 /// A rewritten equal-pair spine and edit script.
-type BridgedScript = (Vec<(usize, usize)>, Vec<FlowChange>);
+type BridgedScript = (Vec<(usize, usize)>, Vec<Change>);
 
 /// Reconciles equal tokens that the spine left on opposite sides of a run.
 ///
@@ -1122,7 +1118,7 @@ type BridgedScript = (Vec<(usize, usize)>, Vec<FlowChange>);
 fn bridge_equal_boundaries(
     streams: &DiffStreams<'_>,
     spine: &[(usize, usize)],
-    mut changes: Vec<FlowChange>,
+    mut changes: Vec<Change>,
 ) -> BridgedScript {
     let DiffStreams { old, new, .. } = *streams;
     let mut rewritten: Option<Vec<(usize, usize)>> = None;
@@ -1185,7 +1181,7 @@ fn bridge_equal_boundaries(
 fn try_prefer_smaller_structural_move(
     streams: &DiffStreams<'_>,
     spine: &[(usize, usize)],
-    changes: &[FlowChange],
+    changes: &[Change],
 ) -> Option<BridgedScript> {
     let DiffStreams {
         old,
@@ -1195,7 +1191,7 @@ fn try_prefer_smaller_structural_move(
         ..
     } = *streams;
     for (change_index, change) in changes.iter().enumerate() {
-        let FlowChange::Move {
+        let Change::Move {
             old: move_old,
             new: move_new,
         } = change
@@ -1229,7 +1225,7 @@ fn try_prefer_smaller_structural_move(
                 continue;
             }
             let mut candidate = changes.to_vec();
-            candidate[change_index] = FlowChange::Move {
+            candidate[change_index] = Change::Move {
                 old: run_old.clone(),
                 new: run_new.clone(),
             };
@@ -1247,8 +1243,8 @@ fn try_prefer_smaller_structural_move(
 /// index of its first pair in `spine`, so the caller can remove exactly those
 /// pairs when rebuilding the spine.
 fn mirrored_equal_runs(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     spine: &[(usize, usize)],
     move_old: &std::ops::Range<usize>,
     move_new: &std::ops::Range<usize>,
@@ -1315,7 +1311,7 @@ fn spine_run_matches(
 }
 
 /// Number of reconstructed blocks a token range intersects.
-fn block_span(tokens: &[FlowToken], range: &std::ops::Range<usize>) -> usize {
+fn block_span(tokens: &[Token], range: &std::ops::Range<usize>) -> usize {
     let mut count = 0usize;
     let mut previous = None;
     for token in &tokens[range.clone()] {
@@ -1377,7 +1373,7 @@ impl VisualLine {
     ///
     /// Returns `None` when the range is empty, crosses a page, lacks source
     /// bounds, or has no positive area. Such evidence is unknown, not empty.
-    fn from_tokens(tokens: &[FlowToken], start: usize, end: usize) -> Option<Self> {
+    fn from_tokens(tokens: &[Token], start: usize, end: usize) -> Option<Self> {
         let page = tokens.get(start)?.page;
         let mut x0 = f64::INFINITY;
         let mut x1 = f64::NEG_INFINITY;
@@ -1415,7 +1411,7 @@ impl VisualLine {
 
 /// Source-backed visual lines of a document, grouped by page and sorted from
 /// bottom to top.
-fn visual_lines(tokens: &[FlowToken]) -> HashMap<PageId, Vec<VisualLine>> {
+fn visual_lines(tokens: &[Token]) -> HashMap<PageId, Vec<VisualLine>> {
     let mut pages: HashMap<PageId, Vec<VisualLine>> = HashMap::new();
     let mut start = 0usize;
     for (index, token) in tokens.iter().enumerate() {
@@ -1442,10 +1438,7 @@ fn visual_lines(tokens: &[FlowToken]) -> HashMap<PageId, Vec<VisualLine>> {
 /// Visual lines of one contiguous token range.
 ///
 /// Returns `None` when the range crosses a page or any line lacks bounds.
-fn run_visual_lines(
-    tokens: &[FlowToken],
-    range: &std::ops::Range<usize>,
-) -> Option<Vec<VisualLine>> {
+fn run_visual_lines(tokens: &[Token], range: &std::ops::Range<usize>) -> Option<Vec<VisualLine>> {
     if range.is_empty() {
         return None;
     }
@@ -1676,27 +1669,27 @@ fn cell_row_overlap(left: &[VisualLine], right: &[VisualLine]) -> f64 {
 /// disjoint visual columns, their wrapped cells share a vertical row band in
 /// both documents, and their left-to-right order is unchanged, the difference
 /// is an extraction-order artifact rather than a content move. The run is then
-/// reported as [`FlowChange::ReadingOrder`], which never selects a content
+/// reported as [`Change::ReadingOrder`], which never selects a content
 /// difference.
 ///
 /// Runs without complete line geometry, runs that overlap horizontally, a
 /// genuine page or row relocation, and a transposition whose visual order also
 /// changed stay moves.
-fn reclassify_reading_order(streams: &DiffStreams<'_>, changes: &mut [FlowChange]) {
+fn reclassify_reading_order(streams: &DiffStreams<'_>, changes: &mut [Change]) {
     let DiffStreams { old, new, .. } = *streams;
     if !changes
         .iter()
-        .any(|change| matches!(change, FlowChange::Move { .. }))
+        .any(|change| matches!(change, Change::Move { .. }))
     {
         return;
     }
     let old_pages = visual_lines(old);
     let new_pages = visual_lines(new);
-    let old_changed = ChangedMask::new(old.len(), changes.iter().map(FlowChange::old_range));
-    let new_changed = ChangedMask::new(new.len(), changes.iter().map(FlowChange::new_range));
+    let old_changed = ChangedMask::new(old.len(), changes.iter().map(Change::old_range));
+    let new_changed = ChangedMask::new(new.len(), changes.iter().map(Change::new_range));
     let pairs = uncovered_pairs(old.len(), new.len(), &old_changed, &new_changed);
     for change in changes.iter_mut() {
-        let FlowChange::Move {
+        let Change::Move {
             old: move_old,
             new: move_new,
         } = change
@@ -1771,7 +1764,7 @@ fn reclassify_reading_order(streams: &DiffStreams<'_>, changes: &mut [FlowChange
             {
                 continue;
             }
-            *change = FlowChange::ReadingOrder {
+            *change = Change::ReadingOrder {
                 old: move_old,
                 new: move_new,
             };
@@ -1782,10 +1775,10 @@ fn reclassify_reading_order(streams: &DiffStreams<'_>, changes: &mut [FlowChange
 
 /// Drops an equal delete/insert pair that sits on opposite sides of a move.
 fn try_drop_move_remainder(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     spine: &[(usize, usize)],
-    changes: &[FlowChange],
+    changes: &[Change],
 ) -> Option<BridgedScript> {
     let mut delete_by_start = HashMap::new();
     let mut delete_by_end = HashMap::new();
@@ -1793,11 +1786,11 @@ fn try_drop_move_remainder(
     let mut insert_by_end = HashMap::new();
     for (index, change) in changes.iter().enumerate() {
         match change {
-            FlowChange::Delete { old: range } => {
+            Change::Delete { old: range } => {
                 delete_by_start.insert(range.start, index);
                 delete_by_end.insert(range.end, index);
             }
-            FlowChange::Insert { new: range } => {
+            Change::Insert { new: range } => {
                 insert_by_start.insert(range.start, index);
                 insert_by_end.insert(range.end, index);
             }
@@ -1805,7 +1798,7 @@ fn try_drop_move_remainder(
         }
     }
     for change in changes {
-        let FlowChange::Move {
+        let Change::Move {
             old: move_old,
             new: move_new,
         } = change
@@ -1828,7 +1821,7 @@ fn try_drop_move_remainder(
             let (Some(&delete_index), Some(&insert_index)) = (delete_index, insert_index) else {
                 continue;
             };
-            let (FlowChange::Delete { old: deleted }, FlowChange::Insert { new: inserted }) =
+            let (Change::Delete { old: deleted }, Change::Insert { new: inserted }) =
                 (&changes[delete_index], &changes[insert_index])
             else {
                 continue;
@@ -1863,10 +1856,10 @@ fn try_drop_move_remainder(
 
 /// Moves a contiguous spine run so an equal delete/insert pair becomes equal.
 fn try_rotate_spine_run(
-    old: &[FlowToken],
-    new: &[FlowToken],
+    old: &[Token],
+    new: &[Token],
     spine: &[(usize, usize)],
-    changes: &[FlowChange],
+    changes: &[Change],
 ) -> Option<BridgedScript> {
     if changes.len() > ROTATION_MAX_CHANGES || spine.is_empty() {
         return None;
@@ -1892,7 +1885,7 @@ fn try_rotate_spine_run(
             .ok()
             .map(|position| run_from[position])
     };
-    let key_text = |tokens: &[FlowToken]| {
+    let key_text = |tokens: &[Token]| {
         tokens
             .iter()
             .map(|token| token.text.as_str())
@@ -1901,7 +1894,7 @@ fn try_rotate_spine_run(
     };
     let mut inserts_by_text: HashMap<(usize, String), Vec<usize>> = HashMap::new();
     for (index, change) in changes.iter().enumerate() {
-        if let FlowChange::Insert { new: range } = change {
+        if let Change::Insert { new: range } = change {
             inserts_by_text
                 .entry((range.len(), key_text(&new[range.clone()])))
                 .or_default()
@@ -1909,7 +1902,7 @@ fn try_rotate_spine_run(
         }
     }
     for (delete_index, change) in changes.iter().enumerate() {
-        let FlowChange::Delete { old: deleted } = change else {
+        let Change::Delete { old: deleted } = change else {
             continue;
         };
         if deleted.is_empty() {
@@ -1920,7 +1913,7 @@ fn try_rotate_spine_run(
             continue;
         };
         for &insert_index in candidates.iter().take(MAX_ROTATION_CANDIDATES) {
-            let FlowChange::Insert { new: inserted } = &changes[insert_index] else {
+            let Change::Insert { new: inserted } = &changes[insert_index] else {
                 continue;
             };
             let mut rotations = Vec::with_capacity(2);
@@ -1957,7 +1950,7 @@ fn try_rotate_spine_run(
                 }
                 let mut candidate = changes.to_vec();
                 remove_two(&mut candidate, delete_index, insert_index);
-                let move_change = FlowChange::Move {
+                let move_change = Change::Move {
                     old: move_old.clone(),
                     new: move_new,
                 };
@@ -1991,7 +1984,7 @@ fn run_lengths(spine: &[(usize, usize)]) -> Vec<usize> {
     runs
 }
 
-fn remove_two(changes: &mut Vec<FlowChange>, first: usize, second: usize) {
+fn remove_two(changes: &mut Vec<Change>, first: usize, second: usize) {
     let (high, low) = if first > second {
         (first, second)
     } else {
@@ -2007,22 +2000,20 @@ fn strictly_increasing(spine: &[(usize, usize)]) -> bool {
         .all(|pair| pair[0].0 < pair[1].0 && pair[0].1 < pair[1].1)
 }
 
-fn changed_token_count(changes: &[FlowChange]) -> usize {
+fn changed_token_count(changes: &[Change]) -> usize {
     changes
         .iter()
         .map(|change| match change {
-            FlowChange::Delete { old } => old.len(),
-            FlowChange::Insert { new } => new.len(),
-            FlowChange::Replace { old, new } => old.len().saturating_add(new.len()),
-            FlowChange::Move { .. }
-            | FlowChange::ReadingOrder { .. }
-            | FlowChange::LayoutOnly { .. } => 0,
+            Change::Delete { old } => old.len(),
+            Change::Insert { new } => new.len(),
+            Change::Replace { old, new } => old.len().saturating_add(new.len()),
+            Change::Move { .. } | Change::ReadingOrder { .. } | Change::LayoutOnly { .. } => 0,
         })
         .fold(0usize, usize::saturating_add)
 }
 
 /// Marks the first token of every reconstructed block.
-fn block_starts(tokens: &[FlowToken]) -> Vec<bool> {
+fn block_starts(tokens: &[Token]) -> Vec<bool> {
     tokens
         .iter()
         .enumerate()
@@ -2161,13 +2152,13 @@ fn token_font_size(
     size
 }
 
-/// Builds the flow tokens of one flow-normalized block.
+/// Builds the tokens of one normalized block.
 pub(crate) fn block_tokens(
     block_index: usize,
-    block: &FlowBlock,
+    block: &ComparableBlock,
     glyphs: &GlyphLookup<'_>,
     retain_sources: bool,
-) -> Result<(Vec<FlowToken>, Vec<Vec<GlyphId>>)> {
+) -> Result<(Vec<Token>, Vec<Vec<GlyphId>>)> {
     let text = &block.text;
     let tokens = text.canonical.comparable_tokens_with_sources()?;
     let break_after = break_flags(&tokens, text.line_breaks.as_deref());
@@ -2188,7 +2179,7 @@ pub(crate) fn block_tokens(
                 if retain_sources {
                     collect_source_glyphs(source, &mut glyph_sources);
                 }
-                out.push(FlowToken {
+                out.push(Token {
                     text: unmapped_token_text(font_hash, *glyph_id),
                     page: source_page(source, glyphs).unwrap_or(fallback_page),
                     bounds: source_bounds(source, glyphs),
@@ -2245,7 +2236,7 @@ pub(crate) fn block_tokens(
                         collect_source_glyphs(source, &mut glyph_sources);
                     }
                 }
-                out.push(FlowToken {
+                out.push(Token {
                     text: token_text,
                     page: page.unwrap_or(fallback_page),
                     bounds,
@@ -2285,7 +2276,7 @@ fn collect_source_glyphs(source: &TextSource, out: &mut Vec<GlyphId>) {
     }
 }
 
-/// Concatenates the raw text of every canonical token in one flow token.
+/// Concatenates the raw text of every canonical token in one token.
 ///
 /// A single token without exact raw projection makes the whole token `None`,
 /// because a partial string would claim normalization evidence the source did
@@ -2584,12 +2575,12 @@ pub(crate) mod tests {
             ("alpha beta gamma", 0, 0.0, 300.0),
             ("delta epsilon", 0, 200.0, 305.0),
         ]);
-        let old_tokens = flow_tokens(&old).expect("old tokens");
-        let new_tokens = flow_tokens(&new).expect("new tokens");
-        let diff = flow_diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
+        let old_tokens = tokens(&old).expect("old tokens");
+        let new_tokens = tokens(&new).expect("new tokens");
+        let diff = diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
         assert_eq!(
             diff.changes,
-            [FlowChange::ReadingOrder {
+            [Change::ReadingOrder {
                 old: 0..3,
                 new: 2..5,
             }]
@@ -2606,7 +2597,7 @@ pub(crate) mod tests {
     fn a_cross_row_paragraph_move_stays_a_move() {
         // The runs are in one column and different rows, so the visual row
         // band differs even though the token order swaps.
-        let (tokens, diff) = flow_pair(
+        let (tokens, diff) = diff_pair(
             &lines(&[
                 "report title words",
                 "alpha beta gamma delta epsilon",
@@ -2621,7 +2612,7 @@ pub(crate) mod tests {
         assert_eq!(diff.stats().moves.changes, 1, "{:?}", diff.changes);
         assert_eq!(diff.stats().reading_order.changes, 0, "{:?}", diff.changes);
         assert_eq!(move_texts(&tokens, &diff).len(), 1);
-        assert!(matches!(&diff.changes[0], FlowChange::Move { .. }));
+        assert!(matches!(&diff.changes[0], Change::Move { .. }));
     }
 
     #[test]
@@ -2636,12 +2627,12 @@ pub(crate) mod tests {
             ("delta epsilon", 0, 0.0, 300.0),
             ("alpha beta gamma", 0, 200.0, 300.0),
         ]);
-        let old_tokens = flow_tokens(&old).expect("old tokens");
-        let new_tokens = flow_tokens(&new).expect("new tokens");
-        let diff = flow_diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
+        let old_tokens = tokens(&old).expect("old tokens");
+        let new_tokens = tokens(&new).expect("new tokens");
+        let diff = diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
         assert_eq!(diff.stats().moves.changes, 1, "{:?}", diff.changes);
         assert_eq!(diff.stats().reading_order.changes, 0, "{:?}", diff.changes);
-        assert!(matches!(&diff.changes[0], FlowChange::Move { .. }));
+        assert!(matches!(&diff.changes[0], Change::Move { .. }));
     }
 
     #[test]
@@ -2657,12 +2648,12 @@ pub(crate) mod tests {
             ("alpha beta gamma", 1, 0.0, 300.0),
             ("delta epsilon", 1, 200.0, 305.0),
         ]);
-        let old_tokens = flow_tokens(&old).expect("old tokens");
-        let new_tokens = flow_tokens(&new).expect("new tokens");
-        let diff = flow_diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
+        let old_tokens = tokens(&old).expect("old tokens");
+        let new_tokens = tokens(&new).expect("new tokens");
+        let diff = diff(&old_tokens.tokens, &new_tokens.tokens).expect("verified diff");
         assert_eq!(
             diff.changes,
-            [FlowChange::ReadingOrder {
+            [Change::ReadingOrder {
                 old: 0..3,
                 new: 2..5,
             }]
@@ -2671,25 +2662,21 @@ pub(crate) mod tests {
         assert_eq!(diff.stats().moves.changes, 0);
     }
 
-    fn token_texts(tokens: &[FlowToken]) -> Vec<&str> {
+    fn token_texts(tokens: &[Token]) -> Vec<&str> {
         tokens.iter().map(|token| token.text.as_str()).collect()
     }
 
-    fn replacement(
-        old_lines: &[(&str, u32, f64)],
-        new_lines: &[(&str, u32, f64)],
-    ) -> Vec<FlowChange> {
-        let old = flow_tokens(&document(old_lines)).expect("old tokens");
-        let new = flow_tokens(&document(new_lines)).expect("new tokens");
-        flow_diff(&old.tokens, &new.tokens)
+    fn replacement(old_lines: &[(&str, u32, f64)], new_lines: &[(&str, u32, f64)]) -> Vec<Change> {
+        let old = tokens(&document(old_lines)).expect("old tokens");
+        let new = tokens(&document(new_lines)).expect("new tokens");
+        diff(&old.tokens, &new.tokens)
             .expect("verified diff")
             .changes
     }
 
     #[test]
     fn cjk_text_is_tokenised_per_scalar() {
-        let stream =
-            flow_tokens(&document(&[("日本語abc漢字、かな。", 0, 300.0)])).expect("CJK tokens");
+        let stream = tokens(&document(&[("日本語abc漢字、かな。", 0, 300.0)])).expect("CJK tokens");
         assert_eq!(
             token_texts(&stream.tokens),
             ["日", "本", "語", "abc", "漢", "字", "、", "か", "な", "。"]
@@ -2703,7 +2690,7 @@ pub(crate) mod tests {
             &[("今日は悪い天気です", 0, 300.0)],
         );
         assert_eq!(changes.len(), 1, "{changes:?}");
-        let FlowChange::Replace { old, new } = &changes[0] else {
+        let Change::Replace { old, new } = &changes[0] else {
             panic!("expected a replacement, got {:?}", changes[0]);
         };
         assert_eq!((old.len(), new.len()), (1, 1));
@@ -2711,11 +2698,9 @@ pub(crate) mod tests {
 
     #[test]
     fn stats_count_every_token_once() {
-        let old =
-            flow_tokens(&document(&[("alpha beta gamma delta", 0, 300.0)])).expect("old tokens");
-        let new =
-            flow_tokens(&document(&[("alpha beta epsilon delta", 0, 300.0)])).expect("new tokens");
-        let diff = flow_diff(&old.tokens, &new.tokens).expect("verified diff");
+        let old = tokens(&document(&[("alpha beta gamma delta", 0, 300.0)])).expect("old tokens");
+        let new = tokens(&document(&[("alpha beta epsilon delta", 0, 300.0)])).expect("new tokens");
+        let diff = diff(&old.tokens, &new.tokens).expect("verified diff");
         let stats = diff.stats();
         assert_eq!(stats.old_tokens, 4);
         assert_eq!(stats.new_tokens, 4);
@@ -2775,14 +2760,14 @@ pub(crate) mod tests {
         let new = token_stream(&words(&[
             "x0", "x1", ".", "m0", "m1", "m2", "m3", "m4", "y0", "y1",
         ]));
-        let diff = flow_diff(&old, &new).expect("rotation script must verify");
+        let diff = diff(&old, &new).expect("rotation script must verify");
         assert_eq!(diff.stats().delete.changes, 0, "{:?}", diff.changes);
         assert_eq!(diff.stats().insert.changes, 0, "{:?}", diff.changes);
         assert_eq!(diff.stats().replace.changes, 0, "{:?}", diff.changes);
         assert!(
             diff.changes
                 .iter()
-                .any(|change| matches!(change, FlowChange::Move { .. })),
+                .any(|change| matches!(change, Change::Move { .. })),
             "{:?}",
             diff.changes
         );
@@ -2807,14 +2792,14 @@ pub(crate) mod tests {
         };
         let old = token_stream(&words(&["a0", "a1", "a2", "b0", "b1", "b2", "b3"]));
         let new = token_stream(&words(&["b0", "b1", "b2", "b3", "a0", "a1", "a2"]));
-        let diff = flow_diff(&old, &new).expect("short swap script must verify");
+        let diff = diff(&old, &new).expect("short swap script must verify");
         assert_eq!(diff.stats().delete.changes, 0, "{:?}", diff.changes);
         assert_eq!(diff.stats().insert.changes, 0, "{:?}", diff.changes);
         assert_eq!(diff.stats().replace.changes, 0, "{:?}", diff.changes);
         assert!(
             diff.changes
                 .iter()
-                .any(|change| matches!(change, FlowChange::Move { .. })),
+                .any(|change| matches!(change, Change::Move { .. })),
             "{:?}",
             diff.changes
         );
@@ -2828,7 +2813,7 @@ pub(crate) mod tests {
         );
         assert_eq!(changes.len(), 1, "{changes:?}");
         match &changes[0] {
-            FlowChange::Replace { old, new } => {
+            Change::Replace { old, new } => {
                 assert_eq!(old.len(), 1);
                 assert_eq!(new.len(), 1);
             }
@@ -2847,7 +2832,7 @@ pub(crate) mod tests {
             ],
         );
         assert_eq!(changes.len(), 1, "{changes:?}");
-        assert!(matches!(&changes[0], FlowChange::Insert { .. }));
+        assert!(matches!(&changes[0], Change::Insert { .. }));
     }
 
     #[test]
@@ -2861,7 +2846,7 @@ pub(crate) mod tests {
             &[("alpha beta gamma", 0, 300.0), ("delta epsilon", 0, 270.0)],
         );
         assert_eq!(changes.len(), 1, "{changes:?}");
-        assert!(matches!(&changes[0], FlowChange::Delete { .. }));
+        assert!(matches!(&changes[0], Change::Delete { .. }));
     }
 
     #[test]
@@ -2871,7 +2856,7 @@ pub(crate) mod tests {
             &[("international", 0, 300.0)],
         );
         assert_eq!(changes.len(), 1, "{changes:?}");
-        assert!(matches!(&changes[0], FlowChange::LayoutOnly { .. }));
+        assert!(matches!(&changes[0], Change::LayoutOnly { .. }));
     }
 
     #[test]
@@ -2897,11 +2882,11 @@ pub(crate) mod tests {
         };
         let old = Document::new(vec![glyph(1, unmapped.clone(), 0, 0.0, 100.0, 5.0, 10.0)]);
         let new = Document::new(vec![glyph(1, unmapped, 0, 0.0, 100.0, 5.0, 10.0)]);
-        let old = flow_tokens(&old).expect("old tokens");
-        let new = flow_tokens(&new).expect("new tokens");
+        let old = tokens(&old).expect("old tokens");
+        let new = tokens(&new).expect("new tokens");
         assert_eq!(old.tokens.len(), 1);
         assert!(old.tokens[0].uncertain);
-        let diff = flow_diff(&old.tokens, &new.tokens).expect("verified diff");
+        let diff = diff(&old.tokens, &new.tokens).expect("verified diff");
         assert!(diff.changes.is_empty());
     }
 
@@ -2941,11 +2926,11 @@ pub(crate) mod tests {
             ]
             .map(str::to_owned),
         );
-        let diff = flow_diff(&old, &new).expect("verified diff");
+        let diff = diff(&old, &new).expect("verified diff");
         assert!(
             diff.changes
                 .iter()
-                .all(|change| matches!(change, FlowChange::Replace { .. })),
+                .all(|change| matches!(change, Change::Replace { .. })),
             "{:?}",
             diff.changes
         );
@@ -2970,8 +2955,8 @@ pub(crate) mod tests {
         }
     }
 
-    fn line_token(text: &str, page: u32, y: f64) -> FlowToken {
-        FlowToken {
+    fn line_token(text: &str, page: u32, y: f64) -> Token {
+        Token {
             text: text.to_owned(),
             page: PageId(page),
             bounds: Some(Rect {
@@ -3059,13 +3044,13 @@ pub(crate) mod tests {
         };
         let (old_tokens, _old_sources, old_furniture) = build(0);
         let (new_tokens, _new_sources, new_furniture) = build(1);
-        let old = FlowStream {
+        let old = TokenStream {
             tokens: old_tokens,
             source_glyphs: Vec::new(),
             furniture: old_furniture,
             conservation: Conservation::default(),
         };
-        let new = FlowStream {
+        let new = TokenStream {
             tokens: new_tokens,
             source_glyphs: Vec::new(),
             furniture: new_furniture,
@@ -3094,13 +3079,13 @@ pub(crate) mod tests {
         let (new_tokens, _new_sources, new_furniture) = build(2024);
         assert_eq!(old_furniture[0].text, "form 2023 page 0");
         assert_eq!(new_furniture[0].text, "form 2024 page 0");
-        let old = FlowStream {
+        let old = TokenStream {
             tokens: old_tokens,
             source_glyphs: Vec::new(),
             furniture: old_furniture,
             conservation: Conservation::default(),
         };
-        let new = FlowStream {
+        let new = TokenStream {
             tokens: new_tokens,
             source_glyphs: Vec::new(),
             furniture: new_furniture,
@@ -3142,16 +3127,16 @@ pub(crate) mod tests {
         new_lines[2] = ("omega", 1, 300.0);
         let old_document = document(&old_lines);
         let new_document = document(&new_lines);
-        let baseline_stream = flow_tokens(&old_document).expect("baseline tokens");
+        let baseline_stream = tokens(&old_document).expect("baseline tokens");
         assert_eq!(baseline_stream.furniture.len(), 1);
         assert_eq!(baseline_stream.furniture[0].occurrences, 4);
-        let new_stream = flow_tokens(&new_document).expect("new tokens");
-        let baseline_diff = flow_diff(&baseline_stream.tokens, &new_stream.tokens)
+        let new_stream = tokens(&new_document).expect("new tokens");
+        let baseline_diff = diff(&baseline_stream.tokens, &new_stream.tokens)
             .expect("baseline diff")
             .changes;
         for attempt in 0..20 {
-            let stream = flow_tokens(&old_document).expect("repeated tokens");
-            let diff = flow_diff(&stream.tokens, &new_stream.tokens)
+            let stream = tokens(&old_document).expect("repeated tokens");
+            let diff = diff(&stream.tokens, &new_stream.tokens)
                 .expect("repeated diff")
                 .changes;
             assert_eq!(stream.tokens, baseline_stream.tokens, "attempt {attempt}");
@@ -3163,11 +3148,11 @@ pub(crate) mod tests {
         }
     }
 
-    fn token_stream(words: &[String]) -> Vec<FlowToken> {
+    fn token_stream(words: &[String]) -> Vec<Token> {
         words
             .iter()
             .enumerate()
-            .map(|(index, word)| FlowToken {
+            .map(|(index, word)| Token {
                 text: word.clone(),
                 page: PageId(0),
                 bounds: None,
@@ -3269,7 +3254,7 @@ pub(crate) mod tests {
             }
             let old_tokens = token_stream(&shuffled);
             let new_tokens = token_stream(&new);
-            let diff = flow_diff(&old_tokens, &new_tokens)
+            let diff = diff(&old_tokens, &new_tokens)
                 .unwrap_or_else(|error| panic!("seed {seed}: {error}"));
             assert_eq!(
                 token_texts(&old_tokens),
@@ -3288,18 +3273,18 @@ pub(crate) mod tests {
         new.extend_from_slice(&old[10..16]);
         let old_tokens = token_stream(&old);
         let new_tokens = token_stream(&new);
-        let diff = flow_diff(&old_tokens, &new_tokens).expect("verified diff");
-        assert!(matches!(&diff.changes[0], FlowChange::Move { .. }));
+        let diff = diff(&old_tokens, &new_tokens).expect("verified diff");
+        assert!(matches!(&diff.changes[0], Change::Move { .. }));
     }
 
-    /// Builds a verified flow diff from two laid-out documents.
-    fn flow_pair(
+    /// Builds a verified diff from two laid-out documents.
+    fn diff_pair(
         old_lines: &[(&str, u32, f64)],
         new_lines: &[(&str, u32, f64)],
-    ) -> (Vec<FlowToken>, FlowDiff) {
-        let old = flow_tokens(&document(old_lines)).expect("old tokens");
-        let new = flow_tokens(&document(new_lines)).expect("new tokens");
-        let diff = flow_diff(&old.tokens, &new.tokens).expect("verified diff");
+    ) -> (Vec<Token>, Diff) {
+        let old = tokens(&document(old_lines)).expect("old tokens");
+        let new = tokens(&document(new_lines)).expect("new tokens");
+        let diff = diff(&old.tokens, &new.tokens).expect("verified diff");
         (old.tokens, diff)
     }
 
@@ -3319,11 +3304,11 @@ pub(crate) mod tests {
     }
 
     /// Old-side text of every move, in script order.
-    fn move_texts(tokens: &[FlowToken], diff: &FlowDiff) -> Vec<String> {
+    fn move_texts(tokens: &[Token], diff: &Diff) -> Vec<String> {
         diff.changes
             .iter()
             .filter_map(|change| match change {
-                FlowChange::Move { old, .. } => Some(old.clone()),
+                Change::Move { old, .. } => Some(old.clone()),
                 _ => None,
             })
             .map(|range| {
@@ -3336,7 +3321,7 @@ pub(crate) mod tests {
             .collect()
     }
 
-    fn assert_move_only(diff: &FlowDiff) {
+    fn assert_move_only(diff: &Diff) {
         assert_eq!(diff.stats().delete.changes, 0, "{:?}", diff.changes);
         assert_eq!(diff.stats().insert.changes, 0, "{:?}", diff.changes);
         assert_eq!(diff.stats().replace.changes, 0, "{:?}", diff.changes);
@@ -3349,7 +3334,7 @@ pub(crate) mod tests {
         // paragraph. The alignment keeps the paragraph in place because it has
         // more tokens, which would report the two-block heading group as moved.
         // The structural rule chooses the one-block relocation instead.
-        let (tokens, diff) = flow_pair(
+        let (tokens, diff) = diff_pair(
             &lines(&[
                 "report title words",
                 "alpha beta gamma delta epsilon zeta eta theta",
@@ -3372,7 +3357,7 @@ pub(crate) mod tests {
 
     #[test]
     fn the_reverse_direction_of_a_heading_transposition_reports_the_same_paragraph() {
-        let (tokens, diff) = flow_pair(
+        let (tokens, diff) = diff_pair(
             &lines(&[
                 "report title words",
                 "target heading",
@@ -3405,13 +3390,13 @@ pub(crate) mod tests {
             "one two three four five",
             "alpha beta gamma delta epsilon",
         ]);
-        let (tokens, diff) = flow_pair(&forward, &reverse);
+        let (tokens, diff) = diff_pair(&forward, &reverse);
         assert_move_only(&diff);
         let moves = move_texts(&tokens, &diff);
         assert_eq!(moves.len(), 1);
         // Equal block spans cannot prefer one explanation; the alignment
         // choice is stable for the same input.
-        let (again_tokens, again) = flow_pair(&forward, &reverse);
+        let (again_tokens, again) = diff_pair(&forward, &reverse);
         assert_eq!(move_texts(&again_tokens, &again), moves);
     }
 
@@ -3431,13 +3416,13 @@ pub(crate) mod tests {
             "one two three four",
             "alpha beta gamma delta epsilon zeta eta theta",
         ]);
-        let (tokens, diff) = flow_pair(&forward, &reverse);
+        let (tokens, diff) = diff_pair(&forward, &reverse);
         assert_move_only(&diff);
         assert_eq!(
             move_texts(&tokens, &diff),
             ["alpha beta gamma delta epsilon zeta eta theta"]
         );
-        let (again_tokens, again) = flow_pair(&forward, &reverse);
+        let (again_tokens, again) = diff_pair(&forward, &reverse);
         assert_eq!(
             move_texts(&again_tokens, &again),
             move_texts(&tokens, &diff)
@@ -3449,7 +3434,7 @@ pub(crate) mod tests {
         // The alignment keeps the two-block heading group in place because it
         // has more tokens, so the one-block paragraph is already the reported
         // move and the structural rule must not rewrite it.
-        let (tokens, diff) = flow_pair(
+        let (tokens, diff) = diff_pair(
             &lines(&[
                 "report title words",
                 "target heading",
@@ -3472,7 +3457,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_transposition_beside_a_repeated_paragraph_keeps_one_verified_move() {
-        let (tokens, diff) = flow_pair(
+        let (tokens, diff) = diff_pair(
             &lines(&[
                 "report title words",
                 "alpha beta gamma delta epsilon zeta eta theta",
@@ -3496,9 +3481,9 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn flow_tokens_account_for_every_visible_glyph() {
+    fn tokens_account_for_every_visible_glyph() {
         let document = document(&[("alpha beta", 0, 300.0), ("gamma", 1, 300.0)]);
-        let stream = flow_tokens(&document).expect("flow tokens");
+        let stream = tokens(&document).expect("tokens");
         let visible = document.items().len();
         assert_eq!(stream.conservation.visible, visible);
         assert_eq!(stream.conservation.used, visible);
@@ -3507,7 +3492,7 @@ pub(crate) mod tests {
 
     #[test]
     fn fallback_tokens_are_appended_to_their_page_in_content_order() {
-        let token = |text: &str, page: u32| FlowToken {
+        let token = |text: &str, page: u32| Token {
             text: text.to_owned(),
             page: PageId(page),
             bounds: None,
@@ -3536,7 +3521,7 @@ pub(crate) mod tests {
     fn identical_streams_produce_no_changes() {
         let words = (0..50).map(|index| format!("w{index}")).collect::<Vec<_>>();
         let tokens = token_stream(&words);
-        let diff = flow_diff(&tokens, &tokens).expect("verified diff");
+        let diff = diff(&tokens, &tokens).expect("verified diff");
         assert!(diff.changes.is_empty());
     }
 
@@ -3552,7 +3537,7 @@ pub(crate) mod tests {
             new[index].text = format!("edit{index}");
         }
         let started = Instant::now();
-        let diff = flow_diff(&old, &new).expect("verified diff");
+        let diff = diff(&old, &new).expect("verified diff");
         let elapsed = started.elapsed();
         assert!(!diff.changes.is_empty());
         eprintln!("300k token diff took {elapsed:?}");

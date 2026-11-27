@@ -165,7 +165,7 @@ output space, bounded independently of existing comparisons.
 - Atomic report publication requires a filesystem that supports same-directory
   hard links.
 - The `flow` subcommand inherits unresolved reading-order uncertainty from layout
-  reconstruction: it does not propagate layout issues into `FlowToken.uncertain`,
+  reconstruction: it does not propagate layout issues into `Token.uncertain`,
   so tokens from an inferred block or line order remain comparable. It builds
   layout, paint-order, and baseline-row hypotheses per page and chooses among
   them using n-gram evidence from the counterpart pages found by an order-free,

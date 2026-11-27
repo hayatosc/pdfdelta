@@ -7,7 +7,7 @@
 
 use std::{collections::BTreeMap, io::Write, path::Path, time::Duration};
 
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 use serde::Serialize;
 
 /// Which document side a phase measured.
@@ -61,7 +61,7 @@ pub(crate) struct TraceError {
 }
 
 impl TraceError {
-    fn from_flow(error: &FlowError) -> Self {
+    fn from_diff_error(error: &DiffError) -> Self {
         let limit = error.limit();
         Self {
             kind: error.class().label(),
@@ -233,7 +233,7 @@ impl FlowTrace {
         side: Option<TraceSide>,
         metrics: impl IntoIterator<Item = (&'static str, usize)>,
         duration: Duration,
-        error: &FlowError,
+        error: &DiffError,
     ) {
         self.record(
             name,
@@ -241,18 +241,18 @@ impl FlowTrace {
             TraceStatus::Incomplete,
             metrics,
             Some(duration),
-            Some(TraceError::from_flow(error)),
+            Some(TraceError::from_diff_error(error)),
         );
     }
 
-    pub(crate) fn fail(&mut self, name: &'static str, side: Option<TraceSide>, error: &FlowError) {
+    pub(crate) fn fail(&mut self, name: &'static str, side: Option<TraceSide>, error: &DiffError) {
         self.record(
             name,
             side,
             TraceStatus::Failed,
             [],
             None,
-            Some(TraceError::from_flow(error)),
+            Some(TraceError::from_diff_error(error)),
         );
     }
 
@@ -347,7 +347,7 @@ fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
         ("tokenization_normalization", Some(TraceSide::Old)),
         ("tokenization_normalization", Some(TraceSide::New)),
         ("furniture_order", None),
-        ("flow_diff", None),
+        ("diff", None),
         ("assessment_formatting", None),
         // Always expected: a text-only run records it explicitly as skipped
         // for `text_only`, and a multi-channel run records it completed.
@@ -359,13 +359,13 @@ fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
 
 /// Writes a flow trace atomically. A destination that exists is refused by the
 /// shared output publisher, exactly like every other report path.
-pub(crate) fn write_atomically(path: &Path, trace: &FlowTrace) -> Result<(), FlowError> {
+pub(crate) fn write_atomically(path: &Path, trace: &FlowTrace) -> Result<(), DiffError> {
     crate::fs::write_output_atomically(path, "flow trace report", |output| {
         trace
             .write_json(output)
             .map_err(|error| format!("cannot render flow trace for {}: {error}", path.display()))
     })
-    .map_err(FlowError::backend)
+    .map_err(DiffError::backend)
 }
 
 /// Bounded metric helper for issue kinds.
@@ -401,19 +401,19 @@ mod tests {
         let errors = [
             (
                 "backend",
-                FlowError::backend("limit exceeded; unsupported input; max_ bytes"),
+                DiffError::backend("limit exceeded; unsupported input; max_ bytes"),
             ),
             (
                 "unsupported",
-                FlowError::unsupported("backend failure and a limit exceeded"),
+                DiffError::unsupported("backend failure and a limit exceeded"),
             ),
             (
                 "unresolved",
-                FlowError::unresolved("unsupported wording with exceeded limits"),
+                DiffError::unresolved("unsupported wording with exceeded limits"),
             ),
             (
                 "limit_exceeded",
-                FlowError::limit_exceeded(
+                DiffError::limit_exceeded(
                     "PDF input bytes",
                     16,
                     "unsupported backend failure without limit wording",

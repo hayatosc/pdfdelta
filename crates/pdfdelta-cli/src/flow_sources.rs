@@ -324,7 +324,7 @@ impl SourceWriter {
     /// written.
     pub(crate) fn write_lists(
         &mut self,
-        candidates: &pdfdelta_flow::FlowCandidates,
+        candidates: &pdfdelta_diff::OrderCandidates,
     ) -> Result<(), String> {
         for hypothesis in candidates.hypotheses() {
             if !hypothesis.source_glyphs.is_empty()

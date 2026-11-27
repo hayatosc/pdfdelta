@@ -7,7 +7,7 @@
 use std::{io::Write, path::Path};
 
 use pdfdelta_core::options::PipelineOptions;
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 
 use crate::{
     args::{CompareCommand, ComparisonInput},
@@ -37,21 +37,21 @@ impl ExitStatus {
 /// Every CLI comparison path uses the same checks so a native-text run cannot
 /// overwrite an input or an extraction cache that the shared-evidence path
 /// would refuse.
-pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), FlowError> {
+pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), DiffError> {
     let old_path = command
         .old_path
-        .ok_or_else(|| FlowError::backend("cannot compare PDFs: OLD_PDF is required"))?;
+        .ok_or_else(|| DiffError::backend("cannot compare PDFs: OLD_PDF is required"))?;
     let new_path = command
         .new_path
-        .ok_or_else(|| FlowError::backend("cannot compare PDFs: NEW_PDF is required"))?;
+        .ok_or_else(|| DiffError::backend("cannot compare PDFs: NEW_PDF is required"))?;
     if old_path == Path::new("-") && new_path == Path::new("-") {
-        return Err(FlowError::backend(
+        return Err(DiffError::backend(
             "cannot read both OLD_PDF and NEW_PDF from standard input",
         ));
     }
     if let Some(trace_path) = command.trace_path {
         ensure_trace_does_not_alias_input(trace_path, old_path, new_path)
-            .map_err(FlowError::backend)?;
+            .map_err(DiffError::backend)?;
     }
     // One guard per pair of output destinations; the pair table keeps the
     // exact refusal messages next to the aliasing check they motivate.
@@ -93,9 +93,9 @@ pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), FlowErro
         ),
     ] {
         if let (Some(left), Some(right)) = (left, right)
-            && paths_refer_to_same_file(left, right, label).map_err(FlowError::backend)?
+            && paths_refer_to_same_file(left, right, label).map_err(DiffError::backend)?
         {
-            return Err(FlowError::backend(format!(
+            return Err(DiffError::backend(format!(
                 "refusing {left_noun} {} because it refers to the {right_noun} {}",
                 left.display(),
                 right.display()
@@ -115,9 +115,9 @@ pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), FlowErro
                     cache_dir,
                     "extraction cache/output collision",
                 )
-                .map_err(FlowError::backend)?
+                .map_err(DiffError::backend)?
             {
-                return Err(FlowError::backend(format!(
+                return Err(DiffError::backend(format!(
                     "refusing {noun} {} because it refers to the extraction cache directory {}",
                     destination.display(),
                     cache_dir.display()
@@ -128,7 +128,7 @@ pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), FlowErro
 
     if let Some(json_path) = command.options.json_path {
         ensure_output_does_not_alias_input(json_path, old_path, new_path)
-            .map_err(FlowError::backend)?;
+            .map_err(DiffError::backend)?;
     }
     if let Some(output_path) = command.options.output_path {
         ensure_named_output_does_not_alias_input(
@@ -137,7 +137,7 @@ pub fn validate_destinations(command: CompareCommand<'_>) -> Result<(), FlowErro
             old_path,
             new_path,
         )
-        .map_err(FlowError::backend)?;
+        .map_err(DiffError::backend)?;
     }
 
     Ok(())
@@ -152,23 +152,23 @@ pub fn compare_documents_with_evidence(
         crate::render::RenderCpuReport,
         crate::image_hashes::ImageCpuReport,
     ),
-    FlowError,
+    DiffError,
 > {
     let old_path = command
         .old_path
-        .ok_or_else(|| FlowError::backend("cannot compare PDFs: OLD_PDF is required"))?;
+        .ok_or_else(|| DiffError::backend("cannot compare PDFs: OLD_PDF is required"))?;
     let new_path = command
         .new_path
-        .ok_or_else(|| FlowError::backend("cannot compare PDFs: NEW_PDF is required"))?;
+        .ok_or_else(|| DiffError::backend("cannot compare PDFs: NEW_PDF is required"))?;
 
     if old_path == Path::new("-") && new_path == Path::new("-") {
-        return Err(FlowError::backend(
+        return Err(DiffError::backend(
             "cannot read both OLD_PDF and NEW_PDF from standard input",
         ));
     }
     let pipeline_options = PipelineOptions::default()
         .scaled_limits(command.limit_scale)
-        .map_err(|error| FlowError::from(error).with_context("cannot compare PDFs"))?;
+        .map_err(|error| DiffError::from(error).with_context("cannot compare PDFs"))?;
 
     let old_input = ComparisonInput {
         path: old_path,

@@ -1,6 +1,6 @@
-//! Typed flow failures shared by the library, CLI trace, and exit policy.
+//! Typed diff failures shared by the library, CLI trace, and exit policy.
 //!
-//! A flow failure always carries a contextual message and an explicit outcome
+//! A diff failure always carries a contextual message and an explicit outcome
 //! class. The message is what the CLI prints; the class is what the trace and
 //! the exit policy consume, so neither has to infer intent from wording.
 //!
@@ -12,14 +12,14 @@ use std::fmt;
 
 use pdfdelta_core::source::{ExtractionIssue, ExtractionIssueKind};
 
-/// Outcome class of one failed flow operation.
+/// Outcome class of one failed diff operation.
 ///
 /// The labels are the stable vocabulary of the flow trace's `error.kind`
 /// field. [`Self::Backend`] covers fatal engine, I/O, configuration, and report
 /// failures; the other classes preserve the distinctions the project requires
 /// for unsupported input, unresolved content, and finite resource limits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FlowErrorClass {
+pub enum ErrorClass {
     /// Fatal engine, I/O, configuration, or report failure.
     Backend,
     /// The input uses a feature this engine cannot inspect.
@@ -30,7 +30,7 @@ pub enum FlowErrorClass {
     LimitExceeded,
 }
 
-impl FlowErrorClass {
+impl ErrorClass {
     /// Stable trace label for this class.
     #[must_use]
     pub const fn label(self) -> &'static str {
@@ -45,38 +45,38 @@ impl FlowErrorClass {
 
 /// The finite resource and configured bound of a limit failure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FlowLimit {
+pub struct Limit {
     /// Stable name of the limited resource.
     pub resource: &'static str,
     /// Configured maximum for the resource.
     pub limit: usize,
 }
 
-/// A contextual flow failure with an explicit outcome class.
+/// A contextual diff failure with an explicit outcome class.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FlowError {
-    class: FlowErrorClass,
+pub struct Error {
+    class: ErrorClass,
     message: String,
-    limit: Option<FlowLimit>,
+    limit: Option<Limit>,
 }
 
-impl FlowError {
+impl Error {
     /// Creates a fatal engine, I/O, configuration, or report failure.
     #[must_use]
     pub fn backend(message: impl Into<String>) -> Self {
-        Self::new(FlowErrorClass::Backend, message, None)
+        Self::new(ErrorClass::Backend, message, None)
     }
 
     /// Creates an unsupported-input failure.
     #[must_use]
     pub fn unsupported(message: impl Into<String>) -> Self {
-        Self::new(FlowErrorClass::Unsupported, message, None)
+        Self::new(ErrorClass::Unsupported, message, None)
     }
 
     /// Creates an unresolved-content failure.
     #[must_use]
     pub fn unresolved(message: impl Into<String>) -> Self {
-        Self::new(FlowErrorClass::Unresolved, message, None)
+        Self::new(ErrorClass::Unresolved, message, None)
     }
 
     /// Creates a resource-limit failure naming the resource and its bound.
@@ -87,33 +87,33 @@ impl FlowError {
         message: impl Into<String>,
     ) -> Self {
         Self::new(
-            FlowErrorClass::LimitExceeded,
+            ErrorClass::LimitExceeded,
             message,
-            Some(FlowLimit { resource, limit }),
+            Some(Limit { resource, limit }),
         )
     }
 
     /// Creates a resource-limit failure whose producer did not retain the
     /// configured bound.
     ///
-    /// These still belong to [`FlowErrorClass::LimitExceeded`]; they are not
+    /// These still belong to [`ErrorClass::LimitExceeded`]; they are not
     /// backend failures. Prefer [`Self::limit_exceeded`] whenever the resource
     /// name and bound are known.
     #[must_use]
     pub fn limit_exceeded_without_bound(message: impl Into<String>) -> Self {
-        Self::new(FlowErrorClass::LimitExceeded, message, None)
+        Self::new(ErrorClass::LimitExceeded, message, None)
     }
 
     /// Converts one extraction issue, taking the class from its typed kind.
     ///
     /// The description stays the human-readable message. This is the only
-    /// place an extraction issue becomes a flow error, so the unsupported and
+    /// place an extraction issue becomes a diff error, so the unsupported and
     /// unresolved distinction is carried structurally rather than by wording.
     #[must_use]
     pub fn from_extraction_issue(issue: &ExtractionIssue) -> Self {
         let class = match issue.kind() {
-            ExtractionIssueKind::Unsupported => FlowErrorClass::Unsupported,
-            ExtractionIssueKind::Unresolved => FlowErrorClass::Unresolved,
+            ExtractionIssueKind::Unsupported => ErrorClass::Unsupported,
+            ExtractionIssueKind::Unresolved => ErrorClass::Unresolved,
         };
         Self::new(class, issue.description(), None)
     }
@@ -140,7 +140,7 @@ impl FlowError {
 
     /// The explicit outcome class.
     #[must_use]
-    pub const fn class(&self) -> FlowErrorClass {
+    pub const fn class(&self) -> ErrorClass {
         self.class
     }
 
@@ -152,11 +152,11 @@ impl FlowError {
 
     /// The limited resource and bound, for a limit-class failure.
     #[must_use]
-    pub const fn limit(&self) -> Option<FlowLimit> {
+    pub const fn limit(&self) -> Option<Limit> {
         self.limit
     }
 
-    fn new(class: FlowErrorClass, message: impl Into<String>, limit: Option<FlowLimit>) -> Self {
+    fn new(class: ErrorClass, message: impl Into<String>, limit: Option<Limit>) -> Self {
         Self {
             class,
             message: message.into(),
@@ -165,15 +165,15 @@ impl FlowError {
     }
 }
 
-impl fmt::Display for FlowError {
+impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.message)
     }
 }
 
-impl std::error::Error for FlowError {}
+impl std::error::Error for Error {}
 
-impl From<pdfdelta_core::Error> for FlowError {
+impl From<pdfdelta_core::Error> for Error {
     fn from(error: pdfdelta_core::Error) -> Self {
         let message = error.to_string();
         match error {
@@ -186,7 +186,7 @@ impl From<pdfdelta_core::Error> for FlowError {
                 Self::limit_exceeded(resource, limit, message)
             }
             // `pdfdelta_core::Error` is non-exhaustive. A new core variant is
-            // fatal for the flow path until it receives an explicit class
+            // fatal for the diff path until it receives an explicit class
             // here; this arm never inspects the message text.
             _ => Self::backend(message),
         }
@@ -197,58 +197,58 @@ impl From<pdfdelta_core::Error> for FlowError {
 mod tests {
     use pdfdelta_core::source::{ExtractionIssue, ExtractionScope};
 
-    use super::{FlowError, FlowErrorClass};
+    use super::{Error, ErrorClass};
 
     #[test]
     fn every_core_error_variant_keeps_its_class_and_message() {
         let cases = [
             (
                 pdfdelta_core::Error::Backend("disk".to_owned()),
-                FlowErrorClass::Backend,
+                ErrorClass::Backend,
             ),
             (
                 pdfdelta_core::Error::Report("write".to_owned()),
-                FlowErrorClass::Backend,
+                ErrorClass::Backend,
             ),
             (
                 pdfdelta_core::Error::InvalidConfiguration("scale".to_owned()),
-                FlowErrorClass::Backend,
+                ErrorClass::Backend,
             ),
             (
                 pdfdelta_core::Error::Unsupported("security".to_owned()),
-                FlowErrorClass::Unsupported,
+                ErrorClass::Unsupported,
             ),
             (
                 pdfdelta_core::Error::Unresolved("paint".to_owned()),
-                FlowErrorClass::Unresolved,
+                ErrorClass::Unresolved,
             ),
             (
                 pdfdelta_core::Error::LimitExceeded {
                     resource: "glyphs",
                     limit: 7,
                 },
-                FlowErrorClass::LimitExceeded,
+                ErrorClass::LimitExceeded,
             ),
         ];
         for (error, expected) in cases {
             let message = error.to_string();
-            let flow = FlowError::from(error);
-            assert_eq!(flow.class(), expected);
-            assert_eq!(flow.message(), message);
+            let diff_error = Error::from(error);
+            assert_eq!(diff_error.class(), expected);
+            assert_eq!(diff_error.message(), message);
         }
     }
 
     #[test]
     fn limit_details_survive_context() {
-        let error = FlowError::from(pdfdelta_core::Error::LimitExceeded {
+        let error = Error::from(pdfdelta_core::Error::LimitExceeded {
             resource: "glyphs",
             limit: 7,
         })
         .with_context("failed to extract old.pdf");
-        assert_eq!(error.class(), FlowErrorClass::LimitExceeded);
+        assert_eq!(error.class(), ErrorClass::LimitExceeded);
         assert_eq!(
             error.limit(),
-            Some(super::FlowLimit {
+            Some(super::Limit {
                 resource: "glyphs",
                 limit: 7
             })
@@ -271,20 +271,20 @@ mod tests {
         )
         .expect("issue");
         assert_eq!(
-            FlowError::from_extraction_issue(&unsupported).class(),
-            FlowErrorClass::Unsupported
+            Error::from_extraction_issue(&unsupported).class(),
+            ErrorClass::Unsupported
         );
         assert_eq!(
-            FlowError::from_extraction_issue(&unresolved).class(),
-            FlowErrorClass::Unresolved
+            Error::from_extraction_issue(&unresolved).class(),
+            ErrorClass::Unresolved
         );
     }
 
     #[test]
     fn unbounded_limit_and_suffix_keep_their_class() {
-        let error = FlowError::limit_exceeded_without_bound("worker response too large")
+        let error = Error::limit_exceeded_without_bound("worker response too large")
             .with_suffix("review directory /tmp/x is incomplete");
-        assert_eq!(error.class(), FlowErrorClass::LimitExceeded);
+        assert_eq!(error.class(), ErrorClass::LimitExceeded);
         assert_eq!(error.limit(), None);
         assert_eq!(
             error.message(),
@@ -295,10 +295,10 @@ mod tests {
     #[test]
     fn classes_have_distinct_trace_labels() {
         let labels = [
-            FlowErrorClass::Backend.label(),
-            FlowErrorClass::Unsupported.label(),
-            FlowErrorClass::Unresolved.label(),
-            FlowErrorClass::LimitExceeded.label(),
+            ErrorClass::Backend.label(),
+            ErrorClass::Unsupported.label(),
+            ErrorClass::Unresolved.label(),
+            ErrorClass::LimitExceeded.label(),
         ];
         assert_eq!(
             labels,

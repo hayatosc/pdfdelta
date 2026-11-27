@@ -17,7 +17,7 @@ use pdfdelta_core::{
     },
     source::{ExtractionIssue, ExtractionScope},
 };
-use pdfdelta_flow::{AmbiguityReason, Confidence, FlowChange, PageOrderEvidence};
+use pdfdelta_diff::{AmbiguityReason, Change, Confidence, PageOrderEvidence};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -70,7 +70,7 @@ pub(crate) fn project(comparison: &FlowComparison) -> OwnedReview<'_> {
         .filter(|(_, change)| {
             !matches!(
                 change,
-                FlowChange::LayoutOnly { .. } | FlowChange::ReadingOrder { .. }
+                Change::LayoutOnly { .. } | Change::ReadingOrder { .. }
             )
         })
         .enumerate()
@@ -189,13 +189,13 @@ fn order_view(order: &PageOrderEvidence) -> FlowPageOrderView {
     }
 }
 
-fn change_kind(change: &FlowChange) -> FlowChangeKind {
+fn change_kind(change: &Change) -> FlowChangeKind {
     match change {
-        FlowChange::Delete { .. } => FlowChangeKind::Delete,
-        FlowChange::Insert { .. } => FlowChangeKind::Insert,
-        FlowChange::Replace { .. } => FlowChangeKind::Replace,
-        FlowChange::Move { .. } => FlowChangeKind::Move,
-        FlowChange::ReadingOrder { .. } | FlowChange::LayoutOnly { .. } => FlowChangeKind::Replace,
+        Change::Delete { .. } => FlowChangeKind::Delete,
+        Change::Insert { .. } => FlowChangeKind::Insert,
+        Change::Replace { .. } => FlowChangeKind::Replace,
+        Change::Move { .. } => FlowChangeKind::Move,
+        Change::ReadingOrder { .. } | Change::LayoutOnly { .. } => FlowChangeKind::Replace,
     }
 }
 

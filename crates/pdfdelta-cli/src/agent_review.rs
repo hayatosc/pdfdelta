@@ -26,7 +26,7 @@ use pdfdelta_core::{
         ReviewCase, ReviewQuestion, ReviewReason, ReviewText, Side, StreamingPlan,
     },
 };
-use pdfdelta_flow::{FlowError, FlowErrorClass};
+use pdfdelta_diff::{Error as DiffError, ErrorClass};
 use serde::{Deserialize, Serialize};
 
 use crate::review::bundle::{self, Artifact, MAX_BYTES};
@@ -235,7 +235,7 @@ pub(crate) fn write_streaming(
     old: SourceDocument<'_>,
     new: SourceDocument<'_>,
     rasters: &[PageRaster<'_>],
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     // A case can be large, and page rasters add their own bytes. Estimate the
     // unavoidable JSON before attempting a one-bundle write so a known-large
     // plan does not spend a minute filling a part that must be split anyway.
@@ -263,7 +263,7 @@ pub(crate) fn write_streaming(
             Ok(_) => return Ok(()),
             Err(error) if is_bundle_limit(&error) => {
                 fs::remove_dir_all(directory).map_err(|remove| {
-                    FlowError::backend(format!(
+                    DiffError::backend(format!(
                         "cannot reset split review directory {}: {remove}",
                         directory.display()
                     ))
@@ -291,7 +291,7 @@ pub(crate) fn write_streaming(
 pub(crate) fn multiply_plan(
     plan: &mut StreamingPlan,
     store: &mut dyn CaseStore,
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     use sha2::{Digest, Sha256};
 
     let multiplier = std::env::var("PDFDELTA_AGENT_PLAN_MULTIPLIER")
@@ -318,12 +318,12 @@ pub(crate) fn multiply_plan(
                 format!("{}:{copy}", ordered.case_id).as_bytes(),
             ));
             let case_id = CaseId::new(format!("R{}", &digest[..20]))
-                .map_err(|error| FlowError::backend(error.to_string()))?;
+                .map_err(|error| DiffError::backend(error.to_string()))?;
             duplicate.case_id = case_id.clone();
             duplicate.content_digest = digest;
             let handle = store
                 .store(duplicate, None)
-                .map_err(|error| FlowError::backend(error.to_string()))?;
+                .map_err(|error| DiffError::backend(error.to_string()))?;
             order.push(OrderedCase {
                 handle,
                 case_id,
@@ -346,7 +346,7 @@ pub(crate) fn multiply_plan(
 pub(crate) fn multiply_plan(
     _plan: &mut StreamingPlan,
     _store: &mut dyn CaseStore,
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     Ok(())
 }
 
@@ -358,29 +358,29 @@ pub(crate) fn multiply_plan(
 fn estimate_plan_bytes(
     plan: &StreamingPlan,
     store: &mut dyn CaseStore,
-) -> Result<usize, FlowError> {
+) -> Result<usize, DiffError> {
     let mut total = 0usize;
     for ordered in &plan.order {
         let (mut case, _) = load_planned_case(store, ordered.handle)?;
         attach_links(&mut case, ordered);
         let bytes = serde_json::to_vec(&case)
-            .map_err(|error| FlowError::backend(format!("cannot size review case: {error}")))?
+            .map_err(|error| DiffError::backend(format!("cannot size review case: {error}")))?
             .len();
         total = total
             .checked_add(bytes)
-            .ok_or_else(|| FlowError::backend("review case estimate overflows"))?;
+            .ok_or_else(|| DiffError::backend("review case estimate overflows"))?;
     }
     for handle in &plan.contexts {
         let (_, context) = load_planned_case(store, *handle)?;
         if let Some(context) = context {
             let bytes = serde_json::to_vec(&context)
                 .map_err(|error| {
-                    FlowError::backend(format!("cannot size review context: {error}"))
+                    DiffError::backend(format!("cannot size review context: {error}"))
                 })?
                 .len();
             total = total
                 .checked_add(bytes)
-                .ok_or_else(|| FlowError::backend("review context estimate overflows"))?;
+                .ok_or_else(|| DiffError::backend("review context estimate overflows"))?;
         }
     }
     Ok(total)
@@ -389,10 +389,10 @@ fn estimate_plan_bytes(
 fn load_planned_case(
     store: &mut dyn CaseStore,
     handle: usize,
-) -> Result<(ReviewCase, Option<CaseContext>), FlowError> {
+) -> Result<(ReviewCase, Option<CaseContext>), DiffError> {
     store
         .load(handle)
-        .map_err(|error| FlowError::backend(format!("cannot read planned review case: {error}")))
+        .map_err(|error| DiffError::backend(format!("cannot read planned review case: {error}")))
 }
 
 fn attach_links(case: &mut ReviewCase, ordered: &OrderedCase) {
@@ -401,8 +401,8 @@ fn attach_links(case: &mut ReviewCase, ordered: &OrderedCase) {
 }
 
 /// Whether an error is the per-bundle byte cap, which a split can resolve.
-fn is_bundle_limit(error: &FlowError) -> bool {
-    error.class() == FlowErrorClass::LimitExceeded
+fn is_bundle_limit(error: &DiffError) -> bool {
+    error.class() == ErrorClass::LimitExceeded
         && error
             .limit()
             .is_some_and(|limit| limit.resource == "review bundle bytes")
@@ -433,7 +433,7 @@ fn write_bundle_streaming(
     contexts: &[usize],
     store: &mut dyn CaseStore,
     io: &BundleIo<'_>,
-) -> Result<BundleFiles, FlowError> {
+) -> Result<BundleFiles, DiffError> {
     let mut remaining = io.max_bytes;
     let mut artifacts = vec![
         bundle::file(directory, "old.pdf", &mut remaining, |out| {
@@ -515,7 +515,7 @@ fn write_bundle_streaming(
     for handle in contexts {
         let (_, context) = load_planned_case(store, *handle)?;
         let context = context
-            .ok_or_else(|| FlowError::backend("a planned context handle has no stored context"))?;
+            .ok_or_else(|| DiffError::backend("a planned context handle has no stored context"))?;
         let name = format!("cases/{}.context.json", context.case_id);
         artifacts.push(bundle::file(directory, &name, &mut remaining, |out| {
             serde_json::to_writer(out, &context).map_err(io::Error::other)
@@ -554,7 +554,7 @@ fn write_bundle_streaming(
         .try_fold(manifest_artifact.bytes, |total, artifact| {
             total.checked_add(artifact.bytes)
         })
-        .ok_or_else(|| FlowError::backend("review bundle byte count overflows"))?;
+        .ok_or_else(|| DiffError::backend("review bundle byte count overflows"))?;
     Ok(BundleFiles {
         manifest: manifest_artifact,
         bytes,
@@ -598,7 +598,7 @@ fn write_part_set_streaming(
     plan: &StreamingPlan,
     store: &mut dyn CaseStore,
     io: &BundleIo<'_>,
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     write_part_set_streaming_with_batch(directory, plan, store, io, part_batch_size())
 }
 
@@ -610,7 +610,7 @@ fn write_part_set_streaming_with_batch(
     store: &mut dyn CaseStore,
     io: &BundleIo<'_>,
     batch: usize,
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     bundle::create_directory(directory)?;
     let mut pending = VecDeque::new();
     let mut offset = 0usize;
@@ -649,7 +649,7 @@ fn write_part_set_streaming_with_batch(
             }
             Err(error) if is_bundle_limit(&error) && indices.len() > 1 => {
                 fs::remove_dir_all(&part_directory).map_err(|remove| {
-                    FlowError::backend(format!(
+                    DiffError::backend(format!(
                         "cannot reset split review part {}: {remove}",
                         part_directory.display()
                     ))

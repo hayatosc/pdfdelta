@@ -387,9 +387,9 @@ pub struct TextEditPlan {
     /// Replacement digit character and its single-byte code.
     pub new_digit: char,
     pub new_code: u8,
-    /// Flow token containing the original digit.
+    /// Diff token containing the original digit.
     pub old_token: String,
-    /// Flow token after the digit replacement.
+    /// Diff token after the digit replacement.
     pub new_token: String,
 }
 

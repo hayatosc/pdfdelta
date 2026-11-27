@@ -589,7 +589,7 @@ dependencies = [
  "clap",
  "lopdf",
  "pdfdelta-core",
- "pdfdelta-flow",
+ "pdfdelta-diff",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -614,7 +614,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdfdelta-flow"
+name = "pdfdelta-diff"
 version = "0.1.0"
 dependencies = [
  "pdfdelta-core",
@@ -627,7 +627,7 @@ dependencies = [
  "libfuzzer-sys",
  "pdfdelta-bench",
  "pdfdelta-core",
- "pdfdelta-flow",
+ "pdfdelta-diff",
 ]
 
 [[package]]

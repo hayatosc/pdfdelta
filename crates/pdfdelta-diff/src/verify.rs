@@ -16,7 +16,7 @@
 use std::fmt;
 use std::ops::Range;
 
-use super::{FlowChange, FlowToken, script::layout_only_equal};
+use super::{Change, Token, script::layout_only_equal};
 
 /// Why a script failed replay.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,11 +122,7 @@ impl std::error::Error for VerifyError {}
 /// # Errors
 ///
 /// Returns the first violated invariant as a [`VerifyError`].
-pub fn verify(
-    old: &[FlowToken],
-    new: &[FlowToken],
-    script: &[FlowChange],
-) -> Result<(), VerifyError> {
+pub fn verify(old: &[Token], new: &[Token], script: &[Change]) -> Result<(), VerifyError> {
     let mut old_covered = vec![false; old.len()];
     let mut new_covered = vec![false; new.len()];
     let mut previous_old_end = 0;
@@ -156,7 +152,7 @@ pub fn verify(
         mark(&mut old_covered, &old_range, true)?;
         mark(&mut new_covered, &new_range, false)?;
         match change {
-            FlowChange::Move {
+            Change::Move {
                 old: old_side,
                 new: new_side,
             } => {
@@ -169,7 +165,7 @@ pub fn verify(
                     });
                 }
             }
-            FlowChange::ReadingOrder {
+            Change::ReadingOrder {
                 old: old_side,
                 new: new_side,
             } if !texts_equal(&old[old_side.clone()], &new[new_side.clone()]) => {
@@ -178,7 +174,7 @@ pub fn verify(
                     new: new_side.clone(),
                 });
             }
-            FlowChange::LayoutOnly {
+            Change::LayoutOnly {
                 old: old_side,
                 new: new_side,
             } if !layout_only_equal(&old[old_side.clone()], &new[new_side.clone()]) => {
@@ -235,7 +231,7 @@ fn uncovered(covered: &[bool]) -> Vec<usize> {
         .collect()
 }
 
-fn texts_equal(old: &[FlowToken], new: &[FlowToken]) -> bool {
+fn texts_equal(old: &[Token], new: &[Token]) -> bool {
     old.len() == new.len()
         && old
             .iter()
@@ -248,10 +244,10 @@ mod tests {
     use super::*;
     use pdfdelta_core::model::PageId;
 
-    fn tokens(texts: &[&str]) -> Vec<FlowToken> {
+    fn tokens(texts: &[&str]) -> Vec<Token> {
         texts
             .iter()
-            .map(|&text| FlowToken {
+            .map(|&text| Token {
                 text: text.to_owned(),
                 page: PageId(0),
                 bounds: None,
@@ -272,7 +268,7 @@ mod tests {
         let error = verify(
             &tokens(&["a"]),
             &tokens(&["a"]),
-            &[FlowChange::Insert { new: 0..2 }],
+            &[Change::Insert { new: 0..2 }],
         )
         .expect_err("the script must be rejected");
         assert!(matches!(error, VerifyError::RangeOutOfBounds { .. }));
@@ -280,10 +276,7 @@ mod tests {
 
     #[test]
     fn rejects_old_ranges_out_of_order() {
-        let script = [
-            FlowChange::Delete { old: 2..3 },
-            FlowChange::Delete { old: 1..2 },
-        ];
+        let script = [Change::Delete { old: 2..3 }, Change::Delete { old: 1..2 }];
         let error = verify(&tokens(&["a", "b", "c"]), &tokens(&[]), &script)
             .expect_err("the script must be rejected");
         assert_eq!(error, VerifyError::OldOutOfOrder { at: 1 });
@@ -292,11 +285,11 @@ mod tests {
     #[test]
     fn rejects_double_covered_new_tokens() {
         let script = [
-            FlowChange::Replace {
+            Change::Replace {
                 old: 1..2,
                 new: 0..1,
             },
-            FlowChange::Replace {
+            Change::Replace {
                 old: 2..3,
                 new: 0..1,
             },
@@ -334,7 +327,7 @@ mod tests {
 
     #[test]
     fn rejects_moves_whose_sides_differ() {
-        let script = [FlowChange::Move {
+        let script = [Change::Move {
             old: 0..2,
             new: 0..2,
         }];
@@ -345,7 +338,7 @@ mod tests {
 
     #[test]
     fn rejects_layout_only_changes_that_alter_text() {
-        let script = [FlowChange::LayoutOnly {
+        let script = [Change::LayoutOnly {
             old: 0..1,
             new: 0..1,
         }];
@@ -356,7 +349,7 @@ mod tests {
 
     #[test]
     fn accepts_a_reading_order_change_beside_uncovered_equal_tokens() {
-        let script = [FlowChange::ReadingOrder {
+        let script = [Change::ReadingOrder {
             old: 0..1,
             new: 1..2,
         }];
@@ -366,7 +359,7 @@ mod tests {
 
     #[test]
     fn rejects_reading_order_changes_that_alter_text() {
-        let script = [FlowChange::ReadingOrder {
+        let script = [Change::ReadingOrder {
             old: 0..1,
             new: 0..1,
         }];
@@ -377,7 +370,7 @@ mod tests {
 
     #[test]
     fn accepts_a_move_beside_uncovered_equal_tokens() {
-        let script = [FlowChange::Move {
+        let script = [Change::Move {
             old: 0..1,
             new: 2..3,
         }];

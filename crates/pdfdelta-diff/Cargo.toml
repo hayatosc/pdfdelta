@@ -1,5 +1,5 @@
 [package]
-name = "pdfdelta-flow"
+name = "pdfdelta-diff"
 version.workspace = true
 edition.workspace = true
 publish = false

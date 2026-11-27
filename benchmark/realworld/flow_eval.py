@@ -555,7 +555,7 @@ def minimal_diff(
     deleted = 0
     inserted = 0
     status = "ok"
-    with tempfile.TemporaryDirectory(prefix="pdfdelta-flow-minimal-") as directory:
+    with tempfile.TemporaryDirectory(prefix="pdfdelta-diff-minimal-") as directory:
         old_path = pathlib.Path(directory) / "old.tokens"
         new_path = pathlib.Path(directory) / "new.tokens"
         with old_path.open("w", encoding="utf-8") as stream:

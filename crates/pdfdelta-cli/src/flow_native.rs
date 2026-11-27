@@ -10,7 +10,7 @@
 use std::{io::Write, ops::Range, path::Path};
 
 use pdfdelta_core::source::ExtractionIssue;
-use pdfdelta_flow::{ChangeAssessment, Confidence, FlowChange, FlowError, FlowStream};
+use pdfdelta_diff::{Change, ChangeAssessment, Confidence, Error as DiffError, TokenStream};
 use serde_json::{Value, json};
 
 use crate::{
@@ -52,11 +52,11 @@ pub(crate) fn run(
     new_path: &Path,
     options: &NativeFlowOptions<'_>,
     writer: &mut impl Write,
-) -> Result<u8, FlowError> {
+) -> Result<u8, DiffError> {
     if let Some(path) = options.trace_json
         && path.exists()
     {
-        return Err(FlowError::backend(format!(
+        return Err(DiffError::backend(format!(
             "refusing to overwrite existing flow trace report {}: output path already exists",
             path.display()
         )));
@@ -111,23 +111,23 @@ pub(crate) fn run(
         text.push('\n');
     }
     if let Some(path) = options.output_path {
-        write_text_report_atomically(path, &text).map_err(FlowError::backend)?;
+        write_text_report_atomically(path, &text).map_err(DiffError::backend)?;
     } else if !options.quiet {
         writer
             .write_all(text.as_bytes())
-            .map_err(|error| FlowError::backend(format!("failed to write flow report: {error}")))?;
+            .map_err(|error| DiffError::backend(format!("failed to write flow report: {error}")))?;
     }
     let report_start = std::time::Instant::now();
     if let Some(path) = options.json_path {
         if options.full_json {
-            crate::flow_full::write_report(&comparison, path).map_err(FlowError::backend)?;
+            crate::flow_full::write_report(&comparison, path).map_err(DiffError::backend)?;
         } else {
             let report = native_report(&comparison);
             write_output_atomically(path, "native flow JSON report", |output| {
                 serde_json::to_writer(output, &report)
                     .map_err(|error| format!("failed to serialize native flow report: {error}"))
             })
-            .map_err(FlowError::backend)?;
+            .map_err(DiffError::backend)?;
         }
     }
     if let Some(directory) = options.agent_review_dir {
@@ -168,9 +168,9 @@ fn write_agent_review(
     options: &NativeFlowOptions<'_>,
     old_path: &Path,
     new_path: &Path,
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     let Some((old, new)) = crate::flow_review::source_bytes(comparison) else {
-        return Err(FlowError::backend("review source bytes were not retained"));
+        return Err(DiffError::backend("review source bytes were not retained"));
     };
     let owned = crate::flow_review::project(comparison);
     let review = owned.review(comparison);
@@ -188,7 +188,7 @@ fn write_agent_review(
         &mut spool.raw,
         &mut spool.final_store,
     )
-    .map_err(|error| FlowError::backend(error.to_string()))?;
+    .map_err(|error| DiffError::backend(error.to_string()))?;
     crate::agent_review::multiply_plan(&mut plan, &mut spool.final_store)?;
     // Input names are caller-supplied text; they are never used to choose an
     // artifact path.
@@ -239,10 +239,10 @@ pub(crate) fn native_report(comparison: &FlowComparison) -> Value {
     let mut changes = Vec::new();
     let mut reading_order = Vec::new();
     for (index, change) in comparison.diff.changes.iter().enumerate() {
-        if matches!(change, FlowChange::LayoutOnly { .. }) {
+        if matches!(change, Change::LayoutOnly { .. }) {
             continue;
         }
-        if matches!(change, FlowChange::ReadingOrder { .. }) {
+        if matches!(change, Change::ReadingOrder { .. }) {
             reading_order.push(change_json(
                 change,
                 comparison.assessments.get(index),
@@ -387,10 +387,10 @@ fn extraction_issues(old: &flow_cmd::Side, new: &flow_cmd::Side) -> (Vec<Value>,
 }
 
 fn change_json(
-    change: &FlowChange,
+    change: &Change,
     assessment: Option<&ChangeAssessment>,
-    old: &FlowStream,
-    new: &FlowStream,
+    old: &TokenStream,
+    new: &TokenStream,
 ) -> Value {
     let (kind, old_range, new_range) = change_ranges(change);
     let old_span = if old_range.is_empty() {
@@ -421,7 +421,7 @@ fn change_json(
     value
 }
 
-fn span_json(stream: &FlowStream, range: Range<usize>) -> Value {
+fn span_json(stream: &TokenStream, range: Range<usize>) -> Value {
     let tokens = &stream.tokens[range.clone()];
     let text = tokens
         .iter()
@@ -442,14 +442,14 @@ fn span_json(stream: &FlowStream, range: Range<usize>) -> Value {
     })
 }
 
-fn change_ranges(change: &FlowChange) -> (&'static str, Range<usize>, Range<usize>) {
+fn change_ranges(change: &Change) -> (&'static str, Range<usize>, Range<usize>) {
     match change {
-        FlowChange::Delete { old } => ("deletion", old.clone(), 0..0),
-        FlowChange::Insert { new } => ("insertion", 0..0, new.clone()),
-        FlowChange::Replace { old, new } => ("replacement", old.clone(), new.clone()),
-        FlowChange::Move { old, new } => ("move", old.clone(), new.clone()),
-        FlowChange::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
-        FlowChange::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
+        Change::Delete { old } => ("deletion", old.clone(), 0..0),
+        Change::Insert { new } => ("insertion", 0..0, new.clone()),
+        Change::Replace { old, new } => ("replacement", old.clone(), new.clone()),
+        Change::Move { old, new } => ("move", old.clone(), new.clone()),
+        Change::ReadingOrder { old, new } => ("reading-order", old.clone(), new.clone()),
+        Change::LayoutOnly { old, new } => ("layout-only", old.clone(), new.clone()),
     }
 }
 
@@ -459,7 +459,7 @@ mod tests {
 
     fn side(paint_issues: usize, issues: Vec<ExtractionIssue>) -> flow_cmd::Side {
         flow_cmd::Side {
-            stream: FlowStream::default(),
+            stream: TokenStream::default(),
             issues,
             paint_issues,
             order: Vec::new(),

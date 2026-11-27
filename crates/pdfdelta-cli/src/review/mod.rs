@@ -7,7 +7,7 @@ use std::{
 };
 
 use pdfdelta_core::document::{DocumentView, DocumentViewComparison};
-use pdfdelta_flow::FlowError;
+use pdfdelta_diff::Error as DiffError;
 use serde::{Serialize, Serializer, ser::SerializeMap};
 
 pub(crate) mod bundle;
@@ -113,9 +113,9 @@ pub(super) fn write(
     complete: bool,
     flow: FlowReview<'_>,
     (old, new): (Input<'_>, Input<'_>),
-) -> Result<(), FlowError> {
+) -> Result<(), DiffError> {
     bundle::create_directory(directory)?;
-    let result = (|| -> Result<(), FlowError> {
+    let result = (|| -> Result<(), DiffError> {
         let mut remaining = MAX_BYTES;
         let sources = SourceIndex {
             version: 1,
@@ -169,7 +169,7 @@ pub(super) fn write(
             {
                 previews += 1;
                 if previews > preview_limit {
-                    return Err(FlowError::limit_exceeded(
+                    return Err(DiffError::limit_exceeded(
                         "static review page previews",
                         preview_limit,
                         format!("static review exceeds its {preview_limit} page-preview limit"),

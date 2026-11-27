@@ -212,7 +212,7 @@ the default token stream carries none. `--trace-json` writes a separate
 `pdfdelta-flow-trace/1` report with bounded metrics for input reading, parse,
 glyph extraction, tokenization/normalization, furniture/order handling, flow
 diff, assessment/formatting, channel comparison when selected, and report.
-Phase failures carry a `pdfdelta_flow::FlowError` class (`backend`,
+Phase failures carry a `pdfdelta_diff::Error` class (`backend`,
 `unsupported`, `unresolved`, or `limit_exceeded`) and limit details instead of
 being classified from message wording. The shared-evidence channel phase uses
 the same type for input reads, native acquisition, graph construction,

@@ -13,7 +13,7 @@ use pdfdelta_core::{
     pdf::{LopdfParser, ParseLimits},
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
-use pdfdelta_flow::{flow_candidates_owned, flow_diff, flow_order_from_candidates};
+use pdfdelta_diff::{candidates_owned, diff, order_from_candidates};
 
 fn install_page(document: &mut LopdfDocument, font: Object, content: Object) {
     let pages = document.new_object_id();
@@ -107,11 +107,11 @@ fn unmapped_identity(document: &Document<Glyph>) -> (Vec<u8>, u16) {
     (font_hash.0.clone(), *glyph_id)
 }
 
-fn diff(old: Document<Glyph>, new: Document<Glyph>) -> Vec<pdfdelta_flow::FlowChange> {
-    let old = flow_candidates_owned(old).expect("old candidates");
-    let new = flow_candidates_owned(new).expect("new candidates");
-    let pair = flow_order_from_candidates(old, new).expect("order selection");
-    flow_diff(&pair.old.tokens, &pair.new.tokens)
+fn diff_changes(old: Document<Glyph>, new: Document<Glyph>) -> Vec<pdfdelta_diff::Change> {
+    let old = candidates_owned(old).expect("old candidates");
+    let new = candidates_owned(new).expect("new candidates");
+    let pair = order_from_candidates(old, new).expect("order selection");
+    diff(&pair.old.tokens, &pair.new.tokens)
         .expect("verified diff")
         .changes
 }
@@ -134,7 +134,7 @@ fn two_subsets_with_equal_names_and_different_programs_have_no_changes() {
     let new_identity = unmapped_identity(&new);
     assert_eq!(old_identity, new_identity);
     assert!(
-        diff(old, new).is_empty(),
+        diff_changes(old, new).is_empty(),
         "re-subsetting must not change a name-identified placeholder"
     );
 }
@@ -155,7 +155,7 @@ fn different_glyph_names_remain_a_change() {
     let new = extract(different);
     assert_ne!(unmapped_identity(&old), unmapped_identity(&new));
     assert!(
-        !diff(old, new).is_empty(),
+        !diff_changes(old, new).is_empty(),
         "different names must remain an observable placeholder change"
     );
 }
