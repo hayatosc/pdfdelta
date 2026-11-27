@@ -62,33 +62,6 @@ fn exit_status(summary: &ReportSummary) -> ExitStatus {
     }
 }
 
-
-fn memory_probe(label: &str) {
-    if std::env::var_os("PDFDELTA_MEM_TRACE").is_none() {
-        return;
-    }
-    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
-        return;
-    };
-    let field = |name: &str| {
-        status
-            .lines()
-            .find(|line| line.starts_with(name))
-            .and_then(|line| line.split_whitespace().nth(1))
-            .unwrap_or("?")
-            .to_owned()
-    };
-    if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open("/dev/stderr") {
-        use std::io::Write as _;
-        let _ = writeln!(
-            file,
-            "mem[{label}] rss={} hwm={}",
-            field("VmRSS:"),
-            field("VmHWM:")
-        );
-    }
-}
-
 pub fn compare_documents<W: Write>(
     command: CompareCommand<'_>,
     diagnostics: &mut W,
@@ -385,7 +358,6 @@ pub fn compare_documents_traced<W: Write>(
             return Err(error);
         }
     };
-    memory_probe("extraction-done");
     let mut pipeline_diagnostics = PipelineDiagnostics::new();
     let outcome_result = compare_extraction_outcomes_with_native_order_proofs(
         old_parsed,
@@ -411,7 +383,6 @@ pub fn compare_documents_traced<W: Write>(
             new_input.path.display()
         )
     })?;
-    memory_probe("pipeline-done");
     let summary = summarize(&outcome.comparison, &outcome.extraction).map_err(|error| {
         format!(
             "cannot summarize comparison for {} and {}: {error}",
@@ -427,7 +398,6 @@ pub fn compare_documents_traced<W: Write>(
         write_json_atomically
     };
 
-    memory_probe("before-report");
     if let Some(json_path) = options.json_path
         && let Err(error) = write_json(
             json_path,
@@ -443,7 +413,6 @@ pub fn compare_documents_traced<W: Write>(
         return Err(error);
     }
 
-    memory_probe("report-written");
     if let Some(directory) = options.agent_review_dir {
         let (Some(old_bytes), Some(new_bytes)) = (&old_bytes, &new_bytes) else {
             return Err("review source bytes were not retained".into());

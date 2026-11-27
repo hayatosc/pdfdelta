@@ -197,11 +197,12 @@ struct ComparisonInstrumentation<'a> {
     enable_known_span_sentence_shadow: bool,
     enable_sentence_edge_gate_shadow: bool,
     retain_atomic_edits: bool,
-    /// Optional native structure-order proofs per side. A proof marks blocks
-    /// whose content order is established by the parser structure tree; it
-    /// carries order only and never asserts equality or layout provenance.
-    old_native_order_proof: Option<&'a crate::document::NativeOrderProof<'a>>,
-    new_native_order_proof: Option<&'a crate::document::NativeOrderProof<'a>>,
+    /// Optional native structure-order runs per side, already checked against
+    /// the originating document. A run marks blocks whose content order is
+    /// established by the parser structure tree; it carries order only and
+    /// never asserts equality or layout provenance.
+    old_native_order_runs: Option<&'a [Vec<GlyphId>]>,
+    new_native_order_runs: Option<&'a [Vec<GlyphId>]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -433,33 +434,6 @@ impl PipelineDiagnostics {
             error: Some(error.into()),
             duration: Duration::ZERO,
         });
-    }
-}
-
-
-fn memory_probe(label: &str) {
-    if std::env::var_os("PDFDELTA_MEM_TRACE").is_none() {
-        return;
-    }
-    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
-        return;
-    };
-    let field = |name: &str| {
-        status
-            .lines()
-            .find(|line| line.starts_with(name))
-            .and_then(|line| line.split_whitespace().nth(1))
-            .unwrap_or("?")
-            .to_owned()
-    };
-    if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open("/dev/stderr") {
-        use std::io::Write as _;
-        let _ = writeln!(
-            file,
-            "mem[{label}] rss={} hwm={}",
-            field("VmRSS:"),
-            field("VmHWM:")
-        );
     }
 }
 
@@ -708,30 +682,29 @@ fn compare_extraction_outcomes_with_structures_inner(
         None,
         PipelineMetrics::default(),
     );
-    memory_probe("pipeline-start");
     let old_complete = old.is_complete();
     let new_complete = new.is_complete();
     let (old_document, old_issues) = old.into_parts();
     let (new_document, new_issues) = new.into_parts();
     // One shared default assessment budget covers both optional acquisitions;
     // per-side deltas are recorded. Each owned document is moved through the
-    // temporary validated store and handed back as a stable reference with an
-    // optional proof; the parsed sources are dropped inside the helper.
+    // temporary validated store and handed back mutably with its already-bound
+    // order runs; the parsed sources are dropped inside the helper.
     let (old_pdf, new_pdf) = native_pdfs;
     let mut proof_budget = options.diff.max_assessment_work;
     let old_before = proof_budget;
-    crate::document::with_native_order_proof(
+    crate::document::with_native_order_proof_owned(
         old_pdf,
         old_document,
         &mut proof_budget,
-        |old_document, old_proof, proof_budget| {
+        |old_document, old_native_order_runs, proof_budget| {
             let old_spent = old_before.saturating_sub(*proof_budget);
             let new_before = *proof_budget;
-            crate::document::with_native_order_proof(
+            crate::document::with_native_order_proof_owned(
                 new_pdf,
                 new_document,
                 proof_budget,
-                |new_document, new_proof, proof_budget| {
+                |new_document, new_native_order_runs, proof_budget| {
                     let new_spent = new_before.saturating_sub(*proof_budget);
                     if let Some(work_out) = work_out {
                         *work_out = NativeOrderWork {
@@ -740,9 +713,7 @@ fn compare_extraction_outcomes_with_structures_inner(
                         };
                     }
                     let old_glyph_evidence = glyph_evidence(old_document);
-                    memory_probe("glyph-evidence-old");
                     let new_glyph_evidence = glyph_evidence(new_document);
-                    memory_probe("glyph-evidence-new");
                     if old_complete && new_complete {
                         diagnostics.completed(
                             PipelinePhase::CompletenessGate,
@@ -755,8 +726,8 @@ fn compare_extraction_outcomes_with_structures_inner(
                             options,
                             diagnostics,
                             ComparisonInstrumentation {
-                                old_native_order_proof: old_proof,
-                                new_native_order_proof: new_proof,
+                                old_native_order_runs: old_native_order_runs.as_deref(),
+                                new_native_order_runs: new_native_order_runs.as_deref(),
                                 old_issue_boundaries: &[],
                                 new_issue_boundaries: &[],
                                 enable_sentence_recovery: true,
@@ -801,8 +772,8 @@ fn compare_extraction_outcomes_with_structures_inner(
                             options,
                             diagnostics,
                             ComparisonInstrumentation {
-                                old_native_order_proof: old_proof,
-                                new_native_order_proof: new_proof,
+                                old_native_order_runs: old_native_order_runs.as_deref(),
+                                new_native_order_runs: new_native_order_runs.as_deref(),
                                 old_issue_boundaries: &old_gap_boundaries,
                                 new_issue_boundaries: &new_gap_boundaries,
                                 enable_sentence_recovery: false,
@@ -851,12 +822,26 @@ fn compare_extraction_outcomes_with_structures_inner(
                     let issues = extraction_issue_records(old_issues, new_issues);
                     // A document-scoped issue prevents correspondence claims, but extracted
                     // evidence on either side still belongs to the unresolved partition.
-                    let old_blocks =
-                        prepare(old_document, options, DocumentSide::Old, diagnostics, None)?
-                            .blocks;
-                    let new_blocks =
-                        prepare(new_document, options, DocumentSide::New, diagnostics, None)?
-                            .blocks;
+                    let old_blocks = prepare_owned(
+                        old_document,
+                        options,
+                        DocumentSide::Old,
+                        diagnostics,
+                        None,
+                        &[],
+                    )?
+                    .0
+                    .blocks;
+                    let new_blocks = prepare_owned(
+                        new_document,
+                        options,
+                        DocumentSide::New,
+                        diagnostics,
+                        None,
+                        &[],
+                    )?
+                    .0
+                    .blocks;
                     let spans = if old_blocks.is_empty() && new_blocks.is_empty() {
                         Vec::new()
                     } else {
@@ -931,14 +916,18 @@ fn compare_validated_glyph_documents(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
+    // The borrowed entry point keeps its read-only contract by preparing
+    // private copies; preparation itself consumes and filters the document.
+    let mut old = old.clone();
+    let mut new = new.clone();
     compare_validated_glyph_documents_inner(
-        old,
-        new,
+        &mut old,
+        &mut new,
         options,
         diagnostics,
         ComparisonInstrumentation {
-            old_native_order_proof: None,
-            new_native_order_proof: None,
+            old_native_order_runs: None,
+            new_native_order_runs: None,
             old_issue_boundaries: &[],
             new_issue_boundaries: &[],
             enable_sentence_recovery: true,
@@ -959,14 +948,12 @@ fn compare_validated_glyph_documents(
 }
 
 fn compare_validated_glyph_documents_inner(
-    old: &Document<Glyph>,
-    new: &Document<Glyph>,
+    old: &mut Document<Glyph>,
+    new: &mut Document<Glyph>,
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
     instrumentation: ComparisonInstrumentation<'_>,
 ) -> Result<ValidatedComparisonOutcome> {
-    let old_document = old;
-    let new_document = new;
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
     // Line/block reconstruction, normalization, and feature builds are pure
     // per-side functions, so both sides run in parallel. Each side records
@@ -980,9 +967,8 @@ fn compare_validated_glyph_documents_inner(
                     old,
                     options,
                     DocumentSide::Old,
-                    instrumentation
-                        .old_native_order_proof
-                        .filter(|proof| proof.binds(old)),
+                    instrumentation.old_native_order_runs,
+                    instrumentation.old_issue_boundaries,
                 )
             },
             || {
@@ -990,9 +976,8 @@ fn compare_validated_glyph_documents_inner(
                     new,
                     options,
                     DocumentSide::New,
-                    instrumentation
-                        .new_native_order_proof
-                        .filter(|proof| proof.binds(new)),
+                    instrumentation.new_native_order_runs,
+                    instrumentation.new_issue_boundaries,
                 )
             },
         );
@@ -1000,8 +985,8 @@ fn compare_validated_glyph_documents_inner(
     if old_prepared.is_ok() {
         diagnostics.append(new_prepare_diagnostics);
     }
-    let old_prepared = old_prepared?;
-    let new_prepared = new_prepared?;
+    let (old_prepared, old_gap_boundaries, old_extraction_uncertain_block_indices) = old_prepared?;
+    let (new_prepared, new_gap_boundaries, new_extraction_uncertain_block_indices) = new_prepared?;
     let PreparedDocument {
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
@@ -1022,10 +1007,6 @@ fn compare_validated_glyph_documents_inner(
         trusted_region_edges: new_trusted_region_edges,
         displacements: new_displacements,
     } = new_prepared;
-    let (old_gap_boundaries, old_extraction_uncertain_block_indices) =
-        gap_boundaries(old_document, &old, instrumentation.old_issue_boundaries);
-    let (new_gap_boundaries, new_extraction_uncertain_block_indices) =
-        gap_boundaries(new_document, &new, instrumentation.new_issue_boundaries);
     phase_result(
         diagnostics,
         PipelinePhase::DiffTokenBudget,
@@ -1054,7 +1035,6 @@ fn compare_validated_glyph_documents_inner(
     let old_features = old_features?;
     diagnostics.append(new_feature_diagnostics);
     let new_features = new_features?;
-    memory_probe("features-built");
     let gap_plan = phase_result(
         diagnostics,
         PipelinePhase::Alignment,
@@ -1073,16 +1053,29 @@ fn compare_validated_glyph_documents_inner(
             &new_inferred_order_block_indices,
         ),
     )?;
-    let indexed_new_features = new_features
+    // Most gap plans allow every new block. Borrow the existing features in
+    // that case instead of cloning the whole new side into a filtered copy.
+    let all_new_allowed = new_features
         .iter()
-        .filter(|features| gap_plan.allows_new_block(features.block))
-        .cloned()
-        .collect::<Vec<_>>();
+        .all(|features| gap_plan.allows_new_block(features.block));
+    let filtered_new_features = if all_new_allowed {
+        None
+    } else {
+        Some(
+            new_features
+                .iter()
+                .filter(|features| gap_plan.allows_new_block(features.block))
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
+    };
+    let indexed_new_features: &[BlockFeatures] =
+        filtered_new_features.as_deref().unwrap_or(&new_features);
     let candidates = phase_result(
         diagnostics,
         PipelinePhase::CandidateIndex,
         Some(DocumentSide::New),
-        InvertedIndexCandidateGenerator::new(&indexed_new_features),
+        InvertedIndexCandidateGenerator::new(indexed_new_features),
     )?;
     diagnostics.completed(
         PipelinePhase::CandidateIndex,
@@ -1092,7 +1085,6 @@ fn compare_validated_glyph_documents_inner(
             ..PipelineMetrics::default()
         },
     );
-    memory_probe("candidate-index-built");
     let attempt = align_ordered_with_metrics_and_gap_plan(
         &old_features,
         &new_features,
@@ -1139,7 +1131,13 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
-    memory_probe("alignment-done");
+    // The alignment owns plain block ids and scores, so the per-side feature
+    // vectors and the candidate index can be released before the exact diff
+    // allocates its assessment and recovery state.
+    drop(candidates);
+    drop(filtered_new_features);
+    drop(old_features);
+    drop(new_features);
     // A document whose other side carries no native text at all is one-sided:
     // the whole present side is an insertion or deletion, independent of the
     // window reading-order uncertainty that the layout could not resolve. The
@@ -1316,7 +1314,6 @@ fn compare_validated_glyph_documents_inner(
             ..PipelineMetrics::default()
         },
     );
-    memory_probe("exact-diff-done");
     Ok(ValidatedComparisonOutcome {
         comparison,
         old_blocks: old,
@@ -1411,17 +1408,11 @@ fn one_sided_alignment(old: &[BlockText], new: &[BlockText]) -> Alignment {
     }
 }
 
-fn gap_boundaries(
-    document: &Document<Glyph>,
+fn gap_boundaries_from_positions(
+    glyph_positions: &std::collections::HashMap<GlyphId, usize>,
     blocks: &[BlockText],
     boundaries: &[LocalizedIssueBoundary],
 ) -> (Vec<usize>, Vec<usize>) {
-    let glyph_positions = document
-        .items()
-        .iter()
-        .enumerate()
-        .map(|(position, glyph)| (glyph.id, position))
-        .collect::<std::collections::HashMap<_, _>>();
     let block_extents = blocks
         .iter()
         .map(|block| {
@@ -1618,6 +1609,7 @@ fn painting_raw_token_lower_bound(document: &Document<Glyph>, limit: usize) -> R
     Ok(tokens)
 }
 
+#[cfg(test)]
 fn prepare(
     document: &Document<Glyph>,
     options: PipelineOptions,
@@ -1631,7 +1623,7 @@ fn prepare(
         .map(Glyph::is_comparison_visible)
         .collect::<Vec<_>>();
     let displacements = document.filtered_displacements(&kept);
-    let document = Document::with_vector_lines(
+    let filtered = Document::with_vector_lines(
         document
             .items()
             .iter()
@@ -1641,13 +1633,93 @@ fn prepare(
         document.vector_lines().to_vec(),
     )
     .with_displacements(displacements);
+    let mut prepared = layout_normalized(
+        &filtered,
+        options,
+        side,
+        diagnostics,
+        native_order.map(crate::document::NativeOrderProof::runs),
+    )?;
+    prepared.displacements = filtered.displacements().to_vec();
+    Ok(prepared)
+}
+
+/// Consumes one side's document, filters it to comparison-visible glyphs in
+/// place, and builds the normalized blocks plus the issue gap boundaries.
+///
+/// The extraction-produced displacement sidecar is aligned one-to-one with the
+/// primary items, so it is compacted without cloning. The filtered document is
+/// dropped before the returned preparation is compared, leaving only the block
+/// text, signatures, and the filtered displacement evidence alive.
+/// One prepared side plus the gap-boundary block indices it implies.
+type PreparedSide = (PreparedDocument, Vec<usize>, Vec<usize>);
+
+fn prepare_owned(
+    document: &mut Document<Glyph>,
+    options: PipelineOptions,
+    side: DocumentSide,
+    diagnostics: &mut PipelineDiagnostics,
+    native_order_runs: Option<&[Vec<GlyphId>]>,
+    issue_boundaries: &[LocalizedIssueBoundary],
+) -> Result<PreparedSide> {
+    let glyph_positions = if issue_boundaries.is_empty() {
+        None
+    } else {
+        Some(
+            document
+                .items()
+                .iter()
+                .enumerate()
+                .map(|(position, glyph)| (glyph.id, position))
+                .collect::<std::collections::HashMap<_, _>>(),
+        )
+    };
+    let mut original = std::mem::replace(document, Document::new(Vec::new()));
+    let kept = original
+        .items()
+        .iter()
+        .map(Glyph::is_comparison_visible)
+        .collect::<Vec<_>>();
+    let mut items = original.take_items();
+    let vector_lines = original.take_vector_lines();
+    let displacements = original.take_displacements();
+    // Release any remaining source sidecars (marked content, paint inventory,
+    // paint order) before layout; preparation never consults them.
+    drop(original);
+    let displacements = crate::model::filter_displacements_owned(&items, displacements, &kept);
+    let mut index = 0usize;
+    items.retain(|_| {
+        let keep = kept.get(index).copied().unwrap_or(false);
+        index += 1;
+        keep
+    });
+    let mut filtered =
+        Document::with_vector_lines(items, vector_lines).with_displacements(displacements);
+    let mut prepared = layout_normalized(&filtered, options, side, diagnostics, native_order_runs)?;
+    let (gap_boundaries, extraction_uncertain_block_indices) = match &glyph_positions {
+        Some(positions) => {
+            gap_boundaries_from_positions(positions, &prepared.blocks, issue_boundaries)
+        }
+        None => (Vec::new(), Vec::new()),
+    };
+    prepared.displacements = filtered.take_displacements();
+    drop(filtered);
+    Ok((prepared, gap_boundaries, extraction_uncertain_block_indices))
+}
+
+fn layout_normalized(
+    document: &Document<Glyph>,
+    options: PipelineOptions,
+    side: DocumentSide,
+    diagnostics: &mut PipelineDiagnostics,
+    native_order_runs: Option<&[Vec<GlyphId>]>,
+) -> Result<PreparedDocument> {
     let painting_glyphs = document.items().len();
-    memory_probe(match side { DocumentSide::Old => "prepare-filtered-old", DocumentSide::New => "prepare-filtered-new" });
     let lines = phase_result(
         diagnostics,
         PipelinePhase::LineReconstruction,
         Some(side),
-        reconstruct_lines(&document, options.line),
+        reconstruct_lines(document, options.line),
     )?;
     diagnostics.completed(
         PipelinePhase::LineReconstruction,
@@ -1658,12 +1730,11 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
-    memory_probe(match side { DocumentSide::Old => "prepare-lines-old", DocumentSide::New => "prepare-lines-new" });
     let reconstruction = phase_result(
         diagnostics,
         PipelinePhase::BlockReconstruction,
         Some(side),
-        reconstruct_blocks_with_issues(&document, &lines, options.block),
+        reconstruct_blocks_with_issues(document, &lines, options.block),
     )?;
     let blocks = reconstruction.blocks;
     let trusted_run_intervals = reconstruction.trusted_run_intervals;
@@ -1716,12 +1787,11 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
-    memory_probe(match side { DocumentSide::Old => "prepare-blocks-old", DocumentSide::New => "prepare-blocks-new" });
     let normalized = phase_result(
         diagnostics,
         PipelinePhase::Normalization,
         Some(side),
-        normalize_blocks(&document, &lines, &blocks),
+        normalize_blocks(document, &lines, &blocks),
     )?;
     if !normalized
         .iter()
@@ -1747,7 +1817,6 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
-    memory_probe(match side { DocumentSide::Old => "prepare-normalized-old", DocumentSide::New => "prepare-normalized-new" });
     let uncertain_line_ids = reconstruction
         .issues
         .into_iter()
@@ -1794,7 +1863,7 @@ fn prepare(
         })
         .collect();
     let native_order_blocks =
-        native_order_blocks_for(&normalized, &trusted_run_intervals, native_order);
+        native_order_blocks_for_runs(&normalized, &trusted_run_intervals, native_order_runs);
     Ok(PreparedDocument {
         blocks: normalized,
         uncertain_block_indices,
@@ -1803,7 +1872,7 @@ fn prepare(
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
-        displacements: document.displacements().to_vec(),
+        displacements: Vec::new(),
     })
 }
 
@@ -1870,12 +1939,21 @@ fn raw_glyph_claims(raw: &MappedText) -> Option<(Vec<GlyphId>, bool)> {
 /// allocation reservation fails, or when a block's glyphs cannot be bound
 /// exactly. The join is linear in blocks and glyphs, which are already bounded
 /// by the extraction and reconstruction limits.
+#[cfg(test)]
 fn native_order_blocks_for(
     blocks: &[BlockText],
     intervals: &[Option<TrustedRunInterval>],
     proof: Option<&crate::document::NativeOrderProof<'_>>,
 ) -> Vec<bool> {
-    let Some(proof) = proof else {
+    native_order_blocks_for_runs(blocks, intervals, proof.map(crate::document::NativeOrderProof::runs))
+}
+
+fn native_order_blocks_for_runs(
+    blocks: &[BlockText],
+    intervals: &[Option<TrustedRunInterval>],
+    runs: Option<&[Vec<GlyphId>]>,
+) -> Vec<bool> {
+    let Some(runs) = runs else {
         return Vec::new();
     };
     let mut block_glyphs = Vec::new();
@@ -1907,7 +1985,7 @@ fn native_order_blocks_for(
         );
         block_glyphs.push(glyphs);
     }
-    certified_native_order_blocks(&block_glyphs, &eligible, proof.runs())
+    certified_native_order_blocks(&block_glyphs, &eligible, runs)
 }
 
 /// Marks blocks whose own glyphs are a complete consecutive source subsequence.
@@ -2008,13 +2086,21 @@ fn certified_native_order_blocks(
 }
 
 fn prepare_with_diagnostics(
-    document: &Document<Glyph>,
+    document: &mut Document<Glyph>,
     options: PipelineOptions,
     side: DocumentSide,
-    native_order: Option<&crate::document::NativeOrderProof<'_>>,
-) -> (Result<PreparedDocument>, PipelineDiagnostics) {
+    native_order_runs: Option<&[Vec<GlyphId>]>,
+    issue_boundaries: &[LocalizedIssueBoundary],
+) -> (Result<PreparedSide>, PipelineDiagnostics) {
     let mut diagnostics = PipelineDiagnostics::new();
-    let prepared = prepare(document, options, side, &mut diagnostics, native_order);
+    let prepared = prepare_owned(
+        document,
+        options,
+        side,
+        &mut diagnostics,
+        native_order_runs,
+        issue_boundaries,
+    );
     (prepared, diagnostics)
 }
 

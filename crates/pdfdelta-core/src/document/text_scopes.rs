@@ -41,16 +41,28 @@ pub(crate) struct NativeOrderProof<'a> {
     /// The originating document. The borrow keeps the origin alive for as long
     /// as the proof exists; [`Self::binds`] compares object identity at run
     /// time, so a proof acquired from one document never applies to another
-    /// even when both share numeric glyph ids or content.
+    /// even when both share numeric glyph ids or content. The owning path
+    /// consumes only the runs, so the field is test-only evidence.
+    #[cfg_attr(not(test), allow(dead_code))]
     origin: &'a crate::model::Document<crate::model::Glyph>,
 }
 
 impl<'a> NativeOrderProof<'a> {
+    #[cfg(test)]
     pub(crate) fn runs(&self) -> &[Vec<crate::model::GlyphId>] {
         &self.runs
     }
 
+    /// Consumes the proof and returns its order runs.
+    ///
+    /// The caller has already applied the [`Self::binds`] check; the runs carry
+    /// order evidence only and contain no document reference.
+    pub(crate) fn into_runs(self) -> Vec<Vec<crate::model::GlyphId>> {
+        self.runs
+    }
+
     /// Returns true only for the exact originating document object.
+    #[cfg(test)]
     pub(crate) fn binds(&self, document: &crate::model::Document<crate::model::Glyph>) -> bool {
         std::ptr::eq(self.origin, document)
     }
@@ -100,6 +112,7 @@ impl<'a> NativeOrderProof<'a> {
 /// final address. Acquisition, validation, and binding stay inside this
 /// function; the proof type is never constructed elsewhere. `None` means the
 /// optional proof is unavailable and existing behavior is unchanged.
+#[cfg(test)]
 pub(crate) fn with_native_order_proof<R>(
     pdf: Option<Box<dyn crate::pdf::ParsedPdf>>,
     native: crate::model::Document<crate::model::Glyph>,
@@ -115,6 +128,30 @@ pub(crate) fn with_native_order_proof<R>(
     let (native, runs) = acquire_runs(pdf, native, remaining);
     let proof = runs.and_then(|runs| NativeOrderProof::validate(runs, &native, remaining));
     use_proof(&native, proof.as_ref(), remaining)
+}
+
+/// Runs `use_proof` with an optionally bound native order run set and a mutable
+/// document.
+///
+/// The proof is created against the document's final address, its order runs
+/// are moved out, and the borrow is released before the callback so the caller
+/// may consume or filter the document in place. `None` means the optional proof
+/// was unavailable or invalid and existing behavior is unchanged.
+pub(crate) fn with_native_order_proof_owned<R>(
+    pdf: Option<Box<dyn crate::pdf::ParsedPdf>>,
+    native: crate::model::Document<crate::model::Glyph>,
+    remaining: &mut usize,
+    use_proof: impl FnOnce(
+        &mut crate::model::Document<crate::model::Glyph>,
+        Option<Vec<Vec<crate::model::GlyphId>>>,
+        &mut usize,
+    ) -> R,
+) -> R {
+    let (mut native, runs) = acquire_runs(pdf, native, remaining);
+    let runs = runs.and_then(|runs| {
+        NativeOrderProof::validate(runs, &native, remaining).map(NativeOrderProof::into_runs)
+    });
+    use_proof(&mut native, runs, remaining)
 }
 
 /// Acquires native order runs while keeping every temporary owned locally.

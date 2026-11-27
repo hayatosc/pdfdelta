@@ -57,6 +57,7 @@ pub use scoped_keys::*;
 pub use source_partition::TextSourcePartition;
 pub use structures::*;
 pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
+pub(crate) use text_scopes::with_native_order_proof_owned;
 pub use text_scopes::{
     CutCorrespondence, CutEvidence, NativeRegion, NativeRegionChain, NativeRegionChains,
     NativeTextDomainEquality, NativeTextIntervalComparison, NativeTransition, SourceCut,
@@ -64,5 +65,6 @@ pub use text_scopes::{
     SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch, SourceFragment,
     SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview, TextScopeSpacing,
 };
+#[cfg(test)]
 pub(crate) use text_scopes::{NativeOrderProof, with_native_order_proof};
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};
