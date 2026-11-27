@@ -1945,7 +1945,11 @@ fn native_order_blocks_for(
     intervals: &[Option<TrustedRunInterval>],
     proof: Option<&crate::document::NativeOrderProof<'_>>,
 ) -> Vec<bool> {
-    native_order_blocks_for_runs(blocks, intervals, proof.map(crate::document::NativeOrderProof::runs))
+    native_order_blocks_for_runs(
+        blocks,
+        intervals,
+        proof.map(crate::document::NativeOrderProof::runs),
+    )
 }
 
 fn native_order_blocks_for_runs(

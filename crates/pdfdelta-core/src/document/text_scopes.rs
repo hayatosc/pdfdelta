@@ -39,7 +39,7 @@ pub use intervals::NativeTextIntervalComparison;
 pub(crate) struct NativeOrderProof<'a> {
     runs: Vec<Vec<crate::model::GlyphId>>,
     /// The originating document. The borrow keeps the origin alive for as long
-    /// as the proof exists; [`Self::binds`] compares object identity at run
+    /// as the proof exists; `binds` compares object identity at run
     /// time, so a proof acquired from one document never applies to another
     /// even when both share numeric glyph ids or content. The owning path
     /// consumes only the runs, so the field is test-only evidence.
@@ -55,7 +55,7 @@ impl<'a> NativeOrderProof<'a> {
 
     /// Consumes the proof and returns its order runs.
     ///
-    /// The caller has already applied the [`Self::binds`] check; the runs carry
+    /// The caller has already applied the `binds` check; the runs carry
     /// order evidence only and contain no document reference.
     pub(crate) fn into_runs(self) -> Vec<Vec<crate::model::GlyphId>> {
         self.runs
