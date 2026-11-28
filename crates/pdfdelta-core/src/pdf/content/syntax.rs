@@ -1,5 +1,7 @@
 use std::{cell::Cell, rc::Rc};
 
+use sha2::{Digest, Sha256};
+
 use crate::{Error, Result};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -18,6 +20,8 @@ pub(crate) struct Operation {
     pub(crate) operands: Vec<Operand>,
     pub(crate) operator: Vec<u8>,
     pub(crate) index: u32,
+    /// Digest of the inline-image dictionary and data attached to `BI`.
+    pub(crate) inline_image_digest: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,11 +61,13 @@ pub(crate) struct ContentParser {
     pending_fragment: Vec<u8>,
     operator_budget: OperatorBudget,
     operand_budget: OperandBudget,
+    max_inline_image_pixels: u64,
 }
 
 struct ParsedFragment {
     operations: Vec<Operation>,
     incomplete_operand_start: Option<usize>,
+    max_inline_image_pixels: u64,
 }
 
 #[derive(Clone)]
@@ -93,6 +99,7 @@ impl ContentParser {
             pending_fragment: Vec::new(),
             operator_budget,
             operand_budget,
+            max_inline_image_pixels: 0,
         }
     }
 
@@ -116,6 +123,9 @@ impl ContentParser {
             self.operand_budget.clone(),
         )
         .parse_fragment(&mut self.pending_operands)?;
+        self.max_inline_image_pixels = self
+            .max_inline_image_pixels
+            .max(parsed.max_inline_image_pixels);
         if let Some(start) = parsed.incomplete_operand_start {
             if retrying_incomplete_operand {
                 return Err(Error::Unresolved(
@@ -125,6 +135,10 @@ impl ContentParser {
             self.pending_fragment.extend_from_slice(&input[start..]);
         }
         Ok(parsed.operations)
+    }
+
+    pub(crate) fn max_inline_image_pixels(&self) -> u64 {
+        self.max_inline_image_pixels
     }
 
     pub(crate) fn finish(self) -> Result<()> {
@@ -206,6 +220,7 @@ impl<'a> Parser<'a> {
 
     fn parse_fragment(mut self, operands: &mut Vec<Operand>) -> Result<ParsedFragment> {
         let mut operations = Vec::new();
+        let mut max_inline_image_pixels = 0u64;
 
         loop {
             self.skip_space_and_comments();
@@ -228,6 +243,7 @@ impl<'a> Parser<'a> {
                         return Ok(ParsedFragment {
                             operations,
                             incomplete_operand_start: Some(start),
+                            max_inline_image_pixels,
                         });
                     }
                     Err(error) => return Err(error),
@@ -250,11 +266,14 @@ impl<'a> Parser<'a> {
                 let index = self.next_operator_index()?;
                 if token == b"BI" {
                     operands.clear();
-                    self.skip_inline_image()?;
+                    let (inline_image_digest, inline_image_pixels) = self.skip_inline_image()?;
+                    max_inline_image_pixels =
+                        max_inline_image_pixels.max(inline_image_pixels.unwrap_or(0));
                     operations.push(Operation {
                         operands: Vec::new(),
                         operator: token.to_vec(),
                         index,
+                        inline_image_digest: Some(inline_image_digest),
                     });
                     continue;
                 }
@@ -262,6 +281,7 @@ impl<'a> Parser<'a> {
                     operands: std::mem::take(operands),
                     operator: token.to_vec(),
                     index,
+                    inline_image_digest: None,
                 });
             }
         }
@@ -269,6 +289,7 @@ impl<'a> Parser<'a> {
         Ok(ParsedFragment {
             operations,
             incomplete_operand_start: None,
+            max_inline_image_pixels,
         })
     }
 
@@ -480,7 +501,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn skip_inline_image(&mut self) -> Result<()> {
+    fn skip_inline_image(&mut self) -> Result<([u8; 32], Option<u64>)> {
+        let start = self.position;
+        let mut key: Option<Vec<u8>> = None;
+        let mut width: Option<u64> = None;
+        let mut height: Option<u64> = None;
         loop {
             self.skip_space_and_comments();
             let Some(byte) = self.peek() else {
@@ -488,10 +513,23 @@ impl<'a> Parser<'a> {
             };
             match byte {
                 b'/' => {
-                    self.parse_name()?;
+                    key = Some(self.parse_name()?);
                 }
                 _ if self.starts_operand(byte) => {
-                    self.parse_operand(0)?;
+                    let value = self.parse_operand(0)?;
+                    if let (Some(name), Operand::Number(number)) = (key.take(), value)
+                        && number.is_finite()
+                        && number >= 0.0
+                        && number <= f64::from(u32::MAX)
+                        && number.fract() == 0.0
+                    {
+                        let number = number as u32;
+                        if name == b"W" || name == b"Width" {
+                            width = Some(u64::from(number));
+                        } else if name == b"H" || name == b"Height" {
+                            height = Some(u64::from(number));
+                        }
+                    }
                 }
                 b']' | b')' | b'>' => return self.unresolved("invalid inline image dictionary"),
                 _ => {
@@ -502,6 +540,9 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+        let pixels = width
+            .zip(height)
+            .and_then(|(width, height)| width.checked_mul(height));
 
         match self.take() {
             Some(b'\r') => {
@@ -523,8 +564,11 @@ impl<'a> Parser<'a> {
                     .get(self.position + 2)
                     .is_none_or(|&byte| is_whitespace(byte) || is_delimiter(byte))
             {
+                let digest = Sha256::digest(&self.input[start..self.position]);
+                let mut digest_bytes = [0u8; 32];
+                digest_bytes.copy_from_slice(&digest);
                 self.position += 2;
-                return Ok(());
+                return Ok((digest_bytes, pixels));
             }
             self.position += 1;
         }
@@ -693,6 +737,23 @@ fn hex_value(byte: u8) -> Option<u8> {
     }
 }
 
+/// Largest pixel count declared by any inline image in a content stream.
+///
+/// This uses the same content parser that extracts glyphs, so it shares the
+/// PDF token grammar and resource bounds. It reads only `BI` dictionaries and
+/// skips `ID`..`EI` data; image bytes are never decoded. A malformed stream
+/// returns the maximum observed before the error, which is a lower bound on
+/// the stream's demand, not proof that it is safe.
+pub(crate) fn scan_inline_image_pixels(input: &[u8], limits: ContentLimits) -> u64 {
+    let mut parser = ContentParser::with_budgets(
+        limits,
+        ContentBudget::for_operators(limits.max_operators),
+        ContentBudget::for_operands(limits.max_operand_nodes),
+    );
+    let _ = parser.parse_fragment(input);
+    parser.max_inline_image_pixels()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -731,6 +792,7 @@ mod tests {
                 ],
                 operator: b"Tj".to_vec(),
                 index: 0,
+                inline_image_digest: None,
             }]
         );
         Ok(())
@@ -750,6 +812,24 @@ mod tests {
     fn truncates_large_octal_escapes_to_one_byte() -> Result<()> {
         let operations = parse_operations(b"(\\777) Tj", limits())?;
         assert_eq!(operations[0].operands, vec![Operand::String(vec![0xff])]);
+        Ok(())
+    }
+
+    #[test]
+    fn inline_image_pixel_scan_uses_abbreviated_and_full_dimensions() -> Result<()> {
+        let abbreviated = b"q BI /W 70000000 /H 2 /BPC 8 /CS /G ID \x00 EI Q";
+        assert_eq!(scan_inline_image_pixels(abbreviated, limits()), 140_000_000);
+        let full = b"q BI /Width 3 /Height 4 /BitsPerComponent 8 /ColorSpace /G ID \x00 EI Q";
+        assert_eq!(scan_inline_image_pixels(full, limits()), 12);
+        let later = b"q BI /W 1 /H 1 ID \x00 EI Q BI /W 8 /H 9 ID \x00 EI Q";
+        assert_eq!(scan_inline_image_pixels(later, limits()), 72);
+        Ok(())
+    }
+
+    #[test]
+    fn inline_image_scan_ignores_data_that_names_a_dimension() -> Result<()> {
+        let input = b"BI /W 5 /H 6 ID /W 70000000 /H 70000000 EI";
+        assert_eq!(scan_inline_image_pixels(input, limits()), 30);
         Ok(())
     }
 
@@ -797,11 +877,13 @@ mod tests {
                     ],
                     operator: b"m".to_vec(),
                     index: 0,
+                    inline_image_digest: None,
                 },
                 Operation {
                     operands: Vec::new(),
                     operator: b"q".to_vec(),
                     index: 1,
+                    inline_image_digest: None,
                 },
             ]
         );

@@ -16,7 +16,7 @@ use super::{
         directions_are_compatible, interval_gap, interval_overlap_ratio, is_horizontal,
         length_squared, median, normalize, perpendicular, projected_extent, projected_interval,
     },
-    region::{RegionId, RegionRelation, UncertainLineReason},
+    region::{RegionId, UncertainLineReason},
 };
 
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
@@ -94,26 +94,12 @@ pub(crate) struct TrustedRunDescriptor {
     pub(crate) source_region_ids: Vec<RegionId>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct TrustedRegionEdge {
-    pub(crate) page: PageId,
-    pub(crate) source: RegionId,
-    pub(crate) target: RegionId,
-    pub(crate) relation: RegionRelation,
-}
-
 pub(crate) struct BlockReconstruction {
     pub blocks: Vec<Block>,
     pub issues: Vec<LayoutIssue>,
     /// Parallel to `blocks`; mixed, discontinuous, or untrusted blocks have no interval.
     pub trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     pub trusted_run_descriptors: Vec<TrustedRunDescriptor>,
-    pub trusted_region_edges: Vec<TrustedRegionEdge>,
-    /// Lines ordered by a geometrically [`Inferred`](super::region::ReadingOrder::Inferred)
-    /// region order rather than a proven one. These lines are ordered, not
-    /// uncertain: they never appear in `issues`, but every change derived
-    /// from them must be reported at low confidence.
-    pub inferred_order_line_ids: HashSet<LineId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -290,10 +276,8 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut partial_uncertain_line_ids = HashSet::new();
     let mut trusted_run_positions_by_line_id = HashMap::new();
     let mut trusted_run_descriptors = Vec::new();
-    let mut trusted_region_edges = Vec::new();
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
-    let mut inferred_order_line_ids = HashSet::new();
     // Region partitioning is a pure per-page function, so pages are computed
     // in parallel and collected in ascending page order; the sequential fold
     // below then consumes the collected partitions unchanged. Results are
@@ -332,7 +316,6 @@ pub(crate) fn reconstruct_blocks_with_issues(
             &partition.trusted_run_provenance,
             &mut next_trusted_run_id,
         )?;
-        append_trusted_region_edges(&mut trusted_region_edges, page, &partition.graph.edges)?;
         // Partial uncertainty remains deterministic evidence serialization, not proven order.
         // Barriers only keep already-classified uncertain lines from contaminating trusted blocks.
         if !partition.uncertain_line_ids.is_empty()
@@ -373,7 +356,6 @@ pub(crate) fn reconstruct_blocks_with_issues(
                                 region_id.0
                             ))
                         })?;
-                    inferred_order_line_ids.extend(region.line_ids.iter().copied());
                     append_region_order(
                         &mut stats_by_line_id,
                         &mut ordered_stats,
@@ -501,8 +483,6 @@ pub(crate) fn reconstruct_blocks_with_issues(
         issues,
         trusted_run_intervals,
         trusted_run_descriptors,
-        trusted_region_edges,
-        inferred_order_line_ids,
     })
 }
 
@@ -569,37 +549,6 @@ fn assign_trusted_run_positions(
         });
         *next_run_id = following_run_id;
     }
-    Ok(())
-}
-
-fn append_trusted_region_edges(
-    output: &mut Vec<TrustedRegionEdge>,
-    page: PageId,
-    edges: &[(RegionId, RegionId, RegionRelation)],
-) -> Result<()> {
-    let limit = output
-        .len()
-        .checked_add(edges.len())
-        .ok_or(Error::LimitExceeded {
-            resource: "trusted region graph edges",
-            limit: usize::MAX,
-        })?;
-    output
-        .try_reserve_exact(edges.len())
-        .map_err(|_| Error::LimitExceeded {
-            resource: "trusted region graph edges",
-            limit,
-        })?;
-    output.extend(
-        edges
-            .iter()
-            .map(|&(source, target, relation)| TrustedRegionEdge {
-                page,
-                source,
-                target,
-                relation,
-            }),
-    );
     Ok(())
 }
 
@@ -2181,24 +2130,6 @@ mod tests {
                 .iter()
                 .all(|descriptor| descriptor.role == Some(BlockRole::Body))
         );
-    }
-
-    #[test]
-    fn raw_region_edges_are_stored_once_with_page_identity() {
-        let mut output = Vec::new();
-        let edges = [
-            (RegionId(1), RegionId(2), RegionRelation::LeftOf),
-            (RegionId(2), RegionId(1), RegionRelation::RightOf),
-        ];
-
-        append_trusted_region_edges(&mut output, PageId(7), &edges)
-            .expect("bounded raw edges should be retained");
-
-        assert_eq!(output.len(), edges.len());
-        assert_eq!(output[0].page, PageId(7));
-        assert_eq!(output[0].source, RegionId(1));
-        assert_eq!(output[0].target, RegionId(2));
-        assert_eq!(output[0].relation, RegionRelation::LeftOf);
     }
 
     #[test]

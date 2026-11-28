@@ -453,8 +453,6 @@ fn append_dense_pairs(
 }
 
 #[cfg(test)]
-mod measurement;
-
 #[cfg(test)]
 mod tests {
     use super::*;

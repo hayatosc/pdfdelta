@@ -16,7 +16,7 @@ rather than left to be discovered.
 
 ## What a packet is, and what it is not
 
-A packet is a review note's input, never a proof.
+A packet is a review note's input, never a comparison result.
 
 - The engine's comparison is unchanged by export. Selected channels, coverage,
   strict source masks, change events, and the process exit status are identical
@@ -27,21 +27,107 @@ A packet is a review note's input, never a proof.
 - Omission is not resolution. Output budgets, search budgets, candidate
   truncation, and unretrieved images are reported separately from one another.
 
-## The two comparison contracts
+## The two case sources
 
-Two pipelines produce cases, and a case always records which one it came from.
-Their obligations are not interchangeable.
+Two comparison routes produce cases, and a case always records which one it
+came from. Their obligations are not interchangeable.
 
 | | Shared evidence pipeline | Native-text adapter |
 | --- | --- | --- |
 | Selected material | Text, visual, form, and relationship channels selected by the caller | Extracted native glyphs only |
 | Discovery | Per-channel inventories with explicit completeness | Extraction outcome for the glyph stream |
-| Unresolved obligations | Uncompared source references, unresolved scopes, unresolved relations, evidence issues | Unresolved resolution ranges, tentative relations, competing candidates |
-| Correspondence | Proposal generation plus a weighted ownership solver per scope | Anchor verification and localized edit scripts |
+| Unresolved obligations | Uncompared source references, unresolved scopes, unresolved relations, evidence issues; text extraction, paint-gate, and reading-order issues | Text extraction, paint-gate, and reading-order issues |
+| Correspondence | Weighted ownership solver for the non-text channels; one verified flow script for text | One verified flow script |
+| Flow text | Flow change and formatting arrays, extraction issues, and uncertain reading order | The same flow arrays and issues |
 
 A packet produced from the native-text adapter never suggests that visual, form,
 or relationship evidence was examined. Its cases carry the text-only contract
-explicitly.
+explicitly. A shared-evidence packet carries the selected channels in every
+case; its flow cases are labelled `flow_text_change` or
+`flow_formatting_change`, and text extraction issues are labelled from their
+own reason kind.
+
+Both routes use the flow engine for text. Bundles written by older builds are
+still readable with `review list/show/render/import`; their cases are returned
+unchanged and keep the historical contract recorded in the bundle.
+
+### Flow case coverage
+
+Each flow case carries `flow_evidence`, the report array entries it accounts
+for:
+
+```json
+"flow_evidence": [
+  {"kind": "content", "index": 12},
+  {"kind": "formatting", "index": 3}
+]
+```
+
+`kind: content` indexes `flow_text.changes` in the bundle's `comparison.json`;
+`kind: formatting` indexes `flow_text.formatting_only_changes`. Every
+non-layout flow change and every formatting entry belongs to exactly one case.
+Cases group events by result class, anchor side, page, and event kind so a
+reviewer reads a page-sized decision instead of thousands of one-token cases.
+When the case budget would be exceeded, groups are merged, which can only lower
+a result class; no event is dropped. Cases from historical proof bundles
+leave `flow_evidence` absent.
+
+The case limit is a safety bound, not an exact answer to "how much is left". It
+defaults to 4,096 and can be raised explicitly with
+`--agent-case-budget <CASES>` (1–131,072); each published bundle is capped
+at 512 MiB and a larger plan is split into numbered parts. Flow cases are planned first. Acquisition cases follow in importance
+order: broken evidence (`backend`, `resource_limit`) before unexamined
+evidence, page-local gaps before document-wide ones, and the old side before
+the new side only as a tie-break. Page-residual cases come last. When the case
+budget is exhausted, the planner stops building cases, records a bundle-level
+`cases_not_exported` omission with the number of withheld cases, and leaves
+`export_complete: false`. On `P/nist-controls-53-r4-to-r5`, the default
+4,096-case export is one 276 MB bundle and withholds 11,647 sub-cases; the
+complete 21,000-case budget plans 20,222 cases into one 342 MB bundle.
+
+Planning is streaming. Case bodies and their gathered contexts are written to
+a private temporary store; the planner keeps only the fixed-size listing
+index (case identifiers, digests, counts, ordering keys, and omission
+records). The peak therefore does not grow with the number of cases. On
+`P/nist-controls-53-r4-to-r5` the complete export fell from 3.91 GB to 2.89 GB
+peak RSS, and a diagnostic 4x plan of 80,888 finalized cases peaked at the
+same 2.89 GB. The comparison's own evidence, not the planned packets, is now
+the dominant cost.
+
+A larger plan is published as `part-0001`, `part-0002`, ... directories under
+the destination. Cases are attempted in 4,096-case batches; a part that would
+exceed its 512 MiB cap is halved and retried, so a part can close in the middle
+of a batch without losing or reordering a case. Each part is a complete bundle,
+and the root `manifest.json` is written last. It is a
+`pdfdelta-agent-review-set` version 1 manifest that lists every part with its
+case count, bytes, and manifest digest, plus the global `export_complete` flag.
+Queries and `review import` accept the root or any part. A case that exceeds a
+per-case source or member cap is split into consecutive sub-cases rather than
+truncated; `subcase` records `schema: "agent-review-split/v1"`, the shared
+`parent`, zero-based `index`, and `count`. Split sub-cases stay consecutive in
+the listing order, including across a batch boundary. The first part carries
+the quoted text and flow report entries; later parts carry the remaining source
+evidence.
+
+The bundle layout and every published artifact are unchanged by streaming: the
+same cases, case identifiers, ordering, links, manifests, and digests are
+written as before. A missing `manifest.json` still means the bundle is
+incomplete, whether the run stopped during planning, during a case write, or
+before the root set manifest.
+
+Flow result classes map the engine's own evidence:
+
+| Flow event | Result class |
+| --- | --- |
+| Delete or insert | `strict` |
+| High-confidence replace | `strict` |
+| Replace whose span is coarse | `non_owning_range` |
+| Move, or any change with an ambiguity signal | `inferred` |
+| Extraction issue, paint gate, image-only page, uncertain order | `unavailable` |
+
+`strict` here means the verified script selects exact token ranges with
+retained glyph sources. It does not establish a unique correspondence, and flow
+enumerates no competing alternatives.
 
 ## Result classes are preserved
 
@@ -63,6 +149,15 @@ Every case carries four independent observations. They answer different
 questions and are never collapsed into one flag. Each is three-valued:
 `complete`, `incomplete`, or `unknown`, because an observation the engine never
 made is different from a search that ran and stopped short.
+
+For a flow case, `evidence` follows both sides' extraction and glyph
+conservation, `candidate_enumeration` is always `unknown` because flow returns
+one verified script rather than a closed alternative universe, `solver_search`
+is `complete` only when that script finished and replayed every token, and
+`response` describes the packet itself. Material flow did not examine —
+paint-gated pages, image-only pages, a document-scoped extraction stop, or an
+uncertain reading order — keeps `evidence` `incomplete` or `unknown`; it never
+claims a search it did not run.
 
 | Observation | Question it answers |
 | --- | --- |
@@ -129,10 +224,12 @@ references is never presented as a share of the document.
 
 ## Export budgets are not comparison completeness
 
-The export has its own budgets for source visits, candidate visits, case count,
-and output size. When a budget stops the export, the affected material is
-retained as a gap on its parent scope and the export reports
-`export_complete: false`.
+The export has its own budgets for shared source visits, candidate visits, case
+count, and output size. Flow token ranges are bounded by the case budget and
+per-case source limits rather than the shared source-visit budget, so source
+visits count the shared residual search. When a budget stops the export, the
+affected material is retained as a gap on its parent scope and the export
+reports `export_complete: false`.
 
 That flag is independent of the comparison's own completeness. A fully complete
 comparison can produce a truncated export, and a truncated export never makes an
@@ -163,13 +260,13 @@ The comparison's process status is unchanged by export:
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Complete comparison, no content changes |
-| 1 | Complete comparison, content changes |
+| 0 | No detected difference and every selected channel examined |
+| 1 | At least one selected channel detected a difference; the comparison may still be incomplete |
 | 2 | Execution or output error |
-| 3 | Incomplete comparison |
+| 3 | No intact detection and something was broken or unexamined |
 
 A bundle written during an incomplete comparison is still usable, and the
-comparison still exits 3. Callers should treat 0, 1, and 3 as results that carry
+comparison still exits 3 when nothing selected was detected. Callers should treat 0, 1, and 3 as results that carry
 a bundle, and 2 as an error. Retrieval commands report the original comparison
 status inside their payload rather than through their own exit code.
 
@@ -215,7 +312,9 @@ pdfdelta review import ./review-run --decisions decisions.json --output reviewed
 
 The parser rejects the detail levels it cannot serve instead of accepting them
 and answering with a stub, and the manifest's capability list reports exactly
-what this build answers.
+what this build answers. A flow native bundle advertises no visual retrieval
+because flow retains no page rasters; a shared-evidence flow bundle advertises
+it only for pages it actually published.
 
 ## Bundle layout
 
@@ -238,7 +337,9 @@ whole bundle is bounded to 512 MiB, and every artifact is listed in the manifest
 with its size and SHA-256. Artifact names are generated by the program; nothing
 in a document can choose where bytes land.
 
-A bundle without `manifest.json` is incomplete and must not be read.
+A bundle without `manifest.json` is incomplete and must not be read. A split
+export's root manifest is a set manifest; each part also has its own complete
+`manifest.json`.
 
 Every artifact a query reads is checked against the digest the manifest recorded
 when the bundle was published, and a file that no longer matches is refused

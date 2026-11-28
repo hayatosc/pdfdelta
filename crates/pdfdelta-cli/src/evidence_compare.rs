@@ -6,26 +6,30 @@ use pdfdelta_core::{
         BackendIdentity, Channel, ChannelCoverage, ComparisonContract, CorrespondenceScope,
         DocumentComparisonLimits, DocumentGraph, DocumentView, DocumentViewComparison,
         EvidenceFailure, EvidenceIssue, EvidenceLimits, EvidenceStore, HierarchyLimits,
-        InterpretationStatus, MatchingChannels, MatchingLimits, NodeId, TableRefinements,
-        compare_document_views, document_coverage, refine_table_views,
+        InterpretationStatus, KeyDomain, MatchingChannels, MatchingLimits, NodeContent, NodeId,
+        TableRefinements, compare_document_views, document_coverage, refine_table_views,
     },
     model::PageId,
+    options::PipelineOptions,
     pdf::ParseLimits,
-    pipeline::PipelineOptions,
 };
+use pdfdelta_diff::Error as DiffError;
 use serde::Serialize;
 
 use crate::{
-    args::{ComparisonInput, ComparisonOptions},
+    args::{ColorChoice, ComparisonInput, ComparisonOptions, resolve_color},
     fs::{
-        read_limited_typed, read_password_file, write_output_atomically,
-        write_text_report_atomically,
+        MAX_PASSWORD_FILE_BYTES, input_read_diff_error, read_limited_typed,
+        read_password_file_typed, write_output_atomically, write_text_report_atomically,
     },
-    trace::ExecutionTrace,
 };
 
-pub struct EvidenceOptions {
+pub struct EvidenceOptions<'a> {
     pub channels: BTreeSet<Channel>,
+    /// Flow text comparison that supplies the text channel.
+    pub flow_text: Option<&'a crate::flow_cmd::FlowComparison>,
+    /// Explicit case budget for an agent review bundle.
+    pub agent_case_budget: usize,
 }
 
 #[derive(Serialize)]
@@ -127,6 +131,22 @@ struct DocumentReport<'a> {
     scope_content_changes: usize,
     inferred_scope_changes: usize,
     coverage: Vec<ChannelCoverage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    engine: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exit_basis: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    difference_status: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flow_text: Option<serde_json::Value>,
+    /// Shared-evidence text positions that flow ownership replaced. Absent when
+    /// the shared search recorded none; absence is not a completed text search.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flow_owned_text: Option<pdfdelta_core::document::FlowOwnedTextEvidence>,
+    /// Per-channel detected/broken/unexamined verdicts used to select the flow
+    /// exit. Present only for the flow engine.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    channel_verdicts: Option<Vec<crate::flow_exit::ChannelVerdict>>,
     old: EvidenceSummary<'a>,
     new: EvidenceSummary<'a>,
     table_refinements: TableRefinements,
@@ -146,16 +166,35 @@ pub fn compare(
     pipeline: PipelineOptions,
     output: ComparisonOptions<'_>,
     cache_dir: Option<&Path>,
-    options: &EvidenceOptions,
-    trace: &mut ExecutionTrace,
-) -> Result<(u8, bool), String> {
+    options: &EvidenceOptions<'_>,
+) -> Result<
+    (
+        u8,
+        bool,
+        crate::render::RenderCpuReport,
+        crate::image_hashes::ImageCpuReport,
+    ),
+    DiffError,
+> {
     let started = std::time::Instant::now();
     let retain_inputs = output.review_dir.is_some() || output.agent_review_dir.is_some();
-    let (old, old_bytes, old_images) = collect(old_input, cache_dir, options, retain_inputs)?;
-    let (new, new_bytes, new_images) = collect(new_input, cache_dir, options, retain_inputs)?;
+    let (old, old_bytes, old_images, old_image_cpu, old_render_cpu) = collect(
+        old_input,
+        cache_dir,
+        options,
+        retain_inputs,
+        output.limit_scale,
+    )?;
+    let (new, new_bytes, new_images, new_image_cpu, new_render_cpu) = collect(
+        new_input,
+        cache_dir,
+        options,
+        retain_inputs,
+        output.limit_scale,
+    )?;
     let image_diff = match (old_images, new_images) {
         (Some(old), Some(new)) => {
-            let comparison = compare_images(&old, &new).map_err(|error| error.to_string())?;
+            let comparison = compare_images(&old, &new).map_err(DiffError::from)?;
             Some(ImageReport {
                 old,
                 new,
@@ -164,11 +203,25 @@ pub fn compare(
         }
         _ => None,
     };
+    let mut matching_channels = MatchingChannels::from(&options.channels);
+    if options.flow_text.is_some() {
+        matching_channels.text = false;
+    }
+    // The flow engine owns text whenever it is selected. When text is not a
+    // selected channel, text views remain available as relationship
+    // correspondence context, but their local comparisons must not become exit
+    // evidence: they are superseded as they are when flow owns the text
+    // channel. Without this, a forms- or relations-only run could exit 1 on a
+    // text difference the caller did not select.
+    let text_superseded = options.flow_text.is_some() || !options.channels.contains(&Channel::Text);
     let limits = DocumentComparisonLimits {
         matching: MatchingLimits {
-            channels: MatchingChannels::from(&options.channels),
+            channels: matching_channels,
             ..MatchingLimits::default()
         },
+        // Local text comparisons do not become exit evidence when flow owns
+        // the text channel or text is unselected.
+        supersede_text: text_superseded,
         // Page rasters remain review context, not a second diff of native text.
         visual: pdfdelta_core::document::VisualCandidateLimits {
             include_composited_pages: false,
@@ -177,12 +230,12 @@ pub fn compare(
         ..DocumentComparisonLimits::default()
     };
     let mut old_graph = DocumentGraph::from_evidence(&old, pipeline, limits.evidence, limits.graph)
-        .map_err(|error| error.to_string())?;
+        .map_err(DiffError::from)?;
     let mut new_graph = DocumentGraph::from_evidence(&new, pipeline, limits.evidence, limits.graph)
-        .map_err(|error| error.to_string())?;
+        .map_err(DiffError::from)?;
     let table_refinements = if limits.matching.channels.text {
         refine_table_views(&mut old_graph, &mut new_graph, &old, &new, pipeline, limits)
-            .map_err(|error| error.to_string())?
+            .map_err(DiffError::from)?
     } else {
         TableRefinements {
             old: Vec::new(),
@@ -190,14 +243,6 @@ pub fn compare(
             exhaustive: true,
         }
     };
-    trace.complete(
-        "document_graph",
-        None,
-        [
-            ("old_nodes", old_graph.nodes.len()),
-            ("new_nodes", new_graph.nodes.len()),
-        ],
-    );
     let mut comparison = compare_document_views(
         DocumentView {
             evidence: &old,
@@ -214,7 +259,7 @@ pub fn compare(
         limits,
         HierarchyLimits::default(),
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(DiffError::from)?;
     if !table_refinements.exhaustive {
         comparison.retain_relation_unresolved(
             pdfdelta_core::document::UnresolvedObligation::new(
@@ -237,7 +282,11 @@ pub fn compare(
             .comparisons
             .retain(|pair| pair.old.iter().all(|node| selected_nodes.contains(node)));
     }
-    let coverage = document_coverage(
+    let mut coverage_channels = options.channels.clone();
+    if options.flow_text.is_some() {
+        coverage_channels.remove(&Channel::Text);
+    }
+    let mut coverage = document_coverage(
         DocumentView {
             evidence: &old,
             graph: &old_graph,
@@ -247,16 +296,42 @@ pub fn compare(
             graph: &new_graph,
         },
         &comparison,
-        &options.channels,
+        &coverage_channels,
     );
-    let complete = coverage.iter().all(|channel| channel.complete) && comparison.search_resolved();
-    let changes = comparison
-        .comparisons()
-        .filter(|pair| {
-            pair.operation.is_some()
-                && pair.interpretation == InterpretationStatus::ConditionalOnCorrespondence
-        })
-        .count()
+    if let Some(flow) = options.flow_text {
+        let text_complete = flow.text_complete();
+        let old_tokens = flow.old_side.stream.tokens.len();
+        let new_tokens = flow.new_side.stream.tokens.len();
+        // Coverage counts discovered sources that were compared. Flow examined
+        // every token it extracted; extraction completeness is recorded
+        // separately and still limits the channel's overall completeness.
+        coverage.push(ChannelCoverage {
+            channel: Channel::Text,
+            old_inventory_complete: text_complete,
+            new_inventory_complete: text_complete,
+            old_discovered_sources: old_tokens,
+            new_discovered_sources: new_tokens,
+            old_compared_sources: old_tokens,
+            new_compared_sources: new_tokens,
+            old_presence_sources: 0,
+            new_presence_sources: 0,
+            old_uncompared_sources: 0,
+            new_uncompared_sources: 0,
+            complete: text_complete,
+        });
+        coverage.sort_by_key(|entry| entry.channel);
+    }
+    let flow_changes = options
+        .flow_text
+        .map_or(0, crate::flow_cmd::FlowComparison::non_layout_changes);
+    let changes = flow_changes
+        + comparison
+            .comparisons()
+            .filter(|pair| {
+                pair.operation.is_some()
+                    && pair.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+            })
+            .count()
         + comparison
             .relations()
             .filter(|relation| {
@@ -290,8 +365,92 @@ pub fn compare(
     };
     let scope_content_changes = scope_changes(InterpretationStatus::ConditionalOnCorrespondence);
     let inferred_scope_changes = scope_changes(InterpretationStatus::Inferred);
+    let detected = changes > 0;
+    let detected_channels =
+        comparison_detected_channels(&comparison, &old_graph, &new_graph, options.flow_text);
+    let document_verdict = Some(crate::flow_exit::document_verdicts(
+        crate::flow_exit::DocumentEvidence {
+            comparison: &comparison,
+            coverage: &coverage,
+            channels: &options.channels,
+            flow: options.flow_text,
+            image_incomplete: image_diff
+                .as_ref()
+                .is_some_and(|images| !images.comparison.complete),
+            old_issues: &old.issues,
+            new_issues: &new.issues,
+            detected_channels: &detected_channels,
+        },
+    ));
+    // A text issue from native acquisition that flow does not supersede still
+    // leaves the text channel unexamined or broken. Reflect it in coverage so
+    // readers cannot see a complete text channel next to an unexamined verdict.
+    if let Some(text) = document_verdict.as_ref().and_then(|verdict| {
+        verdict
+            .verdicts
+            .iter()
+            .find(|entry| entry.channel == crate::flow_exit::ChannelClass::Text)
+    }) {
+        let clean = !text.broken && !text.unexamined;
+        for entry in coverage
+            .iter_mut()
+            .filter(|entry| entry.channel == Channel::Text)
+        {
+            entry.complete &= clean;
+            entry.old_inventory_complete &= clean;
+            entry.new_inventory_complete &= clean;
+        }
+    }
+    let structural_complete =
+        coverage.iter().all(|channel| channel.complete) && comparison.search_resolved();
+    let complete = structural_complete
+        && document_verdict
+            .as_ref()
+            .is_none_or(|verdict| !verdict.broken && !verdict.unexamined);
+    let flow_exit = document_verdict
+        .as_ref()
+        .map(|verdict| crate::flow_exit::select_channels(&verdict.verdicts, structural_complete));
+    let exit_basis = flow_exit.map(|exit| exit.basis);
+    let difference_status = flow_exit.map(|_| {
+        if detected {
+            "detected"
+        } else if complete {
+            "no_content_change"
+        } else {
+            "indeterminate"
+        }
+    });
+    let flow_text = options.flow_text.map(|flow| {
+        let native = crate::flow_native::native_report(flow);
+        let report = &native["report"];
+        serde_json::json!({
+            "complete": flow.text_complete(),
+            "summary": report["summary"],
+            "changes": report["changes"],
+            "reading_order_changes": report["reading_order_changes"],
+            "formatting_only_changes": report["formatting_only_changes"],
+            // Text evidence reasons are part of the comparison record, not
+            // only of the HTML presentation. Unexamined paint and image-only
+            // pages therefore stay readable from the JSON alone.
+            "issues": crate::flow_review::issues_json(flow),
+            "order": crate::flow_review::order_json(flow),
+            "flow_summary": report["flow_summary"],
+            "exit_basis": exit_basis,
+        })
+    });
     let report = DocumentReport {
-        schema_version: 2,
+        schema_version: 3,
+        engine: Some("flow"),
+        exit_basis,
+        difference_status,
+        flow_text,
+        flow_owned_text: options
+            .flow_text
+            .filter(|_| !comparison.flow_owned_text.is_empty())
+            .map(|_| comparison.flow_owned_text.clone()),
+        channel_verdicts: document_verdict
+            .as_ref()
+            .map(|verdict| verdict.verdicts.clone()),
         comparison_wall_time_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         contract: ComparisonContract {
             version: 1,
@@ -313,15 +472,22 @@ pub fn compare(
         write_output_atomically(path, "document JSON report", |writer| {
             serde_json::to_writer_pretty(writer, &report)
                 .map_err(|error| format!("cannot write document report: {error}"))
-        })?;
+        })
+        .map_err(DiffError::backend)?;
     }
     if let Some(directory) = output.agent_review_dir {
         let (Some(old_bytes), Some(new_bytes)) = (&old_bytes, &new_bytes) else {
-            return Err("review source bytes were not retained".into());
+            return Err(DiffError::backend("review source bytes were not retained"));
         };
         // The plan is projected from this run's own evidence, so its references
         // point at the material this comparison actually examined.
-        let plan = pdfdelta_core::review::plan_shared_evidence(
+        let flow_owned = options.flow_text.map(crate::flow_review::project);
+        let flow_review = flow_owned
+            .as_ref()
+            .zip(options.flow_text)
+            .map(|(owned, comparison)| owned.review(comparison));
+        let mut spool = crate::agent_review::PlanSpool::new()?;
+        let mut plan = pdfdelta_core::review::plan_shared_evidence_streaming(
             &pdfdelta_core::review::SharedEvidenceReview {
                 identity: bundle_identity(
                     old_bytes,
@@ -342,12 +508,21 @@ pub fn compare(
                 },
                 comparison: &report.comparison,
                 channels: &options.channels,
+                flow: flow_review.as_ref(),
             },
-            pdfdelta_core::review::PlannerLimits::default(),
-        );
-        crate::agent_review::write(
+            pdfdelta_core::review::PlannerLimits {
+                max_cases: options.agent_case_budget,
+                ..pdfdelta_core::review::PlannerLimits::default()
+            },
+            &mut spool.raw,
+            &mut spool.final_store,
+        )
+        .map_err(|error| DiffError::backend(error.to_string()))?;
+        crate::agent_review::multiply_plan(&mut plan, &mut spool.final_store)?;
+        crate::agent_review::write_streaming(
             directory,
             &plan,
+            &mut spool.final_store,
             crate::agent_review::SourceDocument {
                 name: old_input.path,
                 bytes: old_bytes,
@@ -361,7 +536,7 @@ pub fn compare(
     }
     if let Some(directory) = output.review_dir {
         let (Some(old_bytes), Some(new_bytes)) = (old_bytes, new_bytes) else {
-            return Err("review source bytes were not retained".into());
+            return Err(DiffError::backend("review source bytes were not retained"));
         };
         crate::review::write(
             directory,
@@ -369,22 +544,30 @@ pub fn compare(
             &report.comparison,
             report.image_diff.as_ref(),
             complete,
-            crate::review::Input {
-                view: DocumentView {
-                    evidence: &old,
-                    graph: &old_graph,
-                },
-                name: old_input.path,
-                bytes: &old_bytes,
+            crate::review::FlowReview {
+                flow: options.flow_text,
+                verdicts: document_verdict
+                    .as_ref()
+                    .map(|verdict| verdict.verdicts.as_slice()),
             },
-            crate::review::Input {
-                view: DocumentView {
-                    evidence: &new,
-                    graph: &new_graph,
+            (
+                crate::review::Input {
+                    view: DocumentView {
+                        evidence: &old,
+                        graph: &old_graph,
+                    },
+                    name: old_input.path,
+                    bytes: &old_bytes,
                 },
-                name: new_input.path,
-                bytes: &new_bytes,
-            },
+                crate::review::Input {
+                    view: DocumentView {
+                        evidence: &new,
+                        graph: &new_graph,
+                    },
+                    name: new_input.path,
+                    bytes: &new_bytes,
+                },
+            ),
         )?;
     }
     let mut text = format!(
@@ -423,6 +606,32 @@ pub fn compare(
         &old.issues,
         &new.issues,
     );
+    if let Some(flow) = options.flow_text {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            text,
+            "Text channel (flow): {}; {} detected changes; {} formatting-only changes",
+            if flow.text_complete() {
+                "complete"
+            } else {
+                "incomplete"
+            },
+            flow.non_layout_changes(),
+            flow.formatting.len()
+        );
+        if exit_basis == Some("detected_with_unexamined_evidence") {
+            let note = match flow_exit.and_then(|exit| exit.justifying) {
+                Some(crate::flow_exit::ChannelClass::Text) | None => {
+                    crate::flow_cmd::DETECTED_WITH_UNEXAMINED_NOTE.to_owned()
+                }
+                Some(channel) => format!(
+                    "difference detected by {}, but some evidence was not examined (non-text paint or visual evidence)",
+                    channel.label()
+                ),
+            };
+            let _ = writeln!(text, "{note}");
+        }
+    }
     if let Some(images) = &report.image_diff {
         use std::fmt::Write as _;
         let _ = writeln!(
@@ -475,24 +684,117 @@ pub fn compare(
             }
         }
     }
+    // Piped output defaults to `auto`, so it stays plain unless the caller
+    // explicitly requested colour or stdout is a terminal. A file has no
+    // terminal to inspect, so only `always` styles it, matching the
+    // unified-diff report's destination rule.
+    let color = if output.output_path.is_some() {
+        output.color == ColorChoice::Always
+    } else {
+        resolve_color(output.color)
+    };
+    let text = if color {
+        crate::flow_cmd::paint_report(&text)
+    } else {
+        text
+    };
     if let Some(path) = output.output_path {
-        write_text_report_atomically(path, &text)?;
+        write_text_report_atomically(path, &text).map_err(DiffError::backend)?;
     } else if !output.quiet {
         std::io::stdout()
             .lock()
             .write_all(text.as_bytes())
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| DiffError::backend(error.to_string()))?;
     }
-    trace.complete(
-        "document_comparison",
-        None,
-        [
-            ("typed_changes", changes),
-            ("inferred_changes", inferred_changes),
-            ("selected_channels", report.coverage.len()),
-        ],
+    let code = flow_exit.map_or_else(
+        || if complete { u8::from(changes > 0) } else { 3 },
+        |exit| exit.code,
     );
-    Ok((if !complete { 3 } else { u8::from(changes > 0) }, !complete))
+    Ok((
+        code,
+        !complete,
+        crate::render::RenderCpuReport {
+            old: old_render_cpu,
+            new: new_render_cpu,
+        },
+        crate::image_hashes::ImageCpuReport {
+            old: old_image_cpu,
+            new: new_image_cpu,
+        },
+    ))
+}
+
+/// Channels that reported a typed difference under their own channel.
+///
+/// A contribution can belong only to one channel: text changes come from flow
+/// (or, if present, a text local comparison), value operations from forms,
+/// pixel operations from visual, relationship changes from relations, and keyed
+/// element operations by their raw key domain. Page image hashes are inferred
+/// changes, not typed detections, so they do not mark the visual channel as
+/// detected.
+fn comparison_detected_channels(
+    comparison: &DocumentViewComparison,
+    old_graph: &DocumentGraph,
+    new_graph: &DocumentGraph,
+    flow: Option<&crate::flow_cmd::FlowComparison>,
+) -> BTreeSet<Channel> {
+    let mut detected = BTreeSet::new();
+    if flow.is_some_and(|flow| flow.non_layout_changes() > 0) {
+        detected.insert(Channel::Text);
+    }
+    let content_channel = |graph: &DocumentGraph, id: NodeId| {
+        graph
+            .nodes
+            .iter()
+            .find(|node| node.id == id)
+            .and_then(|node| match &node.content {
+                NodeContent::Text { .. } => Some(Channel::Text),
+                NodeContent::Value { .. } => Some(Channel::Forms),
+                NodeContent::Visual { .. } => Some(Channel::Visual),
+                NodeContent::Container | NodeContent::Unknown => None,
+            })
+    };
+    for pair in comparison.comparisons() {
+        if pair.operation.is_none()
+            || pair.interpretation != InterpretationStatus::ConditionalOnCorrespondence
+        {
+            continue;
+        }
+        if let Some(channel) = pair
+            .old
+            .iter()
+            .find_map(|node| content_channel(old_graph, *node))
+            .or_else(|| {
+                pair.new
+                    .iter()
+                    .find_map(|node| content_channel(new_graph, *node))
+            })
+        {
+            detected.insert(channel);
+        }
+    }
+    for relation in comparison.relations() {
+        if relation.changed()
+            && relation.interpretation == InterpretationStatus::ConditionalOnCorrespondence
+        {
+            detected.insert(Channel::Relations);
+        }
+    }
+    if let Some(keys) = &comparison.key_presence {
+        for operation in comparison.keyed_element_operations() {
+            if let Some(claim) = keys.claims.get(operation.claim) {
+                match claim.domain {
+                    KeyDomain::PdfFieldName => {
+                        detected.insert(Channel::Forms);
+                    }
+                    KeyDomain::PdfStructureId => {
+                        detected.insert(Channel::Relations);
+                    }
+                }
+            }
+        }
+    }
+    detected
 }
 
 /// The composited page rasters this run retained, ready to publish.
@@ -604,19 +906,33 @@ fn bundle_identity(
     }
 }
 
-type CollectedEvidence = (EvidenceStore, Option<Arc<[u8]>>, Option<ImageInventory>);
+type CollectedEvidence = (
+    EvidenceStore,
+    Option<Arc<[u8]>>,
+    Option<ImageInventory>,
+    crate::image_hashes::ImageCpuSummary,
+    crate::render::RenderCpuSummary,
+);
 
 fn collect(
     input: ComparisonInput<'_>,
     cache_dir: Option<&Path>,
     options: &EvidenceOptions,
     retain_input: bool,
-) -> Result<CollectedEvidence, String> {
+    limit_scale: f64,
+) -> Result<CollectedEvidence, DiffError> {
     let parse_limits = ParseLimits::default();
     let limits = EvidenceLimits::default();
-    let bytes = read_limited_typed(input.path, parse_limits.max_input_bytes)
-        .map_err(|error| error.to_string())?;
-    let password = input.password_file.map(read_password_file).transpose()?;
+    let bytes = read_limited_typed(input.path, parse_limits.max_input_bytes).map_err(|error| {
+        input_read_diff_error(error, "PDF input bytes", parse_limits.max_input_bytes)
+    })?;
+    let password = input
+        .password_file
+        .map(read_password_file_typed)
+        .transpose()
+        .map_err(|error| {
+            input_read_diff_error(error, "password file bytes", MAX_PASSWORD_FILE_BYTES)
+        })?;
     let (mut store, page_refs) = crate::native_worker::collect(
         &bytes,
         password.as_deref(),
@@ -624,10 +940,13 @@ fn collect(
         cache_dir,
         &options.channels,
     )?;
-    let mut images = options
-        .channels
-        .contains(&Channel::Visual)
-        .then(|| crate::image_hashes::collect(&bytes, &page_refs, password.is_some()));
+    let mut image_cpu = crate::image_hashes::ImageCpuSummary::default();
+    let mut images = options.channels.contains(&Channel::Visual).then(|| {
+        let (inventory, cpu) =
+            crate::image_hashes::collect(&bytes, &page_refs, password.is_some(), limit_scale);
+        image_cpu = cpu;
+        inventory
+    });
     if let Some(images) = &mut images
         && store
             .issues
@@ -639,12 +958,19 @@ fn collect(
             "native acquisition has unresolved content; image discovery is not certified".into(),
         );
     }
+    let mut render_cpu = crate::render::RenderCpuSummary::default();
     if options.channels.contains(&Channel::Text)
         || options.channels.contains(&Channel::Visual)
         || options.channels.contains(&Channel::Presentation)
         || store.structured.iter().any(|field| matches!(&field.value, pdfdelta_core::document::StructuredValue::FormField { widgets, .. } if !widgets.is_empty()))
     {
-        crate::render::collect(&mut store, &bytes, &page_refs, password.is_some());
+        render_cpu = crate::render::collect(
+            &mut store,
+            &bytes,
+            &page_refs,
+            password.is_some(),
+            limit_scale,
+        );
     }
     crate::widgets::collect(&mut store);
     for channel in [Channel::Presentation] {
@@ -662,6 +988,12 @@ fn collect(
             }
         }
     }
-    store.validate(limits).map_err(|error| error.to_string())?;
-    Ok((store, retain_input.then_some(bytes), images))
+    store.validate(limits).map_err(DiffError::from)?;
+    Ok((
+        store,
+        retain_input.then_some(bytes),
+        images,
+        image_cpu,
+        render_cpu,
+    ))
 }

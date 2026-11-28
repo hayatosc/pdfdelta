@@ -14,6 +14,7 @@ __pycache__/
 !/fuzz/corpus/*/*.cmap
 !/fuzz/corpus/*/*.content
 !/fuzz/corpus/font_decoder/*.bin
+!/fuzz/corpus/cff_builtin_encoding/*.cff
 !/fuzz/corpus/canonical_yaml/*.yaml
 
 # Downloaded real-world benchmark documents are never vendored.

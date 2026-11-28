@@ -1,14 +1,18 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    fmt::Write as _,
     sync::Arc,
 };
+
+use sha2::{Digest, Sha256};
 
 use crate::{
     Error, Result,
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphDisplacement,
-        GlyphId, GlyphPathClipStatus, GlyphProvenance, MarkedContent, NonTextPaint, PageId, Rect,
-        TextRenderMode, Vec2, VectorLine, VectorLineId,
+        GlyphId, GlyphIdentitySource, GlyphPathClipStatus, GlyphProvenance, MarkedContent,
+        NonTextPaint, NonTextPaintKind, PageId, Rect, TextRenderMode, Vec2, VectorLine,
+        VectorLineId,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -25,14 +29,15 @@ use crate::{
 };
 
 use super::{
-    ExternalFontIdentities, ExtractionIssue, ExtractionLimits, ExtractionOutcome, ExtractionScope,
-    GlyphExtractor,
+    ExternalFontIdentities, ExtractionIssue, ExtractionIssueKind, ExtractionLimits,
+    ExtractionOutcome, ExtractionScope, GlyphExtractor,
 };
 
 mod clipping;
 use clipping::{
-    ClipRegion, FrozenPath, MAX_DEMAND_WORK, OrthogonalGrid, PathWitness, PendingOrthogonal, Quad,
-    RectangularCutout, SeparatedCutout, SourceOrigin, near_text_demand,
+    BoundaryEdge, ClipRegion, CurvedPolygonClip, FrozenPath, MAX_DEMAND_WORK, OrthogonalGrid,
+    PathWitness, PendingOrthogonal, PolygonClip, Quad, RectangularCutout, SeparatedCutout,
+    SourceOrigin, near_text_demand,
 };
 
 mod paint_bounds;
@@ -144,13 +149,14 @@ impl ContentStreamGlyphExtractor {
             }
         }
         issues.extend(extraction.issues);
-        ExtractionOutcome::new(
+        Ok(ExtractionOutcome::new(
             Document::with_vector_lines(extraction.glyphs, extraction.vector_lines)
                 .with_marked_content(extraction.marked_content)
                 .with_displacements(extraction.displacements)
                 .with_non_text_paint_bounds(extraction.non_text_paint_bounds),
             issues,
-        )
+        )?
+        .with_glyph_name_identity_pages(extraction.glyph_name_identity_pages))
     }
 
     pub fn extract_outcome_with_external_font_identities(
@@ -191,8 +197,16 @@ struct Extraction<'a> {
     non_text_paint_bounds: Vec<NonTextPaint>,
     page_has_unexamined_image: bool,
     issues: Vec<ExtractionIssue>,
+    glyph_name_identity_pages: std::collections::BTreeSet<PageId>,
+    unsupported_clip_reported: HashSet<(PageId, String)>,
     consumed_glyphs: usize,
-    convex_clip_work: usize,
+    /// Exact clip-classification work spent by the page being interpreted.
+    ///
+    /// Reset at the start of every page and capped at [`ExtractionLimits::max_operators`].
+    /// Because clip work is charged only while interpreting a page, a page's
+    /// classification cannot depend on how much work earlier pages consumed,
+    /// and the document total stays bounded by page count times this limit.
+    page_convex_clip_work: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
     bound_fonts: HashMap<BoundFontKey, Arc<BoundFont>>,
     ext_gstate_selections: HashMap<ExtGStateKey, ExtGStateSelection>,
@@ -220,6 +234,195 @@ struct PageGeometry {
     transform: Matrix,
     crop_bounds: Rect,
     rotation: u16,
+}
+
+/// Deterministic byte writer used only for stable paint identities.
+///
+/// Every variable-length value is length-prefixed, and floating-point values
+/// are hashed by their bit patterns so reserialization cannot change identity.
+struct IdentityHasher(Sha256);
+
+impl IdentityHasher {
+    fn new() -> Self {
+        Self(Sha256::new())
+    }
+
+    fn raw(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.0.update((bytes.len() as u64).to_le_bytes());
+        self.0.update(bytes);
+    }
+
+    fn u8(&mut self, value: u8) {
+        self.0.update([value]);
+    }
+
+    fn u16(&mut self, value: u16) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn u32(&mut self, value: u32) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn f64(&mut self, value: f64) {
+        self.0.update(value.to_bits().to_le_bytes());
+    }
+
+    fn vec2(&mut self, point: Vec2) {
+        self.f64(point.x);
+        self.f64(point.y);
+    }
+
+    fn rect(&mut self, bounds: Rect) {
+        self.vec2(bounds.min);
+        self.vec2(bounds.max);
+    }
+
+    fn finish_bytes(self) -> [u8; 32] {
+        let digest = self.0.finalize();
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&digest);
+        bytes
+    }
+
+    fn finish_hex(self) -> String {
+        let mut text = String::with_capacity(64);
+        for byte in self.finish_bytes() {
+            write!(text, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        text
+    }
+}
+
+/// Tags a paint kind in the identity hash without depending on enum layout.
+fn paint_kind_tag(kind: NonTextPaintKind) -> u8 {
+    match kind {
+        NonTextPaintKind::Path => 0,
+        NonTextPaintKind::Image => 1,
+        NonTextPaintKind::InlineImage => 2,
+        NonTextPaintKind::Shading => 3,
+        NonTextPaintKind::Opaque => 4,
+    }
+}
+
+/// Exact geometry of one painted path, independent of its page number.
+fn path_paint_payload(
+    path: &CurrentPath,
+    operation: &Operation,
+    state: &InterpreterState,
+    origin: Option<Vec2>,
+) -> [u8; 32] {
+    let mut hasher = IdentityHasher::new();
+    hasher.bytes(b"path");
+    hasher.bytes(&operation.operator);
+    hasher.u32(path.drawn_subpaths as u32);
+    hasher.u64(path.subpath_starts.len() as u64);
+    for point in &path.subpath_starts {
+        hasher.vec2(match origin {
+            Some(origin) => Vec2 {
+                x: point.x - origin.x,
+                y: point.y - origin.y,
+            },
+            None => *point,
+        });
+    }
+    if path.boundary.is_empty() {
+        hasher.bytes(b"segments");
+        hasher.u64(path.segments.len() as u64);
+        for segment in &path.segments {
+            for point in [segment.from, segment.to] {
+                hasher.vec2(match origin {
+                    Some(origin) => Vec2 {
+                        x: point.x - origin.x,
+                        y: point.y - origin.y,
+                    },
+                    None => point,
+                });
+            }
+        }
+    } else {
+        hasher.bytes(b"edges");
+        hasher.u64(path.boundary.len() as u64);
+        for edge in &path.boundary {
+            match edge {
+                BoundaryEdge::Line(segment) => {
+                    hasher.u8(0);
+                    for point in [segment.from, segment.to] {
+                        hasher.vec2(match origin {
+                            Some(origin) => Vec2 {
+                                x: point.x - origin.x,
+                                y: point.y - origin.y,
+                            },
+                            None => point,
+                        });
+                    }
+                }
+                BoundaryEdge::Cubic(points) => {
+                    hasher.u8(1);
+                    for point in points {
+                        hasher.vec2(match origin {
+                            Some(origin) => Vec2 {
+                                x: point.x - origin.x,
+                                y: point.y - origin.y,
+                            },
+                            None => *point,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    hasher.f64(state.graphics.line_width);
+    hasher.f64(state.graphics.miter_limit);
+    hasher.u8(u8::from(state.graphics.stroke_adjustment));
+    hasher.finish_bytes()
+}
+
+/// Combines page placement, operation, and a kind-specific payload into the
+/// paint identity compared across documents.
+fn paint_identity(
+    kind: NonTextPaintKind,
+    geometry: PageGeometry,
+    operation: &Operation,
+    bounds: Option<Rect>,
+    payload: Option<&[u8]>,
+) -> Option<String> {
+    let payload = payload?;
+    let mut hasher = IdentityHasher::new();
+    hasher.raw(b"non-text-paint-v1");
+    hasher.u8(paint_kind_tag(kind));
+    hasher.rect(geometry.crop_bounds);
+    hasher.u16(geometry.rotation);
+    hasher.bytes(&operation.operator);
+    hasher.u8(u8::from(bounds.is_some()));
+    if let Some(bounds) = bounds {
+        hasher.rect(bounds);
+    }
+    hasher.bytes(payload);
+    Some(hasher.finish_hex())
+}
+
+/// Translation-invariant shape or image-data identity.
+fn paint_shape(
+    kind: NonTextPaintKind,
+    operation: &Operation,
+    payload: Option<&[u8]>,
+) -> Option<String> {
+    let payload = payload?;
+    let mut hasher = IdentityHasher::new();
+    hasher.raw(b"non-text-paint-shape-v1");
+    hasher.u8(paint_kind_tag(kind));
+    hasher.bytes(&operation.operator);
+    hasher.bytes(payload);
+    Some(hasher.finish_hex())
 }
 
 /// A native page transform constructed only from validated PDF page geometry.
@@ -281,7 +484,14 @@ struct CurrentPath {
     clip_pending: bool,
     clip_even_odd: bool,
     has_unclosed_prior_subpath: bool,
+    /// Page-space starts of subpaths in paint order. Kept for the exact paint
+    /// identity hash; geometry without subpath starts cannot distinguish
+    /// connected and disjoint fills with the same edge list.
+    subpath_starts: Vec<Vec2>,
     witness_source: Option<Arc<FrozenPath>>,
+    /// Curve controls retained from the first cubic onward. Empty for
+    /// line-only paths, which use `segments` directly.
+    boundary: Vec<BoundaryEdge>,
     paint_bounds: paint_bounds::Bounds,
 }
 
@@ -319,6 +529,7 @@ impl CurrentPath {
         if self.current_point.is_some() || !self.segments.is_empty() {
             self.clip_rectangle = None;
         }
+        self.subpath_starts.push(point);
         self.current_point = Some(point);
         self.subpath_start = Some(point);
         self.current_subpath_has_segment = false;
@@ -329,7 +540,11 @@ impl CurrentPath {
             Error::Unresolved("path line segment has no current point".to_owned())
         })?;
         self.mark_current_subpath_drawn();
-        self.segments.push(PathSegment { from, to: point });
+        let segment = PathSegment { from, to: point };
+        self.segments.push(segment);
+        if !self.boundary.is_empty() {
+            self.boundary.push(BoundaryEdge::Line(segment));
+        }
         self.current_point = Some(point);
         self.clip_rectangle = None;
         Ok(())
@@ -344,26 +559,47 @@ impl CurrentPath {
         })?;
         if current != start {
             self.mark_current_subpath_drawn();
-            self.segments.push(PathSegment {
+            let segment = PathSegment {
                 from: current,
                 to: start,
-            });
+            };
+            self.segments.push(segment);
+            if !self.boundary.is_empty() {
+                self.boundary.push(BoundaryEdge::Line(segment));
+            }
         }
         self.current_point = Some(start);
         Ok(())
     }
 
-    fn curve_to(&mut self, point: Vec2) -> Result<()> {
-        if self.current_point.is_none() {
-            return Err(Error::Unresolved(
-                "path curve has no current point".to_owned(),
-            ));
-        }
+    fn curve_to(&mut self, controls: [Vec2; 3]) -> Result<()> {
+        let from = self
+            .current_point
+            .ok_or_else(|| Error::Unresolved("path curve has no current point".to_owned()))?;
         self.mark_current_subpath_drawn();
-        self.current_point = Some(point);
+        if self.boundary.is_empty() {
+            self.boundary
+                .extend(self.segments.iter().copied().map(BoundaryEdge::Line));
+        }
+        self.boundary.push(BoundaryEdge::Cubic([
+            from,
+            controls[0],
+            controls[1],
+            controls[2],
+        ]));
+        self.current_point = Some(controls[2]);
         self.clip_rectangle = None;
         self.has_unsupported_segments = true;
         Ok(())
+    }
+
+    fn curved_clip(
+        &self,
+        even_odd: bool,
+        bounds: Rect,
+        reason: Arc<str>,
+    ) -> Option<CurvedPolygonClip> {
+        CurvedPolygonClip::new(self.boundary.clone(), even_odd, bounds, reason)
     }
 
     fn append_rectangle(
@@ -376,7 +612,7 @@ impl CurrentPath {
         let was_empty = self.drawn_subpaths == 0 && !self.has_unsupported_segments;
         self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
         self.current_subpath_has_segment = true;
-        self.segments.extend([
+        let rectangle_segments = [
             PathSegment {
                 from: corners[0],
                 to: corners[1],
@@ -393,13 +629,26 @@ impl CurrentPath {
                 from: corners[3],
                 to: corners[0],
             },
-        ]);
+        ];
+        self.segments.extend(rectangle_segments);
+        if !self.boundary.is_empty() {
+            self.boundary
+                .extend(rectangle_segments.into_iter().map(BoundaryEdge::Line));
+        }
+        self.subpath_starts.push(corners[0]);
         self.current_point = Some(corners[0]);
         self.subpath_start = Some(corners[0]);
         self.clip_rectangle = was_empty.then_some(clip_rectangle).flatten();
         if certainty != ClipCertainty::Exact {
             self.primitive_certainty = ClipCertainty::Unproven;
         }
+    }
+
+    /// Outward control-point bound of the current path in page coordinates.
+    /// Every path constructor, including all cubic control points, contributes
+    /// to this retained interval; unknown arithmetic yields no bound.
+    fn unsupported_clip_bounds(&self) -> Option<Rect> {
+        self.paint_bounds.rectangle()
     }
 
     fn clipping_rectangle(&self) -> Option<(Rect, ClipCertainty)> {
@@ -640,8 +889,10 @@ impl<'a> Extraction<'a> {
             non_text_paint_bounds: Vec::new(),
             page_has_unexamined_image: false,
             issues: Vec::new(),
+            glyph_name_identity_pages: std::collections::BTreeSet::new(),
+            unsupported_clip_reported: HashSet::new(),
             consumed_glyphs: 0,
-            convex_clip_work: 0,
+            page_convex_clip_work: 0,
             font_cache: HashMap::new(),
             bound_fonts: HashMap::new(),
             ext_gstate_selections: HashMap::new(),
@@ -676,6 +927,11 @@ impl<'a> Extraction<'a> {
     }
 
     fn extract_page(&mut self, page: PageRef, page_id: PageId) -> Result<()> {
+        // Every page starts with the full clip-classification budget, so an
+        // edit elsewhere cannot turn this page's exact classification into a
+        // conservative fallback. This is the same limit a single-page document
+        // receives today.
+        self.page_convex_clip_work = 0;
         self.page_has_unexamined_image = false;
         let glyph_start = self.glyphs.len();
         let snapshot = self.pdf.page_snapshot(page)?;
@@ -867,11 +1123,11 @@ impl<'a> Extraction<'a> {
                 && FrozenPath::validation_work(index - first)
                     .and_then(|work| work.checked_add(MAX_DEMAND_WORK))
                     .is_some_and(|work| {
-                        work <= self.limits.max_operators.saturating_sub(self.convex_clip_work)
+                        work <= self.limits.max_operators.saturating_sub(self.page_convex_clip_work)
                     })
                 && near_text_demand(
                     &operations[index + 1..],
-                    &mut self.convex_clip_work,
+                    &mut self.page_convex_clip_work,
                     self.limits.max_operators,
                 )
             {
@@ -924,7 +1180,7 @@ impl<'a> Extraction<'a> {
     /// work is prepaid. Unaffordable optional preparation keeps the refusal.
     ///
     /// # Errors
-    /// Propagates rejection by the shared clipping-work ceiling. No source run
+    /// Propagates rejection by the page's clipping-work ceiling. No source run
     /// is moved before its complete retention and normalization fees are paid.
     fn freeze_path_source(
         &mut self,
@@ -940,7 +1196,7 @@ impl<'a> Extraction<'a> {
             n <= self
                 .limits
                 .max_operators
-                .saturating_sub(self.convex_clip_work)
+                .saturating_sub(self.page_convex_clip_work)
         }) else {
             return Ok(None);
         };
@@ -952,7 +1208,7 @@ impl<'a> Extraction<'a> {
             n <= self
                 .limits
                 .max_operators
-                .saturating_sub(self.convex_clip_work)
+                .saturating_sub(self.page_convex_clip_work)
         }) else {
             return Ok(None);
         };
@@ -966,6 +1222,7 @@ impl<'a> Extraction<'a> {
                 operator: std::mem::take(&mut operation.operator),
                 operands: std::mem::take(&mut operation.operands),
                 index: operation.index,
+                inline_image_digest: operation.inline_image_digest,
             });
         }
         Ok(FrozenPath::new(owned, matrix, origin, even_odd).map(Arc::new))
@@ -985,20 +1242,50 @@ impl<'a> Extraction<'a> {
         match operation.operator.as_slice() {
             b"BI" => {
                 self.note_unexamined_image(page_geometry, state)?;
+                let bounds =
+                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds);
+                let payload = operation
+                    .inline_image_digest
+                    .as_ref()
+                    .map(<[u8; 32]>::as_slice);
+                let identity = paint_identity(
+                    NonTextPaintKind::InlineImage,
+                    page_geometry,
+                    operation,
+                    bounds,
+                    payload,
+                );
+                let shape = paint_shape(NonTextPaintKind::InlineImage, operation, payload);
                 self.record_non_text_paint(
                     page,
                     stream,
                     operation,
-                    image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                    bounds,
+                    NonTextPaintKind::InlineImage,
+                    identity,
+                    shape,
                 );
             }
             b"sh" => {
-                one_name(operation)?;
+                let bounds = state.graphics.form_paint_bounds;
+                let payload = self.shading_paint_data_identity(resources, operation);
+                let payload = payload.as_ref().map(<[u8; 32]>::as_slice);
+                let identity = paint_identity(
+                    NonTextPaintKind::Shading,
+                    page_geometry,
+                    operation,
+                    bounds,
+                    payload,
+                );
+                let shape = paint_shape(NonTextPaintKind::Shading, operation, payload);
                 self.record_non_text_paint(
                     page,
                     stream,
                     operation,
-                    state.graphics.form_paint_bounds,
+                    bounds,
+                    NonTextPaintKind::Shading,
+                    identity,
+                    shape,
                 );
             }
             b"BMC" | b"BDC" => {
@@ -1152,10 +1439,12 @@ impl<'a> Extraction<'a> {
                             y,
                         ));
                 }
+                let control1 = path_point(page_geometry, state.graphics.ctm, x1, y1)?;
+                let control2 = path_point(page_geometry, state.graphics.ctm, x2, y2)?;
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
                 state
                     .current_path
-                    .curve_to(point)
+                    .curve_to([control1, control2, point])
                     .map_err(|_| operation_error(operation, "path curve has no current point"))?;
             }
             b"v" | b"y" => {
@@ -1173,9 +1462,16 @@ impl<'a> Extraction<'a> {
                         ));
                 }
                 let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
+                let control = path_point(page_geometry, state.graphics.ctm, cx, cy)?;
+                let from = state.current_path.current_point.unwrap_or(control);
+                let controls = if operation.operator == b"v" {
+                    [from, control, point]
+                } else {
+                    [control, point, point]
+                };
                 state
                     .current_path
-                    .curve_to(point)
+                    .curve_to(controls)
                     .map_err(|_| operation_error(operation, "path curve has no current point"))?;
             }
             b"h" => {
@@ -1420,7 +1716,15 @@ impl<'a> Extraction<'a> {
                         // one opaque operation, retaining its caller provenance.
                         self.non_text_paint_bounds.truncate(paint_start);
                         self.start_text_run(state);
-                        self.record_non_text_paint(page, stream, operation, bounds);
+                        self.record_non_text_paint(
+                            page,
+                            stream,
+                            operation,
+                            bounds,
+                            NonTextPaintKind::Opaque,
+                            None,
+                            None,
+                        );
                         self.issues.push(ExtractionIssue::from_error(
                             ExtractionScope::PageGlyphGap {
                                 page,
@@ -1470,13 +1774,36 @@ impl<'a> Extraction<'a> {
     }
 }
 
+/// Image dictionary keys that determine decoded image pixels and masks.
+const IMAGE_IDENTITY_KEYS: &[&[u8]] = &[
+    b"Width",
+    b"Height",
+    b"BitsPerComponent",
+    b"ColorSpace",
+    b"Decode",
+    b"DecodeParms",
+    b"Filter",
+    b"ImageMask",
+    b"Mask",
+    b"SMask",
+    b"Intent",
+];
+
+/// Bound on decoded bytes hashed for one paint identity.
+const MAX_PAINT_HASH_BYTES: usize = 64 * 1024 * 1024;
+const MAX_PAINT_HASH_DEPTH: usize = 16;
+
 impl Extraction<'_> {
+    #[allow(clippy::too_many_arguments)]
     fn record_non_text_paint(
         &mut self,
         page: PageId,
         stream: ObjectRef,
         operation: &Operation,
         bounds: Option<Rect>,
+        kind: NonTextPaintKind,
+        identity: Option<String>,
+        shape: Option<String>,
     ) {
         // Every record is charged by the existing global operator budget.
         self.non_text_paint_bounds.push(NonTextPaint {
@@ -1485,7 +1812,159 @@ impl Extraction<'_> {
             bounds,
             content_stream: stream,
             operator_index: operation.index,
+            kind,
+            identity,
+            shape,
         });
+    }
+
+    /// Hashes one resolved PDF value for a paint identity.
+    ///
+    /// References are resolved; streams contribute a bounded decoded byte
+    /// sequence. Anything beyond the depth or byte bound makes the identity
+    /// unavailable instead of guessing equality.
+    fn hash_paint_object(
+        &self,
+        value: &PdfObject,
+        hasher: &mut IdentityHasher,
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+        bytes: &mut usize,
+    ) -> Option<()> {
+        if depth > MAX_PAINT_HASH_DEPTH {
+            return None;
+        }
+        match value {
+            PdfObject::Null => hasher.u8(0),
+            PdfObject::Boolean(value) => {
+                hasher.u8(1);
+                hasher.u8(u8::from(*value));
+            }
+            PdfObject::Integer(value) => {
+                hasher.u8(2);
+                hasher.f64(*value as f64);
+            }
+            PdfObject::Real(value) => {
+                hasher.u8(3);
+                hasher.f64(*value);
+            }
+            PdfObject::Name(value) => {
+                hasher.u8(4);
+                hasher.bytes(value);
+            }
+            PdfObject::String(value) => {
+                hasher.u8(5);
+                hasher.bytes(value);
+            }
+            PdfObject::Array(values) => {
+                hasher.u8(6);
+                hasher.u64(values.len() as u64);
+                for value in values {
+                    self.hash_paint_object(value, hasher, depth + 1, active, bytes)?;
+                }
+            }
+            PdfObject::Dictionary(dictionary) => {
+                hasher.u8(7);
+                self.hash_paint_dictionary(dictionary, hasher, depth + 1, active, bytes)?;
+            }
+            PdfObject::Stream(dictionary) => {
+                hasher.u8(8);
+                self.hash_paint_dictionary(dictionary, hasher, depth + 1, active, bytes)?;
+            }
+            PdfObject::Reference(reference) => {
+                if !active.insert(*reference) {
+                    return None;
+                }
+                let result = (|| {
+                    let resolved = self.pdf.resolve(*reference).ok()?;
+                    if let PdfObject::Stream(dictionary) = &resolved {
+                        hasher.u8(9);
+                        self.hash_paint_dictionary(dictionary, hasher, depth + 1, active, bytes)?;
+                        let decoded = self.pdf.decoded_stream(*reference).ok()?;
+                        *bytes = bytes.checked_add(decoded.bytes.len())?;
+                        if *bytes > MAX_PAINT_HASH_BYTES {
+                            return None;
+                        }
+                        hasher.bytes(&decoded.bytes);
+                    } else {
+                        self.hash_paint_object(&resolved, hasher, depth + 1, active, bytes)?;
+                    }
+                    Some(())
+                })();
+                active.remove(reference);
+                result?;
+            }
+        }
+        Some(())
+    }
+
+    fn hash_paint_dictionary(
+        &self,
+        dictionary: &PdfDict,
+        hasher: &mut IdentityHasher,
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+        bytes: &mut usize,
+    ) -> Option<()> {
+        if depth > MAX_PAINT_HASH_DEPTH {
+            return None;
+        }
+        let image = dictionary
+            .get(b"Subtype".as_slice())
+            .and_then(|value| match value {
+                PdfObject::Name(name) => Some(name.as_slice() == b"Image"),
+                _ => None,
+            })
+            .unwrap_or(false);
+        let selected = dictionary
+            .iter()
+            .filter(|(key, _)| !image || IMAGE_IDENTITY_KEYS.contains(&key.as_slice()))
+            .collect::<Vec<_>>();
+        hasher.u64(selected.len() as u64);
+        for (key, value) in selected {
+            hasher.bytes(key);
+            self.hash_paint_object(value, hasher, depth + 1, active, bytes)?;
+        }
+        Some(())
+    }
+
+    fn image_paint_data_identity(&self, reference: ObjectRef) -> Option<[u8; 32]> {
+        // Decoded bytes are stable across lossless recompression; when a
+        // filter cannot be decoded, the raw stream is still an exact, if
+        // stricter, identity.
+        let (dictionary, data, decoded) = if let Ok(decoded) = self.pdf.decoded_stream(reference) {
+            (decoded.dictionary, decoded.bytes, true)
+        } else {
+            let raw = self.pdf.raw_stream(reference).ok()?;
+            (raw.dictionary, raw.bytes, false)
+        };
+        if data.len() > MAX_PAINT_HASH_BYTES {
+            return None;
+        }
+        let mut hasher = IdentityHasher::new();
+        hasher.raw(b"image-paint-v1");
+        hasher.u8(u8::from(decoded));
+        let mut active = HashSet::new();
+        active.insert(reference);
+        let mut bytes = data.len();
+        self.hash_paint_dictionary(&dictionary, &mut hasher, 0, &mut active, &mut bytes)?;
+        hasher.bytes(&data);
+        Some(hasher.finish_bytes())
+    }
+
+    fn shading_paint_data_identity(
+        &self,
+        resources: &Resources,
+        operation: &Operation,
+    ) -> Option<[u8; 32]> {
+        let name = one_name(operation).ok()?;
+        let shading = resources.shadings.entries.get(name)?;
+        let mut hasher = IdentityHasher::new();
+        hasher.raw(b"shading-paint-v1");
+        let mut active = HashSet::new();
+        let mut bytes = 0;
+        self.hash_paint_object(shading, &mut hasher, 0, &mut active, &mut bytes)?;
+        Some(hasher.finish_bytes())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1507,17 +1986,36 @@ impl Extraction<'_> {
         }
 
         if operation.operator != b"n" && state.current_path.drawn_subpaths != 0 {
+            let bounds = path_paint_bounds(page_geometry, state, stroke)
+                .or(state.graphics.form_paint_bounds);
+            let payload = path_paint_payload(&state.current_path, operation, state, None);
+            let identity = paint_identity(
+                NonTextPaintKind::Path,
+                page_geometry,
+                operation,
+                bounds,
+                Some(&payload),
+            );
+            let origin = state.current_path.subpath_starts.first().copied();
+            let shape_payload = path_paint_payload(&state.current_path, operation, state, origin);
+            let shape = paint_shape(NonTextPaintKind::Path, operation, Some(&shape_payload));
             self.record_non_text_paint(
                 page,
                 stream,
                 operation,
-                path_paint_bounds(page_geometry, state, stroke)
-                    .or(state.graphics.form_paint_bounds),
+                bounds,
+                NonTextPaintKind::Path,
+                identity,
+                shape,
             );
         }
 
         let mut incoming_certainty = ClipCertainty::Unproven;
         let mut legacy_rectangle_uncertain = false;
+        // Keep the outward control-point bound for every unsupported path.
+        // Exact witness and orthogonal upgrades below stay authoritative; a
+        // remaining refusal still retains this sound superset.
+        let unsupported_clip_bounds = state.current_path.unsupported_clip_bounds();
         let mut clip_update = if state.current_path.clip_pending {
             if state.current_path.has_unsupported_segments {
                 Some(state.graphics.clip_region.intersect_unsupported(format!(
@@ -1525,12 +2023,17 @@ impl Extraction<'_> {
                     operation.index
                 )))
             } else {
+                state.graphics.clip_region.downgrade_unaffordable_polygon(
+                    self.limits
+                        .max_operators
+                        .saturating_sub(self.page_convex_clip_work),
+                );
                 self.charge_convex_clip_work(state.graphics.clip_region.work())?;
                 let rectangle = state.current_path.clipping_rectangle().or_else(|| {
                     state
                         .current_path
                         .prepaid_split_start_rectangle(
-                            &mut self.convex_clip_work,
+                            &mut self.page_convex_clip_work,
                             self.limits.max_operators,
                         )
                         .map(|rectangle| (rectangle, ClipCertainty::Exact))
@@ -1657,7 +2160,7 @@ impl Extraction<'_> {
                     w <= self
                         .limits
                         .max_operators
-                        .saturating_sub(self.convex_clip_work)
+                        .saturating_sub(self.page_convex_clip_work)
                 })
         {
             self.charge_convex_clip_work(work)?;
@@ -1665,6 +2168,7 @@ impl Extraction<'_> {
                 &state.current_path.segments,
                 state.current_path.clip_even_odd,
                 Arc::clone(reason),
+                unsupported_clip_bounds,
             );
             let crop = match state.graphics.clip_region {
                 ClipRegion::Rectangle(rect) => Some(rect),
@@ -1678,13 +2182,26 @@ impl Extraction<'_> {
         }
 
         if let Some(ClipRegion::Unsupported(reason)) = &clip_update
+            && matches!(state.graphics.clip_region, ClipRegion::Unbounded)
+            && state.current_path.has_unsupported_segments
+            && let Some(bounds) = unsupported_clip_bounds
+            && let Some(curved) = state.current_path.curved_clip(
+                state.current_path.clip_even_odd,
+                bounds,
+                Arc::clone(reason),
+            )
+        {
+            clip_update = Some(ClipRegion::CurvedPolygon(Arc::new(curved)));
+        }
+        if let Some(ClipRegion::Unsupported(reason)) = &clip_update
             && !legacy_rectangle_uncertain
             && let Some(source) = state.current_path.witness_source.take()
         {
             let prior = match &state.graphics.clip_region {
                 ClipRegion::Unbounded => Some((None, None)),
                 ClipRegion::Rectangle(rect) => Some((None, Some(*rect))),
-                ClipRegion::Witness { node, crop } => Some((Some(Arc::clone(node)), *crop)),
+                ClipRegion::UnsupportedBounded(_, bounds) => Some((None, Some(*bounds))),
+                ClipRegion::Witness { node, crop, .. } => Some((Some(Arc::clone(node)), *crop)),
                 _ => None,
             };
             if let Some((parent, crop)) = prior
@@ -1695,12 +2212,42 @@ impl Extraction<'_> {
                     self.limits.max_nesting_depth,
                 )
             {
+                let previous = state.graphics.clip_region.bounds();
+                let bounds = match (previous, unsupported_clip_bounds) {
+                    (Some(previous), Some(next)) => Some(clipping::intersection(previous, next)),
+                    (previous, next) => previous.or(next),
+                };
                 clip_update = Some(ClipRegion::Witness {
                     node: Arc::new(node),
                     crop,
+                    bounds,
                 });
                 incoming_certainty = ClipCertainty::Exact;
             }
+        }
+
+        if let Some(ClipRegion::Unsupported(reason)) = &clip_update
+            && matches!(state.graphics.clip_region, ClipRegion::Unbounded)
+            && !state.current_path.has_unsupported_segments
+            && let Some(bounds) = unsupported_clip_bounds
+            && let Some(polygon) = PolygonClip::new(
+                &state.current_path.segments,
+                state.current_path.clip_even_odd,
+                Some(bounds),
+                Arc::clone(reason),
+            )
+        {
+            clip_update = Some(ClipRegion::Polygon(Arc::new(polygon)));
+        }
+        if let Some(ClipRegion::Unsupported(reason)) = &clip_update
+            && let Some(bounds) = unsupported_clip_bounds
+        {
+            clip_update = Some(
+                state
+                    .graphics
+                    .clip_region
+                    .intersect_unsupported_with_bounds(reason.to_string(), Some(bounds)),
+            );
         }
 
         if stroke && !state.current_path.has_unsupported_segments {
@@ -1710,6 +2257,11 @@ impl Extraction<'_> {
                 state.graphics.line_width,
             )?;
             for segment in state.current_path.segments.iter().copied() {
+                state.graphics.clip_region.downgrade_unaffordable_polygon(
+                    self.limits
+                        .max_operators
+                        .saturating_sub(self.page_convex_clip_work),
+                );
                 self.charge_convex_clip_work(state.graphics.clip_region.work())?;
                 if state.graphics.clip_region.segment_is_visible(segment) {
                     self.emit_vector_line(segment, width, operation, stream, page)?;
@@ -1795,7 +2347,7 @@ impl Extraction<'_> {
                 w <= self
                     .limits
                     .max_operators
-                    .saturating_sub(self.convex_clip_work)
+                    .saturating_sub(self.page_convex_clip_work)
             })
         {
             self.charge_convex_clip_work(work)?;
@@ -1804,7 +2356,7 @@ impl Extraction<'_> {
                     w <= self
                         .limits
                         .max_operators
-                        .saturating_sub(self.convex_clip_work)
+                        .saturating_sub(self.page_convex_clip_work)
                 }) {
                     self.charge_convex_clip_work(work)?;
                     result = prepared.finish(pending.even_odd()).map(Arc::new);
@@ -1827,14 +2379,40 @@ impl Extraction<'_> {
                 }
             }
         } else {
-            ClipRegion::Unsupported(pending.reason())
+            let reason = pending.reason();
+            if crop.is_none()
+                && let Some(bounds) = pending.bounds()
+                && let Some(polygon) = PolygonClip::new(
+                    pending.segments(),
+                    pending.even_odd(),
+                    Some(bounds),
+                    Arc::clone(&reason),
+                )
+            {
+                ClipRegion::Polygon(Arc::new(polygon))
+            } else {
+                match pending.bounds() {
+                    Some(bounds) => {
+                        let bounds =
+                            crop.map_or(bounds, |crop| clipping::intersection(bounds, crop));
+                        if clipping::empty(bounds) {
+                            ClipRegion::Empty
+                        } else {
+                            ClipRegion::UnsupportedBounded(reason, bounds)
+                        }
+                    }
+                    None => crop.map_or(ClipRegion::Unsupported(reason.clone()), |crop| {
+                        ClipRegion::UnsupportedBounded(reason, crop)
+                    }),
+                }
+            }
         };
         Ok(())
     }
 
     fn charge_convex_clip_work(&mut self, work: usize) -> Result<()> {
-        self.convex_clip_work = self
-            .convex_clip_work
+        self.page_convex_clip_work = self
+            .page_convex_clip_work
             .checked_add(work)
             .filter(|total| *total <= self.limits.max_operators)
             .ok_or(Error::LimitExceeded {
@@ -1876,6 +2454,9 @@ impl Extraction<'_> {
                 operation_error(operation, "text is shown before selecting a font")
             })?;
         let run = self.decode_font(font, bytes)?;
+        if run.glyph_name_identity {
+            self.glyph_name_identity_pages.insert(page);
+        }
         for glyph in run.glyphs {
             self.emit_glyph(
                 glyph,
@@ -1989,12 +2570,15 @@ impl Extraction<'_> {
         let text = match glyph.mapping {
             UnicodeMapping::Mapped(text) => DecodedText::Mapped(text),
             UnicodeMapping::Unmapped => DecodedText::Unmapped {
-                font_hash: font_hash.cloned().ok_or_else(|| {
-                    operation_error(
-                        operation,
-                        "font code has no Unicode mapping or stable font identity",
-                    )
-                })?,
+                font_hash: glyph
+                    .identity
+                    .or_else(|| font_hash.cloned())
+                    .ok_or_else(|| {
+                        operation_error(
+                            operation,
+                            "font code has no Unicode mapping or stable font identity",
+                        )
+                    })?,
                 glyph_id,
             },
         };
@@ -2052,21 +2636,85 @@ impl Extraction<'_> {
                     limit: usize::MAX,
                 })?;
         self.activate_orthogonal_clip(&mut state.graphics)?;
-        self.charge_convex_clip_work(state.graphics.clip_region.work())?;
-        let path_clip_status = match &state.graphics.clip_region {
-            ClipRegion::Convex(clip) => clip.glyph_status_with_witness(
-                bbox,
-                &mut self.convex_clip_work,
-                self.limits.max_operators,
-            )?,
-            ClipRegion::Witness { node, crop } => node.glyph_status(
-                bbox,
-                *crop,
-                page,
-                &mut self.convex_clip_work,
-                self.limits.max_operators,
-            )?,
-            other => other.glyph_status(bbox)?,
+        if let ClipRegion::Polygon(polygon) = &state.graphics.clip_region
+            && polygon.work()
+                > self
+                    .limits
+                    .max_operators
+                    .saturating_sub(self.page_convex_clip_work)
+        {
+            // Polygon classification is metered per glyph. Keeping the sound
+            // bbox bound preserves the old unsupported behaviour when the
+            // page's clipping budget cannot fund the finer proof.
+            state.graphics.clip_region =
+                ClipRegion::UnsupportedBounded(polygon.reason().into(), polygon.bounds());
+        }
+        if let ClipRegion::CurvedPolygon(polygon) = &state.graphics.clip_region
+            && polygon.work()
+                > self
+                    .limits
+                    .max_operators
+                    .saturating_sub(self.page_convex_clip_work)
+        {
+            state.graphics.clip_region =
+                ClipRegion::UnsupportedBounded(polygon.reason().into(), polygon.bounds());
+        }
+        // A bounded unsupported clip still classifies each glyph against its
+        // sound control-point bound. Only regions with no usable bound at all
+        // reuse the first recorded uncertainty without another classification.
+        let repeated_unbounded = match &state.graphics.clip_region {
+            ClipRegion::Unsupported(reason) => Some(reason.to_string()),
+            ClipRegion::Witness { node, .. } => Some(node.reason().to_string()),
+            _ => None,
+        }
+        .filter(|reason| {
+            self.unsupported_clip_reported
+                .contains(&(page, reason.clone()))
+        });
+        let path_clip_status = if state.graphics.clip_region.bounded_outside(bbox) {
+            GlyphPathClipStatus::Outside
+        } else if repeated_unbounded.is_some() {
+            GlyphPathClipStatus::PartiallyOutside
+        } else {
+            self.charge_convex_clip_work(state.graphics.clip_region.work())?;
+            match match &state.graphics.clip_region {
+                ClipRegion::Convex(clip) => clip.glyph_status_with_witness(
+                    bbox,
+                    &mut self.page_convex_clip_work,
+                    self.limits.max_operators,
+                ),
+                ClipRegion::Witness { node, crop, .. } => node.glyph_status(
+                    bbox,
+                    *crop,
+                    page,
+                    &mut self.page_convex_clip_work,
+                    self.limits.max_operators,
+                ),
+                other => other.glyph_status(bbox),
+            } {
+                Ok(status) => status,
+                Err(Error::Unsupported(reason)) => {
+                    // An unsupported clip makes visibility unknown, not the
+                    // glyph's existence. Keep the glyph visible and record one
+                    // page gap so the comparison still reports incompleteness.
+                    if self
+                        .unsupported_clip_reported
+                        .insert((page, reason.clone()))
+                    {
+                        self.issues.push(ExtractionIssue::new(
+                            ExtractionIssueKind::Unsupported,
+                            ExtractionScope::PageGlyphGap {
+                                page,
+                                retained_before: self.glyphs.len(),
+                                paint_index: None,
+                            },
+                            reason,
+                        )?);
+                    }
+                    GlyphPathClipStatus::PartiallyOutside
+                }
+                Err(error) => return Err(error),
+            }
         };
         let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
@@ -2314,11 +2962,18 @@ impl Extraction<'_> {
                 limit: remaining_mapped_text_bytes,
             })
         })?;
-        let needs_identity = glyphs
-            .iter()
-            .any(|glyph| matches!(glyph.mapping, UnicodeMapping::Unmapped));
+        let needs_program_identity = glyphs.iter().any(|glyph| {
+            matches!(glyph.mapping, UnicodeMapping::Unmapped) && glyph.identity.is_none()
+        });
+        let glyph_name_identity = glyphs.iter().any(|glyph| {
+            matches!(glyph.mapping, UnicodeMapping::Unmapped)
+                && glyph
+                    .identity
+                    .as_ref()
+                    .is_some_and(|hash| hash.identity_source() == GlyphIdentitySource::Name)
+        });
         let mut loaded_identity = None;
-        let font_hash = if needs_identity {
+        let font_hash = if needs_program_identity {
             let cached = self.font_cache.get(key).ok_or_else(|| {
                 Error::Unresolved("loaded font disappeared from the extraction cache".into())
             })?;
@@ -2358,6 +3013,7 @@ impl Extraction<'_> {
         Ok(DecodedRun {
             font_id,
             font_hash,
+            glyph_name_identity,
             ascent,
             descent,
             writing_mode,
@@ -2541,11 +3197,25 @@ impl Extraction<'_> {
         let xobject = self.cached_xobject(reference)?;
         if matches!(xobject.kind, CachedXObjectKind::Image) {
             self.note_unexamined_image(page_geometry, state)?;
+            let bounds =
+                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds);
+            let payload = xobject.image_identity.as_ref().map(<[u8; 32]>::as_slice);
+            let identity = paint_identity(
+                NonTextPaintKind::Image,
+                page_geometry,
+                operation,
+                bounds,
+                payload,
+            );
+            let shape = paint_shape(NonTextPaintKind::Image, operation, payload);
             self.record_non_text_paint(
                 page,
                 stream,
                 operation,
-                image_paint_bounds(page_geometry, state).or(state.graphics.form_paint_bounds),
+                bounds,
+                NonTextPaintKind::Image,
+                identity,
+                shape,
             );
         }
         let CachedXObjectKind::Form {
@@ -2607,6 +3277,14 @@ impl Extraction<'_> {
                 max_x - min_x,
                 max_y - min_y,
             )?;
+            form_state
+                .graphics
+                .clip_region
+                .downgrade_unaffordable_polygon(
+                    self.limits
+                        .max_operators
+                        .saturating_sub(self.page_convex_clip_work),
+                );
             self.charge_convex_clip_work(form_state.graphics.clip_region.work())?;
             // The Form's implicit clip is established before its operators and
             // remains local to this invocation, including nested graphics saves.
@@ -2714,9 +3392,15 @@ impl Extraction<'_> {
                 )));
             }
         };
+        let image_identity = if matches!(kind, CachedXObjectKind::Image) {
+            self.image_paint_data_identity(terminal)
+        } else {
+            None
+        };
         let xobject = Arc::new(CachedXObject {
             reference: terminal,
             kind,
+            image_identity,
         });
         self.xobject_cache.insert(terminal, Arc::clone(&xobject));
         self.xobject_cache.insert(reference, Arc::clone(&xobject));
@@ -3054,6 +3738,7 @@ impl Extraction<'_> {
                         fonts: self.empty_resource_map()?,
                         xobjects: self.empty_resource_map()?,
                         ext_gstates: self.empty_resource_map()?,
+                        shadings: self.empty_resource_map()?,
                     })
                 },
                 Ok,
@@ -3075,10 +3760,13 @@ impl Extraction<'_> {
             dictionary.get(b"ExtGState".as_slice()),
             "ExtGState resources",
         )?;
+        let shadings =
+            self.shared_resource_map(dictionary.get(b"Shading".as_slice()), "Shading resources")?;
         Ok(Resources {
             fonts,
             xobjects,
             ext_gstates,
+            shadings,
         })
     }
 
@@ -3422,9 +4110,10 @@ impl GraphicsState {
                 | ClipRegion::Witness { .. }
         ) && incoming != ClipCertainty::Exact
         {
-            self.clip_region.intersect_unsupported(
+            self.clip_region.intersect_unsupported_with_bounds(
                 "rectangular intersection with concave clipping has no strict source certificate"
                     .into(),
+                Some(rectangle),
             )
         } else {
             self.clip_region.intersect_rectangle(rectangle)
@@ -3485,6 +4174,7 @@ struct Resources {
     fonts: Arc<ScopedResourceMap>,
     xobjects: Arc<ScopedResourceMap>,
     ext_gstates: Arc<ScopedResourceMap>,
+    shadings: Arc<ScopedResourceMap>,
 }
 
 type ResourceMap = BTreeMap<Vec<u8>, Arc<PdfObject>>;
@@ -3497,6 +4187,7 @@ struct ScopedResourceMap {
 struct CachedXObject {
     reference: ObjectRef,
     kind: CachedXObjectKind,
+    image_identity: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -3591,6 +4282,7 @@ struct CachedFont {
 struct DecodedRun {
     font_id: FontId,
     font_hash: Option<FontProgramHash>,
+    glyph_name_identity: bool,
     ascent: f64,
     descent: f64,
     writing_mode: WritingMode,
@@ -4274,6 +4966,7 @@ mod tests {
             }),
             xobjects: empty_map(2),
             ext_gstates: empty_map(3),
+            shadings: empty_map(4),
         };
 
         let cloned_graphics = graphics.clone();
@@ -4517,16 +5210,19 @@ mod tests {
             fonts: empty_map(5),
             xobjects: empty_map(6),
             ext_gstates: Arc::clone(&ext_gstates),
+            shadings: empty_map(9),
         };
         let second_resources = Resources {
             fonts: empty_map(7),
             xobjects: empty_map(8),
             ext_gstates,
+            shadings: empty_map(10),
         };
         let operation = Operation {
             operands: vec![Operand::Name(b"GS".to_vec())],
             operator: b"gs".to_vec(),
             index: 0,
+            inline_image_digest: None,
         };
         let mut state = InterpreterState::default();
 
@@ -4602,6 +5298,7 @@ mod tests {
         let resources = |scope_id, negative, positive| Resources {
             fonts: empty_map(scope_id),
             xobjects: empty_map(scope_id + 1),
+            shadings: empty_map(scope_id + 3),
             ext_gstates: Arc::new(ScopedResourceMap {
                 scope_id: scope_id + 2,
                 entries: BTreeMap::from([
@@ -4622,6 +5319,7 @@ mod tests {
             operands: vec![Operand::Name(name.to_vec())],
             operator: b"gs".to_vec(),
             index: 0,
+            inline_image_digest: None,
         };
         let mut first_state = InterpreterState::default();
         let mut second_state = InterpreterState::default();

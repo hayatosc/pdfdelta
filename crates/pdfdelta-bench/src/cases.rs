@@ -3,7 +3,7 @@ use crate::{
     canonical::{CanonicalDocument, Paragraph},
     mutation::{ExpectedCanonicalSpan, ExpectedSemanticChange, Mutation, MutationPlan},
 };
-use pdfdelta_core::diff::ChangeKind;
+use pdfdelta_core::span::ChangeKind;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BenchmarkCase {
@@ -531,7 +531,7 @@ fn validate_case_name(name: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use pdfdelta_core::diff::ChangeKind;
+    use pdfdelta_core::span::ChangeKind;
 
     use super::*;
     #[test]

@@ -37,10 +37,6 @@ run = "cargo test --workspace --locked --all-features --lib"
 description = "Run the pdfdelta CLI (usage: mise run pdfdelta -- <args>)"
 run = "cargo run --bin pdfdelta --locked --"
 
-[tasks.example-glyph-comparison]
-description = "Run the backend-independent glyph comparison example"
-run = "cargo run -p pdfdelta-core --locked --example glyph_comparison"
-
 [tasks.bench]
 description = "Run the in-memory acceptance benchmark matrix"
 run = "cargo run -p pdfdelta-bench --locked -- verify"
@@ -61,14 +57,6 @@ run = "cargo run -p pdfdelta-bench --locked -- evaluate-rendered-yaml"
 description = "Compare extracted glyphs with an oracle (usage: mise run bench-extraction-conformance -- <args>)"
 run = "cargo run -p pdfdelta-bench --locked -- extraction-conformance"
 
-[tasks.bench-candidates]
-description = "Run candidate recall and visit-pressure benchmarks (usage: mise run bench-candidates -- <args>)"
-run = "cargo run -p pdfdelta-bench --release --locked -- candidates"
-
-[tasks.bench-candidate-profile]
-description = "Profile candidate generators (usage: mise run bench-candidate-profile -- <args>)"
-run = "cargo run -p pdfdelta-bench --release --locked -- candidate-profile"
-
 [tasks.bench-fetch]
 description = "Download and checksum-verify the real-world revision corpus"
 run = "benchmark/realworld/fetch.sh"
@@ -76,30 +64,6 @@ run = "benchmark/realworld/fetch.sh"
 [tasks.bench-capture]
 description = "Capture provenance for a new real-world PDF pair (usage: mise run bench-capture -- <pair-id> <old-url> <new-url>)"
 run = "benchmark/realworld/capture.sh"
-
-[tasks.bench-revisions-checksums]
-description = "Verify the cached real-world revision corpus"
-run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/realworld/cache --checksums-only"
-
-[tasks.bench-revisions]
-description = "Run real-world revision comparisons (usage: mise run bench-revisions -- <args>)"
-run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/realworld/cache"
-
-[tasks.bench-revisions-release]
-description = "Run release-mode real-world revision comparisons (usage: mise run bench-revisions-release -- <args>)"
-run = "cargo run -p pdfdelta-bench --release --locked -- revisions --cache-dir benchmark/realworld/cache"
-
-[tasks.bench-revisions-capture]
-description = "Verify the corpus and capture a release summary (usage: mise run bench-revisions-capture -- [output.json])"
-run = "benchmark/realworld/capture-summary.sh"
-
-[tasks.bench-revisions-exact-parity]
-description = "Require byte-for-byte equality between two benchmark summaries (usage: mise run bench-revisions-exact-parity -- <baseline.json> <candidate.json>)"
-run = "benchmark/realworld/compare-summary-exact.sh"
-
-[tasks.bench-revisions-schema-parity]
-description = "Compare benchmark summaries after removing named recovery fields (usage: mise run bench-revisions-schema-parity -- <baseline.json> <candidate.json> [--exclude-pair <pair-id>]... [--ignore-field <field-path>]... [<candidate-only-field-path>...])"
-run = "benchmark/realworld/compare-summary-parity.sh"
 
 [tasks.fuzz-build]
 description = "Build all fuzz targets, or one target passed after --"
@@ -123,6 +87,7 @@ run = [
   "cargo +nightly fuzz run cmap_parser -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run content_stream_parser -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run cff_builtin_encoding -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536",
   "cargo +nightly fuzz run layout_pipeline -- -max_total_time=30 -max_len=65536",

@@ -1,15 +1,25 @@
 //! Static, non-owning review bundles. The final HTML is the completion marker;
 //! failed writes leave an explicitly incomplete directory and never overwrite it.
 
-use std::{io, path::Path};
+use std::{
+    io::{self, BufWriter, Read},
+    path::Path,
+};
 
 use pdfdelta_core::document::{DocumentView, DocumentViewComparison};
+use pdfdelta_diff::Error as DiffError;
 use serde::{Serialize, Serializer, ser::SerializeMap};
 
 pub(crate) mod bundle;
 mod html;
 
 use bundle::{MAX_BYTES, file};
+
+/// Flow evidence a review bundle presents beside the shared comparison.
+pub(super) struct FlowReview<'a> {
+    pub flow: Option<&'a crate::flow_cmd::FlowComparison>,
+    pub verdicts: Option<&'a [crate::flow_exit::ChannelVerdict]>,
+}
 
 pub(super) struct Input<'a> {
     pub view: DocumentView<'a>,
@@ -46,18 +56,75 @@ struct SourceIndex<'a> {
     new: Sources<'a>,
 }
 
+/// Page previews retained by one static review.
+///
+/// The release bound is 1,024. Integration tests run the debug binary and can
+/// lower the bound so the CLI trace path can be exercised without building a
+/// 1,025-page document; release builds never read the environment.
+fn page_preview_limit() -> usize {
+    #[cfg(debug_assertions)]
+    if let Some(limit) = std::env::var("PDFDELTA_REVIEW_PREVIEW_LIMIT")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|limit| *limit > 0)
+    {
+        return limit;
+    }
+    1024
+}
+
+/// Reads the source index from a review bundle's `sources.json.gz`.
+///
+/// The current writer publishes a gzip member inside the artifact's gzip
+/// member, as the version-2 writer did, because the second pass is what keeps
+/// the 2.2 GB source index near 110 MB instead of 146 MB. Version-3 bundles
+/// written before that change carry one gzip stream, and the oldest bundles
+/// used an uncompressed `sources.json`. This reader accepts all three shapes
+/// and returns the JSON bytes unchanged.
+///
+/// The CLI's review query commands read the separate `--agent-review` bundle
+/// layout; this is the compatibility path for consumers that read the static
+/// HTML bundle's source artifact. It is currently exercised by tests that pin
+/// both historical shapes.
+#[allow(dead_code)]
+pub(crate) fn read_sources(bytes: &[u8]) -> io::Result<Vec<u8>> {
+    fn gunzip(bytes: &[u8]) -> io::Result<Vec<u8>> {
+        let mut decoder = flate2::read::GzDecoder::new(bytes);
+        let mut output = Vec::new();
+        decoder.read_to_end(&mut output)?;
+        Ok(output)
+    }
+
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        let first = gunzip(bytes)?;
+        if first.starts_with(&[0x1f, 0x8b]) {
+            return gunzip(&first);
+        }
+        return Ok(first);
+    }
+    Ok(bytes.to_vec())
+}
+
 pub(super) fn write(
     directory: &Path,
     report: &impl Serialize,
     comparison: &DocumentViewComparison,
     images: Option<&crate::evidence_compare::ImageReport>,
     complete: bool,
-    old: Input<'_>,
-    new: Input<'_>,
-) -> Result<(), String> {
+    flow: FlowReview<'_>,
+    (old, new): (Input<'_>, Input<'_>),
+) -> Result<(), DiffError> {
     bundle::create_directory(directory)?;
-    let result = (|| {
+    let result = (|| -> Result<(), DiffError> {
         let mut remaining = MAX_BYTES;
+        let sources = SourceIndex {
+            version: 1,
+            old: Sources(old.view),
+            new: Sources(new.view),
+        };
+        // Flow reviews serialize a much larger source index than a native-text
+        // bundle on the same pair. Store it losslessly compressed so the 512
+        // MiB bundle budget bounds output size, not the evidence itself.
         let mut artifacts = vec![
             file(directory, "old.pdf", &mut remaining, |out| {
                 out.write_all(old.bytes)
@@ -68,18 +135,29 @@ pub(super) fn write(
             file(directory, "comparison.json", &mut remaining, |out| {
                 serde_json::to_writer_pretty(out, report).map_err(io::Error::other)
             })?,
-            file(directory, "sources.json", &mut remaining, |out| {
-                serde_json::to_writer(
-                    out,
-                    &SourceIndex {
-                        version: 1,
-                        old: Sources(old.view),
-                        new: Sources(new.view),
-                    },
-                )
-                .map_err(io::Error::other)
+            file(directory, "sources.json.gz", &mut remaining, |out| {
+                // The artifact writer adds the outer gzip member. Writing the
+                // JSON through an inner gzip member is deliberate: deflate's
+                // 32 KiB window misses repetition between the inner stream's
+                // blocks, and the outer pass recovers about a quarter of the
+                // source index size. The reader accepts the nested shape as
+                // well as a single stream.
+                let mut inner = flate2::write::GzEncoder::new(out, flate2::Compression::default());
+                {
+                    let mut buffered = BufWriter::with_capacity(64 * 1024, &mut inner);
+                    serde_json::to_writer(&mut buffered, &sources).map_err(io::Error::other)?;
+                    // Push the final partial chunk without a sync flush, which
+                    // would change the inner deflate stream.
+                    if let Err(error) = buffered.into_inner() {
+                        let kind = error.error().kind();
+                        let message = error.error().to_string();
+                        return Err(io::Error::new(kind, message));
+                    }
+                }
+                inner.finish().map(|_| ()).map_err(io::Error::other)
             })?,
         ];
+        let preview_limit = page_preview_limit();
         let mut previews = 0usize;
         for (side, input) in [("old", &old), ("new", &new)] {
             for region in input
@@ -90,8 +168,12 @@ pub(super) fn write(
                 .filter(|region| region.composited_page)
             {
                 previews += 1;
-                if previews > 1024 {
-                    return Err("static review exceeds its 1024 page-preview limit".into());
+                if previews > preview_limit {
+                    return Err(DiffError::limit_exceeded(
+                        "static review page previews",
+                        preview_limit,
+                        format!("static review exceeds its {preview_limit} page-preview limit"),
+                    ));
                 }
                 artifacts.push(file(
                     directory,
@@ -110,23 +192,48 @@ pub(super) fn write(
         }
         file(directory, "manifest.json", &mut remaining, |out| {
             serde_json::to_writer_pretty(out, &serde_json::json!({
-                "version": 1,
+                "version": 3,
                 "completion_marker": "index.html",
                 "max_bundle_bytes": MAX_BYTES,
-                "max_page_previews": 1024,
-                "source_export": "Retained glyphs, vectors, marked content, graph and source metadata. Composited page samples are losslessly exported as PNG; exported normalization certificates are not reusable source proofs.",
+                "max_page_previews": preview_limit,
+                "source_export": "Retained glyphs, vectors, marked content, graph and source metadata. Composited page samples are losslessly exported as PNG; exported normalization certificates are not reusable comparison evidence.",
                 "files": artifacts,
             })).map_err(io::Error::other)
         })?;
         file(directory, "index.html", &mut remaining, |out| {
-            html::write(out, comparison, images, complete, &old, &new)
+            html::write(out, comparison, images, complete, &flow, &old, &new)
         })?;
         Ok(())
     })();
-    result.map_err(|error: String| {
-        format!(
-            "{error}; review directory {} is incomplete without index.html",
+    result.map_err(|error| {
+        error.with_suffix(format!(
+            "review directory {} is incomplete without index.html",
             directory.display()
-        )
+        ))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write as _;
+
+    use flate2::{Compression, write::GzEncoder};
+
+    use super::read_sources;
+
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(bytes).expect("gzip payload");
+        encoder.finish().expect("gzip trailer")
+    }
+
+    #[test]
+    fn source_reader_accepts_plain_single_and_double_gzip() {
+        let json = br#"{"version":1,"old":{},"new":{}}"#;
+        let single = gzip(json);
+        let double = gzip(&single);
+        assert_eq!(read_sources(json).expect("plain source index"), json);
+        assert_eq!(read_sources(&single).expect("single gzip"), json);
+        assert_eq!(read_sources(&double).expect("double gzip"), json);
+    }
 }

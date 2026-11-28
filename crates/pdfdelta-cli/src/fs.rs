@@ -11,25 +11,20 @@ use std::{
 
 use flate2::{Compression, write::GzEncoder};
 use pdfdelta_core::{
-    diff::Comparison,
-    model::GlyphEvidence,
-    normalize::BlockText,
     pdf::{LopdfParser, ParseLimits, ParsedPdf, PdfParser},
-    report::{ExtractionStatus, write_compact_json, write_json},
     source::ExternalFontIdentities,
 };
-
-use crate::trace::ExecutionTrace;
+use pdfdelta_diff::Error as DiffError;
 
 pub static NEXT_TEMPORARY_FILE: AtomicU64 = AtomicU64::new(0);
 
-const MAX_PASSWORD_FILE_BYTES: usize = 4_096;
+pub(crate) const MAX_PASSWORD_FILE_BYTES: usize = 4_096;
 
 #[derive(Debug)]
 pub enum InputReadError {
     Io(String),
     InvalidConfiguration(String),
-    LimitExceeded { message: String, limit: usize },
+    LimitExceeded { message: String },
 }
 
 impl fmt::Display for InputReadError {
@@ -37,13 +32,45 @@ impl fmt::Display for InputReadError {
         match self {
             Self::Io(message)
             | Self::InvalidConfiguration(message)
-            | Self::LimitExceeded { message, .. } => formatter.write_str(message),
+            | Self::LimitExceeded { message } => formatter.write_str(message),
+        }
+    }
+}
+
+impl InputReadError {
+    fn with_context(self, context: impl fmt::Display) -> Self {
+        let prefix = |message: String| format!("{context}: {message}");
+        match self {
+            Self::Io(message) => Self::Io(prefix(message)),
+            Self::InvalidConfiguration(message) => Self::InvalidConfiguration(prefix(message)),
+            Self::LimitExceeded { message } => Self::LimitExceeded {
+                message: prefix(message),
+            },
         }
     }
 }
 
 pub fn read_limited(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, String> {
     read_limited_typed(path, max_bytes).map_err(|error| error.to_string())
+}
+
+/// Converts one typed input read failure into the CLI error type.
+///
+/// The resource and bound are supplied by the caller because the generic
+/// reader does not know whether it is reading a PDF or a password file.
+pub(crate) fn input_read_diff_error(
+    error: InputReadError,
+    resource: &'static str,
+    limit: usize,
+) -> DiffError {
+    match error {
+        InputReadError::LimitExceeded { message } => {
+            DiffError::limit_exceeded(resource, limit, message)
+        }
+        InputReadError::Io(message) | InputReadError::InvalidConfiguration(message) => {
+            DiffError::backend(message)
+        }
+    }
 }
 
 pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, InputReadError> {
@@ -81,31 +108,42 @@ pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, In
         };
         return Err(InputReadError::LimitExceeded {
             message: format!("cannot read {target}: PDF input exceeds the {max_bytes}-byte limit"),
-            limit: max_bytes,
         });
     }
     Ok(Arc::from(bytes))
 }
 
 pub fn read_password_file(path: &Path) -> Result<String, String> {
+    read_password_file_typed(path).map_err(|error| error.to_string())
+}
+
+/// Reads one password file with a typed outcome.
+///
+/// The password-file bound is classified as a resource limit rather than a
+/// backend failure so the shared CLI path can report which bound was hit.
+pub(crate) fn read_password_file_typed(path: &Path) -> Result<String, InputReadError> {
     if path == Path::new("-") {
         // Standard input carries PDF bytes; reading a password from it would
         // silently consume the document instead, so the collision is rejected.
-        return Err(
+        return Err(InputReadError::InvalidConfiguration(
             "cannot read password file -: standard input is reserved for PDF input".to_owned(),
-        );
+        ));
     }
-    let bytes = read_limited_typed(path, MAX_PASSWORD_FILE_BYTES)
-        .map_err(|error| format!("cannot read password file {}: {error}", path.display()))?;
+    let bytes = read_limited_typed(path, MAX_PASSWORD_FILE_BYTES).map_err(|error| {
+        error.with_context(format!("cannot read password file {}", path.display()))
+    })?;
     let mut bytes = bytes.as_ref();
     if let Some(without_newline) = bytes.strip_suffix(b"\r\n") {
         bytes = without_newline;
     } else if let Some(without_newline) = bytes.strip_suffix(b"\n") {
         bytes = without_newline;
     }
-    std::str::from_utf8(bytes)
-        .map(str::to_owned)
-        .map_err(|_| format!("password file {} is not valid UTF-8", path.display()))
+    std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| {
+        InputReadError::InvalidConfiguration(format!(
+            "password file {} is not valid UTF-8",
+            path.display()
+        ))
+    })
 }
 
 pub fn parse_external_font_identities(values: &[String]) -> Result<ExternalFontIdentities, String> {
@@ -133,63 +171,6 @@ pub fn parse_lopdf(
     }
 }
 
-pub fn write_json_atomically(
-    output_path: &Path,
-    old_blocks: &[BlockText],
-    new_blocks: &[BlockText],
-    old_glyph_evidence: &[GlyphEvidence],
-    new_glyph_evidence: &[GlyphEvidence],
-    comparison: &Comparison,
-    extraction: &ExtractionStatus,
-) -> Result<(), String> {
-    write_output_atomically(output_path, "JSON report", |temporary_file| {
-        write_json(
-            temporary_file,
-            old_blocks,
-            new_blocks,
-            old_glyph_evidence,
-            new_glyph_evidence,
-            comparison,
-            extraction,
-        )
-        .map_err(|error| {
-            format!(
-                "cannot render JSON comparison report for {}: {error}",
-                output_path.display()
-            )
-        })
-    })
-}
-
-/// Writes the compact native-text JSON report atomically.
-pub fn write_compact_json_atomically(
-    output_path: &Path,
-    old_blocks: &[BlockText],
-    new_blocks: &[BlockText],
-    old_glyph_evidence: &[GlyphEvidence],
-    new_glyph_evidence: &[GlyphEvidence],
-    comparison: &Comparison,
-    extraction: &ExtractionStatus,
-) -> Result<(), String> {
-    write_output_atomically(output_path, "JSON report", |temporary_file| {
-        write_compact_json(
-            temporary_file,
-            old_blocks,
-            new_blocks,
-            old_glyph_evidence,
-            new_glyph_evidence,
-            comparison,
-            extraction,
-        )
-        .map_err(|error| {
-            format!(
-                "cannot render compact JSON comparison report for {}: {error}",
-                output_path.display()
-            )
-        })
-    })
-}
-
 pub fn write_text_report_atomically(output_path: &Path, content: &str) -> Result<(), String> {
     write_output_atomically(output_path, "text report", |temporary_file| {
         temporary_file
@@ -203,17 +184,6 @@ pub fn write_text_report_atomically(output_path: &Path, content: &str) -> Result
     })
 }
 
-pub fn write_trace_atomically(output_path: &Path, trace: &ExecutionTrace) -> Result<(), String> {
-    write_output_atomically(output_path, "trace report", |mut temporary_file| {
-        trace.write_json(&mut temporary_file).map_err(|error| {
-            format!(
-                "cannot render diagnostic trace for {}: {error}",
-                output_path.display()
-            )
-        })
-    })
-}
-
 /// Writes one output file atomically.
 ///
 /// A destination ending in `.gz` is compressed while it is written, so the
@@ -224,11 +194,33 @@ pub fn write_output_atomically(
     output_kind: &'static str,
     write: impl FnOnce(&mut dyn Write) -> Result<(), String>,
 ) -> Result<(), String> {
-    let (temporary_path, temporary_file) = create_temporary_output_for(output_path, output_kind)?;
-    let mut temporary_file = BufWriter::new(temporary_file);
     let compressed = output_path
         .extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("gz"));
+    write_output_atomically_impl(output_path, output_kind, compressed, write)
+}
+
+/// Writes one output file atomically without applying the `.gz` convention.
+///
+/// Callers that already produce a gzip stream use this to publish one gzip
+/// member exactly. The temporary file and sync/cleanup contract are shared
+/// with [`write_output_atomically`].
+pub(crate) fn write_output_atomically_uncompressed(
+    output_path: &Path,
+    output_kind: &'static str,
+    write: impl FnOnce(&mut dyn Write) -> Result<(), String>,
+) -> Result<(), String> {
+    write_output_atomically_impl(output_path, output_kind, false, write)
+}
+
+fn write_output_atomically_impl(
+    output_path: &Path,
+    output_kind: &'static str,
+    compressed: bool,
+    write: impl FnOnce(&mut dyn Write) -> Result<(), String>,
+) -> Result<(), String> {
+    let (temporary_path, temporary_file) = create_temporary_output_for(output_path, output_kind)?;
+    let mut temporary_file = BufWriter::new(temporary_file);
     let prepare_result = (|| {
         if compressed {
             // Batch the many small serializer writes into bounded chunks
@@ -559,10 +551,8 @@ mod tests {
         let error = read_limited_typed(&path, 3).expect_err("input should exceed the limit");
         std::fs::remove_file(path).expect("input limit fixture should be removed");
 
-        assert!(matches!(
-            error,
-            InputReadError::LimitExceeded { limit: 3, .. }
-        ));
+        assert!(matches!(error, InputReadError::LimitExceeded { .. }));
+        assert!(error.to_string().contains("3-byte limit"));
     }
 
     #[test]
@@ -578,10 +568,8 @@ mod tests {
         let error = read_limited_typed(&path, 2).expect_err("input above the limit is rejected");
         std::fs::remove_file(path).expect("input boundary fixture should be removed");
 
-        assert!(matches!(
-            error,
-            InputReadError::LimitExceeded { limit: 2, .. }
-        ));
+        assert!(matches!(error, InputReadError::LimitExceeded { .. }));
+        assert!(error.to_string().contains("2-byte limit"));
     }
 
     #[test]
@@ -711,7 +699,7 @@ mod compressed_output_tests {
         let path = scratch_path("report.json.gz");
         write_output_atomically(&path, "JSON report", |writer| {
             writer
-                .write_all(b"{\"schema_version\": 11}\n")
+                .write_all(b"{\"schema_version\": 12}\n")
                 .map_err(|error| error.to_string())
         })
         .expect("gzip output");
@@ -719,7 +707,7 @@ mod compressed_output_tests {
         let mut decoder = flate2::read::GzDecoder::new(File::open(&path).expect("gzip file"));
         let mut text = String::new();
         decoder.read_to_string(&mut text).expect("gzip content");
-        assert_eq!(text, "{\"schema_version\": 11}\n");
+        assert_eq!(text, "{\"schema_version\": 12}\n");
 
         let error = write_output_atomically(&path, "JSON report", |_| Ok(()))
             .expect_err("existing output must not be overwritten");

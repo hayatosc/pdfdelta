@@ -7,8 +7,32 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     DocumentView, DocumentViewComparison, EdgeKind, GraphEdge, InterpretationStatus, NodeId,
-    ParentCorrespondence, SourceRef, ViewBasis,
+    ParentCorrespondence, RelationSourceInventory, SourceRef, ViewBasis,
 };
+
+/// Why the relations comparison did not enumerate graph relationships.
+///
+/// The default is an examined comparison. [`Self::CompleteEmpty`] is the only
+/// reason that suppresses enumeration: both inputs proved they have no native
+/// relation source, so the empty relation inventory is complete and no
+/// inferred graph edge can assert a declared relationship.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RelationInventoryState {
+    /// At least one side has a relation source, or its absence was not proven.
+    #[default]
+    ExaminedOrUnproven,
+    /// Both inputs proved no native relation source exists.
+    CompleteEmpty,
+}
+
+impl RelationInventoryState {
+    /// Whether this is the default, examined-or-unproven state.
+    #[must_use]
+    pub const fn is_examined_or_unproven(&self) -> bool {
+        matches!(self, Self::ExaminedOrUnproven)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RelationComparison {
@@ -46,6 +70,16 @@ pub(super) fn compare_relations(
     result: &mut DocumentViewComparison,
     max_work: usize,
 ) {
+    if old_view.evidence.relation_source_inventory() == RelationSourceInventory::ProvenAbsent
+        && new_view.evidence.relation_source_inventory() == RelationSourceInventory::ProvenAbsent
+    {
+        // No declared relation source exists on either side. Graph edges that
+        // remain (for example rendered-region containment or inferred table
+        // partitions) are layout evidence, not relationship endpoints; there is
+        // nothing whose absence or presence a relation inventory could decide.
+        result.relation_inventory = RelationInventoryState::CompleteEmpty;
+        return;
+    }
     let old = old_view.graph;
     let new = new_view.graph;
     let work = old

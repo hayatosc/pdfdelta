@@ -51,7 +51,8 @@ pub struct CounterpartDecisions {
 impl ScopeMatching {
     /// Retains an unmatched explanation independently of weight, including a
     /// positive-weight unique 1:1 optimum. This does not change the legacy
-    /// matching objective or turn its zero-valued unmatched option into proof.
+    /// matching objective or turn its zero-valued unmatched option into a
+    /// comparison result.
     /// Storage is bounded by the already bounded proposal population; ordered
     /// membership lookups do not launch another assignment search.
     #[must_use]

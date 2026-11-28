@@ -87,57 +87,6 @@ impl FontSizeSignature {
     pub fn values(&self) -> impl Iterator<Item = f64> + '_ {
         self.bits.iter().copied().map(f64::from_bits)
     }
-
-    pub(crate) fn union(&self, other: &Self) -> Self {
-        let mut bits = Vec::with_capacity(self.bits.len() + other.bits.len());
-        bits.extend_from_slice(&self.bits);
-        bits.extend_from_slice(&other.bits);
-        bits.sort_unstable();
-        bits.dedup();
-        Self { bits }
-    }
-
-    /// Exact nested payload size used by bounded proof-group materialization.
-    pub(crate) fn represented_size_count(&self) -> usize {
-        self.bits.len()
-    }
-
-    pub(crate) fn try_clone(&self) -> Option<Self> {
-        let mut bits = Vec::new();
-        bits.try_reserve_exact(self.bits.len()).ok()?;
-        bits.extend_from_slice(&self.bits);
-        Some(Self { bits })
-    }
-
-    /// Merges the validated sorted signatures in linear work. The requested
-    /// capacity includes both inputs, even when deduplication shortens output.
-    pub(crate) fn try_union(&self, other: &Self) -> Option<Self> {
-        let mut bits = Vec::new();
-        bits.try_reserve_exact(self.bits.len().checked_add(other.bits.len())?)
-            .ok()?;
-        let (mut left, mut right) = (0, 0);
-        while left < self.bits.len() || right < other.bits.len() {
-            let value = match (self.bits.get(left), other.bits.get(right)) {
-                (Some(a), Some(b)) if a <= b => {
-                    left += 1;
-                    *a
-                }
-                (_, Some(b)) => {
-                    right += 1;
-                    *b
-                }
-                (Some(a), None) => {
-                    left += 1;
-                    *a
-                }
-                (None, None) => break,
-            };
-            if bits.last() != Some(&value) {
-                bits.push(value);
-            }
-        }
-        Some(Self { bits })
-    }
 }
 
 /// Exact baseline and text direction of a canonical token's first source glyph.
@@ -189,24 +138,6 @@ impl PositionSignature {
         Vec2 {
             x: f64::from_bits(self.direction_x),
             y: f64::from_bits(self.direction_y),
-        }
-    }
-}
-
-#[cfg(test)]
-impl PositionSignature {
-    /// Builds a signature from raw geometry without the finite check.
-    ///
-    /// Production evidence only enters through [`Self::new`], which rejects
-    /// non-finite geometry. This constructor exists so tests can prove that
-    /// downstream evidence checks reject a non-finite signature instead of
-    /// trusting the constructor invariant.
-    pub(crate) fn from_raw_bits(baseline: Vec2, direction: Vec2) -> Self {
-        Self {
-            baseline_x: baseline.x.to_bits(),
-            baseline_y: baseline.y.to_bits(),
-            direction_x: direction.x.to_bits(),
-            direction_y: direction.y.to_bits(),
         }
     }
 }
@@ -375,10 +306,6 @@ impl MappedText {
         Ok(())
     }
 
-    pub(crate) fn comparable_token_count(&self) -> Result<usize> {
-        self.validated_token_counts().map(|(_, count)| count)
-    }
-
     fn validated_token_counts(&self) -> Result<(usize, usize)> {
         let scalar_count = self.text.chars().count();
         let mut previous_index = 0;
@@ -491,10 +418,65 @@ impl MappedText {
         glyph_ids
     }
 
+    /// Visits every glyph id referenced by the source atoms of this whole text.
+    ///
+    /// The visited ids are exactly the ids returned by
+    /// [`Self::project_glyph_ids`] over `0..scalar_count`, but without
+    /// building the intermediate projected atom list, so consumers that
+    /// accumulate the ids into their own set avoid per-call allocations. Ids
+    /// may repeat; the visitor decides how to deduplicate.
+    ///
+    /// A trailing unmapped token sits at `scalar_index == scalar_count` and is
+    /// therefore outside the whole-text range; such a glyph is deliberately
+    /// not visited, matching the projected-range contract. For an empty text
+    /// the range is empty, where the projection includes unmapped tokens at
+    /// offset zero.
+    pub fn for_each_referenced_glyph(&self, mut visit: impl FnMut(GlyphId)) {
+        let scalar_count = self.text.chars().count();
+        for entry in &self.source_map {
+            // Source entries are non-empty and end at or before the scalar
+            // count, so the empty whole-text range contains none and a
+            // non-empty one contains all of them.
+            if entry.output_range.start < scalar_count {
+                visit_source_glyphs(&entry.source, &mut visit);
+            }
+        }
+        for token in &self.unmapped {
+            let in_range = if scalar_count == 0 {
+                token.scalar_index == 0
+            } else {
+                token.scalar_index < scalar_count
+            };
+            if in_range {
+                visit_source_glyphs(&token.source, &mut visit);
+            }
+        }
+    }
+
     /// Returns the ordered list of `TextSourceAtom`s covering the given output `ScalarRange`.
     #[must_use]
     pub fn project_source_atoms(&self, range: ScalarRange) -> Vec<TextSourceAtom> {
         self.project_source(range).atoms.into_vec()
+    }
+}
+
+/// Calls `visit` with the glyph ids named by one token source.
+fn visit_source_glyphs(source: &TextSource, visit: &mut impl FnMut(GlyphId)) {
+    for atom in &source.atoms {
+        match atom {
+            TextSourceAtom::Glyph(glyph_id) => visit(*glyph_id),
+            TextSourceAtom::SyntheticSpace {
+                preceding,
+                following,
+            }
+            | TextSourceAtom::LineBreak {
+                preceding,
+                following,
+            } => {
+                visit(*preceding);
+                visit(*following);
+            }
+        }
     }
 }
 
@@ -561,6 +543,32 @@ pub struct BlockText {
     /// offsets are strictly increasing and contain one entry for each transition in [`Self::pages`].
     pub page_breaks: Option<Vec<usize>>,
 }
+
+/// One normalized block plus the raw text of each canonical token.
+///
+/// Formatting evidence compares raw text, line/page breaks, block
+/// boundaries, and source baselines without retaining the full comparison
+/// source map or matching masks. `raw_tokens[i]` corresponds to canonical
+/// comparable token `i` and includes the raw gap up to the next token, so a
+/// collapsed or expanded whitespace run remains visible to the comparison.
+/// `None` marks a token whose raw text cannot be projected exactly (for
+/// example an unmapped token).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ComparableBlock {
+    pub text: BlockText,
+    pub raw_tokens: Vec<Option<String>>,
+    /// Normalization kinds observed for each canonical comparable token.
+    ///
+    /// A bit set means the token participates in that normalization event.
+    /// The mask is evidence for formatting-only comparison, not token identity.
+    pub normalization: Vec<u8>,
+}
+
+/// Raw text and normalization masks for one normalized block.
+type FormattingEvidence = (Vec<Option<String>>, Vec<u8>);
+
+/// One normalized block plus formatting evidence when requested.
+type NormalizedBlock = (BlockText, Option<FormattingEvidence>);
 
 impl BlockText {
     /// Returns retained discretionary hyphens in the requested comparable-token
@@ -1079,11 +1087,61 @@ pub fn normalize_blocks(
     lines: &[Line],
     blocks: &[Block],
 ) -> Result<Vec<BlockText>> {
+    normalize_blocks_impl(document, lines, blocks, true).map(|blocks| {
+        blocks
+            .into_iter()
+            .map(|(block, _)| block)
+            .collect::<Vec<_>>()
+    })
+}
+
+/// Normalizes blocks for token-stream consumers while retaining formatting
+/// evidence.
+///
+/// The returned [`BlockText`] keeps canonical text, line/page breaks, pages,
+/// role, block identity, and exact font-size and position signatures. The
+/// accompanying [`ComparableBlock::raw_tokens`] retains the raw text projected
+/// to each canonical token so formatting evidence can report normalization
+/// changes. Numeric matching masks, normalization issues, and the full raw
+/// source map are not retained after projection.
+///
+/// # Errors
+/// Matches [`normalize_blocks`].
+#[must_use = "the normalized blocks must be consumed"]
+pub fn normalize_blocks_for_diff(
+    document: &Document<Glyph>,
+    lines: &[Line],
+    blocks: &[Block],
+) -> Result<Vec<ComparableBlock>> {
+    normalize_blocks_impl(document, lines, blocks, false).map(|blocks| {
+        blocks
+            .into_iter()
+            .map(|(text, evidence)| {
+                let (raw_tokens, normalization) = evidence.unwrap_or_default();
+                ComparableBlock {
+                    text,
+                    raw_tokens,
+                    normalization,
+                }
+            })
+            .collect::<Vec<_>>()
+    })
+}
+
+fn normalize_blocks_impl(
+    document: &Document<Glyph>,
+    lines: &[Line],
+    blocks: &[Block],
+    retain_comparison_evidence: bool,
+) -> Result<Vec<NormalizedBlock>> {
     let glyphs = index_glyphs(document)?;
     let lines = index_lines(lines)?;
     let mut block_ids = HashSet::with_capacity(blocks.len());
     let mut assigned_lines = HashSet::new();
-    let mut assigned_glyphs = HashSet::new();
+    let mut assigned_glyphs = glyphs.dense_len().map_or_else(
+        || GlyphSeen::Hashed(HashSet::new()),
+        |len| GlyphSeen::Dense(vec![false; len]),
+    );
 
     // Raw-block building mutates shared duplicate-detection sets, so it stays
     // sequential in block order and stops at the first build error, exactly
@@ -1129,7 +1187,9 @@ pub fn normalize_blocks(
 
     let normalized = raws
         .into_par_iter()
-        .map(|(block, role, raw, pages)| normalize_block(block, role, raw, pages, &glyphs))
+        .map(|(block, role, raw, pages)| {
+            normalize_block(block, role, raw, pages, &glyphs, retain_comparison_evidence)
+        })
         .collect::<Vec<Result<_>>>();
     let mut normalized_blocks = Vec::with_capacity(normalized.len());
     for result in normalized {
@@ -1153,7 +1213,6 @@ pub fn normalize_blocks(
             glyphs.len()
         )));
     }
-
     Ok(normalized_blocks)
 }
 
@@ -1409,12 +1468,45 @@ fn index_lines(lines: &[Line]) -> Result<HashMap<LineId, &Line>> {
     Ok(indexed)
 }
 
+/// Duplicate-detection set for glyph ids.
+///
+/// Dense sequential ids use one byte per slot so the check costs no hashing;
+/// sparse or out-of-range ids fall back to a hash set.
+enum GlyphSeen {
+    Dense(Vec<bool>),
+    Hashed(HashSet<GlyphId>),
+}
+
+impl GlyphSeen {
+    /// Returns whether `id` was not present before this call.
+    fn insert(&mut self, id: GlyphId) -> bool {
+        match self {
+            Self::Dense(seen) => {
+                let index = usize::try_from(id.0).expect("dense glyph ids fit usize");
+                // An out-of-range id cannot come from a validated glyph index;
+                // treat it as new so the caller's glyph lookup reports the
+                // unknown id instead of this set panicking on it.
+                seen.get_mut(index)
+                    .is_none_or(|seen| !std::mem::replace(seen, true))
+            }
+            Self::Hashed(seen) => seen.insert(id),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Dense(seen) => seen.iter().filter(|seen| **seen).count(),
+            Self::Hashed(seen) => seen.len(),
+        }
+    }
+}
+
 fn build_raw_block(
     block: &Block,
     lines: &HashMap<LineId, &Line>,
     glyphs: &GlyphIndex<'_>,
     assigned_lines: &mut HashSet<LineId>,
-    assigned_glyphs: &mut HashSet<GlyphId>,
+    assigned_glyphs: &mut GlyphSeen,
 ) -> Result<RawBlock> {
     let mut builder = RawBuilder::default();
     let mut preceding_line = None;
@@ -1497,15 +1589,21 @@ fn validate_line(line: &Line, glyphs: &GlyphIndex<'_>) -> Result<(GlyphId, Glyph
     };
     let last_glyph = line.glyphs.last().copied().unwrap_or(first_glyph);
 
-    let adjacent = line
-        .glyphs
-        .windows(2)
-        .map(|pair| (pair[0], pair[1]))
-        .collect::<HashSet<_>>();
+    // Most lines have no synthetic spaces; only build the adjacency set that
+    // validates them when there is something to validate.
+    let adjacent = (!line.synthetic_spaces.is_empty()).then(|| {
+        line.glyphs
+            .windows(2)
+            .map(|pair| (pair[0], pair[1]))
+            .collect::<HashSet<_>>()
+    });
     let mut spaces = HashSet::with_capacity(line.synthetic_spaces.len());
     for space in &line.synthetic_spaces {
         let pair = (space.preceding, space.following);
-        if !adjacent.contains(&pair) {
+        if !adjacent
+            .as_ref()
+            .is_some_and(|adjacent| adjacent.contains(&pair))
+        {
             return Err(Error::Unresolved(format!(
                 "line {} has a synthetic space outside an adjacent glyph pair",
                 line.id.0
@@ -1682,42 +1780,205 @@ fn normalize_block(
     raw: RawBlock,
     pages: Vec<u32>,
     glyphs: &GlyphIndex<'_>,
-) -> Result<BlockText> {
-    let mut issues = Vec::new();
-    let line_break_following_glyphs = raw.line_break_following_glyphs;
-    let page_break_following_glyphs = raw.page_break_following_glyphs;
+    retain_comparison_evidence: bool,
+) -> Result<NormalizedBlock> {
+    let RawBlock {
+        mapped: raw_mapped,
+        atoms,
+        line_break_following_glyphs,
+        page_break_following_glyphs,
+    } = raw;
     // Only ligature expansion can grow the atom vector, so it owns the one
     // allocation of the pipeline; the line-break and whitespace passes
     // rewrite the buffer in place (their output never exceeds the input),
     // and NFC consumes it.
-    let mut atoms = expand_ligatures(raw.atoms);
+    // Expanding reallocates the atom vector, so only do it when some scalar
+    // actually expands; otherwise the ligature-free path keeps the buffer.
+    let mut atoms = if atoms.iter().any(|atom| {
+        atom.scalar()
+            .is_some_and(|scalar| ligature_expansion(scalar).is_some())
+    }) {
+        expand_ligatures(atoms)
+    } else {
+        atoms
+    };
+    let mut issues = Vec::new();
     resolve_line_breaks(&mut atoms, &mut issues);
     collapse_whitespace(&mut atoms);
     let pieces = normalize_nfc(atoms);
-    let (canonical, events) = assemble_canonical(pieces);
-    let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
+    // Formatting evidence needs events to project canonical tokens back to raw
+    // text; it clears them before returning so the reduced-memory contract
+    // still holds.
+    let (canonical, events) = assemble_canonical(pieces, true);
     let canonical_tokens = canonical.comparable_tokens_with_sources()?;
+    let line_breaks = canonical_breaks(&canonical_tokens, &line_break_following_glyphs);
     let font_size_signatures = canonical_font_size_signatures(&canonical_tokens, glyphs)?;
     let position_signatures = canonical_position_signatures(&canonical_tokens, glyphs)?;
-    let line_breaks = canonical_breaks(&canonical_tokens, &line_break_following_glyphs);
     let page_breaks = canonical_breaks(&canonical_tokens, &page_break_following_glyphs);
 
-    Ok(BlockText {
-        block,
-        role,
-        raw: raw.mapped,
-        canonical,
-        matching: matching.text,
-        matching_tokens: matching.tokens,
-        numeric_mask_applied: matching.numeric_mask_applied,
-        normalization_events: events,
-        issues,
-        pages,
-        font_size_signatures,
-        position_signatures,
-        line_breaks,
-        page_breaks,
-    })
+    if !retain_comparison_evidence {
+        let mut text = BlockText {
+            block,
+            role,
+            raw: raw_mapped,
+            canonical,
+            matching: String::new(),
+            matching_tokens: Vec::new(),
+            numeric_mask_applied: false,
+            normalization_events: events,
+            issues: Vec::new(),
+            pages,
+            font_size_signatures,
+            position_signatures,
+            line_breaks,
+            page_breaks,
+        };
+        let raw_tokens = raw_token_texts(&text, &canonical_tokens);
+        let normalization = normalization_masks(&canonical_tokens, &text.normalization_events);
+        text.raw = MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        };
+        text.normalization_events.clear();
+        return Ok((text, Some((raw_tokens, normalization))));
+    }
+
+    let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
+    Ok((
+        BlockText {
+            block,
+            role,
+            raw: raw_mapped,
+            canonical,
+            matching: matching.text,
+            matching_tokens: matching.tokens,
+            numeric_mask_applied: matching.numeric_mask_applied,
+            normalization_events: events,
+            issues,
+            pages,
+            font_size_signatures,
+            position_signatures,
+            line_breaks,
+            page_breaks,
+        },
+        None,
+    ))
+}
+
+/// Projects each canonical comparable token to its raw text, including the
+/// raw gap up to the next token.
+///
+/// The gap makes collapsed or expanded whitespace visible to a token-level
+/// comparison. Unmapped tokens carry identity rather than raw text and return
+/// `None`; a token whose raw range cannot be established also returns `None`
+/// rather than an invented string.
+fn raw_token_texts(
+    block: &BlockText,
+    tokens: &[(ComparableToken, TextSource)],
+) -> Vec<Option<String>> {
+    let offsets = block
+        .raw
+        .text
+        .char_indices()
+        .map(|(offset, _)| offset)
+        .chain(std::iter::once(block.raw.text.len()))
+        .collect::<Vec<_>>();
+    let raw_len = offsets.len().saturating_sub(1);
+    let mut ranges = Vec::with_capacity(tokens.len());
+    let mut entry_index = 0;
+    for (token, source) in tokens {
+        if matches!(token, ComparableToken::Unmapped { .. }) {
+            ranges.push(None);
+            continue;
+        }
+        let mut start = usize::MAX;
+        let mut end = 0;
+        while let Some(entry) = block.raw.source_map.get(entry_index) {
+            let touches = entry
+                .source
+                .atoms
+                .iter()
+                .any(|atom| source.atoms.contains(atom));
+            if !touches {
+                break;
+            }
+            start = start.min(entry.output_range.start);
+            end = end.max(entry.output_range.end);
+            entry_index += 1;
+        }
+        if start == usize::MAX {
+            ranges.push(None);
+        } else {
+            let start = start.min(raw_len);
+            ranges.push(Some((start, end.max(start).min(raw_len))));
+        }
+    }
+
+    // A non-whitespace token owns the raw gap after it, including any
+    // whitespace that tokenization drops as separate tokens. Walk backwards so the
+    // next emitted token's start is known before extending the current end.
+    let mut next_start = raw_len;
+    for (token, range) in tokens.iter().zip(ranges.iter_mut()).rev() {
+        let is_whitespace = matches!(
+            token,
+            (ComparableToken::Scalar(scalar), _) if scalar.is_whitespace()
+        );
+        if is_whitespace {
+            continue;
+        }
+        if let Some((start, end)) = *range {
+            *range = Some((start, end.max(next_start)));
+            next_start = start;
+        }
+    }
+
+    ranges
+        .into_iter()
+        .map(|range| {
+            range.map(|(start, end)| block.raw.text[offsets[start]..offsets[end]].to_owned())
+        })
+        .collect()
+}
+
+/// Maps normalization events to the canonical token indexes they touch.
+fn normalization_masks(
+    tokens: &[(ComparableToken, TextSource)],
+    events: &[NormalizationEvent],
+) -> Vec<u8> {
+    let mut masks = vec![0u8; tokens.len()];
+    if events.is_empty() {
+        return masks;
+    }
+    let mut ranges = Vec::with_capacity(tokens.len());
+    let mut scalar = 0;
+    for (token, _) in tokens {
+        let start = scalar;
+        if token.is_scalar() {
+            scalar += 1;
+        }
+        ranges.push((start, scalar));
+    }
+    for event in events {
+        let bit = match event.kind {
+            NormalizationKind::Nfc => 1,
+            NormalizationKind::SoftLineBreak => 2,
+            NormalizationKind::WhitespaceCollapse => 4,
+            NormalizationKind::HyphenationJoin => 8,
+            NormalizationKind::LigatureExpansion => 16,
+        };
+        for (index, (start, end)) in ranges.iter().enumerate() {
+            let touches = if start == end {
+                event.canonical_range.start <= *start && *start <= event.canonical_range.end
+            } else {
+                *start < event.canonical_range.end && *end > event.canonical_range.start
+            };
+            if touches {
+                masks[index] |= bit;
+            }
+        }
+    }
+    masks
 }
 
 fn canonical_font_size_signatures(
@@ -1806,6 +2067,9 @@ fn canonical_breaks(
     tokens: &[(ComparableToken, TextSource)],
     following_glyphs: &[GlyphId],
 ) -> Option<Vec<usize>> {
+    if following_glyphs.is_empty() {
+        return Some(Vec::new());
+    }
     let mut glyph_offsets = HashMap::new();
     for (offset, (_, source)) in tokens.iter().enumerate() {
         for atom in &source.atoms {
@@ -1880,29 +2144,6 @@ fn compatibility_fold(tokens: Vec<ComparableToken>) -> Vec<ComparableToken> {
 fn push_compatibility_folded(output: &mut Vec<ComparableToken>, input: &mut String) {
     output.extend(input.nfkc().map(ComparableToken::Scalar));
     input.clear();
-}
-
-pub(crate) fn character_width_fold(tokens: &[ComparableToken]) -> Option<(String, bool)> {
-    let mut folded = String::new();
-    let mut changed = false;
-
-    for token in tokens {
-        let ComparableToken::Scalar(scalar) = token else {
-            return None;
-        };
-        if *scalar == '\u{3000}' || ('\u{ff00}'..='\u{ffef}').contains(scalar) {
-            let original = scalar.to_string();
-            let normalized = original.as_str().nfkc().collect::<String>();
-            if normalized != original {
-                folded.push_str(&normalized);
-                changed = true;
-                continue;
-            }
-        }
-        folded.push(*scalar);
-    }
-
-    Some((folded.nfc().collect(), changed))
 }
 
 fn mask_numbers(tokens: &[ComparableToken]) -> (Vec<ComparableToken>, usize, bool) {
@@ -2254,6 +2495,44 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
         return;
     }
 
+    // ASCII has no canonical composition, so NFC is the identity on it. Each
+    // ASCII scalar is its own grapheme except CR LF, which is one grapheme
+    // whose atoms share one piece. Handling that pair explicitly reproduces
+    // the general path's pieces without building a run string or running the
+    // segmentation and normalization iterators.
+    if run
+        .iter()
+        .all(|atom| atom.scalar().is_some_and(|scalar| scalar.is_ascii()))
+    {
+        let mut index = 0;
+        while index < run.len() {
+            let atom = &run[index];
+            let scalar = atom.scalar().expect("every run atom is a scalar");
+            let carriage_return =
+                scalar == '\r' && run.get(index + 1).and_then(Atom::scalar) == Some('\n');
+            if carriage_return {
+                let next = &run[index + 1];
+                pieces.push(FinalPiece {
+                    value: FinalValue::Text(TextPiece::Str("\r\n".to_owned())),
+                    raw_range: union_range([atom.raw_range, next.raw_range]),
+                    source: TextSource::combine([&atom.source, &next.source]),
+                    kinds: atom.kinds.union(next.kinds),
+                });
+                index += 2;
+            } else {
+                pieces.push(FinalPiece {
+                    value: FinalValue::Text(TextPiece::Char(scalar)),
+                    raw_range: atom.raw_range,
+                    source: atom.source.clone(),
+                    kinds: atom.kinds,
+                });
+                index += 1;
+            }
+        }
+        run.clear();
+        return;
+    }
+
     let text = run.iter().filter_map(Atom::scalar).collect::<String>();
     let mut scalar_offset = 0;
     for grapheme in text.graphemes(true) {
@@ -2296,7 +2575,10 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
     run.clear();
 }
 
-fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<NormalizationEvent>) {
+fn assemble_canonical(
+    pieces: Vec<FinalPiece>,
+    collect_events: bool,
+) -> (MappedText, Vec<NormalizationEvent>) {
     let mut text = String::new();
     let mut source_map = Vec::new();
     let mut unmapped = Vec::new();
@@ -2306,15 +2588,16 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
     for piece in pieces {
         let start = scalar_index;
         // The piece owns its source, so the consumer can move it instead of
-        // cloning; only the rare event-per-piece path needs a copy.
+        // cloning; only the event path needs a copy, and token-stream
+        // consumers skip event collection entirely.
         let mut source = piece.source;
         match piece.value {
             FinalValue::Text(value) => {
                 scalar_index += value.push_into(&mut text);
-                let entry_source = if piece.kinds.is_empty() {
-                    std::mem::take(&mut source)
-                } else {
+                let entry_source = if collect_events && !piece.kinds.is_empty() {
                     source.clone()
+                } else {
+                    std::mem::take(&mut source)
                 };
                 source_map.push(SourceMapEntry {
                     output_range: ScalarRange {
@@ -2323,23 +2606,25 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
                     },
                     source: entry_source,
                 });
-                emit_piece_events(
-                    &mut events,
-                    piece.kinds,
-                    piece.raw_range,
-                    start,
-                    scalar_index,
-                    &mut source,
-                );
+                if collect_events {
+                    emit_piece_events(
+                        &mut events,
+                        piece.kinds,
+                        piece.raw_range,
+                        start,
+                        scalar_index,
+                        &mut source,
+                    );
+                }
             }
             FinalValue::Unmapped {
                 font_hash,
                 glyph_id,
             } => {
-                let token_source = if piece.kinds.is_empty() {
-                    std::mem::take(&mut source)
-                } else {
+                let token_source = if collect_events && !piece.kinds.is_empty() {
                     source.clone()
+                } else {
+                    std::mem::take(&mut source)
                 };
                 unmapped.push(UnmappedToken {
                     scalar_index,
@@ -2347,24 +2632,28 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
                     glyph_id,
                     source: token_source,
                 });
-                emit_piece_events(
-                    &mut events,
-                    piece.kinds,
-                    piece.raw_range,
-                    start,
-                    scalar_index,
-                    &mut source,
-                );
+                if collect_events {
+                    emit_piece_events(
+                        &mut events,
+                        piece.kinds,
+                        piece.raw_range,
+                        start,
+                        scalar_index,
+                        &mut source,
+                    );
+                }
             }
             FinalValue::Deleted => {
-                emit_piece_events(
-                    &mut events,
-                    piece.kinds,
-                    piece.raw_range,
-                    start,
-                    scalar_index,
-                    &mut source,
-                );
+                if collect_events {
+                    emit_piece_events(
+                        &mut events,
+                        piece.kinds,
+                        piece.raw_range,
+                        start,
+                        scalar_index,
+                        &mut source,
+                    );
+                }
             }
         }
     }

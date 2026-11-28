@@ -12,6 +12,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hayro::hayro_syntax::{
+    object::{Dict, Name, Stream},
+    page::Resources,
+};
 use pdfdelta_core::{
     document::{
         BackendIdentity, BackendKind, Channel, ChannelInventory, EvidenceFailure, EvidenceIssue,
@@ -22,16 +26,206 @@ use pdfdelta_core::{
 };
 
 const MAX_PIXELS: usize = 8_000_000;
-const PAGE_TIMEOUT: Duration = Duration::from_secs(5);
-const DOCUMENT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Upper bound on one image `XObject`'s declared pixel count before rendering.
+///
+/// Hayro 0.7.1 expands an image to an RGBA buffer before downscaling it to the
+/// page. One 1-bit mask in the real-world corpus is 19,848 x 28,063 pixels
+/// (556,994,424 pixels); the renderer requested a 2 GiB allocation and aborted
+/// under the render child's 2 GiB address-space limit. The 64M-pixel bound
+/// stays above the panel's ordinary images while keeping the worst-case RGBA
+/// conversion (256 MiB) well inside the child's resource limits.
+const MAX_RENDER_IMAGE_PIXELS: u64 = 64_000_000;
+
+/// Bounds `XObject` scanning in the render preflight.
+const MAX_PREFLIGHT_XOBJECTS: usize = 4_096;
+const MAX_PREFLIGHT_DEPTH: usize = 8;
+
+/// CPU seconds allowed to one page's render child.
+///
+/// Measured over 4,654 rendered pages of the 36-pair channel panel: median
+/// about 0.032 s, p99 about 0.27 s, p99.9 about 1.35 s, and max about 2.9 s.
+/// The maximum is two reproducible `ipcc-synthesis-ar5-to-ar6` pages at
+/// 2.86-2.90 s; an earlier `/proc`-sampled measurement understated them. Ten
+/// seconds is about a 3.5x margin over the maximum and 37x over p99.
+pub(crate) const PAGE_CPU_BUDGET_SECONDS: u64 = 10;
+
+/// Wall-clock safety stop for one page.
+///
+/// The deterministic budget is [`PAGE_CPU_BUDGET_SECONDS`]. This cap is 12
+/// times that budget and only stops a page that is blocked or descheduled far
+/// beyond the measured distribution. At a 25% CPU quota ten CPU seconds take
+/// about 40 wall seconds, so the CPU budget still expires first. Its expiry is
+/// reported as a distinct resource-limit reason because the outcome depends on
+/// machine load.
+const PAGE_WALL_SAFETY_SECONDS: u64 = 120;
+
+/// Cumulative child CPU allowed to all rendered pages of one input document.
+///
+/// Measured per input over the 36-pair channel panel: max and p99 about 26.7 s
+/// (with 72 documents the nearest-rank p99 is the maximum), and median about
+/// 1.35 s. One hundred twenty seconds is about a 4.5x margin over the slowest
+/// observed document and still bounds a hostile input that yields many cheap
+/// pages. The
+/// page that pushes the cumulative total over the budget is retained; the total
+/// is therefore at most this budget plus one page budget.
+pub(crate) const DOCUMENT_CPU_BUDGET_SECONDS: u64 = 120;
+const DOCUMENT_CPU_BUDGET_REASON: &str =
+    "document CPU budget exhausted; this outcome is deterministic for this input";
+
+/// Wall-clock safety stop for one document's rendering loop.
+///
+/// Five times the document CPU budget. At a 25% CPU quota the full CPU budget
+/// takes about 480 wall seconds, so the deterministic CPU budget still expires
+/// before this cap. The CPU budget is the deterministic limit; this cap only
+/// stops a page stream that is blocked or descheduled far beyond the measured
+/// distribution. Its expiry is reported as a distinct resource-limit reason
+/// that depends on machine load.
+const DOCUMENT_WALL_SAFETY_SECONDS: u64 = 600;
+
+/// Child CPU and wall-clock budgets for channel rendering.
+///
+/// [`Self::for_limit_scale`] multiplies every value by the command's
+/// `--limit-scale`, so a slower machine can raise the deterministic CPU budgets
+/// and their load-dependent wall backstops together. Integer conversion
+/// saturates instead of wrapping.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RenderBudgets {
+    pub(crate) page_cpu_seconds: u64,
+    pub(crate) document_cpu_micros: u64,
+    pub(crate) page_wall: Duration,
+    pub(crate) document_wall: Duration,
+}
+
+impl RenderBudgets {
+    /// Scales the measured defaults by a validated `--limit-scale` factor.
+    ///
+    /// The CLI rejects non-finite factors below one before this runs. Casting
+    /// an out-of-range product through `f64` saturates at `u64::MAX`.
+    pub(crate) fn for_limit_scale(limit_scale: f64) -> Self {
+        let page_cpu_seconds = scale_seconds(PAGE_CPU_BUDGET_SECONDS, limit_scale);
+        let document_cpu_seconds = scale_seconds(DOCUMENT_CPU_BUDGET_SECONDS, limit_scale);
+        Self {
+            page_cpu_seconds,
+            document_cpu_micros: document_cpu_seconds.saturating_mul(1_000_000),
+            page_wall: Duration::from_secs(scale_seconds(PAGE_WALL_SAFETY_SECONDS, limit_scale)),
+            document_wall: Duration::from_secs(scale_seconds(
+                DOCUMENT_WALL_SAFETY_SECONDS,
+                limit_scale,
+            )),
+        }
+    }
+}
+
+/// Multiplies a whole-second limit by `scale` without wrapping.
+///
+/// The caller validates that `scale` is finite and at least one. The cast
+/// saturates at `u64::MAX` for products outside the representable range.
+pub(crate) fn scale_seconds(seconds: u64, scale: f64) -> u64 {
+    let scaled = seconds as f64 * scale;
+    if scaled >= u64::MAX as f64 {
+        u64::MAX
+    } else if scaled <= 0.0 {
+        0
+    } else {
+        scaled as u64
+    }
+}
+
+/// Length of the complete render response: warning flag plus CPU micros.
+const RESPONSE_HEADER: usize = 1 + 8;
+
+/// Cumulative child CPU used by one input document's render pages.
+///
+/// Successful pages report their own process CPU. A failed page still consumed
+/// up to [`RenderBudgets::page_cpu_seconds`], so it is charged that full
+/// budget; this keeps a stream of failed pages from bypassing the document
+/// budget.
+#[derive(Clone, Copy, Debug)]
+struct DocumentCpu {
+    used_micros: u64,
+    budget_micros: u64,
+    page_budget_micros: u64,
+}
+
+impl DocumentCpu {
+    const fn new(budget_micros: u64, page_budget_micros: u64) -> Self {
+        Self {
+            used_micros: 0,
+            budget_micros,
+            page_budget_micros,
+        }
+    }
+
+    const fn exhausted(&self) -> bool {
+        self.used_micros >= self.budget_micros
+    }
+
+    fn charge(&mut self, micros: u64) {
+        self.used_micros = self.used_micros.saturating_add(micros);
+    }
+
+    fn charge_failed_page(&mut self) {
+        self.charge(self.page_budget_micros);
+    }
+}
+
+/// Child CPU consumed while rendering one input document.
+///
+/// `page_micros` retains one measurement per successfully rendered page. A
+/// failed render attempt is charged the full page budget in `used_micros` and
+/// counted in `failed_pages`, but is not added to `page_micros`: the parent
+/// deliberately charges a budget rather than measuring a missing response.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RenderCpuSummary {
+    pub(crate) pages: usize,
+    pub(crate) rendered_pages: usize,
+    pub(crate) failed_pages: usize,
+    pub(crate) used_micros: u64,
+    pub(crate) page_micros: Vec<u64>,
+}
+
+impl RenderCpuSummary {
+    pub(crate) fn max_page_micros(&self) -> u64 {
+        self.page_micros.iter().copied().max().unwrap_or(0)
+    }
+}
+
+/// Render-CPU evidence for both sides of one comparison.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RenderCpuReport {
+    pub(crate) old: RenderCpuSummary,
+    pub(crate) new: RenderCpuSummary,
+}
 
 /// Retains partial page evidence without claiming renderer or annotation coverage.
+///
+/// `limit_scale` is the validated `--limit-scale` factor; it scales both the
+/// deterministic CPU budgets and their wall-clock backstops.
 pub fn collect(
     store: &mut EvidenceStore,
     bytes: &[u8],
     page_refs: &[PageRef],
     password_supplied: bool,
-) {
+    limit_scale: f64,
+) -> RenderCpuSummary {
+    collect_with_budgets(
+        store,
+        bytes,
+        page_refs,
+        password_supplied,
+        RenderBudgets::for_limit_scale(limit_scale),
+    )
+}
+
+/// Collects rendered page evidence with explicit budgets.
+fn collect_with_budgets(
+    store: &mut EvidenceStore,
+    bytes: &[u8],
+    page_refs: &[PageRef],
+    password_supplied: bool,
+    budgets: RenderBudgets,
+) -> RenderCpuSummary {
     let backend = store.backends.len();
     store.backends.push(BackendIdentity {
         kind: BackendKind::Renderer,
@@ -42,7 +236,13 @@ pub fn collect(
     });
     let started = Instant::now();
     let mut retained_bytes = 0usize;
+    let mut document_cpu = DocumentCpu::new(
+        budgets.document_cpu_micros,
+        budgets.page_cpu_seconds.saturating_mul(1_000_000),
+    );
+    let mut summary = RenderCpuSummary::default();
     for page in &store.pages {
+        let mut attempted = false;
         let result = (|| {
             if password_supplied {
                 return Err((
@@ -81,36 +281,58 @@ pub fn collect(
                     "retained raster budget exhausted".into(),
                 ));
             }
-            let remaining = DOCUMENT_TIMEOUT
+            if document_cpu.exhausted() {
+                return Err((
+                    EvidenceFailure::ResourceLimit,
+                    DOCUMENT_CPU_BUDGET_REASON.into(),
+                ));
+            }
+            let remaining = budgets
+                .document_wall
                 .checked_sub(started.elapsed())
                 .ok_or_else(|| {
                     (
                         EvidenceFailure::ResourceLimit,
-                        "document rendering deadline exceeded".into(),
+                        "document wall-clock safety stop expired; this outcome depends on machine load".into(),
                     )
                 })?;
-            let (raster, warned) = render_page(
+            attempted = true;
+            let rendered = render_page(
                 bytes,
-                page.page.0 as usize,
-                store.pages.len(),
+                PageRender {
+                    page: page.page.0 as usize,
+                    pages: store.pages.len(),
+                    reference: page_refs
+                        .get(page.page.0 as usize)
+                        .ok_or_else(|| {
+                            (
+                                EvidenceFailure::Unresolved,
+                                "native page reference is unavailable".into(),
+                            )
+                        })?
+                        .0,
+                },
                 width,
                 height,
-                page_refs
-                    .get(page.page.0 as usize)
-                    .ok_or_else(|| {
-                        (
-                            EvidenceFailure::Unresolved,
-                            "native page reference is unavailable".into(),
-                        )
-                    })?
-                    .0,
-                remaining.min(PAGE_TIMEOUT),
-            )?;
-            Ok((bounds, raster, warned))
+                remaining.min(budgets.page_wall),
+                budgets,
+            );
+            if rendered.is_err() {
+                // A failed render attempt can consume up to the per-page CPU
+                // budget without returning a complete response, so charge the
+                // full page budget. A page rejected before the attempt (for
+                // example by the raster budget) consumes no child CPU.
+                document_cpu.charge_failed_page();
+            }
+            let (raster, warned, page_cpu_micros) = rendered?;
+            document_cpu.charge(page_cpu_micros);
+            Ok((bounds, raster, warned, page_cpu_micros))
         })();
         let mut sources = Vec::new();
         let (kind, reason) = match result {
-            Ok((bounds, raster, warned)) => {
+            Ok((bounds, raster, warned, page_cpu_micros)) => {
+                summary.rendered_pages += 1;
+                summary.page_micros.push(page_cpu_micros);
                 let id = store.rendered.len() as u64;
                 retained_bytes += raster.rgb.len();
                 store.rendered.push(RenderedEvidence {
@@ -139,7 +361,12 @@ pub fn collect(
                     "page pixels retained; renderer feature coverage, annotation completeness, and content-region interpretation remain unverified"
                 }.into())
             }
-            Err(error) => error,
+            Err(error) => {
+                if attempted {
+                    summary.failed_pages += 1;
+                }
+                error
+            }
         };
         store.inventories.push(ChannelInventory {
             page: Some(page.page),
@@ -157,17 +384,27 @@ pub fn collect(
             reason,
         });
     }
+    summary.pages = store.pages.len();
+    summary.used_micros = document_cpu.used_micros;
+    summary
+}
+
+/// One page identity passed to the bounded render child.
+#[derive(Clone, Copy, Debug)]
+struct PageRender {
+    page: usize,
+    pages: usize,
+    reference: ObjectRef,
 }
 
 fn render_page(
     bytes: &[u8],
-    page: usize,
-    pages: usize,
+    request: PageRender,
     width: u16,
     height: u16,
-    reference: ObjectRef,
     timeout: Duration,
-) -> Result<(Raster, bool), (EvidenceFailure, String)> {
+    budgets: RenderBudgets,
+) -> Result<(Raster, bool, u64), (EvidenceFailure, String)> {
     let failure = |error: std::io::Error| {
         (
             EvidenceFailure::BackendFailure,
@@ -177,14 +414,16 @@ fn render_page(
     let mut command = Command::new(std::env::current_exe().map_err(failure)?);
     command.args([
         "render-page",
-        &page.to_string(),
-        &pages.to_string(),
+        &request.page.to_string(),
+        &request.pages.to_string(),
         &width.to_string(),
         &height.to_string(),
-        &reference.object_number.to_string(),
-        &reference.generation.to_string(),
+        &request.reference.object_number.to_string(),
+        &request.reference.generation.to_string(),
+        "--cpu-seconds",
+        &budgets.page_cpu_seconds.to_string(),
     ]);
-    let max_output = 1 + usize::from(width) * usize::from(height) * 3;
+    let max_output = RESPONSE_HEADER + usize::from(width) * usize::from(height) * 3;
     let output = run_bounded(&mut command, bytes, max_output, timeout)?;
     if output.len() != max_output || output[0] > 1 {
         return Err((
@@ -192,13 +431,19 @@ fn render_page(
             "invalid render response".into(),
         ));
     }
+    let cpu_micros = u64::from_le_bytes(
+        output[1..RESPONSE_HEADER]
+            .try_into()
+            .expect("render response header has eight CPU bytes"),
+    );
     Ok((
         Raster {
             width: u32::from(width),
             height: u32::from(height),
-            rgb: output[1..].to_vec(),
+            rgb: output[RESPONSE_HEADER..].to_vec(),
         },
         output[0] != 0,
+        cpu_micros,
     ))
 }
 
@@ -249,7 +494,8 @@ pub fn run_bounded(
                 Ok(None) => {
                     break Err((
                         EvidenceFailure::ResourceLimit,
-                        "evidence process deadline exceeded".into(),
+                        "worker wall-clock safety stop expired; this outcome depends on machine load"
+                            .into(),
                     ));
                 }
                 Err(error) => break Err(failure(error)),
@@ -282,10 +528,16 @@ pub fn run_bounded(
         }
         let status = status?;
         if !status.success() {
+            if status.code().is_none() && cpu_limit_termination(status) {
+                return Err((
+                    EvidenceFailure::ResourceLimit,
+                    "evidence process exceeded its CPU budget; no complete response was retained"
+                        .into(),
+                ));
+            }
             let kind = match status.code() {
                 Some(3) => EvidenceFailure::ResourceLimit,
                 Some(4) => EvidenceFailure::Unsupported,
-                None if cpu_limit_termination(status) => EvidenceFailure::ResourceLimit,
                 _ => EvidenceFailure::BackendFailure,
             };
             return Err((
@@ -298,10 +550,34 @@ pub fn run_bounded(
     })
 }
 
+/// Returns the calling process's consumed user and system CPU time in micros.
+///
+/// `CLOCK_PROCESS_CPUTIME_ID` is the safe POSIX process CPU clock; it measures
+/// the same user+system work as `getrusage(RUSAGE_SELF)` without sampling
+/// `/proc` and without an unsafe `wait4` binding. The render and image workers
+/// report this value in their responses so the parent can enforce their CPU
+/// budgets and record the measured headroom.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub(crate) fn process_cpu_micros() -> u64 {
+    use rustix::time::{ClockId, clock_gettime};
+
+    let timespec = clock_gettime(ClockId::ProcessCPUTime);
+    let seconds = u64::try_from(timespec.tv_sec).unwrap_or(0);
+    let nanos = u64::try_from(timespec.tv_nsec).unwrap_or(0);
+    seconds
+        .saturating_mul(1_000_000)
+        .saturating_add(nanos / 1_000)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+pub(crate) fn process_cpu_micros() -> u64 {
+    0
+}
+
 /// The CPU budget configured by [`restrict_process`] terminates an exhausted
 /// child with `SIGXCPU`, which is a typed resource-limit outcome rather than a
 /// backend failure.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn cpu_limit_termination(status: std::process::ExitStatus) -> bool {
     use std::os::unix::process::ExitStatusExt;
 
@@ -309,9 +585,71 @@ fn cpu_limit_termination(status: std::process::ExitStatus) -> bool {
     status.signal() == Some(SIGXCPU)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn cpu_limit_termination(_status: std::process::ExitStatus) -> bool {
     false
+}
+
+/// Whether a page contains an image `XObject` above the render pixel bound.
+///
+/// The scan reads only image dictionaries; it never decodes a stream. Form
+/// `XObject` resources are followed recursively with a depth and entry bound so
+/// a self-referential or pathological resource tree cannot make the preflight
+/// itself unbounded.
+fn page_image_exceeds_render_bound(page: &hayro::hayro_syntax::page::Page<'_>) -> bool {
+    if page.page_stream().is_some_and(content_exceeds_render_bound) {
+        return true;
+    }
+    let mut remaining = MAX_PREFLIGHT_XOBJECTS;
+    resources_exceed_render_bound(page.resources(), 0, &mut remaining)
+}
+
+/// Whether one decoded content stream declares an oversized inline image.
+fn content_exceeds_render_bound(content: &[u8]) -> bool {
+    pdfdelta_core::pdf::max_inline_image_pixels(content) > MAX_RENDER_IMAGE_PIXELS
+}
+
+fn resources_exceed_render_bound(
+    resources: &Resources<'_>,
+    depth: usize,
+    remaining: &mut usize,
+) -> bool {
+    if depth > MAX_PREFLIGHT_DEPTH || *remaining == 0 {
+        return false;
+    }
+    for (name, _) in resources.x_objects.entries() {
+        if *remaining == 0 {
+            return false;
+        }
+        *remaining -= 1;
+        let Some(stream) = resources.x_objects.get::<Stream<'_>>(name) else {
+            continue;
+        };
+        let dict = stream.dict();
+        let width = dict.get::<u32>(b"Width" as &[u8]).unwrap_or(0);
+        let height = dict.get::<u32>(b"Height" as &[u8]).unwrap_or(0);
+        if u64::from(width).saturating_mul(u64::from(height)) > MAX_RENDER_IMAGE_PIXELS {
+            return true;
+        }
+        let is_form = dict
+            .get::<Name<'_>>(b"Subtype" as &[u8])
+            .is_some_and(|subtype| subtype.as_ref() == b"Form");
+        if is_form
+            && let Ok(decoded) = stream.decoded()
+            && content_exceeds_render_bound(decoded.as_ref())
+        {
+            return true;
+        }
+        if let Some(form_resources) = dict.get::<Dict<'_>>(b"Resources" as &[u8]) {
+            let nested = Resources::from_parent(form_resources, resources.clone());
+            if resources_exceed_render_bound(&nested, depth + 1, remaining) {
+                return true;
+            }
+        }
+    }
+    resources
+        .parent()
+        .is_some_and(|parent| resources_exceed_render_bound(parent, depth + 1, remaining))
 }
 
 /// Binary response: one warning flag followed by exactly width × height RGB bytes.
@@ -323,8 +661,9 @@ pub fn worker(
     height: u16,
     object_number: u32,
     generation: u16,
+    cpu_seconds: u64,
 ) -> Result<(), u8> {
-    restrict_process(5)?;
+    restrict_process(cpu_seconds)?;
     if width == 0 || height == 0 || usize::from(width) * usize::from(height) > MAX_PIXELS {
         return Err(3);
     }
@@ -352,6 +691,9 @@ pub fn worker(
     if actual_width.ceil() != f32::from(width) || actual_height.ceil() != f32::from(height) {
         return Err(2);
     }
+    if page_image_exceeds_render_bound(page) {
+        return Err(3);
+    }
     let warned = Arc::new(AtomicBool::new(false));
     let sink = Arc::clone(&warned);
     let settings = hayro::hayro_interpret::InterpreterSettings {
@@ -371,70 +713,334 @@ pub fn worker(
             ..Default::default()
         },
     );
+    let cpu_micros = process_cpu_micros();
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     stdout
         .write_all(&[u8::from(warned.load(Ordering::Relaxed))])
         .map_err(|_| 2)?;
+    stdout.write_all(&cpu_micros.to_le_bytes()).map_err(|_| 2)?;
     for pixel in pixmap.data_as_u8_slice().as_chunks::<4>().0 {
         stdout.write_all(&pixel[..3]).map_err(|_| 2)?;
     }
     stdout.flush().map_err(|_| 2)
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-pub fn restrict_process(cpu_seconds: u64) -> Result<(), u8> {
-    use rustix::process::{Resource, Rlimit, setrlimit};
-    for (resource, limit) in [
-        (Resource::As, 2 * 1024 * 1024 * 1024),
-        (Resource::Cpu, cpu_seconds),
-        (Resource::Core, 0),
-    ] {
-        setrlimit(
+/// A process limit the worker could not install.
+///
+/// The parent observes only the worker's exit status, so the resource name and
+/// the operating system's error are reported on stderr as well as returned. A
+/// failed limit is an execution error (exit 4), never a render result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RestrictProcessError {
+    resource: &'static str,
+    detail: String,
+}
+
+impl RestrictProcessError {
+    /// Exit code the worker uses for a limit it could not install.
+    pub const EXIT_CODE: u8 = 4;
+
+    fn new(resource: &'static str, detail: impl Into<String>) -> Self {
+        Self {
             resource,
-            Rlimit {
-                current: Some(limit),
-                maximum: Some(limit),
-            },
-        )
-        .map_err(|_| 4)?;
+            detail: detail.into(),
+        }
     }
+
+    /// The limit that failed, for example `RLIMIT_CPU`.
+    #[must_use]
+    pub const fn resource(&self) -> &'static str {
+        self.resource
+    }
+
+    /// The operating system's error text, including its errno.
+    #[must_use]
+    pub fn detail(&self) -> &str {
+        &self.detail
+    }
+}
+
+impl std::fmt::Display for RestrictProcessError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "cannot install {} for the worker: {}",
+            self.resource, self.detail
+        )
+    }
+}
+
+impl std::error::Error for RestrictProcessError {}
+
+impl From<RestrictProcessError> for u8 {
+    fn from(error: RestrictProcessError) -> Self {
+        // A worker's stderr is normally discarded by its parent, but a direct
+        // invocation should still name the failing limit.
+        eprintln!("pdfdelta: {error}");
+        RestrictProcessError::EXIT_CODE
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn install_limit(
+    resource: rustix::process::Resource,
+    name: &'static str,
+    limit: u64,
+) -> Result<(), RestrictProcessError> {
+    use rustix::process::{Rlimit, setrlimit};
+
+    setrlimit(
+        resource,
+        Rlimit {
+            current: Some(limit),
+            maximum: Some(limit),
+        },
+    )
+    .map_err(|error| RestrictProcessError::new(name, error.to_string()))
+}
+
+/// Installs the worker's CPU, core-dump, and (on Linux) address-space limits.
+///
+/// # Errors
+/// Returns [`RestrictProcessError`] naming the limit and the operating
+/// system's error when any limit cannot be installed.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn restrict_process(cpu_seconds: u64) -> Result<(), RestrictProcessError> {
+    use rustix::process::Resource;
+
+    // macOS accepts RLIMIT_AS but does not enforce it, and its address-space
+    // limit is not a reliable RSS ceiling. Arm the worker allocator before any
+    // input is read instead; Linux keeps its existing RLIMIT_AS behaviour.
+    #[cfg(target_os = "macos")]
+    crate::worker_allocator::enforce(crate::worker_allocator::WORKER_MEMORY_BUDGET_BYTES);
+    #[cfg(target_os = "linux")]
+    install_limit(Resource::As, "RLIMIT_AS", 2 * 1024 * 1024 * 1024)?;
+    install_limit(Resource::Cpu, "RLIMIT_CPU", cpu_seconds)?;
+    install_limit(Resource::Core, "RLIMIT_CORE", 0)?;
     Ok(())
 }
 
+/// Non-Unix platforms have no worker resource limits to install.
+///
+/// # Errors
+/// Always returns [`RestrictProcessError`]: a worker must not run without the
+/// limits the rest of the pipeline assumes.
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-pub fn restrict_process(_cpu_seconds: u64) -> Result<(), u8> {
-    Err(4)
+pub fn restrict_process(_cpu_seconds: u64) -> Result<(), RestrictProcessError> {
+    Err(RestrictProcessError::new(
+        "worker resource limits",
+        "unsupported platform",
+    ))
 }
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests {
     use super::*;
 
+    fn image_page_pdf(width: u32, height: u32) -> Vec<u8> {
+        use lopdf::{Document, Object, Stream as LopdfStream, dictionary};
+
+        let mut document = Document::with_version("1.5");
+        let pages = document.new_object_id();
+        let image = document.add_object(LopdfStream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => i64::from(width),
+                "Height" => i64::from(height),
+                "BitsPerComponent" => 1,
+                "ColorSpace" => "DeviceGray",
+                "ImageMask" => true,
+            },
+            vec![0_u8; 8],
+        ));
+        let contents = document.add_object(LopdfStream::new(
+            dictionary! {},
+            b"q 100 0 0 100 0 0 cm /Im0 Do Q".to_vec(),
+        ));
+        let page = document.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages,
+            "MediaBox" => vec![Object::from(0), Object::from(0), Object::from(100), Object::from(100)],
+            "Resources" => dictionary! { "XObject" => dictionary! { "Im0" => image } },
+            "Contents" => contents,
+        });
+        document.objects.insert(
+            pages,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page)],
+                "Count" => 1,
+            }),
+        );
+        let catalog = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages });
+        document.trailer.set("Root", catalog);
+        let mut bytes = Vec::new();
+        document
+            .save_to(&mut bytes)
+            .expect("image fixture serializes");
+        bytes
+    }
+
     #[test]
-    fn worker_address_space_limit_rejects_excess_reservation() {
+    fn oversized_image_x_object_is_rejected_before_render() {
+        let bytes = image_page_pdf(19_848, 28_063);
+        let pdf = hayro::hayro_syntax::Pdf::new(bytes).expect("fixture parses");
+        let page = pdf.pages().first().expect("fixture page");
+        assert!(page_image_exceeds_render_bound(page));
+    }
+
+    #[test]
+    fn ordinary_image_x_object_passes_the_render_preflight() {
+        let bytes = image_page_pdf(100, 100);
+        let pdf = hayro::hayro_syntax::Pdf::new(bytes).expect("fixture parses");
+        let page = pdf.pages().first().expect("fixture page");
+        assert!(!page_image_exceeds_render_bound(page));
+    }
+
+    #[test]
+    fn document_cpu_exhaustion_is_a_resource_limit_with_no_raster() {
+        use pdfdelta_core::{
+            document::PageEvidence,
+            model::{Document, Glyph, PageId, Rect},
+        };
+
+        let mut store = EvidenceStore {
+            revision: String::new(),
+            backends: Vec::new(),
+            pages: vec![PageEvidence {
+                page: PageId(0),
+                bounds: Some(Rect {
+                    min: Vec2 { x: 0.0, y: 0.0 },
+                    max: Vec2 { x: 100.0, y: 100.0 },
+                }),
+            }],
+            native: Document::<Glyph>::new(Vec::new()),
+            rendered: Vec::new(),
+            structured: Vec::new(),
+            inventories: Vec::new(),
+            key_inventories: Vec::new(),
+            native_structures: Vec::new(),
+            issues: Vec::new(),
+        };
+        collect_with_budgets(
+            &mut store,
+            &[],
+            &[],
+            false,
+            RenderBudgets {
+                page_cpu_seconds: PAGE_CPU_BUDGET_SECONDS,
+                document_cpu_micros: 0,
+                page_wall: Duration::from_secs(1),
+                document_wall: Duration::from_secs(1),
+            },
+        );
+        assert!(store.rendered.is_empty(), "an exhausted page has no raster");
+        assert_eq!(store.issues.len(), 1);
+        assert_eq!(store.issues[0].kind, EvidenceFailure::ResourceLimit);
+        assert_eq!(store.issues[0].reason, DOCUMENT_CPU_BUDGET_REASON);
+    }
+
+    #[test]
+    fn document_cpu_budget_charges_pages_and_failed_pages() {
+        let page_micros = PAGE_CPU_BUDGET_SECONDS * 1_000_000;
+        let mut cpu = DocumentCpu::new(2 * page_micros, page_micros);
+        assert!(!cpu.exhausted());
+        cpu.charge(page_micros - 1);
+        assert!(!cpu.exhausted());
+        cpu.charge_failed_page();
+        assert!(!cpu.exhausted());
+        cpu.charge(1);
+        assert!(cpu.exhausted());
+        cpu.charge(1);
+        assert!(cpu.exhausted());
+    }
+
+    #[test]
+    fn render_budgets_scale_with_the_limit_factor() {
+        let base = RenderBudgets::for_limit_scale(1.0);
+        assert_eq!(base.page_cpu_seconds, 10);
+        assert_eq!(base.document_cpu_micros, 120_000_000);
+        assert_eq!(base.page_wall, Duration::from_mins(2));
+        assert_eq!(base.document_wall, Duration::from_mins(10));
+
+        let scaled = RenderBudgets::for_limit_scale(2.5);
+        assert_eq!(scaled.page_cpu_seconds, 25);
+        assert_eq!(scaled.document_cpu_micros, 300_000_000);
+        assert_eq!(scaled.page_wall, Duration::from_mins(5));
+        assert_eq!(scaled.document_wall, Duration::from_mins(25));
+
+        let saturated = RenderBudgets::for_limit_scale(f64::MAX);
+        assert_eq!(saturated.page_cpu_seconds, u64::MAX);
+        assert_eq!(saturated.document_cpu_micros, u64::MAX);
+        assert_eq!(saturated.page_wall, Duration::from_secs(u64::MAX));
+        assert_eq!(saturated.document_wall, Duration::from_secs(u64::MAX));
+    }
+
+    #[test]
+    fn document_cpu_budget_reason_is_explicit() {
+        assert!(DOCUMENT_CPU_BUDGET_REASON.contains("document CPU budget"));
+        assert!(DOCUMENT_CPU_BUDGET_REASON.contains("deterministic"));
+    }
+
+    #[test]
+    fn worker_resource_limits_install_in_a_child() {
+        const CHILD: &str = "PDFDELTA_RESTRICT_TEST_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            match restrict_process(5) {
+                Ok(()) => std::process::exit(0),
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(4);
+                }
+            }
+        }
+        let output = Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "render::tests::worker_resource_limits_install_in_a_child",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .expect("child test process");
+        assert!(
+            output.status.success(),
+            "resource limits must install on this platform: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn worker_memory_limit_terminates_or_rejects_an_excess_reservation() {
         const CHILD: &str = "PDFDELTA_LIMIT_TEST_CHILD";
         if std::env::var_os(CHILD).is_some() {
             restrict_process(3).expect("install worker resource limits");
             let mut bytes = Vec::<u8>::new();
+            // Linux enforces RLIMIT_AS here and returns the allocation error.
+            // macOS does not enforce RLIMIT_AS, so the worker allocator
+            // terminates the process with the limits exit code before this
+            // reservation can return. In both cases the parent must see the
+            // same typed resource-limit outcome.
             assert!(bytes.try_reserve_exact(3 * 1024 * 1024 * 1024).is_err());
-            println!("address-space-ceiling-verified");
-            return;
+            std::process::exit(3);
         }
         let mut command = Command::new(std::env::current_exe().expect("test executable"));
         command
             .args([
                 "--exact",
-                "render::tests::worker_address_space_limit_rejects_excess_reservation",
+                "render::tests::worker_memory_limit_terminates_or_rejects_an_excess_reservation",
                 "--nocapture",
             ])
             .env(CHILD, "1");
-        let output = run_bounded(&mut command, &[], 16 * 1024, Duration::from_secs(5))
-            .expect("bounded child rejects an allocation above the process ceiling");
-        assert!(String::from_utf8_lossy(&output).contains("address-space-ceiling-verified"));
+        let error = run_bounded(&mut command, &[], 16 * 1024, Duration::from_secs(5))
+            .expect_err("the worker memory ceiling must terminate an excess reservation");
+        assert_eq!(error.0, EvidenceFailure::ResourceLimit);
+        assert!(error.1.contains("exit status: 3"), "{}", error.1);
     }
 
     #[test]
-    fn worker_deadline_releases_blocked_input() {
+    fn worker_wall_safety_stop_is_distinct_from_the_cpu_budget() {
         let mut command = Command::new("sh");
         command.args(["-c", "exec sleep 30"]);
         let started = Instant::now();
@@ -444,9 +1050,11 @@ mod tests {
             64,
             Duration::from_millis(50),
         )
-        .expect_err("worker must not outlive its request deadline");
+        .expect_err("worker must not outlive its wall-clock safety stop");
         assert_eq!(error.0, EvidenceFailure::ResourceLimit);
-        assert!(error.1.contains("deadline"));
+        assert!(error.1.contains("wall-clock safety stop"), "{}", error.1);
+        assert!(error.1.contains("machine load"), "{}", error.1);
+        assert!(!error.1.contains("CPU budget"), "{}", error.1);
         // A missing kill would leave the scoped input writer waiting for sleep.
         assert!(started.elapsed() < Duration::from_secs(5));
     }
@@ -466,7 +1074,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_cpu_exhaustion_is_a_resource_limit() {
+    fn worker_cpu_exhaustion_reports_the_cpu_budget() {
         let mut command = Command::new("sh");
         // Only the soft limit is set so the child is terminated by SIGXCPU
         // instead of the shell's ignored-signal SIGKILL fallback.
@@ -474,6 +1082,8 @@ mod tests {
         let error = run_bounded(&mut command, &[], 64, Duration::from_secs(5))
             .expect_err("a cpu-exhausted worker must not be reported as healthy");
         assert_eq!(error.0, EvidenceFailure::ResourceLimit);
+        assert!(error.1.contains("CPU budget"), "{}", error.1);
+        assert!(!error.1.contains("wall-clock safety"), "{}", error.1);
     }
 
     #[test]

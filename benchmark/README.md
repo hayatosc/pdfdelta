@@ -16,9 +16,9 @@ benchmark/
 │   ├── PROVENANCE.md          Development/holdout split audit
 │   ├── fetch.sh               Download and verify every pair
 │   ├── capture.sh             Capture a new pair's provenance fields
-│   ├── capture-summary.sh     Write a dated capture to results/ (gitignored)
-│   ├── compare-summary-*.sh   Compare two benchmark summaries
-│   └── sensitivity.sh         Run the built-in corpus under option perturbations
+│   ├── flow_eval.py           Evaluate the flow engine against the PyMuPDF oracle
+│   ├── flow_audit.py          Sample and classify flow-only change regions
+│   └── compact_native.py      Compact diagnostics for existing native captures
 ├── manifests/                 Public smoke corpora for self-comparison
 └── microbench/                Case matrices and drivers for core measurement tests
 ```

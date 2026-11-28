@@ -38,6 +38,71 @@ pub struct FontId(pub u32);
 )]
 pub struct FontProgramHash(pub Vec<u8>);
 
+/// Evidence that identifies one unmapped glyph.
+///
+/// Unmapped glyphs keep a synthetic placeholder token, so their identity must
+/// survive unrelated document changes without pretending that the glyph has
+/// Unicode text. The sources are ordered by stability: a glyph name is stable
+/// across font subsets, an outline program is stable across subset tags and
+/// program-level rewrites that preserve the outline, and a font program hash is
+/// the final fallback when neither is available.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum GlyphIdentitySource {
+    /// The subset-stripped `BaseFont` and the glyph name from the encoding or
+    /// font program. Names never invent Unicode text.
+    Name,
+    /// The subset-stripped `BaseFont` and a hash of the glyph outline program.
+    Outline,
+    /// The embedded font program (or equivalent program-level evidence) and a
+    /// selector such as a glyph id.
+    Program,
+}
+
+impl GlyphIdentitySource {
+    /// Stable lowercase label used by text and JSON reports.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Name => "name",
+            Self::Outline => "outline",
+            Self::Program => "program",
+        }
+    }
+}
+
+impl FontProgramHash {
+    /// First byte of a program-derived identity.
+    pub(crate) const PROGRAM_TAG: u8 = 0x01;
+    /// First byte of a glyph-name-derived identity.
+    pub(crate) const NAME_TAG: u8 = 0x02;
+    /// First byte of an outline-derived identity.
+    pub(crate) const OUTLINE_TAG: u8 = 0x03;
+
+    /// Tags a digest so [`Self::identity_source`] recovers the evidence kind.
+    ///
+    /// Engine-produced identities are SHA-256 digests (32 bytes); replacing the
+    /// first byte with a tag keeps the remaining 248 bits and guarantees that
+    /// name, outline, and program identities never compare equal by accident.
+    /// Synthetic hashes that were not produced by an identity loader fall back
+    /// to [`GlyphIdentitySource::Program`].
+    pub(crate) fn tagged(tag: u8, mut digest: Vec<u8>) -> Self {
+        if let Some(first) = digest.first_mut() {
+            *first = tag;
+        }
+        Self(digest)
+    }
+
+    /// Returns the evidence kind recorded in this identity hash.
+    #[must_use]
+    pub fn identity_source(&self) -> GlyphIdentitySource {
+        match self.0.first() {
+            Some(&Self::NAME_TAG) => GlyphIdentitySource::Name,
+            Some(&Self::OUTLINE_TAG) => GlyphIdentitySource::Outline,
+            _ => GlyphIdentitySource::Program,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum DecodedText {
     Mapped(String),
@@ -109,7 +174,8 @@ pub struct Glyph {
 impl Glyph {
     /// Shared native-comparison precondition, not a proof of full visibility:
     /// opacity, overpainting and partial clipping still require other evidence.
-    pub(crate) fn is_comparison_visible(&self) -> bool {
+    #[must_use]
+    pub fn is_comparison_visible(&self) -> bool {
         matches!(
             self.render_mode,
             TextRenderMode::Fill
@@ -208,6 +274,16 @@ pub struct MarkedContent {
 /// An opaque or non-text painting operation with a conservative bound in native page
 /// coordinates. An unknown bound remains an obstruction to local text closure;
 /// neither a known bound nor its absence identifies the painted content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NonTextPaintKind {
+    Path,
+    Image,
+    InlineImage,
+    Shading,
+    /// A failed `Form` or `XObject` invocation retained as one opaque operation.
+    Opaque,
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct NonTextPaint {
     pub page: PageId,
@@ -216,6 +292,17 @@ pub struct NonTextPaint {
     pub bounds: Option<Rect>,
     pub content_stream: ObjectRef,
     pub operator_index: u32,
+    pub kind: NonTextPaintKind,
+    /// Stable identity of the page-relative paint geometry or image data.
+    ///
+    /// The page number is excluded so an identical page shifted within the
+    /// document compares equal. The page crop and rotation are included.
+    /// `None` means exact identity was not established; any comparison that
+    /// sees it cannot claim that text drawn as paint was unchanged.
+    pub identity: Option<String>,
+    /// Translation-invariant shape or image-data digest. Placement is carried
+    /// separately by `bounds`; this supports layout-shift alignment variants.
+    pub shape: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -455,6 +542,17 @@ impl GlyphIndex<'_> {
         match self {
             Self::Direct(glyphs) => glyphs.len(),
             Self::Sorted(entries) => entries.len(),
+        }
+    }
+
+    /// Returns the slot count when ids are dense and directly indexable.
+    ///
+    /// Duplicate detection can then use a `Vec<bool>` indexed by id instead
+    /// of a hash set; a sorted index has no such slots.
+    pub(crate) fn dense_len(&self) -> Option<usize> {
+        match self {
+            Self::Direct(glyphs) => Some(glyphs.len()),
+            Self::Sorted(_) => None,
         }
     }
 }

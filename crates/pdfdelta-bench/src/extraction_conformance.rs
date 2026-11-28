@@ -8,9 +8,9 @@ use pdfdelta_core::{
         GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, SnapshotMismatch,
         compare_snapshots,
     },
+    extraction_svg::render_extraction_mismatch_svg,
     model::{DecodedText, FontProgramHash, PageId, Rect, Vec2},
     pdf::{LopdfParser, ParseLimits},
-    report::render_extraction_mismatch_svg,
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
 use serde::Deserialize;

@@ -426,6 +426,23 @@ pub struct ChannelInventory {
     pub complete: bool,
 }
 
+/// What native acquisition proved about the sources the relations channel
+/// inventories.
+///
+/// The relations channel inventories native structure tags. A PDF with no
+/// `/StructTreeRoot` has no such source at all: the empty inventory is a
+/// complete observation, not an unexamined one. Any other outcome, including a
+/// source that exists or a catalog that could not be read, leaves absence
+/// unproven.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelationSourceInventory {
+    /// The structure provider read the catalog and proved no relation source
+    /// exists in this input.
+    ProvenAbsent,
+    /// A relation source exists, or its absence could not be proven.
+    Unestablished,
+}
+
 /// Raw identity domains have different enumeration contracts from content channels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -486,32 +503,15 @@ impl Default for EvidenceLimits {
     }
 }
 
-/// Text acquisition records with the same explicit dependency scope.
-#[derive(Default)]
-pub(super) struct ScopedTextEvidence<'a> {
-    pub inventories: Vec<ValidatedTextInventory<'a>>,
-    pub issues: Vec<&'a EvidenceIssue>,
-}
-
-/// A population certificate does not imply complete text acquisition.
-/// Unique same-page native references and equal population counts establish
-/// exact coverage; issue, provider and paint checks remain separate obligations.
-pub(super) struct ValidatedTextInventory<'a> {
-    pub inventory: &'a ChannelInventory,
-    pub covers_native_page: bool,
-}
-
 /// Native lookups retained from bounded evidence validation. Page slices retain
 /// all glyphs, including noncontiguous spans and sources absent from graph nodes.
 /// Paint lists retain every operation on each page, including unknown bounds.
-/// Text records retain page and document-wide scopes from every provider.
 #[derive(Default)]
 pub(super) struct NativeIndex<'a> {
     pub glyphs: BTreeMap<GlyphId, &'a Glyph>,
     pub pages: BTreeMap<PageId, Vec<&'a [Glyph]>>,
     pub baselines: BTreeMap<PageId, Vec<&'a Glyph>>,
     pub paint_pages: BTreeMap<PageId, Vec<&'a NonTextPaint>>,
-    pub text_scopes: BTreeMap<Option<PageId>, ScopedTextEvidence<'a>>,
     /// Sources whose text interpretation a declared replacement covers. The
     /// graph fills this from the provider marking; projection must not clear
     /// that uncertainty for these sources.
@@ -1146,12 +1146,6 @@ impl EvidenceStore {
                 }
             }
         }
-        let native_page_counts: BTreeMap<_, usize> = sources
-            .native
-            .pages
-            .iter()
-            .map(|(page, spans)| (*page, spans.iter().map(|span| span.len()).sum()))
-            .collect();
         for inventory in &self.inventories {
             if inventory
                 .page
@@ -1168,9 +1162,7 @@ impl EvidenceStore {
                 "evidence references",
             )?;
             let mut unique = BTreeSet::new();
-            let mut all_native = true;
             for source in &inventory.sources {
-                all_native &= matches!(source, SourceRef::Native { .. });
                 if !sources.contains_key(source)
                     || inventory
                         .page
@@ -1182,35 +1174,8 @@ impl EvidenceStore {
                     ));
                 }
             }
-            if inventory.channel == Channel::Text {
-                let covers_native_page = all_native
-                    && inventory.page.is_some_and(|page| {
-                        native_page_counts
-                            .get(&page)
-                            .is_some_and(|count| *count == inventory.sources.len())
-                    });
-                sources
-                    .native
-                    .text_scopes
-                    .entry(inventory.page)
-                    .or_default()
-                    .inventories
-                    .push(ValidatedTextInventory {
-                        inventory,
-                        covers_native_page,
-                    });
-            }
         }
         for issue in &self.issues {
-            if issue.channel == Channel::Text {
-                sources
-                    .native
-                    .text_scopes
-                    .entry(issue.page)
-                    .or_default()
-                    .issues
-                    .push(issue);
-            }
             if let Some(boundary) = &issue.boundary {
                 let expected = match boundary {
                     EvidenceBoundary::GlyphGap {
@@ -1297,6 +1262,43 @@ impl EvidenceStore {
             });
         }
         Ok(sources.native)
+    }
+
+    /// What the native structure acquisition proved about relation sources.
+    ///
+    /// This is deliberately narrower than [`Self::inventory_complete`]: it
+    /// answers only whether the input has no relation source at all. A tagged
+    /// source, a structure element, a relation issue, or a provider that did
+    /// not record an inventory all leave absence unproven.
+    #[must_use]
+    pub fn relation_source_inventory(&self) -> RelationSourceInventory {
+        let relation_inventories = self
+            .inventories
+            .iter()
+            .filter(|inventory| inventory.channel == Channel::Relations);
+        let relation_count = relation_inventories.clone().count();
+        let proves_absent = !self.native_structures.is_empty()
+            && self.native_structures.len() == relation_count
+            && self
+                .native_structures
+                .iter()
+                .all(|inventory| inventory.root.is_none() && inventory.roots.is_empty())
+            && relation_inventories
+                .into_iter()
+                .all(|inventory| !inventory.complete && inventory.sources.is_empty())
+            && !self
+                .issues
+                .iter()
+                .any(|issue| issue.channel == Channel::Relations)
+            && !self
+                .structured
+                .iter()
+                .any(|element| matches!(element.value, StructuredValue::StructureElement { .. }));
+        if proves_absent {
+            RelationSourceInventory::ProvenAbsent
+        } else {
+            RelationSourceInventory::Unestablished
+        }
     }
 
     /// True only when a provider inspected this channel and no dependent issue

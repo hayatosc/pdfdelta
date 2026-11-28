@@ -1,5 +1,6 @@
 use crate::{
     Result,
+    model::FontProgramHash,
     pdf::{ParsedPdf, PdfObject},
 };
 
@@ -38,6 +39,10 @@ pub(crate) struct DecodedGlyph {
     pub(crate) raw_code: Vec<u8>,
     pub(crate) mapping: UnicodeMapping,
     pub(crate) glyph_id: u16,
+    /// Per-glyph identity for an unmapped glyph when the decoder has stronger
+    /// evidence than the font program, such as a glyph name or outline. The
+    /// caller uses the font-level program identity only when this is `None`.
+    pub(crate) identity: Option<FontProgramHash>,
     pub(crate) width_1000_em: f64,
     pub(crate) vertical: Option<VerticalGlyphMetrics>,
 }

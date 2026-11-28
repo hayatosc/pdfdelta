@@ -183,177 +183,6 @@ fn ordinary_wrapped_hyphens_preserve_semantic_distinctions() {
 }
 
 #[test]
-fn exact_diff_does_not_absorb_an_ambiguous_wrapped_hyphen() {
-    use pdfdelta_core::{
-        alignment::{
-            AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
-        },
-        diff::{DiffOptions, compare_aligned},
-    };
-    let old = [normalize_mapped_lines(&[
-        "Please re-",
-        "sign the document.",
-    ])];
-    for (text, lexical) in [
-        ("Please resign the document.", false),
-        ("Please re-sign the document.", true),
-    ] {
-        let new = [normalize_mapped_lines(&[text])];
-        let old_features = build_block_features(&old, 3).expect("valid fixture");
-        let new_features = build_block_features(&new, 3).expect("valid fixture");
-        let generator = InvertedIndexCandidateGenerator::new(&new_features).expect("valid fixture");
-        let alignment = align_ordered(
-            &old_features,
-            &new_features,
-            &generator,
-            AlignmentOptions::default(),
-        )
-        .expect("valid fixture");
-        let result =
-            compare_aligned(&old, &new, &alignment, DiffOptions::default()).expect("valid fixture");
-        if lexical {
-            assert!(
-                result.changes.is_empty(),
-                "reflow must not invent a lexical change"
-            );
-        } else {
-            assert!(
-                !result.changes.is_empty() || !result.unresolved_regions.is_empty(),
-                "uncertain hyphenation must not prove equality"
-            );
-        }
-    }
-}
-
-#[test]
-fn alternative_hyphenation_preserves_only_universal_source_changes() {
-    use pdfdelta_core::{
-        alignment::{
-            AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
-        },
-        diff::{DiffOptions, compare_aligned},
-    };
-    for (old_lines, new_lines, expected_old, expected_new, pairs) in [
-        (
-            vec!["inter-", "national tax is 20."],
-            vec!["international tax is 30."],
-            "2",
-            "3",
-            2,
-        ),
-        (vec!["re-", "cover"], vec!["recover"], "", "", 2),
-        (
-            vec!["inter-", "national tax is 20."],
-            vec!["inter-", "national tax is 30."],
-            "2",
-            "3",
-            4,
-        ),
-    ] {
-        let old = [normalize_mapped_lines(&old_lines)];
-        let new = [normalize_mapped_lines(&new_lines)];
-        let old_features = build_block_features(&old, 3).expect("valid source fixture");
-        let new_features = build_block_features(&new, 3).expect("valid source fixture");
-        let generator =
-            InvertedIndexCandidateGenerator::new(&new_features).expect("valid source fixture");
-        let alignment = align_ordered(
-            &old_features,
-            &new_features,
-            &generator,
-            AlignmentOptions::default(),
-        )
-        .expect("valid source fixture");
-        let result = compare_aligned(&old, &new, &alignment, DiffOptions::default())
-            .expect("hypothesis comparison succeeds");
-        let assessment = result
-            .assessment
-            .as_ref()
-            .expect("comparison has source assessment");
-        let unit = assessment.review_units.iter().find(|unit| unit.normalization_hypotheses == pairs)
-            .unwrap_or_else(|| panic!("all normalization interpretations are retained: {old_lines:?} -> {new_lines:?}: {assessment:?}"));
-        let selected = |block: &pdfdelta_core::normalize::BlockText,
-                        spans: &[pdfdelta_core::diff::TextSpan]| {
-            spans
-                .iter()
-                .flat_map(|span| {
-                    block
-                        .canonical
-                        .text
-                        .chars()
-                        .skip(span.canonical_range.start)
-                        .take(span.canonical_range.end - span.canonical_range.start)
-                })
-                .collect::<String>()
-        };
-        assert_eq!(selected(&old[0], &unit.mandatory_old), expected_old);
-        assert_eq!(selected(&new[0], &unit.mandatory_new), expected_new);
-        assert_eq!(selected(&old[0], &unit.normalization_old), "-");
-        assert_eq!(
-            unit.changed_count.expect("completed count").lower,
-            expected_old.len() + expected_new.len()
-        );
-        assert_eq!(
-            unit.search,
-            pdfdelta_core::diff::SearchCompleteness::Complete
-        );
-        assessment
-            .validate(&result)
-            .expect("exclusive source accounting remains valid");
-        for barrier in [
-            pdfdelta_core::alignment::AlignmentEvidence::ExtractionGap,
-            pdfdelta_core::alignment::AlignmentEvidence::SearchIncomplete,
-            pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown,
-        ] {
-            let mut blocked_alignment = alignment.clone();
-            for span in &mut blocked_alignment.spans {
-                span.evidence.push(barrier);
-            }
-            let blocked = compare_aligned(&old, &new, &blocked_alignment, DiffOptions::default())
-                .expect("uncertainty is retained");
-            assert!(
-                blocked
-                    .assessment
-                    .as_ref()
-                    .expect("assessment exists")
-                    .review_units
-                    .is_empty(),
-                "barrier {barrier:?} cannot establish a normalization claim"
-            );
-        }
-        let limited = compare_aligned(
-            &old,
-            &new,
-            &alignment,
-            DiffOptions {
-                max_assessment_work: 1,
-                ..DiffOptions::default()
-            },
-        )
-        .expect("work limits retain unresolved content");
-        assert!(
-            limited
-                .assessment
-                .as_ref()
-                .expect("assessment exists")
-                .review_units
-                .is_empty()
-        );
-        let mut unbacked = old.clone();
-        unbacked[0].issues[0].source.atoms.clear();
-        let unbacked = compare_aligned(&unbacked, &new, &alignment, DiffOptions::default())
-            .expect("missing normalization evidence remains unresolved");
-        assert!(
-            unbacked
-                .assessment
-                .as_ref()
-                .expect("assessment exists")
-                .review_units
-                .is_empty()
-        );
-    }
-}
-
-#[test]
 fn large_whitespace_run_preserves_first_occurrence_source_order() {
     let count = 100_000;
     let text = normalize_mapped_lines(&[&" ".repeat(count)]);
@@ -936,6 +765,71 @@ fn unmapped_glyph_evidence_is_not_empty_text_and_has_exact_source_mapping() {
             glyph_id: 99,
         }
     );
+}
+
+#[test]
+fn whole_text_glyph_visits_match_the_projected_range() {
+    fn visited(text: &MappedText) -> Vec<GlyphId> {
+        let mut ids = Vec::new();
+        text.for_each_referenced_glyph(|id| ids.push(id));
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    fn projected(text: &MappedText) -> Vec<GlyphId> {
+        let mut ids = text.project_glyph_ids(ScalarRange {
+            start: 0,
+            end: text.text.chars().count(),
+        });
+        ids.sort_unstable();
+        ids
+    }
+
+    let hash = FontProgramHash(vec![1, 2]);
+    let trailing_unmapped = Document::new(vec![
+        glyph(1, mapped("ab"), 0),
+        glyph(
+            2,
+            DecodedText::Unmapped {
+                font_hash: hash.clone(),
+                glyph_id: 7,
+            },
+            0,
+        ),
+    ]);
+    let lines = vec![line(1, 0, vec![GlyphId(1), GlyphId(2)], vec![])];
+    let text = normalize(
+        &trailing_unmapped,
+        &lines,
+        &[body_block(1, vec![LineId(1)])],
+    );
+    assert_eq!(text.canonical.text, "ab");
+    // The trailing unmapped token sits at scalar_index == scalar_count, which
+    // the projected whole-text range excludes.
+    assert_eq!(projected(&text.canonical), [GlyphId(1)]);
+    assert_eq!(visited(&text.canonical), projected(&text.canonical));
+
+    let only_unmapped = Document::new(vec![glyph(
+        1,
+        DecodedText::Unmapped {
+            font_hash: hash.clone(),
+            glyph_id: 8,
+        },
+        0,
+    )]);
+    let lines = vec![line(1, 0, vec![GlyphId(1)], vec![])];
+    let text = normalize(&only_unmapped, &lines, &[body_block(1, vec![LineId(1)])]);
+    assert_eq!(text.canonical.text, "");
+    assert_eq!(projected(&text.canonical), [GlyphId(1)]);
+    assert_eq!(visited(&text.canonical), projected(&text.canonical));
+
+    for text in [
+        normalize_mapped_lines(&["adminis\u{ad}", "tration"]),
+        normalize_mapped_lines(&["hello", "world"]),
+    ] {
+        assert_eq!(visited(&text.canonical), projected(&text.canonical));
+    }
 }
 
 #[test]

@@ -264,6 +264,116 @@ class CompactNativeTests(unittest.TestCase):
                 compact_native.compact_report(source, output)
             self.assertEqual(output.read_bytes(), b"keep this")
 
+    def test_accepts_an_already_compact_flow_artifact(self) -> None:
+            with tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                flow = {
+                    "artifact_format": "pdfdelta-native-compact",
+                    "artifact_version": 2,
+                    "source_schema_version": 11,
+                    "engine": "flow",
+                    "omitted_fields": {"sources": "flow reports do not carry per-glyph sources"},
+                    "report": {
+                        "schema_version": 11,
+                        "engine": "flow",
+                        "difference_status": "detected",
+                        "comparison_scope": {"supported_text": True, "images_compared": False},
+                        "assessment": None,
+                        "summary": {
+                            "comparison_complete": True,
+                            "difference_status": "detected",
+                            "established_changes": 1,
+                            "content_changes": 1,
+                            "proven_changed_regions": 0,
+                            "formatting_only_changes": 0,
+                            "uncertain_changes": 0,
+                            "unresolved_regions": 0,
+                            "tentative_candidates": 0,
+                            "unsupported_extraction_issues": 0,
+                            "unresolved_extraction_issues": 0,
+                            "comparison_scope": {"supported_text": True, "images_compared": False},
+                            "old_alignment_coverage": {"total_tokens": 1, "resolved_tokens": 1, "ratio": 1.0},
+                            "new_alignment_coverage": {"total_tokens": 1, "resolved_tokens": 1, "ratio": 1.0},
+                        },
+                        "changes": [],
+                        "change_candidates": [],
+                        "proven_changed_regions": [],
+                        "formatting_only_changes": [],
+                        "unresolved_regions": [],
+                        "extraction": {"old_complete": True, "new_complete": True, "issues": []},
+                        "not_produced_by_engine": ["change_candidates"],
+                    },
+                }
+                source = directory / "flow.json"
+                source.write_text(json.dumps(flow))
+                output = directory / "flow.compact.json.gz"
+                metadata = compact_native.compact_report(source, output)
+                artifact = _read_artifact(output)
+                self.assertEqual(artifact["artifact_version"], 2)
+                self.assertEqual(artifact["engine"], "flow")
+                self.assertEqual(artifact["report"]["engine"], "flow")
+                self.assertEqual(metadata["source_array_count"], 0)
+                self.assertEqual(metadata["source_logical_bytes"], len(source.read_bytes()))
+
+    def test_accepts_the_current_schema_13_flow_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            flow = {
+                "artifact_format": "pdfdelta-native-compact",
+                "artifact_version": 3,
+                "source_schema_version": 13,
+                "engine": "flow",
+                "omitted_fields": {"sources": "compact reports omit per-glyph sources; use --full-json"},
+                "report": {
+                    "schema_version": 13,
+                    "engine": "flow",
+                    "difference_status": "detected",
+                    "comparison_scope": {"supported_text": True, "images_compared": False},
+                    "summary": {
+                        "comparison_complete": True,
+                        "content_changes": 1,
+                        "difference_status": "detected",
+                        "formatting_only_changes": 0,
+                        "new_tokens": 1,
+                        "old_tokens": 1,
+                        "uncertain_changes": 0,
+                        "unexamined_paint_issues": 0,
+                        "unresolved_extraction_issues": 0,
+                        "unsupported_extraction_issues": 0,
+                    },
+                    "changes": [],
+                    "formatting_only_changes": [],
+                    "extraction": {"old_complete": True, "new_complete": True, "issues": []},
+                    "flow_summary": {"layout_only_changes": 0, "layout_only_new_tokens": 0,
+                                     "layout_only_old_tokens": 0},
+                },
+            }
+            source = directory / "flow.json"
+            source.write_text(json.dumps(flow))
+            output = directory / "flow.compact.json.gz"
+            metadata = compact_native.compact_report(source, output)
+            artifact = _read_artifact(output)
+            self.assertEqual(artifact["artifact_version"], 3)
+            self.assertEqual(artifact["source_schema_version"], 13)
+            self.assertEqual(artifact["report"]["schema_version"], 13)
+            self.assertEqual(metadata["source_array_count"], 0)
+            self.assertEqual(metadata["source_logical_bytes"], len(source.read_bytes()))
+
+    def test_rejects_a_mismatched_flow_artifact_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            flow = {
+                "artifact_format": "pdfdelta-native-compact",
+                "artifact_version": 3,
+                "source_schema_version": 11,
+                "engine": "flow",
+                "report": {"schema_version": 13, "engine": "flow", "summary": {},
+                           "extraction": {"old_complete": True, "new_complete": True, "issues": []}},
+            }
+            source = directory / "bad.json"
+            source.write_text(json.dumps(flow))
+            with self.assertRaises(compact_native.CompactError):
+                compact_native.compact_report(source, directory / "bad.compact.json.gz")
 
 if __name__ == "__main__":
     unittest.main()

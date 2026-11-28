@@ -1,14 +1,9 @@
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Result,
-    diff::{
-        EnvelopeUnavailable, LocalTextClaims, LocalTextEnvelopeLimits, LocalTextEnvelopeResult,
-        LocalTextSide, local_text_claims, local_text_envelope,
-    },
     normalize::ComparableToken,
+    text_envelope::{LocalTextClaims, LocalTextSide, local_text_claims},
 };
 
 use super::{
@@ -22,80 +17,6 @@ use super::{
 pub enum InterpretationStatus {
     ConditionalOnCorrespondence,
     Inferred,
-}
-
-/// Additional evidence requested for an existing pair of text views. It has
-/// no ownership or completion authority, even when all local paths agree.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ConditionalTextEnvelope {
-    pub interpretation: InterpretationStatus,
-    pub result: LocalTextEnvelopeResult,
-}
-
-/// Explains the joint alternatives of a proposed pair without changing its
-/// [`LocalViewComparison`]. Positions index the original views, so callers can
-/// project both mandatory and ambiguous positions through `view.origins`.
-///
-/// Source validation, frame closure, and cross-document correspondence remain
-/// independent caller obligations. This function does not construct or certify
-/// a new view by concatenating separated PDF regions. Optional normalization
-/// requires a union of interpretation DAGs and is explicitly unavailable here.
-pub fn explain_local_text_views(
-    old: &TextView,
-    new: &TextView,
-    remaining_work: &mut usize,
-    limits: LocalTextEnvelopeLimits,
-) -> Result<ConditionalTextEnvelope> {
-    if old.origins.len() != old.tokens.len()
-        || new.origins.len() != new.tokens.len()
-        || old.source_backed.len() != old.tokens.len()
-        || new.source_backed.len() != new.tokens.len()
-    {
-        return Err(super::evidence::invalid(
-            "local envelope view dimensions differ",
-        ));
-    }
-    if limits.max_cells > crate::diff::MAX_ENVELOPE_CELLS {
-        return Err(super::evidence::invalid(
-            "local envelope cell cap exceeds the internal maximum",
-        ));
-    }
-    // Every complete monotone path contains at least max(n,m)+1 states.
-    // Refuse before allocating normalization masks for an oversized view.
-    if old.tokens.len().max(new.tokens.len()).saturating_add(1) > limits.max_cells {
-        return Ok(ConditionalTextEnvelope {
-            interpretation: InterpretationStatus::ConditionalOnCorrespondence,
-            result: LocalTextEnvelopeResult::Unavailable {
-                reason: EnvelopeUnavailable::CellLimit,
-            },
-        });
-    }
-    let result = if let (Some(old_optional), Some(new_optional)) =
-        (old.optional_tokens(), new.optional_tokens())
-    {
-        local_text_envelope(
-            LocalTextSide {
-                tokens: &old.tokens,
-                source: &old.source_backed,
-                optional: &old_optional,
-            },
-            LocalTextSide {
-                tokens: &new.tokens,
-                source: &new.source_backed,
-                optional: &new_optional,
-            },
-            remaining_work,
-            limits,
-        )?
-    } else {
-        LocalTextEnvelopeResult::Unavailable {
-            reason: EnvelopeUnavailable::NormalizationAlternatives,
-        }
-    };
-    Ok(ConditionalTextEnvelope {
-        interpretation: InterpretationStatus::ConditionalOnCorrespondence,
-        result,
-    })
 }
 
 /// A display unit is not a claim that every character in that unit changed.
@@ -155,10 +76,6 @@ pub struct LocalViewComparison {
     pub interpretation: InterpretationStatus,
     pub operation: Option<TypedOperation>,
     pub text_mask: Option<ExactTextMask>,
-    /// A source-count witness can prove change without localizing an exact mask.
-    /// Only non-owning ranges use this relaxation of literal-minimal alignment.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub text_change_proof: Option<SourceTokenMultiplicity>,
     pub pixel_mask: Option<ExactPixelMask>,
     /// A content change can be known even when its character mask is unresolved.
     pub unresolved: Vec<String>,
@@ -171,24 +88,12 @@ pub struct LocalViewComparison {
     pub compared: bool,
 }
 
-/// Minimum source-backed and maximum total occurrences over all independently
-/// optional source-normalization choices. A mandatory count exceeding the other
-/// side's possible count proves change, but identifies no changed position.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SourceTokenMultiplicity {
-    pub token: ComparableToken,
-    pub old_required: usize,
-    pub old_possible: usize,
-    pub new_required: usize,
-    pub new_possible: usize,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalComparisonLimits {
     pub max_tokens: usize,
     pub max_pixels: usize,
     pub max_pixel_runs: usize,
-    pub proof_work: usize,
+    pub local_text_work: usize,
 }
 
 impl Default for LocalComparisonLimits {
@@ -197,7 +102,7 @@ impl Default for LocalComparisonLimits {
             max_tokens: 100_000,
             max_pixels: 16_000_000,
             max_pixel_runs: 100_000,
-            proof_work: 1_000_000,
+            local_text_work: 1_000_000,
         }
     }
 }
@@ -205,12 +110,17 @@ impl Default for LocalComparisonLimits {
 /// Compares one already proposed, source-validated pair without accepting its
 /// correspondence. Graph/evidence validation and common ownership resolution
 /// must precede publishing these results. No caller may infer correspondence
-/// from a favorable local diff. Container relations are compared by the graph.
+/// from a favorable local comparison. Container relations are compared by the graph.
+///
+/// Local value-field character evidence remains part of the serialized forms
+/// contract. Native text-node comparisons are still computed when a caller
+/// explicitly withholds supersession, but the CLI always lets flow own that
+/// channel.
 ///
 /// # Errors
-/// Returns resource-limit errors for oversized local inputs and contextual
-/// errors from the existing exact text kernel. Incomparable render grids and
-/// unresolved normalization are retained as local unresolved results.
+/// Returns resource-limit errors for oversized text or raster inputs and
+/// contextual errors for invalid render payloads. Incomparable render grids and
+/// unresolved normalization remain local unresolved results.
 pub fn compare_local_views(
     old: &GraphNode,
     new: &GraphNode,
@@ -218,20 +128,7 @@ pub fn compare_local_views(
     new_store: &EvidenceStore,
     limits: LocalComparisonLimits,
 ) -> Result<LocalViewComparison> {
-    let mut remaining_work = limits.proof_work;
-    compare_local_views_with_work(old, new, old_store, new_store, limits, &mut remaining_work)
-}
-
-/// Uses the caller's shared proof budget without reserving an estimated grid.
-/// The caller supplies at most `limits.proof_work`; failed proof work stays spent.
-pub(super) fn compare_local_views_with_work(
-    old: &GraphNode,
-    new: &GraphNode,
-    old_store: &EvidenceStore,
-    new_store: &EvidenceStore,
-    limits: LocalComparisonLimits,
-    remaining_work: &mut usize,
-) -> Result<LocalViewComparison> {
+    let mut remaining_work = limits.local_text_work;
     let mut result = LocalViewComparison {
         obligations: Vec::new(),
         old: vec![old.id],
@@ -243,14 +140,13 @@ pub(super) fn compare_local_views_with_work(
         },
         operation: None,
         text_mask: None,
-        text_change_proof: None,
         pixel_mask: None,
         unresolved: Vec::new(),
         compared: false,
     };
     match (&old.content, &new.content) {
         (NodeContent::Text { view: a }, NodeContent::Text { view: b }) => {
-            compare_text_content(&mut result, a, b, limits, remaining_work)?;
+            compare_text_content(&mut result, a, b, limits, &mut remaining_work)?;
         }
         (NodeContent::Value { value: a }, NodeContent::Value { value: b }) => {
             if matches!(a, FieldValue::Unresolved { .. })
@@ -274,7 +170,7 @@ pub(super) fn compare_local_views_with_work(
                         &a,
                         &b,
                         limits,
-                        remaining_work,
+                        &mut remaining_work,
                         &mut super::UnresolvedSink::new(
                             &mut result.unresolved,
                             &mut result.obligations,
@@ -325,297 +221,6 @@ pub(super) fn compare_local_views_with_work(
             super::UnresolvedObligation::new(super::UnresolvedReason::UnsupportedLocalContent),
             "local content types require a structural comparison or additional evidence",
         ),
-    }
-    Ok(result)
-}
-
-/// Compares an ordered split/merge already validated by the common solver.
-/// Concatenation preserves every token and origin without inserting separators
-/// or choosing a normalization because it reduces the diff.
-///
-/// # Errors
-/// Rejects empty/nontext groups, unresolved normalization, invalid token origins,
-/// and local token/reference budgets. The caller must validate source ownership
-/// and the retained order relations before publishing the result.
-pub fn compare_text_group_views(
-    old: &[&GraphNode],
-    new: &[&GraphNode],
-    limits: LocalComparisonLimits,
-) -> Result<LocalViewComparison> {
-    compare_text_groups(old, new, limits, false)
-}
-
-/// Layout separators retain their neighboring sources but do not establish a
-/// literal word boundary. A non-owning native range quantifies over retaining
-/// or removing these separators; literal space glyphs remain mandatory tokens.
-/// An empty side is admitted only after the caller proves the corresponding
-/// source interval empty. It is not a missing acquisition or a document dummy.
-pub(super) fn compare_native_text_range(
-    old: &[&GraphNode],
-    new: &[&GraphNode],
-    limits: LocalComparisonLimits,
-) -> Result<LocalViewComparison> {
-    compare_text_groups(old, new, limits, true)
-}
-
-/// Private-use scalars require a font-specific interpretation before they can
-/// establish text identity across revisions. Preserve their raw evidence.
-pub(super) fn private_use_scalar(scalar: char) -> bool {
-    matches!(scalar, '\u{e000}'..='\u{f8ff}' | '\u{f0000}'..='\u{ffffd}' | '\u{100000}'..='\u{10fffd}')
-}
-
-fn compare_text_groups(
-    old: &[&GraphNode],
-    new: &[&GraphNode],
-    limits: LocalComparisonLimits,
-    layout_space_alternatives: bool,
-) -> Result<LocalViewComparison> {
-    let mut remaining = limits.proof_work;
-    compare_text_groups_with_work(old, new, limits, layout_space_alternatives, &mut remaining)
-}
-
-/// Uses the caller's remaining proof work without replenishing it between ranges.
-/// The caller supplies at most the configured proof budget and validates ownership.
-pub(super) fn compare_text_groups_with_work(
-    old: &[&GraphNode],
-    new: &[&GraphNode],
-    limits: LocalComparisonLimits,
-    layout_space_alternatives: bool,
-    remaining_work: &mut usize,
-) -> Result<LocalViewComparison> {
-    if !layout_space_alternatives && (old.is_empty() || new.is_empty()) {
-        return Err(super::evidence::invalid("empty local text group"));
-    }
-    let mut tokens = 0;
-    let mut references = 0;
-    let mut a = concatenate_text(old, limits, &mut tokens, &mut references)?;
-    let mut b = concatenate_text(new, limits, &mut tokens, &mut references)?;
-    let mut uncertain_spacing = false;
-    let mut optional_normalization = false;
-    if layout_space_alternatives {
-        for view in [&mut a, &mut b] {
-            let mut optional = view.optional_tokens().ok_or_else(|| {
-                crate::Error::Unresolved("native range normalization is not validated".into())
-            })?;
-            for ((token, backed), position) in view
-                .tokens
-                .iter()
-                .zip(&view.source_backed)
-                .zip(&mut optional)
-            {
-                if token.as_scalar().is_none_or(private_use_scalar) {
-                    return Err(crate::Error::Unresolved(
-                        "unmapped or private-use glyph identities do not prove a native text change".into(),
-                    ));
-                }
-                if token
-                    .as_scalar()
-                    .is_some_and(|scalar| scalar.is_ascii_whitespace())
-                    && !backed
-                {
-                    *position = true;
-                    uncertain_spacing = true;
-                }
-                optional_normalization |= *position;
-            }
-            if uncertain_spacing {
-                view.bind_optional_positions(
-                    optional
-                        .into_iter()
-                        .enumerate()
-                        .filter_map(|(position, optional)| optional.then_some(position))
-                        .collect(),
-                );
-            }
-        }
-    }
-    let mut result = LocalViewComparison {
-        obligations: Vec::new(),
-        old: old.iter().map(|node| node.id).collect(),
-        new: new.iter().map(|node| node.id).collect(),
-        interpretation: if old.iter().chain(new).any(|node| node.basis.is_inferred()) {
-            InterpretationStatus::Inferred
-        } else {
-            InterpretationStatus::ConditionalOnCorrespondence
-        },
-        operation: None,
-        text_mask: None,
-        text_change_proof: None,
-        pixel_mask: None,
-        unresolved: Vec::new(),
-        compared: false,
-    };
-    // Optional families reserve a count witness before exploring masks. Exact
-    // ranges retain their full mask budget and use only unspent grid work for
-    // a fallback after the exact kernel declines an unaffordable grid.
-    let mut multiplicity_change = (layout_space_alternatives && optional_normalization)
-        .then(|| source_multiplicity_change(&a, &b, remaining_work))
-        .flatten();
-    match compare_text_content(&mut result, &a, &b, limits, remaining_work) {
-        Err(error @ (crate::Error::LimitExceeded { .. } | crate::Error::Unresolved(_)))
-            if layout_space_alternatives =>
-        {
-            result.retain_unresolved(
-                super::UnresolvedObligation::new(super::UnresolvedReason::TextComparisonLimit),
-                error.to_string(),
-            );
-        }
-        outcome => outcome?,
-    }
-    if !result.compared && layout_space_alternatives && !optional_normalization {
-        multiplicity_change = source_multiplicity_change(&a, &b, remaining_work);
-    }
-    if !result.compared
-        && let Some(proof) = multiplicity_change
-    {
-        result.compared = true;
-        result.text_change_proof = Some(proof);
-        result.operation = Some(TypedOperation::TextChanged {
-            old: a.display_text(),
-            new: b.display_text(),
-        });
-        result.retain_unresolved(
-            super::UnresolvedObligation::new(super::UnresolvedReason::MultiplicityProofWithoutMask),
-            "source token multiplicity proves change; exact normalization masks remain unresolved",
-        );
-    }
-    if uncertain_spacing {
-        result.retain_unresolved(
-            super::UnresolvedObligation::new(
-                super::UnresolvedReason::SpacingInterpretationsRetained,
-            ),
-            "layout-derived space boundaries retain both spacing interpretations",
-        );
-    }
-    Ok(result)
-}
-
-/// Any mandatory source token in excess of every possible counterpart occurrence
-/// must remain unmatched under every permitted interpretation and alignment.
-/// The converse is deliberately not used: overlapping count intervals prove
-/// neither equality nor the absence of a spacing change. Spaces are excluded
-/// from this fallback witness: a native layout may also have omitted a separator
-/// at an implicit glyph gap. Literal-space changes still use the exact path when
-/// there is no unresolved layout spacing. This proof has no mask.
-fn source_multiplicity_change(
-    old: &TextView,
-    new: &TextView,
-    remaining: &mut usize,
-) -> Option<SourceTokenMultiplicity> {
-    let count = old.tokens.len().checked_add(new.tokens.len())?;
-    let work = count.checked_mul((count.saturating_add(1).ilog2() as usize + 1) * 4)?;
-    let Some(next) = remaining.checked_sub(work) else {
-        *remaining = 0;
-        return None;
-    };
-    *remaining = next;
-    let mut counts = BTreeMap::<&ComparableToken, [[usize; 2]; 2]>::new();
-    for (side, view) in [old, new].into_iter().enumerate() {
-        for ((token, backed), optional) in view
-            .tokens
-            .iter()
-            .zip(&view.source_backed)
-            .zip(view.optional_tokens()?)
-        {
-            let entry = counts.entry(token).or_default();
-            entry[side][0] += usize::from(*backed && !optional);
-            entry[side][1] += 1;
-        }
-    }
-    counts.into_iter().find_map(|(token, [old, new])| {
-        (!token
-            .as_scalar()
-            .is_some_and(|scalar| scalar.is_ascii_whitespace())
-            && (old[0] > new[1] || new[0] > old[1]))
-            .then(|| SourceTokenMultiplicity {
-                token: token.clone(),
-                old_required: old[0],
-                old_possible: old[1],
-                new_required: new[0],
-                new_possible: new[1],
-            })
-    })
-}
-
-/// Recheck an already compared native range using an order-independent witness.
-/// Whitespace cannot supply this witness, and optional source tokens retain
-/// their full count intervals. The caller must discard the ordered mask.
-pub(super) fn native_count_change(
-    old: &[&GraphNode],
-    new: &[&GraphNode],
-    limits: LocalComparisonLimits,
-    remaining: &mut usize,
-) -> Result<Option<SourceTokenMultiplicity>> {
-    let mut tokens = 0;
-    let mut references = 0;
-    let a = concatenate_text(old, limits, &mut tokens, &mut references)?;
-    let b = concatenate_text(new, limits, &mut tokens, &mut references)?;
-    let work = tokens
-        .saturating_add(references)
-        .saturating_add(old.len())
-        .saturating_add(new.len());
-    let Some(next) = remaining.checked_sub(work) else {
-        *remaining = 0;
-        return Ok(None);
-    };
-    *remaining = next;
-    Ok(source_multiplicity_change(&a, &b, remaining))
-}
-
-fn concatenate_text(
-    nodes: &[&GraphNode],
-    limits: LocalComparisonLimits,
-    tokens: &mut usize,
-    references: &mut usize,
-) -> Result<TextView> {
-    bounded(nodes.len(), limits.max_tokens, "local group members")?;
-    let mut result = TextView {
-        tokens: Vec::new(),
-        origins: Vec::new(),
-        source_backed: Vec::new(),
-        normalization: TextNormalization::Exact,
-    };
-    let mut optional_positions = Vec::new();
-    for node in nodes {
-        let NodeContent::Text { view } = &node.content else {
-            return Err(crate::Error::Unresolved(
-                "group contains a nontext view".into(),
-            ));
-        };
-        if view.tokens.len() != view.origins.len() || view.tokens.len() != view.source_backed.len()
-        {
-            return Err(super::evidence::invalid(
-                "group token origin dimensions differ",
-            ));
-        }
-        *tokens = tokens.saturating_add(view.tokens.len());
-        bounded(*tokens, limits.max_tokens, "local group text tokens")?;
-        for origin in &view.origins {
-            *references = references.saturating_add(origin.len());
-            bounded(
-                *references,
-                limits.max_tokens,
-                "local group source references",
-            )?;
-        }
-        let optional = view.optional_tokens().ok_or_else(|| {
-            crate::Error::Unresolved(
-                "group text normalization has no source-validated interpretation family".into(),
-            )
-        })?;
-        optional_positions.extend(
-            optional
-                .into_iter()
-                .enumerate()
-                .filter(|(_, optional)| *optional)
-                .map(|(position, _)| result.tokens.len() + position),
-        );
-        result.tokens.extend_from_slice(&view.tokens);
-        result.origins.extend_from_slice(&view.origins);
-        result.source_backed.extend_from_slice(&view.source_backed);
-    }
-    if !optional_positions.is_empty() {
-        result.bind_optional_positions(optional_positions);
     }
     Ok(result)
 }
@@ -720,8 +325,8 @@ fn compare_text(
     )?;
     let Some(claims) = claims else {
         unresolved.retain(
-            super::UnresolvedObligation::new(super::UnresolvedReason::LocalProofBudget),
-            "local character proof did not finish within its work budget",
+            super::UnresolvedObligation::new(super::UnresolvedReason::LocalTextWorkBudget),
+            "local character comparison did not finish within its work budget",
         );
         return Ok(None);
     };
@@ -785,123 +390,4 @@ fn compare_pixels(
         }
     }
     Ok(Some(mask))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn local_comparisons_share_spent_work_and_do_not_refill_it() {
-        let source = SourceRef::Native {
-            glyph: crate::model::GlyphId(1),
-        };
-        let node = GraphNode {
-            id: NodeId(1),
-            kind: super::super::NodeKind::Paragraph,
-            pages: vec![],
-            sources: vec![source],
-            identity: None,
-            basis: super::super::ViewBasis::NativeLayout,
-            content: NodeContent::Text {
-                view: TextView {
-                    tokens: vec![ComparableToken::Scalar('x')],
-                    origins: vec![vec![source]],
-                    source_backed: vec![true],
-                    normalization: TextNormalization::Exact,
-                },
-            },
-        };
-        let store = EvidenceStore {
-            revision: "test".into(),
-            backends: vec![],
-            pages: vec![],
-            native: crate::model::Document::new(vec![]),
-            rendered: vec![],
-            structured: vec![],
-            inventories: vec![],
-            key_inventories: vec![],
-            native_structures: vec![],
-            issues: vec![],
-        };
-        let limits = LocalComparisonLimits::default();
-        let mut remaining = 20;
-        for expected in [true, true, false] {
-            let result =
-                compare_local_views_with_work(&node, &node, &store, &store, limits, &mut remaining)
-                    .expect("valid source projection");
-            assert_eq!(result.compared, expected);
-            assert!(result.operation.is_none());
-        }
-        assert_eq!(remaining, 0);
-        assert!(
-            compare_local_views(&node, &node, &store, &store, limits)
-                .expect("independent public call has its own budget")
-                .compared
-        );
-        let mut remaining = 20;
-        for expected in [true, true, false] {
-            let result =
-                compare_text_groups_with_work(&[&node], &[&node], limits, true, &mut remaining)
-                    .expect("native group projection");
-            assert_eq!(result.compared, expected);
-        }
-        assert_eq!(remaining, 0);
-    }
-
-    #[test]
-    fn multiplicity_witness_implies_change_in_every_exact_normalization_pair() {
-        let mut views = Vec::new();
-        for length in 0..=3 {
-            for encoding in 0..4usize.pow(length) {
-                let mut digits = encoding;
-                let mut view = TextView {
-                    tokens: Vec::new(),
-                    origins: Vec::new(),
-                    source_backed: Vec::new(),
-                    normalization: TextNormalization::Exact,
-                };
-                let mut optional = Vec::new();
-                for position in 0..length as usize {
-                    let digit = digits % 4;
-                    digits /= 4;
-                    view.tokens
-                        .push(ComparableToken::Scalar(if digit < 2 { 'a' } else { ' ' }));
-                    view.source_backed.push(digit != 3);
-                    view.origins.push(vec![]);
-                    if digit % 2 == 1 {
-                        optional.push(position);
-                    }
-                }
-                view.bind_optional_positions(optional);
-                views.push(view);
-            }
-        }
-        for old in &views {
-            for new in &views {
-                let Some(proof) = source_multiplicity_change(old, new, &mut 100_000) else {
-                    continue;
-                };
-                let old_optional = old.optional_tokens().expect("validated test family");
-                let new_optional = new.optional_tokens().expect("validated test family");
-                let claims = local_text_claims(
-                    LocalTextSide {
-                        tokens: &old.tokens,
-                        source: &old.source_backed,
-                        optional: &old_optional,
-                    },
-                    LocalTextSide {
-                        tokens: &new.tokens,
-                        source: &new.source_backed,
-                        optional: &new_optional,
-                    },
-                    &mut 100_000,
-                )
-                .expect("exact small proof")
-                .expect("complete exact small proof");
-                assert!(claims.changed_source_lower > 0, "unsound witness {proof:?}");
-            }
-        }
-        assert!(source_multiplicity_change(&views[1], &views[2], &mut 0).is_none());
-    }
 }

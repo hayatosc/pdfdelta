@@ -361,12 +361,55 @@ pub struct CaseRegion {
     pub bounds: Option<[f64; 4]>,
 }
 
+/// Which flow report array an entry belongs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FlowEvidenceKind {
+    /// One entry of the report's `flow_text.changes` array.
+    Content,
+    /// One entry of the report's `flow_text.formatting_only_changes` array.
+    Formatting,
+}
+
+/// One flow report entry a case accounts for.
+///
+/// Flow's cases partition the report's own arrays: each non-layout change and
+/// each formatting entry belongs to exactly one case. The index is the array
+/// index in the comparison JSON, so a reader can recover the full event,
+/// including the token ranges that were truncated from the packet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct FlowEvidence {
+    pub kind: FlowEvidenceKind,
+    pub index: usize,
+}
+
+/// One part of a case that exceeded a per-case evidence cap.
+///
+/// The parts are consecutive, share the same parent question, and each lists
+/// its zero-based index and total count. A reviewer reassembles the original
+/// case by reading parts in index order. The schema name versions this shape
+/// independently of the packet schema, because a part set is only meaningful
+/// when its reader understands the link fields.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaseSplit {
+    pub schema: String,
+    pub parent: CaseId,
+    pub index: u32,
+    pub count: u32,
+}
+
+/// Schema identifier for the split-case link.
+pub const CASE_SPLIT_SCHEMA: &str = "agent-review-split/v1";
+
 /// One review case.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReviewCase {
     pub case_id: CaseId,
     /// Content digest over the canonical case key, for tamper and drift checks.
     pub content_digest: String,
+    /// Present when this packet is one consecutive part of a larger case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subcase: Option<CaseSplit>,
     pub question: ReviewQuestion,
     pub pipeline: PipelineContract,
     pub engine_class: EngineClass,
@@ -416,6 +459,10 @@ pub struct ReviewCase {
     /// Token intervals this case accounts for under the native-glyph contract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub covered: Vec<TextCoverage>,
+    /// Flow report entries this case accounts for, when flow produced the
+    /// text evidence. Bundles from the removed proof engine leave this empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flow_evidence: Vec<FlowEvidence>,
     /// Pages and bounds a rendered view of this case would cover.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub regions: Vec<CaseRegion>,

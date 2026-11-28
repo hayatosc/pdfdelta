@@ -191,7 +191,7 @@ impl<'a> TextSourcePartition<'a> {
 mod tests {
     use super::*;
     use crate::{
-        document::{LocalComparisonLimits, NodeId, NodeKind, ViewBasis, compare_text_group_views},
+        document::{NodeId, NodeKind, ViewBasis},
         model::GlyphId,
         normalize::ComparableToken,
     };
@@ -298,39 +298,6 @@ mod tests {
         };
         view.source_backed.pop();
         assert!(TextSourcePartition::new(&malformed, 0..4, &mut 100).is_err());
-    }
-
-    #[test]
-    fn local_diff_masks_exclude_complement_and_synthetic_context() {
-        let old = parent();
-        let mut new = parent();
-        let NodeContent::Text { view } = &mut new.content else {
-            unreachable!()
-        };
-        view.tokens[3] = ComparableToken::Scalar('y');
-        view.bind_optional_positions(vec![2]);
-        let old = TextSourcePartition::new(&old, 2..4, &mut 100).expect("old partition");
-        let new = TextSourcePartition::new(&new, 2..4, &mut 100).expect("new partition");
-        let a = old.selected_node().expect("validated normalization");
-        let b = new.selected_node().expect("validated normalization");
-        let comparison = compare_text_group_views(&[&a], &[&b], LocalComparisonLimits::default())
-            .expect("exact local comparison");
-        assert!(comparison.compared);
-        let mask = comparison
-            .text_mask
-            .expect("one literal replacement has a mask");
-        assert_eq!(mask.old.len(), 1);
-        assert_eq!(mask.new.len(), 1);
-        assert_eq!(mask.old[0].sources, [source(2)]);
-        assert_eq!(mask.new[0].sources, [source(2)]);
-        assert_eq!(
-            old.remaining_sources().collect::<Vec<_>>(),
-            [source(1), source(3)]
-        );
-        assert_eq!(
-            new.remaining_sources().collect::<Vec<_>>(),
-            [source(1), source(3)]
-        );
     }
 
     #[test]

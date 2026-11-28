@@ -138,6 +138,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "brotli"
+version = "8.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cc91aac060a7a1e25823bdccbfb6af1875b88f17c6daac97894eed8207166b3"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor",
+]
+
+[[package]]
 name = "brotli-decompressor"
 version = "5.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -405,6 +416,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d285dc30731c8485de5fa732fbdf2b3affdf01e4da7c2135022ca6fa664bf6"
 dependencies = [
+ "brotli",
  "hayro-postscript",
 ]
 
@@ -577,6 +589,7 @@ dependencies = [
  "clap",
  "lopdf",
  "pdfdelta-core",
+ "pdfdelta-diff",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -587,6 +600,7 @@ dependencies = [
 name = "pdfdelta-core"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "hayro-cmap",
  "lopdf",
  "rayon",
@@ -600,12 +614,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfdelta-diff"
+version = "0.1.0"
+dependencies = [
+ "pdfdelta-core",
+]
+
+[[package]]
 name = "pdfdelta-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "pdfdelta-bench",
  "pdfdelta-core",
+ "pdfdelta-diff",
 ]
 
 [[package]]

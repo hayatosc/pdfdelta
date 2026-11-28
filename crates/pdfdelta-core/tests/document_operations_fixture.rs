@@ -343,7 +343,7 @@ fn unfinished_character_proof_does_not_erase_a_stored_value_change() {
         &old_store,
         &new_store,
         LocalComparisonLimits {
-            proof_work: 0,
+            local_text_work: 0,
             ..LocalComparisonLimits::default()
         },
     )
@@ -402,7 +402,7 @@ mod visual_supplier {
             CorrespondenceScope, DocumentComparisonLimits, DocumentGraph, DocumentView,
             HierarchyLimits, SourceConflict, VisualCandidateLimits, compare_document_views,
         },
-        pipeline::PipelineOptions,
+        options::PipelineOptions,
     };
 
     fn graph(store: &EvidenceStore) -> DocumentGraph {
@@ -1035,7 +1035,7 @@ fn stored_evidence_reaches_typed_changes_through_the_common_graph_pipeline() {
             CorrespondenceScope, DocumentComparisonLimits, DocumentGraph, DocumentView,
             GraphLimits, compare_scope_views,
         },
-        pipeline::PipelineOptions,
+        options::PipelineOptions,
     };
     let (old_store, _) = value("100");
     let (new_store, _) = value("20");

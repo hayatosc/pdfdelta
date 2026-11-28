@@ -32,7 +32,7 @@ mod structure_candidates;
 mod structures;
 mod tables;
 mod text_candidates;
-mod text_scopes;
+mod text_scope_schema;
 mod visual;
 mod widgets;
 
@@ -52,17 +52,16 @@ pub use obligations::{
     classification as unresolved_classification,
 };
 pub use operations::*;
-pub use relations::RelationComparison;
+pub use relations::{RelationComparison, RelationInventoryState};
 pub use scoped_keys::*;
 pub use source_partition::TextSourcePartition;
 pub use structures::*;
 pub use text_candidates::{TextCandidateLimits, TextCandidateSearch};
-pub use text_scopes::{
+pub use text_scope_schema::{
     CutCorrespondence, CutEvidence, NativeRegion, NativeRegionChain, NativeRegionChains,
     NativeTextDomainEquality, NativeTextIntervalComparison, NativeTransition, SourceCut,
     SourceCutBoundaryPadding, SourceCutEdgeRefinement, SourceCutPageEdge, SourceCutPopulation,
     SourceCutRange, SourceCutRowEndpoint, SourceCutRowOrder, SourceCutSearch, SourceFragment,
     SpaceBoundary, SpaceOrigin, TextScopePresence, TextScopeReview, TextScopeSpacing,
 };
-pub(crate) use text_scopes::{NativeOrderProof, with_native_order_proof};
 pub use visual::{VisualCandidateLimits, VisualCandidateSearch};

@@ -8,7 +8,7 @@ use crate::{
     Result,
     model::{Glyph, GlyphId, PageId, Rect},
     normalize::ComparableToken,
-    pipeline::PipelineOptions,
+    options::PipelineOptions,
 };
 
 use super::{

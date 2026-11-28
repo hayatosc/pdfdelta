@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     Channel, DocumentView, DocumentViewComparison, InterpretationStatus, MatchingChannels,
-    SourceRef, selected_nodes,
+    RelationInventoryState, SourceRef, selected_nodes,
 };
 
 /// Counts refer to distinct source references, not characters, pixels, or area.
@@ -198,7 +198,10 @@ fn side_coverage(
 ) -> (bool, BTreeSet<SourceRef>, BTreeSet<SourceRef>) {
     let store = view.evidence;
     let graph = view.graph;
-    let inventory = store.inventory_complete(None, channel)
+    let proven_empty = channel == Channel::Relations
+        && comparison.relation_inventory == RelationInventoryState::CompleteEmpty;
+    let inventory = proven_empty
+        || store.inventory_complete(None, channel)
         || (!store.pages.is_empty()
             && store
                 .pages

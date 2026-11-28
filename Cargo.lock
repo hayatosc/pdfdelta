@@ -846,6 +846,7 @@ dependencies = [
  "hayro",
  "lopdf",
  "pdfdelta-core",
+ "pdfdelta-diff",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -862,7 +863,9 @@ dependencies = [
  "flate2",
  "hayro",
  "lopdf",
+ "pdfdelta-bench",
  "pdfdelta-core",
+ "pdfdelta-diff",
  "png",
  "rayon",
  "rustix",
@@ -887,6 +890,13 @@ dependencies = [
  "unicode-bidi",
  "unicode-normalization",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "pdfdelta-diff"
+version = "0.1.0"
+dependencies = [
+ "pdfdelta-core",
 ]
 
 [[package]]

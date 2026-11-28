@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfdelta_core::fuzzing::fuzz_text_comparison;
+use pdfdelta_diff::fuzzing::fuzz_text_comparison;
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
 

@@ -3,6 +3,7 @@ members = [
     "crates/pdfdelta-bench",
     "crates/pdfdelta-cli",
     "crates/pdfdelta-core",
+    "crates/pdfdelta-diff",
 ]
 resolver = "3"
 
@@ -28,7 +29,11 @@ proptest = "1"
 rayon = "1"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# `deny` rather than `forbid`: the macOS-only worker allocator must implement
+# the unsafe `GlobalAlloc` trait to enforce the 2 GiB ceiling macOS does not
+# enforce through RLIMIT_AS. That module scopes and documents its allow; every
+# other crate and module remains denied.
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

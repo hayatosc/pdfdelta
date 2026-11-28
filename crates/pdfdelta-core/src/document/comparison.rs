@@ -8,9 +8,8 @@ use super::{
     CorrespondenceScope, DocumentGraph, EvidenceLimits, EvidenceStore, GraphLimits,
     InterpretationStatus, LocalComparisonLimits, LocalViewComparison, MatchingLimits, NodeContent,
     NodeId, ProposalBasis, ScopeMatching, ScopeProposals, VisualCandidateLimits,
-    VisualCandidateSearch, compare_local_views, compare_text_group_views,
-    dependencies::candidate_dependencies, propose_scope_correspondences,
-    solve_correspondence_scope, visual::append_visual_candidates,
+    VisualCandidateSearch, compare_local_views, dependencies::candidate_dependencies,
+    propose_scope_correspondences, solve_correspondence_scope, visual::append_visual_candidates,
 };
 
 #[derive(Clone, Copy)]
@@ -29,6 +28,54 @@ pub struct DocumentComparisonLimits {
     pub text: super::TextCandidateLimits,
     pub keys: super::KeyPresenceLimits,
     pub extraction: super::ExtractionDependencyLimits,
+    /// Whether another engine supplies the text channel.
+    ///
+    /// When true, text content is no longer a comparison obligation: local
+    /// text comparisons are not computed, text-only ownership components and
+    /// the retained text candidate search do not add unresolved reasons, and
+    /// only the correspondences themselves are kept as relationship and
+    /// structure context. Non-text proposals, comparisons, and obligations are
+    /// unchanged, and components that mix text with non-text sources keep every
+    /// obligation. The caller is responsible for withholding the text channel
+    /// from [`MatchingChannels`](super::MatchingChannels) so text views are not
+    /// also selected through a relationship request.
+    pub supersede_text: bool,
+}
+
+/// Shared-evidence text positions that flow ownership replaced.
+///
+/// Flow supplies the text channel, so the shared search does not compute a
+/// second local text comparison. These counts record the positions it skipped;
+/// an empty record means no such position was recorded, not that a text search
+/// completed.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlowOwnedTextEvidence {
+    /// Ownership components whose proposals reference only text nodes.
+    pub components: usize,
+    /// Local text comparisons that flow ownership replaced.
+    pub comparisons: usize,
+    /// Count per obligation the shared search did not evaluate.
+    #[serde(default, alias = "obligations")]
+    pub unchecked_obligations: BTreeMap<super::UnresolvedReason, usize>,
+}
+
+impl FlowOwnedTextEvidence {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.components == 0 && self.comparisons == 0 && self.unchecked_obligations.is_empty()
+    }
+
+    pub(crate) fn record_unchecked(&mut self, reason: super::UnresolvedReason) {
+        *self.unchecked_obligations.entry(reason).or_insert(0) += 1;
+    }
+
+    pub(crate) fn add(&mut self, other: &Self) {
+        self.components = self.components.saturating_add(other.components);
+        self.comparisons = self.comparisons.saturating_add(other.comparisons);
+        for (reason, count) in &other.unchecked_obligations {
+            *self.unchecked_obligations.entry(*reason).or_insert(0) += count;
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,9 +99,9 @@ pub struct ScopeViewComparison {
     #[serde(default)]
     pub text_boundary_correspondences: Vec<usize>,
     #[serde(default)]
-    pub native_text_domains: Vec<super::text_scopes::NativeTextDomainEquality>,
+    pub native_text_domains: Vec<super::NativeTextDomainEquality>,
     #[serde(default)]
-    pub native_text_intervals: Vec<super::text_scopes::NativeTextIntervalComparison>,
+    pub native_text_intervals: Vec<super::NativeTextIntervalComparison>,
     /// Candidate indexes requiring a more specific child scope or group view.
     pub structural_correspondences: Vec<usize>,
     /// Conditional local results never imply that an entire PDF is complete.
@@ -68,6 +115,14 @@ pub struct ScopeViewComparison {
     /// strict comparison iterators, coverage, and automatic change ownership.
     #[serde(default)]
     pub text_scope_reviews: Vec<super::TextScopeReview>,
+    /// Text evidence another engine supplied. Present only when the shared
+    /// search skipped text positions; absence is not a completed search.
+    #[serde(
+        default,
+        alias = "superseded_text",
+        skip_serializing_if = "FlowOwnedTextEvidence::is_empty"
+    )]
+    pub flow_owned_text: FlowOwnedTextEvidence,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_cut_search: Option<super::SourceCutSearch>,
 }
@@ -113,9 +168,24 @@ pub struct DocumentViewComparison {
     /// Classification of each retained relationship message, aligned by index.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relation_obligations: Vec<super::UnresolvedObligation>,
+    /// Why relationship enumeration produced no edges when both inputs proved
+    /// they have no relation source. The default records no such proof.
+    #[serde(
+        default,
+        skip_serializing_if = "super::RelationInventoryState::is_examined_or_unproven"
+    )]
+    pub relation_inventory: super::RelationInventoryState,
     /// Raw key-domain facts do not discharge text or semantic relationship claims.
     #[serde(default)]
     pub key_presence: Option<super::KeyPresenceComparison>,
+    /// Aggregate text evidence another engine supplied. Present only when the
+    /// shared search skipped text positions; absence is not a completed search.
+    #[serde(
+        default,
+        alias = "superseded_text",
+        skip_serializing_if = "FlowOwnedTextEvidence::is_empty"
+    )]
+    pub flow_owned_text: FlowOwnedTextEvidence,
 }
 
 impl DocumentViewComparison {
@@ -169,16 +239,15 @@ pub fn compare_document_views(
             "document comparison requires a root scope budget",
         ));
     }
-    let old_native = old
-        .graph
-        .validate_indexed(old.evidence, limits.evidence, limits.graph)?;
-    let new_native = new
-        .graph
-        .validate_indexed(new.evidence, limits.evidence, limits.graph)?;
+    old.graph
+        .validate(old.evidence, limits.evidence, limits.graph)?;
+    new.graph
+        .validate(new.evidence, limits.evidence, limits.graph)?;
     let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let mut document = DocumentViewComparison {
         relation_obligations: Vec::new(),
+        flow_owned_text: FlowOwnedTextEvidence::default(),
         key_presence: Some(super::compare_document_keys(
             old.evidence,
             new.evidence,
@@ -199,6 +268,7 @@ pub fn compare_document_views(
         )),
         relations: Vec::new(),
         relation_unresolved: Vec::new(),
+        relation_inventory: super::RelationInventoryState::default(),
         scopes: vec![ComparedScope {
             parent: None,
             depth: 0,
@@ -302,17 +372,6 @@ pub fn compare_document_views(
         document.scopes.iter_mut().map(|scope| &mut scope.result),
         limits.extraction,
     );
-    for scope in &mut document.scopes {
-        super::text_scopes::append(
-            old,
-            new,
-            (&old_native, &new_native),
-            &mut scope.result,
-            scope.interpretation,
-            limits,
-        )?;
-    }
-    super::text_scopes::inferred::append(old, new, root, &mut document, limits)?;
     if limits.matching.channels.relations {
         super::relations::compare_relations(
             old,
@@ -322,6 +381,9 @@ pub fn compare_document_views(
         );
     }
     super::scoped_keys::apply(old, new, &mut document, limits.keys);
+    for scope in &document.scopes {
+        document.flow_owned_text.add(&scope.result.flow_owned_text);
+    }
     Ok(document)
 }
 
@@ -345,12 +407,10 @@ pub fn compare_scope_views(
     scope: CorrespondenceScope,
     limits: DocumentComparisonLimits,
 ) -> Result<ScopeViewComparison> {
-    let old_native = old
-        .graph
-        .validate_indexed(old.evidence, limits.evidence, limits.graph)?;
-    let new_native = new
-        .graph
-        .validate_indexed(new.evidence, limits.evidence, limits.graph)?;
+    old.graph
+        .validate(old.evidence, limits.evidence, limits.graph)?;
+    new.graph
+        .validate(new.evidence, limits.evidence, limits.graph)?;
     let mut result = compare_validated_scope(old, new, scope, &[], limits)?;
     super::extraction_dependencies::apply(
         old,
@@ -358,14 +418,6 @@ pub fn compare_scope_views(
         std::iter::once(&mut result),
         limits.extraction,
     );
-    super::text_scopes::append(
-        old,
-        new,
-        (&old_native, &new_native),
-        &mut result,
-        InterpretationStatus::ConditionalOnCorrespondence,
-        limits,
-    )?;
     Ok(result)
 }
 
@@ -417,6 +469,39 @@ fn compare_validated_scope(
         &candidates.proposals,
         limits.matching,
     )?;
+    let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
+    let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
+    let is_text = |nodes: &BTreeMap<NodeId, &super::GraphNode>, id: &NodeId| {
+        nodes
+            .get(id)
+            .is_some_and(|node| matches!(node.content, NodeContent::Text { .. }))
+    };
+    let proposal_is_text = |proposal: &super::CorrespondenceProposal| {
+        proposal.old.iter().all(|id| is_text(&old_nodes, id))
+            && proposal.new.iter().all(|id| is_text(&new_nodes, id))
+    };
+    let source_incomplete_is_text = !source_candidates_exhaustive
+        && incomplete_source_nodes.as_ref().is_some_and(|nodes| {
+            nodes.old.iter().all(|id| is_text(&old_nodes, id))
+                && nodes.new.iter().all(|id| is_text(&new_nodes, id))
+        });
+    // Text-only ownership components are exactly the components whose
+    // obligations another text engine already answers. A component that mixes
+    // text with non-text sources keeps every obligation.
+    let text_only_component: Vec<bool> = if limits.supersede_text {
+        matching
+            .components
+            .iter()
+            .map(|component| {
+                component
+                    .proposals
+                    .iter()
+                    .all(|index| proposal_is_text(&candidates.proposals[*index]))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let mut result = ScopeViewComparison {
         obligations: Vec::new(),
         counterpart_decisions: matching.counterpart_decisions(),
@@ -434,6 +519,7 @@ fn compare_validated_scope(
         extraction_dependencies: Vec::new(),
         text_scope_reviews: Vec::new(),
         source_cut_search: None,
+        flow_owned_text: FlowOwnedTextEvidence::default(),
     };
     if !source_candidates_exhaustive && incomplete_source_nodes.is_none() {
         result.retain_unresolved(
@@ -447,12 +533,18 @@ fn compare_validated_scope(
     let pending_source = if source_candidates_exhaustive {
         Default::default()
     } else {
-        result.retain_unresolved(
-            super::UnresolvedObligation::new(
-                super::UnresolvedReason::SourceCandidateEnumerationIncomplete,
-            ),
-            "source candidate enumeration is incomplete in retained dependency regions",
-        );
+        if limits.supersede_text && source_incomplete_is_text {
+            result
+                .flow_owned_text
+                .record_unchecked(super::UnresolvedReason::SourceCandidateEnumerationIncomplete);
+        } else {
+            result.retain_unresolved(
+                super::UnresolvedObligation::new(
+                    super::UnresolvedReason::SourceCandidateEnumerationIncomplete,
+                ),
+                "source candidate enumeration is incomplete in retained dependency regions",
+            );
+        }
         super::dependencies::pending_source_proposals(
             old.graph,
             new.graph,
@@ -461,8 +553,6 @@ fn compare_validated_scope(
             incomplete_source_nodes.as_ref(),
         )
     };
-    let old_nodes: BTreeMap<_, _> = old.graph.nodes.iter().map(|node| (node.id, node)).collect();
-    let new_nodes: BTreeMap<_, _> = new.graph.nodes.iter().map(|node| (node.id, node)).collect();
     let (mut old_pending_dependencies, mut new_pending_dependencies) =
         if result.visual_search.exhaustive {
             (Default::default(), Default::default())
@@ -483,12 +573,18 @@ fn compare_validated_scope(
             )
         };
     if !result.text_search.exhaustive {
-        result.retain_unresolved(
-            super::UnresolvedObligation::new(
-                super::UnresolvedReason::TextCandidateEnumerationIncomplete,
-            ),
-            "text candidate enumeration is incomplete",
-        );
+        if limits.supersede_text {
+            result
+                .flow_owned_text
+                .record_unchecked(super::UnresolvedReason::TextCandidateEnumerationIncomplete);
+        } else {
+            result.retain_unresolved(
+                super::UnresolvedObligation::new(
+                    super::UnresolvedReason::TextCandidateEnumerationIncomplete,
+                ),
+                "text candidate enumeration is incomplete",
+            );
+        }
         old_pending_dependencies.extend(candidate_dependencies(old.graph, |node| {
             result.text_search.old_nodes.contains(&node.id)
         }));
@@ -523,43 +619,69 @@ fn compare_validated_scope(
         accepted_correspondences,
         structural_correspondences,
         comparisons,
+        flow_owned_text,
         ..
     } = &mut result;
+    flow_owned_text.components = flow_owned_text.components.saturating_add(
+        text_only_component
+            .iter()
+            .filter(|component| **component)
+            .count(),
+    );
     let mut sink = super::UnresolvedSink::new(unresolved, obligations);
     for (component_index, component) in matching.components.iter().enumerate() {
+        let component_is_text = limits.supersede_text
+            && text_only_component
+                .get(component_index)
+                .copied()
+                .unwrap_or(false);
         if component
             .proposals
             .iter()
             .any(|index| pending_source.contains(index))
         {
-            sink.retain(
-                super::UnresolvedObligation::for_component(
-                    super::UnresolvedReason::ComponentDependsOnOmittedCandidates,
-                    component_index,
-                ),
-                "a correspondence component depends on omitted source candidates",
-            );
+            if component_is_text {
+                flow_owned_text
+                    .record_unchecked(super::UnresolvedReason::ComponentDependsOnOmittedCandidates);
+            } else {
+                sink.retain(
+                    super::UnresolvedObligation::for_component(
+                        super::UnresolvedReason::ComponentDependsOnOmittedCandidates,
+                        component_index,
+                    ),
+                    "a correspondence component depends on omitted source candidates",
+                );
+            }
             continue;
         }
         if !component.exhaustive {
-            sink.retain(
-                super::UnresolvedObligation::for_component(
-                    super::UnresolvedReason::ComponentSearchBudget,
-                    component_index,
-                ),
-                "a correspondence conflict component exceeded its search budget",
-            );
+            if component_is_text {
+                flow_owned_text.record_unchecked(super::UnresolvedReason::ComponentSearchBudget);
+            } else {
+                sink.retain(
+                    super::UnresolvedObligation::for_component(
+                        super::UnresolvedReason::ComponentSearchBudget,
+                        component_index,
+                    ),
+                    "a correspondence conflict component exceeded its search budget",
+                );
+            }
         } else if component.mandatory.is_empty() {
-            sink.retain(
-                super::UnresolvedObligation::for_component(
-                    super::UnresolvedReason::CompetingOptima,
-                    component_index,
-                ),
-                "a correspondence conflict component has competing optima",
-            );
+            if component_is_text {
+                flow_owned_text.record_unchecked(super::UnresolvedReason::CompetingOptima);
+            } else {
+                sink.retain(
+                    super::UnresolvedObligation::for_component(
+                        super::UnresolvedReason::CompetingOptima,
+                        component_index,
+                    ),
+                    "a correspondence conflict component has competing optima",
+                );
+            }
         }
         for index in &component.mandatory {
             let proposal = &candidates.proposals[*index];
+            let proposal_text = limits.supersede_text && proposal_is_text(proposal);
             // Source-only mandatory matches survive every inferred supplier.
             // Other claims still depend on complete rival enumeration.
             if !text_search.protected_correspondences.contains(index)
@@ -572,26 +694,37 @@ fn compare_validated_scope(
                         .iter()
                         .any(|node| new_pending_dependencies.contains(node)))
             {
-                sink.retain(
-                    super::UnresolvedObligation::for_proposal(
-                        super::UnresolvedReason::UnexaminedRivals,
-                        *index,
-                    ),
-                    format!("correspondence {index} depends on unexamined correspondence rivals"),
-                );
+                if proposal_text {
+                    flow_owned_text.record_unchecked(super::UnresolvedReason::UnexaminedRivals);
+                } else {
+                    sink.retain(
+                        super::UnresolvedObligation::for_proposal(
+                            super::UnresolvedReason::UnexaminedRivals,
+                            *index,
+                        ),
+                        format!(
+                            "correspondence {index} depends on unexamined correspondence rivals"
+                        ),
+                    );
+                }
                 continue;
             }
             if proposal.basis == ProposalBasis::LiteralContentWithPadding {
-                text_boundary_correspondences.push(*index);
-                sink.retain(
-                    super::UnresolvedObligation::for_proposal(
-                        super::UnresolvedReason::UnpaddedTextBoundaryOnly,
-                        *index,
-                    ),
-                    format!(
-                        "correspondence {index} proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved"
-                    ),
-                );
+                if proposal_text {
+                    flow_owned_text
+                        .record_unchecked(super::UnresolvedReason::UnpaddedTextBoundaryOnly);
+                } else {
+                    text_boundary_correspondences.push(*index);
+                    sink.retain(
+                        super::UnresolvedObligation::for_proposal(
+                            super::UnresolvedReason::UnpaddedTextBoundaryOnly,
+                            *index,
+                        ),
+                        format!(
+                            "correspondence {index} proves only an unpadded text boundary; paragraph identity and any unaccounted sources remain unresolved"
+                        ),
+                    );
+                }
                 continue;
             }
             let a = old_nodes[&proposal.old[0]];
@@ -604,10 +737,17 @@ fn compare_validated_scope(
                 structural_correspondences.push(*index);
                 continue;
             }
+            if proposal_text {
+                // The correspondence still maps relationship endpoints, but no
+                // local text comparison is computed here.
+                flow_owned_text.comparisons = flow_owned_text.comparisons.saturating_add(1);
+                accepted_correspondences.push(*index);
+                continue;
+            }
             let local = if proposal.old.len() != 1 || proposal.new.len() != 1 {
-                let a: Vec<_> = proposal.old.iter().map(|node| old_nodes[node]).collect();
-                let b: Vec<_> = proposal.new.iter().map(|node| new_nodes[node]).collect();
-                compare_text_group_views(&a, &b, limits.local)
+                Err(crate::Error::Unresolved(
+                    "native text group comparison is supplied by the flow engine".into(),
+                ))
             } else {
                 compare_local_views(a, b, old.evidence, new.evidence, limits.local)
             };

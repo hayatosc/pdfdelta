@@ -1,8 +1,6 @@
 use crate::{
     Result,
-    document::{
-        NativeStructureKid, StructuredValue, extract_structure_evidence, with_native_order_proof,
-    },
+    document::{NativeStructureKid, StructuredValue, extract_structure_evidence},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
         GlyphProvenance, MarkedContent, PageId, Rect, TextRenderMode, Vec2,
@@ -195,9 +193,8 @@ fn native() -> Document<Glyph> {
     )
 }
 
-fn assert_acquisition(pdf: AnnotationPdf, expected: bool, budget: usize) {
+fn assert_acquisition(pdf: AnnotationPdf, expected: bool) {
     let native = native();
-    let before = native.clone();
     let tags = extract_structure_evidence(&pdf, &native, 0, 0, Default::default())
         .expect("bounded annotation fixture evidence");
     assert_eq!(tags.native_inventory.complete, expected);
@@ -220,40 +217,19 @@ fn assert_acquisition(pdf: AnnotationPdf, expected: bool, budget: usize) {
         }
     );
     assert!(!tags.inventory.complete);
-    let mut remaining = budget;
-    with_native_order_proof(
-        Some(Box::new(pdf)),
-        native,
-        &mut remaining,
-        |native, proof, _| {
-            assert_eq!(*native, before);
-            assert_eq!(proof.is_some(), expected && budget > 1);
-            if let Some(proof) = proof {
-                assert!(proof.binds(native));
-                assert!(!proof.binds(&before));
-                // The annotation remains a barrier and contributes no physical glyph.
-                assert_eq!(proof.runs(), &[vec![GlyphId(1)], vec![GlyphId(2)]]);
-            }
-        },
-    );
-    if budget > 1 {
-        assert!(remaining < budget);
-    } else {
-        assert_eq!(remaining, budget);
-    }
 }
 
 #[test]
 fn omitted_link_annotation_type_preserves_the_non_glyph_barrier() {
-    assert_acquisition(AnnotationPdf::link(false), true, 32_000_000);
+    assert_acquisition(AnnotationPdf::link(false), true);
 }
 
 #[test]
-fn explicit_annotation_keeps_existing_acquisition_and_budget_refusal() {
+fn explicit_annotation_keeps_existing_acquisition() {
     let mut pdf = AnnotationPdf::link(true);
     pdf.annotation.remove(b"Rect".as_slice());
-    assert_acquisition(pdf, true, 32_000_000);
-    assert_acquisition(AnnotationPdf::link(false), true, 1);
+    assert_acquisition(pdf, true);
+    assert_acquisition(AnnotationPdf::link(false), true);
 }
 
 #[test]
@@ -277,11 +253,11 @@ fn omitted_type_requires_a_known_link_and_a_finite_rectangle() {
     ] {
         let mut pdf = AnnotationPdf::link(false);
         pdf.annotation.insert(key.as_bytes().to_vec(), value);
-        assert_acquisition(pdf, false, 32_000_000);
+        assert_acquisition(pdf, false);
     }
     for key in ["Subtype", "Rect"] {
         let mut pdf = AnnotationPdf::link(false);
         pdf.annotation.remove(key.as_bytes());
-        assert_acquisition(pdf, false, 32_000_000);
+        assert_acquisition(pdf, false);
     }
 }

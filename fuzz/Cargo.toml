@@ -11,6 +11,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 pdfdelta-bench = { path = "../crates/pdfdelta-bench", features = ["fuzzing"] }
 pdfdelta-core = { path = "../crates/pdfdelta-core", features = ["fuzzing"] }
+pdfdelta-diff = { path = "../crates/pdfdelta-diff", features = ["fuzzing"] }
 
 [[bin]]
 name = "parser_entry"
@@ -36,6 +37,13 @@ bench = false
 [[bin]]
 name = "font_decoder"
 path = "fuzz_targets/font_decoder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cff_builtin_encoding"
+path = "fuzz_targets/cff_builtin_encoding.rs"
 test = false
 doc = false
 bench = false

@@ -118,6 +118,12 @@ enum FontIdentitySourceKind {
         resources: Option<PdfObject>,
         max_graph_depth: usize,
     },
+    /// A standardised CID collection whose CIDs are stable glyph numbers even
+    /// when the font program is not embedded.
+    PredefinedCid {
+        registry: Vec<u8>,
+        ordering: Vec<u8>,
+    },
 }
 
 impl FontIdentitySource {
@@ -145,6 +151,12 @@ impl FontIdentitySource {
         match &self.kind {
             FontIdentitySourceKind::EmbeddedWithSelector { selector, .. } => selector.len(),
             _ => 0,
+        }
+    }
+
+    pub(super) fn predefined_cid(registry: Vec<u8>, ordering: Vec<u8>) -> Self {
+        Self {
+            kind: FontIdentitySourceKind::PredefinedCid { registry, ordering },
         }
     }
 
@@ -308,6 +320,17 @@ pub(crate) fn load_font_identity(
             digest.update(&stream.bytes);
             stream.bytes.len()
         }
+        FontIdentitySourceKind::PredefinedCid { registry, ordering } => {
+            // CIDs from a public collection are stable glyph numbers; the font
+            // program name and subset prefix carry style, not content, so they
+            // stay out of the identity.
+            digest.update(b"predefined-cid\0");
+            digest.update((registry.len() as u64).to_be_bytes());
+            digest.update(registry);
+            digest.update((ordering.len() as u64).to_be_bytes());
+            digest.update(ordering);
+            0
+        }
         FontIdentitySourceKind::Type3 {
             char_procs,
             resources,
@@ -361,7 +384,7 @@ pub(crate) fn load_font_identity(
             decoded_bytes
         }
     };
-    let hash = FontProgramHash(digest.finalize().to_vec());
+    let hash = FontProgramHash::tagged(FontProgramHash::PROGRAM_TAG, digest.finalize().to_vec());
     Ok(LoadedFontIdentity {
         hash,
         decoded_bytes,
@@ -563,6 +586,85 @@ fn identity_digest() -> Sha256 {
     let mut digest = Sha256::new();
     digest.update(b"pdfdelta-font-glyph-identity\0v1\0");
     digest
+}
+
+/// Returns `BaseFont` with a six-uppercase-letter subset tag removed.
+///
+/// The subset tag identifies one embedding, not the glyph repertoire, so two
+/// revisions that re-subset the same family must compare by the stripped name.
+/// A name shorter than the tag form is returned unchanged.
+pub(super) fn stripped_base_font(dictionary: &PdfDict) -> Option<Vec<u8>> {
+    let PdfObject::Name(name) = dictionary.get(b"BaseFont".as_slice())? else {
+        return None;
+    };
+    let name = name.as_slice();
+    if name.len() > 7 && name.get(6) == Some(&b'+') {
+        let tag = &name[..6];
+        if tag.iter().all(u8::is_ascii_uppercase) {
+            return Some(name[7..].to_vec());
+        }
+    }
+    Some(name.to_vec())
+}
+
+/// Decodes the embedded program behind a program-level identity source.
+///
+/// Returns `None` for non-embedded identities (Standard 14 tables, predefined
+/// CID collections, Type 3 `CharProcs`). The caller must enforce its own byte
+/// budget before retaining the returned bytes.
+pub(crate) fn decoded_embedded_program(
+    pdf: &dyn ParsedPdf,
+    source: &FontIdentitySource,
+    max_decoded_bytes: usize,
+) -> Result<Option<Vec<u8>>> {
+    let reference = match &source.kind {
+        FontIdentitySourceKind::Embedded { reference, .. }
+        | FontIdentitySourceKind::EmbeddedWithSelector { reference, .. } => *reference,
+        _ => return Ok(None),
+    };
+    let stream = pdf.decoded_stream(reference)?;
+    if stream.bytes.len() > max_decoded_bytes {
+        return Err(Error::LimitExceeded {
+            resource: "decoded embedded font bytes",
+            limit: max_decoded_bytes,
+        });
+    }
+    Ok(Some(stream.bytes))
+}
+
+/// Stable identity of an unmapped glyph named by its font encoding or
+/// program.
+///
+/// The subset tag is already stripped from `base_font`; `glyph_name` is the
+/// exact name from the PDF `/Encoding` Differences or the font program. Length
+/// framing keeps `(AB, C)` and `(A, BC)` distinct. The name never resolves to
+/// Unicode here: an unmapped glyph stays a placeholder, but equal names in the
+/// same family compare equal across subsets.
+pub(crate) fn named_glyph_identity(base_font: &[u8], glyph_name: &[u8]) -> FontProgramHash {
+    let mut digest = Sha256::new();
+    digest.update(b"pdfdelta-glyph-name-identity\0v1\0");
+    digest.update((base_font.len() as u64).to_be_bytes());
+    digest.update(base_font);
+    digest.update((glyph_name.len() as u64).to_be_bytes());
+    digest.update(glyph_name);
+    FontProgramHash::tagged(FontProgramHash::NAME_TAG, digest.finalize().to_vec())
+}
+
+/// Stable identity of an unmapped glyph from its outline program.
+///
+/// `outline` is the decoded charstring or glyph entry of exactly one glyph;
+/// composite outlines must include their components' outline identities rather
+/// than glyph ids. Callers must not pass an empty outline: an absent drawing is
+/// not evidence that two distinct glyphs are equal. Length framing keeps
+/// concatenations distinct.
+pub(crate) fn outline_glyph_identity(base_font: &[u8], outline: &[u8]) -> FontProgramHash {
+    let mut digest = Sha256::new();
+    digest.update(b"pdfdelta-glyph-outline-identity\0v1\0");
+    digest.update((base_font.len() as u64).to_be_bytes());
+    digest.update(base_font);
+    digest.update((outline.len() as u64).to_be_bytes());
+    digest.update(outline);
+    FontProgramHash::tagged(FontProgramHash::OUTLINE_TAG, digest.finalize().to_vec())
 }
 
 fn ensure_identity_bytes(decoded_bytes: usize, limit: usize) -> Result<()> {

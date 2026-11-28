@@ -6,6 +6,7 @@ publish = false
 license.workspace = true
 repository.workspace = true
 description = "Benchmark fixtures and evaluation tooling for pdfdelta"
+default-run = "pdfbench"
 
 [[bin]]
 name = "pdfbench"
@@ -29,7 +30,8 @@ serde.workspace = true
 serde_json.workspace = true
 serde-saphyr.workspace = true
 sha2.workspace = true
-pdfdelta-core = { path = "../pdfdelta-core" }
+pdfdelta-core = { path = "../pdfdelta-core", features = ["predefined-cid-unicode"] }
+pdfdelta-diff = { path = "../pdfdelta-diff" }
 
 [dev-dependencies]
 hayro = "=0.7.1"

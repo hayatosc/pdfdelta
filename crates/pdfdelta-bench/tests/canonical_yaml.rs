@@ -13,12 +13,12 @@ use pdfdelta_bench::{
     renderers::{RenderLimits, RendererKind},
 };
 use pdfdelta_core::{
-    diff::ChangeKind,
     layout::{reconstruct_blocks, reconstruct_lines},
     normalize::normalize_blocks,
+    options::PipelineOptions,
     pdf::{LopdfParser, ParseLimits},
-    pipeline::PipelineOptions,
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
+    span::ChangeKind,
 };
 
 const EXAMPLE_YAML: &str = r"
@@ -116,7 +116,7 @@ fn canonical_mutation_evaluates_vendored_typst_output() {
     assert_eq!(record.renderer, "typst-0.15.1");
     assert_eq!(
         record.actual_kinds,
-        [pdfdelta_core::diff::ChangeKind::Replacement]
+        [pdfdelta_core::span::ChangeKind::Replacement]
     );
     assert_eq!(record.old_coverage, Some(1.0));
     assert_eq!(record.new_coverage, Some(1.0));
@@ -1421,11 +1421,11 @@ fn evaluate_yaml_command_runs_cross_section_paragraph_move_for_each_renderer() {
                 "1",
             ],
         );
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        // The destination section heading and its paragraph form two
+        // reconstructed blocks; the moved paragraph is one. Flow prefers the
+        // explanation that relocates fewer blocks, so the paragraph is reported
+        // as the move instead of the heading group.
+        assert!(output.status.success(), "{output:?}");
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
         assert!(

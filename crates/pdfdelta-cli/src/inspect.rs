@@ -236,7 +236,7 @@ pub fn inspect_svg(
         .map_err(inspect_error(path))?;
     let document = outcome.document();
     write_output_atomically(svg_path, "SVG overlay", |mut writer| {
-        pdfdelta_core::report::write_glyph_overlay_svg(document, &mut writer)
+        pdfdelta_core::overlay_svg::write_glyph_overlay_svg(document, &mut writer)
             .map_err(|error| format!("cannot render svg overlay for {}: {error}", path.display()))
     })
 }
@@ -307,7 +307,8 @@ pub fn format_glyph(glyph: &Glyph) -> String {
             font_hash,
             glyph_id,
         } => format!(
-            "unmapped-font-hash={} unmapped-glyph-id={glyph_id}",
+            "unmapped-identity={} unmapped-font-hash={} unmapped-glyph-id={glyph_id}",
+            font_hash.identity_source().name(),
             lowercase_hex(&font_hash.0)
         ),
     };

@@ -10,6 +10,9 @@ description = "Backend-neutral PDF extraction and document comparison library"
 [features]
 default = []
 fuzzing = []
+# Bundle the Adobe predefined CID-to-Unicode collections for non-embedded
+# Type0 fonts. Core without this feature keeps the existing placeholder path.
+predefined-cid-unicode = ["hayro-cmap/embed-cmaps"]
 
 [dependencies]
 flate2 = "1.1"

@@ -14,11 +14,10 @@ use sha2::{Digest, Sha256};
 use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
-/// key, the extraction contract, or the cached payload shape. Version 34
-/// invalidates outcomes predating strict whole-box boundary exclusion and exact
-/// winding for owned curve witnesses with every original prior constraint.
+/// key, the extraction contract, or the cached payload shape. Version 35
+/// adds exact non-text paint identities and invalidates older outcomes.
 /// The separate font-decoding experiment has a different extraction contract.
-const CACHE_FORMAT_VERSION: u32 = 34;
+const CACHE_FORMAT_VERSION: u32 = 35;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
 /// are treated as corrupt rather than parsed, and the bound is enforced during
@@ -121,9 +120,31 @@ impl ExtractionCache {
         font_identities: &ExternalFontIdentities,
         extract: impl FnOnce() -> Result<ExtractionOutcome, E>,
     ) -> Result<(ExtractionOutcome, bool), E> {
-        let limits = ExtractionLimits::default();
-        let key = cache_key(bytes, parse_limits, &limits, password, font_identities);
-        if let Some(outcome) = self.load(&key, &limits) {
+        self.get_or_extract_with_limits(
+            bytes,
+            parse_limits,
+            password,
+            font_identities,
+            &ExtractionLimits::default(),
+            extract,
+        )
+    }
+
+    /// [`Self::get_or_extract`] with explicit extraction limits.
+    ///
+    /// The limits are part of the cache key, so a scaled flow comparison never
+    /// reuses an outcome produced under the default glyph and operator budgets.
+    pub fn get_or_extract_with_limits<E>(
+        &self,
+        bytes: &[u8],
+        parse_limits: &ParseLimits,
+        password: Option<&str>,
+        font_identities: &ExternalFontIdentities,
+        limits: &ExtractionLimits,
+        extract: impl FnOnce() -> Result<ExtractionOutcome, E>,
+    ) -> Result<(ExtractionOutcome, bool), E> {
+        let key = cache_key(bytes, parse_limits, limits, password, font_identities);
+        if let Some(outcome) = self.load(&key, limits) {
             return Ok((outcome, true));
         }
         let outcome = extract()?;
@@ -418,6 +439,9 @@ mod tests {
                     bounds: Some(glyph(1).bbox),
                     content_stream: glyph(1).provenance.content_stream,
                     operator_index: 0,
+                    kind: pdfdelta_core::model::NonTextPaintKind::Path,
+                    identity: Some("fixture".to_owned()),
+                    shape: Some("fixture".to_owned()),
                 },
             ]),
         )

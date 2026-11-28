@@ -2,6 +2,7 @@
 //! never parser or renderer objects or an unbounded decoded raster.
 
 use std::{
+    collections::HashMap,
     io::{Read, Write},
     process::Command,
     sync::{
@@ -13,6 +14,7 @@ use std::{
 
 use hayro::{
     hayro_interpret::{self as hi, Device, Image, ImageData, Paint, TransformExt},
+    hayro_syntax::object::{Dict, Name, Object, Stream},
     vello_cpu::kurbo::{Affine, BezPath, Rect},
 };
 use pdfdelta_core::{
@@ -28,6 +30,71 @@ use sha2::{Digest, Sha256};
 const MAX_RESPONSE: usize = 8 * 1024 * 1024;
 const MAX_TOTAL_PIXELS: u64 = 64_000_000;
 
+/// CPU seconds allowed to one image-decoding worker call.
+///
+/// Measured over the 36-pair channel panel: 56 successful document calls have
+/// median about 0.18 s, p99 and max about 13.7 s (the `mhlw-care-skills` new
+/// side); the 16 calls that stop at an inventory limit before responding were
+/// timed separately and peak at about 3.8 s. Sixty seconds is about a 4.4x
+/// margin over the observed maximum and roughly matches the render document
+/// budget's 4.5x headroom. One call parses the whole input and visits every
+/// page, so a single decoded page call cannot exceed this bound.
+pub(crate) const IMAGE_CPU_BUDGET_SECONDS: u64 = 60;
+
+/// Wall-clock safety stop for one image-decoding worker call.
+///
+/// The deterministic limit is [`IMAGE_CPU_BUDGET_SECONDS`]. This cap is five
+/// times that budget and only stops a worker that is blocked or descheduled
+/// far beyond the measured distribution. At a 25% CPU quota the full CPU
+/// budget takes about 240 wall seconds, so the CPU budget still expires first.
+const IMAGE_WALL_SAFETY_SECONDS: u64 = 300;
+
+/// Child CPU and wall-clock budgets for one image-decoding worker call.
+///
+/// [`Self::for_limit_scale`] multiplies every value by the command's
+/// `--limit-scale`, so a slower machine raises the deterministic CPU budget
+/// and its load-dependent wall backstop together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ImageBudgets {
+    pub(crate) cpu_seconds: u64,
+    pub(crate) wall: Duration,
+}
+
+impl ImageBudgets {
+    /// Scales the measured defaults by a validated `--limit-scale` factor.
+    ///
+    /// The CLI rejects non-finite factors below one before this runs. The
+    /// conversion saturates instead of wrapping.
+    pub(crate) fn for_limit_scale(limit_scale: f64) -> Self {
+        Self {
+            cpu_seconds: crate::render::scale_seconds(IMAGE_CPU_BUDGET_SECONDS, limit_scale),
+            wall: Duration::from_secs(crate::render::scale_seconds(
+                IMAGE_WALL_SAFETY_SECONDS,
+                limit_scale,
+            )),
+        }
+    }
+
+    /// Wall-clock seconds of the configured backstop.
+    pub(crate) const fn wall_seconds(&self) -> u64 {
+        self.wall.as_secs()
+    }
+}
+
+/// Child CPU consumed by one image worker call.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ImageCpuSummary {
+    pub(crate) calls: usize,
+    pub(crate) cpu_micros: u64,
+}
+
+/// Image-worker CPU evidence for both sides of one comparison.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ImageCpuReport {
+    pub(crate) old: ImageCpuSummary,
+    pub(crate) new: ImageCpuSummary,
+}
+
 fn revision(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -35,14 +102,86 @@ fn revision(bytes: &[u8]) -> String {
         .collect()
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Response {
     revision: String,
     pages: Vec<ObjectRef>,
     inventory: ImageInventory,
+    #[serde(default)]
+    encoded: Option<EncodedPageIdentity>,
+    /// Child process CPU consumed before writing the response.
+    cpu_micros: u64,
 }
 
-pub fn collect(bytes: &[u8], pages: &[PageRef], password_supplied: bool) -> ImageInventory {
+/// Sufficient page identity from encoded image streams without decoding.
+///
+/// Equal `sha256` values mean the same ordered image `XObject` streams with the same
+/// encoded stream bytes, pixel-affecting dictionaries and CTMs were painted.
+/// Different values prove nothing about pixel equality.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EncodedPageIdentity {
+    pub page: PageId,
+    pub complete: bool,
+    pub occurrences: u32,
+    pub sha256: Option<String>,
+    pub issues: Vec<String>,
+}
+
+impl EncodedPageIdentity {
+    fn fail(&mut self, reason: &str) {
+        self.complete = false;
+        if !self.issues.iter().any(|issue| issue == reason) {
+            self.issues.push(reason.into());
+        }
+    }
+
+    fn validate(&self, page: PageId) -> Result<(), String> {
+        if self.page != page {
+            return Err("encoded image identity page mismatch".into());
+        }
+        let valid_hash = self.sha256.as_ref().is_some_and(|hash| {
+            hash.len() == 64
+                && hash
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        });
+        if self.complete != valid_hash
+            || self.complete != self.issues.is_empty()
+            || (self.complete && self.occurrences == 0)
+        {
+            return Err("invalid encoded image identity evidence".into());
+        }
+        Ok(())
+    }
+}
+
+const MAX_ENCODED_DEPTH: usize = 8;
+const MAX_ENCODED_NODES: usize = 4_096;
+const MAX_ENCODED_BYTES: u64 = 256 * 1024 * 1024;
+const IMAGE_DICTIONARY_KEYS: [&[u8]; 12] = [
+    b"Width",
+    b"Height",
+    b"ColorSpace",
+    b"CS",
+    b"BitsPerComponent",
+    b"BPC",
+    b"Filter",
+    b"F",
+    b"DecodeParms",
+    b"DP",
+    b"Decode",
+    b"ImageMask",
+];
+const IMAGE_MASK_KEYS: [&[u8]; 2] = [b"SMask", b"Mask"];
+
+pub fn collect(
+    bytes: &[u8],
+    pages: &[PageRef],
+    password_supplied: bool,
+    limit_scale: f64,
+) -> (ImageInventory, ImageCpuSummary) {
+    let budgets = ImageBudgets::for_limit_scale(limit_scale);
+    let mut cpu = ImageCpuSummary::default();
     let result = (|| {
         if password_supplied {
             return Err("password-assisted image decoding is not implemented".into());
@@ -50,11 +189,8 @@ pub fn collect(bytes: &[u8], pages: &[PageRef], password_supplied: bool) -> Imag
         let mut command =
             Command::new(std::env::current_exe().map_err(|e| format!("image worker: {e}"))?);
         command.arg("hash-images");
-        let output =
-            crate::render::run_bounded(&mut command, bytes, MAX_RESPONSE, Duration::from_secs(30))
-                .map_err(|(kind, reason)| format!("{kind:?}: {reason}"))?;
-        let response: Response =
-            serde_json::from_slice(&output).map_err(|e| format!("invalid image response: {e}"))?;
+        let (response, measured) = run_worker(&mut command, bytes, budgets)?;
+        cpu = measured;
         if response.revision != revision(bytes)
             || response.pages != pages.iter().map(|p| p.0).collect::<Vec<_>>()
             || response
@@ -68,15 +204,161 @@ pub fn collect(bytes: &[u8], pages: &[PageRef], password_supplied: bool) -> Imag
         response.inventory.validate().map_err(|e| e.to_string())?;
         Ok(response.inventory)
     })();
-    result.unwrap_or_else(|reason| ImageInventory {
-        images: Vec::new(),
-        complete: false,
-        issues: vec![reason],
-    })
+    (
+        result.unwrap_or_else(|reason| ImageInventory {
+            images: Vec::new(),
+            complete: false,
+            issues: vec![reason],
+        }),
+        cpu,
+    )
 }
 
-pub fn worker() -> Result<(), u8> {
-    crate::render::restrict_process(25)?;
+pub fn collect_page(
+    bytes: &[u8],
+    pages: &[PageRef],
+    page: PageId,
+    password_supplied: bool,
+    limit_scale: f64,
+) -> (ImageInventory, ImageCpuSummary) {
+    let budgets = ImageBudgets::for_limit_scale(limit_scale);
+    let mut cpu = ImageCpuSummary::default();
+    let result = (|| {
+        if password_supplied {
+            return Err("password-assisted image decoding is not implemented".into());
+        }
+        if page.0 as usize >= pages.len() {
+            return Err("image page index is outside the page list".into());
+        }
+        let mut command =
+            Command::new(std::env::current_exe().map_err(|e| format!("image worker: {e}"))?);
+        command
+            .arg("hash-image-page")
+            .arg("--page")
+            .arg(page.0.to_string());
+        let (response, measured) = run_worker(&mut command, bytes, budgets)?;
+        cpu = measured;
+        if response.revision != revision(bytes)
+            || response.pages != pages.iter().map(|p| p.0).collect::<Vec<_>>()
+            || response
+                .inventory
+                .images
+                .iter()
+                .any(|image| image.page != page)
+        {
+            return Err("image worker input or page identity mismatch".into());
+        }
+        response.inventory.validate().map_err(|e| e.to_string())?;
+        Ok(response.inventory)
+    })();
+    (
+        result.unwrap_or_else(|reason| ImageInventory {
+            images: Vec::new(),
+            complete: false,
+            issues: vec![reason],
+        }),
+        cpu,
+    )
+}
+
+/// Collects the encoded-only identity for one image-only page.
+///
+/// This never decodes image data. Callers must use an equal hash only as a
+/// sufficient equality certificate and fall back to decoded pixels otherwise.
+pub fn collect_encoded_page(
+    bytes: &[u8],
+    pages: &[PageRef],
+    page: PageId,
+    password_supplied: bool,
+    limit_scale: f64,
+) -> (EncodedPageIdentity, ImageCpuSummary) {
+    let budgets = ImageBudgets::for_limit_scale(limit_scale);
+    let mut cpu = ImageCpuSummary::default();
+    let failure = |reason: String| EncodedPageIdentity {
+        page,
+        complete: false,
+        occurrences: 0,
+        sha256: None,
+        issues: vec![reason],
+    };
+    if password_supplied {
+        return (
+            failure("password-assisted image decoding is not implemented".into()),
+            cpu,
+        );
+    }
+    if page.0 as usize >= pages.len() {
+        return (
+            failure("image page index is outside the page list".into()),
+            cpu,
+        );
+    }
+    let result = (|| {
+        let mut command =
+            Command::new(std::env::current_exe().map_err(|e| format!("image worker: {e}"))?);
+        command
+            .arg("hash-image-page-encoded")
+            .arg("--page")
+            .arg(page.0.to_string());
+        let (response, measured) = run_worker(&mut command, bytes, budgets)?;
+        cpu = measured;
+        if response.revision != revision(bytes)
+            || response.pages != pages.iter().map(|p| p.0).collect::<Vec<_>>()
+        {
+            return Err("image worker input or page identity mismatch".into());
+        }
+        let encoded = response
+            .encoded
+            .ok_or_else(|| "encoded image identity response is missing".to_owned())?;
+        encoded.validate(page)?;
+        Ok(encoded)
+    })();
+    (result.unwrap_or_else(failure), cpu)
+}
+
+/// Runs one image worker with its scaled CPU and wall budgets.
+///
+/// `run_bounded` classifies a `SIGXCPU` termination and the worker's limits
+/// exit code 3 as resource-limit outcomes; the reason keeps the typed kind so
+/// the inventory issue uses the same vocabulary as render limits.
+fn run_worker(
+    command: &mut Command,
+    bytes: &[u8],
+    budgets: ImageBudgets,
+) -> Result<(Response, ImageCpuSummary), String> {
+    command
+        .arg("--cpu-seconds")
+        .arg(budgets.cpu_seconds.to_string());
+    let output = crate::render::run_bounded(command, bytes, MAX_RESPONSE, budgets.wall)
+        .map_err(|(kind, reason)| format!("{kind:?}: {reason}"))?;
+    let response: Response =
+        serde_json::from_slice(&output).map_err(|e| format!("invalid image response: {e}"))?;
+    let summary = ImageCpuSummary {
+        calls: 1,
+        cpu_micros: response.cpu_micros,
+    };
+    Ok((response, summary))
+}
+
+pub fn worker(cpu_seconds: u64) -> Result<(), u8> {
+    worker_inner(None, true, false, cpu_seconds)
+}
+
+pub fn worker_page(page: usize, cpu_seconds: u64) -> Result<(), u8> {
+    worker_inner(Some(page), true, false, cpu_seconds)
+}
+
+pub fn worker_encoded_page(page: usize, cpu_seconds: u64) -> Result<(), u8> {
+    worker_inner(Some(page), false, true, cpu_seconds)
+}
+
+fn worker_inner(
+    selected_page: Option<usize>,
+    decode: bool,
+    record_encoded: bool,
+    cpu_seconds: u64,
+) -> Result<(), u8> {
+    crate::render::restrict_process(cpu_seconds)?;
     let mut bytes = Vec::new();
     let limit = ParseLimits::default().max_input_bytes;
     std::io::stdin()
@@ -109,6 +391,17 @@ pub fn worker() -> Result<(), u8> {
         occurrence: 0,
         pixels: 0,
         limited: false,
+        decode,
+        record_encoded,
+        encoded: EncodedPageIdentity {
+            page: PageId(0),
+            complete: false,
+            occurrences: 0,
+            sha256: None,
+            issues: Vec::new(),
+        },
+        encoded_hash: Sha256::new(),
+        encoded_state: EncodedHashState::default(),
     };
     let mut pages = Vec::new();
     for (index, page) in pdf.pages().iter().enumerate() {
@@ -119,6 +412,21 @@ pub fn worker() -> Result<(), u8> {
         });
         device.page = PageId(index as u32);
         device.occurrence = 0;
+        if selected_page.is_some_and(|selected| selected != index) {
+            continue;
+        }
+        if record_encoded {
+            device.encoded = EncodedPageIdentity {
+                page: device.page,
+                complete: true,
+                occurrences: 0,
+                sha256: None,
+                issues: Vec::new(),
+            };
+            device.encoded_hash = Sha256::new();
+            device.encoded_hash.update(b"flow-image-encoded-page-v1\0");
+            device.encoded_state = EncodedHashState::default();
+        }
         // Annotation appearances and patterns require their own acquisition contract.
         if page
             .raw()
@@ -126,6 +434,9 @@ pub fn worker() -> Result<(), u8> {
             .is_some()
         {
             device.incomplete("annotation image inventory is not examined");
+            device
+                .encoded
+                .fail("annotation image inventory is not examined");
         }
         let (width, height) = page.render_dimensions();
         if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
@@ -146,12 +457,32 @@ pub fn worker() -> Result<(), u8> {
     }
     if warned.load(Ordering::Relaxed) {
         device.incomplete("image interpreter reported warnings; image inventory may be incomplete");
+        device
+            .encoded
+            .fail("image interpreter reported warnings; encoded image identity may be incomplete");
     }
     device.inventory.validate().map_err(|_| 2)?;
+    let encoded = if record_encoded {
+        if device.encoded.occurrences == 0 {
+            device.encoded.fail("no painted image was found");
+        }
+        if device.encoded.complete {
+            device.encoded.sha256 = Some(digest_hex(&device.encoded_hash.finalize()));
+        }
+        device
+            .encoded
+            .validate(device.encoded.page)
+            .map_err(|_| 2)?;
+        Some(device.encoded)
+    } else {
+        None
+    };
     let response = Response {
         revision,
         pages,
         inventory: device.inventory,
+        encoded,
+        cpu_micros: crate::render::process_cpu_micros(),
     };
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     serde_json::to_writer(
@@ -168,6 +499,200 @@ struct Images {
     occurrence: u32,
     pixels: u64,
     limited: bool,
+    decode: bool,
+    record_encoded: bool,
+    encoded: EncodedPageIdentity,
+    encoded_hash: Sha256,
+    encoded_state: EncodedHashState,
+}
+
+#[derive(Default)]
+struct EncodedHashState {
+    bytes: u64,
+    nodes: usize,
+    image_memo: HashMap<(i32, i32), String>,
+    generic_memo: HashMap<(i32, i32), String>,
+}
+
+impl EncodedHashState {
+    fn spend_node(&mut self) -> Option<()> {
+        if self.nodes >= MAX_ENCODED_NODES {
+            return None;
+        }
+        self.nodes += 1;
+        Some(())
+    }
+
+    fn account_bytes(&mut self, bytes: u64) -> Option<()> {
+        self.bytes = self.bytes.checked_add(bytes)?;
+        (self.bytes <= MAX_ENCODED_BYTES).then_some(())
+    }
+
+    fn image_stream_identity(&mut self, stream: &Stream<'_>, depth: usize) -> Option<String> {
+        if depth > MAX_ENCODED_DEPTH {
+            return None;
+        }
+        let id = stream.obj_id();
+        let key = (id.obj_number, id.gen_number);
+        if key.0 != 0
+            && let Some(hash) = self.image_memo.get(&key)
+        {
+            return Some(hash.clone());
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(b"image-stream\0");
+        self.hash_image_dict(stream.dict(), &mut hasher, depth + 1)?;
+        let raw = stream.raw_data();
+        self.account_bytes(raw.len() as u64)?;
+        hasher.update(b"raw\0");
+        hasher.update(raw.as_ref());
+        let hash = digest_hex(&hasher.finalize());
+        if key.0 != 0 {
+            self.image_memo.insert(key, hash.clone());
+        }
+        Some(hash)
+    }
+
+    fn generic_stream_identity(&mut self, stream: &Stream<'_>, depth: usize) -> Option<String> {
+        if depth > MAX_ENCODED_DEPTH {
+            return None;
+        }
+        let id = stream.obj_id();
+        let key = (id.obj_number, id.gen_number);
+        if key.0 != 0
+            && let Some(hash) = self.generic_memo.get(&key)
+        {
+            return Some(hash.clone());
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(b"generic-stream\0");
+        let dict = stream.dict();
+        let mut keys = dict.keys().collect::<Vec<Name<'_>>>();
+        keys.sort_by(|left, right| left.as_ref().cmp(right.as_ref()));
+        hasher.update((keys.len() as u64).to_be_bytes());
+        for key in keys {
+            hasher.update(key.as_ref());
+            match dict.get::<Object<'_>>(key.as_ref()) {
+                Some(value) => {
+                    hasher.update([1]);
+                    self.hash_object(&value, &mut hasher, depth + 1)?;
+                }
+                None => hasher.update([0]),
+            }
+        }
+        let raw = stream.raw_data();
+        self.account_bytes(raw.len() as u64)?;
+        hasher.update(b"raw\0");
+        hasher.update(raw.as_ref());
+        let hash = digest_hex(&hasher.finalize());
+        if key.0 != 0 {
+            self.generic_memo.insert(key, hash.clone());
+        }
+        Some(hash)
+    }
+
+    fn hash_image_dict(
+        &mut self,
+        dict: &Dict<'_>,
+        hasher: &mut Sha256,
+        depth: usize,
+    ) -> Option<()> {
+        if depth > MAX_ENCODED_DEPTH {
+            return None;
+        }
+        self.spend_node()?;
+        for key in IMAGE_DICTIONARY_KEYS {
+            hasher.update(key);
+            hasher.update([0]);
+            match dict.get::<Object<'_>>(key) {
+                Some(value) => {
+                    hasher.update([1]);
+                    self.hash_object(&value, hasher, depth + 1)?;
+                }
+                None => hasher.update([0]),
+            }
+        }
+        for key in IMAGE_MASK_KEYS {
+            hasher.update(key);
+            hasher.update([0]);
+            match dict.get::<Object<'_>>(key) {
+                Some(Object::Stream(stream)) => {
+                    hasher.update([2]);
+                    let hash = self.image_stream_identity(&stream, depth + 1)?;
+                    hasher.update(hash.as_bytes());
+                }
+                Some(value) => {
+                    hasher.update([1]);
+                    self.hash_object(&value, hasher, depth + 1)?;
+                }
+                None => hasher.update([0]),
+            }
+        }
+        Some(())
+    }
+
+    fn hash_object(
+        &mut self,
+        object: &Object<'_>,
+        hasher: &mut Sha256,
+        depth: usize,
+    ) -> Option<()> {
+        if depth > MAX_ENCODED_DEPTH {
+            return None;
+        }
+        self.spend_node()?;
+        match object {
+            Object::Null(_) => hasher.update(b"null"),
+            Object::Boolean(value) => hasher.update([b'b', u8::from(*value)]),
+            Object::Number(value) => {
+                hasher.update(b"number");
+                hasher.update(value.as_f64().to_bits().to_be_bytes());
+            }
+            Object::String(value) => {
+                hasher.update(b"string");
+                hasher.update((value.len() as u64).to_be_bytes());
+                hasher.update(value.as_bytes());
+            }
+            Object::Name(value) => {
+                hasher.update(b"name");
+                hasher.update((value.len() as u64).to_be_bytes());
+                hasher.update(value.as_ref());
+            }
+            Object::Array(array) => {
+                hasher.update(b"array");
+                hasher.update((array.raw_iter().count() as u64).to_be_bytes());
+                for item in array.iter::<Object<'_>>() {
+                    self.hash_object(&item, hasher, depth + 1)?;
+                }
+            }
+            Object::Dict(dict) => {
+                let mut keys = dict.keys().collect::<Vec<Name<'_>>>();
+                keys.sort_by(|left, right| left.as_ref().cmp(right.as_ref()));
+                hasher.update(b"dict");
+                hasher.update((keys.len() as u64).to_be_bytes());
+                for key in keys {
+                    hasher.update(key.as_ref());
+                    match dict.get::<Object<'_>>(key.as_ref()) {
+                        Some(value) => {
+                            hasher.update([1]);
+                            self.hash_object(&value, hasher, depth + 1)?;
+                        }
+                        None => hasher.update([0]),
+                    }
+                }
+            }
+            Object::Stream(stream) => {
+                hasher.update(b"stream");
+                let hash = self.generic_stream_identity(stream, depth + 1)?;
+                hasher.update(hash.as_bytes());
+            }
+        }
+        Some(())
+    }
+}
+
+fn digest_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 // The decoder can silently skip unknown filter names. Reject those and unsupported
@@ -251,12 +776,53 @@ impl Images {
     fn paint(&mut self, paint: &Paint<'_>) {
         if matches!(paint, Paint::Pattern(_)) {
             self.incomplete("pattern image inventory is not examined");
+            self.encoded.fail("pattern image inventory is not examined");
         }
+    }
+
+    fn hash_encoded_image(&mut self, image: &Image<'_, '_>, transform: Affine) {
+        let Image::Raster(raster) = image else {
+            self.encoded
+                .fail("stencil image encoded identity is not implemented");
+            return;
+        };
+        let (width, height) = (image.width(), image.height());
+        let coefficients = transform.as_coeffs();
+        if coefficients.iter().any(|value| !value.is_finite()) {
+            self.encoded.fail("invalid encoded image placement");
+            return;
+        }
+        let Some(identity) = self.encoded_state.image_stream_identity(raster.stream(), 0) else {
+            self.encoded
+                .fail("encoded image stream identity is unavailable");
+            return;
+        };
+        let Some(occurrence) = self.encoded.occurrences.checked_add(1) else {
+            self.encoded
+                .fail("encoded image occurrence address space is exhausted");
+            return;
+        };
+        let hasher = &mut self.encoded_hash;
+        hasher.update(b"image\0");
+        hasher.update(self.encoded.occurrences.to_be_bytes());
+        for value in coefficients {
+            hasher.update((if value == 0.0 { 0 } else { value.to_bits() }).to_be_bytes());
+        }
+        hasher.update(width.to_be_bytes());
+        hasher.update(height.to_be_bytes());
+        hasher.update(identity.as_bytes());
+        self.encoded.occurrences = occurrence;
     }
 }
 
 impl<'a> Device<'a> for Images {
     fn draw_image(&mut self, image: Image<'a, '_>, transform: Affine) {
+        if self.record_encoded {
+            self.hash_encoded_image(&image, transform);
+        }
+        if !self.decode {
+            return;
+        }
         if self.limited {
             return;
         }
@@ -362,6 +928,8 @@ impl<'a> Device<'a> for Images {
     fn set_soft_mask(&mut self, mask: Option<hi::SoftMask<'a>>) {
         if mask.is_some() {
             self.incomplete("graphics soft-mask image inventory is not examined");
+            self.encoded
+                .fail("graphics soft-mask image inventory is not examined");
         }
     }
     fn set_blend_mode(&mut self, _: hi::BlendMode) {}
@@ -390,6 +958,65 @@ impl<'a> Device<'a> for Images {
         self.paint(paint);
         if matches!(glyph, hi::font::Glyph::Type3(_)) {
             self.incomplete("Type3 glyph image inventory is not examined");
+            self.encoded
+                .fail("Type3 glyph image inventory is not examined");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn image_budgets_scale_with_the_limit_factor() {
+        let base = ImageBudgets::for_limit_scale(1.0);
+        assert_eq!(base.cpu_seconds, 60);
+        assert_eq!(base.wall_seconds(), 300);
+
+        let scaled = ImageBudgets::for_limit_scale(2.5);
+        assert_eq!(scaled.cpu_seconds, 150);
+        assert_eq!(scaled.wall_seconds(), 750);
+
+        let saturated = ImageBudgets::for_limit_scale(f64::MAX);
+        assert_eq!(saturated.cpu_seconds, u64::MAX);
+        assert_eq!(saturated.wall_seconds(), u64::MAX);
+    }
+
+    #[test]
+    fn run_worker_passes_the_scaled_cpu_budget_and_reads_its_measurement() {
+        let budgets = ImageBudgets::for_limit_scale(2.0);
+        let mut command = Command::new("sh");
+        command.args([
+            "-c",
+            r#"printf '{"revision":"fixture","pages":[],"inventory":{"images":[],"complete":true,"issues":[]},"cpu_micros":%s}' "$1""#,
+        ]);
+        let (response, summary) =
+            run_worker(&mut command, &[], budgets).expect("the scripted worker response parses");
+        assert_eq!(response.revision, "fixture");
+        assert_eq!(
+            response.cpu_micros, budgets.cpu_seconds,
+            "the worker must receive the scaled CPU budget"
+        );
+        assert_eq!(summary.calls, 1);
+        assert_eq!(summary.cpu_micros, budgets.cpu_seconds);
+    }
+
+    #[test]
+    fn image_worker_wall_stop_is_a_typed_resource_limit() {
+        let budgets = ImageBudgets {
+            cpu_seconds: 1,
+            wall: Duration::from_millis(50),
+        };
+        let mut command = Command::new("sh");
+        command.args(["-c", "exec sleep 30"]);
+        let error = run_worker(&mut command, &[], budgets)
+            .expect_err("a blocked worker must not outlive its wall backstop");
+        assert!(
+            error.starts_with("ResourceLimit:"),
+            "the wall stop keeps the typed kind: {error}"
+        );
+        assert!(error.contains("wall-clock safety stop"), "{error}");
+        assert!(error.contains("machine load"), "{error}");
     }
 }

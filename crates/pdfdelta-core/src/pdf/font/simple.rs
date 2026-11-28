@@ -2,14 +2,16 @@ use std::collections::BTreeMap;
 
 use crate::{
     Error, Result,
+    model::FontProgramHash,
     pdf::{ParsedPdf, PdfDict, PdfObject},
 };
 
 use super::cmap::{ToUnicodeCMap, UnicodeMapping};
 use super::common::{
     FontIdentityDomain, FontIdentitySource, apply_bbox_vertical_fallback, finite_number,
-    load_descriptor_bbox, load_to_unicode, non_negative_number, optional_number,
-    resolve_font_identity_source, resolve_object, type3_font_identity_source, unresolved,
+    load_descriptor_bbox, load_to_unicode, named_glyph_identity, non_negative_number,
+    optional_number, resolve_font_identity_source, resolve_object, resolve_stream_reference,
+    stripped_base_font, type3_font_identity_source, unresolved,
 };
 use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
@@ -45,7 +47,14 @@ pub(crate) struct SimpleFontDecoder {
     widths: Option<Vec<f64>>,
     missing_width: f64,
     base14: Option<Base14>,
+    /// The standard-14 Symbol/`ZapfDingbats` built-in encoding supplies the text
+    /// for codes without a `ToUnicode` entry or a `/Encoding` Difference.
+    standard_symbol_table: bool,
     type3_identity_glyph_ids: Option<BTreeMap<u8, u16>>,
+    /// Per-code identities for unmapped glyphs whose encoding names them.
+    /// Empty when the font has no stable `BaseFont` or the Differences are
+    /// ambiguous; those glyphs fall back to the program identity.
+    name_identities: BTreeMap<u8, FontProgramHash>,
     ascent: f64,
     descent: f64,
 }
@@ -73,6 +82,12 @@ struct LoadedEncoding {
     identity_ambiguous: bool,
     standard14_identity_encoding: Option<&'static [u8]>,
     explicit_encoding: bool,
+    /// The font is the standard-14 Symbol/ZapfDingbats family without an
+    /// embedded program, so its Annex D built-in encoding supplies text.
+    standard_symbol_table: bool,
+    /// Decoded embedded Type1 program bytes read while recovering its built-in
+    /// encoding. These bytes are charged to the normal font-byte budget.
+    decoded_bytes: usize,
 }
 
 struct Type3Metadata {
@@ -290,6 +305,28 @@ impl SimpleFontDecoder {
             (source, None)
         };
 
+        // A glyph name is the strongest stable identity available: the same
+        // name in the same font family denotes the same glyph even when each
+        // revision re-subsets the program. Type 3 fonts are excluded because
+        // their CharProc stream identity is already content-based, and
+        // ambiguous Differences cannot assign a unique name to a code.
+        let name_identities = if type3.is_none() && !encoding.identity_ambiguous {
+            stripped_base_font(&dictionary).map_or_else(BTreeMap::new, |base_font| {
+                encoding
+                    .differences
+                    .iter()
+                    .filter(|(_, mapping)| {
+                        !mapping.missing_type3_procedure && !mapping.glyph_name.is_empty()
+                    })
+                    .map(|(code, mapping)| {
+                        (*code, named_glyph_identity(&base_font, &mapping.glyph_name))
+                    })
+                    .collect()
+            })
+        } else {
+            BTreeMap::new()
+        };
+
         Ok(LoadedSimpleFont {
             decoder: Self {
                 to_unicode,
@@ -299,13 +336,16 @@ impl SimpleFontDecoder {
                 widths,
                 missing_width,
                 base14,
+                standard_symbol_table: encoding.standard_symbol_table,
                 type3_identity_glyph_ids,
+                name_identities,
                 ascent,
                 descent,
             },
             identity_source,
             decoded_font_bytes: decoded_to_unicode_bytes
                 .checked_add(selector_bytes)
+                .and_then(|total| total.checked_add(encoding.decoded_bytes))
                 .filter(|total| *total <= limits.max_decoded_font_bytes)
                 .ok_or(Error::LimitExceeded {
                     resource: "decoded font bytes",
@@ -388,7 +428,14 @@ impl SimpleFontDecoder {
         {
             return unresolved("Type 3 font code references a missing CharProc");
         }
-        let glyph_id = if matches!(mapping, UnicodeMapping::Unmapped) {
+        let identity = matches!(mapping, UnicodeMapping::Unmapped)
+            .then(|| self.name_identities.get(&code).cloned())
+            .flatten();
+        let glyph_id = if identity.is_some() {
+            // The name is part of the hash, so no code-dependent selector is
+            // needed and equal names compare equal across subsets.
+            0
+        } else if matches!(mapping, UnicodeMapping::Unmapped) {
             self.type3_identity_glyph_ids
                 .as_ref()
                 .map(|glyph_ids| {
@@ -407,6 +454,7 @@ impl SimpleFontDecoder {
             raw_code: vec![code],
             mapping,
             glyph_id,
+            identity,
             width_1000_em: self.width(code),
             vertical: None,
         })
@@ -414,12 +462,22 @@ impl SimpleFontDecoder {
 
     fn fallback_mapping(&self, code: u8) -> UnicodeMapping {
         if let Some(difference) = self.differences.get(&code) {
-            difference.unicode.clone()
+            return difference.unicode.clone();
+        }
+        let standard = if self.standard_symbol_table {
+            match self.fallback {
+                FallbackEncoding::Symbol => super::standard::symbol_text(code),
+                FallbackEncoding::ZapfDingbats => super::standard::zapf_dingbats_text(code),
+                _ => None,
+            }
         } else {
-            fallback_char(self.fallback, code).map_or(UnicodeMapping::Unmapped, |character| {
+            None
+        };
+        standard
+            .or_else(|| fallback_char(self.fallback, code))
+            .map_or(UnicodeMapping::Unmapped, |character| {
                 UnicodeMapping::Mapped(character.into())
             })
-        }
     }
 
     fn width(&self, code: u8) -> f64 {
@@ -958,6 +1016,181 @@ fn scale_type3_metric(value: f64, scale_1000_em: f64, context: &str) -> Result<f
     Ok(scaled)
 }
 
+struct Type1BuiltinEncoding {
+    base: Option<FallbackEncoding>,
+    differences: BTreeMap<u8, DifferenceMapping>,
+    decoded_bytes: usize,
+}
+
+/// Recovers a simple font program's declared built-in encoding.
+///
+/// Cleartext Type1 (`FontFile`) programs declare an `/Encoding ... def`
+/// section; `Type1C` (`FontFile3`/`Type1C`) programs carry a CFF Encoding and
+/// charset. TrueType and OpenType programs are not examined. Names still go
+/// through the Adobe Glyph List, never through a shape or heuristic guess.
+fn load_type1_builtin_encoding(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    limits: FontDecoderLimits,
+) -> Result<Option<Type1BuiltinEncoding>> {
+    if let Some(program) = load_cleartext_type1_builtin_encoding(pdf, dictionary, limits)? {
+        return Ok(Some(program));
+    }
+    load_type1c_builtin_encoding(pdf, dictionary, limits)
+}
+
+/// Recovers a cleartext Type1 program's `/Encoding ... def` section.
+fn load_cleartext_type1_builtin_encoding(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    limits: FontDecoderLimits,
+) -> Result<Option<Type1BuiltinEncoding>> {
+    const SCAN_BYTES: usize = 1_000_000;
+    let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
+        return Ok(None);
+    };
+    let descriptor = resolve_object(pdf, descriptor.clone(), limits.max_indirections)?;
+    let PdfObject::Dictionary(descriptor) = descriptor else {
+        return Ok(None);
+    };
+    let Some(font_file) = descriptor.get(b"FontFile".as_slice()) else {
+        return Ok(None);
+    };
+    let reference =
+        resolve_stream_reference(pdf, font_file, limits.max_indirections, "Type1 FontFile")?;
+    let stream = pdf.decoded_stream(reference)?;
+    if stream.bytes.len() > limits.max_decoded_font_bytes {
+        return Ok(None);
+    }
+    let scan = &stream.bytes[..stream.bytes.len().min(SCAN_BYTES)];
+    if !scan.starts_with(b"%!PS-AdobeFont-1")
+        && !scan.starts_with(b"%!FontType1")
+        && !scan.starts_with(b"%!PS-AdobeFont")
+    {
+        return Ok(None);
+    }
+    let text = String::from_utf8_lossy(scan);
+    let Some(encoding_start) = text.find("/Encoding") else {
+        return Ok(None);
+    };
+    let encoding = &text[encoding_start + "/Encoding".len()..];
+    let encoding = encoding
+        .split("eexec")
+        .next()
+        .unwrap_or(encoding)
+        .split("currentfile")
+        .next()
+        .unwrap_or(encoding);
+    if encoding.trim_start().starts_with("StandardEncoding") {
+        return Ok(Some(Type1BuiltinEncoding {
+            base: Some(FallbackEncoding::Standard),
+            differences: BTreeMap::new(),
+            decoded_bytes: stream.bytes.len(),
+        }));
+    }
+    let tokens = encoding.split_whitespace().collect::<Vec<_>>();
+    let mut differences = BTreeMap::new();
+    let mut index = 0;
+    while index + 3 < tokens.len() {
+        if tokens[index] != "dup" {
+            index += 1;
+            continue;
+        }
+        let Ok(code) = tokens[index + 1].parse::<u8>() else {
+            index += 1;
+            continue;
+        };
+        let Some(name) = tokens[index + 2].strip_prefix('/') else {
+            index += 1;
+            continue;
+        };
+        if tokens[index + 3] != "put" {
+            index += 1;
+            continue;
+        }
+        differences.insert(
+            code,
+            glyph_name_mapping_in_family(
+                name.as_bytes(),
+                zapf_dingbats_family(pdf, dictionary, limits.max_indirections)?,
+            ),
+        );
+        index += 4;
+    }
+    if differences.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Type1BuiltinEncoding {
+        base: None,
+        differences,
+        decoded_bytes: stream.bytes.len(),
+    }))
+}
+
+/// Recovers a `Type1C` program's CFF built-in Encoding and charset.
+///
+/// A PDF may omit `/Encoding` and supply no `ToUnicode` entry. The CFF program
+/// still maps every code through its Encoding to a glyph id and names that id
+/// in its charset, so the glyph name (and through the Adobe Glyph List the
+/// text) is recoverable without a shape or frequency guess. Names outside the
+/// glyph list stay unknown placeholders.
+fn load_type1c_builtin_encoding(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    limits: FontDecoderLimits,
+) -> Result<Option<Type1BuiltinEncoding>> {
+    let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
+        return Ok(None);
+    };
+    let descriptor = resolve_object(pdf, descriptor.clone(), limits.max_indirections)?;
+    let PdfObject::Dictionary(descriptor) = descriptor else {
+        return Ok(None);
+    };
+    let Some(font_file) = descriptor.get(b"FontFile3".as_slice()) else {
+        return Ok(None);
+    };
+    let resolved = resolve_object(pdf, font_file.clone(), limits.max_indirections)?;
+    let PdfObject::Stream(stream_dictionary) = resolved else {
+        return Ok(None);
+    };
+    if !matches!(
+        stream_dictionary.get(b"Subtype".as_slice()),
+        Some(PdfObject::Name(subtype)) if subtype.as_slice() == b"Type1C"
+    ) {
+        return Ok(None);
+    }
+    let reference =
+        resolve_stream_reference(pdf, font_file, limits.max_indirections, "Type1C FontFile3")?;
+    let stream = pdf.decoded_stream(reference)?;
+    if stream.bytes.len() > limits.max_decoded_font_bytes {
+        return Ok(None);
+    }
+    let Some(encoding) = super::cff::built_in_encoding(&stream.bytes) else {
+        return Ok(None);
+    };
+    if encoding.standard {
+        return Ok(Some(Type1BuiltinEncoding {
+            base: Some(FallbackEncoding::Standard),
+            differences: BTreeMap::new(),
+            decoded_bytes: stream.bytes.len(),
+        }));
+    }
+    if encoding.differences.is_empty() {
+        return Ok(None);
+    }
+    let zapf_dingbats = zapf_dingbats_family(pdf, dictionary, limits.max_indirections)?;
+    let differences = encoding
+        .differences
+        .into_iter()
+        .map(|(code, name)| (code, glyph_name_mapping_in_family(&name, zapf_dingbats)))
+        .collect();
+    Ok(Some(Type1BuiltinEncoding {
+        base: None,
+        differences,
+        decoded_bytes: stream.bytes.len(),
+    }))
+}
+
 fn load_encoding(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
@@ -973,7 +1206,32 @@ fn load_encoding(
         None => None,
     };
     let Some(encoding) = resolved_encoding else {
-        let base = built_in_encoding(base14);
+        let mut base = built_in_encoding(base14);
+        let standard_symbol_table =
+            match standard_symbol_family(pdf, dictionary, limits.max_indirections)? {
+                // An embedded program's own built-in encoding governs a font that
+                // merely carries a standard name; do not substitute Annex D text.
+                Some(family)
+                    if !has_embedded_font_program(pdf, dictionary, limits.max_indirections)? =>
+                {
+                    base = family;
+                    true
+                }
+                _ => false,
+            };
+        if base14.is_none()
+            && let Some(program) = load_type1_builtin_encoding(pdf, dictionary, limits)?
+        {
+            return Ok(LoadedEncoding {
+                base: program.base.unwrap_or(FallbackEncoding::Unknown),
+                differences: program.differences,
+                identity_ambiguous: false,
+                standard14_identity_encoding: None,
+                explicit_encoding: false,
+                standard_symbol_table: false,
+                decoded_bytes: program.decoded_bytes,
+            });
+        }
         return Ok(LoadedEncoding {
             base,
             differences: BTreeMap::new(),
@@ -984,6 +1242,8 @@ fn load_encoding(
                 None
             },
             explicit_encoding: false,
+            standard_symbol_table,
+            decoded_bytes: 0,
         });
     };
     match encoding {
@@ -1009,16 +1269,36 @@ fn load_encoding(
                     None
                 },
                 explicit_encoding: true,
+                standard_symbol_table: false,
+                decoded_bytes: 0,
             })
         }
         PdfObject::Dictionary(encoding) => {
-            let base = match encoding.get(b"BaseEncoding".as_slice()) {
+            let (mut base, explicit_base) = match encoding.get(b"BaseEncoding".as_slice()) {
                 Some(base) => match resolve_object(pdf, base.clone(), limits.max_indirections)? {
-                    PdfObject::Name(name) => encoding_name(&name)?,
-                    PdfObject::Null => built_in_encoding(base14),
+                    PdfObject::Name(name) => (encoding_name(&name)?, true),
+                    PdfObject::Null => (built_in_encoding(base14), false),
                     _ => return unresolved("font BaseEncoding is not a name"),
                 },
-                None => built_in_encoding(base14),
+                None => (built_in_encoding(base14), false),
+            };
+            let zapf_dingbats = zapf_dingbats_family(pdf, dictionary, limits.max_indirections)?;
+            let standard_symbol_table = if explicit_base {
+                false
+            } else {
+                match standard_symbol_family(pdf, dictionary, limits.max_indirections)? {
+                    Some(family)
+                        if !has_embedded_font_program(
+                            pdf,
+                            dictionary,
+                            limits.max_indirections,
+                        )? =>
+                    {
+                        base = family;
+                        true
+                    }
+                    _ => false,
+                }
             };
             let (differences, identity_ambiguous, differences_present) =
                 match encoding.get(b"Differences".as_slice()) {
@@ -1038,6 +1318,7 @@ fn load_encoding(
                                     &differences,
                                     limits.max_indirections,
                                     allowed_difference_names,
+                                    zapf_dingbats,
                                 )?;
                                 (diffs, ambiguous, true)
                             }
@@ -1069,10 +1350,70 @@ fn load_encoding(
                 identity_ambiguous,
                 standard14_identity_encoding,
                 explicit_encoding: true,
+                standard_symbol_table,
+                decoded_bytes: 0,
             })
         }
         _ => unresolved("font Encoding is not a name or dictionary"),
     }
+}
+
+/// Returns the standard-14 Symbol/ZapfDingbats family named by `BaseFont`.
+///
+/// A subset tag (`ABCDEF+`) is stripped so a subset-tagged standard font still
+/// uses its Annex D built-in encoding when the PDF declares no encoding.
+fn standard_symbol_family(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<FallbackEncoding>> {
+    let Some(base_font) = dictionary.get(b"BaseFont".as_slice()) else {
+        return Ok(None);
+    };
+    let base_font = resolve_object(pdf, base_font.clone(), max_indirections)?;
+    let PdfObject::Name(name) = base_font else {
+        return Ok(None);
+    };
+    let name = strip_subset_tag(&name);
+    Ok(match name {
+        b"Symbol" => Some(FallbackEncoding::Symbol),
+        b"ZapfDingbats" => Some(FallbackEncoding::ZapfDingbats),
+        _ => None,
+    })
+}
+
+/// Returns whether `BaseFont` names the `ZapfDingbats` family.
+///
+/// `Dingbats` is the full name some producers put on an embedded subset of the
+/// `ZapfDingbats` standard font; its glyph names still come from the Adobe
+/// `ZapfDingbats` glyph list.
+fn zapf_dingbats_family(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    max_indirections: usize,
+) -> Result<bool> {
+    let Some(base_font) = dictionary.get(b"BaseFont".as_slice()) else {
+        return Ok(false);
+    };
+    let base_font = resolve_object(pdf, base_font.clone(), max_indirections)?;
+    let PdfObject::Name(name) = base_font else {
+        return Ok(false);
+    };
+    Ok(matches!(
+        strip_subset_tag(&name),
+        b"ZapfDingbats" | b"Dingbats"
+    ))
+}
+
+/// Strips a PDF subset tag such as `ABCDEF+` from a font name.
+fn strip_subset_tag(name: &[u8]) -> &[u8] {
+    if let Some((tag, base)) = name.split_at_checked(7)
+        && tag[6] == b'+'
+        && tag[..6].iter().all(u8::is_ascii_uppercase)
+    {
+        return base;
+    }
+    name
 }
 
 fn has_embedded_font_program(
@@ -1119,6 +1460,7 @@ fn parse_differences(
     differences: &[PdfObject],
     max_indirections: usize,
     allowed_names: Option<&PdfDict>,
+    zapf_dingbats: bool,
 ) -> Result<(BTreeMap<u8, DifferenceMapping>, bool)> {
     let mut mappings = BTreeMap::new();
     let mut identity_ambiguous = false;
@@ -1146,7 +1488,7 @@ fn parse_differences(
                 let code = u8::try_from(code).map_err(|_| {
                     Error::Unresolved("font Encoding Differences extends beyond code 255".into())
                 })?;
-                let mut mapping = glyph_name_mapping(&name);
+                let mut mapping = glyph_name_mapping_in_family(&name, zapf_dingbats);
                 mapping.missing_type3_procedure =
                     allowed_names.is_some_and(|allowed| !allowed.contains_key(&name));
                 identity_ambiguous |= mappings.insert(code, mapping).is_some();
@@ -1258,6 +1600,19 @@ fn load_descriptor(
     Ok((ascent, descent, missing_width))
 }
 
+/// Maps a glyph name with the `ZapfDingbats` glyph list when the font uses it.
+fn glyph_name_mapping_in_family(name: &[u8], zapf_dingbats: bool) -> DifferenceMapping {
+    if zapf_dingbats && let Some(character) = super::standard::zapf_dingbats_char(name) {
+        return DifferenceMapping {
+            glyph_name: name.to_vec(),
+            unicode: UnicodeMapping::Mapped(character.to_string()),
+            metric_scalar: Some(character),
+            missing_type3_procedure: false,
+        };
+    }
+    glyph_name_mapping(name)
+}
+
 fn glyph_name_mapping(name: &[u8]) -> DifferenceMapping {
     let Some((unicode, metric_scalar)) = adobe_glyph_name(name) else {
         return DifferenceMapping {
@@ -1323,7 +1678,15 @@ fn adobe_glyph_component(name: &[u8]) -> Option<String> {
     {
         return Some(parse_unicode_scalar(hex)?.into());
     }
-    None
+    // TeX/AMS names outside the Adobe Glyph List. This table contains only
+    // names the rules above do not resolve, and omits private-use and control
+    // values, so it never shadows AGL and never invents non-text code points.
+    if let Some(text) = super::pdfjs_tex::lookup(name) {
+        return Some(text.into());
+    }
+    // Project-authored mappings for the few remaining unambiguous TeX names.
+    // Combining/enclosing marks, script names, and generic names are excluded.
+    super::self_mappings::lookup(name).map(Into::into)
 }
 
 fn parse_unicode_scalar(hex: &[u8]) -> Option<char> {
@@ -1578,6 +1941,170 @@ mod tests {
 
         assert_eq!(loaded.decoder.ascent_1000_em(), 937.0);
         assert_eq!(loaded.decoder.descent_1000_em(), -322.0);
+        Ok(())
+    }
+
+    #[test]
+    fn glyph_name_identity_uses_stripped_base_font_and_name() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([(
+                object_ref(99),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"TrueType".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(99), b"embedded program".to_vec())]),
+        };
+        let font = |base_font: &[u8], name: &[u8]| {
+            let mut wrapped = embedded_true_type_with_encoding(
+                object_ref(99),
+                PdfObject::Dictionary(PdfDict::from([(
+                    b"Differences".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(2), PdfObject::Name(name.to_vec())]),
+                )])),
+            );
+            let PdfObject::Dictionary(dictionary) = &mut wrapped else {
+                unreachable!("helper returns a dictionary")
+            };
+            dictionary.insert(b"BaseFont".to_vec(), PdfObject::Name(base_font.to_vec()));
+            wrapped
+        };
+        let identity = |object: &PdfObject| -> Result<(FontProgramHash, u16)> {
+            let loaded = SimpleFontDecoder::load(&pdf, object, LIMITS)?;
+            let mut decoded = loaded.decoder.decode(&[2], 1, usize::MAX)?;
+            let glyph = decoded.pop().expect("one glyph");
+            assert!(matches!(glyph.mapping, UnicodeMapping::Unmapped));
+            let identity = glyph
+                .identity
+                .ok_or_else(|| Error::Unresolved("glyph-name identity is missing".into()))?;
+            assert_eq!(
+                identity.identity_source(),
+                crate::model::GlyphIdentitySource::Name
+            );
+            Ok((identity, glyph.glyph_id))
+        };
+
+        let first = font(b"AAAAAA+Fixture", b"g111");
+        let second = font(b"BBBBBB+Fixture", b"g111");
+        let other_name = font(b"AAAAAA+Fixture", b"g222");
+        let other_font = font(b"CCCCCC+Other", b"g111");
+        assert_eq!(identity(&first)?, identity(&second)?);
+        assert_eq!(identity(&first)?.1, 0);
+        assert_ne!(identity(&first)?.0, identity(&other_name)?.0);
+        assert_ne!(identity(&first)?.0, identity(&other_font)?.0);
+
+        let missing_name = embedded_true_type_with_encoding(
+            object_ref(99),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"Differences".to_vec(),
+                PdfObject::Array(Vec::new()),
+            )])),
+        );
+        let loaded = SimpleFontDecoder::load(&pdf, &missing_name, LIMITS)?;
+        let mut decoded = loaded.decoder.decode(&[2], 1, usize::MAX)?;
+        let glyph = decoded.pop().expect("one glyph");
+        assert!(glyph.identity.is_none());
+        assert_eq!(glyph.glyph_id, 2);
+
+        // ToUnicode keeps priority over the glyph-name assumption.
+        let cmap = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Test) /Ordering (UCS) /Supplement 0 >> def /CMapName /Test def /CMapType 2 def 1 begincodespacerange <02> <02> endcodespacerange 1 beginbfchar <02> <0041> endbfchar endcmap CMapName currentdict /CMap defineresource pop end end".to_vec();
+        let pdf_with_tounicode = MockPdf {
+            objects: HashMap::from([
+                (
+                    object_ref(99),
+                    PdfObject::Stream(PdfDict::from([(
+                        b"Subtype".to_vec(),
+                        PdfObject::Name(b"TrueType".to_vec()),
+                    )])),
+                ),
+                (
+                    object_ref(1),
+                    PdfObject::Stream(PdfDict::from([(
+                        b"Subtype".to_vec(),
+                        PdfObject::Name(b"Type1C".to_vec()),
+                    )])),
+                ),
+            ]),
+            streams: HashMap::from([
+                (object_ref(99), b"embedded program".to_vec()),
+                (object_ref(1), cmap),
+            ]),
+        };
+        let mut with_unicode = font(b"AAAAAA+Fixture", b"g111");
+        let PdfObject::Dictionary(dictionary) = &mut with_unicode else {
+            unreachable!()
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+        let loaded = SimpleFontDecoder::load(&pdf_with_tounicode, &with_unicode, LIMITS)?;
+        let glyph = loaded
+            .decoder
+            .decode(&[2], 1, usize::MAX)?
+            .pop()
+            .expect("one glyph");
+        assert!(matches!(glyph.mapping, UnicodeMapping::Mapped(ref text) if text == "A"));
+        assert!(glyph.identity.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn glyph_name_identity_reads_type1_builtin_encoding_across_subsets() -> Result<()> {
+        let font = |base_font: &[u8], name: &[u8], tail: &[u8]| {
+            let mut program = format!(
+                "%!PS-AdobeFont-1.0: Fixture\n/Encoding 256 array\n                 0 1 255 {{1 index exch /.notdef put}} for\n                 dup 2 /{} put\neexec\n",
+                String::from_utf8_lossy(name)
+            )
+            .into_bytes();
+            program.extend_from_slice(tail);
+            let mut pdf = MockPdf::default();
+            pdf.objects
+                .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+            pdf.streams.insert(object_ref(1), program);
+            (
+                pdf,
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+                    (b"BaseFont".to_vec(), PdfObject::Name(base_font.to_vec())),
+                    (b"FirstChar".to_vec(), PdfObject::Integer(0)),
+                    (b"LastChar".to_vec(), PdfObject::Integer(255)),
+                    (
+                        b"Widths".to_vec(),
+                        PdfObject::Array((0..=255).map(|_| PdfObject::Integer(500)).collect()),
+                    ),
+                    (
+                        b"FontDescriptor".to_vec(),
+                        PdfObject::Dictionary(PdfDict::from([
+                            (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                            (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                            (b"FontFile".to_vec(), PdfObject::Reference(object_ref(1))),
+                        ])),
+                    ),
+                ])),
+            )
+        };
+        let identity = |(pdf, font): &(MockPdf, PdfObject)| -> Result<(FontProgramHash, u16)> {
+            let glyphs =
+                SimpleFontDecoder::load(pdf, font, LIMITS)?
+                    .decoder
+                    .decode(&[2], 1, usize::MAX)?;
+            let glyph = &glyphs[0];
+            assert!(matches!(glyph.mapping, UnicodeMapping::Unmapped));
+            let identity = glyph.identity.clone().ok_or_else(|| {
+                Error::Unresolved("built-in glyph name identity is missing".into())
+            })?;
+            assert_eq!(
+                identity.identity_source(),
+                crate::model::GlyphIdentitySource::Name
+            );
+            Ok((identity, glyph.glyph_id))
+        };
+
+        let first = font(b"AAAAAA+Fixture", b"TeXprime", b"first program tail");
+        let renumbered = font(b"BBBBBB+Fixture", b"TeXprime", b"second program tail");
+        assert_eq!(identity(&first)?, identity(&renumbered)?);
+
+        let different = font(b"AAAAAA+Fixture", b"TeXintegral", b"first program tail");
+        assert_ne!(identity(&first)?.0, identity(&different)?.0);
         Ok(())
     }
 
@@ -2433,6 +2960,65 @@ mod tests {
         assert_eq!(adobe_glyph_name(b"uni20ac"), None);
         assert_eq!(adobe_glyph_name(b"u1f600"), None);
 
+        // TeX/AMS names from the bundled pdf.js supplement. AGL still wins for
+        // shared names, and names absent from both lists stay unresolved.
+        assert_eq!(
+            adobe_glyph_name(b"parenleftbig"),
+            Some(("(".into(), Some('(')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"parenleftBig"),
+            Some(("(".into(), Some('(')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"summationtext"),
+            Some(("\u{2211}".into(), Some('\u{2211}')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"arrowhookleft"),
+            Some(("\u{21AA}".into(), Some('\u{21AA}')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"prime"),
+            Some(("\u{2032}".into(), Some('\u{2032}')))
+        );
+        // Project-authored unambiguous mappings beyond pdf.js.
+        assert_eq!(
+            adobe_glyph_name(b"asciigrave"),
+            Some(("`".into(), Some('`')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"floorright"),
+            Some(("\u{230B}".into(), Some('\u{230B}')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"lessmuch"),
+            Some(("\u{226A}".into(), Some('\u{226A}')))
+        );
+        assert_eq!(
+            adobe_glyph_name(b"greatermuch"),
+            Some(("\u{226B}".into(), Some('\u{226B}')))
+        );
+        // Combining/enclosing, script, and generic names stay placeholders.
+        for excluded in [
+            b"negationslash".as_slice(),
+            b"arrowrightabove",
+            b"circleencl",
+            b"circleslashencl",
+            b"diamondencl",
+            b"g111",
+            b"glyph296",
+            b"modi_letter_ka",
+            b"tibetanintertsheg",
+        ] {
+            assert_eq!(adobe_glyph_name(excluded), None, "{excluded:?}");
+        }
+        // pdf.js PUA values are excluded from the supplement (AGL already
+        // owns the same names, so the resolver keeps its pre-existing AGL
+        // result).
+        assert!(super::super::pdfjs_tex::lookup(b"Asmall").is_none());
+        assert_eq!(adobe_glyph_name(b"controlNULL"), None);
+
         let overlong_composite = std::iter::repeat_n("A", 33).collect::<Vec<_>>().join("_");
         assert!(overlong_composite.len() > super::super::agl::MAX_GLYPH_NAME_BYTES);
         assert_eq!(adobe_glyph_name(overlong_composite.as_bytes()), None);
@@ -2517,6 +3103,300 @@ mod tests {
             loaded.decoder.decode(b"AB", 2, usize::MAX)?,
             [glyph(b'A', "ﬁ", 500.0), glyph(b'B', "B", 667.0)]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn type1c_builtin_encoding_recovers_names_and_tounicode_still_wins() -> Result<()> {
+        let program = super::super::cff::tests::fixture_program(true);
+        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+                     2 beginbfchar <27> <0058> <61> <0059> endbfchar"
+            .to_vec();
+        let pdf = MockPdf {
+            objects: HashMap::from([
+                (
+                    object_ref(1),
+                    PdfObject::Stream(PdfDict::from([(
+                        b"Subtype".to_vec(),
+                        PdfObject::Name(b"Type1C".to_vec()),
+                    )])),
+                ),
+                (object_ref(2), PdfObject::Stream(PdfDict::new())),
+            ]),
+            streams: HashMap::from([(object_ref(1), program), (object_ref(2), cmap)]),
+        };
+        let font = |to_unicode: bool| {
+            let mut dictionary = PdfDict::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+                (
+                    b"BaseFont".to_vec(),
+                    PdfObject::Name(b"AAAAAA+Fixture".to_vec()),
+                ),
+                (b"FirstChar".to_vec(), PdfObject::Integer(0x27)),
+                (b"LastChar".to_vec(), PdfObject::Integer(0x61)),
+                (
+                    b"Widths".to_vec(),
+                    PdfObject::Array((0x27..=0x61).map(|_| PdfObject::Integer(500)).collect()),
+                ),
+                (
+                    b"FontDescriptor".to_vec(),
+                    PdfObject::Dictionary(PdfDict::from([
+                        (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                        (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                        (b"FontFile3".to_vec(), PdfObject::Reference(object_ref(1))),
+                    ])),
+                ),
+            ]);
+            if to_unicode {
+                dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(2)));
+            }
+            PdfObject::Dictionary(dictionary)
+        };
+
+        // The CFF Encoding and charset name the glyphs. `quotesingle` and
+        // `comma` resolve through the Adobe Glyph List; `arrowhookleft`
+        // resolves through the bundled pdf.js supplement, and `asciigrave`
+        // through the project-authored unambiguous table.
+        let loaded = SimpleFontDecoder::load(&pdf, &font(false), LIMITS)?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0x27, 0x2c, 0x60, 0x61], 4, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, UnicodeMapping::Mapped("'".into()));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Mapped(",".into()));
+        assert_eq!(glyphs[2].mapping, mapped_text("`"));
+        assert_eq!(glyphs[3].mapping, mapped_text("\u{21AA}"));
+
+        // An explicit ToUnicode entry always wins for the code it covers,
+        // including the code whose program name the supplement would resolve.
+        let loaded = SimpleFontDecoder::load(&pdf, &font(true), LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[0x27, 0x2c, 0x61], 3, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, UnicodeMapping::Mapped("X".into()));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Mapped(",".into()));
+        assert_eq!(glyphs[2].mapping, UnicodeMapping::Mapped("Y".into()));
+        Ok(())
+    }
+
+    fn pdfdelta_core_subset_fixture() -> PdfObject {
+        PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (
+                b"BaseFont".to_vec(),
+                PdfObject::Name(b"ABCDEF+Symbol".to_vec()),
+            ),
+            (b"FirstChar".to_vec(), PdfObject::Integer(0)),
+            (b"LastChar".to_vec(), PdfObject::Integer(255)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array((0..=255).map(|_| PdfObject::Integer(500)).collect()),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                ])),
+            ),
+        ]))
+    }
+
+    fn standard_14_font(base_font: &[u8]) -> PdfObject {
+        PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(base_font.to_vec())),
+        ]))
+    }
+
+    #[test]
+    fn standard_symbol_builtin_encoding_maps_through_agl() -> Result<()> {
+        let loaded =
+            SimpleFontDecoder::load(&MockPdf::default(), &standard_14_font(b"Symbol"), LIMITS)?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0x22, 0xBC, 0x61, 0x20], 4, usize::MAX)?;
+        // universal, ellipsis, alpha, space
+        assert_eq!(glyphs[0].mapping, mapped_text("\u{2200}"));
+        assert_eq!(glyphs[1].mapping, mapped_text("\u{2026}"));
+        assert_eq!(glyphs[2].mapping, mapped_text("\u{03b1}"));
+        assert_eq!(glyphs[3].mapping, mapped_text(" "));
+        Ok(())
+    }
+
+    #[test]
+    fn standard_zapf_dingbats_builtin_encoding_maps_a_names() -> Result<()> {
+        let loaded = SimpleFontDecoder::load(
+            &MockPdf::default(),
+            &standard_14_font(b"ZapfDingbats"),
+            LIMITS,
+        )?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0x21, 0x23, 0x33, 0x20], 4, usize::MAX)?;
+        // a1, a202, a19, space from the Adobe ZapfDingbats glyph list.
+        assert_eq!(glyphs[0].mapping, mapped_text("\u{2701}"));
+        assert_eq!(glyphs[1].mapping, mapped_text("\u{2703}"));
+        assert_eq!(glyphs[2].mapping, mapped_text("\u{2713}"));
+        assert_eq!(glyphs[3].mapping, mapped_text(" "));
+        Ok(())
+    }
+
+    #[test]
+    fn standard_symbol_table_respects_tounicode_and_differences() -> Result<()> {
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(
+            object_ref(1),
+            b"1 begincodespacerange <00> <FF> endcodespacerange 1 beginbfchar <BC> <0058> endbfchar"
+                .to_vec(),
+        );
+        let mut with_unicode = standard_14_font(b"Symbol");
+        let PdfObject::Dictionary(dictionary) = &mut with_unicode else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+        let loaded = SimpleFontDecoder::load(&pdf, &with_unicode, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[0xBC, 0x22], 2, usize::MAX)?;
+        // ToUnicode wins for 0xBC; the Annex D table still supplies 0x22.
+        assert_eq!(glyphs[0].mapping, mapped_text("X"));
+        assert_eq!(glyphs[1].mapping, mapped_text("\u{2200}"));
+
+        let with_differences = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Symbol".to_vec())),
+            (b"FirstChar".to_vec(), PdfObject::Integer(0)),
+            (b"LastChar".to_vec(), PdfObject::Integer(255)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array((0..=255).map(|_| PdfObject::Integer(500)).collect()),
+            ),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([(
+                    b"Differences".to_vec(),
+                    PdfObject::Array(vec![
+                        PdfObject::Integer(188),
+                        PdfObject::Name(b"A".to_vec()),
+                    ]),
+                )])),
+            ),
+        ]));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &with_differences, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[0xBC, 0x22], 2, usize::MAX)?;
+        // The explicit Difference wins for 0xBC; 0x22 falls back to Annex D.
+        assert_eq!(glyphs[0].mapping, mapped_text("A"));
+        assert_eq!(glyphs[1].mapping, mapped_text("\u{2200}"));
+        Ok(())
+    }
+
+    #[test]
+    fn an_explicit_named_encoding_disables_the_standard_table() -> Result<()> {
+        let font = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Symbol".to_vec())),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+            ),
+        ]));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[0xBC], 1, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, mapped_text("\u{00bc}"));
+        Ok(())
+    }
+
+    #[test]
+    fn embedded_programs_and_subset_tags_control_the_standard_table() -> Result<()> {
+        let embedded = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Symbol".to_vec())),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                    (b"FontFile2".to_vec(), PdfObject::Reference(object_ref(2))),
+                ])),
+            ),
+        ]));
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(2), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(
+            object_ref(2),
+            b"embedded program that is not parsed".to_vec(),
+        );
+        let loaded = SimpleFontDecoder::load(&pdf, &embedded, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[0xBC], 1, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, UnicodeMapping::Unmapped);
+
+        let subset = pdfdelta_core_subset_fixture();
+        let subset = SimpleFontDecoder::load(&MockPdf::default(), &subset, LIMITS)?;
+        let glyphs = subset.decoder.decode(&[0xBC], 1, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, mapped_text("\u{2026}"));
+        Ok(())
+    }
+
+    #[test]
+    fn zapf_dingbats_names_resolve_from_programs_and_differences() -> Result<()> {
+        // A cleartext Type1 subset of ZapfDingbats names code 51 `a19`.
+        let program = b"%!PS-AdobeFont-1.0: Dingbats\n/Encoding 256 array\n0 1 255 {1 index exch /.notdef put} for\ndup 51 /a19 put\neexec\n".to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), program);
+        let embedded = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (
+                b"BaseFont".to_vec(),
+                PdfObject::Name(b"ABCDEF+Dingbats".to_vec()),
+            ),
+            (b"FirstChar".to_vec(), PdfObject::Integer(0)),
+            (b"LastChar".to_vec(), PdfObject::Integer(255)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array((0..=255).map(|_| PdfObject::Integer(500)).collect()),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                    (b"FontFile".to_vec(), PdfObject::Reference(object_ref(1))),
+                ])),
+            ),
+        ]));
+        let loaded = SimpleFontDecoder::load(&pdf, &embedded, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[51], 1, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, mapped_text("\u{2713}"));
+
+        // A PDF Differences entry uses the same ZapfDingbats name list.
+        let with_differences = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (
+                b"BaseFont".to_vec(),
+                PdfObject::Name(b"ZapfDingbats".to_vec()),
+            ),
+            (b"FirstChar".to_vec(), PdfObject::Integer(0)),
+            (b"LastChar".to_vec(), PdfObject::Integer(255)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array((0..=255).map(|_| PdfObject::Integer(500)).collect()),
+            ),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([(
+                    b"Differences".to_vec(),
+                    PdfObject::Array(vec![
+                        PdfObject::Integer(51),
+                        PdfObject::Name(b"a19".to_vec()),
+                    ]),
+                )])),
+            ),
+        ]));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &with_differences, LIMITS)?;
+        let glyphs = loaded.decoder.decode(&[51, 0x21], 2, usize::MAX)?;
+        assert_eq!(glyphs[0].mapping, mapped_text("\u{2713}"));
+        assert_eq!(glyphs[1].mapping, mapped_text("\u{2701}"));
         Ok(())
     }
 
@@ -2761,9 +3641,10 @@ mod tests {
         let symbol = SimpleFontDecoder::load(&pdf, &standard_font(b"Symbol"), LIMITS)?;
         let dingbats = SimpleFontDecoder::load(&pdf, &standard_font(b"ZapfDingbats"), LIMITS)?;
 
+        // Symbol code 0x41 is Alpha; the Annex D.5 table now supplies it.
         assert_eq!(
             symbol.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
-            UnicodeMapping::Unmapped
+            mapped_text("\u{0391}")
         );
         let symbol_identity = load_font_identity(
             &pdf,
@@ -3273,6 +4154,7 @@ mod tests {
             raw_code: vec![code],
             mapping: UnicodeMapping::Mapped(text.into()),
             glyph_id: u16::from(code),
+            identity: None,
             width_1000_em: width,
             vertical: None,
         }

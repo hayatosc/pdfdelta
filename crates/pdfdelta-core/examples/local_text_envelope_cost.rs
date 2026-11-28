@@ -4,11 +4,11 @@
 use std::{fs::File, hint::black_box, io::Read, time::Instant};
 
 use pdfdelta_core::{
-    diff::{
+    normalize::ComparableToken,
+    text_envelope::{
         LocalTextEnvelopeLimits, LocalTextEnvelopeResult, LocalTextSide, local_text_claims,
         local_text_envelope,
     },
-    normalize::ComparableToken,
 };
 use serde::Deserialize;
 
