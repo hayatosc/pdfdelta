@@ -496,7 +496,7 @@ struct CurrentPath {
 }
 
 /// Strict native-geometry provenance for all retained clip constraints.
-/// Legacy approximate rectangle recognition does not create this witness.
+/// Approximate rectangle recognition does not create this witness.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum ClipCertainty {
     #[default]
@@ -929,8 +929,7 @@ impl<'a> Extraction<'a> {
     fn extract_page(&mut self, page: PageRef, page_id: PageId) -> Result<()> {
         // Every page starts with the full clip-classification budget, so an
         // edit elsewhere cannot turn this page's exact classification into a
-        // conservative fallback. This is the same limit a single-page document
-        // receives today.
+        // conservative fallback. Each page receives the same independent limit.
         self.page_convex_clip_work = 0;
         self.page_has_unexamined_image = false;
         let glyph_start = self.glyphs.len();
@@ -2040,8 +2039,7 @@ impl Extraction<'_> {
                 });
                 if let Some((rectangle, certainty)) = rectangle {
                     // Only strict rectangle witnesses authorize a new concave
-                    // intersection. Approximate legacy matches retain their
-                    // old behavior elsewhere without gaining that witness.
+                    // intersection; approximate matches do not gain that witness.
                     incoming_certainty = certainty;
                     legacy_rectangle_uncertain = certainty != ClipCertainty::Exact;
                     Some(
@@ -2643,9 +2641,9 @@ impl Extraction<'_> {
                     .max_operators
                     .saturating_sub(self.page_convex_clip_work)
         {
-            // Polygon classification is metered per glyph. Keeping the sound
-            // bbox bound preserves the old unsupported behaviour when the
-            // page's clipping budget cannot fund the finer proof.
+            // Polygon classification is metered per glyph; when the page's
+            // clipping budget cannot fund the finer proof, fall back to the
+            // sound bounded unsupported clip.
             state.graphics.clip_region =
                 ClipRegion::UnsupportedBounded(polygon.reason().into(), polygon.bounds());
         }
@@ -4493,9 +4491,9 @@ fn bounding_rect(points: [Vec2; 4]) -> Rect {
     }
 }
 
-/// Reuses the existing four-edge recognition pass and retains whether every
-/// accepted match was exact. Equality fast paths avoid repeating tolerance
-/// arithmetic; legacy acceptance and existing operation charges stay intact.
+/// Recognizes a four-edge axis-aligned rectangle and records whether every
+/// edge-endpoint match was exact. Equality fast paths avoid repeating
+/// tolerance arithmetic while keeping operation charges unchanged.
 fn rectangle_from_segments(segments: [PathSegment; 4]) -> Option<(Rect, ClipCertainty)> {
     let mut exact = true;
     for i in 0..4 {

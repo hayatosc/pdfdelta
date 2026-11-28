@@ -143,8 +143,8 @@ struct DocumentReport<'a> {
     /// the shared search recorded none; absence is not a completed text search.
     #[serde(skip_serializing_if = "Option::is_none")]
     flow_owned_text: Option<pdfdelta_core::document::FlowOwnedTextEvidence>,
-    /// Per-channel detected/broken/unexamined verdicts used to select the flow
-    /// exit. Present only for the flow engine.
+    /// Per-channel detected/broken/unexamined verdicts used to select the
+    /// comparison exit code.
     #[serde(skip_serializing_if = "Option::is_none")]
     channel_verdicts: Option<Vec<crate::flow_exit::ChannelVerdict>>,
     old: EvidenceSummary<'a>,
@@ -686,8 +686,7 @@ pub fn compare(
     }
     // Piped output defaults to `auto`, so it stays plain unless the caller
     // explicitly requested colour or stdout is a terminal. A file has no
-    // terminal to inspect, so only `always` styles it, matching the
-    // unified-diff report's destination rule.
+    // terminal to inspect, so only `always` styles it.
     let color = if output.output_path.is_some() {
         output.color == ColorChoice::Always
     } else {

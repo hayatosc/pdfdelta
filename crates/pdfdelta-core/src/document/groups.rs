@@ -24,7 +24,7 @@ pub(super) fn append_exact_groups(
 ) -> Result<()> {
     let first_group = result.proposals.len();
     let outcome = append_groups(old, new, scope, result, limits, optional_nodes);
-    // Scheduling affects only which work fits. Preserve the historical output
+    // Scheduling affects only which work fits. Preserve the canonical output
     // order for completed populations, including traversal order within a whole.
     result.proposals[first_group..].sort_by_key(|proposal| {
         let reverse = proposal.old.len() > 1;

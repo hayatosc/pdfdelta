@@ -119,7 +119,7 @@ impl Side {
         !self.stream.conservation.is_complete() || self.issues.len() > self.paint_issues
     }
 
-    /// The M4b paint gate found that text drawn as paint was not examined.
+    /// The paint gate found that text drawn as paint was not examined.
     pub(crate) fn has_unexamined_paint(&self) -> bool {
         self.paint_issues > 0
     }
@@ -549,16 +549,6 @@ pub(crate) fn render_text(comparison: &FlowComparison) -> String {
     text
 }
 
-/// Runs the flow command.
-///
-/// Returns the process exit code: `0` for no content change, `1` for content
-/// changes, and `3` when either side has extraction issues. Fatal problems are
-/// returned as errors (the caller maps them to exit code `2`).
-///
-/// # Errors
-///
-/// Returns a message when an input cannot be read, parsed, or extracted, when
-/// the flow diff fails verification, or when the report cannot be written.
 /// Per-side extraction inputs for the flow engine.
 pub(crate) struct FlowSideOptions<'a> {
     pub(crate) limits: ParseLimits,
@@ -974,6 +964,20 @@ pub struct FlowRunOptions<'a> {
     pub color: bool,
 }
 
+/// Runs the standalone `flow` command.
+///
+/// Returns the process exit code: `0` when no content or move difference is
+/// detected and extraction, glyph conservation, and non-text paint checks are
+/// complete; `1` when a content or move difference is detected and neither side
+/// has broken extraction or incomplete glyph conservation (even if unexamined
+/// paint exists); and `3` when extraction or glyph conservation is broken or
+/// unexamined paint leaves an unchanged comparison incomplete. Fatal errors are
+/// returned as [`DiffError`] (mapped by the caller to exit code `2`).
+///
+/// # Errors
+///
+/// Returns a [`DiffError`] when an input cannot be read, parsed, or extracted,
+/// when the flow diff fails verification, or when the report cannot be written.
 pub fn run(
     old_path: &Path,
     new_path: &Path,

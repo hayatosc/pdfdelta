@@ -353,8 +353,8 @@ fn shared_views_require_one_partition_for_the_whole_selection() {
         assert_eq!(result.components.len(), 2);
         assert!(result.components[0].exhaustive);
         if max_component_proposals == 2 {
-            // The proposal cap no longer decides applicability: the exact
-            // cardinality preflight uses the state budget instead.
+            // The exact cardinality preflight uses the state budget rather than
+            // the proposal cap to decide applicability.
             assert_eq!(
                 result.components[0].algorithm,
                 MatchingAlgorithm::CardinalityChoice

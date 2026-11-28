@@ -279,10 +279,8 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
     // Region partitioning is a pure per-page function, so pages are computed
-    // in parallel and collected in ascending page order; the sequential fold
-    // below then consumes the collected partitions unchanged. Results are
-    // kept as per-page `Result`s so the fold still reports exactly the error
-    // the sequential loop would have reported: the lowest failing page.
+    // in parallel and collected in ascending page order; the fold below keeps
+    // per-page `Result`s so the lowest failing page's error is always reported.
     let page_inputs = page_lines_map
         .into_iter()
         .map(|(page_num, page_lines)| {
@@ -1321,7 +1319,7 @@ fn is_same_row_band(target: &LineStats<'_>, candidate: &LineStats<'_>) -> bool {
 /// contiguous in `stats` — scanning only the page's span is behaviorally
 /// identical to scanning the whole document while returning global indices.
 /// A `None` span map means pages are not contiguous and every scan falls
-/// back to the full slice, preserving the original behavior exactly.
+/// back to the full slice.
 struct GridScan {
     aligned_peers: Vec<Vec<usize>>,
     column_widths: Vec<f64>,
@@ -1505,7 +1503,6 @@ fn crosses_grid_cell_boundary(
                 {
                     continue;
                 }
-                // Preceding line in the same candidate column
                 if interval_overlap_ratio(previous.inline_interval, candidate.inline_interval) > 0.5
                 {
                     let cand_peers = &grid.aligned_peers[index];
@@ -1530,7 +1527,6 @@ fn crosses_grid_cell_boundary(
                             return true;
                         }
                     } else {
-                        // prev_peers is non-empty (e.g. contains P_prev):
                         let prev_narrow_peer = prev_peers.iter().find(|&&p_idx| {
                             let p = &stats[p_idx];
                             let is_narrow = p.line.bbox.max.x - p.line.bbox.min.x < min_prose_width;
@@ -2228,26 +2224,22 @@ mod tests {
             SignatureToken::SyntheticSpace,
         ];
 
-        // 1. Reflexivity and Eq consistency: a.cmp(a) == Equal, and a == a
         for a in &tokens {
             assert_eq!(a.cmp(a), Ordering::Equal);
             assert_eq!(a, a);
         }
 
-        // 2. Consistency with Eq and Antisymmetry for all pairs (a, b)
         for (i, a) in tokens.iter().enumerate() {
             for (j, b) in tokens.iter().enumerate() {
                 let cmp_ab = a.cmp(b);
                 let cmp_ba = b.cmp(a);
 
-                // Antisymmetry: a.cmp(b) == b.cmp(a).reverse()
                 assert_eq!(
                     cmp_ab,
                     cmp_ba.reverse(),
                     "Antisymmetry violated for index ({i}, {j})"
                 );
 
-                // Eq consistency: a.cmp(b) == Equal <=> a == b
                 if a == b {
                     assert_eq!(cmp_ab, Ordering::Equal);
                 } else {
@@ -2256,7 +2248,6 @@ mod tests {
             }
         }
 
-        // 3. Transitivity: if a <= b and b <= c, then a <= c
         for a in &tokens {
             for b in &tokens {
                 for c in &tokens {
@@ -2273,9 +2264,8 @@ mod tests {
             }
         }
 
-        // 4. Variant tag order: Mapped < Unmapped < SyntheticSpace
-        assert!(tokens[0] < tokens[2]); // Mapped < Unmapped
-        assert!(tokens[0] < tokens[5]); // Mapped < SyntheticSpace
-        assert!(tokens[2] < tokens[5]); // Unmapped < SyntheticSpace
+        assert!(tokens[0] < tokens[2]);
+        assert!(tokens[0] < tokens[5]);
+        assert!(tokens[2] < tokens[5]);
     }
 }

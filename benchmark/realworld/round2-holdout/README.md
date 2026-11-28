@@ -48,11 +48,6 @@ The manifest records 5,111,425 bytes and SHA-256
 5,221,452 bytes and SHA-256
 `3157fbfb495c2c1b2c00bed1300ddfaf92376894a4fc42fb993837430b7d69b8` for the new PDF.
 
-No comparison was run on this holdout during annotation. The existing RFC holdout remains a
-separate extraction diagnostic. Its precise issue ledger is recorded in
-[`prior-rfc-extraction.json`](prior-rfc-extraction.json): five unsupported issues, with the exact
-operator indexes and page scopes copied from the locally captured raw result, with ledger provenance. The run produced 142
-unresolved regions, zero resolved tokens on either side, incomplete extraction and comparison, zero
-accepted events, and nine candidates. Its quality measurement was skipped because no expected
-annotations were recorded, so these outcomes are not precision or recall measurements. The
-corresponding synthetic taxonomy test is named in the ledger; it does not reproduce the RFC PDFs.
+No comparison was run on this holdout during annotation. The separate RFC holdout in
+[`../claims-holdout.tsv`](../claims-holdout.tsv) has no expected annotations and is kept
+separate from this annotated holdout.

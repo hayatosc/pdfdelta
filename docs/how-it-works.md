@@ -312,7 +312,9 @@ marker: coarse spans, repeated boundary runs within the same block, short
 moves, numeric-only spans, numeric table neighbours, and order-uncertain pages
 lower the confidence without changing the script or the exit code. Matched
 tokens also carry formatting-only evidence for normalization (raw text or its
-normalization-event mask differs, including an in-block line-wrap rewrite),
+normalization-event mask differs, including an in-block line-wrap rewrite and
+interior horizontal whitespace differences between matched tokens via
+`Token::raw`, excluding span-boundary, line-break, and over-extended gaps),
 font size (relative one-percent tolerance), position (the tested segment's
 internal line and page break offsets agree and its lines are uniform baseline
 translations),
@@ -633,8 +635,8 @@ the incomplete/unexamined behavior.
 
 Every PDF is untrusted input.
 
-- **Native acquisition** runs in bounded child processes: 2 GiB address
-  space, 30 s CPU, 35 s parent deadline, 1 MiB request header, and 128 MiB
+- **Native acquisition** runs in bounded child processes: 2 GiB memory
+  ceiling, 30 s CPU, 35 s parent deadline, 1 MiB request header, and 128 MiB
   response limits. Page metadata and form fields are acquired separately from
   glyphs and tags, so a content-extraction failure can leave forms and
   rendering usable. PDF input is capped at 256 MiB.
@@ -667,11 +669,12 @@ aggregate limits before comparison. Passwords travel through private stdin and
 never appear in responses. Bounded workers support Linux and macOS; on other
 platforms the affected acquisition is reported as unsupported.
 
-Linux enforces the worker memory ceiling with `RLIMIT_AS`. macOS accepts
-`RLIMIT_AS` but does not enforce it, so worker subprocesses arm a counting
-global allocator at the same 2 GiB limit. An allocation above it terminates the
-worker with the limits exit code, which the parent maps to a typed
-`resource_limit`; the comparison process never arms the allocator.
+Linux enforces the worker memory ceiling with `RLIMIT_AS`. macOS rejects
+`RLIMIT_AS` at 2 GiB, so worker subprocesses skip `RLIMIT_AS` on macOS and arm
+a counting global allocator at the same 2 GiB limit alongside `RLIMIT_CPU` and
+`RLIMIT_CORE`. An allocation above the ceiling terminates the worker with the
+limits exit code, which the parent maps to a typed `resource_limit`; the
+comparison process never arms the allocator.
 
 ## Dependencies
 

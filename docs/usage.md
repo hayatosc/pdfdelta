@@ -82,7 +82,7 @@ conventions as the main flow text output.
 | `--json <PATH>` | Write the `pdfdelta-flow/1` JSON report; a `.gz` suffix produces gzip. |
 | `--tokens` | Also write token text to JSON Lines sidecars (`PATH.old-tokens.jsonl[.gz]`, `PATH.new-tokens.jsonl[.gz]`). |
 | `--geometry` | Include per-token page and bounding box in the JSON report. |
-| `--limit-scale <FACTOR>` | Scale extraction count limits, the footer-matching work limit, and image worker CPU/wall budgets by a factor of at least 1. Parser limits and layout thresholds are unchanged. |
+| `--limit-scale <FACTOR>` | Scale extraction count limits and image worker CPU/wall budgets by a factor of at least 1. Parser limits and layout thresholds are unchanged. |
 
 Text output opens with a `flow summary` block: old and new token totals, equal
 tokens, per-kind (`delete`, `insert`, `replace`, `move`, `reading-order`,
@@ -129,7 +129,10 @@ per-band `bands` (an empty array unless a page was split into stacked regions;
 `bottom` and `top` are `null` at the unbounded outer edge of the page),
 furniture, and per-page conservation. Formatting entries are split at content
 changes and old-side blocks, then adjacent entries with the same reasons,
-sizes, and pages are coalesced. A one-token match inside rewritten text is a
+sizes, and pages are coalesced. `normalization` includes interior horizontal
+whitespace differences (repeated spaces, non-breaking spaces, table padding)
+between matched tokens, while excluding span-boundary, line-break, and
+over-extended gaps. A one-token match inside rewritten text is a
 point, not a formatting span, and is dropped after coalescing. Font size is
 reported once per distinct changed size pair over the whole matched run.
 Position requires the tested segment's internal line and page break offsets to
@@ -195,16 +198,17 @@ never consults an external reader. Pages with `order_coherence` below
 observed on the generated and vendored fixtures and above the 0.35 measured on
 the scrambled IRS form rows. Generated fixtures stay at or above 0.83.
 
-Flow uses these exit codes. Formatting-only changes (font-size changes on
-matched tokens) are reported but never select exit `1`. The confidence and
-ambiguity fields are descriptive and do not change the exit code.
+Flow uses these exit codes. Formatting-only changes and same-row
+reading-order changes (`ReadingOrder`) are reported but never select exit `1`.
+The confidence and ambiguity fields are descriptive and do not change the exit
+code.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | No detected difference. `Layout-only` changes do not count; there are no `Delete`, `Insert`, `Replace`, or `Move` changes. |
-| `1` | Detected difference found: a `Delete`, `Insert`, `Replace`, or `Move`. Moves count even when the moved run has one token. |
+| `0` | No detected difference, and extraction, glyph conservation, and non-text paint checks are complete. `Layout-only`, `ReadingOrder`, and `formatting-only` changes do not count. |
+| `1` | Detected difference found (`Delete`, `Insert`, `Replace`, or `Move`) and neither side has broken extraction or incomplete glyph conservation (even if unexamined non-text paint exists). Moves count even when the moved run has one token. |
 | `2` | Execution or report-writing error. |
-| `3` | Extraction or glyph conservation is incomplete on either side. |
+| `3` | Extraction or glyph conservation is broken on either side, or no difference was detected and non-text paint or an image-only page was unexamined. |
 
 Limits: the script is token-level, so words are separated at spaces and
 punctuation, and one CJK scalar is one token. Extraction budgets default to
@@ -217,10 +221,11 @@ side's normalization buffers. The cache is a versioned binary format with
 token counts, lengths, and an FNV-1a checksum; the parent validates all of them
 before use. The directory is removed on success, on an error return, and when
 the child fails. A child that exits non-zero or is killed aborts the command
-with exit `2` and never publishes a partial report. On Linux/glibc the `flow` command restarts itself with one malloc
-arena so the second side's extraction can reuse the first side's freed
-buffers; this keeps a multi-million-glyph comparison inside a 6 GB budget and
-is a no-op when `MALLOC_ARENA_MAX` is already set. Text can still be reordered by
+with exit `2` and never publishes a partial report. On Unix/glibc, flow
+comparisons (both the main command and `pdfdelta flow`) restart themselves with
+one malloc arena so the second side's extraction can reuse the first side's
+freed buffers; this keeps a multi-million-glyph comparison inside a 6 GB budget
+and is a no-op when `MALLOC_ARENA_MAX` is already set. Text can still be reordered by
 reading-order reconstruction; layout issues are not propagated into the script.
 Moves require a repeated run that is long enough to identify, and a table of
 contents whose page numbers shift can still produce move noise. Once the
@@ -331,9 +336,9 @@ The detected text changes are still reported.
 
 This rule is deliberately conservative: a changed table rule, a moved box, or
 a new figure also makes the text channel incomplete, because the engine
-cannot establish that the changed paint is not outlined text. The M4b
-measurement shows that this affects almost every real-world revision; no
-narrower variant tested in M4b recovered additional pairs. See
+cannot establish that the changed paint is not outlined text. Real-world
+revision measurements show that this affects almost every real-world revision;
+no narrower paint-comparison variant tested recovered additional pairs. See
 [`limitations.md`](limitations.md).
 
 ## Evidence channels
@@ -401,8 +406,10 @@ Exit `0` requires every selected channel to be complete. With the default
 channels that is not reachable yet for a document with pages: rendered page
 rasters are retained for review but not compared, so each rendered page leaves
 the visual inventory incomplete, and native relation endpoints and semantic
-relationships are not established, so the relations channel stays unexamined.
-An identical or purely reflowed document therefore exits `3` with
+relationships are not established for a tagged document, so the relations
+channel stays unexamined (pairs where both inputs prove no relation source have
+a complete empty relations inventory). An identical or purely reflowed document
+with pages therefore exits `3` with
 `exit_basis: "unexamined_evidence"`, not `0`. Select the channels whose
 verdict you need: `--channels text` and `--native-text-only` exit `0` when the
 text evidence is complete and unchanged, and `--channels text,forms` adds the
@@ -444,10 +451,11 @@ flow summary
 
 The summary reports token counts per change kind, extraction status, reading
 order, glyph conservation, and furniture. Each entry names the change kind, the
-one-based old/new pages and token ranges it touches, its confidence and
-ambiguity reasons, and shows the changed tokens in brackets between a few
-unchanged context tokens. Layout-only changes are counted but not listed;
-formatting-only entries are summarized by count.
+one-based old/new pages it touches (token ranges are in the JSON report), its
+confidence and ambiguity reasons when any ambiguity reason exists, and shows the
+changed tokens in brackets between a few unchanged context tokens. Layout-only
+changes are counted but not listed; up to 20 reading-order entries and up to 20
+formatting-only entries are listed in their own sections.
 
 PDF-derived text is untrusted: control characters and Unicode bidi controls are
 escaped to their literal `\u{...}` form so a hostile glyph mapping cannot drive
@@ -545,11 +553,11 @@ token order, so the reporting parent does not retain an extracted document.
 On `M/gcc-13-3-to-13-4` (`--limit-scale 2`) the peak resident set was 2.18 GB,
 compared with 2.06 GB for the compact text-only run and 5.14 GB for the former
 in-memory full report. Full reports are still much larger than compact reports:
-the largest ten H1 pairs produced 609.7 MB of gzip in total. The temporary side
-cache is about the size of the `token_sources` records and is removed when the
-comparison ends. Capture with a stated output budget and delete captures when
-they are no longer needed. `--full-json` requires `--native-text-only` and
-`--json`.
+the largest ten pairs of the 64-pair native panel produced 609.7 MB of gzip in
+total. The temporary side cache is about the size of the `token_sources` records
+and is removed when the comparison ends. Capture with a stated output budget and
+delete captures when they are no longer needed. `--full-json` requires
+`--native-text-only` and `--json`.
 
 ### Diagnostic trace
 
@@ -603,7 +611,7 @@ bundles are read by `review::read_sources`, which accepts the single-stream
 version-3 shape, the version-2 double-gzip shape, and the oldest uncompressed
 `sources.json`. The HTML review adds a flow
 text section. Each
-non-layout flow change links to `/flow_text/changes/{index}`, each
+content and move flow changes link to `/flow_text/changes/{index}`, each
 formatting-only entry to `/flow_text/formatting_only_changes/{index}`, each
 per-channel verdict to `/channel_verdicts/{index}`, and each retained text
 extraction issue or uncertain reading order to `/flow_text/issues/{index}` or
@@ -614,7 +622,7 @@ HTML bundle; use `--agent-review` (which retains token sources) or
 
 Excerpts distinguish strict changes (A), non-owning corresponding-range content
 changes (B), and inferred comparisons (C) with labels and border/underline
-styles. A is a delete, insert, or high-confidence replace; B is a replace whose
+styles. A is a high-confidence delete, insert, or replace; B is a replace whose
 span is coarse, so its interior edit is not localized; C is a move or a change
 carrying an ambiguity signal. Formatting-only entries get their own F label.
 Flow has no separate unresolved-comparison category; broken or unexamined text
@@ -738,6 +746,7 @@ pdfdelta old.pdf new.pdf \
 
 ```bash
 pdfdelta inspect document.pdf                 # backend, PDF version, page count
+pdfdelta inspect document.pdf --backend-info  # parser backend name and capabilities
 pdfdelta inspect document.pdf --objects       # indirect objects and structure
 pdfdelta inspect document.pdf --glyphs        # extracted glyph evidence
 pdfdelta inspect document.pdf --svg overlay.svg

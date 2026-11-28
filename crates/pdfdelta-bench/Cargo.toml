@@ -12,14 +12,6 @@ default-run = "pdfbench"
 name = "pdfbench"
 path = "src/main.rs"
 
-[[example]]
-name = "render_observer"
-test = true
-
-[[example]]
-name = "opaque_effect_probe"
-test = true
-
 [features]
 fuzzing = []
 
@@ -32,9 +24,6 @@ serde-saphyr.workspace = true
 sha2.workspace = true
 pdfdelta-core = { path = "../pdfdelta-core", features = ["predefined-cid-unicode"] }
 pdfdelta-diff = { path = "../pdfdelta-diff" }
-
-[dev-dependencies]
-hayro = "=0.7.1"
 
 [lints]
 workspace = true

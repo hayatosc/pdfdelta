@@ -46,8 +46,8 @@ const MAX_PREFLIGHT_DEPTH: usize = 8;
 /// Measured over 4,654 rendered pages of the 36-pair channel panel: median
 /// about 0.032 s, p99 about 0.27 s, p99.9 about 1.35 s, and max about 2.9 s.
 /// The maximum is two reproducible `ipcc-synthesis-ar5-to-ar6` pages at
-/// 2.86-2.90 s; an earlier `/proc`-sampled measurement understated them. Ten
-/// seconds is about a 3.5x margin over the maximum and 37x over p99.
+/// 2.86-2.90 s. Ten seconds is about a 3.5x margin over the maximum and 37x
+/// over p99.
 pub(crate) const PAGE_CPU_BUDGET_SECONDS: u64 = 10;
 
 /// Wall-clock safety stop for one page.
@@ -808,9 +808,8 @@ fn install_limit(
 pub fn restrict_process(cpu_seconds: u64) -> Result<(), RestrictProcessError> {
     use rustix::process::Resource;
 
-    // macOS accepts RLIMIT_AS but does not enforce it, and its address-space
-    // limit is not a reliable RSS ceiling. Arm the worker allocator before any
-    // input is read instead; Linux keeps its existing RLIMIT_AS behaviour.
+    // macOS rejects `RLIMIT_AS` at 2 GiB, so skip it there and arm the
+    // counting allocator before any input is read; Linux enforces `RLIMIT_AS`.
     #[cfg(target_os = "macos")]
     crate::worker_allocator::enforce(crate::worker_allocator::WORKER_MEMORY_BUDGET_BYTES);
     #[cfg(target_os = "linux")]

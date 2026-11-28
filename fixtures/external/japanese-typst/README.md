@@ -69,12 +69,9 @@ rm /tmp/old_run1.pdf /tmp/old_run2.pdf /tmp/new_run1.pdf /tmp/new_run2.pdf
 
 ## Expected Outcome
 
-- **Process Exit Status**: `1` (`ExitStatus::ContentChanges`)
-- **Content Changes**: Exactly `1` `Replacement` (`第10版` -> `第20版`, character change `'1'` -> `'2'`)
+- **Process Exit Status**: `1`
+- **Content Changes**: Exactly `1` `replacement` (`old_span.text: "10"` -> `new_span.text: "20"` inside `第10版` -> `第20版`, 1-based `pages: [1]`)
 - **Formatting Changes**: `0`
-- **Uncertain Changes**: `0`
-- **Unresolved Regions**: `0`
 - **Extraction Complete**: `true` on both `old` and `new`
 - **Extracted Glyphs**: Exactly 87 glyphs per side, all horizontal direction `(1.0, 0.0)`, all mapped Unicode scalars
-- **Comparison Complete**: `true`
-- **Alignment Coverage**: `1.0` (100.0%) on both sides
+- **Text Channel Complete**: `true` (under `--native-text-only` or `--channels text`)

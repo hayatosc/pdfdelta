@@ -10,11 +10,11 @@
 //! async-signal-safe libc call used after the ceiling is crossed.
 //!
 //! Linux enforces a worker's 2 GiB address-space ceiling with `RLIMIT_AS`.
-//! macOS accepts the same limit but does not enforce it, so worker mode arms
-//! this counting allocator instead. An allocation that would take live bytes
-//! above the ceiling terminates the worker with exit code 3, which the parent
-//! maps to a typed `resource_limit` outcome. The allocator is inert until
-//! [`enforce`] is called; the comparison process never arms it.
+//! macOS rejects `RLIMIT_AS` at 2 GiB, so worker mode skips `RLIMIT_AS` and
+//! arms this counting allocator instead. An allocation that would take live
+//! bytes above the ceiling terminates the worker with exit code 3, which the
+//! parent maps to a typed `resource_limit` outcome. The allocator is inert
+//! until [`enforce`] is called; the comparison process never arms it.
 #![allow(unsafe_code)] // The allocator contract is the whole subject of this module.
 
 use std::{

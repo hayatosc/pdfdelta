@@ -1143,14 +1143,11 @@ fn normalize_blocks_impl(
         |len| GlyphSeen::Dense(vec![false; len]),
     );
 
-    // Raw-block building mutates shared duplicate-detection sets, so it stays
-    // sequential in block order and stops at the first build error, exactly
-    // like the original single-threaded loop. `normalize_block` is pure given
-    // its raw block, so the collected raws are normalized in parallel and
-    // consumed in block order: the first normalization error (lowest block
-    // index) is reported, or the deferred build error when every
-    // normalization succeeded — the same error the sequential loop would
-    // have reported.
+    // Raw-block building mutates shared duplicate-detection sets, so it runs
+    // in block order and stops at the first build error. `normalize_block` is
+    // pure given its raw block, so the collected raws are normalized in
+    // parallel and consumed in block order: the lowest-index normalization
+    // error takes precedence over any deferred build error.
     let mut raws = Vec::with_capacity(blocks.len());
     let mut build_error = None;
     for block in blocks {

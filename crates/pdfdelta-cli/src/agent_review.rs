@@ -1347,7 +1347,6 @@ fn text_view(
             baseline,
         ));
     }
-    // Share what remains between the two sides, then keep whichever fits.
     let share = (cap - baseline) / 2;
     for (key, text) in [("old_text", &case.old_text), ("new_text", &case.new_text)] {
         let Some(text) = text else { continue };
@@ -1367,7 +1366,6 @@ fn text_view(
         let expand = quote_action(&case.case_id);
         let mut scalars = text.text.chars().count();
         let fitted;
-        // Halve the retained length until the encoded side fits its share.
         loop {
             let candidate =
                 pdfdelta_core::review::retain_text(&text, scalars, Some(expand.clone()));
@@ -1914,7 +1912,6 @@ pub(crate) fn import(
     let stored = serde_json::json!({
         "schema": "agent-review-result/v2",
         "bundle_id": manifest.bundle_id,
-        // The engine's own result, copied without reinterpretation.
         "engine": manifest.engine,
         "export": manifest.export,
         "external": {
@@ -2042,7 +2039,6 @@ mod tests {
         let rotated = page(792, 612, Some([0.0, 0.0, 612.0, 792.0]));
         assert_eq!(pixel_bounds(&rotated, [100.0, 700.0, 300.0, 712.0]), None);
 
-        // Without a page box there is nothing to map against.
         let unknown = page(612, 792, None);
         assert_eq!(pixel_bounds(&unknown, [100.0, 700.0, 300.0, 712.0]), None);
     }

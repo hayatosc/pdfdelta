@@ -2088,7 +2088,7 @@ fn resubset_plan(identity: &Comparison) -> ResubsetPlan {
 
 /// Appends harmless trailing bytes to every embedded font program.
 ///
-/// The marker changes the decoded program bytes and therefore today's program
+/// The marker changes the decoded program bytes and therefore the program
 /// hash, while the font's names and outlines are unchanged. Type 1 readers stop
 /// at `eexec`, CFF readers use absolute offsets, and this engine does not parse
 /// TrueType tables; a valid reader ignores the trailing comment either way.
@@ -2316,7 +2316,6 @@ fn page_order_matches(
     find(identity) == find(current)
 }
 
-/// Multiset of token texts covered by content changes.
 /// Counts visible glyph identities independently of page order.
 fn glyph_multiset(document: &Document<Glyph>) -> Multiset {
     let mut counts = Multiset::default();

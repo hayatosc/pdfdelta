@@ -121,10 +121,9 @@ pub(crate) fn validate_line_options(options: LineOptions) -> Result<()> {
 
 pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Result<Vec<Line>> {
     validate_line_options(options)?;
-    // Duplicate ids must be reported for the first duplicate in document
-    // order, exactly like the sequential set-based scan this replaces. Glyph
-    // ids are dense in practice (extraction assigns sequential ids), so a
-    // bitset over the id range avoids hashing; sparse id spaces fall back to
+    // Duplicate ids must be reported for the first duplicate in document order.
+    // Glyph ids are dense in practice (extraction assigns sequential ids), so
+    // a bitset over the id range avoids hashing; sparse id spaces fall back to
     // the set, keeping both paths behaviorally identical.
     let items = document.items();
     let max_id = items.iter().map(|glyph| glyph.id.0).max().unwrap_or(0);
@@ -155,10 +154,8 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
     });
 
     // Glyphs are page-sorted, so line building within one page depends only
-    // on that page's glyphs: the active-page slice in the sequential loop
-    // never consults other pages' lines. Building per-page runs in parallel
-    // and concatenating in page order therefore reproduces the sequential
-    // output exactly; line ids are assigned after the global sort below.
+    // on that page's glyphs; per-page runs are built in parallel and sorted
+    // deterministically before assigning global line ids.
     let mut page_runs = Vec::new();
     let mut run_start = 0;
     for index in 1..glyphs.len() {
@@ -191,15 +188,10 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
         .collect())
 }
 
-/// Sequentially builds the lines of one page run; identical to the inner
-/// loop of the original single-threaded pass with the page-start offset
-/// removed because each run starts with an empty line list.
+/// Builds the lines for a single page's glyphs.
 fn build_page_lines<'a>(glyphs: &[&'a Glyph], options: LineOptions) -> Vec<WorkingLine<'a>> {
     let mut working_lines = Vec::<WorkingLine>::new();
     for glyph in glyphs {
-        // Every open line is scored per glyph, so the glyph's normalized
-        // direction is computed once here instead of once per pair; the
-        // result is identical because normalization is a pure function.
         let glyph_direction = normalize(glyph.direction);
         let best = working_lines
             .iter()

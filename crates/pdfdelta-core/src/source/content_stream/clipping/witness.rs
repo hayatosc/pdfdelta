@@ -825,9 +825,9 @@ impl PathWitness {
                 paths.push(rectangle);
             }
             let bbox = [glyph.min.x, glyph.min.y, glyph.max.x, glyph.max.y];
-            // Reserve the complete optional bound and the original partial-proof
-            // minimum before attempting a new certificate. Low-budget legacy
-            // behavior therefore remains authoritative; attempted work is paid.
+            // Reserve the complete optional bound and the partial-proof minimum
+            // before attempting a whole-box certificate so low-budget calls
+            // fall back deterministically; attempted work is still charged.
             let whole_bound = edges?
                 .checked_mul(576)?
                 .checked_add(self.depth.checked_add(1)?.checked_mul(128)?)?

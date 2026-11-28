@@ -12,15 +12,15 @@ pub const MIN_LINE_GAP: u16 = 8;
 pub const MAX_LINE_GAP: u16 = 72;
 
 pub const DEFAULT_PAGE_WIDTH: u16 = 612;
-/// Matches the `MediaBox` height both renderers emitted before plans carried a page size.
+/// Default `MediaBox` height in points used by both benchmark renderers.
 pub const DEFAULT_PAGE_HEIGHT: u16 = 792;
 pub const MIN_MARGIN: u16 = 0;
 pub const MAX_MARGIN: u16 = DEFAULT_PAGE_WIDTH - 1;
-/// Matches the horizontal origin both renderers used before plans carried a margin.
+/// Default horizontal text origin in points used by both benchmark renderers.
 pub const DEFAULT_MARGIN: u16 = 36;
 
 pub const MIN_FONT_SIZE: u16 = 1;
-/// Matches the `/F1 10 Tf` size both renderers emitted before plans carried a font size.
+/// Default `/F1 10 Tf` font size in points used by both benchmark renderers.
 pub const DEFAULT_FONT_SIZE: u16 = 10;
 pub(crate) const GLYPH_WIDTH_UNITS: u16 = 500;
 const FONT_UNITS_PER_EM: u16 = 1_000;

@@ -912,7 +912,7 @@ mod tests {
         );
 
         // Two bundles in one run would publish into two destinations from one
-        // comparison; the first version refuses the combination outright.
+        // comparison; the CLI refuses the combination outright.
         assert!(
             Cli::try_parse_from([
                 "pdfdelta",

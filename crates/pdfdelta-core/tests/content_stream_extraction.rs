@@ -2574,7 +2574,7 @@ fn mixed_structure_content_preserves_order_duplicates_and_failed_slots() -> Resu
         else {
             panic!("retained mixed content")
         };
-        // The legacy flat view remains unproved; ordered raw membership survives.
+        // The flattened glyph list remains unproved; ordered raw membership survives.
         assert!(glyphs.is_empty());
         assert_eq!(
             content[0],
@@ -5361,7 +5361,6 @@ fn embedded_simple_font_with_named_encoding_preserves_unmapped_code_with_identit
         None,
     );
 
-    // 1. extract_outcome must report a contextual Unresolved issue with operator provenance and zero emitted glyphs
     let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
     assert!(outcome.is_complete());
     assert!(outcome.issues().is_empty());
@@ -5425,11 +5424,10 @@ fn cross_revision_divergent_encodings_do_not_fabricate_matching_unmapped_tokens(
     let (old_outcome, old_content) = make_pdf(b"CustomGlyphAlpha")?;
     let (new_outcome, new_content) = make_pdf(b"CustomGlyphBeta")?;
 
-    // Extended contract: the Differences glyph names are part of the proven
-    // selector binding, so both revisions extract completely and keep their
-    // raw glyphs as Unmapped tokens instead of failing closed. The diverging
-    // names must still produce distinct token identities, so code 65 can never
-    // become an unchanged match between the two revisions.
+    // Differences glyph names are part of the proven selector binding, so both
+    // revisions extract completely and keep their raw glyphs as Unmapped tokens.
+    // The diverging names must still produce distinct token identities, so code
+    // 65 can never become an unchanged match between the two revisions.
     for outcome in [&old_outcome, &new_outcome] {
         assert!(outcome.is_complete());
         assert!(outcome.issues().is_empty());

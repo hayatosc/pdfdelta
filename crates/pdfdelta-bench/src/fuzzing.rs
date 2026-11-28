@@ -24,14 +24,11 @@ pub fn fuzz_canonical_yaml(input: &[u8]) {
         return;
     };
     if yaml.len() > MAX_CANONICAL_YAML_BYTES {
-        // The parser would reject this as InvalidInput; treat as acceptable.
         return;
     }
     let Ok(document) = CanonicalRenderDocument::from_yaml(yaml) else {
         return;
     };
-    // Success invariants: these must hold for any Ok result and are
-    // verified against the existing validation logic.
     assert!(!document.title().is_empty());
     assert!(document.sections().len() <= 8);
     let paragraph_count: usize = document

@@ -14,9 +14,7 @@ use sha2::{Digest, Sha256};
 use crate::fs::{lowercase_hex, read_limited_typed};
 
 /// Bump when anything that changes extraction results is added to the cache
-/// key, the extraction contract, or the cached payload shape. Version 35
-/// adds exact non-text paint identities and invalidates older outcomes.
-/// The separate font-decoding experiment has a different extraction contract.
+/// key, the extraction contract, or the cached payload shape.
 const CACHE_FORMAT_VERSION: u32 = 35;
 
 /// Cached glyph evidence has an explicit byte ceiling. Entries above this bound
@@ -230,13 +228,10 @@ fn write_entry_exclusive(
             Ok(false)
         }
         Err(_) if oversized => Ok(true),
-        Err(error) => {
-            // serde_json wraps the underlying I/O error, preserving its kind.
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                error.to_string(),
-            ))
-        }
+        Err(error) => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            error.to_string(),
+        )),
     }
 }
 
@@ -594,7 +589,6 @@ mod tests {
             "no readable entry may exist for an oversized payload"
         );
 
-        // A later store sees the marker and degrades to a no-op.
         cache.store_with_ceiling(&key, &outcome, 32);
         let entries_after = fs::read_dir(&dir)
             .expect("cache directory should exist")

@@ -41,7 +41,7 @@
 
 ## Project Constraints
 
-- Use stable Rust and Edition 2024; only a future fuzz crate may require nightly.
+- Use stable Rust and Edition 2024; only the fuzz workspace requires nightly.
 - Keep backend errors contextual while preserving the distinction between fatal, unsupported, unresolved, and resource-limit outcomes.
 - Avoid fixed layout pixel thresholds; use relative metrics and tune concrete values from benchmark evidence.
 
@@ -92,6 +92,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 cargo test --workspace --all-features --lib
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --document-private-items
+cargo run -p pdfdelta-bench -- verify
 ```
 
 The `--all-features` clippy and library-test runs compile the fuzzing-only

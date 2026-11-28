@@ -3,9 +3,9 @@
 //! `--native-text-only` writes the compact native flow envelope. The report
 //! contains only what flow computed: token counts, extraction completeness,
 //! content/formatting/uncertain counts, the verified change script, formatting
-//! evidence, extraction issues, and layout-only counts. It has no proof-era
-//! assessment, candidate, proven-region, unresolved-region, or alignment
-//! coverage positions.
+//! evidence, extraction issues, and layout-only counts. Assessment, candidate,
+//! proven-region, unresolved-region, and alignment-coverage fields are omitted
+//! because this engine does not compute those phases.
 
 use std::{io::Write, ops::Range, path::Path};
 

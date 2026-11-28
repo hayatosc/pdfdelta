@@ -2454,9 +2454,9 @@ mod tests {
     #[test]
     fn baseline_rows_ignore_tall_overlapping_boxes() {
         // Row 1: A B at baseline 100; row 2: C D at baseline 89. Each box is
-        // 40 units tall, so adjacent rows overlap vertically. Paint order is
-        // interleaved (A, C, B, D), which previously merged rows through
-        // bounding-box overlap.
+        // 40 units tall, so adjacent rows overlap vertically while paint order
+        // is interleaved (A, C, B, D); baseline clustering must keep the two rows
+        // separate.
         let document = Document::new(vec![
             glyph("A", 1, 0.0, 100.0, 0),
             glyph("C", 2, 0.0, 89.0, 1),
@@ -2599,7 +2599,6 @@ mod tests {
         assert!(bands[1].bottom.is_infinite());
         assert_eq!(bands[1].top, bands[0].bottom);
 
-        // The same eight rows on one pitch stay one band.
         let continuous = (0..8)
             .map(|row| row_token(f64::from(row) * 12.0))
             .collect::<Vec<_>>();

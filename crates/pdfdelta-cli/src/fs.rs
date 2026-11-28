@@ -515,8 +515,6 @@ pub fn normalized_destination(path: &Path, context: &str) -> Result<PathBuf, Str
                 path.display()
             )
         })?,
-        // Nothing along the path exists yet; anchor the relative components
-        // at the current working directory.
         None => std::env::current_dir().map_err(|error| {
             format!(
                 "cannot resolve output path {} for {context}: {error}",
@@ -713,7 +711,6 @@ mod compressed_output_tests {
             .expect_err("existing output must not be overwritten");
         assert!(error.contains("refusing to overwrite"), "{error}");
 
-        // A corrupt gzip payload is detectable from the published file alone.
         std::fs::write(&path, b"not gzip").expect("corrupt fixture");
         let mut decoder = flate2::read::GzDecoder::new(File::open(&path).expect("corrupt file"));
         let mut text = String::new();

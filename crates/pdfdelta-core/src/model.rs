@@ -560,15 +560,13 @@ impl GlyphIndex<'_> {
 /// Indexes glyphs by id, rejecting documents with duplicate glyph ids so
 /// downstream layout and normalization share one validated lookup.
 ///
-/// The duplicate check preserves the sequential document-order scan's error:
-/// the reported id is the one whose second occurrence has the smallest
-/// document index.
+/// Reports the duplicate id whose second occurrence has the smallest document
+/// index.
 pub(crate) fn index_glyphs(document: &Document<Glyph>) -> Result<GlyphIndex<'_>> {
     let items = document.items();
     let len = items.len() as u64;
     // Ids below the item count with pairwise distinct slots leave no holes,
-    // but duplicates must still be rejected here — in document order, exactly
-    // like the sequential scan this replaces.
+    // so duplicates must still be rejected here in document order.
     if items.iter().all(|glyph| glyph.id.0 < len) {
         let mut direct = Vec::with_capacity(items.len());
         direct.resize(items.len(), None);

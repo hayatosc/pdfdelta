@@ -172,9 +172,9 @@ details.
   unresolved rather than compared.
 - Relationship comparison (links, footnotes) and form appearance checks are
   incomplete. Because rendered page rasters are review context and relation
-  endpoints are not established, the default channels report exit `3`
-  (`unexamined_evidence`) even for identical or purely reflowed documents;
-  use `--channels text` or `--native-text-only` for the text verdict.
+  endpoints on tagged documents are not established, the default channels report
+  exit `3` (`unexamined_evidence`) even for identical or purely reflowed
+  documents; use `--channels text` or `--native-text-only` for the text verdict.
 - Adjacent-block transpositions are reported as one move, preferring the
   smaller structural unit that is no less informative (a moved paragraph rather
   than a heading and its paragraph). A same-row transposition between

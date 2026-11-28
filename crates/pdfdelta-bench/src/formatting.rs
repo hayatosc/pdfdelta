@@ -8,10 +8,9 @@
 //! changes (the larger-size case).
 //!
 //! The point of these fixtures is contract coverage: a text-only token diff must
-//! report no content change for every pair, while the existing native report is
-//! free to list a formatting-only change. Whether it does is measured, not
-//! assumed: only font size and positional or structural evidence feed the
-//! existing formatting-only reasons.
+//! report no content change for every pair, while the native report may list a
+//! formatting-only change. Whether it does is measured, not assumed: only font
+//! size and positional or structural evidence feed formatting-only reasons.
 
 use std::{fmt::Write as _, io::Write as _};
 

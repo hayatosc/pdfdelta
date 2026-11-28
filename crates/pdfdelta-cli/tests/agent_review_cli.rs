@@ -764,7 +764,6 @@ fn a_modified_packet_is_refused_rather_than_answered() {
         "an edited packet must not be answered as if it were published"
     );
 
-    // The index is checked the same way.
     let index = bundle.join("cases/index.json");
     let mut stored: Value =
         serde_json::from_slice(&fs::read(&index).expect("index")).expect("JSON");
@@ -1157,7 +1156,6 @@ fn an_external_assessment_is_stored_beside_the_engine_result_not_merged_into_it(
             .expect("unanswered")
             > 0
     );
-    // The bundle itself is untouched.
     let after: Value =
         serde_json::from_slice(&fs::read(bundle.join("manifest.json")).expect("manifest"))
             .expect("JSON");

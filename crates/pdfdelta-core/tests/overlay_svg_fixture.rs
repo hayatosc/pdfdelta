@@ -224,7 +224,6 @@ fn svg_render_and_write_reject_non_finite_geometry() {
         let expected_glyph_id = format!("glyph {}", glyph.id.0);
         let doc = Document::new(vec![glyph]);
 
-        // render_glyph_overlay_svg must return Error::Report with "non-finite" and GlyphId
         let render_res = render_glyph_overlay_svg(&doc);
         match render_res {
             Err(Error::Report(msg)) => {
@@ -240,7 +239,6 @@ fn svg_render_and_write_reject_non_finite_geometry() {
             other => panic!("[{desc}] expected Error::Report, got {other:?}"),
         }
 
-        // write_glyph_overlay_svg must fail before writing partial output
         let mut buffer = Vec::new();
         let write_res = write_glyph_overlay_svg(&doc, &mut buffer);
         match write_res {
@@ -354,7 +352,6 @@ fn svg_render_and_write_reject_huge_finite_derived_overflow() {
 
 #[test]
 fn svg_render_accepts_valid_edge_cases_like_zero_width_and_height() -> Result<()> {
-    // Glyph with zero width and zero height
     let zero_dim_glyph = sample_svg_glyph(1, 50.0, 500.0, 50.0, 500.0);
     let doc = Document::new(vec![zero_dim_glyph]);
 
@@ -434,7 +431,6 @@ fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Re
     let doc = Document::new(vec![glyph]);
     let svg = render_glyph_overlay_svg(&doc)?;
 
-    // 1. Forbidden C0 controls and non-characters are converted to &lt;U+XXXX&gt;
     assert!(
         svg.contains("&lt;U+0000&gt;"),
         "NULL must be escaped to &lt;U+0000&gt;"
@@ -472,7 +468,6 @@ fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Re
         "U+FFFF non-character must be escaped to &lt;U+FFFF&gt;"
     );
 
-    // 2. Standard XML special characters are escaped
     assert!(svg.contains("&amp;"), "ampersand must be escaped to &amp;");
     assert!(
         svg.contains("&lt;tag&gt;"),
@@ -487,7 +482,6 @@ fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Re
         "single quotes must be escaped to &apos;"
     );
 
-    // 3. Allowed whitespace controls and XML 1.0 boundary scalar values are preserved as-is
     assert!(
         !svg.contains("&lt;U+0009&gt;"),
         "TAB must not be replaced by a marker"
@@ -533,7 +527,6 @@ fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Re
         "C1 control U+009F must be preserved according to XML 1.0 Char definition"
     );
 
-    // 4. Deterministic output
     let svg2 = render_glyph_overlay_svg(&doc)?;
     assert_eq!(svg, svg2, "SVG serialization must be 100% deterministic");
     Ok(())

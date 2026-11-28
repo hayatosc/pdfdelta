@@ -92,12 +92,10 @@ fn inadmissible_largest_gutter_does_not_hide_a_valid_column_partition() -> Resul
 
 #[test]
 fn two_column_page_partitions_into_left_and_right_regions() -> Result<()> {
-    // Left column lines (x from 50 to 250)
     let l1 = make_line(1, 50.0, 700.0, 250.0, 712.0);
     let l2 = make_line(2, 50.0, 680.0, 250.0, 692.0);
     let l3 = make_line(3, 50.0, 660.0, 250.0, 672.0);
 
-    // Right column lines (x from 350 to 550) - vertical whitespace gap x=250..350 (gap=100)
     let r1 = make_line(4, 350.0, 700.0, 550.0, 712.0);
     let r2 = make_line(5, 350.0, 680.0, 550.0, 692.0);
     let r3 = make_line(6, 350.0, 660.0, 550.0, 672.0);
@@ -116,7 +114,6 @@ fn two_column_page_partitions_into_left_and_right_regions() -> Result<()> {
         ReadingOrder::Known(vec![left_region.id, right_region.id])
     );
 
-    // Check exact spatial relations
     let mut expected_edges = vec![
         (left_region.id, right_region.id, RegionRelation::LeftOf),
         (right_region.id, left_region.id, RegionRelation::RightOf),
@@ -453,11 +450,9 @@ fn isolated_narrow_terminal_line_does_not_obstruct_columns() -> Result<()> {
 
 #[test]
 fn mixed_header_and_two_column_bands_partition_hierarchically() -> Result<()> {
-    // Header line spanning full width (y=750..765, x=50..550)
     let h1 = make_line(100, 50.0, 750.0, 550.0, 765.0);
     let h2 = make_line(101, 50.0, 730.0, 550.0, 745.0);
 
-    // Two columns below header (y=600..700)
     let l1 = make_line(1, 50.0, 680.0, 250.0, 692.0);
     let l2 = make_line(2, 50.0, 660.0, 250.0, 672.0);
     let r1 = make_line(3, 350.0, 680.0, 550.0, 692.0);
@@ -477,7 +472,6 @@ fn mixed_header_and_two_column_bands_partition_hierarchically() -> Result<()> {
         .expect("header region must exist");
     assert!(header_region.line_ids.contains(&LineId(101)));
 
-    // Header is Above the column regions
     let has_above_edge = graph
         .edges
         .iter()
@@ -511,11 +505,9 @@ fn full_width_bands_and_two_columns_have_known_render_order() -> Result<()> {
 
 #[test]
 fn vertically_stacked_bands_in_same_column_emit_same_column_relation() -> Result<()> {
-    // Top band lines (y from 750 to 780, x from 50 to 450)
     let t1 = make_line(1, 50.0, 765.0, 450.0, 777.0);
     let t2 = make_line(2, 50.0, 750.0, 450.0, 762.0);
 
-    // Bottom band lines (y from 600 to 630, x from 50 to 450) - vertical whitespace gap y=630..750
     let b1 = make_line(3, 50.0, 615.0, 450.0, 627.0);
     let b2 = make_line(4, 50.0, 600.0, 450.0, 612.0);
 
@@ -575,7 +567,6 @@ fn stacked_bands_with_small_horizontal_overlap_do_not_emit_same_column_relation(
 
 #[test]
 fn degenerate_zero_height_lines_decline_cuts_without_fixed_fallback() -> Result<()> {
-    // 4 lines with zero height (max_y == min_y) separated horizontally
     let l1 = make_line(1, 50.0, 700.0, 200.0, 700.0);
     let l2 = make_line(2, 50.0, 680.0, 200.0, 680.0);
     let r1 = make_line(3, 350.0, 700.0, 500.0, 700.0);

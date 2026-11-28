@@ -1,1 +1,0 @@
-The Digital Signature Algorithm (DSA) is no longer specified in this standard and may only be used to verify previously generated digital signatures. 

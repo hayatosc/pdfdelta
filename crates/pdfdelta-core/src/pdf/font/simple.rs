@@ -2248,7 +2248,7 @@ mod tests {
             "the same map must reproduce the identity"
         );
 
-        // The framing must defeat an actual old-format delimiter collision:
+        // Length framing prevents a delimiter-only framing collision:
         // map A {65:"x\0B\0name\0y", 67:"z"} and map B {65:"x",
         // 66:"y\0C\0name\0z"} collide when entries are concatenated as
         // code + "\0name\0" + name + "\0" without lengths.
@@ -2316,11 +2316,10 @@ mod tests {
             "the selector preflight must respect the remaining byte budget"
         );
 
-        // Cross-family collision regression: the old selector framing shared
-        // the implicit Embedded prefix (domain tag + NUL), so a crafted
-        // program equal to b"explicit-encoding-selector\0" + selector + tail
-        // reproduced the selector digest exactly. The disjoint leading family
-        // tag must keep the two identities distinct.
+        // Cross-family collision regression: a crafted program equal to
+        // `b"explicit-encoding-selector\0" + selector + tail` must not match the
+        // selector digest, so the leading family tag keeps the two identities
+        // distinct.
         let selector_literal = {
             let mut bytes = Vec::new();
             bytes.extend_from_slice(&0u64.to_be_bytes());
@@ -3641,7 +3640,6 @@ mod tests {
         let symbol = SimpleFontDecoder::load(&pdf, &standard_font(b"Symbol"), LIMITS)?;
         let dingbats = SimpleFontDecoder::load(&pdf, &standard_font(b"ZapfDingbats"), LIMITS)?;
 
-        // Symbol code 0x41 is Alpha; the Annex D.5 table now supplies it.
         assert_eq!(
             symbol.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
             mapped_text("\u{0391}")

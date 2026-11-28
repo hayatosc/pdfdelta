@@ -16,9 +16,13 @@ benchmark/
 │   ├── PROVENANCE.md          Development/holdout split audit
 │   ├── fetch.sh               Download and verify every pair
 │   ├── capture.sh             Capture a new pair's provenance fields
+│   ├── capture_guard.py       Lock, disk-headroom, and output-budget guards
 │   ├── flow_eval.py           Evaluate the flow engine against the PyMuPDF oracle
 │   ├── flow_audit.py          Sample and classify flow-only change regions
-│   └── compact_native.py      Compact diagnostics for existing native captures
+│   ├── compact_native.py      Compact diagnostics for existing native captures
+│   ├── compact_capture.py     Migrate historical schema-11 native capture runs
+│   ├── native-panel-requirements.txt  Python dependencies for native panel capture
+│   └── local-gold/            Independent source-quotation gold and verifier
 ├── manifests/                 Public smoke corpora for self-comparison
 └── microbench/                Case matrices and drivers for core measurement tests
 ```

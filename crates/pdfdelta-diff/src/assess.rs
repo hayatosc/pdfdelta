@@ -439,7 +439,6 @@ fn repeated_boundary(
                 return true;
             }
         }
-        // A longer run also has a last-boundary occurrence at range.end - 3.
         if range.len() > 3 {
             let sequence = ids[range.end - 3..range.end].to_vec();
             if near_duplicate(tokens, positions, sequence, range.end - 3) {
@@ -686,10 +685,8 @@ fn push_run(
             reasons.push(FormattingReason::Position);
         }
         if block_structure {
-            // Block-structure evidence always coexists with raw separator and
-            // line-break evidence on this corpus. The diff engine has no separate
-            // separator token, so the same structural change carries
-            // normalization and line-break evidence.
+            // The diff engine has no separate separator token, so a block-structure
+            // difference carries normalization and line-break evidence together.
             reasons.push(FormattingReason::Normalization);
             reasons.push(FormattingReason::BlockStructure);
             reasons.push(FormattingReason::LineBreak);

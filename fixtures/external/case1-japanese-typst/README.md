@@ -68,13 +68,10 @@ rm /tmp/old_run1.pdf /tmp/old_run2.pdf /tmp/new_run1.pdf /tmp/new_run2.pdf
 
 ## Expected Outcome
 
-- **Process Exit Status**: `0` (`ExitStatus::Unchanged`) in both default and `--strict` modes
+- **Process Exit Status**: `0` under `--native-text-only` or `--channels text` (`3` with `exit_basis: "unexamined_evidence"` under the default channels because page rasters are unexamined)
 - **Content Changes**: Exactly `0`
 - **Formatting Changes**: `2` (`normalization` from line-wrap position shifts in multi-line paragraphs)
-- **Uncertain Changes**: `0`
-- **Unresolved Regions**: `0`
 - **Extraction Complete**: `true` on both `old` and `new`
 - **Extracted Glyphs**: Exactly 158 glyphs per side, all horizontal direction `(1.0, 0.0)`, all mapped Unicode scalars
 - **Reconstructed Lines**: 6 lines in `old` vs 7 lines in `new`
-- **Comparison Complete**: `true`
-- **Alignment Coverage**: `1.0` (100.0%) on both sides
+- **Text Channel Complete**: `true` (under `--native-text-only` or `--channels text`)

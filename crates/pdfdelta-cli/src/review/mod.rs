@@ -76,16 +76,14 @@ fn page_preview_limit() -> usize {
 /// Reads the source index from a review bundle's `sources.json.gz`.
 ///
 /// The current writer publishes a gzip member inside the artifact's gzip
-/// member, as the version-2 writer did, because the second pass is what keeps
-/// the 2.2 GB source index near 110 MB instead of 146 MB. Version-3 bundles
-/// written before that change carry one gzip stream, and the oldest bundles
-/// used an uncompressed `sources.json`. This reader accepts all three shapes
-/// and returns the JSON bytes unchanged.
+/// member because the second pass keeps the 2.2 GB source index near 110 MB
+/// instead of 146 MB. For compatibility with older bundles, this reader accepts
+/// nested gzip, a single gzip stream, and uncompressed `sources.json`,
+/// returning the JSON bytes unchanged.
 ///
 /// The CLI's review query commands read the separate `--agent-review` bundle
-/// layout; this is the compatibility path for consumers that read the static
-/// HTML bundle's source artifact. It is currently exercised by tests that pin
-/// both historical shapes.
+/// layout; this path serves consumers of the static HTML bundle's source
+/// artifact.
 #[allow(dead_code)]
 pub(crate) fn read_sources(bytes: &[u8]) -> io::Result<Vec<u8>> {
     fn gunzip(bytes: &[u8]) -> io::Result<Vec<u8>> {

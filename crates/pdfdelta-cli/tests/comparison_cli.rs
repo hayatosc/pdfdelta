@@ -183,12 +183,10 @@ fn extraction_cache_produces_identical_reports_cold_and_warm() {
         stderr(&warm_output)
     );
 
-    // Comparison results must be identical with and without the cache.
     let baseline_report = read_json(&baseline);
     assert_eq!(read_json(&cold), baseline_report);
     assert_eq!(read_json(&warm), baseline_report);
 
-    // The warm run records a flow trace beside the unchanged report.
     let trace = read_json(&warm_trace);
     assert_eq!(trace["trace_schema"], "pdfdelta-flow-trace/1");
     assert_eq!(trace["result"]["exit_code"], 1);
@@ -266,7 +264,6 @@ fn inspect_svg_refuses_to_alias_or_overwrite_outputs() {
     write_pdf(&document, &["Testing SVG glyph overlay rendering"]);
     let original = fs::read(&document).expect("input PDF should be readable");
 
-    // The SVG destination must not refer to the inspected PDF.
     let aliased = inspect(&document, &["--svg", path_text(&document)]);
     assert_eq!(aliased.status.code(), Some(2), "{}", stderr(&aliased));
     assert!(
@@ -280,7 +277,6 @@ fn inspect_svg_refuses_to_alias_or_overwrite_outputs() {
         "refused SVG output must not modify the inspected PDF"
     );
 
-    // Existing output files are never replaced.
     let svg_path = directory.join("overlay.svg");
     let first = inspect(&document, &["--svg", path_text(&svg_path)]);
     assert_eq!(first.status.code(), Some(0), "{}", stderr(&first));
@@ -1918,7 +1914,6 @@ fn default_evidence_path_publishes_json_text_and_trace_reports() {
     assert_eq!(trace_json["trace_schema"], "pdfdelta-flow-trace/1");
     assert_eq!(trace_json["engine"], "flow");
 
-    // Report publication refuses to replace an existing destination.
     let repeated = {
         let mut command = Command::new(env!("CARGO_BIN_EXE_pdfdelta"));
         arguments(&mut command);
@@ -2255,8 +2250,8 @@ fn flow_engine_non_text_channels_do_not_use_proof_text_as_exit_evidence() {
             "--quiet",
         ],
     );
-    // The identical text must not be compared by proof as a hidden text
-    // channel. The forms value change is the selected detection and exits 1.
+    // Unselected text must not produce a text detection through the shared
+    // pipeline. The forms value change is the selected detection and exits 1.
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     let report = read_json(&report);
     assert_eq!(report["engine"], "flow");
@@ -2361,7 +2356,6 @@ fn flow_color_always_styles_native_and_multi_channel_reports() {
             stdout(&never)
         );
 
-        // Piped `auto` stays plain.
         let auto = run_default_engine(&old, &new, &extra);
         assert_eq!(auto.status.code(), Some(1), "{}", stderr(&auto));
         assert!(
@@ -2371,8 +2365,8 @@ fn flow_color_always_styles_native_and_multi_channel_reports() {
         );
     }
 
-    // A text report written to a file follows the proof engine's rule: only
-    // `--color always` styles it, because there is no terminal to inspect.
+    // Only `--color always` styles a text report written to a file, because
+    // there is no terminal to inspect.
     let styled_path = directory.join("styled.txt");
     let styled = run_default_engine(
         &old,
@@ -2801,8 +2795,8 @@ fn external_vertical_text_preserves_evidence_across_page_moves_and_edits() {
         }
         assert_eq!(report["old"]["native_glyphs"], 14);
         assert_eq!(report["new"]["native_glyphs"], glyphs);
-        // The text channel is flow's; the proof comparison no longer retains
-        // a second text change or its local mask.
+        // Flow owns the text channel; the shared-evidence comparison retains no
+        // second text change or local text mask.
         let proof_text_changes: Vec<_> = report["comparison"]["scopes"]
             .as_array()
             .expect("scopes")
@@ -3572,8 +3566,8 @@ fn flow_paint_inventory_guards_outlined_text_and_images() {
                 .is_some_and(|description| description.contains("non-text paint differs")))
     );
 
-    // Artifact-marked paint follows the same rule; the proof test treats it as
-    // unexamined, so the flow inventory must not ignore it.
+    // Artifact-marked paint follows the same paint-gate rule and stays
+    // unexamined in the flow inventory.
     let artifact_same = directory.join("artifact-same.pdf");
     let artifact_changed = directory.join("artifact-changed.pdf");
     let artifact_program = [b"/Artifact BMC ".as_slice(), program, b" EMC"].concat();
@@ -3690,8 +3684,8 @@ fn flow_paint_inventory_guards_outlined_text_and_images() {
         ],
     );
     // A changed image is a detected flow difference (the image token changed)
-    // plus unexamined paint, so M4c selects exit 1 while keeping the report
-    // incomplete.
+    // plus unexamined paint, so the exit policy selects exit 1 while keeping the
+    // report incomplete.
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     let report = read_json(&image_changed_report);
     assert_eq!(report["report"]["summary"]["comparison_complete"], false);
@@ -3908,7 +3902,6 @@ fn tagged_structure_key_obligations_do_not_block_a_text_detection() {
 #[test]
 fn flow_engine_acceptance_cases() {
     let directory = TestDirectory::new();
-    // Line-wrap invariance.
     let old = directory.join("wrap-old.pdf");
     let new = directory.join("wrap-new.pdf");
     let wrap_report = directory.join("wrap.json.gz");
@@ -3941,7 +3934,6 @@ fn flow_engine_acceptance_cases() {
     );
     assert_eq!(wrap["report"]["changes"], Value::Array(Vec::new()));
 
-    // Page-break invariance.
     let old = directory.join("page-old.pdf");
     let new = directory.join("page-new.pdf");
     let page_report = directory.join("page.json.gz");
@@ -3980,7 +3972,6 @@ fn flow_engine_acceptance_cases() {
     assert_eq!(page["report"]["summary"]["content_changes"], 0);
     assert_eq!(page["report"]["changes"], Value::Array(Vec::new()));
 
-    // Replacement: one exact change.
     let old = directory.join("replace-old.pdf");
     let new = directory.join("replace-new.pdf");
     let report = directory.join("replace.json.gz");
@@ -4013,7 +4004,6 @@ fn flow_engine_acceptance_cases() {
     assert!(json["report"].get("assessment").is_none());
     assert!(json["report"].get("not_produced_by_engine").is_none());
 
-    // Paragraph insertion: one exact change.
     let old = directory.join("insert-old.pdf");
     let new = directory.join("insert-new.pdf");
     let insert_report = directory.join("insert.json.gz");
@@ -4046,7 +4036,6 @@ fn flow_engine_acceptance_cases() {
         "Inserted paragraph contains generic text"
     );
 
-    // Paragraph deletion: one exact change.
     let old = directory.join("delete-old.pdf");
     let new = directory.join("delete-new.pdf");
     let delete_report = directory.join("delete.json.gz");
@@ -4288,7 +4277,6 @@ fn flow_trace_reports_phases_without_changing_report_or_exit() {
     assert_eq!(channel["status"], "skipped");
     assert_eq!(channel["skip_reason"], "text_only");
 
-    // An existing trace destination is refused without replacing it.
     let repeated = run_default_engine(
         &old,
         &new,
@@ -4988,7 +4976,6 @@ fn flow_engine_publishes_review_bundles_without_changing_the_exit() {
         &new,
         &["--channels", "text", "--review", path_text(&html), "-q"],
     );
-    // An equal comparison exits 0 with or without a bundle.
     assert_eq!(
         agent_output.status.code(),
         Some(0),

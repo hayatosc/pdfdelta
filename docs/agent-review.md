@@ -63,9 +63,11 @@ for:
 ]
 ```
 
-`kind: content` indexes `flow_text.changes` in the bundle's `comparison.json`;
-`kind: formatting` indexes `flow_text.formatting_only_changes`. Every
-non-layout flow change and every formatting entry belongs to exactly one case.
+`kind: content` indexes `changes` (or `flow_text.changes` in a multi-channel
+report), and `kind: formatting` indexes `formatting_only_changes` (or
+`flow_text.formatting_only_changes` in a multi-channel report) in the comparison's
+JSON report. Every non-layout flow change and every formatting entry belongs to
+exactly one case.
 Cases group events by result class, anchor side, page, and event kind so a
 reviewer reads a page-sized decision instead of thousands of one-token cases.
 When the case budget would be exceeded, groups are merged, which can only lower
@@ -81,7 +83,7 @@ evidence, page-local gaps before document-wide ones, and the old side before
 the new side only as a tie-break. Page-residual cases come last. When the case
 budget is exhausted, the planner stops building cases, records a bundle-level
 `cases_not_exported` omission with the number of withheld cases, and leaves
-`export_complete: false`. On `P/nist-controls-53-r4-to-r5`, the default
+`export_complete: false`. On `nist-controls-53-r4-to-r5`, the default
 4,096-case export is one 276 MB bundle and withholds 11,647 sub-cases; the
 complete 21,000-case budget plans 20,222 cases into one 342 MB bundle.
 
@@ -89,7 +91,7 @@ Planning is streaming. Case bodies and their gathered contexts are written to
 a private temporary store; the planner keeps only the fixed-size listing
 index (case identifiers, digests, counts, ordering keys, and omission
 records). The peak therefore does not grow with the number of cases. On
-`P/nist-controls-53-r4-to-r5` the complete export fell from 3.91 GB to 2.89 GB
+`nist-controls-53-r4-to-r5` the complete export fell from 3.91 GB to 2.89 GB
 peak RSS, and a diagnostic 4x plan of 80,888 finalized cases peaked at the
 same 2.89 GB. The comparison's own evidence, not the planned packets, is now
 the dominant cost.
@@ -119,8 +121,7 @@ Flow result classes map the engine's own evidence:
 
 | Flow event | Result class |
 | --- | --- |
-| Delete or insert | `strict` |
-| High-confidence replace | `strict` |
+| High-confidence delete, insert, or replace | `strict` |
 | Replace whose span is coarse | `non_owning_range` |
 | Move, or any change with an ambiguity signal | `inferred` |
 | Extraction issue, paint gate, image-only page, uncertain order | `unavailable` |

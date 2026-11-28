@@ -1,8 +1,6 @@
 //! Provenance and small numeric helpers shared by benchmark tooling.
 //!
 //! Quality records for the generated fixture matrix live in [`crate::evaluator`].
-//! The removed revision evaluation schema is not resurrected here; the
-//! remaining helpers are report- and engine-neutral.
 
 use pdfdelta_core::span::ChangeKind;
 use serde::{Deserialize, Serialize};

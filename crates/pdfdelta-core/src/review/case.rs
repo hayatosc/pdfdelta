@@ -459,8 +459,8 @@ pub struct ReviewCase {
     /// Token intervals this case accounts for under the native-glyph contract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub covered: Vec<TextCoverage>,
-    /// Flow report entries this case accounts for, when flow produced the
-    /// text evidence. Bundles from the removed proof engine leave this empty.
+    /// Flow report entries this case accounts for, or empty when this case does
+    /// not account for flow text-report entries.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flow_evidence: Vec<FlowEvidence>,
     /// Pages and bounds a rendered view of this case would cover.

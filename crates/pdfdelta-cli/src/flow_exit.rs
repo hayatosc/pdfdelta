@@ -447,11 +447,11 @@ fn key_domain_broken(attributed: &mut Attributions, domain: KeyDomain) {
 
 /// Attributes comparison-level obligations and exhausted searches.
 ///
-/// `text_superseded` means another engine supplied the text channel: the
-/// comparison no longer retains text-only obligations, so the raw candidate
-/// and text-search flags cannot decide the exit by themselves. Any remaining
-/// source-incompleteness obligation was kept because it can involve non-text
-/// candidates and is therefore cross-channel.
+/// `text_superseded` means flow owns the text channel (or text was excluded),
+/// so the shared comparison no longer retains text-only obligations and its
+/// raw candidate/text-search flags cannot decide the exit by themselves. Any
+/// remaining source-incompleteness obligation was kept because it can involve
+/// non-text candidates and is therefore cross-channel.
 fn comparison_attributions(
     attributed: &mut Attributions,
     comparison: &DocumentViewComparison,

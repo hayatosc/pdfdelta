@@ -238,16 +238,21 @@ pub trait ParsedPdf: Send + Sync {
     fn version(&self) -> PdfVersion;
     fn trailer(&self) -> Result<PdfDict>;
     fn resolve(&self, reference: ObjectRef) -> Result<PdfObject>;
+    fn terminal_reference(&self, reference: ObjectRef) -> Result<ObjectRef>; // default
+    fn resolve_with_terminal(&self, reference: ObjectRef) -> Result<ResolvedObject>; // default
     fn pages(&self) -> Result<Vec<PageRef>>;
     fn page_dict(&self, page: PageRef) -> Result<PdfDict>;
+    fn page_snapshot(&self, page: PageRef) -> Result<ParsedPage>; // default
     fn raw_stream(&self, reference: ObjectRef) -> Result<RawStream>;
     fn decoded_stream(&self, reference: ObjectRef) -> Result<DecodedStream>;
-    fn issues(&self) -> &[PdfIssue];
+    fn issues(&self) -> &[PdfIssue]; // default
 }
 
 pub trait GlyphExtractor: Send + Sync {
     fn extract(&self, pdf: &dyn ParsedPdf, limits: ExtractionLimits)
         -> Result<Document<Glyph>>;
+    fn extract_outcome(&self, pdf: &dyn ParsedPdf, limits: ExtractionLimits)
+        -> Result<ExtractionOutcome>; // default
 }
 ```
 
@@ -312,7 +317,7 @@ pdfdelta/
         assess.rs        confidence and formatting evidence
     pdfdelta-cli/        filesystem, arguments, workers, publication
     pdfdelta-bench/      generated fixtures, mutations, evaluation, pdfbench
-  fixtures/              external, extraction-conformance, issue fixtures
+  fixtures/              external and extraction-conformance fixtures
   benchmark/             manifests, microbenchmarks, real-world corpus tooling
   docs/                  user documentation and this specification
   fuzz/                  nightly-only fuzz workspace
@@ -353,8 +358,8 @@ compatibility reader in §5.4.
 
 Stable Rust and Edition 2024 are required. The fuzz workspace is the only
 nightly consumer; it is not part of the stable workspace or lockfile, and the
-stable gate only compiles its targets (`cargo check --manifest-path
-fuzz/Cargo.toml --bins`).
+stable gate compiles and lints its targets on stable Rust (`cargo check
+--manifest-path fuzz/Cargo.toml --bins` and `mise run fuzz-check`).
 
 **Implemented by pdfdelta:** parser-library adapter and neutral facade,
 content-stream and text-state interpretation, the required ToUnicode/CMap
@@ -394,6 +399,8 @@ pub struct Glyph {
     pub font_size: f64,
     pub render_order: u32,
     pub render_mode: TextRenderMode,
+    pub crop_status: GlyphCropStatus,
+    pub path_clip_status: GlyphPathClipStatus,
     pub provenance: GlyphProvenance,
 }
 
@@ -627,6 +634,7 @@ flow summary
   insert: 0 changes, 0 old tokens, 0 new tokens
   replace: 1 changes, 1 old tokens, 1 new tokens
   move: 0 changes, 0 old tokens, 0 new tokens
+  reading-order: 0 changes, 0 old tokens, 0 new tokens
   layout-only: 0 changes, 0 old tokens, 0 new tokens
   content changes: 1
   moved changes: 0
@@ -695,9 +703,13 @@ tokenization, furniture/order handling, flow diff, assessment/formatting,
 channel comparison, and report. A failed or incomplete phase records an `error`
 whose `kind` is the explicit error class (`backend`, `unsupported`,
 `unresolved`, or `limit_exceeded`); a limit error also names its resource and
-bound. The message is contextual and never decides the class. `duration_us` and
-`comparison_wall_time_ms` are the only wall-clock fields and are excluded from
-golden comparisons.
+bound. The message is contextual and never decides the class. Top-level
+`resource_limits` records the scaled render and image CPU/wall budgets, and
+multi-channel runs also record `render_documents` (per-document and per-page
+measured child CPU) and `image_worker_calls`. `duration_us`, `render_documents`,
+`image_worker_calls` (listed in `nondeterministic_fields`), and the
+multi-channel report's `comparison_wall_time_ms` are excluded from golden
+comparisons.
 
 The multi-channel report separates typed non-text changes and inferred
 non-text changes, per-channel coverage and completeness, `flow_text` changes
@@ -718,9 +730,9 @@ equivalence.
 Compatibility readers accept historical artifacts: schema-11 native compact
 reports and full envelopes, schema-2 multi-channel reports (including the old
 `superseded_text` and reason names as input-only aliases), proof-era agent
-review bundles, and static review source artifacts in the version-2 double-gzip
-shape or older uncompressed `sources.json`. New output never writes the old
-names.
+review bundles, and static review source artifacts in the single-stream
+version-3 shape, the nested-gzip shape, or older uncompressed `sources.json`.
+New output never writes the old names.
 
 ### 5.5 CLI and exit codes
 
@@ -816,7 +828,7 @@ store.
 
 Excerpts distinguish strict changes (A), non-owning corresponding-range content
 changes (B), inferred comparisons (C), and formatting-only entries (F). A is a
-delete, insert, or high-confidence replace; B is a coarse replace whose inner
+high-confidence delete, insert, or replace; B is a coarse replace whose inner
 edit is not localized; C is a move or an ambiguous change. The categories are
 never added together as strict recall. Flow has no separate
 unresolved-comparison category; broken or unexamined evidence is listed with
@@ -947,15 +959,18 @@ Glyph code to Unicode mapping is not simple. ToUnicode, simple fonts, Type0
 fonts, and CIDs are handled in `pdf/font/` as one decoding result.
 
 ```rust
-pub trait FontDecoder {
-    fn decode_codes(&self, bytes: &[u8]) -> Result<Vec<DecodedCode>>;
+pub(crate) enum FontDecoder {
+    Composite(CompositeFontDecoder),
+    Simple(SimpleFontDecoder),
 }
 
-pub struct DecodedCode {
-    pub raw_code: Vec<u8>,
-    pub text: DecodedText,
-    pub glyph_id: Option<u16>,
-    pub advance: f64,
+pub(crate) struct DecodedGlyph {
+    pub(crate) raw_code: Vec<u8>,
+    pub(crate) mapping: UnicodeMapping,
+    pub(crate) glyph_id: u16,
+    pub(crate) identity: Option<FontProgramHash>,
+    pub(crate) width_1000_em: f64,
+    pub(crate) vertical: Option<VerticalGlyphMetrics>,
 }
 ```
 
@@ -1359,7 +1374,7 @@ Matched token runs carry formatting-only evidence with these reasons:
 
 | Reason | Evidence |
 |---|---|
-| `normalization` | Raw text or its normalization-event mask differs, including an in-block line-wrap rewrite |
+| `normalization` | Raw text or its normalization-event mask differs, including an in-block line-wrap rewrite and interior horizontal whitespace differences via `Token::raw` (excluding span boundaries, line breaks, and over-extended gaps) |
 | `block_structure` | The block-boundary pattern differs |
 | `font_size` | Effective font size differs beyond a relative 1% tolerance |
 | `position` | The tested segment's internal line and page break offsets agree and its lines are uniform baseline translations |
@@ -1396,21 +1411,17 @@ engine's buckets.
 
 Formatting evidence is not an oracle compared metric. Where historical captures
 of the removed engine exist, a word-level check (`\w+` words, ±3-page window) on
-the 62 pairs finds a flow entry with the same formatting reason for 84.2% of
-2,763 `position` entries, 88.4% of 43 `line_break`, 56.5% of 108
-`normalization`, 57.3% of 358 `font_size`, and 3 of 3 `block_structure` entries.
-The strict same-page check gives 83.6%, 83.7%, 52.8%, 56.7%, and 3 of 3.
+the 64 pairs finds a flow entry with the same formatting reason for 83.2% of
+2,797 `position` entries, 97.9% of 289 `line_break`, 90.3% of 422
+`normalization`, 32.2% of 941 `font_size`, and 4 of 4 `block_structure` entries.
+The strict same-page check gives 82.7%, 96.9%, 88.9%, 31.8%, and 4 of 4.
 
 The removed engine is not ground truth. Auditing the misses against PDF glyphs
-found no actionable normalization or font-size rule miss: of 153 missed
-`font_size` entries, 18 are identical or below the 1% tolerance, 133 are
-reported by flow under another reason or inside a content change, and 2 are not
-a stable matched span. Of 47 missed `normalization` entries, 41 are reported
-under another reason or inside a content change and 6 are not a stable matched
-span. The `position` misses were dominated by the former whole-run break
-suppression; the per-segment rule addresses that root cause. Flow's unit is
-the maximal matched run rather than a block-grouped bucket, so one pair can
-produce many more entries than the historical capture.
+and adding interior horizontal whitespace normalization on `Token::raw`
+(repeated spaces, non-breaking spaces, and table padding on matched spans)
+left no actionable normalization miss. Flow's unit is the maximal matched run
+rather than a block-grouped bucket, so one pair can produce many more entries
+than the historical capture.
 
 ## 11. Non-text channels
 
@@ -1593,7 +1604,7 @@ limits, retained-raster budgets, or layout thresholds.
 
 ### 12.2 Child processes
 
-**Native acquisition** runs in bounded children: 2 GiB address space, 30 s CPU,
+**Native acquisition** runs in bounded children: 2 GiB memory ceiling, 30 s CPU,
 35 s parent deadline, 1 MiB request header, 128 MiB response, and PDF input up
 to 256 MiB. Page metadata and form fields are acquired separately from glyphs
 and tags, so a content-extraction failure can leave forms and rendering usable.
@@ -1636,11 +1647,13 @@ aggregate limits before comparison. Passwords travel through private stdin and
 never appear in responses. Bounded workers support Linux and macOS; on other
 platforms the affected acquisition is reported as unsupported.
 
-Linux enforces the worker memory ceiling with `RLIMIT_AS`. macOS accepts
-`RLIMIT_AS` but does not enforce it, so worker subprocesses arm a counting
-global allocator at the same 2 GiB limit. An allocation above it terminates the
-worker with the limits exit code, which the parent maps to a typed
-`resource_limit`; the comparison process never arms the allocator.
+Linux enforces the worker memory ceiling with `RLIMIT_AS`. macOS rejects
+`setrlimit(RLIMIT_AS)` at 2 GiB, so worker subprocesses skip `RLIMIT_AS` on
+macOS and arm a counting global allocator at the same 2 GiB limit alongside
+`RLIMIT_CPU` and `RLIMIT_CORE` (reporting any failed limit name and OS error
+with exit 4). An allocation above the ceiling terminates the worker with the
+limits exit code, which the parent maps to a typed `resource_limit`; the
+comparison process never arms the allocator.
 
 ### 12.3 Report, review, and agent budgets
 
@@ -1661,9 +1674,10 @@ worker with the limits exit code, which the parent maps to a typed
 
 ### 12.4 Determinism
 
-Reports do not contain wall-clock time except the documented
-`comparison_wall_time_ms` (multi-channel) and trace `duration_us`, both
-excluded from golden comparisons. Render and image-decoding CPU budgets are
+Reports do not contain wall-clock time except the multi-channel
+`comparison_wall_time_ms` and trace `duration_us`; traces also list
+`duration_us`, `render_documents`, and `image_worker_calls` in
+`nondeterministic_fields`, all excluded from golden comparisons. Render and image-decoding CPU budgets are
 deterministic in child CPU time; only the wall safety stops depend on machine
 load, and their expiry is a distinct reason. Rendering is also bounded by the
 deterministic retained-raster budget. Report bytes for the same input, binary, arguments, and
@@ -1738,10 +1752,10 @@ The fuzz workspace has 11 targets: parser entry, CMap parser, content-stream
 parser, font decoder, CFF built-in encoding, canonical YAML, glyph extraction,
 layout pipeline, graph pipeline, text comparison, and native evidence. Each
 target checks that malformed input does not panic, hang, or allocate without
-bound and that successful paths satisfy their invariants. The M8g session ran
-28,394,104 executions over 10 minutes per target with no crash, timeout, or
-OOM. Fuzzing is nightly-only and is not part of the stable gate; a crash-free
-finite session is not proof for all inputs.
+bound and that successful paths satisfy their invariants. A 10-minute-per-target
+fuzzing session ran 28,394,104 executions with no crash, timeout, or OOM.
+Fuzzing is nightly-only and is not part of the stable gate; a crash-free finite
+session is not proof for all inputs.
 
 **Parser backend conformance** feeds the same fixture to the default backend
 and an alternate parser and compares the neutral result: page order, reference
@@ -1851,6 +1865,21 @@ permanently forbidden; a future evidence provider must follow the contracts in
 This section records why the specification changed. Earlier revisions are
 available from the repository history.
 
+### 2026-11-27: crate rename, interior whitespace, macOS workers, and trace CPU
+
+- Renamed the `pdfdelta-flow` crate to `pdfdelta-diff` and dropped the `Flow`
+  prefix on its public types (`Token`, `TokenStream`, `Diff`, `Change`, `Error`),
+  keeping user-visible CLI flags and `pdfdelta-flow/1` schema identifiers intact.
+- Retained the raw trailing gap on `Token::raw` so interior horizontal
+  whitespace differences between matched tokens report `normalization`
+  evidence without boundary or line-break false positives.
+- Enabled the CI quality gate and worker/rendering tests on macOS alongside
+  Linux; worker subprocesses skip `RLIMIT_AS` on macOS (using the counting
+  allocator instead) and report failing `setrlimit` calls with resource names.
+- Separated same-row reading-order transpositions into `ReadingOrder` /
+  `reading_order_changes[]` (native schema 13) and recorded per-document and
+  per-page render CPU in `flow_trace` (`render_documents`, `resource_limits`).
+
 ### 2026-11-26: streaming agent-review plan
 
 - Agent review plans stream case bodies and contexts through a private
@@ -1874,7 +1903,7 @@ available from the repository history.
   131,072.
 - Full reports retain a bounded source-cache read window and reuse serialization
   buffers; the temporary cache remains the source of the extra wall time over
-  the in-memory M8e path.
+  the earlier in-memory full-report path.
 
 ### 2026-11-23: rewrite for the single flow engine
 

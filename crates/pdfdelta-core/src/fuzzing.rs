@@ -280,7 +280,6 @@ fn fuzz_simple_partial_tounicode(config: &[u8], payload: &[u8]) {
         700.0,
         -200.0,
     );
-    // Re-insert Differences into the rebuilt font for this variant
     let PdfObject::Dictionary(mut dict) = font else {
         return;
     };
@@ -306,12 +305,10 @@ fn fuzz_simple_partial_tounicode(config: &[u8], payload: &[u8]) {
             ),
         ])),
     );
-    // Keep the ToUnicode reference
     dict.insert(b"ToUnicode".to_vec(), PdfObject::Reference(to_unicode_ref));
     let font = PdfObject::Dictionary(dict);
     exercise_font(&pdf, &font, payload, 1);
 
-    // Also verify ToUnicode priority explicitly for a known payload when not fuzzed
     if payload.is_empty() {
         return;
     }
@@ -330,7 +327,6 @@ fn fuzz_type0_identity_h(config: &[u8], payload: &[u8]) {
     let mut pdf = FuzzPdf::default();
     let (font, source_width) = build_type0_font(&mut pdf, config, false, false);
     exercise_font(&pdf, &font, payload, source_width);
-    // Exercise odd-byte rejection for fixed 2-byte Identity-H.
     if source_width == 2 && !payload.is_empty() {
         let mut odd = payload.to_vec();
         if odd.len().is_multiple_of(2) {
@@ -363,7 +359,6 @@ fn fuzz_type0_vertical_or_custom(config: &[u8], payload: &[u8]) {
         let (font, source_width) = build_type0_font(&mut pdf, config, false, true);
         assert_eq!(source_width, 2);
         exercise_font(&pdf, &font, payload, source_width);
-        // Verify vertical metrics are present and finite when load succeeds
         if let Ok(loaded) = FontDecoder::load(&pdf, &font, FONT_LIMITS) {
             assert_eq!(loaded.decoder.writing_mode(), WritingMode::Vertical);
             if let Ok(glyphs) = loaded.decoder.decode(&[0x00, 0x01], 1, 1024)
@@ -1938,7 +1933,6 @@ mod tests {
         assert_eq!(glyphs[3].width_1000_em, 630.0);
         assert!(glyphs.iter().all(|g| g.raw_code.len() == 1));
         assert_invariants(&glyphs, b"ABCD", 1);
-        // Fallback: 0x80 should map to Euro in WinAnsi
         let euro = loaded
             .decoder
             .decode(&[0x80], 1, 1024)
@@ -1970,7 +1964,6 @@ mod tests {
             700.0,
             -200.0,
         );
-        // Inject Differences for 66->B and 67->UnknownGlyph
         let PdfObject::Dictionary(ref mut dict) = font else {
             panic!("font should be dictionary");
         };
@@ -1993,28 +1986,24 @@ mod tests {
             ])),
         );
         let loaded = FontDecoder::load(&pdf, &font, FONT_LIMITS).expect("partial font should load");
-        // ToUnicode priority: 0x41 should be Z, not A
         let a = loaded
             .decoder
             .decode(&[0x41], 1, 1024)
             .expect("should decode")[0]
             .clone();
         assert_eq!(a.mapping, UnicodeMapping::Mapped("Z".into()));
-        // Differences fallback: 0x42 should be B via Differences
         let b = loaded
             .decoder
             .decode(&[0x42], 1, 1024)
             .expect("should decode")[0]
             .clone();
         assert_eq!(b.mapping, UnicodeMapping::Mapped("B".into()));
-        // Unmapped preservation: 0x43 should be Unmapped, not empty or FFFD
         let c = loaded
             .decoder
             .decode(&[0x43], 1, 1024)
             .expect("should decode")[0]
             .clone();
         assert_eq!(c.mapping, UnicodeMapping::Unmapped);
-        // Fallback for code outside ToUnicode/Differences
         let d = loaded
             .decoder
             .decode(&[0x44], 1, 1024)
@@ -2040,19 +2029,16 @@ mod tests {
         assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
         assert_eq!(glyphs[0].width_1000_em, 500.0);
         assert_invariants(&glyphs, &[0x00, 0x01, 0x00, 0x02, 0x00, 0xFF], 2);
-        // Odd-byte rejection
         assert!(matches!(
             loaded.decoder.decode(&[0x00, 0x01, 0x00], 10, 4096),
             Err(crate::Error::Unresolved(msg)) if msg.contains("odd")
         ));
-        // Width boundaries
         assert!(loaded.decoder.ascent_1000_em().is_finite());
         assert!(loaded.decoder.descent_1000_em().is_finite());
     }
 
     #[test]
     fn vertical_and_bounded_custom_identity() {
-        // Vertical Identity-V
         let mut pdf = FuzzPdf::default();
         let (font, source_width) = build_type0_font(&mut pdf, &[0, 0], false, true);
         assert_eq!(source_width, 2);
@@ -2065,7 +2051,6 @@ mod tests {
         assert!(glyphs[0].vertical.is_some());
         assert_invariants(&glyphs, &[0x00, 0x01], 2);
 
-        // Bounded custom 1-byte identity
         let mut pdf2 = FuzzPdf::default();
         let (font2, source_width2) = build_type0_font(&mut pdf2, &[1, 0], true, false);
         assert_eq!(source_width2, 1);
@@ -2094,12 +2079,10 @@ mod tests {
             -200.0,
         );
         let loaded = FontDecoder::load(&pdf, &font, FONT_LIMITS).expect("font should load");
-        // Exceed glyph budget
         assert!(matches!(
             loaded.decoder.decode(&[b'A'; 2048], 10, 4096),
             Err(crate::Error::LimitExceeded { .. })
         ));
-        // Exceed mapped-text bytes (each "A" is 1 byte, so 10 glyphs need 10 bytes, limit 2 should fail)
         assert!(matches!(
             loaded.decoder.decode(b"AAAAAAAAAA", 20, 2),
             Err(crate::Error::LimitExceeded { .. })
@@ -2295,7 +2278,6 @@ mod tests {
             .expect("should decode")[0]
             .clone();
         assert_eq!(glyph.mapping, UnicodeMapping::Unmapped);
-        // Ensure no mapped glyph is empty or FFFD across a small sweep
         for code in 0u8..=255 {
             if let Ok(glyphs) = loaded.decoder.decode(&[code], 1, 1024) {
                 for glyph in glyphs {

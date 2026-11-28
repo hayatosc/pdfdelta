@@ -291,7 +291,7 @@ follows at most five redirects, limits each PDF to 100 MiB, and validates both
 responses before publishing either cache file.
 
 The native panel driver (`native_panel.py`) fetches the frozen panel, verifies
-input hashes, runs the binary at `--engine flow --limit-scale 1`, and records
+input hashes, runs the binary at `--native-text-only --engine flow --limit-scale 1`, and records
 source commit/tree, binary and input hashes, command arguments, report hashes,
 elapsed time, memory peak, and OOM counters. It validates every report against
 the flow contract and writes summaries atomically. Output directories must be
@@ -694,7 +694,7 @@ meaning is exactly one standalone Unicode character:
 
 It is consulted after AGL, the `uni`/`u` forms, and the pdf.js supplement.
 
-| metric | before AA | after |
+| metric | before table | after |
 |---|---:|---:|
 | corpus placeholder tokens | 484 | **286** |
 | corpus placeholders by identity | 449 name / 22 outline / 13 program | **251 / 22 / 13** |
@@ -841,7 +841,7 @@ cases at 2,894,200 KiB; the 4x wall time includes writing a 1.8 GB part set.
 ### Compact native diagnostics
 
 A full flow report repeats per-glyph drawing provenance for every token. On
-the ten largest H1 pairs those reports totaled 609.7 MB of gzip. The former
+the ten largest pairs of the 64-pair native panel those reports totaled 609.7 MB of gzip. The former
 in-memory writer needed about 5.1 GB of peak resident memory on the largest
 pair; the current writer spills per-glyph records to a temporary side cache and
 peaked at 2.18 GB, close to the compact text-only run. The compact report is

@@ -605,13 +605,6 @@ pub fn intern_tokens(old: &[Token], new: &[Token]) -> (Vec<u32>, Vec<u32>) {
     (old_ids, new_ids)
 }
 
-/// Computes and verifies an edit script transforming `old` into `new`.
-///
-/// # Errors
-///
-/// Returns [`VerifyError`] when the produced script fails replay, which would
-/// indicate a bug in the alignment or script builder. Callers never receive an
-/// unverified script.
 /// Equal pairs of one alignment, strictly increasing on both sides.
 type Spine = Rc<Vec<(usize, usize)>>;
 
@@ -819,6 +812,13 @@ impl Selection {
     }
 }
 
+/// Computes and verifies an edit script transforming `old` into `new`.
+///
+/// # Errors
+///
+/// Returns [`VerifyError`] when the produced script fails replay, which would
+/// indicate a bug in the alignment or script builder. Callers never receive an
+/// unverified script.
 pub fn diff(old: &[Token], new: &[Token]) -> std::result::Result<Diff, VerifyError> {
     let (old_ids, new_ids) = intern_tokens(old, new);
     let weights = align::information_weights(&old_ids, &new_ids);
@@ -839,10 +839,10 @@ pub fn diff(old: &[Token], new: &[Token]) -> std::result::Result<Diff, VerifyErr
         weights: &weights,
     };
     // The information-weighted move rule and the same-page table-of-contents
-    // promotion can each change which valid script is best. Evaluate the old
-    // rule and both new variants, and keep the script with the fewest changed
-    // tokens (moves counted by their old-side length). On a tie prefer the
-    // richer rule, then the block-aware strategy.
+    // promotion can each change which valid script is best. Evaluate
+    // `BASELINE_RULE`, `INFORMATION_RULE`, and `CONTENTS_RULE`, and keep the
+    // script with the fewest changed tokens (moves counted by their old-side
+    // length). On a tie prefer the richer rule, then the block-aware strategy.
     //
     // The rules differ only in how they rewrite the gaps of one alignment, so
     // two variants provably coincide without being evaluated again:

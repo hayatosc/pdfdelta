@@ -32,8 +32,9 @@ Run a short smoke session with the checked-in seeds and the target's input limit
 mise run fuzz-smoke
 ```
 
-The `Fuzz smoke` GitHub Actions workflow runs the same session on a schedule and
-on pull requests that touch fuzzed code; it installs nightly Rust and the pinned
+The `Fuzz smoke` GitHub Actions workflow runs `mise run fuzz-check` on pull
+requests that touch fuzzed code and runs the nightly `smoke` session on a
+schedule and on manual dispatch; it installs nightly Rust and the pinned
 `cargo-fuzz` release itself, so local runs remain the only place where those
 prerequisites are manual. Before pushing changes under `fuzz/`, run
 `mise run fuzz-check` to format-check and lint this workspace on stable Rust; the

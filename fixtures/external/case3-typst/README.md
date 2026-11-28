@@ -39,12 +39,9 @@ mise run bench-evaluate-rendered-yaml -- \
 
 ## Expected Outcome
 
-- **Comparison CLI Exit Status**: `1` (`ExitStatus::ContentChanges`)
+- **Comparison CLI Exit Status**: `1`
 - **Benchmark CLI Exit Status**: `0` (the expected replacement was recovered)
-- **Content Changes**: Exactly `1` `Replacement` (`Release 10` -> `Release 20`, character change `'1'` -> `'2'`)
+- **Content Changes**: Exactly `1` `replacement` (`old_span.text: "10"` -> `new_span.text: "20"` inside `Release 10` -> `Release 20`, 1-based `pages: [1]`)
 - **Formatting Changes**: `0`
-- **Uncertain Changes**: `0`
-- **Unresolved Regions**: `0`
 - **Extraction Complete**: `true` on both `old` and `new`
-- **Comparison Complete**: `true`
-- **Alignment Coverage**: `1.0` (100.0%) on both sides
+- **Text Channel Complete**: `true` (under `--native-text-only` or `--channels text`)

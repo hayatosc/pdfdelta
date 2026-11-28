@@ -71,19 +71,15 @@ rm /tmp/old_run1.pdf /tmp/old_run2.pdf /tmp/new_run1.pdf /tmp/new_run2.pdf
 ## Expected Outcome
 
 ### Forward Comparison (Case 4: `old.pdf` -> `new.pdf`)
-- **Process Exit Status**: `1` (`ExitStatus::Changed`) in both default and `--strict` modes
-- **Content Changes**: Exactly `1` (`kind: "insertion"`, text: `"運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"`, block: `2`, page: `0`)
+- **Process Exit Status**: `1`
+- **Content Changes**: Exactly `1` (`kind: "insertion"`, concatenated tokens: `"運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"`, 1-based `pages: [1]`)
 - **Formatting Changes**: `0`
-- **Uncertain Changes**: `0`
-- **Unresolved Regions**: `0`
 - **Extraction Complete**: `true` on both sides
-- **Alignment Coverage**: `1.0` (66/66 old, 100/100 new)
+- **Text Channel Complete**: `true` (under `--native-text-only` or `--channels text`)
 
 ### Reverse Comparison (Case 5: `new.pdf` -> `old.pdf`)
-- **Process Exit Status**: `1` (`ExitStatus::Changed`) in both default and `--strict` modes
-- **Content Changes**: Exactly `1` (`kind: "deletion"`, text: `"運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"`, block: `2`, page: `0`)
+- **Process Exit Status**: `1`
+- **Content Changes**: Exactly `1` (`kind: "deletion"`, concatenated tokens: `"運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"`, 1-based `pages: [1]`)
 - **Formatting Changes**: `0`
-- **Uncertain Changes**: `0`
-- **Unresolved Regions**: `0`
 - **Extraction Complete**: `true` on both sides
-- **Alignment Coverage**: `1.0` (100/100 old, 66/66 new)
+- **Text Channel Complete**: `true` (under `--native-text-only` or `--channels text`)

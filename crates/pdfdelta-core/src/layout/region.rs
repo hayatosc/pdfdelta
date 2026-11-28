@@ -1301,7 +1301,6 @@ fn xy_cut_recursive(
 
         let regions = &build.regions;
         if let Some(edges) = build.edges.as_mut() {
-            // Add spatial graph relationships between top and bottom sub-regions.
             for top_idx in top_region_start..top_region_end {
                 for bot_idx in bottom_region_start..bottom_region_end {
                     let top = &regions[top_idx];
@@ -1324,7 +1323,6 @@ fn xy_cut_recursive(
         return Ok(());
     }
 
-    // Try vertical split (LeftOf / RightOf columns).
     if let Some((left_indices, right_indices)) = vertical {
         let next_depth = next_recursion_depth(depth, options.max_recursion_depth)?;
         let left_region_start = build.regions.len();
@@ -1359,12 +1357,10 @@ fn xy_cut_recursive(
         return Ok(());
     }
 
-    // Leaf region (no further cut found).
     let region_id = RegionId(build.next_id);
     build.next_id += 1;
     let bbox = compute_bounding_box(lines, indices);
     let mut sorted_indices = indices.to_vec();
-    // Sort lines inside leaf region in natural top-to-bottom, left-to-right order.
     sorted_indices.sort_by(|&a, &b| {
         lines[b]
             .bbox
@@ -1469,7 +1465,6 @@ fn try_vertical_cut(
 
     let median_height = compute_median_height(lines, indices)?;
 
-    // Collect horizontal projection intervals of all lines.
     let mut intervals: Vec<(f64, f64, usize)> = indices
         .iter()
         .map(|&i| (lines[i].bbox.min.x, lines[i].bbox.max.x, i))
@@ -1536,7 +1531,6 @@ fn try_horizontal_cut(
 
     let median_height = compute_median_height(lines, indices)?;
 
-    // Lines sorted by vertical extent (y descending: top to bottom in PDF coordinates).
     let mut intervals: Vec<(f64, f64, usize)> = indices
         .iter()
         .map(|&i| (lines[i].bbox.min.y, lines[i].bbox.max.y, i))

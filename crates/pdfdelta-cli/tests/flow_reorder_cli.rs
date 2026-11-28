@@ -137,9 +137,8 @@ fn no_content_controls_select_exit_zero_except_reordered_blocks() {
         if case.expectation() != ReorderExpectation::NoContentChange {
             continue;
         }
-        // A same-page whole-block reorder is a reading-order difference. The
-        // narrowed rule for it is deliberately not implemented in M2; the
-        // policy counts it as detected until evidence justifies an exception.
+        // A same-page whole-block reorder is reported as a detected change
+        // rather than suppressed unless narrower row-band evidence applies.
         let expected_exit = u8::from(case.id() == "control-two-column-reorder");
         for renderer in RendererKind::all() {
             let old = directory.join(&format!("{}-{}-old.pdf", case.id(), renderer.name()));
@@ -286,8 +285,8 @@ fn default_channels_detected_swap_overrides_unexamined_visual_evidence() {
             .iter()
             .any(|entry| entry["channel"] == "visual" && entry["complete"] == false)
     );
-    // The text channel reports flow's own examination, and the proof text
-    // obligations are recorded as superseded instead of deciding the exit.
+    // The text channel reports flow's own examination, and shared-evidence
+    // text obligations are recorded as superseded instead of deciding the exit.
     let coverage = json["coverage"].as_array().expect("coverage");
     let text = coverage
         .iter()

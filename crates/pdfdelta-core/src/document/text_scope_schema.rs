@@ -1,10 +1,9 @@
 //! Serialized text-scope evidence shapes retained for report compatibility.
 //!
-//! The text-scope algorithms that filled these fields were part of the removed
-//! removed proof engine. The types stay here so existing reports keep their exact
-//! serde field names, order, defaults, and skip rules. New documents leave the
-//! collections empty; readers must not infer that an empty collection was a
-//! completed text-scope search.
+//! No current producer populates these fields; the types stay here so existing
+//! reports keep their exact serde field names, order, defaults, and skip rules.
+//! New documents leave the collections empty; readers must not infer that an
+//! empty collection was a completed text-scope search.
 
 use serde::{Deserialize, Serialize};
 

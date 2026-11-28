@@ -297,8 +297,8 @@ output space, bounded independently of existing comparisons.
   Artifact-marked paint is included. If the multisets differ or an identity is
   unavailable, the text channel is incomplete and says `non-text paint differs;
   text drawn as paths or images was not examined`. Changes are still reported.
-  On the 64 H1 pairs, 63 have a paint difference and one (`irs-w2`) stays
-  complete; a page-local vertical-shift variant measured in M4b recovered no
+  On the 64-pair native panel, 63 have a paint difference and one (`irs-w2`)
+  stays complete; a page-local vertical-shift paint variant recovered no
   additional pair.
 - Flow exit policy: a channel that detected a typed difference with its own
   evidence intact selects exit `1` even when another channel is broken or was
@@ -429,18 +429,19 @@ output space, bounded independently of existing comparisons.
   a typed `resource_limit` outcome, never a complete or empty inventory.
   Rerunning the five heaviest pairs under a 25% CPU quota kept every image
   inventory identical to the unthrottled run.
-- macOS accepts `RLIMIT_AS` but does not enforce it. Worker subprocesses
-  therefore arm a counting allocator at the same 2 GiB ceiling: an allocation
-  that would exceed it terminates the worker with the limits exit code, which
-  the parent maps to a typed `resource_limit`. Linux keeps its existing
-  `RLIMIT_AS` behaviour. The address-space test checks the enforced mechanism
-  on each platform and asserts the same typed `resource_limit` outcome, rather
-  than skipping macOS.
+- macOS rejects `setrlimit(RLIMIT_AS)` at 2 GiB, so worker subprocesses skip
+  `RLIMIT_AS` on macOS and arm a counting global allocator at the same 2 GiB
+  ceiling alongside `RLIMIT_CPU` and `RLIMIT_CORE`: an allocation that would
+  exceed it terminates the worker with the limits exit code, which the parent
+  maps to a typed `resource_limit`. Linux keeps its existing `RLIMIT_AS`
+  behaviour. The address-space test checks the enforced mechanism on each
+  platform and asserts the same typed `resource_limit` outcome, rather than
+  skipping macOS.
 - A `--full-json` capture retains per-glyph sources for every token. The
   serializer streams token sources, and a side built in a child process spills
   its per-glyph records to a temporary source cache that the reporting parent
   copies back in token order, so it does not retain the extracted document. On
-  the largest H1 pair (`M/gcc-13-3-to-13-4`, `--limit-scale 2`) the peak
+  the largest pair of the 64-pair native panel (`gcc-13-3-to-13-4`, `--limit-scale 2`) the peak
   resident set was 2,180,660 KiB (about 2.1 GiB), close to the 2,056,812 KiB
   compact text-only run; the former in-memory full report peaked at
   5,136,876 KiB. The output is still large: the ten largest pairs produced
@@ -619,7 +620,7 @@ support for arbitrary PDFs.
 The current flow build was measured on the frozen corpora with the shared
 6 GB limit, sequential runs, and default budgets. On the 64-pair native flow
 panel, **1/64 is a complete text comparison**
-(`P/irs-w2-2024-to-2025`); 62/64 detect a difference but stay incomplete
+(`irs-w2-2024-to-2025`); 62/64 detect a difference but stay incomplete
 because non-text paint or an image-only page was not examined, and 1/64 ends on
 broken evidence. On the 36-pair default-channel panel, 35 pairs detect a
 difference with incomplete evidence (exit `1`) and 1 ends on broken evidence

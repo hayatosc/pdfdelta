@@ -1867,7 +1867,6 @@ fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations
     let base_blocks = reconstruct_blocks(&base_fixture.document, &base_fixture.lines, opts)
         .expect("block reconstruction should succeed");
 
-    // Run 50 iterations and assert strict equality of block roles and line assignments
     for _ in 0..50 {
         let fixture = Fixture::new(make_lines(0));
         let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, opts)
@@ -1880,7 +1879,6 @@ fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations
         }
     }
 
-    // Fixed deterministic permutation 1: Reversed line input order
     let mut reversed_lines = base_fixture.lines.clone();
     reversed_lines.reverse();
     let reversed_blocks = reconstruct_blocks(&base_fixture.document, &reversed_lines, opts)
@@ -1892,7 +1890,6 @@ fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations
         assert_eq!(b1.role, b2.role);
     }
 
-    // Fixed deterministic permutation 2: Page-interleaved line input order
     let mut interleaved_lines = Vec::new();
     let lines_per_page = 7;
     for line_idx in 0..lines_per_page {
@@ -1910,8 +1907,6 @@ fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations
         assert_eq!(b1.role, b2.role);
     }
 
-    // Check specific assigned roles
-    // Section Subtitle (ordinal 1) appears on 4 pages with same font -> RepeatedHeader
     let subtitle_headers = base_blocks
         .iter()
         .filter(|b| {
@@ -1924,7 +1919,6 @@ fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations
         "All 4 Section Subtitle lines must be RepeatedHeader"
     );
 
-    // Page Footer (ordinal 0) appears on 4 pages with same font -> RepeatedFooter
     let footers = base_blocks
         .iter()
         .filter(|b| {
@@ -1934,7 +1928,6 @@ fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations
         .count();
     assert_eq!(footers, 4, "All 4 Page Footer lines must be RepeatedFooter");
 
-    // Confidential (ordinal 1) appears on 4 pages with same font -> RepeatedFooter
     let confidential = base_blocks
         .iter()
         .filter(|b| {
@@ -2040,7 +2033,6 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
         });
         line_id_counter += 1;
 
-        // 3 body lines
         for b_idx in 0..3 {
             let bg_id = GlyphId(glyph_id_counter);
             glyph_id_counter += 1;
@@ -2297,10 +2289,8 @@ fn externally_rendered_japanese_case2_pagebreak_fixture_proves_page_provenance_d
         "定期システム運用報告書今後の保守計画およびサービス稼働状況に関する概要です。運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。すべての基幹業務システムは各地域で正常に稼働しています。"
     );
 
-    // Old document: all 100 glyphs on Page 0
     assert!(old_glyphs.iter().all(|g| g.page == PageId(0)));
 
-    // New document: first 72 glyphs on Page 0, last 28 glyphs on Page 1
     assert!(new_glyphs[..72].iter().all(|g| g.page == PageId(0)));
     assert!(new_glyphs[72..].iter().all(|g| g.page == PageId(1)));
 
@@ -2531,7 +2521,6 @@ fn externally_rendered_japanese_case4_case5_fixture_proves_paragraph_insertion_a
     assert_eq!(old_block_info.len(), 3);
     assert_eq!(new_block_info.len(), 4);
 
-    // Old blocks
     assert_eq!(
         old_block_info[0],
         ("定期システム運用報告書".to_string(), vec![PageId(0)])
@@ -2551,7 +2540,6 @@ fn externally_rendered_japanese_case4_case5_fixture_proves_paragraph_insertion_a
         )
     );
 
-    // New blocks (with block 2 inserted between block 1 and block 3)
     assert_eq!(
         new_block_info[0],
         ("定期システム運用報告書".to_string(), vec![PageId(0)])
@@ -2578,7 +2566,6 @@ fn externally_rendered_japanese_case4_case5_fixture_proves_paragraph_insertion_a
         )
     );
 
-    // Verify exact equality of shared blocks across old and new
     assert_eq!(old_block_info[0], new_block_info[0]);
     assert_eq!(old_block_info[1], new_block_info[1]);
     assert_eq!(old_block_info[2], new_block_info[3]);

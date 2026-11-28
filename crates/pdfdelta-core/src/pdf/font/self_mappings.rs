@@ -24,8 +24,8 @@
 //   `modi_vowel_sign_aa`, `modi_vowel_sign_e`, `tibetangha`,
 //   `tibetangnyisshad`, `tibetanintertsheg`, `tibetanka`, `tibetankha`,
 //   `tibetanshad`: script-specific letter/mark names. They stay placeholders
-//   because the corpus has no authoritative mapping for this font's encoding
-//   and the task's rule keeps script names unresolved.
+//   because no authoritative public mapping exists for these font encodings,
+//   so script-specific names remain unresolved placeholders.
 
 /// Looks up a self-authored unambiguous glyph name.
 pub(super) fn lookup(name: &[u8]) -> Option<&'static str> {

@@ -15,15 +15,14 @@ run without Tectonic, TeX packages, or host fonts.
 The hash-bound annotations were authored from these source values before
 comparison. They score change units, independently of page-rendering changes.
 The CLI regression additionally checks retained vertical direction, native glyph
-counts, unchanged-text coverage after movement, and the exact inserted-source
-mask: new glyph 8 (`二`), at local scalar position 4, with no old-side deletion.
-The full value is the review unit; the other characters are not marked changed.
-
-The movement control compares all 14 native glyphs per input with no text
-change. The changed control reports one inferred text change; it preserves 14
-old and 15 new glyphs, while source-established text coverage is only 4/4.
-Both four-channel comparisons remain incomplete and exit 3. Evaluation exits 1;
-these controls do not prove complete relationship or visual interpretation,
+counts (`14` old, `14` moved, `15` changed), and the text-channel verdict.
+`vertical-moved` reports zero flow text changes and exits `3` under default
+channels because the visual and relations channels remain unexamined.
+`vertical-changed` reports one typed change (`flow_text.changes[0]`, kind
+`insertion`, text `"二"`) and exits `1` with
+`exit_basis: "detected_with_unexamined_evidence"` (`comparison_complete: false`);
+the `text` channel coverage reports `14` old and `15` new compared sources.
+These controls do not prove complete relationship or visual interpretation,
 ruby, multiple vertical columns, or arbitrary Japanese punctuation handling.
 These are development fixtures, not unseen holdouts.
 

@@ -143,11 +143,6 @@ pub(crate) struct ScriptContext<'a> {
     pub(crate) dot_leaders: &'a DotLeaderCache,
 }
 
-/// Builds the script and reports same-gap runs that must be promoted.
-///
-/// The caller aligns again with the promotions forced into the spine, which
-/// turns those runs into equal tokens. The returned script already excludes
-/// same-gap moves; it is only a provisional answer for these promotions.
 /// Gap classification of one spine, before any move rule rewrites it.
 ///
 /// The base depends only on the spine and the token streams, so the three move
@@ -969,8 +964,8 @@ fn detect_moves(
         }
     }
     if rule.min_information == 0 {
-        // The baseline variant keeps the historical length-first order so it
-        // stays a strict fallback for the information-weighted selection.
+        // The baseline variant keeps length-first order so it stays a strict
+        // fallback for information-weighted selection.
         candidates.sort_unstable_by(|left, right| {
             right
                 .1

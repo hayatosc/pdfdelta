@@ -68,14 +68,11 @@ rm /tmp/old_run1.pdf /tmp/old_run2.pdf /tmp/new_run1.pdf /tmp/new_run2.pdf
 
 ## Expected Outcome
 
-- **Process Exit Status**: `0` (`ExitStatus::Unchanged`) in both default and `--strict` modes
+- **Process Exit Status**: `0` under `--native-text-only` or `--channels text` (`3` with `exit_basis: "unexamined_evidence"` under the default channels because page rasters are unexamined)
 - **Content Changes**: Exactly `0`
 - **Formatting Changes**: `0`
-- **Uncertain Changes**: `0`
-- **Unresolved Regions**: `0`
 - **Extraction Complete**: `true` on both `old` and `new`
 - **Extracted Glyphs**: Exactly 100 glyphs per side, all horizontal direction `(1.0, 0.0)`, all mapped Unicode scalars
-- **Page Provenance**: `old` has 1 page (all 100 glyphs on page 0); `new` has 2 pages (72 glyphs on page 0, 28 glyphs on page 1)
-- **Reconstructed Blocks**: 4 blocks on both sides; blocks 0-2 on page 0 on both sides, block 3 on page 0 in `old` and page 1 in `new`
-- **Comparison Complete**: `true`
-- **Alignment Coverage**: `1.0` (100.0%) on both sides
+- **Page Provenance**: `old` has 1 page (all 100 glyphs on 1-based page 1); `new` has 2 pages (72 glyphs on page 1, 28 glyphs on page 2)
+- **Reconstructed Blocks**: 4 blocks on both sides; blocks 0-2 on page 1 on both sides, block 3 on page 1 in `old` and page 2 in `new`
+- **Text Channel Complete**: `true` (under `--native-text-only` or `--channels text`)
